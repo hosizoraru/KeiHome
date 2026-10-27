@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">KeiHome</string>
+    <string name="navigation_home">Home</string>
+    <string name="navigation_settings">Settings</string>
+</resources>

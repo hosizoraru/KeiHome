@@ -13,12 +13,27 @@ android {
   namespace = "os.kei.hyper.home"
   compileSdk = 37
   ndkVersion = "30.0.16248370"
+
+  // Every AVD install must identify a distinct module generation. A same
+  // versionCode lets package/LSPosed caches keep an older native payload.
+  val generatedVersionCode = (System.currentTimeMillis() / 1000L).toInt()
+
   defaultConfig {
     applicationId = "os.kei.hyper.home"
     minSdk = 37
     targetSdk = 37
-    versionCode = 1
+    versionCode = generatedVersionCode
     versionName = "1.0"
+    ndk {
+      abiFilters += "arm64-v8a"
+    }
+  }
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "4.1.2"
+    }
   }
 
   buildTypes {
@@ -35,10 +50,15 @@ android {
     compose = true
     aidl = false
     buildConfig = false
+    prefab = true
     shaders = false
   }
 
   packaging {
+    jniLibs {
+      excludes += "**/libandroidx.graphics.path.so"
+      useLegacyPackaging = false
+    }
     resources {
       excludes += "/META-INF/{AL2.0,LGPL2.1}"
       merges += "META-INF/xposed/*"

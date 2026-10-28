@@ -1,0 +1,22 @@
+# Loaded by name through META-INF/xposed/java_init.list. Keep the callback
+# methods because LSPosed invokes them through the API rather than through a
+# direct app call graph.
+-keep class os.kei.hyper.home.xposed.KeiHomeModule {
+    *;
+}
+
+# Android instantiates these components from the manifest. The probe service
+# is also bound by system_server from a different UID.
+-keep class os.kei.hyper.home.KeiHomeApplication {
+    public <init>();
+    public void onCreate();
+}
+
+-keep class os.kei.hyper.home.MainActivity {
+    public <init>();
+    protected void onCreate(android.os.Bundle);
+}
+
+-keep class os.kei.hyper.home.xposed.IconResourceProbeService {
+    *;
+}

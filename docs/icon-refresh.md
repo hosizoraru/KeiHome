@@ -48,6 +48,11 @@ build was also checked with a temporary work profile: ErinAO switched in both
 directions and appeared as a separate list entry. The profile, folder and
 shortcut fixtures were removed after testing.
 
+An additional higher-versionCode install exercised automatic hot reload from
+the current implementation to itself. The recovered service and replacement
+hooks submitted a reconciliation, and KeiHome and both ErinAO icons switched
+in both directions without restarting the launcher or `system_server`.
+
 The host emulator's Vulkan renderer aborted once during the manual gesture
 tests; the emulator was restarted and the process-stability checks were
 repeated from a new baseline. These results do not establish behavior on other

@@ -30,11 +30,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
   private val closingWorkers = RetiringIconRefreshThreads()
-  private val closingReporters = mutableListOf<IconRefreshReporter>()
   private var hooksReady = false
   private lateinit var profile: ServerProfile
-  private var reporter = newReporter()
-  private var lastHookReport: IconRefreshReportKind? = null
 
   @Volatile
   var service: Any? = null
@@ -133,7 +130,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         postPendingLocked()
       }
       xposed.log(Log.INFO, TAG, "System-server icon refresh hooks installed")
-      report(IconRefreshReportKind.HOOK_INSTALLED)
       return true
     } catch (failure: Throwable) {
       handles.forEach {
@@ -144,101 +140,41 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       }
       removeOldHooks(oldHooks, replaced)
       logFailure("unsupported system-server profile; icon refresh disabled", failure)
-      reportHookFailure()
       return false
     }
-  }
-
-  fun reportHookFailure() {
-    report(IconRefreshReportKind.HOOK_FAILED)
   }
 
   fun retire(saveState: () -> Unit): Boolean = lifecycle.retire(
     prepare = {
       closingWorkers.pruneStopped()
-      closingReporters.removeAll { it.awaitStopped(0) }
-      val currentReporter = reporter
-      if (closingWorkers.hasLiveThreads() || closingReporters.isNotEmpty()) {
+      if (closingWorkers.hasLiveThreads()) {
         false
       } else {
-        val reporterStopped = try {
-          currentReporter?.stopIfIdle() != false
-        } catch (failure: Throwable) {
-          if (currentReporter != null) {
-            reporter = null
-            closingReporters += currentReporter
-          }
-          throw failure
+        pending.invalidatePost()
+        handler?.removeCallbacksAndMessages(null)
+        handler = null
+        worker?.let {
+          worker = null
+          closingWorkers.track(it)
+          it.quitSafely()
         }
-        if (!reporterStopped) {
-          false
-        } else {
-          if (currentReporter != null) {
-            reporter = null
-            closingReporters += currentReporter
-          }
-          pending.invalidatePost()
-          handler?.removeCallbacksAndMessages(null)
-          handler = null
-          worker?.let {
-            worker = null
-            closingWorkers.track(it)
-            it.quitSafely()
-          }
-          true
-        }
+        true
       }
     },
     await = ::awaitRetirement,
     commit = {
       closingWorkers.pruneStopped()
-      closingReporters.removeAll { it.awaitStopped(0) }
       saveState()
       generations.retire()
     },
     rollback = {
-      try {
-        restoreReporterLocked()
-      } finally {
-        postPendingLocked()
-      }
+      postPendingLocked()
     },
   )
 
   private fun awaitRetirement(): Boolean {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
-    for (oldReporter in closingReporters) {
-      val remaining = TimeUnit.NANOSECONDS.toMillis(
-        (deadline - System.nanoTime()).coerceAtLeast(0),
-      )
-      if (!oldReporter.awaitStopped(remaining)) return false
-    }
     return closingWorkers.awaitStopped(deadline) && iconProbeReplyThreadsStopped()
-  }
-
-  private fun restoreReporterLocked() {
-    if (reporter != null) return
-    reporter = newReporter()
-    lastHookReport?.let { reporter?.report(it) }
-  }
-
-  private fun report(kind: IconRefreshReportKind, count: Int? = null) {
-    synchronized(lock) {
-      val isHook = kind == IconRefreshReportKind.HOOK_INSTALLED ||
-        kind == IconRefreshReportKind.HOOK_FAILED
-      if (isHook) lastHookReport = kind
-      if (reporter == null && !lifecycle.retiring && !lifecycle.retired) {
-        reporter = newReporter()
-        if (!isHook) lastHookReport?.let { reporter?.report(it) }
-      }
-      reporter?.report(kind, count)
-    }
-  }
-
-  private fun newReporter(): IconRefreshReporter? = try {
-    IconRefreshReporter()
-  } catch (_: Throwable) {
-    null
   }
 
   private fun removeOldHooks(
@@ -323,9 +259,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       lifecycle.activeJobs += 1
     }
     var sent = 0
-    var deferred = false
-    var hadFailures = false
-    var outcome = IconRefreshReportKind.REFRESH_FAILED
     try {
       val launcherService = service ?: return
       val listeners = snapshotListeners(launcherService)
@@ -336,12 +269,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           ) {
             pending.replace(IconRefreshRequest(generation, request.attempt + 1))
             postPendingLocked()
-            deferred = true
             false
           } else if (!lifecycle.retired && generations.isCurrent(generation)) {
             true
           } else {
-            outcome = IconRefreshReportKind.REFRESH_CANCELLED
             false
           }
         }
@@ -357,12 +288,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       for (listener in listeners) {
         val profiles = enabledProfiles(userManager, listener.owner)
         if (profiles == null) {
-          hadFailures = true
           continue
         }
         for (user in profiles) {
           if (!generations.isCurrent(generation)) {
-            outcome = IconRefreshReportKind.REFRESH_CANCELLED
             return
           }
           if (profile.isEnabledProfile.invoke(
@@ -375,7 +304,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               generations.isCurrent(generation)
             }
             val shortcutPackages = shortcutPackages(launcherApps, user) ?: run {
-              hadFailures = true
               emptySet()
             }
             val packages = (probedPackages + shortcutPackages).toSortedSet()
@@ -387,11 +315,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             )
             for (packageName in packages) {
               if (!generations.isCurrent(generation)) {
-                outcome = IconRefreshReportKind.REFRESH_CANCELLED
                 return
               }
               if (!listener.callback.asBinder().isBinderAlive) {
-                hadFailures = true
                 break
               }
               try {
@@ -402,7 +328,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                   sent += 1
                 }
               } catch (failure: Throwable) {
-                hadFailures = true
                 logFailure("launcher callback failed for $packageName", failure)
               }
               if (PACKAGE_INTERVAL_MS > 0) {
@@ -410,13 +335,11 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                   Thread.sleep(PACKAGE_INTERVAL_MS)
                 } catch (_: InterruptedException) {
                   Thread.currentThread().interrupt()
-                  outcome = IconRefreshReportKind.REFRESH_CANCELLED
                   return
                 }
               }
             }
           } catch (failure: Throwable) {
-            hadFailures = true
             logFailure(
               "icon refresh skipped user=${profile.userId.invoke(user)}",
               failure,
@@ -424,22 +347,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           }
         }
       }
-      outcome = when {
-        !generations.isCurrent(generation) -> IconRefreshReportKind.REFRESH_CANCELLED
-        hadFailures -> IconRefreshReportKind.REFRESH_PARTIAL
-        else -> IconRefreshReportKind.REFRESH_FINISHED
-      }
       xposed.log(Log.INFO, TAG, "Icon refresh generation=$generation callbacks=$sent")
     } catch (failure: Throwable) {
       logFailure("icon refresh stopped", failure)
     } finally {
-      try {
-        if (!deferred) report(outcome, sent)
-      } finally {
-        synchronized(lock) {
-          lifecycle.activeJobs -= 1
-          if (pending.request != null && !pending.posted) postPendingLocked()
-        }
+      synchronized(lock) {
+        lifecycle.activeJobs -= 1
+        if (pending.request != null && !pending.posted) postPendingLocked()
       }
     }
   }

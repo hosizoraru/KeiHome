@@ -23,17 +23,17 @@ visible launcher entries for each accessible profile and distinguishes
 detected, undetected and uncertain resource support.
 
 The status page reads the API 102 service connection, scope and loaded target
-state. The system process separately sends narrowly scoped, system-UID-checked
-installation and callback reports. These are historical observations, not
-proof that a hook is still installed or that an icon visually changed.
+state directly. The runtime does not send a diagnostic broadcast back to the
+app, so the status page does not present historical callback counts as proof of
+visual icon changes.
 
 For API 102 hot reload, KeiHome declines retirement while hooks, refresh jobs,
-reporting or tracked worker threads are still active. Matching hooks are
-replaced individually, and the new runtime schedules a reconciliation against
-the current configuration. Hook replacement is not an atomic transaction, and
-a late call from an old hook snapshot can still race reconciliation. If a
-replacement fails, refresh is disabled and reported rather than presented as
-successful. Reports are best-effort and may be absent.
+or tracked worker threads are still active. Matching hooks are replaced
+individually, and the new runtime schedules a reconciliation against the
+current configuration. Hook replacement is not an atomic transaction, and a
+late call from an old hook snapshot can still race reconciliation. If a
+replacement fails, refresh is disabled and logged rather than presented as
+successful.
 
 ## Validation and limits
 
@@ -74,3 +74,17 @@ packages are refreshed instead of risking missed icons.
 The solution uses launcher package callbacks and does not depend on whether
 `libhyper_os_flutter.so` comes from the launcher APK or the system partition.
 It does not implement Monet or monochrome icon generation.
+
+## Build and packaging
+
+Android convention configuration lives in the included `build-logic` composite
+build. Release uses R8 and resource shrinking with the narrow
+`app/proguard-rules.keep` file; it does not keep the whole AndroidX or Compose
+graph. The private test release is signed with the machine-local Android debug
+key because no distribution keystore is stored in this repository. A
+distribution release must provide a project-owned signing configuration before
+publishing.
+
+The app manifest contains only the launcher activity, the system-bound isolated
+resource probe service, and the providers required by AndroidX/API 102. The
+diagnostic report receiver and its app-to-system broadcast path were removed.

@@ -55,7 +55,7 @@ class KeiHomeModule : XposedModule() {
         }
       }
       log(Log.WARN, "KeiHomeIconRefresh", "System-server class loader unavailable")
-      launcherRefresh = LauncherIconRefreshRuntime(this).also { it.reportHookFailure() }
+      launcherRefresh = LauncherIconRefreshRuntime(this)
     }
   }
 

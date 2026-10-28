@@ -6,12 +6,16 @@ not inject a native library into the launcher or terminate its process.
 
 For each accessible launcher user/profile, it checks that the registered
 `com.miui.home` callback and the package visibility are still valid, then
-dispatches package-change callbacks to that listener alone. This asks the
-launcher to use its own model and icon-cache update path. The callbacks are
-serialized because this launcher can overlap asynchronous icon updates. Newer
-night-mode generations cancel the remainder of older work. Listener snapshots
-use the framework's registered-callback lock rather than taking its broadcast
-slot; incompatible private framework structures disable the refresh.
+dispatches package-change callbacks to that listener alone. For packages with
+dynamic, manifest, pinned or cached shortcuts, it also sends the matching
+`onShortcutChanged` callback with the current `ParceledListSlice`. This asks
+the launcher to use its own model and icon-cache update path for both ordinary
+activity entries and shortcut-backed entries such as a Dock shortcut menu.
+The callbacks are serialized because this launcher can overlap asynchronous
+icon updates. Newer night-mode generations cancel the remainder of older
+work. Listener snapshots use the framework's registered-callback lock rather
+than taking its broadcast slot; incompatible private framework structures
+disable the refresh.
 
 Resource inspection runs in an isolated app process, not in `system_server` or
 the launcher. It considers each launchable activity and alias. A package is
@@ -52,6 +56,14 @@ An additional higher-versionCode install exercised automatic hot reload from
 the current implementation to itself. The recovered service and replacement
 hooks submitted a reconciliation, and KeiHome and both ErinAO icons switched
 in both directions without restarting the launcher or `system_server`.
+
+The current AVD build was also checked with KeiHome in a five-slot Dock. Its
+ordinary Dock icon switched in both directions, and the `KeiHome QA` dynamic
+shortcut shown by the Dock long-press menu switched with it. The launcher
+process stayed at PID `9665` with start time `3209` throughout the install,
+four theme transitions and the open shortcut-menu check. The corresponding
+system-server refresh reported 30 package callbacks plus 25 shortcut callback
+deliveries per transition.
 
 The host emulator's Vulkan renderer aborted once during the manual gesture
 tests; the emulator was restarted and the process-stability checks were

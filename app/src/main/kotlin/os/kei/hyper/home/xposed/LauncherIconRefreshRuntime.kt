@@ -14,6 +14,7 @@ import android.os.UserHandle
 import android.os.UserManager
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
+import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -303,9 +304,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             val probedPackages = probe.packagesToRefresh(activities) {
               generations.isCurrent(generation)
             }
-            val shortcutPackages = shortcutPackages(launcherApps, user) ?: run {
-              emptySet()
-            }
+            val shortcutsByPackage = shortcutsByPackage(launcherApps, user) ?: emptyMap()
+            val shortcutPackages = shortcutsByPackage.keys
             val packages = (probedPackages + shortcutPackages).toSortedSet()
             xposed.log(
               Log.INFO, TAG,
@@ -323,6 +323,18 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               try {
                 if (dispatchIfRegistered(
                     launcherService, listener, user, packageName, generation,
+                  )
+                ) {
+                  sent += 1
+                }
+                val shortcuts = shortcutsByPackage[packageName]
+                if (shortcuts != null && dispatchShortcutsIfRegistered(
+                    launcherService,
+                    listener,
+                    user,
+                    packageName,
+                    shortcuts,
+                    generation,
                   )
                 ) {
                   sent += 1
@@ -385,6 +397,35 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     return true
   }
 
+  private fun dispatchShortcutsIfRegistered(
+    launcherService: Any,
+    listener: LauncherListener,
+    user: UserHandle,
+    packageName: String,
+    shortcuts: List<*>,
+    generation: Long,
+  ): Boolean {
+    @Suppress("UNCHECKED_CAST")
+    val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
+      ?: return false
+    val callback = profile.registeredCallbacks.findRegistered(callbacks, listener.cookie) { entry ->
+      entry is IInterface && profile.callbackClass.isInstance(entry) &&
+        entry.asBinder() == listener.callback.asBinder()
+    } as? IInterface ?: return false
+    if (!generations.isCurrent(generation)) return false
+    if (profile.isEnabledProfile.invoke(
+        launcherService, listener.cookie, user, "KeiHome shortcut refresh",
+      ) != true ||
+      profile.isPackageVisible.invoke(
+        launcherService, packageName, listener.cookie, user,
+      ) != true ||
+      !callback.asBinder().isBinderAlive
+    ) return false
+    val slice = profile.shortcutSliceConstructor.newInstance(shortcuts)
+    profile.onShortcutChanged.invoke(callback, user, packageName, slice)
+    return true
+  }
+
   private fun snapshotListeners(launcherService: Any): List<LauncherListener>? {
     @Suppress("UNCHECKED_CAST")
     val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
@@ -417,7 +458,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     }
   }
 
-  private fun shortcutPackages(launcherApps: LauncherApps, user: UserHandle): Set<String>? =
+  private fun shortcutsByPackage(
+    launcherApps: LauncherApps,
+    user: UserHandle,
+  ): Map<String, List<*>>? =
     try {
       launcherApps.getShortcuts(
         LauncherApps.ShortcutQuery().setQueryFlags(
@@ -427,7 +471,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             LauncherApps.ShortcutQuery.FLAG_MATCH_CACHED,
         ),
         user,
-      ).orEmpty().mapNotNullTo(mutableSetOf()) { it.`package` }
+      ).orEmpty().groupBy { it.`package` }
     } catch (failure: Throwable) {
       xposed.log(
         Log.DEBUG, TAG,
@@ -463,6 +507,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val isEnabledProfile: Method,
     val isPackageVisible: Method,
     val onPackageChanged: Method,
+    val onShortcutChanged: Method,
+    val shortcutSliceConstructor: Constructor<*>,
     val getEnabledProfiles: Method,
     val userId: Method,
     val userHandle: Method,
@@ -498,6 +544,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           "com.android.server.wm.ActivityTaskManagerService", false, loader,
         )
         val userInfo = Class.forName("android.content.pm.UserInfo", false, loader)
+        val shortcutSliceClass = Class.forName(
+          "android.content.pm.ParceledListSlice",
+          false,
+          loader,
+        )
+        val shortcutSliceConstructor = shortcutSliceClass
+          .getConstructor(List::class.java)
+          .apply { isAccessible = true }
         fun Class<*>.method(name: String, vararg args: Class<*>): Method =
           getDeclaredMethod(name, *args).apply { isAccessible = true }
         fun Class<*>.field(name: String): Field =
@@ -543,6 +597,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           onPackageChanged = callback.method(
             "onPackageChanged", UserHandle::class.java, String::class.java,
           ),
+          onShortcutChanged = callback.method(
+            "onShortcutChanged",
+            UserHandle::class.java,
+            String::class.java,
+            shortcutSliceClass,
+          ),
+          shortcutSliceConstructor = shortcutSliceConstructor,
           getEnabledProfiles = UserManager::class.java.method(
             "getEnabledProfiles", Int::class.javaPrimitiveType!!,
           ),

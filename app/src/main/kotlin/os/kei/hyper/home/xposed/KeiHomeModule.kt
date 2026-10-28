@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import io.github.libxposed.api.XposedModule
+import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
@@ -21,34 +22,49 @@ class KeiHomeModule : XposedModule() {
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
     val runtime = launcherRefresh ?: return true
-    if (!runtime.retire()) return false
-    param.setSavedInstanceState(runtime.service)
-    return true
+    return runtime.retire {
+      try {
+        param.setSavedInstanceState(null)
+      } catch (failure: Throwable) {
+        log(Log.WARN, "KeiHomeIconRefresh", "Could not save reload state", failure)
+        throw failure
+      }
+    }
   }
 
   override fun onHotReloaded(param: HotReloadedParam) {
     if (!param.isSystemServer) return
 
     val loader = findServerClassLoader(
-      param.oldHookHandles.firstNotNullOfOrNull {
-        it.executable.declaringClass.classLoader
-      } ?: param.savedInstanceState?.javaClass?.classLoader,
+      param.oldHookHandles.mapNotNull {
+        try {
+          it.executable.declaringClass.classLoader
+        } catch (_: Throwable) {
+          null
+        }
+      } + listOfNotNull(param.savedInstanceState?.javaClass?.classLoader),
     )
-    param.oldHookHandles.forEach { it.unhook() }
     if (loader != null) {
-      installSystemServerHooks(loader, param.savedInstanceState)
+      installSystemServerHooks(loader, param.savedInstanceState, param.oldHookHandles, true)
     } else {
+      param.oldHookHandles.forEach {
+        try {
+          it.unhook()
+        } catch (failure: Throwable) {
+          log(Log.WARN, "KeiHomeIconRefresh", "Could not remove old hook", failure)
+        }
+      }
       log(Log.WARN, "KeiHomeIconRefresh", "System-server class loader unavailable")
+      launcherRefresh = LauncherIconRefreshRuntime(this).also { it.reportHookFailure() }
     }
   }
 
-  private fun findServerClassLoader(preferred: ClassLoader?): ClassLoader? =
-    listOf(
-      preferred,
+  private fun findServerClassLoader(preferred: List<ClassLoader>): ClassLoader? =
+    (preferred + listOfNotNull(
       Thread.currentThread().contextClassLoader,
       ClassLoader.getSystemClassLoader(),
       javaClass.classLoader,
-    ).filterNotNull().firstOrNull { loader ->
+    )).distinct().firstOrNull { loader ->
       try {
         Class.forName("com.android.server.pm.LauncherAppsService\$LauncherAppsImpl", false, loader)
         Class.forName("com.android.server.wm.ActivityTaskManagerService", false, loader)
@@ -58,8 +74,14 @@ class KeiHomeModule : XposedModule() {
       }
     }
 
-  private fun installSystemServerHooks(loader: ClassLoader, oldService: Any?) {
+  private fun installSystemServerHooks(
+    loader: ClassLoader,
+    oldService: Any?,
+    oldHooks: List<XposedInterface.HookHandle> = emptyList(),
+    reconcileAfterReload: Boolean = false,
+  ) {
     val runtime = LauncherIconRefreshRuntime(this)
-    if (runtime.install(loader, oldService)) launcherRefresh = runtime
+    launcherRefresh = runtime
+    runtime.install(loader, oldService, oldHooks, reconcileAfterReload)
   }
 }

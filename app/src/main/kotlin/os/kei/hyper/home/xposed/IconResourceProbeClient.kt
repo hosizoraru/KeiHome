@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.Message
 import android.os.Messenger
 import android.os.SystemClock
+import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -51,10 +52,11 @@ internal class IconResourceProbeClient(private val context: Context) {
       override fun onBindingDied(name: ComponentName) = onServiceDisconnected(name)
       override fun onNullBinding(name: ComponentName) = onServiceDisconnected(name)
     }
-    var bound = false
+    var bindAttempted = false
     try {
       val intent = Intent().setClassName(MODULE_PACKAGE, PROBE_SERVICE)
-      bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+      bindAttempted = true
+      val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
       if (!bound || !connectionReady.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
         return packages.keys
       }
@@ -87,22 +89,30 @@ internal class IconResourceProbeClient(private val context: Context) {
     } catch (_: Throwable) {
       return packages.keys
     } finally {
-      if (bound) {
+      if (bindAttempted) {
         try {
           context.unbindService(connection)
         } catch (_: Throwable) {
         }
       }
       replyThread.quitSafely()
+      try {
+        replyThread.join(REPLY_THREAD_TIMEOUT_MS)
+        if (replyThread.isAlive) Log.w(TAG, "Probe reply thread did not stop in time")
+      } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+      }
     }
   }
 
   private companion object {
+    const val TAG = "KeiHomeIconProbe"
     const val MODULE_PACKAGE = "os.kei.hyper.home"
     const val PROBE_SERVICE = "$MODULE_PACKAGE.xposed.IconResourceProbeService"
     const val MAX_PACKAGES = 512
     const val CONNECT_TIMEOUT_MS = 3_000L
     const val PROBE_TIMEOUT_MS = 5_000L
     const val POLL_MS = 100L
+    const val REPLY_THREAD_TIMEOUT_MS = 1_000L
   }
 }

@@ -146,7 +146,7 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
     val resourcesBySource = mutableMapOf<String, Pair<Resources, Resources>>()
     for (activity in activities) {
       val app = activity.applicationInfo ?: return unknownAssessment()
-      val iconIds = setOf(activity.iconResource.takeIf { it != 0 } ?: app.icon).filter { it != 0 }
+      val iconIds = setOf(activity.iconResource).filter { it != 0 }
       if (iconIds.isEmpty()) return unknownAssessment()
       val resources = try {
         resourcesBySource.getOrPut(app.sourceDir) {

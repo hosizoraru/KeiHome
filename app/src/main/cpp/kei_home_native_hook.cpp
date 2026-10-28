@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,10 +25,13 @@ constexpr char kDartLibraryName[] = "libapp.so";
 constexpr char kDartSnapshotInstructionsSymbol[] =
         "_kDartIsolateSnapshotInstructions";
 constexpr char kDartSnapshotBuildIdSymbol[] = "_kDartSnapshotBuildId";
+
 constexpr uintptr_t kDartSnapshotInstructionsOffset = 0x866940u;
 constexpr uintptr_t kApplyNightModeOffset = 0x8fc850u;
-constexpr int64_t kRestartSettlingDelayMs = 1500;
-constexpr int64_t kMinimumReadyAgeBeforeRestartMs = 5000;
+constexpr uintptr_t kLauncherLifecycleOffset = 0xce0cc8u;
+
+constexpr int64_t kStartupSettleTimeMs = 3000;
+constexpr int64_t kBackgroundRestartDelayMs = 15000;
 
 constexpr uint8_t kExpectedSnapshotBuildId[32] = {
         0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
@@ -43,6 +45,11 @@ constexpr uint8_t kApplyNightModePrologue[16] = {
         0xef, 0x41, 0x00, 0xd1, 0xe0, 0x03, 0x02, 0xaa,
 };
 
+constexpr uint8_t kLauncherLifecyclePrologue[16] = {
+        0xfd, 0x79, 0xbf, 0xa9, 0xfd, 0x03, 0x0f, 0xaa,
+        0xef, 0x21, 0x00, 0xd1, 0x70, 0xaf, 0x63, 0xf9,
+};
+
 extern "C" {
 
 __attribute__((visibility("hidden")))
@@ -52,14 +59,25 @@ __attribute__((visibility("hidden")))
 void KeiHomeApplyNightModeHook(
         void* argument_descriptor, void* receiver, void* enabled);
 
+__attribute__((visibility("hidden")))
+void* g_kei_home_lifecycle_original = nullptr;
+
+__attribute__((visibility("hidden")))
+void KeiHomeLauncherLifecycleHook(
+        void* argument_descriptor, void* state, void* lifecycle);
+
 }
 
 void* g_dart_base = nullptr;
-volatile uint32_t g_icon_hooks_state = 0u;
+volatile uint32_t g_hooks_state = 0u;
 volatile uint32_t g_apply_night_count = 0u;
 volatile uintptr_t g_last_night_value = 0u;
-volatile uint32_t g_launcher_restart_scheduled = 0u;
-volatile int64_t g_hook_ready_at_ms = 0;
+volatile uint32_t g_have_night_value = 0u;
+volatile uint32_t g_mode_generation = 0u;
+volatile uint32_t g_launcher_resumed = 1u;
+volatile uint32_t g_restart_when_paused = 0u;
+volatile uint32_t g_restart_scheduled = 0u;
+volatile int64_t g_hooks_ready_at_ms = 0;
 
 bool StringsEqual(const char* left, const char* right) {
   if (left == nullptr || right == nullptr) return false;
@@ -69,6 +87,7 @@ bool StringsEqual(const char* left, const char* right) {
 bool IsLauncherProcess() {
   const int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
   if (fd < 0) return false;
+
   char command_line[64]{};
   ssize_t result;
   do {
@@ -94,15 +113,17 @@ bool IsHyosSpawnerProcess() {
   return StringsEqual(executable, kSpawnerPath);
 }
 
-bool IsKeiHomeTargetProcess() {
+bool IsTargetProcess() {
   return IsLauncherProcess() || IsHyosSpawnerProcess();
 }
 
 bool IsDartLibraryPath(const char* name) {
   if (name == nullptr) return false;
+  const size_t name_length = strlen(name);
+  constexpr size_t suffix_length = sizeof(kDartLibraryName) - 1u;
   return StringsEqual(name, kDartLibraryName) ||
-         (strlen(name) >= strlen(kDartLibraryName) &&
-          StringsEqual(name + strlen(name) - strlen(kDartLibraryName),
+         (name_length >= suffix_length &&
+          StringsEqual(name + name_length - suffix_length,
                        kDartLibraryName));
 }
 
@@ -121,64 +142,110 @@ int64_t MonotonicTimeMs() {
          now.tv_nsec / 1000000;
 }
 
-void* RestartLauncherAfterModeChange(void*) {
+void ScheduleBackgroundLauncherRestart();
+
+void* RestartLauncherAfterDelay(void* opaque) {
+  const uint32_t generation =
+          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(opaque));
   timespec delay{
-          static_cast<time_t>(kRestartSettlingDelayMs / 1000),
-          static_cast<long>((kRestartSettlingDelayMs % 1000) * 1000000)};
+          static_cast<time_t>(kBackgroundRestartDelayMs / 1000),
+          static_cast<long>((kBackgroundRestartDelayMs % 1000) * 1000000)};
   while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
   }
+
+  const bool still_paused =
+          __atomic_load_n(&g_launcher_resumed, __ATOMIC_ACQUIRE) == 0u;
+  const bool still_pending =
+          __atomic_load_n(&g_restart_when_paused, __ATOMIC_ACQUIRE) != 0u;
+  const bool same_generation =
+          __atomic_load_n(&g_mode_generation, __ATOMIC_ACQUIRE) == generation;
+  if (!still_paused || !still_pending || !same_generation) {
+    __atomic_store_n(&g_restart_scheduled, uint32_t{0}, __ATOMIC_RELEASE);
+    __android_log_print(
+            ANDROID_LOG_INFO, kLogTag,
+            "deferred launcher restart canceled: resumed=%u pending=%u "
+            "generation=%u",
+            still_paused ? 0u : 1u, still_pending ? 1u : 0u,
+            __atomic_load_n(&g_mode_generation, __ATOMIC_ACQUIRE));
+    if (still_paused && still_pending) {
+      ScheduleBackgroundLauncherRestart();
+    }
+    return nullptr;
+  }
+
   __android_log_print(
           ANDROID_LOG_INFO, kLogTag,
-          "restarting launcher once so Flutter rebuilds night-aware icons");
+          "restarting launcher in background after icon mode change");
   _exit(0);
 }
 
-void ScheduleLauncherRestartForIconMode() {
-  const int64_t now = MonotonicTimeMs();
-  const int64_t ready_at =
-          __atomic_load_n(&g_hook_ready_at_ms, __ATOMIC_ACQUIRE);
-  if (ready_at == 0 ||
-      now - ready_at < kMinimumReadyAgeBeforeRestartMs) {
-    __android_log_print(
-            ANDROID_LOG_INFO, kLogTag,
-            "mode changed during launcher startup; cold widget tree is current");
-    return;
-  }
+void ScheduleBackgroundLauncherRestart() {
   uint32_t expected = 0u;
   if (!__atomic_compare_exchange_n(
-              &g_launcher_restart_scheduled, &expected, uint32_t{1}, false,
+              &g_restart_scheduled, &expected, uint32_t{1}, false,
               __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
     return;
   }
 
+  const uint32_t generation =
+          __atomic_load_n(&g_mode_generation, __ATOMIC_ACQUIRE);
   pthread_t thread{};
   if (pthread_create(
-              &thread, nullptr, RestartLauncherAfterModeChange, nullptr) != 0) {
-    __atomic_store_n(
-            &g_launcher_restart_scheduled, uint32_t{0}, __ATOMIC_RELEASE);
+              &thread, nullptr, RestartLauncherAfterDelay,
+              reinterpret_cast<void*>(
+                      static_cast<uintptr_t>(generation))) != 0) {
+    __atomic_store_n(&g_restart_scheduled, uint32_t{0}, __ATOMIC_RELEASE);
     __android_log_print(
-            ANDROID_LOG_ERROR, kLogTag,
-            "failed to schedule launcher restart after mode change");
+            ANDROID_LOG_WARN, kLogTag,
+            "failed to schedule background launcher restart");
     return;
   }
   pthread_detach(thread);
 }
 
+void BeginModeChange(int32_t state) {
+  const uint32_t generation = __atomic_add_fetch(
+          &g_mode_generation, uint32_t{1}, __ATOMIC_ACQ_REL);
+  __atomic_store_n(&g_restart_when_paused, uint32_t{1}, __ATOMIC_RELEASE);
+
+  if (__atomic_load_n(&g_launcher_resumed, __ATOMIC_ACQUIRE) == 0u) {
+    __android_log_print(
+            ANDROID_LOG_INFO, kLogTag,
+            "night mode changed to %d while launcher is paused "
+            "(generation=%u); restart will run out of sight",
+            state, generation);
+    ScheduleBackgroundLauncherRestart();
+    return;
+  }
+
+  __android_log_print(
+          ANDROID_LOG_INFO, kLogTag,
+          "night mode changed to %d while launcher is visible "
+          "(generation=%u); deferring restart until it leaves foreground",
+          state, generation);
+}
+
 void ResetAfterFork() {
   g_dart_base = nullptr;
   g_kei_home_apply_night_original = nullptr;
-  g_hook_ready_at_ms = 0;
-  __atomic_store_n(
-          &g_launcher_restart_scheduled, uint32_t{0}, __ATOMIC_RELEASE);
-  __atomic_store_n(&g_icon_hooks_state, uint32_t{0}, __ATOMIC_RELEASE);
+  g_kei_home_lifecycle_original = nullptr;
+  __atomic_store_n(&g_apply_night_count, uint32_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_last_night_value, uintptr_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_have_night_value, uint32_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_mode_generation, uint32_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_launcher_resumed, uint32_t{1}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_restart_when_paused, uint32_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_restart_scheduled, uint32_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_hooks_ready_at_ms, int64_t{0}, __ATOMIC_RELEASE);
+  __atomic_store_n(&g_hooks_state, uint32_t{0}, __ATOMIC_RELEASE);
 }
 
-bool InstallIconHooks(void* handle) {
+bool InstallHooks(void* handle) {
   uint32_t expected = 0u;
   if (!__atomic_compare_exchange_n(
-              &g_icon_hooks_state, &expected, uint32_t{1}, false,
+              &g_hooks_state, &expected, uint32_t{1}, false,
               __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-    return __atomic_load_n(&g_icon_hooks_state, __ATOMIC_ACQUIRE) == 3u;
+    return __atomic_load_n(&g_hooks_state, __ATOMIC_ACQUIRE) == 3u;
   }
 
   auto* build_id = static_cast<const uint8_t*>(
@@ -186,7 +253,7 @@ bool InstallIconHooks(void* handle) {
   if (build_id == nullptr ||
       memcmp(build_id, kExpectedSnapshotBuildId,
              sizeof(kExpectedSnapshotBuildId)) != 0) {
-    __atomic_store_n(&g_icon_hooks_state, uint32_t{4}, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_hooks_state, uint32_t{4}, __ATOMIC_RELEASE);
     __android_log_print(
             ANDROID_LOG_WARN, kLogTag,
             "unsupported libapp.so snapshot build ID; icon fix disabled");
@@ -199,16 +266,20 @@ bool InstallIconHooks(void* handle) {
   if (snapshot_instructions == nullptr ||
       dladdr(snapshot_instructions, &info) == 0 ||
       info.dli_fbase == nullptr) {
-    __atomic_store_n(&g_icon_hooks_state, uint32_t{5}, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_hooks_state, uint32_t{5}, __ATOMIC_RELEASE);
     return false;
   }
+
   auto* base = static_cast<uint8_t*>(info.dli_fbase);
   if (snapshot_instructions !=
               base + kDartSnapshotInstructionsOffset ||
       !MatchesBytes(
               base, kApplyNightModeOffset, kApplyNightModePrologue,
-              sizeof(kApplyNightModePrologue))) {
-    __atomic_store_n(&g_icon_hooks_state, uint32_t{6}, __ATOMIC_RELEASE);
+              sizeof(kApplyNightModePrologue)) ||
+      !MatchesBytes(
+              base, kLauncherLifecycleOffset, kLauncherLifecyclePrologue,
+              sizeof(kLauncherLifecyclePrologue))) {
+    __atomic_store_n(&g_hooks_state, uint32_t{6}, __ATOMIC_RELEASE);
     __android_log_print(
             ANDROID_LOG_ERROR, kLogTag,
             "libapp.so fingerprint validation failed; icon fix disabled");
@@ -216,32 +287,54 @@ bool InstallIconHooks(void* handle) {
   }
 
   g_dart_base = base;
-  const int apply_night_result = InstallInlineHook(
+  const int apply_result = InstallInlineHook(
           base + kApplyNightModeOffset,
           reinterpret_cast<void*>(KeiHomeApplyNightModeHook),
           &g_kei_home_apply_night_original);
-  if (apply_night_result != kHookSuccess ||
+  if (apply_result != kHookSuccess ||
       g_kei_home_apply_night_original == nullptr) {
-    if (apply_night_result == kHookSuccess) {
+    if (apply_result == kHookSuccess) {
       RemoveInlineHook(base + kApplyNightModeOffset);
     }
     g_kei_home_apply_night_original = nullptr;
     g_dart_base = nullptr;
-    __atomic_store_n(&g_icon_hooks_state, uint32_t{7}, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_hooks_state, uint32_t{7}, __ATOMIC_RELEASE);
     __android_log_print(
             ANDROID_LOG_ERROR, kLogTag,
-            "failed to install launcher night-mode hook: applyNight=%d",
-            apply_night_result);
+            "failed to install applyNightMode hook: result=%d", apply_result);
+    return false;
+  }
+
+  const int lifecycle_result = InstallInlineHook(
+          base + kLauncherLifecycleOffset,
+          reinterpret_cast<void*>(KeiHomeLauncherLifecycleHook),
+          &g_kei_home_lifecycle_original);
+  if (lifecycle_result != kHookSuccess ||
+      g_kei_home_lifecycle_original == nullptr) {
+    if (lifecycle_result == kHookSuccess) {
+      RemoveInlineHook(base + kLauncherLifecycleOffset);
+    }
+    RemoveInlineHook(base + kApplyNightModeOffset);
+    g_kei_home_lifecycle_original = nullptr;
+    g_kei_home_apply_night_original = nullptr;
+    g_dart_base = nullptr;
+    __atomic_store_n(&g_hooks_state, uint32_t{8}, __ATOMIC_RELEASE);
+    __android_log_print(
+            ANDROID_LOG_ERROR, kLogTag,
+            "failed to install launcher lifecycle hook: result=%d",
+            lifecycle_result);
     return false;
   }
 
   __atomic_store_n(
-          &g_hook_ready_at_ms, MonotonicTimeMs(), __ATOMIC_RELEASE);
-  __atomic_store_n(&g_icon_hooks_state, uint32_t{3}, __ATOMIC_RELEASE);
+          &g_hooks_ready_at_ms, MonotonicTimeMs(), __ATOMIC_RELEASE);
+  __atomic_store_n(&g_hooks_state, uint32_t{3}, __ATOMIC_RELEASE);
   __android_log_print(
           ANDROID_LOG_INFO, kLogTag,
-          "launcher night-mode hook ready: base=%p applyNight=%p",
-          base, base + kApplyNightModeOffset);
+          "launcher visibility-aware icon hooks ready: base=%p "
+          "applyNight=%p lifecycle=%p",
+          base, base + kApplyNightModeOffset,
+          base + kLauncherLifecycleOffset);
   return true;
 }
 
@@ -258,18 +351,21 @@ void BackfillLibrary(const char* name) {
 }
 
 void BackfillLibraries() {
-  if (!IsKeiHomeTargetProcess()) return;
+  if (!IsTargetProcess()) return;
   BackfillLibrary(kHyperRuntimeName);
   BackfillLibrary(kDartLibraryName);
 }
 
 void OnLibraryLoaded(const char* name, void* handle) {
-  if (name == nullptr || handle == nullptr || !IsKeiHomeTargetProcess()) {
+  if (name == nullptr || handle == nullptr || !IsTargetProcess()) {
     return;
   }
+
+  const size_t name_length = strlen(name);
+  constexpr size_t runtime_suffix_length = sizeof(kHyperRuntimeName) - 1u;
   if (StringsEqual(name, kHyperRuntimeName) ||
-      (strlen(name) >= strlen(kHyperRuntimeName) &&
-       StringsEqual(name + strlen(name) - strlen(kHyperRuntimeName),
+      (name_length >= runtime_suffix_length &&
+       StringsEqual(name + name_length - runtime_suffix_length,
                     kHyperRuntimeName))) {
     if (!EnsureLsposedMadviseGuard(name)) {
       __android_log_print(
@@ -278,7 +374,7 @@ void OnLibraryLoaded(const char* name, void* handle) {
     }
   }
   if (IsDartLibraryPath(name) && IsLauncherProcess()) {
-    InstallIconHooks(handle);
+    InstallHooks(handle);
   }
 }
 
@@ -295,19 +391,47 @@ uint32_t KeiHomeObserveApplyNightMode(
           enabled == null_object + 0x30u ? int32_t{0} : int32_t{-1};
   const uintptr_t previous = __atomic_exchange_n(
           &g_last_night_value, enabled, __ATOMIC_ACQ_REL);
-  if (count <= 4u || previous != enabled) {
+  const bool had_previous =
+          __atomic_exchange_n(
+                  &g_have_night_value, uint32_t{1}, __ATOMIC_ACQ_REL) != 0u;
+
+  __android_log_print(
+          ANDROID_LOG_INFO, kLogTag,
+          "applyNightMode #%u state=%d argdesc=%p receiver=%p enabled=%p",
+          count, state,
+          reinterpret_cast<void*>(argument_descriptor),
+          reinterpret_cast<void*>(receiver),
+          reinterpret_cast<void*>(enabled));
+
+  if (state < 0 || previous == enabled) return 0u;
+
+  const int64_t ready_at =
+          __atomic_load_n(&g_hooks_ready_at_ms, __ATOMIC_ACQUIRE);
+  const int64_t now = MonotonicTimeMs();
+  if (!had_previous &&
+      (ready_at == 0 || now - ready_at < kStartupSettleTimeMs)) {
     __android_log_print(
             ANDROID_LOG_INFO, kLogTag,
-            "applyNightMode #%u state=%d argdesc=%p receiver=%p "
-            "enabled=%p null=%p",
-            count, state,
-            reinterpret_cast<void*>(argument_descriptor),
-            reinterpret_cast<void*>(receiver),
-            reinterpret_cast<void*>(enabled),
-            reinterpret_cast<void*>(null_object));
+            "recorded startup night mode baseline: state=%d", state);
+    return 0u;
   }
-  if (state >= 0 && previous != enabled) {
-    ScheduleLauncherRestartForIconMode();
+
+  BeginModeChange(state);
+  return 1u;
+}
+
+extern "C" __attribute__((visibility("hidden")))
+uint32_t KeiHomeObserveLauncherLifecycle(uint32_t resumed) {
+  const uint32_t previous =
+          __atomic_exchange_n(&g_launcher_resumed, resumed, __ATOMIC_ACQ_REL);
+  if (previous != resumed) {
+    __android_log_print(
+            ANDROID_LOG_INFO, kLogTag,
+            "launcher lifecycle: resumed=%u", resumed);
+  }
+  if (resumed == 0u &&
+      __atomic_load_n(&g_restart_when_paused, __ATOMIC_ACQUIRE) != 0u) {
+    ScheduleBackgroundLauncherRestart();
   }
   return 0u;
 }
@@ -321,7 +445,7 @@ NativeOnModuleLoaded native_init(const NativeAPIEntries* entries) {
           backend_ready ? 1 : 0,
           IsLauncherProcess() ? 1 : 0,
           IsHyosSpawnerProcess() ? 1 : 0);
-  if (!backend_ready || !IsKeiHomeTargetProcess()) return nullptr;
+  if (!backend_ready || !IsTargetProcess()) return nullptr;
 
   static uint32_t atfork_registered = 0u;
   if (__atomic_exchange_n(

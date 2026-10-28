@@ -24,15 +24,9 @@ android {
     targetSdk = 37
     versionCode = generatedVersionCode
     versionName = "1.0"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     ndk {
       abiFilters += "arm64-v8a"
-    }
-  }
-
-  externalNativeBuild {
-    cmake {
-      path = file("src/main/cpp/CMakeLists.txt")
-      version = "4.1.2"
     }
   }
 
@@ -57,6 +51,7 @@ android {
   packaging {
     jniLibs {
       excludes += "**/libandroidx.graphics.path.so"
+      excludes += "**/liblsplt.so"
       useLegacyPackaging = false
     }
     resources {

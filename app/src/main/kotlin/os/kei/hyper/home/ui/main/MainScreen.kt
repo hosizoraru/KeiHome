@@ -36,6 +36,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.InstalledIconScanner
+import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.liquid.IosLiquidGlassNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -72,6 +73,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
   var capabilityState by remember {
     mutableStateOf<IconCapabilityScanState>(IconCapabilityScanState.Loading)
   }
+  var statusSnapshot by remember { mutableStateOf<FrameworkSnapshot?>(null) }
+  var statusReadFailed by remember { mutableStateOf(false) }
   val context = LocalContext.current
   LaunchedEffect(context, scanGeneration) {
     capabilityState = IconCapabilityScanState.Loading
@@ -194,6 +197,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
           item(key = "status") {
             StatusContent(
               refreshGeneration = statusGeneration,
+              snapshot = statusSnapshot,
+              readFailed = statusReadFailed,
+              onSnapshot = {
+                statusSnapshot = it
+                statusReadFailed = false
+              },
+              onReadFailed = {
+                if (statusSnapshot == null) statusReadFailed = true
+              },
               onRefresh = { statusGeneration += 1 },
             )
           }

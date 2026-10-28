@@ -61,22 +61,22 @@ private data class StatusDetail(
 @Composable
 internal fun StatusContent(
   refreshGeneration: Int,
+  snapshot: FrameworkSnapshot?,
+  readFailed: Boolean,
+  onSnapshot: (FrameworkSnapshot) -> Unit,
+  onReadFailed: () -> Unit,
   onRefresh: () -> Unit,
 ) {
   val service by FrameworkConnection.service.collectAsStateWithLifecycle()
-  var snapshot by remember(service) { mutableStateOf<FrameworkSnapshot?>(null) }
-  var failed by remember(service) { mutableStateOf(false) }
   LaunchedEffect(service, refreshGeneration) {
     val current = service ?: return@LaunchedEffect
     while (true) {
       try {
-        snapshot = withContext(Dispatchers.IO) { current.readFrameworkSnapshot() }
-        failed = false
+        onSnapshot(withContext(Dispatchers.IO) { current.readFrameworkSnapshot() })
       } catch (cancellation: CancellationException) {
         throw cancellation
       } catch (_: Exception) {
-        snapshot = null
-        failed = true
+        onReadFailed()
       }
       delay(5_000)
     }
@@ -84,12 +84,11 @@ internal fun StatusContent(
 
   val framework = when {
     service == null -> stringResource(R.string.status_framework_disconnected)
-    failed -> stringResource(R.string.status_framework_error)
     snapshot != null -> stringResource(
       R.string.status_framework_connected,
-      snapshot!!.name,
-      snapshot!!.apiVersion,
+      snapshot.name,
     )
+    readFailed -> stringResource(R.string.status_framework_error)
     else -> stringResource(R.string.status_unknown)
   }
   val scope = when (snapshot?.systemInScope) {
@@ -106,10 +105,12 @@ internal fun StatusContent(
   }
   val target = stringResource(targetResource)
   val tone = when {
-    service == null || failed || snapshot?.systemInScope == false ||
+    service == null ||
+      (snapshot == null && readFailed) ||
+      snapshot?.systemInScope == false ||
       snapshot?.target?.state == HookedTarget.State.FAILED -> StatusTone.ERROR
     snapshot?.systemInScope == true &&
-      snapshot?.target?.state == HookedTarget.State.UP_TO_DATE -> StatusTone.READY
+      snapshot.target?.state == HookedTarget.State.UP_TO_DATE -> StatusTone.READY
     else -> StatusTone.WARNING
   }
   val titleResource = when (tone) {

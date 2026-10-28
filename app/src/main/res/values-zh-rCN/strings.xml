@@ -13,7 +13,8 @@
     <string name="filter_monochrome">单色图标资源</string>
     <string name="filter_unknown">需要验证</string>
     <string name="filter_all">全部桌面应用</string>
-    <string name="capability_count">显示 %1$d / %2$d 个桌面应用</string>
+    <string name="capability_count">显示 %1$d / %2$d 个匹配应用</string>
+    <string name="search_apps">搜索应用</string>
     <string name="scanning_installed_apps">正在扫描已安装的应用…</string>
     <string name="scan_failed">已安装应用扫描失败：%1$s</string>
     <string name="no_matching_apps">没有符合此筛选条件的应用。</string>
@@ -39,6 +40,12 @@
     <string name="status_target_stale">模块已加载旧版本</string>
     <string name="status_target_reloading">模块正在热重载</string>
     <string name="status_target_failed">上次热重载失败</string>
+    <string name="status_overview_ready_title">KeiHome 正在运行</string>
+    <string name="status_overview_ready_summary">桌面图标刷新链路已就绪。</string>
+    <string name="status_overview_warning_title">KeiHome 需要关注</string>
+    <string name="status_overview_warning_summary">部分运行状态还没有准备好。</string>
+    <string name="status_overview_error_title">KeiHome 未连接</string>
+    <string name="status_overview_error_summary">请检查 LSPosed 和 system 作用域配置。</string>
     <string name="status_runtime_title">图标刷新</string>
     <string name="status_hook">Hook 生命周期</string>
     <string name="status_hook_live">上方显示 API 102 目标的实时状态，不保存广播报告。</string>

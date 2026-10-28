@@ -13,7 +13,8 @@
     <string name="filter_monochrome">単色アイコンリソース</string>
     <string name="filter_unknown">要確認</string>
     <string name="filter_all">すべてのランチャーアプリ</string>
-    <string name="capability_count">%2$d 個中 %1$d 個を表示</string>
+    <string name="capability_count">%2$d 個の一致するアプリ中 %1$d 個を表示</string>
+    <string name="search_apps">アプリを検索</string>
     <string name="scanning_installed_apps">インストール済みアプリをスキャンしています…</string>
     <string name="scan_failed">インストール済みアプリのスキャンに失敗しました: %1$s</string>
     <string name="no_matching_apps">このフィルターに一致するアプリはありません。</string>
@@ -39,6 +40,12 @@
     <string name="status_target_stale">古いモジュールが読み込まれています</string>
     <string name="status_target_reloading">モジュールをホットリロード中</string>
     <string name="status_target_failed">前回のホットリロードに失敗しました</string>
+    <string name="status_overview_ready_title">KeiHome は動作中です</string>
+    <string name="status_overview_ready_summary">ランチャーアイコンの更新経路を利用できます。</string>
+    <string name="status_overview_warning_title">KeiHome の確認が必要です</string>
+    <string name="status_overview_warning_summary">一部の実行状態がまだ準備できていません。</string>
+    <string name="status_overview_error_title">KeiHome は未接続です</string>
+    <string name="status_overview_error_summary">LSPosed と system スコープの設定を確認してください。</string>
     <string name="status_runtime_title">アイコンの更新</string>
     <string name="status_hook">Hook のライフサイクル</string>
     <string name="status_hook_live">上に API 102 のターゲット状態を表示します。ブロードキャスト報告は保存しません。</string>

@@ -32,4 +32,18 @@ class IconCapabilityFilterTest {
     assertTrue(icon(yes, unknown).matchesFilter(3))
     assertTrue(icon(no, no).matchesFilter(4))
   }
+
+  @Test
+  fun queryMatchesLabelAndPackageNameCaseInsensitively() {
+    val capability = icon(
+      night = IconCapabilityStatus.DETECTED,
+      mono = IconCapabilityStatus.NOT_DETECTED,
+    )
+
+    assertTrue(capability.matchesQuery("app"))
+    assertTrue(capability.matchesQuery("EXAMPLE.APP"))
+    assertTrue(capability.matchesQuery("  example  "))
+    assertTrue(capability.matchesQuery(""))
+    assertFalse(capability.matchesQuery("calendar"))
+  }
 }

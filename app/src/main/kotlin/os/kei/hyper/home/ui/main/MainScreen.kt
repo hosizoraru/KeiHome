@@ -45,6 +45,7 @@ import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -67,6 +68,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
   var scanGeneration by rememberSaveable { mutableIntStateOf(0) }
   var statusGeneration by rememberSaveable { mutableIntStateOf(0) }
   var selectedFilter by rememberSaveable { mutableIntStateOf(0) }
+  var searchQuery by rememberSaveable { mutableStateOf("") }
   var capabilityState by remember {
     mutableStateOf<IconCapabilityScanState>(IconCapabilityScanState.Loading)
   }
@@ -189,8 +191,26 @@ fun MainScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         if (selectedTab == 0) {
-          item(key = "status") { StatusContent(statusGeneration) }
+          item(key = "status") {
+            StatusContent(
+              refreshGeneration = statusGeneration,
+              onRefresh = { statusGeneration += 1 },
+            )
+          }
         } else if (selectedTab == 1) {
+          item(key = "search") {
+            InputField(
+              query = searchQuery,
+              onQueryChange = { searchQuery = it },
+              onSearch = {},
+              expanded = false,
+              onExpandedChange = {},
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 2.dp),
+              label = stringResource(R.string.search_apps),
+            )
+          }
           when (val state = capabilityState) {
             IconCapabilityScanState.Loading -> item(key = "loading") {
               ScanLoading()
@@ -199,7 +219,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
               ScanError(state.throwable)
             }
             is IconCapabilityScanState.Success -> {
-              val capabilities = state.capabilities.filter { it.matchesFilter(selectedFilter) }
+              val filterMatches = state.capabilities.filter { it.matchesFilter(selectedFilter) }
+              val capabilities = filterMatches.filter { it.matchesQuery(searchQuery) }
               item(key = "count") {
                 Column(modifier = Modifier.padding(horizontal = 8.dp)) {
                   Text(
@@ -210,7 +231,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
                     text = stringResource(
                       R.string.capability_count,
                       capabilities.size,
-                      state.capabilities.size,
+                      filterMatches.size,
                     ),
                     style = MiuixTheme.textStyles.body2,
                     color = MiuixTheme.colorScheme.onSurfaceSecondary,
@@ -276,6 +297,13 @@ internal fun InstalledIconCapability.matchesFilter(filter: Int): Boolean = when 
   3 -> nightMode == IconCapabilityStatus.UNKNOWN ||
     monochrome == IconCapabilityStatus.UNKNOWN
   else -> true
+}
+
+internal fun InstalledIconCapability.matchesQuery(query: String): Boolean {
+  val normalized = query.trim()
+  if (normalized.isEmpty()) return true
+  return label.contains(normalized, ignoreCase = true) ||
+    packageName.contains(normalized, ignoreCase = true)
 }
 
 @Composable

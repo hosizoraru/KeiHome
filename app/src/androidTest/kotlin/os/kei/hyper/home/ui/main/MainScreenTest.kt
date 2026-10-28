@@ -27,6 +27,7 @@ class MainScreenTest {
   fun showsFilterAndTopBarRefresh() {
     val context = composeTestRule.activity
     composeTestRule.onNodeWithText(context.getString(R.string.navigation_apps)).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.search_apps)).assertExists()
     composeTestRule.onNodeWithContentDescription(context.getString(R.string.filter_title))
       .assertExists()
     composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh)).assertExists()

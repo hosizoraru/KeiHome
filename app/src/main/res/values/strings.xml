@@ -13,7 +13,8 @@
     <string name="filter_monochrome">Monochrome resource</string>
     <string name="filter_unknown">Needs verification</string>
     <string name="filter_all">All launchable apps</string>
-    <string name="capability_count">%1$d shown of %2$d launchable apps</string>
+    <string name="capability_count">%1$d shown of %2$d matching apps</string>
+    <string name="search_apps">Search apps</string>
     <string name="scanning_installed_apps">Scanning installed apps...</string>
     <string name="scan_failed">The installed-app scan failed: %1$s</string>
     <string name="no_matching_apps">No apps match this filter.</string>
@@ -39,6 +40,12 @@
     <string name="status_target_stale">Module loaded, older version</string>
     <string name="status_target_reloading">Reloading module</string>
     <string name="status_target_failed">Last hot reload failed</string>
+    <string name="status_overview_ready_title">KeiHome is active</string>
+    <string name="status_overview_ready_summary">The launcher icon refresh path is ready.</string>
+    <string name="status_overview_warning_title">KeiHome needs attention</string>
+    <string name="status_overview_warning_summary">Some runtime information is not ready yet.</string>
+    <string name="status_overview_error_title">KeiHome is not connected</string>
+    <string name="status_overview_error_summary">Check LSPosed and the configured system scope.</string>
     <string name="status_runtime_title">Icon refresh</string>
     <string name="status_hook">Hook lifecycle</string>
     <string name="status_hook_live">Live API 102 target state is shown above; no broadcast report is stored.</string>

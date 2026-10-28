@@ -21,7 +21,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val generations = IconRefreshGeneration()
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
-  private var dispatching = false
+  private var activeJobs = 0
   private var retired = false
   private lateinit var profile: ServerProfile
 
@@ -89,7 +89,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   }
 
   fun retire(): Boolean = synchronized(lock) {
-    if (dispatching) return false
+    if (activeJobs != 0) return false
     retired = true
     generations.retire()
     handler?.removeCallbacksAndMessages(null)
@@ -122,7 +122,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun refresh(generation: Long, attempt: Int) {
     synchronized(lock) {
       if (retired || !generations.isCurrent(generation)) return
-      dispatching = true
+      activeJobs += 1
     }
     try {
       val launcherService = service ?: return
@@ -138,6 +138,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       val context = profile.context.get(launcherService) as? Context ?: return
       val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return
       val userManager = context.getSystemService(UserManager::class.java) ?: return
+      val probe = IconResourceProbeClient(context)
       var sent = 0
       for (listener in listeners) {
         for (user in enabledProfiles(userManager, listener.owner)) {
@@ -146,26 +147,46 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               launcherService, listener.cookie, user, "KeiHome icon refresh",
             ) != true
           ) continue
-
-          val activities = launcherApps.getActivityList(null, user)
-          val packages = IconResourceProbeClient(context).packagesToRefresh(activities) {
-            generations.isCurrent(generation)
-          }
-          xposed.log(
-            Log.INFO, TAG,
-            "Icon probe generation=$generation activities=${activities.size} packages=${packages.size}",
-          )
-          for (packageName in packages) {
-            if (!generations.isCurrent(generation)) return
-            if (!listener.callback.asBinder().isBinderAlive) break
-            try {
-              if (dispatchIfRegistered(launcherService, listener, user, packageName, generation)) {
-                sent += 1
-              }
-            } catch (failure: Throwable) {
-              logFailure("launcher callback failed for $packageName", failure)
+          try {
+            val activities = launcherApps.getActivityList(null, user)
+            val probedPackages = probe.packagesToRefresh(activities) {
+              generations.isCurrent(generation)
             }
-            Thread.sleep(PACKAGE_INTERVAL_MS)
+            val shortcutPackages = shortcutPackages(launcherApps, user)
+            val packages = (probedPackages + shortcutPackages).toSortedSet()
+            xposed.log(
+              Log.INFO, TAG,
+              "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +
+                "activities=${activities.size} packages=${packages.size} " +
+                "shortcuts=${shortcutPackages.size}",
+            )
+            for (packageName in packages) {
+              if (!generations.isCurrent(generation)) return
+              if (!listener.callback.asBinder().isBinderAlive) break
+              try {
+                if (dispatchIfRegistered(
+                    launcherService, listener, user, packageName, generation,
+                  )
+                ) {
+                  sent += 1
+                }
+              } catch (failure: Throwable) {
+                logFailure("launcher callback failed for $packageName", failure)
+              }
+              if (PACKAGE_INTERVAL_MS > 0) {
+                try {
+                  Thread.sleep(PACKAGE_INTERVAL_MS)
+                } catch (_: InterruptedException) {
+                  Thread.currentThread().interrupt()
+                  return
+                }
+              }
+            }
+          } catch (failure: Throwable) {
+            logFailure(
+              "icon refresh skipped user=${profile.userId.invoke(user)}",
+              failure,
+            )
           }
         }
       }
@@ -173,7 +194,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     } catch (failure: Throwable) {
       logFailure("icon refresh stopped", failure)
     } finally {
-      synchronized(lock) { dispatching = false }
+      synchronized(lock) { activeJobs -= 1 }
     }
   }
 
@@ -187,6 +208,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     @Suppress("UNCHECKED_CAST")
     val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
       ?: return false
+    var callback: IInterface? = null
     synchronized(callbacks) {
       val count = try {
         callbacks.beginBroadcast()
@@ -199,21 +221,26 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             callbacks.getBroadcastItem(index).asBinder() != listener.callback.asBinder()
           ) continue
           if (!generations.isCurrent(generation) ||
-            profile.isEnabledProfile.invoke(
-              launcherService, listener.cookie, user, "KeiHome icon refresh",
-            ) != true ||
-            profile.isPackageVisible.invoke(
-              launcherService, packageName, listener.cookie, user,
-            ) != true
+            !listener.callback.asBinder().isBinderAlive
           ) return false
-          profile.onPackageChanged.invoke(listener.callback, user, packageName)
-          return true
+          callback = callbacks.getBroadcastItem(index)
+          break
         }
       } finally {
         callbacks.finishBroadcast()
       }
     }
-    return false
+    if (callback == null || !generations.isCurrent(generation)) return false
+    if (profile.isEnabledProfile.invoke(
+        launcherService, listener.cookie, user, "KeiHome icon refresh",
+      ) != true ||
+      profile.isPackageVisible.invoke(
+        launcherService, packageName, listener.cookie, user,
+      ) != true ||
+      !callback.asBinder().isBinderAlive
+    ) return false
+    profile.onPackageChanged.invoke(callback, user, packageName)
+    return true
   }
 
   private fun snapshotListeners(launcherService: Any): List<LauncherListener>? {
@@ -234,7 +261,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           if (profile.cookiePackage.get(cookie) != LAUNCHER_PACKAGE) continue
           val owner = profile.cookieUser.get(cookie) as? UserHandle ?: continue
           val uid = profile.cookieUid.getInt(cookie)
-          if (UserHandle.getUserHandleForUid(uid) != owner) continue
+          val callbackUser = profile.userId.invoke(
+            UserHandle.getUserHandleForUid(uid),
+          ) as Int
+          if (callbackUser != profile.userId.invoke(owner) as Int) continue
           val callback = callbacks.getBroadcastItem(index) ?: continue
           if (!profile.callbackClass.isInstance(callback)) continue
           result += LauncherListener(cookie, owner, callback)
@@ -254,6 +284,26 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       if (info == null) null else profile.userHandle.invoke(info) as? UserHandle
     }
   }
+
+  private fun shortcutPackages(launcherApps: LauncherApps, user: UserHandle): Set<String> =
+    try {
+      launcherApps.getShortcuts(
+        LauncherApps.ShortcutQuery().setQueryFlags(
+          LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+            LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+            LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED or
+            LauncherApps.ShortcutQuery.FLAG_MATCH_CACHED,
+        ),
+        user,
+      ).orEmpty().mapNotNullTo(mutableSetOf()) { it.`package` }
+    } catch (failure: Throwable) {
+      xposed.log(
+        Log.DEBUG, TAG,
+        "Shortcut enumeration unavailable for user=${profile.userId.invoke(user)}",
+        failure,
+      )
+      emptySet()
+    }
 
   private fun logFailure(message: String, failure: Throwable) {
     xposed.log(Log.WARN, TAG, message, failure)
@@ -363,7 +413,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     const val TAG = "KeiHomeIconRefresh"
     const val LAUNCHER_PACKAGE = "com.miui.home"
     const val REFRESH_DELAY_MS = 1500L
-    const val PACKAGE_INTERVAL_MS = 400L
+    const val PACKAGE_INTERVAL_MS = 220L
     const val SNAPSHOT_RETRY_MS = 250L
     const val MAX_SNAPSHOT_RETRIES = 3
   }

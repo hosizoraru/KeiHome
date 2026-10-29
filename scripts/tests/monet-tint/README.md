@@ -51,7 +51,7 @@ The retained checks are:
 
 - The actual resolver, linked with repository `monet_tint_profile.cpp` and
   `monet_image_identity.cpp`, accepts the exact external library using its real
-  backing-file SHA. It exercises **36 rejected inputs** covering modified
+  backing-file SHA. It exercises **41 rejected inputs** covering modified
   functions/call instructions, build identity, mapping boundaries, permissions,
   missing anchors, overflow and malformed metadata. Rejections clear the result
   and preserve previously published caller globals. Mutations affect only the
@@ -60,7 +60,7 @@ The retained checks are:
   and `monet_hooks.cpp` with the native warning/visibility/branch-protection
   flags. The test ELF links the actual repository bridge with authored
   trampoline stops and primitive globals from `test_symbols.S`.
-- **43 AArch64 machine-code cases** run that ELF in Unicorn with synthetic
+- **61 AArch64 machine-code cases** run that ELF in Unicorn with synthetic
   registers, native policy storage, Dart stack, PP, and heap objects. They check
   successful tint, caller/object/mode/input guards, Smi/Mint background values,
   wrong CIDs, null/sentinel state, policy withdrawal, reader saturation and a
@@ -68,7 +68,7 @@ The retained checks are:
   preservation, reader balance, and permitted writes. Disassembly rejects
   added calls/syscalls.
 
-Scoped equality is intentionally **independent of policy**: the two verified
+ColorFilter equality is intentionally **independent of policy**: the two verified
 setter return PCs and both operands matching the live constant are sufficient
 to return Dart false. Its tests require zero policy reads and zero reader-counter
 writes, including null policy, flags zero, reserved flags and a saturated
@@ -79,6 +79,19 @@ still applies, then passes through the original black ARGB. With an enabled
 policy and expired denies (`count == 0`), the accepted colors remain eligible
 when the live selected background matches. The hooks themselves do not schedule
 refresh, acknowledge Rx updates, or prove that a UI frame repainted.
+
+A separate `Object.==` guard makes the original enabled-Rx setter notify once
+when the native selection revision changes. Unrelated equality callers take a
+bounded fast path without reading live Dart roots or policy; the host test
+uses an invalid frame pointer and limits that path to 16 instructions. The
+scoped path authenticates both caller PCs,
+the Dart frame shape, the live bool GDT target, two exact true operands, and the
+live controller's RxBool receiver. A compare-and-swap consumes only the observed
+revision; concurrent newer updates stay pending. No Dart reference is retained
+and no Dart heap object is written. Tests reject unrelated receivers, stale
+revisions, frames, CIDs and dispatch entries, and cover concurrent consumption.
+The Java owner notifies the existing settings URI only after native ACK; actual
+controller updates and painting remain owned by the launcher's original stream.
 
 **Provenance and scope**
 

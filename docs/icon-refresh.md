@@ -93,17 +93,21 @@ packages are refreshed instead of risking missed icons.
 The solution uses launcher package callbacks and does not depend on whether
 `libhyper_os_flutter.so` comes from the launcher APK or the system partition.
 
-## Two-tone Monet candidate
+## Two-tone Monet on the verified HYOS image
 
-The native implementation is an experimental candidate for the launcher image
-with SHA-256 `fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`
-and Dart build ID `4f1bdaed62b77ed2de7d3ebc34e453ca`. A different image,
-changed instruction dependency, ambiguous structural match, or unavailable
-authenticated policy preserves original selection/tint behavior. The
-single-instruction capability patch preserves the existing asynchronous
-`Future<bool>` contract.
+The native foundation accepts only two reviewed `libapp.so` identities, both
+with Dart build ID `4f1bdaed62b77ed2de7d3ebc34e453ca`:
 
-The previous background-only path is replaced with acknowledged color pairs.
+- APK ELF: `fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`.
+- Extracted AVD ELF: `44ab76174a5085b9cc45d44420b82e53c46423e2f58d32e0eee86264dc683dd5`.
+
+The extracted image differs in two Recents timeout instructions outside the icon
+ABI. Both full-file hashes are explicit allowlist entries. Changed dependencies,
+ambiguous structure, unrecognized images, or missing authenticated policy leave
+original selection/tint behavior in place. The capability patch preserves the
+existing asynchronous `Future<bool>` contract. This is not general compatibility
+with arbitrary HyperOS versions.
+
 The tone roles follow AOSP iconloaderlib's Android 16 resources:
 
 | Mode | Background | Foreground |
@@ -118,89 +122,184 @@ Both colors must be opaque and have an unrounded contrast ratio of at least
 representative colors, palette tone entries and available generation schemes
 remain separate concepts in the app.
 
-Read-only inspection of the live AVD confirmed that the foreground constant is
-`ColorFilter.mode(black, srcIn)`. The bridge changes only the unboxed ARGB
-argument at the authenticated conversion call. It verifies the caller, the
-live pool constant, blend mode, original color and the current controller's
-selected background. It never allocates a Dart object, retains a heap pointer,
-replays a State/root tree, or invokes Dart/C code. The two original filter
-setters still own invalidation; scoped equality prevents them from retaining
-an obsolete engine filter, including after policy withdrawal. The constant is
-also used by the launcher's resource debug demo; that known demo is within the
-same identity scope. Other ColorFilters and other callers retain their behavior.
+### Dart ABI and ownership
 
-Malformed-mask decisions use the package's **application icon**, matching
-HYOS's resource selector, and the current night configuration. Only a declared,
-successfully rendered uniform-alpha layer is denied. Missing, animated,
-theme-dependent, unreadable or profile-ambiguous resources remain unknown and
-keep original selection. Activity aliases continue to be evaluated
-separately for the compatibility UI. A pure assembly entry guard returns the
-normal-icon choice before the launcher's package capability cache is consulted;
-it checks same-image String layout and live closure links on every enabled
-call. It neither writes the cache nor retains the package String.
+The foreground constant is `ColorFilter.mode(black, srcIn)`. A leaf assembly
+bridge changes only the unboxed ARGB argument at the verified conversion call.
+It checks the caller, live pool constant, blend mode, original color, current
+controller and selected background. The two original filter setters own engine
+filter invalidation; narrowly scoped equality prevents an obsolete filter from
+being retained, including after policy withdrawal. Other filters pass through.
+The launcher's resource debug demo shares this exact constant and is also in
+scope.
 
-Policy delivery uses a process-local abstract socket with both system UID and
-`system_server` SELinux peer authentication. The client verifies the foreground
-user's launcher UID and rejects user switches during an exchange. Immutable
-native snapshots contain only primitive colors and package bytes. Readers pin
-before loading a snapshot; writers retain retired storage until readers drain.
-A 15-second renewal maintains a 45-second denial lease. Expiry clears denials;
-the last accepted colors are eligible only while the actual selected background
-still matches. No unauthenticated request or timer creates a new policy.
+Malformed-resource selection is denied at the original package capability
+query before its cache is consulted. The live String class, closure links,
+callers and image are validated. Mounted icon controllers additionally cache a
+selection bool. A separate `Object.==` guard authenticates both caller PCs,
+Dart stack shape, bool GDT entry, two true operands and the live controller's
+RxBool receiver. On a new selection revision it returns false once, allowing
+the original Rx setter and stream to recompute subscribed controllers.
+A compare-and-swap cannot consume a newer revision or rewind another reader.
+Palette-only renewals do not generate selection revisions.
 
-The monitor writes the background only after the native side acknowledges the
-pair. Existing manual colors, including transparent/off values, are preserved.
-Automatic following currently requires an unset color or one still matching
-KeiHome's ownership marker; a stock manual preset is not silently opted in.
-Turning the themed-icon switch off alone retains that marker so it can resume.
-SettingsProvider has no atomic compare-and-set, so simultaneous manual writes
-remain a narrow race despite rechecking before and after native publication.
-Palette changes and withdrawal schedule the standard targeted package/shortcut
-refresh; a pending full sweep survives superseding night-mode generations.
+These bridges do not allocate, invoke Dart/C, retain heap references, write
+Dart objects, replay a State, or replace the Flutter root tree. They use live
+objects synchronously on the original Dart thread. Native immutable snapshots
+contain only primitive colors and copied package bytes. Readers pin before
+loading; retired policy storage stays alive until those readers drain.
+
+### Authenticated policy and hot reload
+
+Direct abstract-socket connections are denied by the AVD's SELinux policy in
+both directions between system_server and the launcher. KeiHome does not change
+SELinux. Instead, a guarded private transaction on the generated PackageManager
+Binder stub transfers one endpoint of a system-created socketpair. It validates
+the kernel caller UID/PID, foreground launcher identity and process start time
+before allocation. Native verifies creator UID 1000 and system_server peer
+context. Normal PackageManager transactions retain their original handling.
+The PFD is encoded as a typed Parcelable, matching the NDK Binder reader.
+No exported service or additional app permission is introduced.
+
+The Java generation owns bounded channels, deadlines, pending and borrowed
+endpoints, and their cleanup worker. Retirement stops admission, closes channels
+outside lifecycle locks, and waits for tracked work to drain. New API 102 Java
+generations replace hooks and reconnect to the resident native foundation.
+A 15-second renewal maintains a 45-second denial lease. Expiry removes denials
+and marks selection notification pending, but without a Java owner there is no
+immediate repaint request; mounted selection updates on the next original
+settings/controller event. Accepted colors remain eligible only while the live
+selected background matches. No unauthenticated timer creates a policy.
+
+Settings writes follow native ACK. The owner then notifies the existing color
+URI, excluding its own observer, so the original launcher stream handles the
+change without cycling the enable setting. Manual presets, transparent values
+and the stock off value are preserved unless the user explicitly requests
+wallpaper following. SettingsProvider has no multi-key compare-and-set; the
+implementation rechecks ownership/state and fails closed on detected changes.
+
+API 102 reloads Java hooks, observers, preferences and policy automatically.
+It does **not** replace changed executable native bytes already mapped by a
+HYOS process. The stable native foundation is deliberately resident; first
+activation or a future native ABI change requires a launcher-generation restart.
+Theme changes, palette changes, fallback updates and the App action contain no
+launcher termination path. The developer-only `scripts/deploy-hyperos-avd.py`
+enforces exact AVD identity, increasing versionCode and Java reload evidence.
+Its explicit `--reload-native` option replaces the verified owning spawner for
+native development, following MiuiBackGestureHook's deployment model. It is not
+called by the module or by an ordinary APK hot install.
+
+### App request and ownership
+
+The MIUIX Monet page offers Follow wallpaper colors in English, Simplified
+Chinese and Japanese. API 102 remote preferences atomically carry a monotonic
+revision and requesting user. The system-side reader accepts a fresh request
+only for the current foreground user, checks the native ACK and current choice,
+then records consumption, writes the background/ownership marker, enables icons
+and publishes a separate applied receipt. The App reports success only for its
+matching applied revision; submission alone is not success.
+
+Automatic following owns both tint and fallback policy. Selecting a stock
+manual preset withdraws that policy and preserves the original launcher mode.
+A handled revision cannot replay over a later manual preset after Java reload.
+Detected manual changes cancel the pending revision without writing the color
+or toggle. Failed-I/O retries retain the first observed selection within the
+current synchronizer. Only a successfully persisted cancellation survives a
+reload; the in-memory baseline itself does not. These checks do not create a
+SettingsProvider transaction or eliminate races with an external writer.
+
+### Resource fallback
+
+The isolated inspector uses application icon owners, matching HYOS selection,
+including installed packages without their own launcher entry. It evaluates the
+current night configuration across enabled profiles. Conflicting per-package
+sources remain unknown because the native selector is package-keyed.
+
+Uniform-alpha layers are unusable. A conservative bitmap check also detects
+padded full-color squares with a dense opaque interior and no alpha detail,
+which otherwise become solid blocks when tinted. Sparse masks, real cutouts,
+single-color silhouettes and small antialias color noise are preserved.
+Animated, unreadable, theme-dependent or otherwise unknown resources keep the
+original selection. Batches are bounded at 128; unresolved evidence is retried
+after 60 seconds rather than rasterized at each 15-second policy renewal.
+
+On the AVD this denies `com.hyper.podsrx`, `com.miui.voiceassist` and
+`com.miui.voiceassistProxy`. HyperPods-X and Super XiaoAi visibly return to their
+ordinary color icons after policy notification, without toggling the icon mode.
+KeiHome and both ErinAO packages retain valid monochrome glyphs. The App's
+resource-capability list remains detection evidence, not a per-icon repaint ACK.
 
 ### Validation boundary
 
-Host checks cover backing-image hashing (direct ELF and stored APK entry),
-structural/caller/layout rejection, actual ARM64 bridge execution, register and
-stack preservation, parser/authentication predicates, and reader retirement
-under ASan/UBSan. The reproducible runners are in `scripts/tests/`, with external
-launcher ELF input; proprietary binaries and heap dumps are not committed.
-These checks do not establish Flutter repaint timing or visual acceptance.
+The host suites cover exact backing-image identity, 41 tint-profile rejection
+cases, 61 executed ARM64 tint/notification cases, selection resolver/bridge
+checks, register/stack preservation, parser/authentication predicates, selection
+revisions, expiry and concurrent retirement under ASan/UBSan. External ELF
+fixtures are required; proprietary binaries and heap dumps are not committed.
+Unicorn does not establish real Dart GC behavior or visual correctness.
 
-The running AVD's older native payload cannot be replaced by API 102 Java hot
-reload. Installed LSPosed build 7936 exposes no live HYOS native-injection CLI;
-its logs show Java updates in system_server while the launcher keeps the old
-APK mapping. MiuiBackGestureHook's deployment helper replaces the owning
-spawner, which creates a new launcher generation. No such replacement is
-performed by this candidate or by its tests. Multi-instruction detours are
-installed only on the first fresh library-load callback; an already loaded
-snapshot is never repatched through backfill.
+The authorized native development replacement established launcher PID `1235`,
+start ticks `2936707`, and system_server PID `8818`. Subsequent normal theme
+changes visibly produced dark backgrounds/light glyphs and light backgrounds/
+dark glyphs for KeiHome and both ErinAO packages, with those identities unchanged.
+The AVD dark pair was background `0xff2b2e4d`, foreground `0xffbec2ff`.
+Both ErinAO entries were also checked together inside an open folder.
+KeiHome also switched in a five-slot Dock. Closed-folder thumbnails and the
+open folder both followed the palette. A temporary managed profile showed
+ErinAO and KeiHome changing in both directions while retaining their profile
+badges; the temporary profile was then removed. These checks cover ordinary
+activity entries, not arbitrary pinned-shortcut or widget artwork.
 
-Therefore the new two-tone and fallback paths still require a separately
-authorized first native deployment and visual light/dark acceptance for
-KeiHome, ErinAO, malformed icons, Dock, folders and profiles. Subsequent runtime
-theme/palette transitions use notifications and in-process rendering; there is
-no launcher termination, restart, root-tree replacement or settings-shell path
-in the implementation. Do not describe host tests or Java hot reload as that
-missing visual acceptance.
+During the combined UI instrumentation run on 2026-10-30, the earlier launcher
+PID 1235 suffered a FocusEvent(hasFocus=false) ANR and was ended by Android at
+00:32:13 +0800. Its main thread was sampled in futex_wait_queue, but debuggerd
+registration failed and no usable native stack was collected. CPU pressure
+some/avg10 was 73.49; that is context, not proof of causality. The three UI tests
+that failed lifecycle cleanup/attachment passed a focused rerun. This does not
+exonerate the module or establish that the ANR is fixed. Unrelated Object.==
+callers now take a bounded fast rejection path, independently covered by the
+ARM64 tests. Subsequent checks use a new baseline and must not be joined to the
+old PID's stability record.
 
-On 2026-10-29, candidate versionCode `1793275142` passed Debug/Release and
-instrumentation-APK builds, R8, full Release lint, 59 JVM tests and 10 resource
-tests on `emulator-5580`. The main package advanced from `1793275000`; the test
-package advanced from `0` to the same candidate version. API 102 reconciled the
-Java hooks in system_server PID `8818`. Launcher PID/start ticks stayed
-`9719 / 3194`; the crash buffer was unchanged. Night mode stayed enabled and all
-three experimental monochrome settings stayed unset. The new native policy
-server was not activated in that existing process.
+Release versionCode `1793293083` was installed with the explicit native
+replacement option after the authorized development restart. New launcher
+baseline: PID `14567`, start ticks `3727021`; system_server remained PID `8818`.
+The MIUIX App action successfully enabled themed icons from a disabled/manual
+selection, received its matching Secure applied receipt, and left the App in
+the foreground. The private receipt was readable by the App on this AVD. Serialized foreground
+App/Home checks then ran eight cycles with Monet off and eight with Monet on.
+All sixteen kept PID/start `14567 / 3727021`. This smaller focus scenario did
+not reproduce the earlier ANR; it does not prove the original stress failure
+has been fixed.
 
-Offline evidence includes 36 tint-profile rejection cases, 43 executed ARM64
-tint cases, 59 selection-resolver checks, 35 selection instruction-path cases,
-and 1,445 ARM64 host assertions over 39 successive synthetic root generations.
-The policy-server tests cover parser limits, peer predicates, expiry and
-concurrent reclamation under ASan/UBSan. Those synthetic roots are not a real
-Dart GC test. Release signing and 16 KB ZIP alignment checks also passed; the
-private candidate APK SHA-256 is
-`ff04f72fec5a5b464e174b6be81b8a52e086d93171f060b6cee5c34b341e69f7`.
+Final Release `1793294125` was hot-installed over `1793293083`; the native
+payload SHA-256 was unchanged. Java reconciliation completed without changing
+launcher `14567 / 3727021`, system_server or SystemUI. A manual color of `-1`
+and cleared ownership marker survived the upgrade, so the old applied request
+did not replay. A fresh App request then restored automatic following. The
+final dark/light/dark checks kept the same launcher identity. Screenshot pixel
+counts confirmed background/foreground `#2B2E4D / #BEC2FF` in dark mode and
+`#E0E0FF / #2F37AA` in light mode; HyperPods-X stayed in its ordinary color form.
+Release diagnostics use explicit state labels instead of R8-obfuscated names.
+
+The integrated build passed 94 JVM tests, Debug/Release and AndroidTest packaging,
+R8, full Release lint, signature verification and 16 KB ZIP alignment. Device
+resource tests passed 10/10. The separate UI/data suite passed 15/18 initially;
+the three lifecycle/attachment failures passed their focused 3/3 rerun. The
+initial all-class instrumentation startup also timed out publishing providers,
+before the grouped runs. These retries are retained as test-environment evidence,
+not a claim that the original stress ANR is resolved.
+
+The AVD was restored to night mode `yes`, with `key_monochrome`,
+`key_monochrome_color` and `keihome_monet_auto_color` unset. The two ErinAO icons
+and KeiHome were returned to their original workspace positions; the temporary
+folder and managed profile were removed. The test-only MIUI AppOp 10021 returned
+to `ignore`. The latest Release remains installed, and handled/applied request
+receipts are retained to prevent stale request replay. Foreground launcher
+PID/start remains `14567 / 3727021` after restoration.
+
+Final APK SHA-256:
+`65a69b2c618e91bfe478bac9210f7586c8ab43655f643ade8b2e4973f95ce02e`.
 
 ## Build and packaging
 

@@ -17,8 +17,11 @@ Capstone. `CXX` can select the host C++ compiler. `--libapp` is optional and can
 also be supplied through `LIBAPP_FIXTURE`. Missing optional capabilities appear
 as **SKIPPED** in `report.json`, never as verified results.
 
-The fixture must be the independently supplied launcher image with SHA-256
-`fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`.
+The fixture must be an independently supplied launcher image accepted by
+`monet_image_identity.cpp`: APK ELF SHA-256
+`fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`,
+or extracted AVD ELF SHA-256
+`44ab76174a5085b9cc45d44420b82e53c46423e2f58d32e0eee86264dc683dd5`.
 Do not add this ELF, decompilation, or full extracted function bytes to the
 repository. Production code holds four-instruction prefixes, function hashes,
 call relationships and small explicit ABI checks. The runner puts generated

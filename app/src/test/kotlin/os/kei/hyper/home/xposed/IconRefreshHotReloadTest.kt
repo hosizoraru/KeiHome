@@ -169,7 +169,7 @@ class IconRefreshHotReloadTest {
   }
 
   @Test
-  fun activeHookOrWorkerRejectsBeforeAnyResourceIsStopped() {
+  fun activeHookRejectsButActiveWorkerCanBeInterruptedForHandover() {
     val lifecycle = IconRefreshReloadLifecycle()
     val entered = CountDownLatch(1)
     val release = CountDownLatch(1)
@@ -197,15 +197,17 @@ class IconRefreshHotReloadTest {
 
     synchronized(lifecycle.lock) { lifecycle.activeJobs = 1 }
     var prepared = false
-    assertFalse(lifecycle.retire(
+    assertTrue(lifecycle.retire(
       prepare = { prepared = true; true },
-      await = { true },
+      await = {
+        synchronized(lifecycle.lock) { lifecycle.activeJobs = 0 }
+        true
+      },
       commit = {},
       rollback = {},
     ))
-    assertFalse(prepared)
-    synchronized(lifecycle.lock) { lifecycle.activeJobs = 0 }
-    assertFalse(lifecycle.retired)
+    assertTrue(prepared)
+    assertTrue(lifecycle.retired)
   }
 
   @Test

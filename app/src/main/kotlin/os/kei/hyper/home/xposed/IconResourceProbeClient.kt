@@ -22,15 +22,27 @@ internal class IconResourceProbeClient(private val context: Context) {
   fun packagesToRefresh(
     activities: List<LauncherActivityInfo>,
     isCurrent: () -> Boolean,
-  ): Set<String> {
+  ): Set<String> = probe(activities, false, isCurrent).packagesToRefresh
+
+  fun probe(
+    activities: List<LauncherActivityInfo>,
+    inspectLauncherMask: Boolean,
+    isCurrent: () -> Boolean,
+  ): IconProbeBatch {
     val packages = activities.groupBy { it.componentName.packageName }
-    if (packages.isEmpty() || packages.size > MAX_PACKAGES) return packages.keys
+    val unknown = IconProbeBatch(packages.keys, emptyMap())
+    if (packages.isEmpty() || packages.size > MAX_PACKAGES) return unknown
 
     val connectionReady = CountDownLatch(1)
     val resultsReady = CountDownLatch(packages.size)
     val results = ConcurrentHashMap<Int, Boolean>()
+    val masks = ConcurrentHashMap<Int, LauncherMaskStatus>()
     val replyThread = HandlerThread("KeiHomeIconProbeReply").also { it.start() }
     val reply = Messenger(Handler(replyThread.looper) { message ->
+      if (message.arg1 !in 0 until packages.size) return@Handler true
+      masks[message.arg1] = LauncherMaskStatus.fromWire(message.data.getInt(
+        IconProbeProtocol.LAUNCHER_MASK, LauncherMaskStatus.UNKNOWN.ordinal,
+      ))
       if (results.putIfAbsent(message.arg1, message.data.getBoolean(
           IconProbeProtocol.REQUIRES_REFRESH, true,
         )) == null
@@ -58,13 +70,13 @@ internal class IconResourceProbeClient(private val context: Context) {
       bindAttempted = true
       val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
       if (!bound || !connectionReady.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-        return packages.keys
+        return unknown
       }
-      val target = remote.get() ?: return packages.keys
+      val target = remote.get() ?: return unknown
       val config = Configuration(context.resources.configuration)
       val indexed = packages.entries.toList()
       for ((index, entry) in indexed.withIndex()) {
-        if (!isCurrent()) return packages.keys
+        if (!isCurrent()) return unknown
         try {
           target.send(Message.obtain().apply {
             arg1 = index
@@ -74,6 +86,7 @@ internal class IconResourceProbeClient(private val context: Context) {
               ArrayList(entry.value.map { it.activityInfo }),
             )
             data.putParcelable(IconProbeProtocol.CONFIGURATION, config)
+            data.putBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK, inspectLauncherMask)
           })
         } catch (_: Throwable) {
           if (results.putIfAbsent(index, true) == null) resultsReady.countDown()
@@ -83,11 +96,15 @@ internal class IconResourceProbeClient(private val context: Context) {
       while (isCurrent() && resultsReady.count > 0 && SystemClock.elapsedRealtime() < deadline) {
         resultsReady.await(POLL_MS, TimeUnit.MILLISECONDS)
       }
-      return indexed.mapIndexedNotNull { index, entry ->
+      if (!isCurrent()) return unknown
+      val refresh = indexed.mapIndexedNotNull { index, entry ->
         if (results[index] != false) entry.key else null
       }.toSet()
+      return IconProbeBatch(refresh, indexed.mapIndexed { index, entry ->
+        entry.key to (masks[index] ?: LauncherMaskStatus.UNKNOWN)
+      }.toMap())
     } catch (_: Throwable) {
-      return packages.keys
+      return unknown
     } finally {
       if (bindAttempted) {
         try {
@@ -116,3 +133,8 @@ internal class IconResourceProbeClient(private val context: Context) {
     const val REPLY_THREAD_TIMEOUT_MS = 1_000L
   }
 }
+
+internal data class IconProbeBatch(
+  val packagesToRefresh: Set<String>,
+  val launcherMasks: Map<String, LauncherMaskStatus>,
+)

@@ -34,4 +34,21 @@ class IconRefreshGenerationTest {
     assertFalse(generations.isCurrent(second))
     assertNull(generations.next(light, dark))
   }
+
+  @Test
+  fun themeTransitionsCarryAnUnfinishedPaletteRestoration() {
+    val generations = IconRefreshGeneration()
+    val restore = generations.nextFullRefresh()!!
+    val theme = generations.next(light, dark)!!
+    generations.complete(restore)
+    assertTrue(generations.needsFullRefresh(theme))
+    assertFalse(generations.needsFullRefresh(restore))
+    val latest = generations.next(dark, light)!!
+    assertTrue(generations.needsFullRefresh(latest))
+    generations.complete(latest)
+    assertFalse(generations.needsFullRefresh(latest))
+    assertFalse(generations.needsFullRefresh(generations.next(light, dark)!!))
+    generations.retire()
+    assertNull(generations.nextFullRefresh())
+  }
 }

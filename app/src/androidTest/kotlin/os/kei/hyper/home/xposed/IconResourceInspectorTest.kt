@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -106,5 +107,34 @@ class IconResourceInspectorTest {
       assertEquals(IconSupportStatus.UNKNOWN, result.monochrome)
       assertTrue(result.monochromeFallbackRecommended)
     }
+  }
+
+  @Test
+  fun launcherPolicyUsesApplicationIconInsteadOfActivityAlias() {
+    val alias = activity("fixture_mono_solid").apply {
+      applicationInfo = ApplicationInfo(context.applicationInfo).apply {
+        icon = context.resources.getIdentifier("fixture_mono_valid", "drawable", context.packageName)
+      }
+    }
+    assertEquals(LauncherMaskStatus.USABLE, inspector.assessLauncherMask(listOf(alias), configuration))
+    alias.applicationInfo.icon = alias.icon
+    assertEquals(LauncherMaskStatus.UNUSABLE, inspector.assessLauncherMask(listOf(alias), configuration))
+  }
+
+  @Test
+  fun launcherFallbackIsSpecificToTheCurrentNightConfiguration() {
+    val info = activity("fixture_mono_bad_at_night").apply {
+      applicationInfo = ApplicationInfo(context.applicationInfo)
+    }
+    info.applicationInfo.icon = info.icon
+    val light = Configuration(configuration).apply {
+      uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+    }
+    val dark = Configuration(light).apply {
+      uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_YES
+    }
+    assertEquals(LauncherMaskStatus.USABLE, inspector.assessLauncherMask(listOf(info), light))
+    assertEquals(LauncherMaskStatus.UNUSABLE, inspector.assessLauncherMask(listOf(info), dark))
+    assertEquals(LauncherMaskStatus.UNKNOWN, inspector.assessLauncherMask(emptyList(), dark))
   }
 }

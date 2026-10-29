@@ -28,6 +28,28 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lock = lifecycle.lock
   private val generations = IconRefreshGeneration()
   private val pending = PendingIconRefresh()
+  private val monetColorSynchronizer = MonetColorSynchronizer()
+  private val monetColorMonitor = MonetColorMonitor(
+    monetColorSynchronizer,
+    onResult = { result ->
+      when (result) {
+        is MonetColorSynchronizer.SynchronizationResult.Applied -> {
+          xposed.log(
+            Log.INFO, TAG,
+            "Monet icon palette acknowledged: ${result.color.toUInt().toString(16)}",
+          )
+          schedulePaletteRefresh()
+        }
+        is MonetColorSynchronizer.SynchronizationResult.WriteFailed ->
+          xposed.log(Log.WARN, TAG, "Monet icon background could not be written")
+        is MonetColorSynchronizer.SynchronizationResult.Restored -> schedulePaletteRefresh()
+        else -> Unit
+      }
+    },
+    onFailure = { failure ->
+      xposed.log(Log.WARN, TAG, "Monet icon background synchronization failed", failure)
+    },
+  )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
   private val closingWorkers = RetiringIconRefreshThreads()
@@ -82,6 +104,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             if (chain.getArg(0) == LAUNCHER_PACKAGE) {
               synchronized(lock) {
                 service = chain.thisObject
+                startMonetMonitorLocked()
                 postPendingLocked()
               }
             }
@@ -128,6 +151,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       check(removeOldHooks(oldHooks, replaced))
       synchronized(lock) {
         hooksReady = true
+        startMonetMonitorLocked()
         postPendingLocked()
       }
       xposed.log(Log.INFO, TAG, "System-server icon refresh hooks installed")
@@ -151,12 +175,17 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       if (closingWorkers.hasLiveThreads()) {
         false
       } else {
+        monetColorMonitor.stop()
         pending.invalidatePost()
         handler?.removeCallbacksAndMessages(null)
         handler = null
         worker?.let {
           worker = null
           closingWorkers.track(it)
+          // A package sweep may be sleeping between callbacks. Interrupt it
+          // so API 102 hot reload can hand over promptly without waiting for
+          // the full sweep or touching the launcher process.
+          it.interrupt()
           it.quitSafely()
         }
         true
@@ -169,13 +198,26 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       generations.retire()
     },
     rollback = {
+      startMonetMonitorLocked()
       postPendingLocked()
     },
   )
 
   private fun awaitRetirement(): Boolean {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
-    return closingWorkers.awaitStopped(deadline) && iconProbeReplyThreadsStopped()
+    return closingWorkers.awaitStopped(deadline) &&
+      monetColorMonitor.awaitStopped(deadline) &&
+      iconProbeReplyThreadsStopped()
+  }
+
+  private fun startMonetMonitorLocked() {
+    if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
+    try {
+      val context = service?.let { profile.context.get(it) } as? Context ?: return
+      monetColorMonitor.start(context)
+    } catch (failure: Throwable) {
+      logFailure("could not observe Monet colors", failure)
+    }
   }
 
   private fun removeOldHooks(
@@ -202,11 +244,21 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     null
   }
 
+  private fun schedulePaletteRefresh() {
+    synchronized(lock) {
+      if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
+      val generation = generations.nextFullRefresh() ?: return
+      pending.replace(IconRefreshRequest(generation, 0))
+      postPendingLocked()
+    }
+  }
+
   private fun schedule(previous: Int, current: Int) {
     synchronized(lock) {
       if (lifecycle.retired) return
       val generation = generations.next(previous, current) ?: return
       pending.replace(IconRefreshRequest(generation, 0))
+      monetColorMonitor.request()
       handler?.removeCallbacksAndMessages(null)
       postPendingLocked()
     }
@@ -307,6 +359,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             val shortcutsByPackage = shortcutsByPackage(launcherApps, user) ?: emptyMap()
             val shortcutPackages = shortcutsByPackage.keys
             val packages = (probedPackages + shortcutPackages).toSortedSet()
+            if (generations.needsFullRefresh(generation)) {
+              // A color change also affects icons with no night-qualified drawable.
+              packages += activities.map { it.componentName.packageName }
+            }
             xposed.log(
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +
@@ -360,6 +416,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         }
       }
       xposed.log(Log.INFO, TAG, "Icon refresh generation=$generation callbacks=$sent")
+      generations.complete(generation)
     } catch (failure: Throwable) {
       logFailure("icon refresh stopped", failure)
     } finally {
@@ -758,7 +815,7 @@ internal class IconRefreshReloadLifecycle {
     rollback: () -> Unit,
   ): Boolean {
     synchronized(lock) {
-      if (retired || retiring || activeHooks != 0 || activeJobs != 0) return false
+      if (retired || retiring || activeHooks != 0) return false
       retiring = true
       try {
         if (!prepare()) {

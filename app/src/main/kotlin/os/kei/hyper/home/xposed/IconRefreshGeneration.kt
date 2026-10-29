@@ -12,6 +12,24 @@ internal fun isNightModeTransition(previous: Int, current: Int): Boolean {
 internal class IconRefreshGeneration {
   private var value = 0L
   private var retired = false
+  private var fullRefreshRequired = false
+
+  @Synchronized
+  fun nextFullRefresh(): Long? {
+    if (retired) return null
+    fullRefreshRequired = true
+    value += 1
+    return value
+  }
+
+  @Synchronized
+  fun needsFullRefresh(generation: Long): Boolean =
+    !retired && generation == value && fullRefreshRequired
+
+  @Synchronized
+  fun complete(generation: Long) {
+    if (!retired && generation == value) fullRefreshRequired = false
+  }
 
   @Synchronized
   fun next(previous: Int, current: Int): Long? {
@@ -26,6 +44,7 @@ internal class IconRefreshGeneration {
   @Synchronized
   fun retire() {
     retired = true
+    fullRefreshRequired = false
     value += 1
   }
 }

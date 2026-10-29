@@ -27,6 +27,16 @@ internal object IconProbeProtocol {
   const val ACTIVITY_INFOS = "activities"
   const val CONFIGURATION = "configuration"
   const val REQUIRES_REFRESH = "requires_refresh"
+  const val INSPECT_LAUNCHER_MASK = "inspect_launcher_mask"
+  const val LAUNCHER_MASK = "launcher_mask"
+}
+
+internal enum class LauncherMaskStatus {
+  UNKNOWN, ABSENT, USABLE, UNUSABLE;
+
+  companion object {
+    fun fromWire(value: Int): LauncherMaskStatus = entries.getOrNull(value) ?: UNKNOWN
+  }
 }
 
 internal enum class IconSupportStatus {
@@ -93,14 +103,18 @@ class IconResourceProbeService : Service() {
         sendResult(reply, message.arg1, true)
         return@Handler true
       }
+      val inspectMask = message.data.getBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK)
       executor.execute {
+        val inspector = IconResourceInspector(packageManager)
         val refresh = try {
-          IconResourceInspector(packageManager).requiresRefresh(activities, config)
+          inspector.requiresRefresh(activities, config)
         } catch (failure: Throwable) {
           Log.w(TAG, "icon probe failed", failure)
           true
         }
-        sendResult(reply, message.arg1, refresh)
+        val mask = if (inspectMask) inspector.assessLauncherMask(activities, config)
+        else LauncherMaskStatus.UNKNOWN
+        sendResult(reply, message.arg1, refresh, mask)
       }
       true
     })
@@ -114,12 +128,18 @@ class IconResourceProbeService : Service() {
     super.onDestroy()
   }
 
-  private fun sendResult(reply: Messenger?, request: Int, refresh: Boolean) {
+  private fun sendResult(
+    reply: Messenger?,
+    request: Int,
+    refresh: Boolean,
+    mask: LauncherMaskStatus = LauncherMaskStatus.UNKNOWN,
+  ) {
     if (reply == null) return
     try {
       reply.send(Message.obtain().apply {
         arg1 = request
         data.putBoolean(IconProbeProtocol.REQUIRES_REFRESH, refresh)
+        data.putInt(IconProbeProtocol.LAUNCHER_MASK, mask.ordinal)
       })
     } catch (_: Throwable) {
     }
@@ -132,6 +152,33 @@ class IconResourceProbeService : Service() {
 }
 
 internal class IconResourceInspector(private val packageManager: PackageManager) {
+  // HYOS looks up ApplicationInfo.icon by package. Activity/alias icons are
+  // still inspected separately by the compatibility UI.
+  fun assessLauncherMask(
+    activities: List<ActivityInfo>,
+    base: Configuration,
+  ): LauncherMaskStatus = try {
+    val app = activities.firstOrNull()?.applicationInfo ?: return LauncherMaskStatus.UNKNOWN
+    if (app.icon == 0 || activities.any {
+        it.packageName != app.packageName || it.applicationInfo?.sourceDir != app.sourceDir ||
+          it.applicationInfo?.icon != app.icon
+      }
+    ) return LauncherMaskStatus.UNKNOWN
+    val resources = packageManager.getResourcesForApplication(app, Configuration(base))
+    val declared = StableIconResourceGraph(resources, resources).monochromeStatus(app.icon)
+    if (declared == IconSupportStatus.NOT_DETECTED) return LauncherMaskStatus.ABSENT
+    if (declared != IconSupportStatus.DETECTED) return LauncherMaskStatus.UNKNOWN
+    val drawable = resources.getDrawableForDensity(app.icon, resources.displayMetrics.densityDpi, null)
+    val result = assessMonochrome((drawable as? AdaptiveIconDrawable)?.monochrome)
+    when {
+      result.fallbackRecommended -> LauncherMaskStatus.UNUSABLE
+      result.status == IconSupportStatus.DETECTED -> LauncherMaskStatus.USABLE
+      else -> LauncherMaskStatus.UNKNOWN
+    }
+  } catch (_: Throwable) {
+    LauncherMaskStatus.UNKNOWN
+  }
+
   fun requiresRefresh(activities: List<ActivityInfo>, base: Configuration): Boolean {
     return assess(activities, base, inspectMonochrome = false).nightMode !=
       IconSupportStatus.NOT_DETECTED

@@ -43,7 +43,8 @@
             android:process=":icon_probe" />
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"
-            tools:node="remove" />
+            tools:node="remove"
+            tools:ignore="MissingClass" />
     </application>
 
 </manifest>

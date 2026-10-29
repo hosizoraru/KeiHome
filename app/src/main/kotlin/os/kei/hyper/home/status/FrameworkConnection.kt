@@ -7,6 +7,8 @@ import java.util.Collections
 import java.util.IdentityHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import os.kei.hyper.home.BuildConfig
+import android.util.Log
 
 internal object FrameworkConnection : XposedServiceHelper.OnServiceListener {
   private val lock = Any()
@@ -57,4 +59,17 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     target = target,
     launcherTarget = launcherTarget,
   )
+}
+
+/** One retry on app connection if the install-time reload was refused by a busy old generation. */
+internal fun XposedService.upgradeOlderSystemTarget() {
+  if (apiVersion < 102) return
+  val target = runningTargets.firstOrNull {
+    it.uid == android.os.Process.SYSTEM_UID &&
+      (it.processName == "system_server" || it.processName == "system") &&
+      it.loadedVersionCode < BuildConfig.VERSION_CODE
+  } ?: return
+  hotReloadModule(target, null) { _, result ->
+    Log.i("KeiHomeReload", "API 102 upgrade result: ${result.status}, ${result.message}")
+  }
 }

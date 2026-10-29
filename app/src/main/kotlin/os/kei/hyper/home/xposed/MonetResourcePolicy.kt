@@ -69,9 +69,12 @@ internal class MonetResourcePolicy {
       IconResourceProbeClient(context).applicationMasks(batch, isCurrent).launcherMasks.entries
     }.associate { it.toPair() }
     if (!isCurrent()) return emptySet()
-    val denied = masks.filterValues { it == LauncherMaskStatus.UNUSABLE }.keys.toSet()
-    // Unknown evidence never denies an icon. Retry it, but do not repeatedly
-    // rasterize every resource on each native policy lease renewal.
+    val previousByPackage = previousSources.orEmpty().groupBy(Source::packageName)
+    val unchanged = sources.groupBy(Source::packageName)
+      .filter { (name, entries) -> previousByPackage[name] == entries }.keys
+    val denied = retainedUnusableMasks(masks, previousDenied, unchanged)
+    // An interrupted probe does not make a known bad mask usable. Retry unknown
+    // resources without dropping their last result for the same installed source.
     previousSources = sources
     previousUserId = userId
     previousConfiguration = configuration
@@ -82,3 +85,10 @@ internal class MonetResourcePolicy {
     return denied
   }
 }
+
+internal fun retainedUnusableMasks(
+  masks: Map<String, LauncherMaskStatus>, previousDenied: Set<String>, unchanged: Set<String>,
+): Set<String> = masks.filterValues { it == LauncherMaskStatus.UNUSABLE }.keys +
+  previousDenied.filter { name ->
+    name in unchanged && (masks[name] == null || masks[name] == LauncherMaskStatus.UNKNOWN)
+  }

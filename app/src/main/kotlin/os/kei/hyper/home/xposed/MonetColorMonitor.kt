@@ -153,6 +153,8 @@ internal class MonetColorMonitor(
           registered = false
         }
       }
+      // Release a probe's latch wait before the API 102 generation handover.
+      thread.interrupt()
       thread.quitSafely()
     }
   }

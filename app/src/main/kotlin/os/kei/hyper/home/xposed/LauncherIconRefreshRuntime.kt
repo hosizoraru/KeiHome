@@ -739,7 +739,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     const val PACKAGE_INTERVAL_MS = 220L
     const val SNAPSHOT_RETRY_MS = 250L
     const val MAX_SNAPSHOT_RETRIES = 3
-    const val RETIRE_TIMEOUT_MS = 1_000L
+    const val RETIRE_TIMEOUT_MS = 5_000L
   }
 }
 

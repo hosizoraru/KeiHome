@@ -68,7 +68,7 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
       buildFeatures {
         compose = true
         aidl = false
-        buildConfig = false
+        buildConfig = true
         prefab = true
         shaders = false
       }

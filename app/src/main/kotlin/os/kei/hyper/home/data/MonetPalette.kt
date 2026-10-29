@@ -59,6 +59,7 @@ internal data class MonetPaletteSnapshot(
   val customization: MonetCustomization? = null,
   val customizationActive: Boolean = false,
   val selectedPalette: MonetPaletteSource? = null,
+  val lastAppliedRevision: Long? = null,
 ) {
   val activePalette: MonetPaletteSource
     get() = selectedPalette ?: launcherPalette.takeIf { it.state == MonetReadState.AVAILABLE }
@@ -120,6 +121,8 @@ internal fun parseMonetPaletteJson(raw: String): List<MonetColorFamily> {
 internal class MonetPaletteReader(context: Context) {
   private val context = context.applicationContext
   private val resolver = context.contentResolver
+  private var generatedKey: Pair<Int, MonetSchemeStyle>? = null
+  private var generatedPalette: MonetPaletteSource? = null
 
   fun read(): MonetPaletteSnapshot {
     val settings = readSettings()
@@ -131,8 +134,16 @@ internal class MonetPaletteReader(context: Context) {
       ownedColor == monochrome.colorArgb
     val selectedPalette = customization?.takeIf { active }?.let { choice ->
       choice.seed(wallpaper)?.let { seed ->
-        MonetPaletteSource("KeiHome", MonetReadState.AVAILABLE,
-          parseMonetPaletteJson(JSONObject(MonetSchemes.generate(seed, choice.style)).toString()))
+        val key = seed to choice.style
+        if (generatedKey != key) {
+          val tones = MonetSchemes.generate(seed, choice.style)
+          generatedPalette = MonetPaletteSource("KeiHome", MonetReadState.AVAILABLE,
+            MONET_FAMILY_ORDER.map { name ->
+              MonetColorFamily(name, (0..100).map { MonetColor(it, tones.getValue("$name$it")) })
+            })
+          generatedKey = key
+        }
+        generatedPalette
       }
     }
     return MonetPaletteSnapshot(
@@ -145,6 +156,7 @@ internal class MonetPaletteReader(context: Context) {
       customization = customization,
       customizationActive = active,
       selectedPalette = selectedPalette,
+      lastAppliedRevision = readSetting(MonetAction.Setting.APPLIED.key)?.toLongOrNull()?.takeIf { it > 0 },
     )
   }
 

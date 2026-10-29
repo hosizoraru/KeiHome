@@ -81,7 +81,7 @@
     <string name="monet_experimental_note">部分桌面可用，个别图标可能异常。</string>
     <string name="monet_open_details">查看 Monet 详情</string>
     <string name="monet_wallpaper_colors">壁纸代表色</string>
-    <string name="monet_wallpaper_colors_value">%1$d / 3</string>
+    <string name="monet_wallpaper_colors_value">%1$d 个代表色</string>
     <string name="monet_wallpaper_color_description">壁纸颜色：%1$s</string>
     <string name="monet_palette">调色板</string>
     <string name="monet_palette_value">%1$d 组 · %2$d 色</string>

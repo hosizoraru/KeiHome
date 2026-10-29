@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
@@ -15,21 +17,32 @@ import org.junit.Test
 class MainScreenTest {
   @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+
+  @Test
+  fun keepsAppSearchWhenReturningFromSettings() {
+    val context = composeTestRule.activity
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
+    composeTestRule.onNode(hasSetTextAction()).performTextInput("KeiHome")
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
+    composeTestRule.onNode(hasSetTextAction() and hasText("KeiHome")).assertExists()
+  }
+
   @Test
   fun separatesModuleStatusFromSettings() {
     val context = composeTestRule.activity
-    composeTestRule.onNodeWithText(context.getString(R.string.status_framework)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.navigation_settings)).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.settings_language)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.status_framework)).assertDoesNotExist()
-    composeTestRule.onNodeWithText(context.getString(R.string.navigation_status)).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.status_framework)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertDoesNotExist()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable()).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
   }
 
   @Test
   fun showsFilterAndTopBarRefresh() {
     val context = composeTestRule.activity
-    composeTestRule.onNodeWithText(context.getString(R.string.navigation_apps)).performClick()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.search_apps)).assertExists()
     composeTestRule.onNodeWithContentDescription(context.getString(R.string.filter_title))
       .assertExists()
@@ -39,7 +52,7 @@ class MainScreenTest {
   @Test
   fun settingsOffersAppLanguages() {
     val context = composeTestRule.activity
-    composeTestRule.onNodeWithText(context.getString(R.string.navigation_settings)).performClick()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.settings_language)).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.language_chinese)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.language_english)).assertExists()
@@ -52,9 +65,9 @@ class MainScreenTest {
     composeTestRule.onNode(
       hasText(context.getString(R.string.navigation_monet)) and isSelectable(),
     ).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.monet_overview_title)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.monet_experimental_note)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.status_framework)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.monet_seed_source)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertDoesNotExist()
   }
 
   @Test
@@ -64,8 +77,8 @@ class MainScreenTest {
       hasText(context.getString(R.string.settings_monet_title)) and
         hasClickAction() and !isSelectable(),
     ).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.monet_overview_title)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.monet_experimental_note)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.monet_seed_source)).assertExists()
   }
 
   @Test
@@ -75,13 +88,13 @@ class MainScreenTest {
       composeTestRule.onNode(
         hasText(context.getString(R.string.navigation_monet)) and isSelectable(),
       ).performClick()
-      composeTestRule.onNodeWithText(context.getString(R.string.monet_overview_title)).assertExists()
+      composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
       composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh))
         .assertExists()
       composeTestRule.onNode(
         hasText(context.getString(R.string.navigation_status)) and isSelectable(),
       ).performClick()
-      composeTestRule.onNodeWithText(context.getString(R.string.status_framework)).assertExists()
+      composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
       composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh))
         .assertExists()
     }

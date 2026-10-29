@@ -81,7 +81,7 @@
     <string name="monet_experimental_note">一部のホーム画面のみ対応。アイコンが正しく表示されない場合があります。</string>
     <string name="monet_open_details">Monet の詳細を開く</string>
     <string name="monet_wallpaper_colors">壁紙の代表色</string>
-    <string name="monet_wallpaper_colors_value">%1$d / 3</string>
+    <string name="monet_wallpaper_colors_value">代表色 %1$d 色</string>
     <string name="monet_wallpaper_color_description">壁紙の色: %1$s</string>
     <string name="monet_palette">パレット</string>
     <string name="monet_palette_value">%1$d 系統 · %2$d 色</string>

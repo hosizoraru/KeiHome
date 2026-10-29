@@ -1,0 +1,16 @@
+<resources>
+    <string name="apps_preview_note">Resource previews with the current palette; launcher appearance may differ.</string>
+    <string name="apps_night_feature">Light / dark</string>
+    <string name="apps_monet_light">Monet light</string>
+    <string name="apps_monet_dark">Monet dark</string>
+    <string name="apps_supported">Available</string>
+    <string name="apps_not_provided">Not provided</string>
+    <string name="apps_original_icon">Original</string>
+    <string name="apps_fallback_note">Unusable monochrome layer; showing the original icon.</string>
+    <string name="refresh_completed">Updated at %1$s</string>
+    <string name="refresh_partial">%1$s · Some data could not be updated. Try again.</string>
+    <string name="refresh_in_progress">Refreshing</string>
+    <string name="refresh_status_completed">Status and support counts updated · %1$s</string>
+    <string name="refresh_apps_completed">Apps, icons and palette updated · %1$s</string>
+    <string name="refresh_monet_completed">Wallpaper colors and palette updated · %1$s</string>
+</resources>

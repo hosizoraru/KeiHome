@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="polish_status_module">モジュール</string>
+    <string name="polish_status_icons">アイコン機能</string>
+    <string name="polish_status_apps">アプリ</string>
+    <string name="polish_status_loaded">モジュール読込済み</string>
+    <string name="polish_status_waiting">読込待ち</string>
+    <string name="polish_status_update_pending">新バージョンの読込待ち</string>
+    <string name="polish_status_scope_needed">システムスコープを有効に</string>
+    <string name="polish_status_launcher_failed">ランチャーで読込失敗</string>
+    <string name="polish_status_framework_api">%1$s · API %2$d</string>
+    <string name="polish_status_details">実行情報</string>
+    <string name="polish_details_expand">詳細を表示</string>
+    <string name="polish_details_collapse">詳細を閉じる</string>
+    <string name="polish_scope_enabled">system：有効</string>
+    <string name="polish_scope_disabled">system：無効</string>
+    <string name="polish_installed_version">インストール済み</string>
+    <string name="polish_target_version">%1$s · ビルド %2$d</string>
+    <string name="polish_night_title">ライト・ダークアイコン</string>
+    <string name="polish_night_recent">最新のアイコン更新：未報告</string>
+    <string name="polish_apps_detected">検出したアイコンリソース</string>
+    <string name="polish_apps_total">アプリ</string>
+    <string name="polish_apps_night">明暗</string>
+    <string name="polish_apps_monet">Monet</string>
+    <string name="polish_apps_count">%1$d</string>
+    <string name="polish_value_pending">—</string>
+    <string name="polish_apps_open">対応アプリを表示</string>
+    <string name="polish_monet_scheme">%1$s · %2$s</string>
+    <string name="polish_monet_source_unknown">色のソースは未報告</string>
+    <string name="polish_monet_icons">テーマアイコン：%1$s</string>
+    <string name="polish_monet_no_palette">パレット未取得</string>
+    <string name="polish_monet_no_application">配色の適用履歴なし</string>
+    <string name="polish_monet_last_applied">配色の最終適用：%1$s</string>
+    <string name="polish_time_now">たった今</string>
+    <plurals name="polish_time_minutes">
+        <item quantity="other">%d 分前</item>
+    </plurals>
+    <plurals name="polish_time_hours">
+        <item quantity="other">%d 時間前</item>
+    </plurals>
+    <plurals name="polish_time_days">
+        <item quantity="other">%d 日前</item>
+    </plurals>
+    <string name="polish_settings_display">表示と言語</string>
+    <string name="polish_appearance_title">アプリの外観</string>
+    <string name="polish_appearance_summary">KeiHome のみに適用</string>
+    <string name="polish_appearance_light">ライト</string>
+    <string name="polish_appearance_dark">ダーク</string>
+    <string name="polish_settings_previews">アイコンプレビュー</string>
+    <string name="polish_previews_title">プレビューを表示</string>
+    <string name="polish_previews_summary">一覧にライト・ダーク・Monet のアイコンを表示</string>
+    <string name="polish_clear_previews">プレビューキャッシュを削除</string>
+    <string name="polish_clear_previews_summary">KeiHome 内のプレビューのみ</string>
+    <string name="polish_settings_about">このアプリについて</string>
+    <string name="polish_about_version">%1$s（%2$d）</string>
+    <string name="polish_copy_version">バージョン情報をコピー</string>
+    <string name="polish_about_package">パッケージ</string>
+    <string name="polish_about_api">Android</string>
+    <string name="polish_about_api_value">最小 API %1$d · 対象 API %2$d</string>
+    <string name="polish_previews_cleared">アイコンのプレビューキャッシュを削除しました</string>
+</resources>

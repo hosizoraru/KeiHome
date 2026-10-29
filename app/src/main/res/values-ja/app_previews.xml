@@ -1,0 +1,16 @@
+<resources>
+    <string name="apps_preview_note">現在の配色でリソースをプレビュー。ホーム上の表示とは異なる場合があります。</string>
+    <string name="apps_night_feature">ライト / ダーク</string>
+    <string name="apps_monet_light">Monet ライト</string>
+    <string name="apps_monet_dark">Monet ダーク</string>
+    <string name="apps_supported">対応</string>
+    <string name="apps_not_provided">未提供</string>
+    <string name="apps_original_icon">元のアイコン</string>
+    <string name="apps_fallback_note">単色レイヤーが不適切なため、元のアイコンを表示します。</string>
+    <string name="refresh_completed">%1$s に更新</string>
+    <string name="refresh_partial">%1$s · 一部の情報を更新できませんでした。再試行してください。</string>
+    <string name="refresh_in_progress">更新中</string>
+    <string name="refresh_status_completed">状態と対応アプリ数を更新 · %1$s</string>
+    <string name="refresh_apps_completed">アプリ・アイコン・配色を更新 · %1$s</string>
+    <string name="refresh_monet_completed">壁紙の代表色と配色を更新 · %1$s</string>
+</resources>

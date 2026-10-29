@@ -1,0 +1,16 @@
+<resources>
+    <string name="apps_preview_note">使用当前配色预览图标资源，桌面样式可能不同。</string>
+    <string name="apps_night_feature">深浅色</string>
+    <string name="apps_monet_light">Monet 浅色</string>
+    <string name="apps_monet_dark">Monet 深色</string>
+    <string name="apps_supported">已适配</string>
+    <string name="apps_not_provided">未提供</string>
+    <string name="apps_original_icon">原图</string>
+    <string name="apps_fallback_note">单色图层不适合取色，预览使用原图。</string>
+    <string name="refresh_completed">已更新 · %1$s</string>
+    <string name="refresh_partial">%1$s · 部分数据未更新，请重试。</string>
+    <string name="refresh_in_progress">正在刷新</string>
+    <string name="refresh_status_completed">状态与支持统计已更新 · %1$s</string>
+    <string name="refresh_apps_completed">应用、图标及配色已更新 · %1$s</string>
+    <string name="refresh_monet_completed">壁纸代表色与配色已更新 · %1$s</string>
+</resources>

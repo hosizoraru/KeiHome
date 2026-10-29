@@ -84,7 +84,7 @@
     <string name="monet_experimental_note">Only some launcher versions are supported; some icons may appear incorrect.</string>
     <string name="monet_open_details">Open Monet details</string>
     <string name="monet_wallpaper_colors">Wallpaper representative colors</string>
-    <string name="monet_wallpaper_colors_value">%1$d / 3</string>
+    <string name="monet_wallpaper_colors_value">%1$d representative colors</string>
     <string name="monet_wallpaper_color_description">Wallpaper color: %1$s</string>
     <string name="monet_palette">Palette</string>
     <string name="monet_palette_value">%1$d families · %2$d colors</string>

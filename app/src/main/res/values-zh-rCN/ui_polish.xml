@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="polish_status_module">模块</string>
+    <string name="polish_status_icons">图标功能</string>
+    <string name="polish_status_apps">应用</string>
+    <string name="polish_status_loaded">模块已加载</string>
+    <string name="polish_status_waiting">等待模块加载</string>
+    <string name="polish_status_update_pending">等待加载新版本</string>
+    <string name="polish_status_scope_needed">请启用系统作用域</string>
+    <string name="polish_status_launcher_failed">桌面模块加载失败</string>
+    <string name="polish_status_framework_api">%1$s · API %2$d</string>
+    <string name="polish_status_details">运行详情</string>
+    <string name="polish_details_expand">展开详情</string>
+    <string name="polish_details_collapse">收起详情</string>
+    <string name="polish_scope_enabled">system：已启用</string>
+    <string name="polish_scope_disabled">system：未启用</string>
+    <string name="polish_installed_version">已安装版本</string>
+    <string name="polish_target_version">%1$s · 版本 %2$d</string>
+    <string name="polish_night_title">深浅色图标</string>
+    <string name="polish_night_recent">最近图标刷新：未上报</string>
+    <string name="polish_apps_detected">检测到的图标资源</string>
+    <string name="polish_apps_total">应用</string>
+    <string name="polish_apps_night">深浅色</string>
+    <string name="polish_apps_monet">Monet</string>
+    <string name="polish_apps_count">%1$d</string>
+    <string name="polish_value_pending">—</string>
+    <string name="polish_apps_open">查看适配应用</string>
+    <string name="polish_monet_scheme">%1$s · %2$s</string>
+    <string name="polish_monet_source_unknown">来源未上报</string>
+    <string name="polish_monet_icons">主题图标：%1$s</string>
+    <string name="polish_monet_no_palette">暂无调色板</string>
+    <string name="polish_monet_no_application">暂无配色应用记录</string>
+    <string name="polish_monet_last_applied">最近应用配色：%1$s</string>
+    <string name="polish_time_now">刚刚</string>
+    <plurals name="polish_time_minutes">
+        <item quantity="other">%d 分钟前</item>
+    </plurals>
+    <plurals name="polish_time_hours">
+        <item quantity="other">%d 小时前</item>
+    </plurals>
+    <plurals name="polish_time_days">
+        <item quantity="other">%d 天前</item>
+    </plurals>
+    <string name="polish_settings_display">外观与语言</string>
+    <string name="polish_appearance_title">应用外观</string>
+    <string name="polish_appearance_summary">仅影响 KeiHome</string>
+    <string name="polish_appearance_light">浅色</string>
+    <string name="polish_appearance_dark">深色</string>
+    <string name="polish_settings_previews">图标预览</string>
+    <string name="polish_previews_title">显示图标预览</string>
+    <string name="polish_previews_summary">在应用列表显示深浅色和 Monet 图标</string>
+    <string name="polish_clear_previews">清理预览缓存</string>
+    <string name="polish_clear_previews_summary">仅清理 KeiHome 中的图标预览</string>
+    <string name="polish_settings_about">关于</string>
+    <string name="polish_about_version">%1$s（%2$d）</string>
+    <string name="polish_copy_version">复制版本信息</string>
+    <string name="polish_about_package">包名</string>
+    <string name="polish_about_api">Android</string>
+    <string name="polish_about_api_value">最低 API %1$d · 目标 API %2$d</string>
+    <string name="polish_previews_cleared">图标预览缓存已清理</string>
+</resources>

@@ -9,12 +9,20 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
 
 class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
   override fun apply(project: Project) {
     project.pluginManager.apply("com.android.application")
     project.pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
     project.pluginManager.apply("org.jetbrains.kotlin.plugin.serialization")
+
+    if (project.providers.gradleProperty("composeCompilerReports").orNull == "true") {
+      project.extensions.configure(ComposeCompilerGradlePluginExtension::class.java) { compiler ->
+        compiler.reportsDestination.set(project.layout.buildDirectory.dir("compose_reports"))
+        compiler.metricsDestination.set(project.layout.buildDirectory.dir("compose_reports"))
+      }
+    }
 
     val android = project.extensions.getByType(ApplicationExtension::class.java)
     with(android) {

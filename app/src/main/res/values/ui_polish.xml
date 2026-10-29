@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="polish_status_module">Module</string>
+    <string name="polish_status_icons">Icon features</string>
+    <string name="polish_status_apps">Apps</string>
+    <string name="polish_status_loaded">Module loaded</string>
+    <string name="polish_status_waiting">Waiting for module</string>
+    <string name="polish_status_update_pending">Update pending</string>
+    <string name="polish_status_scope_needed">Enable system scope</string>
+    <string name="polish_status_launcher_failed">Launcher load failed</string>
+    <string name="polish_status_framework_api">%1$s / API %2$d</string>
+    <string name="polish_status_details">Runtime details</string>
+    <string name="polish_details_expand">Show details</string>
+    <string name="polish_details_collapse">Hide details</string>
+    <string name="polish_scope_enabled">system: enabled</string>
+    <string name="polish_scope_disabled">system: not enabled</string>
+    <string name="polish_installed_version">Installed version</string>
+    <string name="polish_target_version">%1$s / build %2$d</string>
+    <string name="polish_night_title">Light and dark icons</string>
+    <string name="polish_night_recent">Latest icon refresh: not reported</string>
+    <string name="polish_apps_detected">Detected icon resources</string>
+    <string name="polish_apps_total">Apps</string>
+    <string name="polish_apps_night">Light/dark</string>
+    <string name="polish_apps_monet">Monet</string>
+    <string name="polish_apps_count">%1$d</string>
+    <string name="polish_value_pending">\u2014</string>
+    <string name="polish_apps_open">View supported apps</string>
+    <string name="polish_monet_scheme">%1$s / %2$s</string>
+    <string name="polish_monet_source_unknown">Source not reported</string>
+    <string name="polish_monet_icons">Themed icons: %1$s</string>
+    <string name="polish_monet_no_palette">Palette unavailable</string>
+    <string name="polish_monet_no_application">No palette application recorded</string>
+    <string name="polish_monet_last_applied">Last palette applied: %1$s</string>
+    <string name="polish_time_now">just now</string>
+    <plurals name="polish_time_minutes">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="polish_time_hours">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="polish_time_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <string name="polish_settings_display">Appearance and language</string>
+    <string name="polish_appearance_title">App appearance</string>
+    <string name="polish_appearance_summary">Applies to KeiHome only</string>
+    <string name="polish_appearance_light">Light</string>
+    <string name="polish_appearance_dark">Dark</string>
+    <string name="polish_settings_previews">Icon previews</string>
+    <string name="polish_previews_title">Show icon previews</string>
+    <string name="polish_previews_summary">Light, dark and Monet icons in the app list</string>
+    <string name="polish_clear_previews">Clear preview cache</string>
+    <string name="polish_clear_previews_summary">KeiHome previews only</string>
+    <string name="polish_settings_about">About</string>
+    <string name="polish_about_version">%1$s (%2$d)</string>
+    <string name="polish_copy_version">Copy version information</string>
+    <string name="polish_about_package">Package</string>
+    <string name="polish_about_api">Android</string>
+    <string name="polish_about_api_value">Minimum API %1$d / Target API %2$d</string>
+    <string name="polish_previews_cleared">Preview cache cleared</string>
+</resources>

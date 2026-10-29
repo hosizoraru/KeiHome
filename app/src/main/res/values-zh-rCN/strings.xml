@@ -2,7 +2,7 @@
     <string name="monet_follow_wallpaper">跟随壁纸配色</string>
     <string name="monet_follow_wallpaper_description">启用主题图标并使用壁纸配色。之后在桌面选择其他颜色时，将保留你的选择。</string>
     <string name="monet_action_applying">正在应用…</string>
-    <string name="monet_action_applied">已应用壁纸配色</string>
+    <string name="monet_action_applied">已应用所选配色</string>
     <string name="monet_action_unconfirmed">请求已发送，尚未确认应用。请检查桌面状态。</string>
     <string name="monet_action_unavailable">连接兼容框架后可应用配色。</string>
     <string name="monet_action_failed">请求发送失败，请重试。</string>
@@ -117,4 +117,27 @@
     <string name="monet_swatch_tone_description">%1$s 色阶 %2$d：%3$s</string>
     <string name="monet_swatch_description">%1$s：%2$s</string>
     <string name="settings_footer">检测到单色资源不代表桌面一定支持主题图标。请在 LSPosed 中启用模块及其作用域。</string>
+    <string name="monet_current_theme">当前图标配色</string>
+    <string name="monet_launcher_selection">桌面所选配色</string>
+    <string name="monet_icons_disabled">主题图标未开启</string>
+    <string name="monet_seed_source">取色来源</string>
+    <string name="monet_source_home">主屏幕壁纸</string>
+    <string name="monet_source_lock">锁屏壁纸</string>
+    <string name="monet_source_basic">基础颜色</string>
+    <string name="monet_basic_hint">固定取色，不随壁纸更换</string>
+    <string name="monet_seed_count">从壁纸提取到 %1$d 个代表色</string>
+    <string name="monet_seed_waiting">暂未取到颜色，可选择锁屏壁纸或基础颜色。</string>
+    <string name="monet_style_tonal">标准</string>
+    <string name="monet_style_vibrant">鲜艳</string>
+    <string name="monet_style_neutral">中性</string>
+    <string name="monet_style_mono">黑白</string>
+    <string name="monet_preview_title">图标预览</string>
+    <string name="monet_preview_dark">深色</string>
+    <string name="monet_preview_light">浅色</string>
+    <string name="monet_accent_and_neutral">强调 / 中性</string>
+    <string name="monet_apply_scheme">应用到桌面图标</string>
+    <string name="monet_scope_hint">壁纸取色随更换自动更新；基础颜色保持固定。</string>
+    <string name="monet_show_details">查看色阶详情</string>
+    <string name="monet_hide_details">收起色阶详情</string>
+    <string name="monet_selected_palette">所选图标配色</string>
 </resources>

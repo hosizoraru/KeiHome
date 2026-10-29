@@ -1,0 +1,245 @@
+package os.kei.hyper.home.ui.main
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import os.kei.hyper.home.R
+import os.kei.hyper.home.data.MonetActionStatus
+import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.data.MonetReadState
+import os.kei.hyper.home.data.MonetSchemeStyle
+import os.kei.hyper.home.data.MonetSchemes
+import os.kei.hyper.home.data.MonetSeedSource
+import os.kei.hyper.home.data.WallpaperColorSnapshot
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.RadioButton
+import top.yukonga.miuix.kmp.basic.RadioButtonDefaults
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+@Composable
+internal fun MonetContent(
+  snapshot: MonetPaletteSnapshot?,
+  readFailed: Boolean,
+  actionAvailable: Boolean = false,
+  actionStatus: MonetActionStatus = MonetActionStatus.IDLE,
+  onApply: (MonetCustomization) -> Unit = {},
+) {
+  var draft by rememberSaveable { mutableStateOf<String?>(null) }
+  var details by rememberSaveable { mutableStateOf(false) }
+  val choice = MonetCustomization.decode(draft) ?: snapshot?.customization ?: MonetCustomization()
+  val wallpaper = snapshot?.wallpaper ?: WallpaperColorSnapshot(MonetReadState.NOT_PROVIDED, emptyList())
+  val colors = when (choice.source) {
+    MonetSeedSource.HOME_WALLPAPER -> wallpaper.colors
+    MonetSeedSource.LOCK_WALLPAPER -> wallpaper.lockColors
+    MonetSeedSource.BASIC_COLOR -> MonetCustomization.BASIC_COLORS
+  }
+  val seed = choice.seed(wallpaper)
+  val palette = remember(seed, choice.style) { seed?.let { MonetSchemes.generate(it, choice.style) } }
+  val applying = actionStatus == MonetActionStatus.APPLYING
+  val change: (MonetCustomization) -> Unit = { if (!applying) draft = it.encode() }
+  val sourceNames = listOf(
+    stringResource(R.string.monet_source_home), stringResource(R.string.monet_source_lock),
+    stringResource(R.string.monet_source_basic),
+  )
+
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+      Text(stringResource(R.string.monet_current_theme), style = MiuixTheme.textStyles.body1)
+      val current = snapshot?.customization?.takeIf { snapshot.customizationActive }
+      Text(
+        when {
+          readFailed -> stringResource(R.string.monet_unavailable)
+          snapshot == null -> stringResource(R.string.monet_loading)
+          current != null -> "${sourceNames[current.source.ordinal]} · ${styleName(current.style)}"
+          snapshot.monochrome.enabled == true -> stringResource(R.string.monet_launcher_selection)
+          else -> stringResource(R.string.monet_icons_disabled)
+        },
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
+    }
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      OverlaySpinnerPreference(
+        title = stringResource(R.string.monet_seed_source),
+        items = sourceNames.map { DropdownItem(text = it) },
+        selectedIndex = choice.source.ordinal,
+        onSelectedIndexChange = { change(choice.copy(source = MonetSeedSource.entries[it], colorIndex = 0)) },
+      )
+      Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+          when {
+            choice.source == MonetSeedSource.BASIC_COLOR -> stringResource(R.string.monet_basic_hint)
+            colors.isNotEmpty() -> stringResource(R.string.monet_seed_count, colors.size)
+            else -> stringResource(R.string.monet_seed_waiting)
+          },
+          style = MiuixTheme.textStyles.body2,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        )
+        FlowRow(modifier = Modifier.fillMaxWidth(),
+          maxItemsInEachRow = if (choice.source == MonetSeedSource.BASIC_COLOR) 3 else 4,
+          horizontalArrangement = if (choice.source == MonetSeedSource.BASIC_COLOR)
+            Arrangement.SpaceEvenly else Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          colors.forEachIndexed { index, color ->
+            val hex = "#%06X".format(color and 0xFFFFFF)
+            val selectedColor = seed == color
+            Card(
+              modifier = Modifier.testTag("monet.seed.$index").semantics {
+                contentDescription = hex
+                selected = selectedColor
+              },
+              insideMargin = PaddingValues(6.dp),
+              onClick = { change(choice.copy(colorIndex = index,
+                color = if (choice.source == MonetSeedSource.BASIC_COLOR) color else choice.color)) },
+              showIndication = true,
+            ) {
+              Box(Modifier.size(40.dp).clip(CircleShape).background(Color(color)),
+                contentAlignment = Alignment.Center) {
+                RadioButton(selectedColor, onClick = null,
+                  colors = RadioButtonDefaults.radioButtonColors(
+                    selectedColor = if (Color(color).luminance() > 0.5f) Color.Black else Color.White))
+              }
+            }
+          }
+        }
+      }
+    }
+    SmallTitle(stringResource(R.string.monet_scheme_section))
+    MonetSchemeStyle.entries.chunked(2).forEach { styles ->
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        styles.forEach { style ->
+          val sample = remember(seed, style) { seed?.let { MonetSchemes.generate(it, style) } }
+          val isSelected = choice.style == style
+          Card(
+            modifier = Modifier.weight(1f).testTag("monet.style.${style.name}")
+              .semantics { selected = isSelected },
+            insideMargin = PaddingValues(12.dp),
+            onClick = { change(choice.copy(style = style)) }, showIndication = true,
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              val accent = sample?.get("primary60")?.let(::Color) ?: MiuixTheme.colorScheme.primary
+              val neutral = sample?.get("neutral90")?.let(::Color) ?: MiuixTheme.colorScheme.surface
+              Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(30.dp)) {
+                  drawArc(accent, 90f, 180f, useCenter = true)
+                  drawArc(neutral, 270f, 180f, useCenter = true)
+                }
+                RadioButton(isSelected, onClick = null, modifier = Modifier.size(20.dp),
+                  colors = RadioButtonDefaults.radioButtonColors(selectedColor = Color.Black))
+              }
+              Text(styleName(style), Modifier.weight(1f), style = MiuixTheme.textStyles.body2)
+            }
+          }
+        }
+      }
+    }
+    if (palette != null) {
+      SmallTitle(stringResource(R.string.monet_preview_title))
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          IconPalettePreview(palette, dark = false, modifier = Modifier.weight(1f))
+          IconPalettePreview(palette, dark = true, modifier = Modifier.weight(1f))
+        }
+      }
+    }
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+      TextButton(
+        text = stringResource(R.string.monet_apply_scheme), modifier = Modifier.fillMaxWidth(),
+        enabled = actionAvailable && !applying && palette != null,
+        onClick = { onApply(choice) },
+      )
+      val message = when {
+        !actionAvailable || actionStatus == MonetActionStatus.UNAVAILABLE -> R.string.monet_action_unavailable
+        applying -> R.string.monet_action_applying
+        actionStatus == MonetActionStatus.APPLIED && snapshot?.customization == choice -> R.string.monet_action_applied
+        actionStatus == MonetActionStatus.UNCONFIRMED -> R.string.monet_action_unconfirmed
+        actionStatus == MonetActionStatus.FAILED -> R.string.monet_action_failed
+        else -> R.string.monet_scope_hint
+      }
+      Text(stringResource(message), modifier = Modifier.padding(top = 10.dp)
+        .semantics { liveRegion = LiveRegionMode.Polite },
+        style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+    TextButton(text = stringResource(if (details) R.string.monet_hide_details else R.string.monet_show_details),
+      onClick = { details = !details }, modifier = Modifier.fillMaxWidth())
+    if (details) MonetDetailCard(snapshot, readFailed)
+  }
+}
+
+@Composable
+private fun IconPalettePreview(palette: Map<String, Int>, dark: Boolean, modifier: Modifier = Modifier) {
+  val foreground = Color(palette.getValue(if (dark) "primary80" else "primary30"))
+  val background = Color(palette.getValue(if (dark) "secondary20" else "primary90"))
+  val neutral = Color(palette.getValue(if (dark) "neutral12" else "neutral96"))
+  Column(modifier.clip(RoundedCornerShape(16.dp)).background(neutral).padding(12.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
+      color = foreground, style = MiuixTheme.textStyles.footnote1)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
+        contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_launcher_monochrome), contentDescription = null,
+          tint = foreground, modifier = Modifier.size(40.dp))
+      }
+      Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
+        contentAlignment = Alignment.Center) {
+        Icon(MiuixIcons.Theme, contentDescription = null, tint = foreground, modifier = Modifier.size(26.dp))
+      }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+      Box(Modifier.size(10.dp).clip(CircleShape).background(foreground))
+      Text(stringResource(R.string.monet_accent_and_neutral), color = foreground,
+        style = MiuixTheme.textStyles.footnote2)
+    }
+  }
+}
+
+@Composable
+private fun styleName(style: MonetSchemeStyle): String = stringResource(when (style) {
+  MonetSchemeStyle.TONAL_SPOT -> R.string.monet_style_tonal
+  MonetSchemeStyle.VIBRANT -> R.string.monet_style_vibrant
+  MonetSchemeStyle.NEUTRAL -> R.string.monet_style_neutral
+  MonetSchemeStyle.MONOCHROME -> R.string.monet_style_mono
+})

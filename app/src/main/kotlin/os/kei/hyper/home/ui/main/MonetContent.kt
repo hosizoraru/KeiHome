@@ -17,9 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -28,76 +25,12 @@ import os.kei.hyper.home.data.MonetColorFamily
 import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
-import os.kei.hyper.home.data.MonetActionStatus
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-@Composable
-internal fun MonetContent(
-  snapshot: MonetPaletteSnapshot?,
-  readFailed: Boolean,
-  actionAvailable: Boolean = false,
-  actionStatus: MonetActionStatus = MonetActionStatus.IDLE,
-  onFollowWallpaper: () -> Unit = {},
-) {
-  Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    SmallTitle(
-      text = stringResource(R.string.monet_overview_title),
-      modifier = Modifier.semantics { heading() },
-    )
-    MonetOverviewCard(snapshot, readFailed)
-    MonetActionCard(actionAvailable, actionStatus, onFollowWallpaper)
-    SmallTitle(
-      text = stringResource(R.string.monet_detail_section),
-      modifier = Modifier.semantics { heading() },
-    )
-    MonetDetailCard(snapshot, readFailed)
-  }
-}
-
-@Composable
-private fun MonetActionCard(
-  available: Boolean,
-  status: MonetActionStatus,
-  onFollowWallpaper: () -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text(
-        text = stringResource(R.string.monet_follow_wallpaper_description),
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      )
-      TextButton(
-        text = stringResource(R.string.monet_follow_wallpaper),
-        modifier = Modifier.fillMaxWidth(),
-        enabled = available && status != MonetActionStatus.APPLYING,
-        onClick = onFollowWallpaper,
-      )
-      val message = when {
-        !available || status == MonetActionStatus.UNAVAILABLE -> R.string.monet_action_unavailable
-        status == MonetActionStatus.APPLYING -> R.string.monet_action_applying
-        status == MonetActionStatus.APPLIED -> R.string.monet_action_applied
-        status == MonetActionStatus.UNCONFIRMED -> R.string.monet_action_unconfirmed
-        status == MonetActionStatus.FAILED -> R.string.monet_action_failed
-        else -> null
-      }
-      if (message != null) Text(
-        text = stringResource(message),
-        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      )
-    }
-  }
-}
 
 @Composable
 internal fun MonetSummaryCard(
@@ -135,44 +68,6 @@ internal fun MonetSummaryCard(
         )
         Text(
           text = paletteStatus(snapshot, readFailed),
-          style = MiuixTheme.textStyles.body2,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun MonetOverviewCard(
-  snapshot: MonetPaletteSnapshot?,
-  readFailed: Boolean,
-) {
-  Card(
-    modifier = Modifier.fillMaxWidth(),
-    insideMargin = PaddingValues(0.dp),
-  ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Icon(
-        imageVector = MiuixIcons.Theme,
-        modifier = Modifier.size(28.dp),
-        tint = MiuixTheme.colorScheme.primary,
-        contentDescription = null,
-      )
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-      ) {
-        Text(
-          text = paletteStatus(snapshot, readFailed),
-          style = MiuixTheme.textStyles.title3,
-        )
-        Text(
-          text = stringResource(R.string.monet_experimental_note),
           style = MiuixTheme.textStyles.body2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary,
         )
@@ -246,7 +141,9 @@ internal fun MonetDetailCard(
         value = themedIconValue(snapshot),
       )
       if (snapshot.activePalette.state == MonetReadState.AVAILABLE) {
-        val source = if (snapshot.launcherPalette.state == MonetReadState.AVAILABLE) {
+        val source = if (snapshot.selectedPalette != null) {
+          stringResource(R.string.monet_selected_palette)
+        } else if (snapshot.launcherPalette.state == MonetReadState.AVAILABLE) {
           stringResource(R.string.monet_launcher_palette)
         } else {
           stringResource(R.string.monet_framework_palette)
@@ -350,7 +247,7 @@ private fun MonetFamilySwatch(family: MonetColorFamily) {
     )
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
       family.colors
-        .filterIndexed { index, _ -> index % 4 == 0 }
+        .filter { it.tone in listOf(0, 20, 40, 60, 80, 100) }
         .take(6)
         .forEach { color ->
           val hex = "#%08X".format(color.value)

@@ -56,7 +56,7 @@ class MonetStatusContentTest {
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
-          MonetContent(snapshot = snapshot(), readFailed = false)
+          MonetDetailCard(snapshot = snapshot(), readFailed = false)
         }
       }
     }
@@ -66,8 +66,6 @@ class MonetStatusContentTest {
     composeTestRule.onNodeWithText(context.getString(R.string.monet_wallpaper_colors_value, 2))
       .assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_state_available, 110))
-      .assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.monet_experimental_note))
       .assertExists()
     composeTestRule.onNodeWithText(
       context.getString(R.string.monet_icon_rendering_note),
@@ -102,7 +100,7 @@ class MonetStatusContentTest {
       ) {
         KeiHomeTheme {
           Box(Modifier.verticalScroll(rememberScrollState())) {
-            MonetContent(snapshot = snapshot(), readFailed = false)
+            MonetDetailCard(snapshot = snapshot(), readFailed = false)
           }
         }
       }
@@ -201,7 +199,7 @@ class MonetStatusContentTest {
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
-          MonetContent(snapshot = currentSnapshot, readFailed = readFailed)
+          MonetDetailCard(snapshot = currentSnapshot, readFailed = readFailed)
         }
       }
     }
@@ -245,7 +243,7 @@ class MonetStatusContentTest {
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
-          MonetContent(
+          MonetDetailCard(
             snapshot = snapshot(
               launcherState = MonetReadState.NOT_PROVIDED,
               frameworkState = MonetReadState.UNAVAILABLE,
@@ -276,7 +274,7 @@ class MonetStatusContentTest {
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
-          MonetContent(snapshot = snapshot(wallpaperState = wallpaperState), readFailed = false)
+          MonetDetailCard(snapshot = snapshot(wallpaperState = wallpaperState), readFailed = false)
         }
       }
     }

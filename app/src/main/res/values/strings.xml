@@ -74,7 +74,7 @@
     <string name="monet_follow_wallpaper">Follow wallpaper colors</string>
     <string name="monet_follow_wallpaper_description">Enable themed icons with wallpaper colors. Later color choices in the launcher are preserved.</string>
     <string name="monet_action_applying">Applying…</string>
-    <string name="monet_action_applied">Wallpaper colors applied</string>
+    <string name="monet_action_applied">Selected palette applied</string>
     <string name="monet_action_unconfirmed">Request sent; application has not been confirmed. Check launcher status.</string>
     <string name="monet_action_unavailable">Connect to a compatible framework to apply colors.</string>
     <string name="monet_action_failed">Could not send the request. Try again.</string>
@@ -120,4 +120,27 @@
     <string name="monet_swatch_tone_description">%1$s, tone %2$d: %3$s</string>
     <string name="monet_swatch_description">%1$s: %2$s</string>
     <string name="settings_footer">A monochrome resource does not guarantee that a launcher supports themed icons. Activate the module and its scope in LSPosed.</string>
+    <string name="monet_current_theme">Current icon palette</string>
+    <string name="monet_launcher_selection">Launcher color selection</string>
+    <string name="monet_icons_disabled">Themed icons are off</string>
+    <string name="monet_seed_source">Color source</string>
+    <string name="monet_source_home">Home wallpaper</string>
+    <string name="monet_source_lock">Lock wallpaper</string>
+    <string name="monet_source_basic">Basic colors</string>
+    <string name="monet_basic_hint">A fixed color, independent of the wallpaper</string>
+    <string name="monet_seed_count">%1$d representative colors from this wallpaper</string>
+    <string name="monet_seed_waiting">No colors yet. Try the lock wallpaper or basic colors.</string>
+    <string name="monet_style_tonal">Tonal</string>
+    <string name="monet_style_vibrant">Vibrant</string>
+    <string name="monet_style_neutral">Neutral</string>
+    <string name="monet_style_mono">Mono</string>
+    <string name="monet_preview_title">Icon preview</string>
+    <string name="monet_preview_dark">Dark</string>
+    <string name="monet_preview_light">Light</string>
+    <string name="monet_accent_and_neutral">Accent / neutral</string>
+    <string name="monet_apply_scheme">Apply to launcher icons</string>
+    <string name="monet_scope_hint">Wallpaper colors follow new wallpapers; basic colors stay fixed.</string>
+    <string name="monet_show_details">View palette details</string>
+    <string name="monet_hide_details">Hide palette details</string>
+    <string name="monet_selected_palette">Selected icon palette</string>
 </resources>

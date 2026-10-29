@@ -49,6 +49,8 @@ import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetActionRequest
 import os.kei.hyper.home.data.MonetActionStatus
+import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.status.upgradeOlderSystemTarget
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -102,6 +104,17 @@ fun MainScreen(modifier: Modifier = Modifier) {
   var statusReadFailed by remember(statusService) { mutableStateOf(false) }
   val monetReader = remember(context) {
     MonetPaletteReader(context.applicationContext)
+  }
+  LaunchedEffect(statusService) {
+    val service = statusService ?: return@LaunchedEffect
+    delay(1_500)
+    withContext(Dispatchers.IO) {
+      try {
+        service.upgradeOlderSystemTarget()
+      } catch (failure: Exception) {
+        android.util.Log.w("KeiHomeReload", "Runtime upgrade unavailable", failure)
+      }
+    }
   }
   LaunchedEffect(statusService, statusGeneration, lifecycle) {
     val service = statusService ?: return@LaunchedEffect
@@ -349,15 +362,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
             MonetContent(
               snapshot = monetSnapshot,
               readFailed = monetReadFailed,
-              actionAvailable = statusService != null,
+              actionAvailable = statusSnapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
               actionStatus = actionStatus,
-              onFollowWallpaper = {
+              onApply = { customization ->
                 val service = statusService
                 if (service != null && actionStatus != MonetActionStatus.APPLYING) {
                   actionStatus = MonetActionStatus.APPLYING
                   actionScope.launch {
                     try {
-                      val request = withContext(Dispatchers.IO) { MonetAction.submit(service) }
+                      val request = withContext(Dispatchers.IO) { MonetAction.submit(service, customization) }
                       actionRequest = request
                       val applied = withTimeoutOrNull(3_000L) {
                         while (FrameworkConnection.service.value === service) {

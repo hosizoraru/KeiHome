@@ -1,0 +1,5 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/fixture_static" />
+    <foreground android:drawable="@drawable/fixture_static" />
+    <monochrome android:drawable="@drawable/fixture_mono_shape" />
+</adaptive-icon>

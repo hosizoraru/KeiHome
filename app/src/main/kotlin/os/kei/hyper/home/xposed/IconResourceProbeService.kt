@@ -8,7 +8,9 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
+import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
@@ -123,10 +125,18 @@ class IconResourceProbeService : Service() {
 
 internal class IconResourceInspector(private val packageManager: PackageManager) {
   fun requiresRefresh(activities: List<ActivityInfo>, base: Configuration): Boolean {
-    return assess(activities, base).nightMode != IconSupportStatus.NOT_DETECTED
+    return assess(activities, base, inspectMonochrome = false).nightMode !=
+      IconSupportStatus.NOT_DETECTED
   }
 
-  fun assess(activities: List<ActivityInfo>, base: Configuration): IconResourceAssessment {
+  fun assess(activities: List<ActivityInfo>, base: Configuration): IconResourceAssessment =
+    assess(activities, base, inspectMonochrome = true)
+
+  private fun assess(
+    activities: List<ActivityInfo>,
+    base: Configuration,
+    inspectMonochrome: Boolean,
+  ): IconResourceAssessment {
     if (activities.isEmpty()) {
       return IconResourceAssessment(
         IconSupportStatus.UNKNOWN,
@@ -157,7 +167,7 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
         return unknownAssessment()
       }
       for (iconId in iconIds) {
-        val result = assessIcon(iconId, resources.first, resources.second)
+        val result = assessIcon(iconId, resources.first, resources.second, inspectMonochrome)
         nightMode = nightMode.merge(result.nightMode)
         monochrome = monochrome.merge(result.monochrome)
         if (nightMode == IconSupportStatus.DETECTED &&
@@ -174,6 +184,7 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
     iconId: Int,
     lightResources: Resources,
     darkResources: Resources,
+    inspectMonochrome: Boolean,
   ): IconResourceAssessment {
     return try {
       if (lightResources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK !=
@@ -192,7 +203,13 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       val changing = lightValue.changingConfigurations or darkValue.changingConfigurations or
         lightIcon.changingConfigurations or darkIcon.changingConfigurations
       val graph = StableIconResourceGraph(lightResources, darkResources)
-      val monochrome = graph.monochromeStatus(iconId)
+      val monochrome = if (!inspectMonochrome) {
+        IconSupportStatus.NOT_DETECTED
+      } else when (val declared = graph.monochromeStatus(iconId)) {
+        IconSupportStatus.DETECTED ->
+          assessMonochrome((lightIcon as? AdaptiveIconDrawable)?.monochrome)
+        else -> declared
+      }
       val night = when {
         changing and ActivityInfo.CONFIG_UI_MODE != 0 -> IconSupportStatus.DETECTED
         lightIcon.canApplyTheme() || darkIcon.canApplyTheme() ||
@@ -220,6 +237,27 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       IconResourceAssessment(night, monochrome)
     } catch (_: Throwable) {
       unknownAssessment()
+    }
+  }
+
+  private fun assessMonochrome(drawable: Drawable?): IconSupportStatus {
+    if (drawable == null || drawable is Animatable || drawable.canApplyTheme()) {
+      return IconSupportStatus.UNKNOWN
+    }
+    val bitmap = Bitmap.createBitmap(ICON_SIZE, ICON_SIZE, Bitmap.Config.ARGB_8888)
+    return try {
+      drawable.setBounds(0, 0, ICON_SIZE, ICON_SIZE)
+      drawable.draw(Canvas(bitmap))
+      val pixels = IntArray(ICON_SIZE * ICON_SIZE)
+      bitmap.getPixels(pixels, 0, ICON_SIZE, 0, 0, ICON_SIZE, ICON_SIZE)
+      val firstAlpha = pixels.first() ushr 24
+      if (pixels.all { it ushr 24 == firstAlpha }) {
+        IconSupportStatus.UNKNOWN
+      } else {
+        IconSupportStatus.DETECTED
+      }
+    } finally {
+      bitmap.recycle()
     }
   }
 

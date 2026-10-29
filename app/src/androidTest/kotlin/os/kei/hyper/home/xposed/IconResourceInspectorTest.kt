@@ -4,6 +4,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,5 +54,20 @@ class IconResourceInspectorTest {
     val lightResources = context.packageManager.getResourcesForApplication(info.applicationInfo, light)
     val darkResources = context.packageManager.getResourcesForApplication(info.applicationInfo, dark)
     assertFalse(StableIconResourceGraph(lightResources, darkResources).isStable(info.icon))
+  }
+
+  @Test
+  fun requiresAnInformativeAlphaMaskBeforeReportingMonochromeSupport() {
+    assertEquals(
+      IconSupportStatus.DETECTED,
+      inspector.assess(listOf(activity("fixture_mono_valid")), configuration).monochrome,
+    )
+    for (name in listOf("fixture_mono_solid", "fixture_mono_empty")) {
+      assertEquals(
+        name,
+        IconSupportStatus.UNKNOWN,
+        inspector.assess(listOf(activity(name)), configuration).monochrome,
+      )
+    }
   }
 }

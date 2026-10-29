@@ -1,5 +1,6 @@
 package os.kei.hyper.home.data
 
+import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -9,6 +10,27 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MonetPaletteReaderTest {
+  @Test
+  fun monochromeStatusUsesTheSystemSettingsNamespace() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val enabled = Settings.System.getString(context.contentResolver, "key_monochrome")
+    val color = Settings.System.getString(context.contentResolver, "key_monochrome_color")
+      ?.toLongOrNull()
+      ?.takeIf { it >= Int.MIN_VALUE.toLong() && it <= UInt.MAX_VALUE.toLong() }
+      ?.toInt()
+    val actual = MonetPaletteReader(context).read().monochrome
+
+    assertEquals(
+      when (enabled) {
+        "1" -> true
+        "0" -> false
+        else -> null
+      },
+      actual.enabled,
+    )
+    assertEquals(color, actual.colorArgb)
+  }
+
   @Test
   fun frameworkSuffixesMapToActualTones() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext

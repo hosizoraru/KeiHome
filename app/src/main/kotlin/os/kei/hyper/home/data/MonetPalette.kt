@@ -236,18 +236,24 @@ internal class MonetPaletteReader(context: Context) {
   }
 
   private fun readMonochromeSettings(): MonochromeIconSettings {
-    val enabled = when (readSetting(KEY_MONOCHROME)) {
-      "1", "true" -> true
-      "0", "false" -> false
+    val enabled = when (readSystemSetting(KEY_MONOCHROME)) {
+      "1" -> true
+      "0" -> false
       else -> null
     }
-    val colorArgb = readSetting(KEY_MONOCHROME_COLOR)
+    val colorArgb = readSystemSetting(KEY_MONOCHROME_COLOR)
       ?.toLongOrNull()
       ?.takeIf {
         it >= Int.MIN_VALUE.toLong() && it <= UInt.MAX_VALUE.toLong()
       }
       ?.toInt()
     return MonochromeIconSettings(enabled = enabled, colorArgb = colorArgb)
+  }
+
+  private fun readSystemSetting(key: String): String? = try {
+    Settings.System.getString(resolver, key)
+  } catch (_: Exception) {
+    null
   }
 
   private fun readSetting(key: String): String? = try {

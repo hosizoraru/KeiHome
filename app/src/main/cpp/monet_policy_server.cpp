@@ -1,0 +1,432 @@
+// SPDX-License-Identifier: Apache-2.0
+// Independently authored for KeiHome, following MiuiBackGestureHook's exact
+// process/sender authentication and explicit native lifetime ownership principles.
+#include "monet_policy_server.h"
+
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if defined(__linux__)
+#include <poll.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/un.h>
+#include <time.h>
+#include <unistd.h>
+#endif
+
+extern "C" {
+NativeMonetPolicy* kh_monet_policy = nullptr;
+uint32_t kh_monet_readers = 0u;
+}
+
+namespace {
+
+constexpr uint64_t kNanosecondsPerMs = 1000000u;
+constexpr char kSystemServerContext[] = "u:r:system_server:s0";
+constexpr uint32_t kSystemUid = 1000u;
+// A reader that fails to leave cannot cause unbounded allocation. Updates are
+// rejected under pressure; one preallocated expiry publication is still allowed.
+constexpr uint32_t kMaxRetiredPolicies = 4u;
+
+struct PolicyAllocation {
+    NativeMonetPolicy policy;
+    PolicyAllocation* retired_next;
+};
+static_assert(offsetof(PolicyAllocation, policy) == 0u);
+
+struct PolicyState {
+    PolicyAllocation* retired;
+    uint32_t retired_count;
+    PolicyAllocation* expiration;
+    uint64_t expires_at;
+};
+
+uint32_t ReadLe32(const uint8_t* bytes) {
+    return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8u) |
+            (uint32_t{bytes[2]} << 16u) | (uint32_t{bytes[3]} << 24u);
+}
+
+void WriteLe32(uint8_t* bytes, uint32_t value) {
+    for (uint32_t i = 0u; i < 4u; ++i) {
+        bytes[i] = static_cast<uint8_t>(value >> (i * 8u));
+    }
+}
+
+bool IsSystemServerPeer(uint32_t uid, const char* context, size_t length) {
+    if (uid != kSystemUid || context == nullptr) return false;
+    // Linux may return the context with or without its terminating NUL.
+    return (length == sizeof(kSystemServerContext) - 1u ||
+            (length == sizeof(kSystemServerContext) && context[length - 1u] == '\0')) &&
+            memcmp(context, kSystemServerContext, sizeof(kSystemServerContext) - 1u) == 0;
+}
+
+bool IsSafePackageName(const char* name, uint32_t length) {
+    if (length == 0u || length > kNativeMonetMaxPackageLength) return false;
+    bool segment_start = true;
+    for (uint32_t i = 0u; i < length; ++i) {
+        const unsigned char c = static_cast<unsigned char>(name[i]);
+        const bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        if (letter) {
+            segment_start = false;
+        } else if (!segment_start && (c == '_' || (c >= '0' && c <= '9'))) {
+            continue;
+        } else if (!segment_start && c == '.') {
+            segment_start = true;
+        } else {
+            return false;
+        }
+    }
+    return !segment_start;
+}
+
+// The same streaming decoder serves the authenticated socket and in-memory
+// host tests. No network/authentication bypass is compiled for tests.
+template <typename Reader>
+bool ReadPolicyRequest(Reader read_exactly, NativeMonetPolicy* output) {
+    uint8_t header[24];
+    if (output == nullptr || !read_exactly(header, sizeof(header))) return false;
+    const uint32_t flags = ReadLe32(header + 8u);
+    const uint32_t foreground = ReadLe32(header + 12u);
+    const uint32_t background = ReadLe32(header + 16u);
+    const uint32_t count = ReadLe32(header + 20u);
+    if (ReadLe32(header) != kNativeMonetMagic ||
+            ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
+            flags > 1u || count > kNativeMonetMaxPackages ||
+            (flags == 0u && count != 0u) ||
+            (flags == 1u && ((foreground >> 24u) != 0xffu ||
+                            (background >> 24u) != 0xffu))) {
+        return false;
+    }
+    output->flags = flags;
+    output->foreground = foreground;
+    output->background = background;
+    output->count = count;
+    for (uint32_t i = 0u; i < count; ++i) {
+        uint8_t length_bytes[4];
+        if (!read_exactly(length_bytes, sizeof(length_bytes))) return false;
+        const uint32_t length = ReadLe32(length_bytes);
+        if (length == 0u || length > kNativeMonetMaxPackageLength) return false;
+        NativeMonetPolicyEntry& entry = output->entries[i];
+        if (!read_exactly(entry.name, length) ||
+                !IsSafePackageName(entry.name, length)) return false;
+        entry.len = length;
+        entry.name[length] = '\0';
+    }
+    return true;
+}
+
+PolicyAllocation* AllocatePolicy() {
+    return static_cast<PolicyAllocation*>(calloc(1u, sizeof(PolicyAllocation)));
+}
+
+// Called only by the worker. The exchange + full fence pairs with the reader's
+// increment + full fence. A reader that could have obtained an old pointer must
+// be counted before we observe zero. New readers can only acquire the successor.
+void ReclaimDrainedPolicies(PolicyState* state) {
+    if (__atomic_load_n(&kh_monet_readers, __ATOMIC_ACQUIRE) != 0u) return;
+    while (state->retired != nullptr) {
+        PolicyAllocation* old = state->retired;
+        state->retired = old->retired_next;
+        free(old);
+    }
+    state->retired_count = 0u;
+}
+
+void PublishPolicy(PolicyState* state, PolicyAllocation* next) {
+    NativeMonetPolicy* old = __atomic_exchange_n(
+            &kh_monet_policy, next != nullptr ? &next->policy : nullptr,
+            __ATOMIC_SEQ_CST);
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    if (old != nullptr) {
+        auto* allocation = reinterpret_cast<PolicyAllocation*>(old);
+        allocation->retired_next = state->retired;
+        state->retired = allocation;
+        ++state->retired_count;
+    }
+    // Wait for drain by retaining, never by reusing/mutating a published slot.
+    // The worker polls again while readers are present, keeping I/O bounded.
+    ReclaimDrainedPolicies(state);
+}
+
+void MaintainPolicy(PolicyState* state, uint64_t now) {
+    if (state->expiration != nullptr && now >= state->expires_at) {
+        PolicyAllocation* expired = state->expiration;
+        state->expiration = nullptr;
+        state->expires_at = 0u;
+        PublishPolicy(state, expired);
+    }
+    ReclaimDrainedPolicies(state);
+}
+
+// Takes ownership only on success. Expiry is allocated before committing so
+// memory pressure at the lease boundary cannot leave an old deny list enabled.
+bool CommitPolicy(PolicyState* state, PolicyAllocation* next, uint64_t now) {
+    MaintainPolicy(state, now);
+    if (state->retired_count >= kMaxRetiredPolicies) return false;
+    PolicyAllocation* expiration = nullptr;
+    if (next->policy.flags == 1u && next->policy.count != 0u) {
+        expiration = AllocatePolicy();
+        if (expiration == nullptr) return false;
+        expiration->policy.flags = next->policy.flags;
+        expiration->policy.foreground = next->policy.foreground;
+        expiration->policy.background = next->policy.background;
+    }
+    free(state->expiration);  // This allocation has never been published.
+    state->expiration = expiration;
+    state->expires_at = expiration != nullptr
+            ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
+    PublishPolicy(state, next);
+    return true;
+}
+
+#if defined(__linux__)
+
+constexpr char kLauncherProcess[] = "com.miui.home";
+constexpr uint32_t kServerStopped = 0u;
+constexpr uint32_t kServerRunning = 1u;
+constexpr uint32_t kServerFailed = 2u;
+pthread_mutex_t g_start_lock = PTHREAD_MUTEX_INITIALIZER;
+uint32_t g_server_state = kServerStopped;
+pid_t g_server_pid = 0;
+
+struct ServerState {
+    PolicyState policies;
+    int listener;
+    pid_t pid;
+    uid_t uid;
+};
+
+bool IsLauncherProcess() {
+    // argv[0] must end at its own NUL, not at a truncated read or name prefix.
+    char name[sizeof(kLauncherProcess)] = {};
+    FILE* file = fopen("/proc/self/cmdline", "re");
+    if (file == nullptr) return false;
+    const size_t length = fread(name, 1u, sizeof(name), file);
+    fclose(file);
+    return length == sizeof(name) &&
+            memcmp(name, kLauncherProcess, sizeof(name)) == 0;
+}
+
+uint64_t NowNs() {
+    timespec now{};
+    // Include device suspend in lease age; Android supplies CLOCK_BOOTTIME.
+    if (clock_gettime(CLOCK_BOOTTIME, &now) != 0) return 0u;
+    return static_cast<uint64_t>(now.tv_sec) * 1000000000u +
+            static_cast<uint64_t>(now.tv_nsec);
+}
+
+bool AuthenticatePeer(int fd) {
+    ucred credentials{};
+    socklen_t length = sizeof(credentials);
+    if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &credentials, &length) != 0 ||
+            length != sizeof(credentials) || credentials.uid != kSystemUid) {
+        return false;
+    }
+    char context[sizeof(kSystemServerContext)] = {};
+    length = sizeof(context);
+    if (getsockopt(fd, SOL_SOCKET, SO_PEERSEC, context, &length) != 0) return false;
+    return IsSystemServerPeer(credentials.uid, context, length);
+}
+
+enum class WaitResult { Ready, Timeout, Failed };
+
+WaitResult WaitForFd(int fd, short events, uint64_t deadline,
+                     PolicyState* policies) {
+    for (;;) {
+        const uint64_t now = NowNs();
+        if (now == 0u) return WaitResult::Failed;
+        MaintainPolicy(policies, now);
+        if (now >= deadline) return WaitResult::Timeout;
+        uint64_t wake = deadline;
+        if (policies->expiration != nullptr && policies->expires_at < wake) {
+            wake = policies->expires_at;
+        }
+        // Retired snapshots need a reader grace period, never a blocking writer
+        // wait that could overrun the connection's deadline or the policy lease.
+        if (policies->retired != nullptr && now + 10u * kNanosecondsPerMs < wake) {
+            wake = now + 10u * kNanosecondsPerMs;
+        }
+        const int timeout = static_cast<int>(
+                (wake - now + kNanosecondsPerMs - 1u) / kNanosecondsPerMs);
+        pollfd descriptor{fd, events, 0};
+        const int result = poll(&descriptor, 1u, timeout);
+        if (result < 0 && errno == EINTR) continue;
+        if (result < 0) return WaitResult::Failed;
+        if (result == 0) continue;
+        // A peer can close after sending its request: drain readable bytes even
+        // when POLLHUP is also set, then let recv report EOF on an incomplete one.
+        if ((descriptor.revents & events) != 0) return WaitResult::Ready;
+        if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+            return WaitResult::Failed;
+        }
+    }
+}
+
+bool Transfer(int fd, uint8_t* bytes, size_t length, bool writing,
+              uint64_t deadline, PolicyState* policies) {
+    size_t done = 0u;
+    while (done < length) {
+        if (WaitForFd(fd, writing ? POLLOUT : POLLIN, deadline, policies) !=
+                WaitResult::Ready) return false;
+        // A ready fd after descheduling must not extend the absolute deadline.
+        const uint64_t now = NowNs();
+        if (now == 0u || now >= deadline) return false;
+        MaintainPolicy(policies, now);
+        const ssize_t result = writing
+                ? send(fd, bytes + done, length - done, MSG_NOSIGNAL | MSG_DONTWAIT)
+                : recv(fd, bytes + done, length - done, MSG_DONTWAIT);
+        if (result < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) {
+            continue;
+        }
+        if (result <= 0) return false;
+        done += static_cast<size_t>(result);
+    }
+    return true;
+}
+
+void HandleConnection(ServerState* server, int fd, uint64_t accepted_at) {
+    if (!AuthenticatePeer(fd)) return;
+    const timeval timeout{1, 0};
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) != 0 ||
+            setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0) {
+        return;
+    }
+    // One total second across greeting, fragmented request and ACK. A slow
+    // authenticated sender cannot renew this budget by sending partial bytes.
+    const uint64_t deadline = accepted_at +
+            uint64_t{kNativeMonetIoTimeoutMs} * kNanosecondsPerMs;
+    uint8_t greeting[16];
+    WriteLe32(greeting, kNativeMonetMagic);
+    WriteLe32(greeting + 4u, kNativeMonetProtocolVersion);
+    WriteLe32(greeting + 8u, server->uid);
+    WriteLe32(greeting + 12u, kNativeMonetProfileVersion);
+    if (!Transfer(fd, greeting, sizeof(greeting), true, deadline, &server->policies)) {
+        return;
+    }
+    PolicyAllocation* next = AllocatePolicy();
+    bool accepted = next != nullptr && ReadPolicyRequest(
+            [&](void* bytes, size_t length) {
+                return Transfer(fd, static_cast<uint8_t*>(bytes), length, false,
+                                deadline, &server->policies);
+            }, &next->policy);
+    const uint64_t now = NowNs();
+    accepted = accepted && now != 0u && now < deadline &&
+            CommitPolicy(&server->policies, next, now);
+    if (!accepted) free(next);
+    uint8_t ack[12];
+    WriteLe32(ack, kNativeMonetMagic);
+    WriteLe32(ack + 4u, kNativeMonetProtocolVersion);
+    WriteLe32(ack + 8u, accepted ? 0u : 1u);
+    // Timeout/disconnect may prevent delivery; it never rolls back a committed
+    // immutable generation. The next authenticated full request is idempotent.
+    Transfer(fd, ack, sizeof(ack), true, deadline, &server->policies);
+}
+
+void* PolicyWorker(void* data) {
+    auto* server = static_cast<ServerState*>(data);
+    if (getpid() == server->pid && getuid() == server->uid && IsLauncherProcess()) {
+        for (;;) {
+            const uint64_t now = NowNs();
+            if (now == 0u) break;
+            const WaitResult ready = WaitForFd(server->listener, POLLIN,
+                    now + uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs,
+                    &server->policies);
+            if (ready == WaitResult::Failed) break;
+            if (ready == WaitResult::Timeout) continue;
+            const int connection = accept4(server->listener, nullptr, nullptr,
+                                           SOCK_CLOEXEC | SOCK_NONBLOCK);
+            if (connection < 0) {
+                if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK ||
+                        errno == ECONNABORTED) continue;
+                break;
+            }
+            const uint64_t accepted_at = NowNs();
+            if (accepted_at != 0u) HandleConnection(server, connection, accepted_at);
+            close(connection);  // Only the worker owns accepted descriptors.
+        }
+    }
+    close(server->listener);
+    free(server->policies.expiration);
+    server->policies.expiration = nullptr;
+    PublishPolicy(&server->policies, nullptr);
+    __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
+    // With the public pointer null, new readers cannot prolong access to an old
+    // snapshot. Wait without holding any socket; process exit needs no action.
+    while (server->policies.retired != nullptr) {
+        timespec delay{0, 1000000};
+        nanosleep(&delay, nullptr);
+        ReclaimDrainedPolicies(&server->policies);
+    }
+    free(server);
+    return nullptr;
+}
+
+bool StartLocked() {
+    const uint32_t state = __atomic_load_n(&g_server_state, __ATOMIC_ACQUIRE);
+    if (state != kServerStopped) {
+        return state == kServerRunning && g_server_pid == getpid();
+    }
+    if (NowNs() == 0u) return false;
+    sockaddr_un address{};
+    address.sun_family = AF_UNIX;
+    const int length = snprintf(address.sun_path + 1u, sizeof(address.sun_path) - 1u,
+            "os.kei.hyper.home.monet.%u", static_cast<unsigned int>(getuid()));
+    if (length <= 0 || static_cast<size_t>(length) >= sizeof(address.sun_path) - 1u) {
+        return false;
+    }
+    const int listener = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+    if (listener < 0) return false;
+    const socklen_t address_length = static_cast<socklen_t>(
+            offsetof(sockaddr_un, sun_path) + 1u + static_cast<size_t>(length));
+    if (bind(listener, reinterpret_cast<const sockaddr*>(&address), address_length) != 0 ||
+            listen(listener, 4) != 0) {
+        close(listener);
+        return false;
+    }
+    auto* server = static_cast<ServerState*>(calloc(1u, sizeof(ServerState)));
+    if (server == nullptr) {
+        close(listener);
+        return false;
+    }
+    server->listener = listener;
+    server->pid = getpid();
+    server->uid = getuid();
+    pthread_attr_t attributes{};
+    const bool attributes_ready = pthread_attr_init(&attributes) == 0;
+    const bool detached = attributes_ready &&
+            pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED) == 0;
+    pthread_t thread{};
+    g_server_pid = server->pid;
+    // The start mutex prevents another caller observing running before create
+    // returns. Do not overwrite a failure already reported by a fast worker.
+    __atomic_store_n(&g_server_state, kServerRunning, __ATOMIC_RELEASE);
+    const int result = detached ? pthread_create(&thread, &attributes, PolicyWorker, server)
+                                : EINVAL;
+    if (attributes_ready) pthread_attr_destroy(&attributes);
+    if (result != 0) {
+        __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
+        close(listener);
+        free(server);
+        return false;
+    }
+    return __atomic_load_n(&g_server_state, __ATOMIC_ACQUIRE) == kServerRunning;
+}
+
+#endif  // defined(__linux__)
+}  // namespace
+
+bool StartNativeMonetPolicyServer() {
+#if defined(__linux__)
+    if (!IsLauncherProcess() || pthread_mutex_lock(&g_start_lock) != 0) return false;
+    const bool result = StartLocked();
+    pthread_mutex_unlock(&g_start_lock);
+    return result;
+#else
+    // Abstract sockets and SELinux peer authentication are Linux requirements.
+    return false;
+#endif
+}

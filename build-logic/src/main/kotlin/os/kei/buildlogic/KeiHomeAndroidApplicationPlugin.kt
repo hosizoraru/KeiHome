@@ -1,6 +1,9 @@
 package os.kei.buildlogic
 
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -20,7 +23,15 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
       ndkVersion = "30.0.16248370"
 
       // Each AVD installation must identify a distinct LSPosed module generation.
-      val generatedVersionCode = (System.currentTimeMillis() / 1000L).toInt()
+      // Pass -Pkeihome.versionCode when a rebuild happens within the same
+      // second or when a caller needs an explicitly audited monotonic value.
+      val generatedVersionCode = project.providers
+        .gradleProperty("keihome.versionCode")
+        .orNull?.let { raw ->
+          raw.toIntOrNull()?.takeIf { it > 0 }
+            ?: throw GradleException("keihome.versionCode must be a positive 32-bit integer")
+        }
+        ?: (System.currentTimeMillis() / 1000L).toInt()
 
       defaultConfig {
         applicationId = "os.kei.hyper.home"
@@ -65,13 +76,32 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
       packaging {
         jniLibs {
           excludes += "**/libandroidx.graphics.path.so"
-          excludes += "**/liblsplt.so"
           useLegacyPackaging = false
         }
         resources {
           excludes += "/META-INF/{AL2.0,LGPL2.1}"
           merges += "META-INF/xposed/*"
         }
+      }
+
+      externalNativeBuild {
+        cmake {
+          path = project.file("src/main/cpp/CMakeLists.txt")
+          version = "4.1.2"
+        }
+      }
+    }
+
+    project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java).onVariants { variant ->
+      variant.androidTest?.let { test ->
+        val task = project.tasks.register(
+          "${variant.name}TestApkVersion", TestApkVersionTask::class.java,
+        ) { stamp ->
+          stamp.versionCode.set(android.defaultConfig.versionCode!!)
+        }
+        test.artifacts.use(task).wiredWithFiles(
+          TestApkVersionTask::inputManifest, TestApkVersionTask::outputManifest,
+        ).toTransform(SingleArtifact.MERGED_MANIFEST)
       }
     }
 

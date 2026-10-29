@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: Apache-2.0
+#include "monet_hooks.h"
+#include "lsposed_hook_backend.h"
+#include "monet_image_identity.h"
+#include "monet_policy_server.h"
+#include "monet_tint_profile.h"
+#include "selection_profile.h"
+
+#include <android/log.h>
+#include <dlfcn.h>
+#include <link.h>
+#include <string.h>
+
+extern "C" {
+void* kh_tint_original = nullptr;
+void* kh_filter_equals_original = nullptr;
+void* kh_selection_original = nullptr;
+}
+
+namespace {
+uint32_t g_install_state = 0;
+struct Image {
+    uintptr_t base;
+    MonetTintImageRange tint_ranges[16];
+    MonetSelectionImageRange selection_ranges[16];
+    size_t count;
+    bool valid;
+};
+int FindImage(dl_phdr_info* info, size_t, void* opaque) {
+    auto* image = static_cast<Image*>(opaque);
+    if (info->dlpi_addr != image->base) return 0;
+    if (info->dlpi_phnum > 64) return 1;
+    for (size_t i = 0; i < info->dlpi_phnum; ++i) {
+        const auto& segment = info->dlpi_phdr[i];
+        if (segment.p_type != PT_LOAD || !(segment.p_flags & PF_R)) continue;
+        if (image->count == 16 || segment.p_vaddr > UINTPTR_MAX - image->base ||
+            segment.p_memsz > UINTPTR_MAX - (image->base + segment.p_vaddr)) return 1;
+        if (!segment.p_memsz) continue;
+        const uintptr_t begin = image->base + segment.p_vaddr;
+        const bool executable = (segment.p_flags & PF_X) != 0;
+        image->tint_ranges[image->count] = {begin, size_t(segment.p_memsz), executable};
+        image->selection_ranges[image->count++] = {begin, size_t(segment.p_memsz), executable};
+    }
+    image->valid = image->count != 0;
+    return 1;
+}
+bool Reject(const char* reason) {
+    __atomic_store_n(&g_install_state, 3u, __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_WARN, "KeiHomeMonet", "Two-tone hooks inactive: %s", reason);
+    return false;
+}
+} // namespace
+
+bool InstallMonetHooksAtLibraryLoad(void* handle) {
+    uint32_t expected = 0;
+    if (!__atomic_compare_exchange_n(&g_install_state, &expected, 1u, false,
+            __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return expected == 2;
+    auto* snapshot = dlsym(handle, "_kDartIsolateSnapshotInstructions");
+    auto* build_id = dlsym(handle, "_kDartSnapshotBuildId");
+    Dl_info info{};
+    if (!snapshot || !build_id || !dladdr(snapshot, &info) || !info.dli_fbase || !info.dli_fname) {
+        return Reject("missing live snapshot anchors");
+    }
+    Image image{};
+    image.base = reinterpret_cast<uintptr_t>(info.dli_fbase);
+    dl_iterate_phdr(FindImage, &image);
+    uint8_t digest[32];
+    if (!image.valid || !HashMonetLibrary(info.dli_fname, digest)) {
+        return Reject("backing library identity unavailable");
+    }
+    MonetTintProfile tint{};
+    MonetSelectionProfile selection{};
+    const char* failure = nullptr;
+    if (!ResolveMonetTintProfile({image.base, reinterpret_cast<uintptr_t>(snapshot),
+            reinterpret_cast<uintptr_t>(build_id), image.tint_ranges, image.count, digest},
+            &tint, &failure)) return Reject(failure ? failure : "tint ABI");
+    if (!ResolveMonetSelection({image.base, image.selection_ranges, image.count},
+            &selection, &failure)) return Reject(failure ? failure : "selection ABI");
+    if (!PublishMonetSelectionProfile(selection, digest)) return Reject("selection identity");
+    PublishMonetTintCallers(tint);
+    // Called only by the framework's first libapp load notification. No Dart
+    // isolate is running this newly loaded image yet. All trampolines are set
+    // before the socket can publish a policy; partial installation stays inert.
+    if (InstallInlineHook(tint.tint_entry, reinterpret_cast<void*>(kh_monet_tint_bridge),
+            &kh_tint_original) != kHookSuccess ||
+        InstallInlineHook(tint.filter_equals_entry, reinterpret_cast<void*>(kh_monet_filter_equals_bridge),
+            &kh_filter_equals_original) != kHookSuccess ||
+        InstallInlineHook(selection.entry, reinterpret_cast<void*>(kh_monet_selection_bridge),
+            &kh_selection_original) != kHookSuccess) return Reject("framework hook installation");
+    if (!StartNativeMonetPolicyServer()) return Reject("authenticated policy server unavailable");
+    __atomic_store_n(&g_install_state, 2u, __ATOMIC_RELEASE);
+    __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",
+            "Two-tone native profile ready: tint=%p selection=%p", tint.tint_entry, selection.entry);
+    return true;
+}

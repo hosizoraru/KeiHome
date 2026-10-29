@@ -29,9 +29,9 @@ Licensed under the Apache License, Version 2.0. See
 
 ## LSPlt
 
-The bundled `app/src/main/jniLibs/arm64-v8a/liblsplt.so` is LSPlt 2.1 rebuilt
-with 16 KB ELF segment alignment. The public header and license are included
-under `app/src/main/cpp/third_party/lsplt/` and
+Earlier native payloads bundled LSPlt 2.1 with 16 KB ELF segment alignment.
+The current payload uses the framework hook API and no longer ships that
+binary or its public header. Its license is retained for provenance at
 `app/src/main/assets/licenses/LSPlt-LGPL-3.0.txt`.
 
 Source: <https://github.com/LSPosed/LSPlt>

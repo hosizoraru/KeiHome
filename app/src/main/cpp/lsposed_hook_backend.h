@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "native_api.h"
 
@@ -16,6 +17,9 @@ int InstallPltHook(void* base_addr, const char* symbol, void* hook_handler,
                    void** original);
 int InstallInlineHook(void* target, void* replacement, void** original);
 int RemoveInlineHook(void* target);
+// Atomically replaces one validated AArch64 instruction and keeps the code
+// page registered against Flutter's MADV_DONTNEED cleanup.
+int PatchArm64Instruction(void* target, uint32_t expected, uint32_t replacement);
 NativeSymbolResolver* NewNativeSymbolResolver(const char* path,
                                               void* base_addr);
 void FreeNativeSymbolResolver(NativeSymbolResolver* resolver);

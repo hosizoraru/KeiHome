@@ -22,8 +22,9 @@ Refresh resource inspection runs in an isolated app process, not in
 `system_server` or the launcher. It considers each launchable activity and alias. A package is
 skipped only when its supported static resource graph and both rendered states
 appear unchanged; unknown resources, animated or theme-dependent drawables,
-errors, service failures and timeouts are refreshed conservatively. No app
-drawable or package inventory is retained by the module. Separately, the app
+errors, service failures and timeouts are refreshed conservatively. App drawables
+and package inventories are not persisted. Monet inspection caches resource
+identity metadata within its Java generation. Separately, the app
 inspects visible launcher entries for each accessible profile and distinguishes
 detected, undetected and uncertain resource support. A declared monochrome
 layer whose rendered alpha is completely uniform is marked uncertain, since

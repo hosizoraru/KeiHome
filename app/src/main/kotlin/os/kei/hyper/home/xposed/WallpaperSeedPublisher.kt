@@ -17,14 +17,14 @@ internal class WallpaperSeedPublisher {
   private var cached = WallpaperColorSnapshot(MonetReadState.NOT_PROVIDED, emptyList())
 
   @SuppressLint("MissingPermission")
-  fun readAndPublish(context: Context, userId: Int): WallpaperColorSnapshot {
+  fun readAndPublish(context: Context, userId: Int, force: Boolean = false): WallpaperColorSnapshot {
     val manager = WallpaperManager.getInstance(context)
     val homeId = manager.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
     val lockId = manager.getWallpaperId(WallpaperManager.FLAG_LOCK)
     val homeReported = manager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM).seeds()
     val lockReported = manager.getWallpaperColors(WallpaperManager.FLAG_LOCK).seeds()
     val key = listOf(userId, homeId, lockId, homeReported, lockReported)
-    if (key != cacheKey) {
+    if (force || key != cacheKey) {
       // Public primary/secondary/tertiary colors can omit useful wallpaper seeds.
       // Score the static image when accessible, and use reported colors for other wallpapers.
       val homeImage = extract(manager, WallpaperManager.FLAG_SYSTEM)

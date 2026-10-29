@@ -26,6 +26,7 @@ internal class MonetColorSynchronizer {
   private val resources = MonetResourcePolicy()
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
+  private var lastPaletteRefresh: Long? = null
   private var previousPolicy: Triple<Int, Int, Set<String>>? = null
   private var acknowledgedReset = false
 
@@ -44,7 +45,13 @@ internal class MonetColorSynchronizer {
     val context = contextForUser(baseContext, userId) ?: return SynchronizationResult.Unsupported
     val stillCurrent = { mayWrite() && currentUserId() == userId }
     val resolver = context.contentResolver
-    val wallpaper = wallpaperSeeds.readAndPublish(context, userId)
+    val refresh = MonetAction.paletteRefresh(actionPreferences, userId)
+    val forceRefresh = refresh != null && refresh != lastPaletteRefresh
+    val wallpaper = wallpaperSeeds.readAndPublish(context, userId, forceRefresh)
+    if (forceRefresh && stillCurrent()) {
+      Settings.Secure.putString(resolver, MonetAction.PALETTE_REFRESHED, refresh.toString())
+      lastPaletteRefresh = refresh
+    }
     val actionStore = object : MonetAction.Store {
       override fun read() = MonetAction.Selection(
         Settings.System.getString(resolver, KEY_MONOCHROME_COLOR),

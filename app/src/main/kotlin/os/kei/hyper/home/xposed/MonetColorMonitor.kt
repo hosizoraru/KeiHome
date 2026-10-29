@@ -49,7 +49,8 @@ internal class MonetColorMonitor(
     private var preferenceFailureReported = false
     // The framework holds listeners weakly. This worker owns the strong reference until stop.
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-      if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER) request()
+      if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
+        key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
     }
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ -> request() }
 

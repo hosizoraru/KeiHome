@@ -18,6 +18,9 @@ internal object MonetAction {
   const val REQUEST_REVISION = "request_revision"
   const val REQUEST_USER = "request_user"
   const val REQUEST_CUSTOMIZATION = "request_customization"
+  const val REFRESH_REVISION = "refresh_revision"
+  const val REFRESH_USER = "refresh_user"
+  const val PALETTE_REFRESHED = "keihome_palette_refreshed"
   const val REQUEST_LIFETIME_MS = 60_000L
 
   enum class Setting(val key: String, val secure: Boolean) {
@@ -125,6 +128,23 @@ internal object MonetAction {
     // writer between this read and put cannot be made atomic by another local check or lock.
     return if (store.write(Setting.HANDLED, request.revision.toString())) ApplyResult.SELECTION_CHANGED
     else ApplyResult.WRITE_FAILED
+  }
+
+  fun requestPaletteRefresh(service: XposedService): MonetActionRequest = requestPaletteRefresh(
+    service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(),
+  )
+
+  internal fun requestPaletteRefresh(preferences: SharedPreferences, appUid: Int, now: Long): MonetActionRequest {
+    val previous = preferences.all[REFRESH_REVISION] as? Long ?: 0L
+    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000)
+    check(preferences.edit().putLong(REFRESH_REVISION, request.revision)
+      .putInt(REFRESH_USER, request.userId).commit()) { "Palette refresh request failed" }
+    return request
+  }
+
+  fun paletteRefresh(preferences: SharedPreferences?, userId: Int): Long? {
+    val values = preferences?.all ?: return null
+    return (values[REFRESH_REVISION] as? Long)?.takeIf { it > 0 && values[REFRESH_USER] == userId }
   }
 
   /** API 102 sends the revision, user and complete choice in one Binder update bundle. */

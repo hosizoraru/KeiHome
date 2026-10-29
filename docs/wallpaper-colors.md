@@ -43,6 +43,20 @@ Live wallpapers without reported colors or an accessible image remain unavailabl
 - Selecting a manual launcher color still releases automatic ownership. Applying
   a new scheme explicitly takes ownership again.
 
+## Explicit palette refresh
+
+The Monet toolbar refresh writes `refresh_revision` and `refresh_user` in the
+existing API 102 preference group. It does not write the apply-request fields.
+The existing system worker forces fresh wallpaper extraction even when the
+wallpaper ID is unchanged, publishes seeds and records the read receipt in
+`keihome_palette_refreshed`. The app waits up to four seconds for its receipt
+before rereading the palette. A timeout produces partial-refresh feedback while
+retaining the previous display and the user's unapplied draft. Normal wallpaper
+following still applies independently; refreshing does not submit the draft.
+
+See [ui-performance.md](ui-performance.md) for the three refresh scopes and the
+focused Release validation of this read-only request.
+
 ## API 102 handover
 
 Retirement interrupts an outstanding isolated-probe wait and allows up to five

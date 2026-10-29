@@ -17,6 +17,19 @@ class MonetActionTest {
   private val color = 0xff332d41.toInt()
 
   @Test
+  fun paletteRefreshDoesNotSubmitOrOverwriteAnApplyRequest() {
+    val remote = Preferences()
+    val refresh = MonetAction.requestPaletteRefresh(remote.preferences, 1_210_141, 99_000L)
+    assertNull(MonetAction.decode(remote.values))
+    assertEquals(refresh.revision, MonetAction.paletteRefresh(remote.preferences, 12))
+    assertNull(MonetAction.paletteRefresh(remote.preferences, 0))
+    val choice = MonetCustomization(MonetSeedSource.BASIC_COLOR, MonetSchemeStyle.NEUTRAL, color = color)
+    val apply = MonetAction.submit(remote.preferences, 1_210_141, 100_000L, choice)
+    MonetAction.requestPaletteRefresh(remote.preferences, 1_210_141, 101_000L)
+    assertEquals(apply, MonetAction.decode(remote.values))
+  }
+
+  @Test
   fun submitsOneAtomicCommitWithUserDerivedFromAppUid() {
     val remote = Preferences()
     assertEquals(request, MonetAction.submit(remote.preferences, 1_210_141, 100_000L))

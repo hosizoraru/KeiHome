@@ -27,7 +27,12 @@ internal class MonetColorSynchronizer {
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private var lastPaletteRefresh: Long? = null
-  private var previousPolicy: Triple<Int, Int, Set<String>>? = null
+  private data class Publication(
+    val colors: IconColors,
+    val denied: Set<String>,
+    val process: NativeMonetProcessIdentity?,
+  )
+  private var previousPolicy: Publication? = null
   private var acknowledgedReset = false
 
   fun start(): Boolean = native.start()
@@ -96,7 +101,6 @@ internal class MonetColorSynchronizer {
     }
 
     if (!SupportedMonetLauncher.matches(context)) return SynchronizationResult.Unsupported
-    if (!native.isAvailable(context)) return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
     val palette = if (customization != null) {
       val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette
@@ -136,13 +140,15 @@ internal class MonetColorSynchronizer {
     if (!native.publish(context, colors.foreground, colors.background, denied)) {
       return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     }
+    // Publishing authenticates the endpoint and waits for its ACK in the same exchange.
+    val policy = Publication(colors, denied, native.acknowledgedProcess)
     acknowledgedReset = false
     if (action != null) {
       return when (MonetAction.applyAcknowledged(
         action, selected, initial, actionStore, nativeAcknowledged = true, isCurrent = actionCurrent,
       )) {
         MonetAction.ApplyResult.APPLIED -> {
-          previousPolicy = Triple(colors.foreground, colors.background, denied)
+          previousPolicy = policy
           SynchronizationResult.Applied(selected)
         }
         MonetAction.ApplyResult.WRITE_FAILED -> {
@@ -160,11 +166,10 @@ internal class MonetColorSynchronizer {
       native.disable(context)
       return SynchronizationResult.SelectionChanged
     }
-    val policy = Triple(colors.foreground, colors.background, denied)
     val changed = previousPolicy != policy
     if (current == selected && marker == current) {
       previousPolicy = policy
-      resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
+      if (changed) resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
       return if (changed) SynchronizationResult.Applied(selected)
       else SynchronizationResult.Unchanged(selected)
     }

@@ -101,6 +101,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       }
 
       synchronized(lock) {
+        // Prepare the Looper before publishing any new hooks that can run under the WM lock.
+        refreshHandlerLocked()
         if (reconcileAfterReload) {
           // Reconciliation reads the current configuration; it only needs a fresh token.
           val generation = generations.next(
@@ -186,7 +188,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             if (changes and ActivityInfo.CONFIG_UI_MODE != 0) {
               val current = readUiMode(chain.thisObject)
               if (previous != null && current != null) {
-                schedule(previous, current)
+                android.os.Trace.beginSection("KeiHome:night-observer")
+                try { schedule(previous, current) } finally { android.os.Trace.endSection() }
               }
             }
           } catch (failure: Throwable) {
@@ -213,6 +216,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       return true
     } catch (failure: Throwable) {
       NativeMonetSocketBroker.stop()
+      monetColorMonitor.stop()
+      worker?.quitSafely()
+      worker = null
+      handler = null
       handles.forEach {
         try {
           it.unhook()
@@ -255,6 +262,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       generations.retire()
     },
     rollback = {
+      refreshHandlerLocked()
       startMonetMonitorLocked()
       postPendingLocked()
     },
@@ -330,16 +338,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val request = pending.request ?: return
     repeat(2) {
       try {
-        val currentHandler = handler ?: HandlerThread("KeiHomeIconRefresh").let { thread ->
-          val interrupted = Thread.interrupted()
-          try {
-            thread.start()
-            worker = thread
-            Handler(thread.looper).also { handler = it }
-          } finally {
-            if (interrupted) Thread.currentThread().interrupt()
-          }
-        }
+        val currentHandler = refreshHandlerLocked()
         val ticket = pending.markPosted()
         val delay = if (request.attempt == 0) REFRESH_DELAY_MS else SNAPSHOT_RETRY_MS
         if (currentHandler.postDelayed({ refresh(request, ticket) }, delay)) return
@@ -361,6 +360,19 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       if (lifecycle.activeJobs != 0) return
     }
     xposed.log(Log.WARN, TAG, "Could not queue pending icon refresh")
+  }
+
+  private fun refreshHandlerLocked(): Handler = handler ?: HandlerThread(
+    "KeiHomeIconRefresh", android.os.Process.THREAD_PRIORITY_BACKGROUND,
+  ).let { thread ->
+    val interrupted = Thread.interrupted()
+    try {
+      thread.start()
+      worker = thread
+      Handler(thread.looper).also { handler = it }
+    } finally {
+      if (interrupted) Thread.currentThread().interrupt()
+    }
   }
 
   private fun refresh(request: IconRefreshRequest, ticket: Long) {
@@ -412,16 +424,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           ) continue
           try {
             val activities = launcherApps.getActivityList(null, user)
-            val probedPackages = probe.packagesToRefresh(activities) {
-              generations.isCurrent(generation)
-            }
+            val fullRefresh = generations.needsFullRefresh(generation)
+            // A palette refresh already includes every entry; probing first only adds AMS work.
+            val probedPackages = if (fullRefresh) activities.map { it.componentName.packageName }.toSet()
+            else probe.packagesToRefresh(activities) { generations.isCurrent(generation) }
             val shortcutsByPackage = shortcutsByPackage(launcherApps, user) ?: emptyMap()
             val shortcutPackages = shortcutsByPackage.keys
             val packages = (probedPackages + shortcutPackages).toSortedSet()
-            if (generations.needsFullRefresh(generation)) {
-              // A color change also affects icons with no night-qualified drawable.
-              packages += activities.map { it.componentName.packageName }
-            }
             xposed.log(
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +

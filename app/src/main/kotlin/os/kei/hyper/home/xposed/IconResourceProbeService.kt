@@ -80,7 +80,7 @@ class IconResourceProbeService : Service() {
 
   override fun onCreate() {
     super.onCreate()
-    thread = HandlerThread("KeiHomeIconProbe").also { it.start() }
+    thread = HandlerThread("KeiHomeIconProbe", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
     messenger = Messenger(Handler(thread.looper) { message ->
       if (message.sendingUid != Process.SYSTEM_UID || message.replyTo == null) {
         return@Handler true
@@ -366,9 +366,11 @@ private class ProbeThreadFactory : ThreadFactory {
   private var nextId = 0
 
   override fun newThread(task: Runnable): Thread =
-    Thread(task, "KeiHomeIconProbe-${nextId++}").apply {
+    Thread({
+      Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+      task.run()
+    }, "KeiHomeIconProbe-${nextId++}").apply {
       isDaemon = true
-      priority = Thread.NORM_PRIORITY - 1
     }
 }
 

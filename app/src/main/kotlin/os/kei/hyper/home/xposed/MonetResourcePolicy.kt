@@ -20,10 +20,10 @@ internal class MonetResourcePolicy {
   )
 
   private var previousSources: List<Source>? = null
-  private var previousConfiguration: Configuration? = null
   private var previousDenied: Set<String> = emptySet()
   private var previousUserId: Int? = null
-  private var retryAfter = 0L
+  private data class CachedMasks(val configuration: Configuration, val denied: Set<String>, val retryAfter: Long)
+  private val configurations = ArrayDeque<CachedMasks>()
 
   fun deniedPackages(context: Context, isCurrent: () -> Boolean): Set<String> {
     val userId = Context::class.java.getMethod("getUserId").invoke(context) as Int
@@ -54,9 +54,9 @@ internal class MonetResourcePolicy {
       val file = File(app.sourceDir)
       Source(app.packageName, app.sourceDir, file.length(), file.lastModified(), app.icon)
     }.distinct().sortedWith(compareBy(Source::packageName, Source::path, Source::icon))
-    if (userId == previousUserId && sources == previousSources &&
-      configuration == previousConfiguration && SystemClock.elapsedRealtime() < retryAfter
-    ) return previousDenied
+    if (userId != previousUserId || sources != previousSources) configurations.clear()
+    val cached = configurations.firstOrNull { it.configuration == configuration }
+    if (cached != null && SystemClock.elapsedRealtime() < cached.retryAfter) return cached.denied
 
     // A package-only Dart key cannot represent conflicting profile resources.
     // Keep the original selection when profiles disagree about the source/icon.
@@ -72,16 +72,20 @@ internal class MonetResourcePolicy {
     val previousByPackage = previousSources.orEmpty().groupBy(Source::packageName)
     val unchanged = sources.groupBy(Source::packageName)
       .filter { (name, entries) -> previousByPackage[name] == entries }.keys
-    val denied = retainedUnusableMasks(masks, previousDenied, unchanged)
+    val retained = cached?.denied ?: previousDenied.takeIf { userId == previousUserId }.orEmpty()
+    val denied = retainedUnusableMasks(masks, retained, unchanged)
     // An interrupted probe does not make a known bad mask usable. Retry unknown
     // resources without dropping their last result for the same installed source.
     previousSources = sources
     previousUserId = userId
-    previousConfiguration = configuration
     previousDenied = denied
-    retryAfter = if (masks.size == representatives.size &&
+    val retryAfter = if (masks.size == representatives.size &&
       masks.values.none { it == LauncherMaskStatus.UNKNOWN }
     ) Long.MAX_VALUE else SystemClock.elapsedRealtime() + 60_000L
+    // Keep both night variants warm; source/profile changes invalidate the small configuration cache.
+    configurations.removeAll { it.configuration == configuration }
+    configurations.addLast(CachedMasks(configuration, denied, retryAfter))
+    if (configurations.size > 4) configurations.removeFirst()
     return denied
   }
 }

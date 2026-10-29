@@ -37,6 +37,8 @@ import java.util.concurrent.TimeoutException
 internal class NativeMonetClient {
   private val worker = NativeMonetWorker()
   @Volatile private var failure: String? = null
+  @Volatile var acknowledgedProcess: NativeMonetProcessIdentity? = null
+    private set
 
   /** Reason for the last failed exchange; a completed successful exchange clears it. */
   val lastFailure: String? get() = failure
@@ -92,7 +94,10 @@ internal class NativeMonetClient {
         outerFailure = "${attempt.stage}: endpoint deadline exceeded"
         return false
       }
-      task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS).also { succeeded = it }
+      task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS).also {
+        succeeded = it
+        if (it) acknowledgedProcess = attempt.process
+      }
     } catch (failure: InterruptedException) {
       Thread.currentThread().interrupt()
       outerFailure = nativeMonetFailure(attempt.stage, failure)
@@ -117,6 +122,8 @@ internal class NativeMonetClient {
   }
 
   private inner class Attempt(private val context: Context, private val request: ByteArray?) {
+    var process: NativeMonetProcessIdentity? = null
+      private set
     val connected = CountDownLatch(1)
     private val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(EXCHANGE_BUDGET_MS)
     private val lock = Any()
@@ -165,6 +172,7 @@ internal class NativeMonetClient {
           )
           if (!accepted) return@use false
           checkActive()
+          process = acquired.process
           true
         } finally {
           NativeMonetSocketBroker.release(acquired)

@@ -38,7 +38,7 @@ internal class MonetColorMonitor(
     synchronizer.awaitStopped(deadlineNanos)
 
   private inner class Watch(private val context: Context) : MonitorWorker {
-    override val thread = HandlerThread("KeiHomeMonet")
+    override val thread = HandlerThread("KeiHomeMonet", android.os.Process.THREAD_PRIORITY_BACKGROUND)
     private val handler by lazy { Handler(thread.looper) }
     @Volatile override var closed = false
       private set

@@ -47,6 +47,20 @@ class MonetActionTest {
   }
 
   @Test
+  fun selectedSchemeTravelsWithRequestAndIsStoredBeforeSuccess() {
+    val choice = MonetCustomization(MonetSeedSource.LOCK_WALLPAPER, MonetSchemeStyle.VIBRANT, 1)
+    val remote = Preferences()
+    val selectedRequest = MonetAction.submit(remote.preferences, 1_210_141, request.revision, choice)
+    assertEquals(choice, MonetAction.decode(remote.values)?.customization)
+    val store = Store(initial)
+    assertEquals(ApplyResult.APPLIED, MonetAction.applyAcknowledged(
+      selectedRequest, color, initial, store, nativeAcknowledged = true, isCurrent = { true },
+    ))
+    assertEquals(choice.encode(), store.selection.customization)
+    assertEquals("APPLIED", store.events.last())
+  }
+
+  @Test
   fun malformedOrTornRequestFieldsAreNotAccepted() {
     for (values in listOf(
       emptyMap(), mapOf("request_revision" to request.revision),
@@ -313,13 +327,17 @@ class MonetActionTest {
         "getAll" -> values.toMap()
         "edit" -> {
           if (readOnly) throw UnsupportedOperationException("read-only")
-          val pending = mutableMapOf<String, Any>()
+          val pending = mutableMapOf<String, Any?>()
           Proxy.newProxyInstance(
             SharedPreferences.Editor::class.java.classLoader, arrayOf(SharedPreferences.Editor::class.java),
           ) { editor, operation, args ->
             when (operation.name) {
-              "putLong", "putInt" -> { pending[args[0] as String] = args[1]; editor }
-              "commit" -> { commits += 1; values.putAll(pending); commitSucceeds }
+              "putLong", "putInt", "putString" -> { pending[args[0] as String] = args[1]; editor }
+              "commit" -> {
+                commits += 1
+                pending.forEach { (key, value) -> if (value == null) values.remove(key) else values[key] = value }
+                commitSucceeds
+              }
               else -> error("Unexpected editor call: ${operation.name}")
             }
           }

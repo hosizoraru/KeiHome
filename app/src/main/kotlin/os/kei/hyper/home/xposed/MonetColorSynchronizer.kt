@@ -9,6 +9,8 @@ import android.net.Uri
 import android.provider.Settings
 import java.io.IOException
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.parseMonetPaletteJson
 
 /**
@@ -23,6 +25,7 @@ internal class MonetColorSynchronizer {
   private val native = NativeMonetClient()
   private val resources = MonetResourcePolicy()
   private val actionBaseline = MonetAction.Baseline()
+  private val wallpaperSeeds = WallpaperSeedPublisher()
   private var previousPolicy: Triple<Int, Int, Set<String>>? = null
   private var acknowledgedReset = false
 
@@ -41,6 +44,7 @@ internal class MonetColorSynchronizer {
     val context = contextForUser(baseContext, userId) ?: return SynchronizationResult.Unsupported
     val stillCurrent = { mayWrite() && currentUserId() == userId }
     val resolver = context.contentResolver
+    val wallpaper = wallpaperSeeds.readAndPublish(context, userId)
     val actionStore = object : MonetAction.Store {
       override fun read() = MonetAction.Selection(
         Settings.System.getString(resolver, KEY_MONOCHROME_COLOR),
@@ -48,6 +52,7 @@ internal class MonetColorSynchronizer {
         Settings.System.getString(resolver, KEY_MONOCHROME),
         Settings.Secure.getString(resolver, MonetAction.Setting.HANDLED.key),
         Settings.Secure.getString(resolver, MonetAction.Setting.APPLIED.key),
+        Settings.Secure.getString(resolver, MonetAction.Setting.CUSTOMIZATION.key),
       )
       override fun write(setting: MonetAction.Setting, value: String): Boolean =
         if (setting.secure) Settings.Secure.putString(resolver, setting.key, value)
@@ -85,7 +90,11 @@ internal class MonetColorSynchronizer {
 
     if (!SupportedMonetLauncher.matches(context)) return SynchronizationResult.Unsupported
     if (!native.isAvailable(context)) return actionInterruption() ?: SynchronizationResult.NativeUnavailable
-    val palette = readPalette(context, resolver) ?: return SynchronizationResult.NoPalette
+    val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
+    val palette = if (customization != null) {
+      val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette
+      MonetSchemes.generate(seed, customization.style)
+    } else readPalette(context, resolver) ?: return SynchronizationResult.NoPalette
     val colors = MonetColorPolicy.selectPair(
       palette = palette,
       uiMode = context.resources.configuration.uiMode,

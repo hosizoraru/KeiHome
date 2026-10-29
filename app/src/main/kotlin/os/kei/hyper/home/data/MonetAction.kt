@@ -6,7 +6,9 @@ import android.os.Process
 import android.provider.Settings
 import io.github.libxposed.service.XposedService
 
-internal data class MonetActionRequest(val revision: Long, val userId: Int)
+internal data class MonetActionRequest(
+  val revision: Long, val userId: Int, val customization: MonetCustomization? = null,
+)
 
 internal enum class MonetActionStatus { IDLE, APPLYING, APPLIED, UNCONFIRMED, UNAVAILABLE, FAILED }
 
@@ -15,6 +17,7 @@ internal object MonetAction {
   const val GROUP = "monet"
   const val REQUEST_REVISION = "request_revision"
   const val REQUEST_USER = "request_user"
+  const val REQUEST_CUSTOMIZATION = "request_customization"
   const val REQUEST_LIFETIME_MS = 60_000L
 
   enum class Setting(val key: String, val secure: Boolean) {
@@ -23,14 +26,16 @@ internal object MonetAction {
     ENABLED("key_monochrome", false),
     HANDLED("keihome_monet_handled_revision", true),
     APPLIED("keihome_monet_applied_revision", true),
+    CUSTOMIZATION("keihome_monet_customization", true),
   }
 
   data class Selection(
     val background: String?, val autoColor: String?, val enabled: String?,
     val handled: String?, val applied: String?,
+    val customization: String? = null,
   ) {
     fun sameChoice(other: Selection): Boolean = background == other.background &&
-      autoColor == other.autoColor && enabled == other.enabled
+      autoColor == other.autoColor && enabled == other.enabled && customization == other.customization
 
     fun updated(setting: Setting, value: String): Selection = when (setting) {
       Setting.BACKGROUND -> copy(background = value)
@@ -38,6 +43,7 @@ internal object MonetAction {
       Setting.ENABLED -> copy(enabled = value)
       Setting.HANDLED -> copy(handled = value)
       Setting.APPLIED -> copy(applied = value)
+      Setting.CUSTOMIZATION -> copy(customization = value)
     }
   }
 
@@ -66,7 +72,8 @@ internal object MonetAction {
   fun decode(snapshot: Map<String, *>): MonetActionRequest? {
     val revision = snapshot[REQUEST_REVISION] as? Long ?: return null
     val user = snapshot[REQUEST_USER] as? Int ?: return null
-    return MonetActionRequest(revision, user).takeIf { revision > 0 && user >= 0 }
+    val customization = MonetCustomization.decode(snapshot[REQUEST_CUSTOMIZATION] as? String)
+    return MonetActionRequest(revision, user, customization).takeIf { revision > 0 && user >= 0 }
   }
 
   fun read(preferences: SharedPreferences?): MonetActionRequest? =
@@ -120,23 +127,26 @@ internal object MonetAction {
     else ApplyResult.WRITE_FAILED
   }
 
-  /** API 102 service sources: one editor sends both fields in one Binder update bundle. */
+  /** API 102 sends the revision, user and complete choice in one Binder update bundle. */
   @Synchronized
-  fun submit(service: XposedService): MonetActionRequest {
+  fun submit(service: XposedService, customization: MonetCustomization? = null): MonetActionRequest {
     if (service.apiVersion < 102 || service.frameworkProperties and XposedService.PROP_CAP_REMOTE == 0L) {
       throw UnsupportedOperationException("Framework remote preferences unavailable")
     }
-    return submit(service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis())
+    return submit(service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(), customization)
   }
 
-  internal fun submit(preferences: SharedPreferences, appUid: Int, now: Long): MonetActionRequest {
+  internal fun submit(
+    preferences: SharedPreferences, appUid: Int, now: Long, customization: MonetCustomization? = null,
+  ): MonetActionRequest {
     require(appUid >= 0)
     val previous = preferences.all[REQUEST_REVISION] as? Long ?: 0L
-    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000)
+    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000, customization)
     // commit can update the service client's cache before a failed Binder write. Never infer
     // persistence from that cache and never report application success from commit alone.
     check(preferences.edit().putLong(REQUEST_REVISION, request.revision)
-      .putInt(REQUEST_USER, request.userId).commit()) { "Monet request commit failed" }
+      .putInt(REQUEST_USER, request.userId)
+      .putString(REQUEST_CUSTOMIZATION, customization?.encode()).commit()) { "Monet request commit failed" }
     return request
   }
 
@@ -161,11 +171,12 @@ internal object MonetAction {
     val applied = storedRevision(initial.applied) ?: return ApplyResult.SELECTION_CHANGED
     if (request.revision <= maxOf(handled, applied)) return ApplyResult.SELECTION_CHANGED
     var expected = initial
-    val writes = listOf(
+    val writes = listOfNotNull(
       Setting.HANDLED to request.revision.toString(),
       Setting.BACKGROUND to color.toString(),
       Setting.AUTO_COLOR to color.toString(),
       Setting.ENABLED to "1",
+      request.customization?.let { Setting.CUSTOMIZATION to it.encode() },
       Setting.APPLIED to request.revision.toString(),
     )
     for ((setting, value) in writes) {

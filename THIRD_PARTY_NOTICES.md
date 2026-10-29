@@ -1,5 +1,16 @@
 # Third-party notices
 
+## MaterialKolor color utilities
+
+Wallpaper quantization, seed ranking and tonal schemes use MaterialKolor's
+`material-color-utilities` 5.0.1, the same engine already used by MIUIX.
+No Material UI components are included through this dependency.
+
+Source: <https://github.com/jordond/MaterialKolor/tree/5.0.1>
+
+Copyright (c) 2025 Jordon de Hoog. Licensed under the MIT License; the full
+notice is included in `app/src/main/assets/licenses/MaterialKolor-MIT.txt`.
+
 ## MIUIX liquid-glass navigation and blur samples
 
 The following files are adapted from the compose-miuix-ui/miuix example app:

@@ -37,6 +37,8 @@ internal data class MonetPaletteSource(
 internal data class WallpaperColorSnapshot(
   val state: MonetReadState,
   val colors: List<Int>,
+  val lockColors: List<Int> = emptyList(),
+  val extracted: Boolean = false,
 )
 
 internal data class MonochromeIconSettings(
@@ -54,9 +56,12 @@ internal data class MonetPaletteSnapshot(
   val launcherPalette: MonetPaletteSource,
   val frameworkPalette: MonetPaletteSource,
   val monochrome: MonochromeIconSettings,
+  val customization: MonetCustomization? = null,
+  val customizationActive: Boolean = false,
+  val selectedPalette: MonetPaletteSource? = null,
 ) {
   val activePalette: MonetPaletteSource
-    get() = launcherPalette.takeIf { it.state == MonetReadState.AVAILABLE }
+    get() = selectedPalette ?: launcherPalette.takeIf { it.state == MonetReadState.AVAILABLE }
       ?: frameworkPalette
 
   val generatedColorCount: Int
@@ -118,13 +123,28 @@ internal class MonetPaletteReader(context: Context) {
 
   fun read(): MonetPaletteSnapshot {
     val settings = readSettings()
+    val customization = MonetCustomization.decode(readSetting(MonetAction.Setting.CUSTOMIZATION.key))
+    val wallpaper = readWallpaperColors()
+    val monochrome = readMonochromeSettings()
+    val ownedColor = readSetting(MonetAction.Setting.AUTO_COLOR.key)?.toIntOrNull()
+    val active = customization != null && monochrome.enabled == true && ownedColor != null &&
+      ownedColor == monochrome.colorArgb
+    val selectedPalette = customization?.takeIf { active }?.let { choice ->
+      choice.seed(wallpaper)?.let { seed ->
+        MonetPaletteSource("KeiHome", MonetReadState.AVAILABLE,
+          parseMonetPaletteJson(JSONObject(MonetSchemes.generate(seed, choice.style)).toString()))
+      }
+    }
     return MonetPaletteSnapshot(
-      source = settings.first,
-      style = settings.second,
-      wallpaper = readWallpaperColors(),
+      source = if (active) customization.source.name else settings.first,
+      style = if (active) customization.style.name else settings.second,
+      wallpaper = wallpaper,
       launcherPalette = readLauncherPalette(),
       frameworkPalette = readFrameworkPalette(),
-      monochrome = readMonochromeSettings(),
+      monochrome = monochrome,
+      customization = customization,
+      customizationActive = active,
+      selectedPalette = selectedPalette,
     )
   }
 
@@ -212,6 +232,7 @@ internal class MonetPaletteReader(context: Context) {
   }
 
   private fun readWallpaperColors(): WallpaperColorSnapshot {
+    WallpaperSeedStorage.decode(readSetting(WallpaperSeedStorage.KEY))?.let { return it }
     return try {
       val wallpaper = WallpaperManager.getInstance(context)
         .getWallpaperColors(WallpaperManager.FLAG_SYSTEM)

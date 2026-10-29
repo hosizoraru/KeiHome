@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.app.WallpaperManager
 import android.content.SharedPreferences
 import android.database.ContentObserver
 import android.net.Uri
@@ -42,6 +43,7 @@ internal class MonetColorMonitor(
     @Volatile override var closed = false
       private set
     private var registered = false
+    private var wallpaperRegistered = false
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
     private var preferenceFailureReported = false
@@ -49,6 +51,7 @@ internal class MonetColorMonitor(
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER) request()
     }
+    private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ -> request() }
 
     private fun connectActionPreferences() {
       if (closed || actionPreferences != null) return
@@ -118,6 +121,8 @@ internal class MonetColorMonitor(
           resolver.registerContentObserver(
             Uri.parse("content://com.miui.launcher.wallpaper.palette"), false, observer,
           )
+          WallpaperManager.getInstance(context).addOnColorsChangedListener(wallpaperListener, handler)
+          wallpaperRegistered = true
           if (!closed) request()
         } catch (failure: Throwable) {
           onFailure(failure)
@@ -144,6 +149,10 @@ internal class MonetColorMonitor(
           onFailure(failure)
         }
         actionPreferences = null
+        if (wallpaperRegistered) {
+          WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
+          wallpaperRegistered = false
+        }
         if (registered) {
           try {
             context.contentResolver.unregisterContentObserver(observer)

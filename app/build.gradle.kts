@@ -9,6 +9,8 @@ dependencies {
 
   compileOnly(libs.libxposed.api)
   implementation(libs.libxposed.service)
+  // Same pure color engine already used by MIUIX; also needed on our compile classpath.
+  implementation(libs.material.color.utilities)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

@@ -29,14 +29,23 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.InstalledIconScanner
+import os.kei.hyper.home.data.MonetPaletteReader
+import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
+import os.kei.hyper.home.status.readFrameworkSnapshot
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.liquid.IosLiquidGlassNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -59,6 +68,7 @@ import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -68,14 +78,38 @@ fun MainScreen(modifier: Modifier = Modifier) {
   var selectedTab by rememberSaveable { mutableIntStateOf(0) }
   var scanGeneration by rememberSaveable { mutableIntStateOf(0) }
   var statusGeneration by rememberSaveable { mutableIntStateOf(0) }
+  var monetGeneration by rememberSaveable { mutableIntStateOf(0) }
   var selectedFilter by rememberSaveable { mutableIntStateOf(0) }
   var searchQuery by rememberSaveable { mutableStateOf("") }
   var capabilityState by remember {
     mutableStateOf<IconCapabilityScanState>(IconCapabilityScanState.Loading)
   }
-  var statusSnapshot by remember { mutableStateOf<FrameworkSnapshot?>(null) }
-  var statusReadFailed by remember { mutableStateOf(false) }
+  var monetSnapshot by remember { mutableStateOf<MonetPaletteSnapshot?>(null) }
+  var monetReadFailed by remember { mutableStateOf(false) }
   val context = LocalContext.current
+  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  val statusService by FrameworkConnection.service.collectAsStateWithLifecycle()
+  var statusSnapshot by remember(statusService) { mutableStateOf<FrameworkSnapshot?>(null) }
+  var statusReadFailed by remember(statusService) { mutableStateOf(false) }
+  val monetReader = remember(context) {
+    MonetPaletteReader(context.applicationContext)
+  }
+  LaunchedEffect(statusService, statusGeneration, lifecycle) {
+    val service = statusService ?: return@LaunchedEffect
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      while (true) {
+        try {
+          statusSnapshot = withContext(Dispatchers.IO) { service.readFrameworkSnapshot() }
+          statusReadFailed = false
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (_: Exception) {
+          statusReadFailed = true
+        }
+        delay(5_000)
+      }
+    }
+  }
   LaunchedEffect(context, scanGeneration) {
     capabilityState = IconCapabilityScanState.Loading
     capabilityState = try {
@@ -90,13 +124,30 @@ fun MainScreen(modifier: Modifier = Modifier) {
       IconCapabilityScanState.Error(failure)
     }
   }
+  LaunchedEffect(monetReader, monetGeneration, lifecycle) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      while (true) {
+        try {
+          monetSnapshot = withContext(Dispatchers.IO) { monetReader.read() }
+          monetReadFailed = false
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (_: Exception) {
+          monetReadFailed = true
+        }
+        delay(5_000)
+      }
+    }
+  }
   val statusLabel = stringResource(R.string.navigation_status)
   val appsLabel = stringResource(R.string.navigation_apps)
+  val monetLabel = stringResource(R.string.navigation_monet)
   val settingsLabel = stringResource(R.string.navigation_settings)
-  val navigationItems = remember(statusLabel, appsLabel, settingsLabel) {
+  val navigationItems = remember(statusLabel, appsLabel, monetLabel, settingsLabel) {
     listOf(
       NavigationItem(statusLabel, MiuixIcons.Info),
       NavigationItem(appsLabel, MiuixIcons.GridView),
+      NavigationItem(monetLabel, MiuixIcons.Theme),
       NavigationItem(settingsLabel, MiuixIcons.Settings),
     )
   }
@@ -108,9 +159,19 @@ fun MainScreen(modifier: Modifier = Modifier) {
   val backdrop = rememberKeiHomeBlurBackdrop()
   val blurActive = backdrop != null
   val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
-  val scrollBehaviors = listOf(MiuixScrollBehavior(), MiuixScrollBehavior(), MiuixScrollBehavior())
+  val scrollBehaviors = listOf(
+    MiuixScrollBehavior(),
+    MiuixScrollBehavior(),
+    MiuixScrollBehavior(),
+    MiuixScrollBehavior(),
+  )
   val topAppBarScrollBehavior = scrollBehaviors[selectedTab]
-  val listStates = listOf(rememberLazyListState(), rememberLazyListState(), rememberLazyListState())
+  val listStates = listOf(
+    rememberLazyListState(),
+    rememberLazyListState(),
+    rememberLazyListState(),
+    rememberLazyListState(),
+  )
   val listState = listStates[selectedTab]
   val filterItems = listOf(
     stringResource(R.string.filter_supported),
@@ -147,12 +208,17 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 )
               }
             }
-            if (selectedTab != 2) {
+            if (selectedTab != 3) {
               IconButton(
                 onClick = {
-                  if (selectedTab == 0) statusGeneration += 1 else scanGeneration += 1
+                  when (selectedTab) {
+                    0 -> statusGeneration += 1
+                    1 -> scanGeneration += 1
+                    2 -> monetGeneration += 1
+                  }
                 },
-                enabled = selectedTab == 0 || capabilityState !is IconCapabilityScanState.Loading,
+                enabled = selectedTab != 1 ||
+                  capabilityState !is IconCapabilityScanState.Loading,
               ) {
                 Icon(
                   imageVector = MiuixIcons.Refresh,
@@ -195,18 +261,14 @@ fun MainScreen(modifier: Modifier = Modifier) {
       ) {
         if (selectedTab == 0) {
           item(key = "status") {
-            StatusContent(
-              refreshGeneration = statusGeneration,
+            StatusBody(
+              connected = statusService != null,
               snapshot = statusSnapshot,
               readFailed = statusReadFailed,
-              onSnapshot = {
-                statusSnapshot = it
-                statusReadFailed = false
-              },
-              onReadFailed = {
-                if (statusSnapshot == null) statusReadFailed = true
-              },
+              monetSnapshot = monetSnapshot,
+              monetReadFailed = monetReadFailed,
               onRefresh = { statusGeneration += 1 },
+              onOpenMonet = { selectedTab = 2 },
             )
           }
         } else if (selectedTab == 1) {
@@ -268,6 +330,13 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 }
               }
             }
+          }
+        } else if (selectedTab == 2) {
+          item(key = "monet") {
+            MonetContent(
+              snapshot = monetSnapshot,
+              readFailed = monetReadFailed,
+            )
           }
         } else {
           item(key = "settings") { SettingsContent() }

@@ -1,38 +1,24 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.libxposed.service.HookedTarget
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
-import os.kei.hyper.home.status.FrameworkConnection
+import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.status.FrameworkSnapshot
-import os.kei.hyper.home.status.readFrameworkSnapshot
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -41,78 +27,88 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Report
-import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
-private enum class StatusTone {
+internal enum class StatusTone {
   READY,
   WARNING,
   ERROR,
 }
 
-private data class StatusDetail(
+internal data class StatusDetail(
   val label: String,
   val value: String,
 )
 
+internal fun statusTone(
+  connected: Boolean,
+  readFailed: Boolean,
+  systemInScope: Boolean?,
+  systemTarget: HookedTarget.State?,
+  launcherTarget: HookedTarget.State?,
+): StatusTone = when {
+  !connected || readFailed ||
+    systemInScope == false || systemTarget == HookedTarget.State.FAILED -> StatusTone.ERROR
+  systemInScope == true &&
+    systemTarget == HookedTarget.State.UP_TO_DATE &&
+    launcherTarget == HookedTarget.State.UP_TO_DATE -> StatusTone.READY
+  else -> StatusTone.WARNING
+}
+
 @Composable
-internal fun StatusContent(
-  refreshGeneration: Int,
+internal fun StatusBody(
+  connected: Boolean,
   snapshot: FrameworkSnapshot?,
   readFailed: Boolean,
-  onSnapshot: (FrameworkSnapshot) -> Unit,
-  onReadFailed: () -> Unit,
+  monetSnapshot: MonetPaletteSnapshot?,
+  monetReadFailed: Boolean,
   onRefresh: () -> Unit,
+  onOpenMonet: () -> Unit,
 ) {
-  val service by FrameworkConnection.service.collectAsStateWithLifecycle()
-  LaunchedEffect(service, refreshGeneration) {
-    val current = service ?: return@LaunchedEffect
-    while (true) {
-      try {
-        onSnapshot(withContext(Dispatchers.IO) { current.readFrameworkSnapshot() })
-      } catch (cancellation: CancellationException) {
-        throw cancellation
-      } catch (_: Exception) {
-        onReadFailed()
-      }
-      delay(5_000)
-    }
-  }
-
+  val liveSnapshot = snapshot.takeIf { connected && !readFailed }
   val framework = when {
-    service == null -> stringResource(R.string.status_framework_disconnected)
-    snapshot != null -> stringResource(
-      R.string.status_framework_connected,
-      snapshot.name,
-    )
+    !connected -> stringResource(R.string.status_framework_disconnected)
     readFailed -> stringResource(R.string.status_framework_error)
-    else -> stringResource(R.string.status_unknown)
+    liveSnapshot != null -> stringResource(
+      R.string.status_framework_connected,
+      liveSnapshot.name,
+    )
+    else -> stringResource(R.string.status_framework_pending)
   }
-  val scope = when (snapshot?.systemInScope) {
+  val scope = when (liveSnapshot?.systemInScope) {
     true -> stringResource(R.string.status_scope_enabled)
     false -> stringResource(R.string.status_scope_missing)
     null -> stringResource(R.string.status_unknown)
   }
-  val targetResource = when (snapshot?.target?.state) {
+  val targetResource = when (liveSnapshot?.target?.state) {
     HookedTarget.State.UP_TO_DATE -> R.string.status_target_current
     HookedTarget.State.STALE -> R.string.status_target_stale
     HookedTarget.State.RELOADING -> R.string.status_target_reloading
     HookedTarget.State.FAILED -> R.string.status_target_failed
-    null -> if (snapshot != null) R.string.status_target_missing else R.string.status_unknown
+    null -> if (liveSnapshot != null) R.string.status_target_missing else R.string.status_unknown
   }
   val target = stringResource(targetResource)
-  val tone = when {
-    service == null ||
-      (snapshot == null && readFailed) ||
-      snapshot?.systemInScope == false ||
-      snapshot?.target?.state == HookedTarget.State.FAILED -> StatusTone.ERROR
-    snapshot?.systemInScope == true &&
-      snapshot.target?.state == HookedTarget.State.UP_TO_DATE -> StatusTone.READY
-    else -> StatusTone.WARNING
+  val launcherTargetResource = when (liveSnapshot?.launcherTarget?.state) {
+    HookedTarget.State.UP_TO_DATE -> R.string.status_target_current
+    HookedTarget.State.STALE -> R.string.status_target_stale
+    HookedTarget.State.RELOADING -> R.string.status_target_reloading
+    HookedTarget.State.FAILED -> R.string.status_target_failed
+    null -> if (liveSnapshot != null) {
+      R.string.status_target_unreported
+    } else {
+      R.string.status_unknown
+    }
   }
+  val launcherTarget = stringResource(launcherTargetResource)
+  val tone = statusTone(
+    connected = connected,
+    readFailed = readFailed,
+    systemInScope = liveSnapshot?.systemInScope,
+    systemTarget = liveSnapshot?.target?.state,
+    launcherTarget = liveSnapshot?.launcherTarget?.state,
+  )
   val titleResource = when (tone) {
     StatusTone.READY -> R.string.status_overview_ready_title
     StatusTone.WARNING -> R.string.status_overview_warning_title
@@ -126,11 +122,19 @@ internal fun StatusContent(
   val details = listOf(
     StatusDetail(stringResource(R.string.status_framework), framework),
     StatusDetail(stringResource(R.string.status_scope), scope),
-    StatusDetail(stringResource(R.string.status_target), target),
+    StatusDetail(stringResource(R.string.status_target_system), target),
+    StatusDetail(stringResource(R.string.status_target_launcher), launcherTarget),
+    StatusDetail(
+      stringResource(R.string.status_recent),
+      stringResource(R.string.status_recent_unreported),
+    ),
   )
 
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    SmallTitle(text = stringResource(R.string.settings_module_status))
+    SmallTitle(
+      text = stringResource(R.string.settings_module_status),
+      modifier = Modifier.semantics { heading() },
+    )
     StatusOverviewCard(
       title = stringResource(titleResource),
       summary = stringResource(summaryResource),
@@ -138,43 +142,27 @@ internal fun StatusContent(
       tone = tone,
       onRefresh = onRefresh,
     )
-    SmallTitle(text = stringResource(R.string.status_runtime_title))
-    Card(
-      modifier = Modifier.fillMaxWidth(),
-      insideMargin = PaddingValues(0.dp),
-    ) {
-      Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-      ) {
-        RuntimeFeature(
-          icon = MiuixIcons.Refresh,
-          title = stringResource(R.string.status_hook),
-          summary = stringResource(R.string.status_hook_live),
-        )
-        RuntimeFeature(
-          icon = MiuixIcons.Info,
-          title = stringResource(R.string.status_recent),
-          summary = stringResource(R.string.status_recent_live),
-        )
-        RuntimeFeature(
-          icon = MiuixIcons.Theme,
-          title = stringResource(R.string.settings_monet_title),
-          summary = stringResource(R.string.settings_monet_value),
-        )
-      }
-    }
+    SmallTitle(
+      text = stringResource(R.string.monet_section_title),
+      modifier = Modifier.semantics { heading() },
+    )
+    MonetSummaryCard(
+      snapshot = monetSnapshot,
+      readFailed = monetReadFailed,
+      onClick = onOpenMonet,
+    )
   }
 }
 
 @Composable
-private fun StatusOverviewCard(
+internal fun StatusOverviewCard(
   title: String,
   summary: String,
   details: List<StatusDetail>,
   tone: StatusTone,
   onRefresh: () -> Unit,
 ) {
+  val refreshLabel = stringResource(R.string.status_refresh)
   val backgroundColor = when (tone) {
     StatusTone.READY -> MiuixTheme.colorScheme.secondaryContainer
     StatusTone.WARNING -> MiuixTheme.colorScheme.tertiaryContainer
@@ -187,7 +175,7 @@ private fun StatusOverviewCard(
   }
   val accentColor = when (tone) {
     StatusTone.READY -> MiuixTheme.colorScheme.primary
-    StatusTone.WARNING -> MiuixTheme.colorScheme.tertiaryContainer
+    StatusTone.WARNING -> MiuixTheme.colorScheme.onTertiaryContainer
     StatusTone.ERROR -> MiuixTheme.colorScheme.error
   }
   val icon = when (tone) {
@@ -197,107 +185,64 @@ private fun StatusOverviewCard(
   }
 
   Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .heightIn(min = 176.dp),
+    modifier = Modifier.fillMaxWidth(),
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor),
     onClick = onRefresh,
     showIndication = true,
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
-    Box(
+    Column(
       modifier = Modifier
-        .fillMaxWidth()
-        .heightIn(min = 176.dp),
+        .semantics { this.onClick(label = refreshLabel, action = null) }
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .offset(24.dp, 28.dp),
-        contentAlignment = Alignment.BottomEnd,
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Icon(
-          imageVector = icon,
-          modifier = Modifier.size(112.dp),
-          tint = accentColor.copy(alpha = 0.28f),
-          contentDescription = null,
-        )
-      }
-      Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(start = 16.dp, top = 14.dp, end = 64.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-      ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = title,
             style = MiuixTheme.textStyles.title2,
             color = contentColor,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
           )
           Text(
             text = summary,
             style = MiuixTheme.textStyles.body2,
             color = contentColor.copy(alpha = 0.84f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
           )
         }
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          details.forEach { detail ->
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = detail.label,
-                style = MiuixTheme.textStyles.footnote1,
-                color = contentColor.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-              )
-              Text(
-                text = detail.value,
-                style = MiuixTheme.textStyles.body2,
-                color = contentColor,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-              )
-            }
+        Icon(
+          imageVector = icon,
+          modifier = Modifier.size(28.dp),
+          tint = accentColor,
+          contentDescription = null,
+        )
+      }
+      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        details.forEach { detail ->
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            Text(
+              text = detail.label,
+              modifier = Modifier.weight(1f),
+              style = MiuixTheme.textStyles.body2,
+              color = contentColor.copy(alpha = 0.7f),
+            )
+            Text(
+              text = detail.value,
+              modifier = Modifier.weight(1.2f),
+              style = MiuixTheme.textStyles.body2,
+              color = contentColor,
+            )
           }
         }
       }
-    }
-  }
-}
-
-@Composable
-private fun RuntimeFeature(
-  icon: ImageVector,
-  title: String,
-  summary: String,
-) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-  ) {
-    Icon(
-      imageVector = icon,
-      modifier = Modifier.size(24.dp),
-      tint = MiuixTheme.colorScheme.primary,
-      contentDescription = null,
-    )
-    Column(modifier = Modifier.weight(1f)) {
-      Text(text = title, style = MiuixTheme.textStyles.body1)
-      Text(
-        text = summary,
-        style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      )
     }
   }
 }

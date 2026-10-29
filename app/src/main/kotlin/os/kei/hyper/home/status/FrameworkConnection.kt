@@ -38,6 +38,7 @@ internal data class FrameworkSnapshot(
   val apiVersion: Int,
   val systemInScope: Boolean,
   val target: HookedTarget?,
+  val launcherTarget: HookedTarget?,
 )
 
 internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
@@ -45,10 +46,15 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     it.uid == android.os.Process.SYSTEM_UID &&
       (it.processName == "system_server" || it.processName == "system")
   }
+  val launcherTarget = runningTargets.firstOrNull {
+    it.processName == "com.miui.home" ||
+      it.processName.startsWith("com.miui.home:")
+  }
   return FrameworkSnapshot(
     name = frameworkName,
     apiVersion = apiVersion,
     systemInScope = "system" in scope,
     target = target,
+    launcherTarget = launcherTarget,
   )
 }

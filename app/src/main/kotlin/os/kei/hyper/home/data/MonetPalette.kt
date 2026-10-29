@@ -178,7 +178,6 @@ internal class MonetPaletteReader(context: Context) {
   }
 
   private fun readFrameworkPalette(): MonetPaletteSource {
-    val tones = (0..100 step 10).toList()
     val families = listOf(
       "primary" to "system_accent1",
       "secondary" to "system_accent2",
@@ -186,9 +185,9 @@ internal class MonetPaletteReader(context: Context) {
       "neutral" to "system_neutral1",
       "neutral-variant" to "system_neutral2",
     ).mapNotNull { (name, resourcePrefix) ->
-      val colors = tones.mapNotNull { tone ->
+      val colors = FRAMEWORK_MONET_TONES.mapNotNull { (suffix, tone) ->
         val id = context.resources.getIdentifier(
-          "${resourcePrefix}_$tone",
+          "${resourcePrefix}_$suffix",
           "color",
           "android",
         )
@@ -271,6 +270,22 @@ internal class MonetPaletteReader(context: Context) {
 
 private val MONET_FAMILY_ORDER =
   listOf("primary", "secondary", "tertiary", "neutral-variant", "neutral")
+
+private val FRAMEWORK_MONET_TONES = listOf(
+  1000 to 0,
+  900 to 10,
+  800 to 20,
+  700 to 30,
+  600 to 40,
+  500 to 50,
+  400 to 60,
+  300 to 70,
+  200 to 80,
+  100 to 90,
+  50 to 95,
+  10 to 99,
+  0 to 100,
+)
 
 internal val MonetThemeStyles = listOf(
   "TONAL_SPOT",

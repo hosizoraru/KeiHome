@@ -5,6 +5,9 @@ KeiHome observes system night-mode configuration changes through LSPosed API
 not terminate the launcher process. A separate experimental native payload
 also targets the launcher for themed-icon tinting and resource selection.
 
+The wallpaper picker, extracted representative colors, selectable schemes and
+latest 2026-10-30 validation are described in [Wallpaper colors](wallpaper-colors.md).
+
 For each accessible launcher user/profile, it checks that the registered
 `com.miui.home` callback and the package visibility are still valid, then
 dispatches package-change callbacks to that listener alone. For packages with
@@ -192,9 +195,9 @@ called by the module or by an ordinary APK hot install.
 
 ### App request and ownership
 
-The MIUIX Monet page offers Follow wallpaper colors in English, Simplified
-Chinese and Japanese. API 102 remote preferences atomically carry a monotonic
-revision and requesting user. The system-side reader accepts a fresh request
+The MIUIX Monet page offers wallpaper/basic colors and scheme selection in
+English, Simplified Chinese and Japanese. API 102 remote preferences atomically
+carry the choice, a monotonic revision and requesting user. The system-side reader accepts a fresh request
 only for the current foreground user, checks the native ACK and current choice,
 then records consumption, writes the background/ownership marker, enables icons
 and publishes a separate applied receipt. The App reports success only for its
@@ -221,7 +224,9 @@ padded full-color squares with a dense opaque interior and no alpha detail,
 which otherwise become solid blocks when tinted. Sparse masks, real cutouts,
 single-color silhouettes and small antialias color noise are preserved.
 Animated, unreadable, theme-dependent or otherwise unknown resources keep the
-original selection. Batches are bounded at 128; unresolved evidence is retried
+original selection unless the same installed source was already known unusable.
+A transient unknown result retains that known fallback; a positive usable/absent
+result, changed source or removal clears it. Batches are bounded at 128; unresolved evidence is retried
 after 60 seconds rather than rasterized at each 15-second policy renewal.
 
 On the AVD this denies `com.hyper.podsrx`, `com.miui.voiceassist` and
@@ -261,6 +266,11 @@ exonerate the module or establish that the ANR is fixed. Unrelated Object.==
 callers now take a bounded fast rejection path, independently covered by the
 ARM64 tests. Subsequent checks use a new baseline and must not be joined to the
 old PID's stability record.
+
+#### Earlier Release validation: 1793293083 through 1793294125
+
+The following records describe the earlier native/action implementation. See
+[Wallpaper colors](wallpaper-colors.md) for the latest APK and AVD state.
 
 Release versionCode `1793293083` was installed with the explicit native
 replacement option after the authorized development restart. New launcher

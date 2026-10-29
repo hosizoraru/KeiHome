@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.HandlerThread
@@ -28,6 +29,7 @@ internal object IconProbeProtocol {
   const val CONFIGURATION = "configuration"
   const val REQUIRES_REFRESH = "requires_refresh"
   const val INSPECT_LAUNCHER_MASK = "inspect_launcher_mask"
+  const val MASK_ONLY = "mask_only"
   const val LAUNCHER_MASK = "launcher_mask"
 }
 
@@ -49,8 +51,8 @@ internal data class IconResourceAssessment(
   val nightMode: IconSupportStatus,
   val monochrome: IconSupportStatus,
   /**
-   * The monochrome layer was declared and rendered, but its alpha mask was
-   * uniform. Tinting such a layer may produce an uninformative solid shape.
+   * The declared layer produces a flat alpha mask or an opaque color bitmap
+   * silhouette. Tinting it would lose the identifying artwork.
    *
    * This is deliberately a recommendation only. Applying it inside the
    * Flutter launcher requires a build-specific resource boundary.
@@ -104,9 +106,10 @@ class IconResourceProbeService : Service() {
         return@Handler true
       }
       val inspectMask = message.data.getBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK)
+      val maskOnly = inspectMask && message.data.getBoolean(IconProbeProtocol.MASK_ONLY)
       executor.execute {
         val inspector = IconResourceInspector(packageManager)
-        val refresh = try {
+        val refresh = if (maskOnly) false else try {
           inspector.requiresRefresh(activities, config)
         } catch (failure: Throwable) {
           Log.w(TAG, "icon probe failed", failure)
@@ -330,8 +333,8 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       drawable.draw(Canvas(bitmap))
       val pixels = IntArray(ICON_SIZE * ICON_SIZE)
       bitmap.getPixels(pixels, 0, ICON_SIZE, 0, 0, ICON_SIZE, ICON_SIZE)
-      val firstAlpha = pixels.first() ushr 24
-      if (pixels.all { it ushr 24 == firstAlpha }) {
+      if (MonochromeMaskQuality.isUnusable(pixels, ICON_SIZE, ICON_SIZE,
+          bitmap = drawable is BitmapDrawable)) {
         MonochromeAssessment(
           status = IconSupportStatus.UNKNOWN,
           fallbackRecommended = true,

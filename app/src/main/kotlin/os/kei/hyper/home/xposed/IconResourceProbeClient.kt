@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.LauncherActivityInfo
+import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.content.res.Configuration
 import android.os.Handler
 import android.os.HandlerThread
@@ -28,8 +30,27 @@ internal class IconResourceProbeClient(private val context: Context) {
     activities: List<LauncherActivityInfo>,
     inspectLauncherMask: Boolean,
     isCurrent: () -> Boolean,
+  ): IconProbeBatch = probeGroups(
+    activities.groupBy { it.componentName.packageName }.mapValues { (_, entries) ->
+      entries.map { it.activityInfo }
+    }, inspectLauncherMask, false, isCurrent,
+  )
+
+  fun applicationMasks(applications: List<ApplicationInfo>, isCurrent: () -> Boolean): IconProbeBatch =
+    probeGroups(applications.groupBy { it.packageName }.mapValues { (_, entries) ->
+      entries.map { app -> ActivityInfo().apply {
+        packageName = app.packageName
+        applicationInfo = app
+        icon = app.icon
+      } }
+    }, true, true, isCurrent)
+
+  private fun probeGroups(
+    packages: Map<String, List<ActivityInfo>>,
+    inspectLauncherMask: Boolean,
+    maskOnly: Boolean,
+    isCurrent: () -> Boolean,
   ): IconProbeBatch {
-    val packages = activities.groupBy { it.componentName.packageName }
     val unknown = IconProbeBatch(packages.keys, emptyMap())
     if (packages.isEmpty() || packages.size > MAX_PACKAGES) return unknown
 
@@ -83,10 +104,11 @@ internal class IconResourceProbeClient(private val context: Context) {
             replyTo = reply
             data.putParcelableArrayList(
               IconProbeProtocol.ACTIVITY_INFOS,
-              ArrayList(entry.value.map { it.activityInfo }),
+              ArrayList(entry.value),
             )
             data.putParcelable(IconProbeProtocol.CONFIGURATION, config)
             data.putBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK, inspectLauncherMask)
+            data.putBoolean(IconProbeProtocol.MASK_ONLY, maskOnly)
           })
         } catch (_: Throwable) {
           if (results.putIfAbsent(index, true) == null) resultsReady.countDown()

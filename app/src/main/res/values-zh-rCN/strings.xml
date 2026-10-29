@@ -1,4 +1,11 @@
 <resources>
+    <string name="monet_follow_wallpaper">跟随壁纸配色</string>
+    <string name="monet_follow_wallpaper_description">启用主题图标并使用壁纸配色。之后在桌面选择其他颜色时，将保留你的选择。</string>
+    <string name="monet_action_applying">正在应用…</string>
+    <string name="monet_action_applied">已应用壁纸配色</string>
+    <string name="monet_action_unconfirmed">请求已发送，尚未确认应用。请检查桌面状态。</string>
+    <string name="monet_action_unavailable">连接兼容框架后可应用配色。</string>
+    <string name="monet_action_failed">请求发送失败，请重试。</string>
     <string name="app_name">KeiHome</string>
     <string name="navigation_status">状态</string>
     <string name="navigation_apps">应用</string>
@@ -101,7 +108,7 @@
     <string name="monet_themed_icons_off">已关闭</string>
     <string name="monet_themed_icons_unknown">未上报</string>
     <string name="monet_icon_color">上报的单色设置：%1$s</string>
-    <string name="monet_icon_rendering_note">双色取色与异常图标回退仍在验证中。</string>
+    <string name="monet_icon_rendering_note">兼容桌面支持深浅双色取色，异常图层自动使用原图标。</string>
     <string name="monet_family_primary">主色</string>
     <string name="monet_family_secondary">辅助色</string>
     <string name="monet_family_tertiary">第三色</string>

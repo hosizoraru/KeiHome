@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,13 +37,18 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.InstalledIconScanner
 import os.kei.hyper.home.data.MonetPaletteReader
 import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.data.MonetActionRequest
+import os.kei.hyper.home.data.MonetActionStatus
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -89,6 +95,9 @@ fun MainScreen(modifier: Modifier = Modifier) {
   val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val statusService by FrameworkConnection.service.collectAsStateWithLifecycle()
+  val actionScope = rememberCoroutineScope()
+  var actionStatus by remember(statusService) { mutableStateOf(MonetActionStatus.IDLE) }
+  var actionRequest by remember(statusService) { mutableStateOf<MonetActionRequest?>(null) }
   var statusSnapshot by remember(statusService) { mutableStateOf<FrameworkSnapshot?>(null) }
   var statusReadFailed by remember(statusService) { mutableStateOf(false) }
   val monetReader = remember(context) {
@@ -124,12 +133,16 @@ fun MainScreen(modifier: Modifier = Modifier) {
       IconCapabilityScanState.Error(failure)
     }
   }
-  LaunchedEffect(monetReader, monetGeneration, lifecycle) {
+  LaunchedEffect(monetReader, monetGeneration, lifecycle, actionRequest) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       while (true) {
         try {
           monetSnapshot = withContext(Dispatchers.IO) { monetReader.read() }
           monetReadFailed = false
+          val request = actionRequest
+          if (request != null && actionStatus == MonetActionStatus.UNCONFIRMED &&
+            withContext(Dispatchers.IO) { MonetAction.isApplied(context.contentResolver, request) }
+          ) actionStatus = MonetActionStatus.APPLIED
         } catch (cancellation: CancellationException) {
           throw cancellation
         } catch (_: Exception) {
@@ -336,6 +349,39 @@ fun MainScreen(modifier: Modifier = Modifier) {
             MonetContent(
               snapshot = monetSnapshot,
               readFailed = monetReadFailed,
+              actionAvailable = statusService != null,
+              actionStatus = actionStatus,
+              onFollowWallpaper = {
+                val service = statusService
+                if (service != null && actionStatus != MonetActionStatus.APPLYING) {
+                  actionStatus = MonetActionStatus.APPLYING
+                  actionScope.launch {
+                    try {
+                      val request = withContext(Dispatchers.IO) { MonetAction.submit(service) }
+                      actionRequest = request
+                      val applied = withTimeoutOrNull(3_000L) {
+                        while (FrameworkConnection.service.value === service) {
+                          if (withContext(Dispatchers.IO) {
+                              MonetAction.isApplied(context.contentResolver, request)
+                            }
+                          ) return@withTimeoutOrNull true
+                          delay(250L)
+                        }
+                        false
+                      } == true
+                      actionStatus = if (applied) MonetActionStatus.APPLIED else MonetActionStatus.UNCONFIRMED
+                    } catch (cancellation: CancellationException) {
+                      throw cancellation
+                    } catch (_: UnsupportedOperationException) {
+                      actionStatus = MonetActionStatus.UNAVAILABLE
+                    } catch (_: Exception) {
+                      actionStatus = MonetActionStatus.FAILED
+                    } finally {
+                      monetGeneration += 1
+                    }
+                  }
+                }
+              },
             )
           }
         } else {

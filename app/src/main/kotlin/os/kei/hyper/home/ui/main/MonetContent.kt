@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -26,10 +28,12 @@ import os.kei.hyper.home.data.MonetColorFamily
 import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
+import os.kei.hyper.home.data.MonetActionStatus
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -38,6 +42,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun MonetContent(
   snapshot: MonetPaletteSnapshot?,
   readFailed: Boolean,
+  actionAvailable: Boolean = false,
+  actionStatus: MonetActionStatus = MonetActionStatus.IDLE,
+  onFollowWallpaper: () -> Unit = {},
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     SmallTitle(
@@ -45,11 +52,50 @@ internal fun MonetContent(
       modifier = Modifier.semantics { heading() },
     )
     MonetOverviewCard(snapshot, readFailed)
+    MonetActionCard(actionAvailable, actionStatus, onFollowWallpaper)
     SmallTitle(
       text = stringResource(R.string.monet_detail_section),
       modifier = Modifier.semantics { heading() },
     )
     MonetDetailCard(snapshot, readFailed)
+  }
+}
+
+@Composable
+private fun MonetActionCard(
+  available: Boolean,
+  status: MonetActionStatus,
+  onFollowWallpaper: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Card(modifier = modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      Text(
+        text = stringResource(R.string.monet_follow_wallpaper_description),
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
+      TextButton(
+        text = stringResource(R.string.monet_follow_wallpaper),
+        modifier = Modifier.fillMaxWidth(),
+        enabled = available && status != MonetActionStatus.APPLYING,
+        onClick = onFollowWallpaper,
+      )
+      val message = when {
+        !available || status == MonetActionStatus.UNAVAILABLE -> R.string.monet_action_unavailable
+        status == MonetActionStatus.APPLYING -> R.string.monet_action_applying
+        status == MonetActionStatus.APPLIED -> R.string.monet_action_applied
+        status == MonetActionStatus.UNCONFIRMED -> R.string.monet_action_unconfirmed
+        status == MonetActionStatus.FAILED -> R.string.monet_action_failed
+        else -> null
+      }
+      if (message != null) Text(
+        text = stringResource(message),
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
+    }
   }
 }
 

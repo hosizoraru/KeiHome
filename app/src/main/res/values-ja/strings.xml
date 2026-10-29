@@ -1,4 +1,11 @@
 <resources>
+    <string name="monet_follow_wallpaper">壁紙の配色に合わせる</string>
+    <string name="monet_follow_wallpaper_description">テーマアイコンを有効にして壁紙の配色を使います。その後ランチャーで選んだ色は維持されます。</string>
+    <string name="monet_action_applying">適用中…</string>
+    <string name="monet_action_applied">壁紙の配色を適用しました</string>
+    <string name="monet_action_unconfirmed">リクエストを送信しました。適用は未確認です。ランチャーの状態をご確認ください。</string>
+    <string name="monet_action_unavailable">配色を適用するには、対応するフレームワークに接続してください。</string>
+    <string name="monet_action_failed">リクエストを送信できませんでした。もう一度お試しください。</string>
     <string name="app_name">KeiHome</string>
     <string name="navigation_status">状態</string>
     <string name="navigation_apps">アプリ</string>
@@ -101,7 +108,7 @@
     <string name="monet_themed_icons_off">無効</string>
     <string name="monet_themed_icons_unknown">未報告</string>
     <string name="monet_icon_color">報告された単色の設定: %1$s</string>
-    <string name="monet_icon_rendering_note">2色の配色と不正なアイコンの自動切り替えは検証中です。</string>
+    <string name="monet_icon_rendering_note">対応ランチャーでは明暗2色で表示し、不正なマスクは元のアイコンに戻します。</string>
     <string name="monet_family_primary">主色</string>
     <string name="monet_family_secondary">副色</string>
     <string name="monet_family_tertiary">第三色</string>

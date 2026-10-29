@@ -71,6 +71,13 @@
     <string name="settings_monet_title">Monet</string>
     <string name="settings_monet_value">System palette shown below</string>
     <string name="monet_section_title">Monet palette</string>
+    <string name="monet_follow_wallpaper">Follow wallpaper colors</string>
+    <string name="monet_follow_wallpaper_description">Enable themed icons with wallpaper colors. Later color choices in the launcher are preserved.</string>
+    <string name="monet_action_applying">Applying…</string>
+    <string name="monet_action_applied">Wallpaper colors applied</string>
+    <string name="monet_action_unconfirmed">Request sent; application has not been confirmed. Check launcher status.</string>
+    <string name="monet_action_unavailable">Connect to a compatible framework to apply colors.</string>
+    <string name="monet_action_failed">Could not send the request. Try again.</string>
     <string name="monet_loading">Reading palette…</string>
     <string name="monet_unavailable">Palette unavailable</string>
     <string name="monet_palette_available">Palette read · experimental</string>
@@ -104,7 +111,7 @@
     <string name="monet_themed_icons_off">Disabled</string>
     <string name="monet_themed_icons_unknown">Not reported</string>
     <string name="monet_icon_color">Reported monochrome color: %1$s</string>
-    <string name="monet_icon_rendering_note">Two-color tinting and fallback for unusable icons are still being validated.</string>
+    <string name="monet_icon_rendering_note">Compatible launchers use light/dark color pairs and restore original icons for unusable masks.</string>
     <string name="monet_family_primary">Primary</string>
     <string name="monet_family_secondary">Secondary</string>
     <string name="monet_family_tertiary">Tertiary</string>

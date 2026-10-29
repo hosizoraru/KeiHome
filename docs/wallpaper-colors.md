@@ -108,6 +108,10 @@ its device backup and helper jars were removed.
 
 ### Unresolved stability observations
 
+Follow-up investigation, implemented scheduling/work reductions and the final
+Release regression are recorded in [anr-investigation.md](anr-investigation.md).
+The historical incidents below remain causally unresolved.
+
 The entire session was not restart-free. Around 03:03 +0800, system_server hit a
 watchdog. Traces showed main waiting for AlarmManager and an AlarmManager thread
 waiting for AppOps while holding AlarmManager/AMS; the AppOps owner was not

@@ -23,6 +23,7 @@
     <string name="profile_user">ユーザー %1$d</string>
     <string name="capability_night_icon">ライト/ダークアイコン: %1$s</string>
     <string name="capability_monochrome_icon">単色アイコンリソース: %1$s</string>
+    <string name="capability_monochrome_fallback">単色アイコンが正しく表示されない可能性があります</string>
     <string name="status_detected">検出済み</string>
     <string name="status_not_detected">未検出</string>
     <string name="status_needs_verification">要確認</string>
@@ -100,6 +101,7 @@
     <string name="monet_themed_icons_off">無効</string>
     <string name="monet_themed_icons_unknown">未報告</string>
     <string name="monet_icon_color">報告された単色の設定: %1$s</string>
+    <string name="monet_icon_rendering_note">アイコンの2色着色と異常時の自動切り替えは未対応です。</string>
     <string name="monet_family_primary">主色</string>
     <string name="monet_family_secondary">副色</string>
     <string name="monet_family_tertiary">第三色</string>

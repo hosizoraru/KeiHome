@@ -21,6 +21,9 @@ data class InstalledIconCapability(
   val personalProfile: Boolean,
   val nightMode: IconCapabilityStatus,
   val monochrome: IconCapabilityStatus,
+  val monochromeFallbackRecommended: Boolean = false,
+  val versionCode: Long = -1L,
+  val iconResourceIds: Set<Int> = emptySet(),
 )
 
 class InstalledIconScanner(private val context: Context) {
@@ -56,6 +59,14 @@ class InstalledIconScanner(private val context: Context) {
     }
     return activities.groupBy { it.componentName.packageName }.mapNotNull { (packageName, entries) ->
       val assessment = inspector.assess(entries.map(LauncherActivityInfo::getActivityInfo), configuration)
+      val versionCode = try {
+        packageManager.getPackageInfo(
+          packageName,
+          android.content.pm.PackageManager.PackageInfoFlags.of(0),
+        ).longVersionCode
+      } catch (_: Throwable) {
+        -1L
+      }
       InstalledIconCapability(
         label = entries.firstNotNullOfOrNull { it.label?.toString() }
           ?: packageName,
@@ -64,6 +75,11 @@ class InstalledIconScanner(private val context: Context) {
         personalProfile = user == Process.myUserHandle(),
         nightMode = assessment.nightMode.toCapabilityStatus(),
         monochrome = assessment.monochrome.toCapabilityStatus(),
+        monochromeFallbackRecommended = assessment.monochromeFallbackRecommended,
+        versionCode = versionCode,
+        iconResourceIds = entries.map { it.activityInfo.iconResource }
+          .filter { it != 0 }
+          .toSet(),
       )
     }
   }

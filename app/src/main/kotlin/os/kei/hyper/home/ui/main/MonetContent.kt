@@ -230,6 +230,11 @@ internal fun MonetDetailCard(
           color = MiuixTheme.colorScheme.onSurfaceSecondary,
         )
       }
+      Text(
+        text = stringResource(R.string.monet_icon_rendering_note),
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
     }
   }
 }

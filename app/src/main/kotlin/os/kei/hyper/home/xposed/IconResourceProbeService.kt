@@ -38,6 +38,14 @@ internal enum class IconSupportStatus {
 internal data class IconResourceAssessment(
   val nightMode: IconSupportStatus,
   val monochrome: IconSupportStatus,
+  /**
+   * The monochrome layer was declared and rendered, but its alpha mask was
+   * uniform. Tinting such a layer may produce an uninformative solid shape.
+   *
+   * This is deliberately a recommendation only. Applying it inside the
+   * Flutter launcher requires a build-specific resource boundary.
+   */
+  val monochromeFallbackRecommended: Boolean = false,
 )
 
 private fun IconSupportStatus.merge(other: IconSupportStatus): IconSupportStatus =
@@ -145,6 +153,7 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
     }
     var nightMode = IconSupportStatus.NOT_DETECTED
     var monochrome = IconSupportStatus.NOT_DETECTED
+    var monochromeFallbackRecommended = false
     val light = Configuration(base).apply {
       uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
         Configuration.UI_MODE_NIGHT_NO
@@ -170,14 +179,22 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
         val result = assessIcon(iconId, resources.first, resources.second, inspectMonochrome)
         nightMode = nightMode.merge(result.nightMode)
         monochrome = monochrome.merge(result.monochrome)
-        if (nightMode == IconSupportStatus.DETECTED &&
-          monochrome == IconSupportStatus.DETECTED
-        ) {
-          return IconResourceAssessment(nightMode, monochrome)
+        monochromeFallbackRecommended =
+          monochromeFallbackRecommended || result.monochromeFallbackRecommended
+        if (!inspectMonochrome && nightMode == IconSupportStatus.DETECTED) {
+          return IconResourceAssessment(
+            nightMode,
+            monochrome,
+            monochromeFallbackRecommended,
+          )
         }
       }
     }
-    return IconResourceAssessment(nightMode, monochrome)
+    return IconResourceAssessment(
+      nightMode = nightMode,
+      monochrome = if (monochromeFallbackRecommended) IconSupportStatus.UNKNOWN else monochrome,
+      monochromeFallbackRecommended = monochromeFallbackRecommended,
+    )
   }
 
   private fun assessIcon(
@@ -203,12 +220,15 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       val changing = lightValue.changingConfigurations or darkValue.changingConfigurations or
         lightIcon.changingConfigurations or darkIcon.changingConfigurations
       val graph = StableIconResourceGraph(lightResources, darkResources)
-      val monochrome = if (!inspectMonochrome) {
-        IconSupportStatus.NOT_DETECTED
-      } else when (val declared = graph.monochromeStatus(iconId)) {
-        IconSupportStatus.DETECTED ->
-          assessMonochrome((lightIcon as? AdaptiveIconDrawable)?.monochrome)
-        else -> declared
+      val monochromeAssessment = if (!inspectMonochrome) {
+        MonochromeAssessment(IconSupportStatus.NOT_DETECTED)
+      } else {
+        val light = assessMonochromeIcon(lightIcon, graph.monochromeStatus(iconId))
+        val dark = assessMonochromeIcon(darkIcon, graph.monochromeStatus(iconId, darkMode = true))
+        MonochromeAssessment(
+          status = if (light.status == dark.status) light.status else IconSupportStatus.UNKNOWN,
+          fallbackRecommended = light.fallbackRecommended || dark.fallbackRecommended,
+        )
       }
       val night = when {
         changing and ActivityInfo.CONFIG_UI_MODE != 0 -> IconSupportStatus.DETECTED
@@ -234,15 +254,28 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
         }
         else -> IconSupportStatus.NOT_DETECTED
       }
-      IconResourceAssessment(night, monochrome)
+      IconResourceAssessment(
+        nightMode = night,
+        monochrome = monochromeAssessment.status,
+        monochromeFallbackRecommended = monochromeAssessment.fallbackRecommended,
+      )
     } catch (_: Throwable) {
       unknownAssessment()
     }
   }
 
-  private fun assessMonochrome(drawable: Drawable?): IconSupportStatus {
+  private fun assessMonochromeIcon(
+    icon: Drawable,
+    declared: IconSupportStatus,
+  ): MonochromeAssessment = when (declared) {
+    IconSupportStatus.DETECTED ->
+      assessMonochrome((icon as? AdaptiveIconDrawable)?.monochrome)
+    else -> MonochromeAssessment(declared)
+  }
+
+  private fun assessMonochrome(drawable: Drawable?): MonochromeAssessment {
     if (drawable == null || drawable is Animatable || drawable.canApplyTheme()) {
-      return IconSupportStatus.UNKNOWN
+      return MonochromeAssessment(IconSupportStatus.UNKNOWN)
     }
     val bitmap = Bitmap.createBitmap(ICON_SIZE, ICON_SIZE, Bitmap.Config.ARGB_8888)
     return try {
@@ -252,9 +285,12 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
       bitmap.getPixels(pixels, 0, ICON_SIZE, 0, 0, ICON_SIZE, ICON_SIZE)
       val firstAlpha = pixels.first() ushr 24
       if (pixels.all { it ushr 24 == firstAlpha }) {
-        IconSupportStatus.UNKNOWN
+        MonochromeAssessment(
+          status = IconSupportStatus.UNKNOWN,
+          fallbackRecommended = true,
+        )
       } else {
-        IconSupportStatus.DETECTED
+        MonochromeAssessment(IconSupportStatus.DETECTED)
       }
     } finally {
       bitmap.recycle()
@@ -264,6 +300,11 @@ internal class IconResourceInspector(private val packageManager: PackageManager)
   private fun unknownAssessment() = IconResourceAssessment(
     IconSupportStatus.UNKNOWN,
     IconSupportStatus.UNKNOWN,
+  )
+
+  private data class MonochromeAssessment(
+    val status: IconSupportStatus,
+    val fallbackRecommended: Boolean = false,
   )
 
   private companion object {
@@ -294,8 +335,9 @@ internal class StableIconResourceGraph(
 
   fun isStable(id: Int): Boolean = inspect(id, 0)
 
-  fun monochromeStatus(id: Int): IconSupportStatus = try {
-    when (containsTag(id, "monochrome", 0, mutableSetOf())) {
+  fun monochromeStatus(id: Int, darkMode: Boolean = false): IconSupportStatus = try {
+    val resources = if (darkMode) dark else light
+    when (containsTag(resources, id, "monochrome", 0, mutableSetOf())) {
       true -> IconSupportStatus.DETECTED
       false -> IconSupportStatus.NOT_DETECTED
       null -> IconSupportStatus.UNKNOWN
@@ -364,6 +406,7 @@ internal class StableIconResourceGraph(
   }
 
   private fun containsTag(
+    resources: Resources,
     id: Int,
     target: String,
     depth: Int,
@@ -371,11 +414,11 @@ internal class StableIconResourceGraph(
   ): Boolean? {
     if (id == 0 || depth > MAX_DEPTH || !visitedIds.add(id)) return false
     val value = TypedValue()
-    light.getValue(id, value, true)
+    resources.getValue(id, value, true)
     if (value.type != TypedValue.TYPE_STRING || value.string == null ||
       !value.string.toString().endsWith(".xml")
     ) return false
-    light.getXml(id).use { parser ->
+    resources.getXml(id).use { parser ->
       var event = parser.eventType
       while (event != XmlPullParser.END_DOCUMENT) {
         if (event == XmlPullParser.START_TAG) {
@@ -383,7 +426,7 @@ internal class StableIconResourceGraph(
           for (index in 0 until parser.attributeCount) {
             val dependency = parser.getAttributeResourceValue(index, 0)
             if (dependency != 0) {
-              val result = containsTag(dependency, target, depth + 1, visitedIds)
+              val result = containsTag(resources, dependency, target, depth + 1, visitedIds)
               if (result == true) return true
               if (result == null) return null
             }

@@ -434,6 +434,13 @@ private fun CapabilityRow(capability: InstalledIconCapability) {
       color = capability.monochrome.displayColor(),
       style = MiuixTheme.textStyles.body2,
     )
+    if (capability.monochromeFallbackRecommended) {
+      Text(
+        text = stringResource(R.string.capability_monochrome_fallback),
+        color = MiuixTheme.colorScheme.error,
+        style = MiuixTheme.textStyles.body2,
+      )
+    }
   }
 }
 

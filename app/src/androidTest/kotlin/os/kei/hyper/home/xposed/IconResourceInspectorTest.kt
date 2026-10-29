@@ -62,12 +62,49 @@ class IconResourceInspectorTest {
       IconSupportStatus.DETECTED,
       inspector.assess(listOf(activity("fixture_mono_valid")), configuration).monochrome,
     )
+    assertFalse(
+      inspector.assess(listOf(activity("fixture_mono_valid")), configuration)
+        .monochromeFallbackRecommended,
+    )
     for (name in listOf("fixture_mono_solid", "fixture_mono_empty")) {
       assertEquals(
         name,
         IconSupportStatus.UNKNOWN,
         inspector.assess(listOf(activity(name)), configuration).monochrome,
       )
+      assertTrue(
+        name,
+        inspector.assess(listOf(activity(name)), configuration)
+          .monochromeFallbackRecommended,
+      )
+    }
+  }
+
+  @Test
+  fun reportsAnUnusableNightMaskEvenWhenTheLightMaskIsValid() {
+    val result = inspector.assess(listOf(activity("fixture_mono_bad_at_night")), configuration)
+    assertEquals(IconSupportStatus.UNKNOWN, result.monochrome)
+    assertTrue(result.monochromeFallbackRecommended)
+  }
+
+  @Test
+  fun reportsPartialNightOnlyMonochromeSupportAsUncertain() {
+    val result = inspector.assess(listOf(activity("fixture_mono_night_only")), configuration)
+    assertEquals(IconSupportStatus.UNKNOWN, result.monochrome)
+    assertFalse(result.monochromeFallbackRecommended)
+  }
+
+  @Test
+  fun checksAllActivitiesEvenAfterFindingAnOtherwiseSupportedIcon() {
+    val activities = listOf(
+      activity("fixture_mono_night"),
+      activity("fixture_mono_solid"),
+    )
+    for (ordered in listOf(activities, activities.reversed())) {
+      val result = inspector.assess(ordered, configuration)
+      assertEquals(IconSupportStatus.DETECTED, result.nightMode)
+      assertEquals(IconSupportStatus.UNKNOWN, result.monochrome)
+      assertTrue(result.monochromeFallbackRecommended)
     }
   }
 }

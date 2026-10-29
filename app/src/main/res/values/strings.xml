@@ -23,6 +23,7 @@
     <string name="profile_user">User %1$d</string>
     <string name="capability_night_icon">Light/dark icon: %1$s</string>
     <string name="capability_monochrome_icon">Monochrome resource: %1$s</string>
+    <string name="capability_monochrome_fallback">Monochrome mask may render poorly; normal icon recommended</string>
     <string name="status_detected">detected</string>
     <string name="status_not_detected">not detected</string>
     <string name="status_needs_verification">needs verification</string>
@@ -103,6 +104,7 @@
     <string name="monet_themed_icons_off">Disabled</string>
     <string name="monet_themed_icons_unknown">Not reported</string>
     <string name="monet_icon_color">Reported monochrome color: %1$s</string>
+    <string name="monet_icon_rendering_note">Two-color icon tinting and automatic fallback are not yet available.</string>
     <string name="monet_family_primary">Primary</string>
     <string name="monet_family_secondary">Secondary</string>
     <string name="monet_family_tertiary">Tertiary</string>

@@ -69,6 +69,9 @@ class MonetStatusContentTest {
       .assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_experimental_note))
       .assertExists()
+    composeTestRule.onNodeWithText(
+      context.getString(R.string.monet_icon_rendering_note),
+    ).assertExists()
     composeTestRule.onNodeWithText("TONAL_SPOT", substring = true).assertDoesNotExist()
     composeTestRule.onNodeWithContentDescription(
       context.getString(R.string.monet_wallpaper_color_description, "#123456"),

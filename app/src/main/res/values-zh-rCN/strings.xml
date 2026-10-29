@@ -23,6 +23,7 @@
     <string name="profile_user">用户 %1$d</string>
     <string name="capability_night_icon">深浅色图标：%1$s</string>
     <string name="capability_monochrome_icon">单色图标资源：%1$s</string>
+    <string name="capability_monochrome_fallback">单色图标可能显示异常，建议使用普通图标</string>
     <string name="status_detected">已检测到</string>
     <string name="status_not_detected">未检测到</string>
     <string name="status_needs_verification">需要验证</string>
@@ -100,6 +101,7 @@
     <string name="monet_themed_icons_off">已关闭</string>
     <string name="monet_themed_icons_unknown">未上报</string>
     <string name="monet_icon_color">上报的单色设置：%1$s</string>
+    <string name="monet_icon_rendering_note">双色图标取色和异常图标自动回退尚未实现。</string>
     <string name="monet_family_primary">主色</string>
     <string name="monet_family_secondary">辅助色</string>
     <string name="monet_family_tertiary">第三色</string>

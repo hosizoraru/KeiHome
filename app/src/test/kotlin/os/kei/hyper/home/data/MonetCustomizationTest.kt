@@ -25,6 +25,22 @@ class MonetCustomizationTest {
     assertNull(choice.seed(wallpaper.copy(colors = emptyList())))
   }
 
+  @Test fun addedStylesKeepTheExistingNamedWireFormat() {
+    for ((name, style) in listOf(
+      "EXPRESSIVE" to MonetSchemeStyle.EXPRESSIVE,
+      "RAINBOW" to MonetSchemeStyle.RAINBOW,
+      "FRUIT_SALAD" to MonetSchemeStyle.FRUIT_SALAD,
+    )) {
+      val choice = MonetCustomization.decode("LOCK_WALLPAPER:$name:0:-15654349")!!
+      assertEquals(style, choice.style)
+      assertEquals(wallpaper.lockColors[0], choice.seed(wallpaper))
+      assertEquals("LOCK_WALLPAPER:$name:0:-15654349", choice.encode())
+    }
+    assertEquals(MonetSchemeStyle.TONAL_SPOT,
+      MonetCustomization.decode("HOME_WALLPAPER:TONAL_SPOT:0:-15654349")!!.style)
+    assertNull(MonetCustomization.decode("HOME_WALLPAPER:UNKNOWN_STYLE:0:-15654349"))
+  }
+
   @Test fun lockAndFixedColorsRemainIndependentOfHomeWallpaper() {
     assertEquals(wallpaper.lockColors[0], MonetCustomization(MonetSeedSource.LOCK_WALLPAPER).seed(wallpaper))
     val fixed = MonetCustomization(MonetSeedSource.BASIC_COLOR, color = 0xff771111.toInt())

@@ -1,16 +1,29 @@
 package os.kei.hyper.home.data
 
+import com.materialkolor.contrast.Contrast
 import com.materialkolor.dynamiccolor.ColorSpec.SpecVersion.SPEC_2021
 import com.materialkolor.hct.Hct
 import com.materialkolor.quantize.QuantizerCelebi
 import com.materialkolor.scheme.DynamicScheme.Platform.PHONE
+import com.materialkolor.scheme.SchemeExpressive
+import com.materialkolor.scheme.SchemeFruitSalad
 import com.materialkolor.scheme.SchemeMonochrome
 import com.materialkolor.scheme.SchemeNeutral
+import com.materialkolor.scheme.SchemeRainbow
 import com.materialkolor.scheme.SchemeTonalSpot
 import com.materialkolor.scheme.SchemeVibrant
 import com.materialkolor.score.Score
+import com.materialkolor.utils.ColorUtils
 
-internal enum class MonetSchemeStyle { TONAL_SPOT, VIBRANT, NEUTRAL, MONOCHROME }
+internal enum class MonetSchemeStyle {
+  TONAL_SPOT, VIBRANT, NEUTRAL, MONOCHROME, EXPRESSIVE, RAINBOW, FRUIT_SALAD,
+}
+
+internal data class MonetIconRoles(
+  val foreground: Int,
+  val background: Int,
+  val contrastRatio: Double,
+)
 
 /** Shared, Android-free color calculations for wallpaper previews and the injected runtime. */
 internal object MonetSchemes {
@@ -26,6 +39,9 @@ internal object MonetSchemes {
       MonetSchemeStyle.VIBRANT -> SchemeVibrant(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.NEUTRAL -> SchemeNeutral(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.MONOCHROME -> SchemeMonochrome(hct, false, 0.0, SPEC_2021, PHONE)
+      MonetSchemeStyle.EXPRESSIVE -> SchemeExpressive(hct, false, 0.0, SPEC_2021, PHONE)
+      MonetSchemeStyle.RAINBOW -> SchemeRainbow(hct, false, 0.0, SPEC_2021, PHONE)
+      MonetSchemeStyle.FRUIT_SALAD -> SchemeFruitSalad(hct, false, 0.0, SPEC_2021, PHONE)
     }
     return buildMap {
       for ((name, palette) in listOf(
@@ -38,6 +54,23 @@ internal object MonetSchemes {
         for (tone in 0..100) put("$name$tone", palette.tone(tone))
       }
     }
+  }
+
+  /**
+   * Preview the AOSP icon roles used by MonetColorPolicy, without changing its acceptance policy.
+   * This measures the actual opaque sRGB pair, not nominal HCT tones or rendered icon pixels.
+   * Missing or translucent colors cannot provide this readout without a compositing background.
+   */
+  fun iconRoles(palette: Map<String, Int>, dark: Boolean): MonetIconRoles? {
+    val foreground = palette[if (dark) "primary80" else "primary30"] ?: return null
+    val background = palette[if (dark) "secondary20" else "primary90"] ?: return null
+    val ratio = opaqueContrastRatio(foreground, background) ?: return null
+    return MonetIconRoles(foreground, background, ratio)
+  }
+
+  fun opaqueContrastRatio(first: Int, second: Int): Double? {
+    if (first ushr 24 != 0xff || second ushr 24 != 0xff) return null
+    return Contrast.ratioOfYs(ColorUtils.xyzFromArgb(first)[1], ColorUtils.xyzFromArgb(second)[1])
   }
 
   /**

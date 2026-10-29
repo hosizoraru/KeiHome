@@ -196,8 +196,11 @@ private fun monetSourceLabel(source: String?): String = stringResource(when (sou
 private fun monetStyleLabel(style: String?): String = when (style) {
   "TONAL_SPOT" -> stringResource(R.string.monet_style_tonal)
   "VIBRANT" -> stringResource(R.string.monet_style_vibrant)
-  "NEUTRAL" -> stringResource(R.string.monet_style_neutral)
+  "NEUTRAL", "SPRITZ" -> stringResource(R.string.monet_style_neutral)
   "MONOCHROME", "MONOCHROMATIC" -> stringResource(R.string.monet_style_mono)
+  "EXPRESSIVE" -> stringResource(R.string.monet_style_expressive)
+  "RAINBOW" -> stringResource(R.string.monet_style_rainbow)
+  "FRUIT_SALAD" -> stringResource(R.string.monet_style_fruit_salad)
   else -> style?.takeIf { it.isNotBlank() } ?: stringResource(R.string.monet_unknown)
 }
 

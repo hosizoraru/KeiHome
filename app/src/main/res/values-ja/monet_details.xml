@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="monet_style_expressive">表現豊か</string>
+    <string name="monet_style_rainbow">レインボー</string>
+    <string name="monet_style_fruit_salad">フルーツサラダ</string>
+    <string name="monet_details_style_tonal">程よい鮮やかさで、壁紙になじむ柔らかな配色に。</string>
+    <string name="monet_details_style_vibrant">鮮やかさを高め、アクセントの色相を調和させます。</string>
+    <string name="monet_details_style_neutral">控えめなアクセントと、ほのかに色づいたニュートラル。</string>
+    <string name="monet_details_style_mono">元の色相に左右されない、グレースケールの配色。</string>
+    <string name="monet_details_style_expressive">色相を回転させ、意外性のあるアクセントを組み合わせます。</string>
+    <string name="monet_details_style_rainbow">カラフルなアクセントと、無彩色のニュートラル。</string>
+    <string name="monet_details_style_fruit_salad">2 つの色相グループで、遊び心のある配色に。</string>
+    <string name="monet_details_basic_recommended">Android では、このスタイルに壁紙の色ではなく基本の色を使うことを推奨しています。</string>
+    <string name="monet_details_contrast">アイコンのコントラスト %1$.2f:1</string>
+    <string name="monet_details_contrast_note">アイコンの単色の前景と背景から算出した比率です。マスク、壁紙、実際の描画によって見え方は変わります。</string>
+    <string name="monet_details_draft">選択中の配色の詳細</string>
+    <string name="monet_details_draft_note">ホームのテーマアイコンに使う、選択中の元の色とスタイルのプレビューです。</string>
+    <string name="monet_details_reported">端末が報告した配色</string>
+    <string name="monet_details_seed">元の色</string>
+    <string name="monet_details_roles">テーマアイコンの配色</string>
+    <string name="monet_details_foreground">前景 · %1$s %2$d</string>
+    <string name="monet_details_background">背景 · %1$s %2$d</string>
+    <string name="monet_details_family">トーンパレット</string>
+    <string name="monet_details_tones_note">0（黒）から 100（白）までの 13 の基準トーン。色の値をタップするとコピーできます。</string>
+    <string name="monet_details_tone">トーン %1$d</string>
+    <string name="monet_details_copy">%1$s をコピー: %2$s</string>
+</resources>

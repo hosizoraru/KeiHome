@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="monet_style_expressive">表现力</string>
+    <string name="monet_style_rainbow">彩虹</string>
+    <string name="monet_style_fruit_salad">水果沙拉</string>
+    <string name="monet_details_style_tonal">色彩适中，营造柔和的壁纸配色。</string>
+    <string name="monet_details_style_vibrant">提高色彩鲜明度，协调变化各组强调色的色相。</string>
+    <string name="monet_details_style_neutral">低彩度强调色，搭配轻微染色的中性色。</string>
+    <string name="monet_details_style_mono">使用灰阶强调色与背景，不受种子色色相影响。</string>
+    <string name="monet_details_style_expressive">旋转色相，组合出更出人意料的强调色。</string>
+    <string name="monet_details_style_rainbow">彩色强调色，搭配灰阶中性色。</string>
+    <string name="monet_details_style_fruit_salad">两组色相，让强调色形成活泼的对比。</string>
+    <string name="monet_details_basic_recommended">Android 建议此样式搭配基础颜色使用，而非壁纸取色。</string>
+    <string name="monet_details_contrast">图标对比度 %1$.2f:1</string>
+    <string name="monet_details_contrast_note">对比度按图标的纯色前景与背景计算。遮罩、壁纸及实际渲染会影响可见效果。</string>
+    <string name="monet_details_draft">当前选择详情</string>
+    <string name="monet_details_draft_note">预览当前种子色与样式，用于桌面主题图标。</string>
+    <string name="monet_details_reported">设备上报的配色</string>
+    <string name="monet_details_seed">种子色</string>
+    <string name="monet_details_roles">主题图标用色</string>
+    <string name="monet_details_foreground">前景 · %1$s %2$d</string>
+    <string name="monet_details_background">背景 · %1$s %2$d</string>
+    <string name="monet_details_family">色阶组</string>
+    <string name="monet_details_tones_note">13 个参考色阶，从 0（黑色）到 100（白色）。点按色值即可复制。</string>
+    <string name="monet_details_tone">色阶 %1$d</string>
+    <string name="monet_details_copy">复制%1$s：%2$s</string>
+</resources>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="monet_style_expressive">Expressive</string>
+    <string name="monet_style_rainbow">Rainbow</string>
+    <string name="monet_style_fruit_salad">Fruit Salad</string>
+    <string name="monet_details_style_tonal">Balanced accents with a soft, wallpaper-inspired feel.</string>
+    <string name="monet_details_style_vibrant">Stronger color with coordinated shifts in accent hues.</string>
+    <string name="monet_details_style_neutral">Subdued accents and gently tinted neutrals.</string>
+    <string name="monet_details_style_mono">Grayscale accents and surfaces, independent of the seed hue.</string>
+    <string name="monet_details_style_expressive">Rotated hues create unexpected accent combinations.</string>
+    <string name="monet_details_style_rainbow">Colorful accents with grayscale neutrals.</string>
+    <string name="monet_details_style_fruit_salad">Two hue groups give the accents a playful contrast.</string>
+    <string name="monet_details_basic_recommended">Android recommends this style with basic colors rather than wallpaper colors.</string>
+    <string name="monet_details_contrast">Icon contrast %1$.2f:1</string>
+    <string name="monet_details_contrast_note">Contrast compares the solid icon foreground and background. Masks, wallpaper and actual rendering can change the visible result.</string>
+    <string name="monet_details_draft">Selection details</string>
+    <string name="monet_details_draft_note">Preview of the selected seed and style for themed launcher icons.</string>
+    <string name="monet_details_reported">Reported device palette</string>
+    <string name="monet_details_seed">Seed color</string>
+    <string name="monet_details_roles">Themed icon roles</string>
+    <string name="monet_details_foreground">Foreground · %1$s %2$d</string>
+    <string name="monet_details_background">Background · %1$s %2$d</string>
+    <string name="monet_details_family">Tonal palette</string>
+    <string name="monet_details_tones_note">13 reference tones, from 0 (black) to 100 (white). Tap a color value to copy it.</string>
+    <string name="monet_details_tone">Tone %1$d</string>
+    <string name="monet_details_copy">Copy %1$s: %2$s</string>
+</resources>

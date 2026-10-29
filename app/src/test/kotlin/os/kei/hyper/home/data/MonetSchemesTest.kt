@@ -5,6 +5,7 @@ import com.materialkolor.utils.ColorUtils
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import os.kei.hyper.home.xposed.MonetColorPolicy
@@ -47,6 +48,12 @@ class MonetSchemesTest {
       assertEquals(palette.getValue("primary30"), light.foreground)
       assertEquals(palette.getValue("secondary20"), dark!!.background)
       assertEquals(palette.getValue("primary80"), dark.foreground)
+      for ((isDark, policy) in listOf(false to light, true to dark)) {
+        val preview = MonetSchemes.iconRoles(palette, isDark)!!
+        assertEquals(policy.foreground, preview.foreground)
+        assertEquals(policy.background, preview.background)
+        assertTrue("$style icon contrast", preview.contrastRatio in 4.5..21.0)
+      }
     }
   }
 
@@ -69,6 +76,60 @@ class MonetSchemesTest {
     for (color in first.values) {
       assertEquals(color ushr 16 and 255, color ushr 8 and 255)
       assertEquals(color ushr 8 and 255, color and 255)
+    }
+  }
+
+  @Test
+  fun expressiveAndFruitSaladRotateTheIntendedHues() {
+    val seed = 0xff6750a4.toInt()
+    val seedHue = Hct.fromInt(seed).hue
+    fun distance(a: Double, b: Double): Double {
+      val difference = kotlin.math.abs(a - b) % 360.0
+      return minOf(difference, 360.0 - difference)
+    }
+    val expressive = MonetSchemes.generate(seed, MonetSchemeStyle.EXPRESSIVE)
+    assertTrue(distance(seedHue, Hct.fromInt(expressive.getValue("primary50")).hue) > 90.0)
+    val fruitSalad = MonetSchemes.generate(seed, MonetSchemeStyle.FRUIT_SALAD)
+    val shiftedHue = (seedHue + 310.0) % 360.0
+    for (family in listOf("primary", "secondary")) {
+      assertTrue(distance(shiftedHue, Hct.fromInt(fruitSalad.getValue("${family}50")).hue) < 3.0)
+    }
+    assertTrue(distance(seedHue, Hct.fromInt(fruitSalad.getValue("tertiary50")).hue) < 3.0)
+  }
+
+  @Test
+  fun rainbowHasChromaticAccentsButAchromaticNeutralPalettes() {
+    val palette = MonetSchemes.generate(0xff6750a4.toInt(), MonetSchemeStyle.RAINBOW)
+    assertTrue(Hct.fromInt(palette.getValue("primary50")).chroma > 40.0)
+    for (family in listOf("neutral", "neutral-variant")) for (tone in 0..100) {
+      val color = palette.getValue("$family$tone")
+      assertEquals(color ushr 16 and 255, color ushr 8 and 255)
+      assertEquals(color ushr 8 and 255, color and 255)
+    }
+  }
+
+  @Test
+  fun contrastMeasuresActualSrgbAndIsSymmetric() {
+    val black = 0xff000000.toInt()
+    val white = 0xffffffff.toInt()
+    val red = 0xffff0000.toInt()
+    assertEquals(21.0, MonetSchemes.opaqueContrastRatio(black, white)!!, 0.00001)
+    assertEquals(1.0, MonetSchemes.opaqueContrastRatio(red, red)!!, 0.00001)
+    assertEquals(3.99848, MonetSchemes.opaqueContrastRatio(red, white)!!, 0.00001)
+    assertEquals(MonetSchemes.opaqueContrastRatio(red, white), MonetSchemes.opaqueContrastRatio(white, red))
+    // A preview reports even low contrast honestly; it is not the runtime acceptance policy.
+    val lowContrast = MonetSchemes.iconRoles(mapOf("primary30" to red, "primary90" to red), false)!!
+    assertEquals(1.0, lowContrast.contrastRatio, 0.00001)
+  }
+
+  @Test
+  fun incompleteOrTransparentRolesDoNotProduceAContrastClaim() {
+    assertNull(MonetSchemes.opaqueContrastRatio(0x00ff0000, 0xffffffff.toInt()))
+    assertNull(MonetSchemes.opaqueContrastRatio(0xff000000.toInt(), 0x80ffffff.toInt()))
+    val palette = MonetSchemes.generate(0xff6750a4.toInt(), MonetSchemeStyle.EXPRESSIVE)
+    for ((dark, key) in listOf(false to "primary30", false to "primary90", true to "primary80", true to "secondary20")) {
+      assertNull(MonetSchemes.iconRoles(palette - key, dark))
+      assertNull(MonetSchemes.iconRoles(palette + (key to 0x80777777.toInt()), dark))
     }
   }
 

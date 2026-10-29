@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,6 +27,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -35,6 +38,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetActionStatus
@@ -80,7 +84,10 @@ internal fun MonetContent(
     initialValue = null to emptyMap(), key1 = seed,
   ) {
     value = seed to withContext(Dispatchers.Default) {
-      if (seed == null) emptyMap() else MonetSchemeStyle.entries.associateWith { MonetSchemes.generate(seed, it) }
+      if (seed == null) emptyMap() else MonetSchemeStyle.entries.associateWith {
+        ensureActive()
+        MonetSchemes.generate(seed, it)
+      }
     }
   }
   val schemes = generated.second.takeIf { generated.first == seed }.orEmpty()
@@ -156,7 +163,8 @@ internal fun MonetContent(
       }
     }
     SmallTitle(stringResource(R.string.monet_scheme_section))
-    MonetSchemeStyle.entries.chunked(2).forEach { styles ->
+    val columns = if (LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.15f) 1 else 2
+    MonetSchemeStyle.entries.chunked(columns).forEach { styles ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         styles.forEach { style ->
           val sample = schemes[style]
@@ -170,20 +178,37 @@ internal fun MonetContent(
             Row(verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp)) {
               val accent = sample?.get("primary60")?.let(::Color) ?: MiuixTheme.colorScheme.primary
+              val secondary = sample?.get("secondary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface
+              val tertiary = sample?.get("tertiary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface
               val neutral = sample?.get("neutral90")?.let(::Color) ?: MiuixTheme.colorScheme.surface
               Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(30.dp)) {
-                  drawArc(accent, 90f, 180f, useCenter = true)
-                  drawArc(neutral, 270f, 180f, useCenter = true)
+                  drawArc(accent, 0f, 90f, useCenter = true)
+                  drawArc(secondary, 90f, 90f, useCenter = true)
+                  drawArc(tertiary, 180f, 90f, useCenter = true)
+                  drawArc(neutral, 270f, 90f, useCenter = true)
                 }
-                RadioButton(isSelected, onClick = null, modifier = Modifier.size(20.dp),
-                  colors = RadioButtonDefaults.radioButtonColors(selectedColor = Color.Black))
               }
               Text(styleName(style), Modifier.weight(1f), style = MiuixTheme.textStyles.body2)
+              RadioButton(isSelected, onClick = null, modifier = Modifier.size(20.dp))
             }
           }
         }
+        if (styles.size < columns) Spacer(Modifier.weight(1f))
       }
+    }
+    Text(
+      text = styleDescription(choice.style),
+      modifier = Modifier.padding(horizontal = 16.dp),
+      style = MiuixTheme.textStyles.footnote1,
+      color = MiuixTheme.colorScheme.onSurfaceSecondary,
+    )
+    if (choice.source != MonetSeedSource.BASIC_COLOR &&
+      choice.style in listOf(MonetSchemeStyle.RAINBOW, MonetSchemeStyle.FRUIT_SALAD)
+    ) {
+      Text(stringResource(R.string.monet_details_basic_recommended),
+        modifier = Modifier.padding(horizontal = 16.dp),
+        style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     if (palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
@@ -192,6 +217,9 @@ internal fun MonetContent(
           IconPalettePreview(palette, dark = false, modifier = Modifier.weight(1f))
           IconPalettePreview(palette, dark = true, modifier = Modifier.weight(1f))
         }
+        Text(stringResource(R.string.monet_details_contrast_note),
+          modifier = Modifier.padding(top = 10.dp),
+          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
@@ -214,21 +242,33 @@ internal fun MonetContent(
     }
     TextButton(text = stringResource(if (details) R.string.monet_hide_details else R.string.monet_show_details),
       onClick = { details = !details }, modifier = Modifier.fillMaxWidth())
-    if (details) MonetDetailCard(snapshot, readFailed)
+    if (details) {
+      SmallTitle(stringResource(R.string.monet_details_draft))
+      if (palette != null && seed != null) {
+        MonetPaletteDetails(seed, palette)
+      } else {
+        Text(stringResource(if (seed == null) R.string.monet_seed_waiting else R.string.monet_loading),
+          modifier = Modifier.padding(horizontal = 16.dp), style = MiuixTheme.textStyles.body2)
+      }
+      SmallTitle(stringResource(R.string.monet_details_reported))
+      MonetDetailCard(snapshot, readFailed)
+    }
   }
 }
 
 @Composable
 private fun IconPalettePreview(palette: Map<String, Int>, dark: Boolean, modifier: Modifier = Modifier) {
-  val foreground = Color(palette.getValue(if (dark) "primary80" else "primary30"))
-  val background = Color(palette.getValue(if (dark) "secondary20" else "primary90"))
+  val roles = remember(palette, dark) { MonetSchemes.iconRoles(palette, dark) } ?: return
+  val foreground = Color(roles.foreground)
+  val background = Color(roles.background)
   val neutral = Color(palette.getValue(if (dark) "neutral12" else "neutral96"))
   Column(modifier.clip(RoundedCornerShape(16.dp)).background(neutral).padding(12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
       color = foreground, style = MiuixTheme.textStyles.footnote1)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
         contentAlignment = Alignment.Center) {
         Icon(painterResource(R.drawable.ic_launcher_monochrome), contentDescription = null,
@@ -244,6 +284,9 @@ private fun IconPalettePreview(palette: Map<String, Int>, dark: Boolean, modifie
       Text(stringResource(R.string.monet_accent_and_neutral), color = foreground,
         style = MiuixTheme.textStyles.footnote2)
     }
+    Text(stringResource(R.string.monet_details_contrast, roles.contrastRatio),
+      modifier = Modifier.testTag("monet.contrast.${if (dark) "dark" else "light"}"),
+      color = foreground, style = MiuixTheme.textStyles.footnote2)
   }
 }
 
@@ -253,4 +296,18 @@ private fun styleName(style: MonetSchemeStyle): String = stringResource(when (st
   MonetSchemeStyle.VIBRANT -> R.string.monet_style_vibrant
   MonetSchemeStyle.NEUTRAL -> R.string.monet_style_neutral
   MonetSchemeStyle.MONOCHROME -> R.string.monet_style_mono
+  MonetSchemeStyle.EXPRESSIVE -> R.string.monet_style_expressive
+  MonetSchemeStyle.RAINBOW -> R.string.monet_style_rainbow
+  MonetSchemeStyle.FRUIT_SALAD -> R.string.monet_style_fruit_salad
+})
+
+@Composable
+private fun styleDescription(style: MonetSchemeStyle): String = stringResource(when (style) {
+  MonetSchemeStyle.TONAL_SPOT -> R.string.monet_details_style_tonal
+  MonetSchemeStyle.VIBRANT -> R.string.monet_details_style_vibrant
+  MonetSchemeStyle.NEUTRAL -> R.string.monet_details_style_neutral
+  MonetSchemeStyle.MONOCHROME -> R.string.monet_details_style_mono
+  MonetSchemeStyle.EXPRESSIVE -> R.string.monet_details_style_expressive
+  MonetSchemeStyle.RAINBOW -> R.string.monet_details_style_rainbow
+  MonetSchemeStyle.FRUIT_SALAD -> R.string.monet_details_style_fruit_salad
 })

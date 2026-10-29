@@ -104,7 +104,7 @@
     <string name="monet_themed_icons_off">Disabled</string>
     <string name="monet_themed_icons_unknown">Not reported</string>
     <string name="monet_icon_color">Reported monochrome color: %1$s</string>
-    <string name="monet_icon_rendering_note">Two-color icon tinting and automatic fallback are not yet available.</string>
+    <string name="monet_icon_rendering_note">Two-color tinting and fallback for unusable icons are still being validated.</string>
     <string name="monet_family_primary">Primary</string>
     <string name="monet_family_secondary">Secondary</string>
     <string name="monet_family_tertiary">Tertiary</string>

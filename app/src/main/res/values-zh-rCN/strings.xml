@@ -101,7 +101,7 @@
     <string name="monet_themed_icons_off">已关闭</string>
     <string name="monet_themed_icons_unknown">未上报</string>
     <string name="monet_icon_color">上报的单色设置：%1$s</string>
-    <string name="monet_icon_rendering_note">双色图标取色和异常图标自动回退尚未实现。</string>
+    <string name="monet_icon_rendering_note">双色取色与异常图标回退仍在验证中。</string>
     <string name="monet_family_primary">主色</string>
     <string name="monet_family_secondary">辅助色</string>
     <string name="monet_family_tertiary">第三色</string>

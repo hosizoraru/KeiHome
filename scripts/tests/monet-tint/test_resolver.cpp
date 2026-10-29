@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     const char* path = argv[2];
     uint8_t digest[32];
     if (!HashMonetLibrary(path, digest) ||
-        memcmp(digest, kMonetTintImageSha256, 32) != 0) {
+        !IsSupportedMonetImageDigest(digest)) {
         fprintf(stderr, "Resolver needs the external libapp.so matching the current monet_tint_profile SHA-256.\n");
         return 2;
     }
@@ -52,6 +52,9 @@ int main(int argc, char** argv) {
     assert(profile.tint_caller == base + 0x8f314c);
     assert(profile.render_equals_caller == base + 0x152a504);
     assert(profile.layer_equals_caller == base + 0xfb6690);
+    assert(profile.enabled_equals_entry == reinterpret_cast<void*>(base + 0x1b29fa8));
+    assert(profile.enabled_equals_caller == base + 0xb19624);
+    assert(profile.settings_setter_caller == base + 0x19df2fc);
     PublishMonetTintCallers(profile);
     assert(kh_layer_equals_caller == profile.layer_equals_caller);
     const auto saved_callers = profile;
@@ -71,6 +74,7 @@ int main(int argc, char** argv) {
         0x8f3078, 0x8f3178, 0x174ac8c, 0x152a4dc, 0xfb6668,
         0x116c438, 0x116c844, 0x1215b50, 0xebf4a0, 0xe931ec,
         0x1b00400, 0x16348a8, 0x8b1928, 0x18b8cec, 0x17d148c, 0x1b58510,
+        0x1b29fa8, 0xb1956c, 0x19df24c, 0x8a74b4, 0x18b6618,
     };
     for (size_t start : starts) {
         bytes[start + 4] ^= 0x40; reject(image); bytes[start + 4] ^= 0x40;
@@ -98,7 +102,7 @@ int main(int argc, char** argv) {
     bad=image; bad.load_bias=UINTPTR_MAX-16; reject(bad);
     assert(!ResolveMonetTintProfile(image, nullptr, &error));
     assert(ResolveMonetTintProfile(image, &profile, &error));
-    assert(rejects == 36);
+    assert(rejects == 41);
     printf("resolver: exact backing-file hash and target accepted; %u invalid inputs rejected; callers decoded; outputs cleared; globals preserved\n", rejects);
     printf("{\"resolver_rejections\":%u,\"exact_image_accepted\":true,"
            "\"outputs_cleared\":true,\"globals_preserved\":true}\n", rejects);

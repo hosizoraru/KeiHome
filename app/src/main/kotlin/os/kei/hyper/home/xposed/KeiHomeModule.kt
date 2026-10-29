@@ -82,6 +82,8 @@ class KeiHomeModule : XposedModule() {
   ) {
     val runtime = LauncherIconRefreshRuntime(this)
     launcherRefresh = runtime
-    runtime.install(loader, oldService, oldHooks, reconcileAfterReload)
+    check(runtime.install(loader, oldService, oldHooks, reconcileAfterReload)) {
+      "System-server icon refresh/native broker installation failed"
+    }
   }
 }

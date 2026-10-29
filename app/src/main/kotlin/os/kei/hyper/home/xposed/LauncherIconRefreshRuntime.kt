@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.IInterface
+import android.os.Parcel
 import android.os.RemoteCallbackList
 import android.os.UserHandle
 import android.os.UserManager
@@ -22,16 +23,33 @@ import java.lang.reflect.Modifier
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
+import os.kei.hyper.home.data.MonetAction
 
 internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lifecycle = IconRefreshReloadLifecycle()
   private val lock = lifecycle.lock
   private val generations = IconRefreshGeneration()
   private val pending = PendingIconRefresh()
+  private var lastMonetState: String? = null
+  private var nativeBrokerReady = false
+  private var nativeBrokerInstallFailure: String? = null
   private val monetColorSynchronizer = MonetColorSynchronizer()
   private val monetColorMonitor = MonetColorMonitor(
     monetColorSynchronizer,
     onResult = { result ->
+      val state = result.diagnosticName
+      val reasons = if (result is MonetColorSynchronizer.SynchronizationResult.NativeUnavailable) {
+        listOfNotNull(
+          NativeMonetClient.lastTransportFailure,
+          NativeMonetSocketBroker.lastFailure,
+          nativeBrokerInstallFailure,
+        ).distinct().joinToString("; ")
+      } else ""
+      val diagnostic = "Monet state=$state${if (reasons.isEmpty()) "" else "; $reasons"}"
+      if (diagnostic != lastMonetState) {
+        lastMonetState = diagnostic
+        xposed.log(Log.INFO, TAG, diagnostic)
+      }
       when (result) {
         is MonetColorSynchronizer.SynchronizationResult.Applied -> {
           xposed.log(
@@ -49,6 +67,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     onFailure = { failure ->
       xposed.log(Log.WARN, TAG, "Monet icon background synchronization failed", failure)
     },
+    requestPreferences = { xposed.getRemotePreferences(MonetAction.GROUP) },
   )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
@@ -97,6 +116,42 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       val oldConfiguration = findMatchingIconHook(
         oldHooks, CONFIGURATION_HOOK_ID, resolved.updateConfiguration,
       )
+      // The transport is optional. Missing OEM/hidden Binder APIs must not take down the
+      // independently working night-mode and LauncherApps callbacks.
+      var nativeHandle: XposedInterface.HookHandle? = null
+      try {
+        val nativeTransaction = NativeMonetSocketBroker.resolveTransaction(loader)
+        val oldNativeBroker = findMatchingIconHook(
+          oldHooks, NativeMonetSocketBroker.HOOK_ID, nativeTransaction,
+        )
+        val nativeBroker = installOrReplaceIconHook(
+          xposed, oldNativeBroker, NativeMonetSocketBroker.HOOK_ID, nativeTransaction,
+          XposedInterface.Hooker { chain ->
+            // Normal generated PackageManager calls are never parsed or modified.
+            if (chain.getArg(0) as? Int != NativeMonetSocketBroker.TRANSACTION) {
+              chain.proceed()
+            } else lifecycle.trackHook {
+              synchronized(lock) { startMonetMonitorLocked() }
+              NativeMonetSocketBroker.onTransact(
+                chain.getArg(1) as Parcel, chain.getArg(2) as? Parcel, chain.getArg(3) as Int,
+              )
+            }
+          },
+        )
+        nativeHandle = nativeBroker.first
+        require(nativeHandle.id == NativeMonetSocketBroker.HOOK_ID &&
+          nativeHandle.executable == nativeTransaction)
+        nativeBroker.second?.let(replaced::add)
+        handles += nativeHandle
+        nativeBrokerReady = true
+      } catch (failure: Throwable) {
+        try { nativeHandle?.unhook() } catch (cleanup: Throwable) {
+          logFailure("could not remove failed optional native broker hook", cleanup)
+        }
+        NativeMonetSocketBroker.stop()
+        nativeBrokerInstallFailure = nativeMonetFailure("broker installation", failure)
+        logFailure("Monet Binder transport unavailable; keeping night-mode callbacks", failure)
+      }
       val listenerHooker = XposedInterface.Hooker { chain ->
         lifecycle.trackHook {
           val result = chain.proceed()
@@ -157,6 +212,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       xposed.log(Log.INFO, TAG, "System-server icon refresh hooks installed")
       return true
     } catch (failure: Throwable) {
+      NativeMonetSocketBroker.stop()
       handles.forEach {
         try {
           it.unhook()
@@ -175,6 +231,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       if (closingWorkers.hasLiveThreads()) {
         false
       } else {
+        NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
         pending.invalidatePost()
         handler?.removeCallbacksAndMessages(null)
@@ -207,6 +264,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
     return closingWorkers.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
+      NativeMonetSocketBroker.awaitStopped(deadline) &&
       iconProbeReplyThreadsStopped()
   }
 
@@ -214,6 +272,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
     try {
       val context = service?.let { profile.context.get(it) } as? Context ?: return
+      if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       monetColorMonitor.start(context)
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)

@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     const MonetSelectionImageRange split[]={{base,0x850000,false},{base+0x850000,0x130cd50,true},{base+0x1b60000,144,false}};
     Check(ResolveMonetSelection({base,split,3},&out,&why),"segmented live-image view");
     uint8_t digest[32];MonetSha256(bytes.data(),bytes.size(),digest);
-    Check(std::memcmp(digest,kMonetSelectionImageSha256,32)==0,"real full-file SHA");
+    Check(IsSupportedMonetImageDigest(digest),"real full-file SHA");
     digest[0]^=1;
     Check(!PublishMonetSelectionProfile(valid,digest)&&kh_selection_profile_ready==0,"publication rejects wrong identity");
     digest[0]^=1;

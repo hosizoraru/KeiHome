@@ -1,10 +1,14 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.database.ContentObserver
 import android.app.ActivityManager
 import android.os.UserHandle
 import android.net.Uri
 import android.provider.Settings
+import java.io.IOException
+import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.parseMonetPaletteJson
 
 /**
@@ -18,6 +22,7 @@ import os.kei.hyper.home.data.parseMonetPaletteJson
 internal class MonetColorSynchronizer {
   private val native = NativeMonetClient()
   private val resources = MonetResourcePolicy()
+  private val actionBaseline = MonetAction.Baseline()
   private var previousPolicy: Triple<Int, Int, Set<String>>? = null
   private var acknowledgedReset = false
 
@@ -27,6 +32,8 @@ internal class MonetColorSynchronizer {
 
   fun synchronize(
     baseContext: Context,
+    excludingObserver: ContentObserver? = null,
+    actionPreferences: SharedPreferences? = null,
     mayWrite: () -> Boolean = { true },
   ): SynchronizationResult {
     if (!mayWrite()) return SynchronizationResult.SelectionChanged
@@ -34,15 +41,50 @@ internal class MonetColorSynchronizer {
     val context = contextForUser(baseContext, userId) ?: return SynchronizationResult.Unsupported
     val stillCurrent = { mayWrite() && currentUserId() == userId }
     val resolver = context.contentResolver
-    if (Settings.System.getInt(resolver, KEY_MONOCHROME, 0) != 1) {
-      val reset = withdraw(context)
+    val actionStore = object : MonetAction.Store {
+      override fun read() = MonetAction.Selection(
+        Settings.System.getString(resolver, KEY_MONOCHROME_COLOR),
+        Settings.Secure.getString(resolver, KEY_AUTO_COLOR),
+        Settings.System.getString(resolver, KEY_MONOCHROME),
+        Settings.Secure.getString(resolver, MonetAction.Setting.HANDLED.key),
+        Settings.Secure.getString(resolver, MonetAction.Setting.APPLIED.key),
+      )
+      override fun write(setting: MonetAction.Setting, value: String): Boolean =
+        if (setting.secure) Settings.Secure.putString(resolver, setting.key, value)
+        else Settings.System.putString(resolver, setting.key, value)
+      override fun notifyChanged() {
+        resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
+      }
+    }
+    val observed = actionStore.read()
+    val attempt = actionBaseline.capture(
+      MonetAction.read(actionPreferences), userId, observed, System.currentTimeMillis(),
+    )
+    val action = attempt?.request
+    val initial = attempt?.initial ?: observed
+    val actionCurrent = {
+      stillCurrent() && (action == null ||
+        (MonetAction.read(actionPreferences) == action &&
+          MonetAction.pending(action, userId, initial, System.currentTimeMillis()) == action))
+    }
+    fun actionInterruption(): SynchronizationResult? {
+      val request = action ?: return null
+      return when (MonetAction.checkSelection(request, initial, actionStore, actionCurrent)) {
+        null -> null
+        MonetAction.ApplyResult.WRITE_FAILED -> throw IOException("Could not persist Monet request cancellation")
+        else -> SynchronizationResult.SelectionChanged
+      }
+    }
+    actionInterruption()?.let { return it }
+    if (action == null && initial.enabled != "1") {
+      val reset = withdraw(context, excludingObserver)
       // The background remains stored when the toggle alone is turned off.
       // Keep its ownership marker so re-enabling can resume automatic colors.
       return if (reset) SynchronizationResult.Restored else SynchronizationResult.Disabled
     }
 
     if (!SupportedMonetLauncher.matches(context)) return SynchronizationResult.Unsupported
-    if (!native.isAvailable(context)) return SynchronizationResult.NativeUnavailable
+    if (!native.isAvailable(context)) return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     val palette = readPalette(context, resolver) ?: return SynchronizationResult.NoPalette
     val colors = MonetColorPolicy.selectPair(
       palette = palette,
@@ -54,29 +96,50 @@ internal class MonetColorSynchronizer {
     val current = parseInt32(currentRaw)
     val marker = parseInt32(Settings.Secure.getString(resolver, KEY_AUTO_COLOR))
 
-    if ((currentRaw != null && current == null) ||
-      !MonetColorPolicy.mayReplace(true, current, marker)
+    if (action == null && ((currentRaw != null && current == null) ||
+      !MonetColorPolicy.mayReplace(true, current, marker))
     ) {
-      val reset = withdraw(context)
+      val reset = withdraw(context, excludingObserver)
       if (marker != null && stillCurrent()) {
         Settings.Secure.putString(resolver, KEY_AUTO_COLOR, null)
       }
       return if (reset) SynchronizationResult.Restored else SynchronizationResult.Manual(current)
     }
-    val denied = resources.deniedPackages(context, stillCurrent)
+    actionInterruption()?.let { return it }
+    val denied = resources.deniedPackages(context, actionCurrent)
+    actionInterruption()?.let { return it }
     // An explicit selection may have arrived while querying the wallpaper.
-    if (!stillCurrent() ||
+    if (action == null && (!stillCurrent() ||
       Settings.System.getInt(resolver, KEY_MONOCHROME, 0) != 1 ||
-      Settings.System.getString(resolver, KEY_MONOCHROME_COLOR) != currentRaw
+      Settings.System.getString(resolver, KEY_MONOCHROME_COLOR) != currentRaw)
     ) {
       return SynchronizationResult.SelectionChanged
     }
     // A new Java generation must not darken the background while an older
     // native payload still renders a fixed black foreground.
     if (!native.publish(context, colors.foreground, colors.background, denied)) {
-      return SynchronizationResult.NativeUnavailable
+      return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     }
     acknowledgedReset = false
+    if (action != null) {
+      return when (MonetAction.applyAcknowledged(
+        action, selected, initial, actionStore, nativeAcknowledged = true, isCurrent = actionCurrent,
+      )) {
+        MonetAction.ApplyResult.APPLIED -> {
+          previousPolicy = Triple(colors.foreground, colors.background, denied)
+          SynchronizationResult.Applied(selected)
+        }
+        MonetAction.ApplyResult.WRITE_FAILED -> {
+          withdraw(context, excludingObserver)
+          SynchronizationResult.WriteFailed(selected)
+        }
+        MonetAction.ApplyResult.SELECTION_CHANGED -> {
+          withdraw(context, excludingObserver)
+          SynchronizationResult.SelectionChanged
+        }
+        MonetAction.ApplyResult.NATIVE_UNAVAILABLE -> SynchronizationResult.NativeUnavailable
+      }
+    }
     if (!stillCurrent() || Settings.System.getString(resolver, KEY_MONOCHROME_COLOR) != currentRaw) {
       native.disable(context)
       return SynchronizationResult.SelectionChanged
@@ -85,6 +148,7 @@ internal class MonetColorSynchronizer {
     val changed = previousPolicy != policy
     if (current == selected && marker == current) {
       previousPolicy = policy
+      resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
       return if (changed) SynchronizationResult.Applied(selected)
       else SynchronizationResult.Unchanged(selected)
     }
@@ -95,12 +159,16 @@ internal class MonetColorSynchronizer {
     // a later user-selected color.
     Settings.Secure.putString(resolver, KEY_AUTO_COLOR, selected.toString())
     previousPolicy = policy
+    resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
     return SynchronizationResult.Applied(selected)
   }
 
-  private fun withdraw(context: Context): Boolean {
+  private fun withdraw(context: Context, excludingObserver: ContentObserver?): Boolean {
     if (!native.disable(context)) return false
     val changed = previousPolicy != null || !acknowledgedReset
+    if (changed) context.contentResolver.notifyChange(
+      Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver,
+    )
     previousPolicy = null
     acknowledgedReset = true
     return changed
@@ -203,6 +271,21 @@ internal class MonetColorSynchronizer {
   }
 
   internal sealed interface SynchronizationResult {
+    // Class names are obfuscated in Release; log the same state names in every variant.
+    val diagnosticName: String get() = when (this) {
+      Disabled -> "Disabled"
+      Unsupported -> "Unsupported"
+      NativeUnavailable -> "NativeUnavailable"
+      Restored -> "Restored"
+      NoPalette -> "NoPalette"
+      NoColor -> "NoColor"
+      SelectionChanged -> "SelectionChanged"
+      is Manual -> "Manual"
+      is Unchanged -> "Unchanged"
+      is Applied -> "Applied"
+      is WriteFailed -> "WriteFailed"
+    }
+
     data object Disabled : SynchronizationResult
     data object Unsupported : SynchronizationResult
     data object NativeUnavailable : SynchronizationResult

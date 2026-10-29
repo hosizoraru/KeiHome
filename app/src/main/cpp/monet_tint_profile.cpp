@@ -12,6 +12,9 @@ extern "C" {
 uintptr_t kh_tint_caller = 0;
 uintptr_t kh_render_equals_caller = 0;
 uintptr_t kh_layer_equals_caller = 0;
+uintptr_t kh_monet_enabled_equals_caller = 0;
+uintptr_t kh_monet_settings_setter_caller = 0;
+uintptr_t kh_monet_object_equals_entry = 0;
 }
 
 const uint8_t kMonetTintImageSha256[32] = {
@@ -39,6 +42,42 @@ struct CodeSpan {
     uint8_t digest[32];
 };
 constexpr CodeSpan kCodeSpans[] = {
+    // IdentityEquals: authenticated caller/frame and receiver layout.
+    {0x1b29fa8, 28, {
+        0xc7, 0xcb, 0x8a, 0x88, 0x15, 0x57, 0x88, 0xf7,
+        0x4f, 0x97, 0x53, 0x3d, 0x70, 0xa5, 0xf3, 0x13,
+        0x87, 0x0b, 0xcd, 0x79, 0xf2, 0x91, 0xea, 0xe7,
+        0x17, 0x02, 0x31, 0xbb, 0x8a, 0x7e, 0x92, 0x58,
+    }},
+    // RxValueSetter: authenticated caller/frame and receiver layout.
+    {0xb1956c, 312, {
+        0x18, 0xdc, 0xb2, 0x3d, 0xaa, 0x74, 0xef, 0xb6,
+        0x1c, 0x36, 0x5a, 0xdf, 0xcb, 0xb1, 0x98, 0xd2,
+        0xc0, 0xa8, 0x47, 0xd6, 0x19, 0xe5, 0x08, 0x02,
+        0xd8, 0x0a, 0x2b, 0xe8, 0x1d, 0xfc, 0xf1, 0x0d,
+    }},
+    // LoadMonochromeSettings: authenticated caller/frame and receiver layout.
+    {0x19df24c, 804, {
+        0x27, 0x10, 0xd2, 0xf9, 0xb4, 0x34, 0x3e, 0x9d,
+        0x93, 0x8d, 0xc9, 0x61, 0xb8, 0x5c, 0xbc, 0xd4,
+        0x0e, 0xd7, 0x05, 0x1b, 0x61, 0xcc, 0xa4, 0xc1,
+        0x47, 0x8b, 0x13, 0x70, 0xc0, 0x67, 0x88, 0x12,
+    }},
+    // RxBoolConstructor: authenticated caller/frame and receiver layout.
+    {0x8a74b4, 84, {
+        0xd0, 0xa1, 0x1a, 0xac, 0x93, 0xa7, 0x43, 0x1d,
+        0x35, 0x67, 0xc3, 0x4e, 0x97, 0xb6, 0xa0, 0x0f,
+        0xe0, 0x68, 0xcc, 0x87, 0x68, 0x0f, 0xd8, 0xeb,
+        0x7b, 0x96, 0xc7, 0xa3, 0xe2, 0xc4, 0x90, 0x8d,
+    }},
+    // RxBoolAllocator: authenticated caller/frame and receiver layout.
+    {0x18b6618, 12, {
+        0xc3, 0x54, 0xdc, 0x15, 0x36, 0x24, 0x14, 0x28,
+        0x5f, 0xd9, 0xfa, 0x37, 0x34, 0x80, 0x04, 0xb7,
+        0x9b, 0x9b, 0xc8, 0x7c, 0x6a, 0xf9, 0x5b, 0x0e,
+        0x81, 0xa2, 0xd0, 0xa5, 0x6b, 0x50, 0x95, 0xc6,
+    }},
+
     // ModeConstructor: [0x8f3078, 0x8f3178)
     {0x8f3078, 256, {
         0xb3, 0xb0, 0xf0, 0xfd, 0xcb, 0x00, 0xa6, 0x7e,
@@ -224,7 +263,7 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image,
             return Reject(rejection, "invalid tint image range");
         }
     }
-    if (memcmp(image.verified_file_sha256, kMonetTintImageSha256, 32) != 0) {
+    if (!IsSupportedMonetImageDigest(image.verified_file_sha256)) {
         return Reject(rejection, "unsupported tint backing-file SHA-256");
     }
     uintptr_t snapshot = 0, build_id = 0;
@@ -265,11 +304,16 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image,
         !Calls(image, 0x1b00458, 0x16348a8) ||
         !Calls(image, 0x16348c8, 0x8b1928) ||
         !Calls(image, 0x8b1940, 0x18b8cec) ||
-        !Calls(image, 0x8b1974, 0x1b58510)) {
+        !Calls(image, 0x8b1974, 0x1b58510) ||
+        !Calls(image, 0x19df2f8, 0xb1956c) ||
+        !Calls(image, 0x16348f0, 0x8a74b4) ||
+        !Calls(image, 0x8a74cc, 0x18b6618)) {
         return Reject(rejection, "tint call graph or background integer ABI mismatch");
     }
     *out = {image.load_bias, reinterpret_cast<void*>(mode),
-            reinterpret_cast<void*>(equals), mode_lr, render_lr, layer_lr};
+            reinterpret_cast<void*>(equals), mode_lr, render_lr, layer_lr,
+            reinterpret_cast<void*>(image.load_bias + 0x1b29fa8),
+            image.load_bias + 0xb19624, image.load_bias + 0x19df2fc};
     return true;
 }
 
@@ -279,4 +323,10 @@ void PublishMonetTintCallers(const MonetTintProfile& profile) {
                      __ATOMIC_RELEASE);
     __atomic_store_n(&kh_layer_equals_caller, profile.layer_equals_caller,
                      __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_enabled_equals_caller, profile.enabled_equals_caller,
+                     __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_settings_setter_caller, profile.settings_setter_caller,
+                     __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_object_equals_entry,
+                     reinterpret_cast<uintptr_t>(profile.enabled_equals_entry), __ATOMIC_RELEASE);
 }

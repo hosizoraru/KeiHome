@@ -246,6 +246,24 @@ void TestBoundedRetirementStillExpires() {
     Clear(&state);
 }
 
+void TestSelectionNotificationRevisions() {
+    PolicyState state{};
+    const uint64_t initial = __atomic_load_n(&kh_monet_selection_revision, __ATOMIC_ACQUIRE);
+    assert(CommitPolicy(&state, Policy(0xff000001u), 1u));
+    assert(kh_monet_selection_revision == initial + 1u);
+    // Lease renewals and palette-only updates must not rebuild icon selection.
+    assert(CommitPolicy(&state, Policy(0xff000002u), 2u));
+    assert(kh_monet_selection_revision == initial + 1u);
+    auto* replacement = Policy(0xff000002u);
+    replacement->policy.entries[0].name[4] = 'E';
+    assert(CommitPolicy(&state, replacement, 3u));
+    assert(kh_monet_selection_revision == initial + 2u);
+    assert(CommitPolicy(&state, Policy(0xff000002u, 0u), 4u));
+    assert(kh_monet_selection_revision == initial + 3u);
+    Clear(&state);
+    assert(kh_monet_selection_revision == initial + 3u);
+}
+
 void TestConcurrentReaders() {
     PolicyState state{};
     std::atomic<bool> stop{false};
@@ -304,6 +322,7 @@ int main() {
     TestWireAndLimits();
     TestLeaseAndRetirement();
     TestBoundedRetirementStillExpires();
+    TestSelectionNotificationRevisions();
     TestConcurrentReaders();
     puts("monet peer identity, parser, lease and reader lifetime tests passed");
 }

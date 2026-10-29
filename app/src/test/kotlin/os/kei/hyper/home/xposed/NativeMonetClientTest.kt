@@ -5,10 +5,12 @@ import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import java.io.InputStream
 import java.io.InterruptedIOException
+import java.lang.reflect.InvocationTargetException
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -142,6 +144,69 @@ class NativeMonetClientTest {
       ByteArrayInputStream(greeting() + ack()), output, request = NativeMonetProtocol.disableRequest(),
     ))
     assertArrayEquals(NativeMonetProtocol.disableRequest(), output.toByteArray())
+  }
+
+  @Test
+  fun rejectionDiagnosticsIdentifyTheFailedGreetingFieldWithoutPublishing() {
+    for ((frame, expected) in listOf(
+      words(0, 1, targetUid, 1) to "magic",
+      words(magic, 2, targetUid, 1) to "protocol",
+      words(magic, 1, targetUid + 100_000, 1) to "UID",
+      words(magic, 1, targetUid, 2) to "profile",
+    )) {
+      val output = ByteArrayOutputStream()
+      val failures = mutableListOf<String>()
+      assertFalse(NativeMonetProtocol.exchange(
+        ByteArrayInputStream(frame + ack()), output, targetUid, targetUid, request(),
+        onFailure = failures::add,
+      ))
+      assertEquals(0, output.size())
+      assertEquals(1, failures.size)
+      assertTrue(failures.single(), failures.single().contains(expected))
+    }
+  }
+
+  @Test
+  fun successfulAckDoesNotAuthorizeAWriteAfterLauncherRetirement() {
+    val output = ByteArrayOutputStream()
+    var checks = 0
+    var failure: String? = null
+    assertFalse(NativeMonetProtocol.exchange(
+      ByteArrayInputStream(greeting() + ack()), output, targetUid, targetUid, request(),
+      isCurrentTarget = { ++checks == 1 }, onFailure = { failure = it },
+    ))
+    assertArrayEquals(request(), output.toByteArray())
+    assertEquals(2, checks)
+    assertEquals("launcher changed after policy ACK", failure)
+  }
+
+  @Test
+  fun nativePolicyDenialIsNotConfusedWithInvalidAckOrSuccessfulPublication() {
+    for ((reply, expected) in listOf(
+      words(magic, 1, 1) to "native policy rejected: status=1",
+      words(magic, 1, -1) to "native policy rejected: status=-1",
+      words(magic, 2, 0) to "native policy ACK identity mismatch",
+    )) {
+      var failure: String? = null
+      val output = ByteArrayOutputStream()
+      assertFalse(NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting() + reply), output, targetUid, targetUid, request(),
+        onFailure = { failure = it },
+      ))
+      assertEquals(expected, failure)
+      assertArrayEquals(request(), output.toByteArray())
+    }
+  }
+
+  @Test
+  fun failureDiagnosticsUnwrapHiddenApiExceptionsWithoutLeakingCredentialsOrNewlines() {
+    val cause = SecurityException("Permission denied\nAuthorization: Bearer do-not-print; token=private-value")
+    val message = nativeMonetFailure("broker identity", ExecutionException(InvocationTargetException(cause)))
+    assertTrue(message.startsWith("broker identity: SecurityException: Permission denied"))
+    assertFalse(message.contains("do-not-print"))
+    assertFalse(message.contains("private-value"))
+    assertFalse(message.contains('\n'))
+    assertTrue(message.contains("[redacted]"))
   }
 
   @Test

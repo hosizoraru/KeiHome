@@ -7,6 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__ANDROID__)
+#include <android/binder_ibinder.h>
+#include <android/binder_parcel.h>
+#include <dlfcn.h>
+#endif
+
 #if defined(__linux__)
 #include <poll.h>
 #include <pthread.h>
@@ -21,6 +27,8 @@
 extern "C" {
 NativeMonetPolicy* kh_monet_policy = nullptr;
 uint32_t kh_monet_readers = 0u;
+uint64_t kh_monet_selection_revision = 0u;
+uint64_t kh_monet_selection_notified = 0u;
 }
 
 namespace {
@@ -141,6 +149,14 @@ void PublishPolicy(PolicyState* state, PolicyAllocation* next) {
             &kh_monet_policy, next != nullptr ? &next->policy : nullptr,
             __ATOMIC_SEQ_CST);
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    const uint32_t before = old != nullptr && old->flags == 1u ? old->count : 0u;
+    const uint32_t after = next != nullptr && next->policy.flags == 1u ? next->policy.count : 0u;
+    if (before != after || (before != 0u && memcmp(old->entries, next->policy.entries,
+            before * sizeof(NativeMonetPolicyEntry)) != 0)) {
+        // The Dart equality bridge consumes only this primitive generation.
+        // Original Rx/stream code owns recomputation of all live icon controllers.
+        __atomic_fetch_add(&kh_monet_selection_revision, uint64_t{1}, __ATOMIC_RELEASE);
+    }
     if (old != nullptr) {
         auto* allocation = reinterpret_cast<PolicyAllocation*>(old);
         allocation->retired_next = state->retired;
@@ -195,10 +211,77 @@ pid_t g_server_pid = 0;
 
 struct ServerState {
     PolicyState policies;
-    int listener;
     pid_t pid;
     uid_t uid;
 };
+
+// The platform forbids new system_server <-> app socket connections. Binder
+// may transfer an already connected pair instead. The private transaction is
+// authenticated by the Java hook before allocation; ordinary PackageManager
+// calls retain their original behavior. No service or SELinux rule is added.
+int RequestPolicyChannel() {
+#if defined(__ANDROID__)
+    constexpr transaction_code_t kOpenChannel = 0x4b484du;
+    constexpr char kDescriptor[] = "android.content.pm.IPackageManager";
+    using CheckService = AIBinder* (*)(const char*);
+    // ServiceManager is a platform export, not an NDK link-time API. Missing
+    // export/descriptor support leaves the optional extension inactive.
+    static CheckService check_service = nullptr;
+    static bool resolved_service_manager = false;
+    if (!resolved_service_manager) {
+        resolved_service_manager = true;
+        void* library = dlopen("libbinder_ndk.so", RTLD_NOW | RTLD_NOLOAD);
+        if (library != nullptr) {
+            check_service = reinterpret_cast<CheckService>(
+                    dlsym(library, "AServiceManager_checkService"));
+            // DT_NEEDED retains this library for the resident payload lifetime.
+            dlclose(library);
+        }
+    }
+    AIBinder* service = check_service != nullptr ? check_service("package") : nullptr;
+    if (service == nullptr) return -1;
+
+    // Only this worker initializes the class. It and the resident hooks have
+    // process lifetime; an APK/Java reload never unloads their executable code.
+    static AIBinder_Class* channel_class = nullptr;
+    if (channel_class == nullptr) {
+        channel_class = AIBinder_Class_define(kDescriptor,
+                [](void* data) -> void* { return data; }, [](void*) {},
+                [](AIBinder*, transaction_code_t, const AParcel*, AParcel*) {
+                    return static_cast<binder_status_t>(STATUS_UNKNOWN_TRANSACTION);
+                });
+    }
+    int result = -1;
+    AParcel* request = nullptr;
+    AParcel* reply = nullptr;
+    if (channel_class != nullptr && AIBinder_associateClass(service, channel_class) &&
+            AIBinder_prepareTransaction(service, &request) == STATUS_OK &&
+            AParcel_writeInt32(request, kNativeMonetMagic) == STATUS_OK &&
+            AParcel_writeInt32(request, kNativeMonetProtocolVersion) == STATUS_OK &&
+            AParcel_writeInt32(request, static_cast<int32_t>(getuid())) == STATUS_OK &&
+            AParcel_writeInt32(request, kNativeMonetProfileVersion) == STATUS_OK &&
+            AIBinder_transact(service, kOpenChannel, &request, &reply, 0) == STATUS_OK) {
+        int32_t exception = -1, magic = 0, version = 0, status = -1;
+        if (AParcel_readInt32(reply, &exception) == STATUS_OK && exception == 0 &&
+                AParcel_readInt32(reply, &magic) == STATUS_OK &&
+                static_cast<uint32_t>(magic) == kNativeMonetMagic &&
+                AParcel_readInt32(reply, &version) == STATUS_OK &&
+                version == kNativeMonetProtocolVersion &&
+                AParcel_readInt32(reply, &status) == STATUS_OK && status == 0) {
+            if (AParcel_readParcelFileDescriptor(reply, &result) != STATUS_OK) {
+                if (result >= 0) close(result);
+                result = -1;
+            }
+        }
+    }
+    if (request != nullptr) AParcel_delete(request);
+    if (reply != nullptr) AParcel_delete(reply);
+    AIBinder_decStrong(service);
+    return result;
+#else
+    return -1;
+#endif
+}
 
 bool IsLauncherProcess() {
     // argv[0] must end at its own NUL, not at a truncated read or name prefix.
@@ -295,18 +378,24 @@ void HandleConnection(ServerState* server, int fd, uint64_t accepted_at) {
             setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0) {
         return;
     }
-    // One total second across greeting, fragmented request and ACK. A slow
-    // authenticated sender cannot renew this budget by sending partial bytes.
-    const uint64_t deadline = accepted_at +
+    const uint64_t greeting_deadline = accepted_at +
             uint64_t{kNativeMonetIoTimeoutMs} * kNanosecondsPerMs;
     uint8_t greeting[16];
     WriteLe32(greeting, kNativeMonetMagic);
     WriteLe32(greeting + 4u, kNativeMonetProtocolVersion);
     WriteLe32(greeting + 8u, server->uid);
     WriteLe32(greeting + 12u, kNativeMonetProfileVersion);
-    if (!Transfer(fd, greeting, sizeof(greeting), true, deadline, &server->policies)) {
+    if (!Transfer(fd, greeting, sizeof(greeting), true, greeting_deadline, &server->policies)) {
         return;
     }
+    // A single pending pair sleeps until the monitor's next exchange. Policy
+    // maintenance still expires deny lists on time; no connection polling is
+    // required while idle. Once the first byte arrives the full request + ACK
+    // has one absolute two-second budget, including fragmented reads.
+    if (WaitForFd(fd, POLLIN, accepted_at + uint64_t{20000u} * kNanosecondsPerMs,
+                  &server->policies) != WaitResult::Ready) return;
+    const uint64_t deadline = NowNs() +
+            uint64_t{kNativeMonetIoTimeoutMs} * kNanosecondsPerMs;
     PolicyAllocation* next = AllocatePolicy();
     bool accepted = next != nullptr && ReadPolicyRequest(
             [&](void* bytes, size_t length) {
@@ -329,27 +418,26 @@ void HandleConnection(ServerState* server, int fd, uint64_t accepted_at) {
 void* PolicyWorker(void* data) {
     auto* server = static_cast<ServerState*>(data);
     if (getpid() == server->pid && getuid() == server->uid && IsLauncherProcess()) {
+        uint32_t retry_ms = 250u;
         for (;;) {
             const uint64_t now = NowNs();
             if (now == 0u) break;
-            const WaitResult ready = WaitForFd(server->listener, POLLIN,
-                    now + uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs,
-                    &server->policies);
-            if (ready == WaitResult::Failed) break;
-            if (ready == WaitResult::Timeout) continue;
-            const int connection = accept4(server->listener, nullptr, nullptr,
-                                           SOCK_CLOEXEC | SOCK_NONBLOCK);
+            MaintainPolicy(&server->policies, now);
+            const int connection = RequestPolicyChannel();
             if (connection < 0) {
-                if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK ||
-                        errno == ECONNABORTED) continue;
-                break;
+                // A retiring Java owner closes its pair and temporarily
+                // rejects acquisition. The successor can accept automatically.
+                timespec delay{retry_ms / 1000u, (retry_ms % 1000u) * 1000000u};
+                nanosleep(&delay, nullptr);
+                if (retry_ms < 4000u) retry_ms *= 2u;
+                continue;
             }
+            retry_ms = 250u;
             const uint64_t accepted_at = NowNs();
             if (accepted_at != 0u) HandleConnection(server, connection, accepted_at);
             close(connection);  // Only the worker owns accepted descriptors.
         }
     }
-    close(server->listener);
     free(server->policies.expiration);
     server->policies.expiration = nullptr;
     PublishPolicy(&server->policies, nullptr);
@@ -371,28 +459,8 @@ bool StartLocked() {
         return state == kServerRunning && g_server_pid == getpid();
     }
     if (NowNs() == 0u) return false;
-    sockaddr_un address{};
-    address.sun_family = AF_UNIX;
-    const int length = snprintf(address.sun_path + 1u, sizeof(address.sun_path) - 1u,
-            "os.kei.hyper.home.monet.%u", static_cast<unsigned int>(getuid()));
-    if (length <= 0 || static_cast<size_t>(length) >= sizeof(address.sun_path) - 1u) {
-        return false;
-    }
-    const int listener = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-    if (listener < 0) return false;
-    const socklen_t address_length = static_cast<socklen_t>(
-            offsetof(sockaddr_un, sun_path) + 1u + static_cast<size_t>(length));
-    if (bind(listener, reinterpret_cast<const sockaddr*>(&address), address_length) != 0 ||
-            listen(listener, 4) != 0) {
-        close(listener);
-        return false;
-    }
     auto* server = static_cast<ServerState*>(calloc(1u, sizeof(ServerState)));
-    if (server == nullptr) {
-        close(listener);
-        return false;
-    }
-    server->listener = listener;
+    if (server == nullptr) return false;
     server->pid = getpid();
     server->uid = getuid();
     pthread_attr_t attributes{};
@@ -409,7 +477,6 @@ bool StartLocked() {
     if (attributes_ready) pthread_attr_destroy(&attributes);
     if (result != 0) {
         __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
-        close(listener);
         free(server);
         return false;
     }

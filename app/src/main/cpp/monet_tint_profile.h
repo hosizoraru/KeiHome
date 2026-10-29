@@ -8,6 +8,7 @@
 #define KH_TINT_POLICY_BACKGROUND 8
 #define KH_TINT_CONTROLLER_CID 0x0fa4
 #define KH_TINT_RX_INT_CID 0x0ef2
+#define KH_TINT_RX_BOOL_CID 0x0ef6
 #define KH_TINT_MINT_CID 0x003d
 
 #ifndef __ASSEMBLER__
@@ -43,15 +44,20 @@ extern "C" {
 // kh_monet_policy/readers are declared by monet_policy_server.h.
 extern void* kh_tint_original;
 extern void* kh_filter_equals_original;
+extern void* kh_monet_enabled_equals_original;
 
 // Defined by monet_tint_profile.cpp. Publish before either hook becomes live.
 extern uintptr_t kh_tint_caller;
 extern uintptr_t kh_render_equals_caller;
 extern uintptr_t kh_layer_equals_caller;
+extern uintptr_t kh_monet_enabled_equals_caller;
+extern uintptr_t kh_monet_settings_setter_caller;
+extern uintptr_t kh_monet_object_equals_entry;
 
 // Dart ABI entry points. NEVER call these as C functions.
 void kh_monet_tint_bridge();
 void kh_monet_filter_equals_bridge();
+void kh_monet_enabled_equals_bridge();
 }
 
 // Only readable, live mapped ranges may be supplied (normally PT_LOAD ranges
@@ -79,6 +85,9 @@ struct MonetTintProfile {
     uintptr_t tint_caller;
     uintptr_t render_equals_caller;
     uintptr_t layer_equals_caller;
+    void* enabled_equals_entry;
+    uintptr_t enabled_equals_caller;
+    uintptr_t settings_setter_caller;
 };
 
 extern const uint8_t kMonetTintImageSha256[32];

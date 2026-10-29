@@ -59,7 +59,7 @@ def main():
     parser.add_argument("--output", type=Path, help="Build/report directory; defaults to a new system temporary directory")
     emulation = parser.add_mutually_exclusive_group()
     emulation.add_argument("--require-emulation", action="store_true", help="Fail if optional emulation dependencies are missing (recommended in CI)")
-    emulation.add_argument("--skip-emulation", action="store_true", help="Explicitly skip the 43 machine-code cases; still compile and test the resolver")
+    emulation.add_argument("--skip-emulation", action="store_true", help="Explicitly skip the 61 machine-code cases; still compile and test the resolver")
     args = parser.parse_args()
     if not __debug__:
         parser.error("Run Python without -O/PYTHONOPTIMIZE so test assertions stay enabled")
@@ -111,14 +111,14 @@ def main():
     sources.extend(p for p in TEST_DIR.iterdir() if p.is_file())
     record["source_sha256"] = {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(sources)}
     try:
-        print("[1/3] Host resolver: actual backing-file identity and 36 rejection cases", flush=True)
+        print("[1/3] Host resolver: actual backing-file identity and 41 rejection cases", flush=True)
         resolver = output / "test-resolver"
         run([compiler, "-std=c++17", "-UNDEBUG", "-Wall", "-Wextra", "-Werror", "-I", CPP,
              TEST_DIR / "test_resolver.cpp", CPP / "monet_tint_profile.cpp",
              CPP / "monet_image_identity.cpp", "-o", resolver])
         result = run([resolver, "--library", library])
         record["resolver"] = json.loads(result.stdout.splitlines()[-1])
-        assert record["resolver"]["resolver_rejections"] == 36
+        assert record["resolver"]["resolver_rejections"] == 41
 
         print("[2/3] Android compilation and standalone bridge link", flush=True)
         flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-fno-exceptions", "-fno-rtti",
@@ -146,7 +146,7 @@ def main():
                 record["emulation"] = {"status": "skipped", "reason": "optional dependencies unavailable", "diagnostic": result.stderr.strip()}
             else:
                 details = json.loads(report.read_text())
-                assert details["unicorn_cases"] == 43 and details["all_passed"]
+                assert details["unicorn_cases"] == 61 and details["all_passed"]
                 record["emulation"] = {"status": "passed", "cases": details["unicorn_cases"]}
         if record["emulation"]["status"] == "skipped":
             report.write_text(json.dumps(record["emulation"], indent=2) + "\n")
@@ -156,7 +156,7 @@ def main():
             print("PARTIAL: resolver and Android compilation passed; machine-code emulation SKIPPED.", flush=True)
         else:
             record["overall"] = "passed"
-            print("PASS: 36 resolver rejection cases and 43 AArch64 machine-code cases.", flush=True)
+            print("PASS: 41 resolver rejection cases and 61 AArch64 machine-code cases.", flush=True)
         return 0
     except (OSError, RuntimeError, AssertionError, ValueError) as error:
         record["error"] = str(error)

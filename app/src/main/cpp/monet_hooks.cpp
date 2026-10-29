@@ -14,6 +14,7 @@
 extern "C" {
 void* kh_tint_original = nullptr;
 void* kh_filter_equals_original = nullptr;
+void* kh_monet_enabled_equals_original = nullptr;
 void* kh_selection_original = nullptr;
 }
 
@@ -86,7 +87,9 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
         InstallInlineHook(tint.filter_equals_entry, reinterpret_cast<void*>(kh_monet_filter_equals_bridge),
             &kh_filter_equals_original) != kHookSuccess ||
         InstallInlineHook(selection.entry, reinterpret_cast<void*>(kh_monet_selection_bridge),
-            &kh_selection_original) != kHookSuccess) return Reject("framework hook installation");
+            &kh_selection_original) != kHookSuccess ||
+        InstallInlineHook(tint.enabled_equals_entry, reinterpret_cast<void*>(kh_monet_enabled_equals_bridge),
+            &kh_monet_enabled_equals_original) != kHookSuccess) return Reject("framework hook installation");
     if (!StartNativeMonetPolicyServer()) return Reject("authenticated policy server unavailable");
     __atomic_store_n(&g_install_state, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",

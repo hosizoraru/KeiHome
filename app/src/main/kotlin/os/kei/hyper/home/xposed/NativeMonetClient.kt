@@ -1,15 +1,13 @@
 package os.kei.hyper.home.xposed
 
-import android.app.ActivityManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.LocalSocket
-import android.net.LocalSocketAddress
 import android.os.Process
 import java.io.EOFException
 import java.io.InputStream
 import java.io.InterruptedIOException
 import java.io.OutputStream
+import java.lang.reflect.InvocationTargetException
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -27,9 +25,10 @@ import java.util.concurrent.TimeoutException
 /**
  * One authenticated exchange with the launcher; the monitor owns retries.
  *
- * The server must independently require SO_PEERCRED.uid == SYSTEM_UID. This
- * client authenticates the server against PackageManager for the foreground
- * user, then checks its greeting before sending any request. A true result is
+ * The native worker must independently require SYSTEM_UID and system_server SELinux context.
+ * A generated PackageManager Stub hook authenticates the native Binder caller before giving
+ * it one endpoint. The socketpair peer credentials describe system_server, which created BOTH
+ * endpoints; the lease's registered launcher identity authenticates the greeting. A true result is
  * the only permission to persist an automatic selection; this file never writes
  * Settings. The caller must supply the same user-scoped Context used to read
  * settings/palette and scan masks. Reject a user switch rather than retargeting
@@ -37,6 +36,15 @@ import java.util.concurrent.TimeoutException
  */
 internal class NativeMonetClient {
   private val worker = NativeMonetWorker()
+  @Volatile private var failure: String? = null
+
+  /** Reason for the last failed exchange; a completed successful exchange clears it. */
+  val lastFailure: String? get() = failure
+
+  private fun recordFailure(reason: String?) {
+    failure = reason
+    lastTransportFailure = reason
+  }
 
   /** Initial construction is ready; reopening after stop requires actual worker retirement. */
   fun start(): Boolean = worker.start()
@@ -53,7 +61,10 @@ internal class NativeMonetClient {
     background: Int,
     denied: Set<String>,
   ): Boolean {
-    val request = NativeMonetProtocol.publishRequest(foreground, background, denied) ?: return false
+    val request = NativeMonetProtocol.publishRequest(foreground, background, denied) ?: run {
+      recordFailure("policy: invalid colors or package denial list")
+      return false
+    }
     return communicate(context, request)
   }
 
@@ -63,23 +74,37 @@ internal class NativeMonetClient {
   fun isAvailable(context: Context): Boolean = communicate(context, request = null)
 
   private fun communicate(context: Context, request: ByteArray?): Boolean {
-    if (Process.myUid() != Process.SYSTEM_UID || Thread.currentThread().isInterrupted) return false
+    if (Process.myUid() != Process.SYSTEM_UID || Thread.currentThread().isInterrupted) {
+      recordFailure("caller: requires active system_server worker")
+      return false
+    }
     val attempt = Attempt(context, request)
     val task = FutureTask { attempt.exchange() }
+    var succeeded = false
+    var outerFailure: String? = null
     return try {
-      if (!worker.submit(task, attempt::cancel)) return false
-      // LocalSocket.connect(address, timeout) is unimplemented in AOSP. The
-      // worker and this independent deadline also bound package/user resolution.
-      if (!attempt.connected.await(CONNECT_BUDGET_MS, TimeUnit.MILLISECONDS)) return false
-      task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS)
-    } catch (_: InterruptedException) {
+      if (!worker.submit(task, attempt::cancel)) {
+        outerFailure = "worker: stopped or queue full"
+        return false
+      }
+      // Bound identity lookup and waiting for a native-registered endpoint independently of I/O.
+      if (!attempt.connected.await(CONNECT_BUDGET_MS, TimeUnit.MILLISECONDS)) {
+        outerFailure = "${attempt.stage}: endpoint deadline exceeded"
+        return false
+      }
+      task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS).also { succeeded = it }
+    } catch (failure: InterruptedException) {
       Thread.currentThread().interrupt()
+      outerFailure = nativeMonetFailure(attempt.stage, failure)
       false
-    } catch (_: TimeoutException) {
+    } catch (failure: TimeoutException) {
+      outerFailure = nativeMonetFailure(attempt.stage, failure)
       false
-    } catch (_: ExecutionException) {
+    } catch (failure: ExecutionException) {
+      outerFailure = nativeMonetFailure(attempt.stage, failure)
       false
-    } catch (_: CancellationException) {
+    } catch (failure: CancellationException) {
+      outerFailure = nativeMonetFailure(attempt.stage, failure)
       false
     } finally {
       // Interrupt alone does not cancel LocalSocket reads. Shutdown and close
@@ -87,23 +112,8 @@ internal class NativeMonetClient {
       attempt.cancel()
       task.cancel(true)
       worker.release(task)
+      recordFailure(if (succeeded) null else outerFailure ?: attempt.failure ?: "exchange rejected")
     }
-  }
-
-  private data class LauncherIdentity(val userId: Int, val uid: Int)
-
-  private fun resolveLauncher(context: Context): LauncherIdentity? {
-    // A new foreground UID does not make a palette collected under the old
-    // user's Context valid. Fail closed on this race, including before writing.
-    val userId = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
-    val contextUserId = Context::class.java.getMethod("getUserId").invoke(context) as Int
-    if (userId < 0 || contextUserId != userId) return null
-    val uid = PackageManager::class.java.getMethod(
-      "getPackageUidAsUser", String::class.java, Int::class.javaPrimitiveType,
-      Int::class.javaPrimitiveType,
-    ).invoke(context.packageManager, LAUNCHER_PACKAGE, 0, userId) as Int
-    val stillCurrent = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
-    return if (uid >= 0 && stillCurrent == contextUserId) LauncherIdentity(userId, uid) else null
   }
 
   private inner class Attempt(private val context: Context, private val request: ByteArray?) {
@@ -111,49 +121,57 @@ internal class NativeMonetClient {
     private val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(EXCHANGE_BUDGET_MS)
     private val lock = Any()
     @Volatile private var cancelled = false
-    private var socket: LocalSocket? = null
+    private var lease: NativeMonetSocketBroker.Lease? = null
+    @Volatile var failure: String? = null
+      private set
+    @Volatile var stage = "launcher identity"
+      private set
 
     fun remainingNanos(): Long = (deadline - System.nanoTime()).coerceAtLeast(0)
 
     fun exchange(): Boolean = try {
       checkActive()
-      val target = resolveLauncher(context)
-      if (target == null) {
-        false
-      } else {
-        checkActive()
-        LocalSocket(LocalSocket.SOCKET_STREAM).use { connection ->
-          // Force FD creation before publishing the socket to cancel(). AOSP's
-          // lazy creation takes the same monitor held by blocking connect().
-          val input = connection.inputStream
-          synchronized(lock) {
-            checkActive()
-            socket = connection
-          }
-          prepareIo(connection)
-          connection.connect(LocalSocketAddress(
-            "$ADDRESS_PREFIX${target.uid}", LocalSocketAddress.Namespace.ABSTRACT,
-          ))
-          connected.countDown()
+      val target = NativeMonetLauncherIdentity.resolve(context)
+      stage = "native Binder endpoint"
+      val acquired = NativeMonetSocketBroker.take(target, minOf(deadline,
+        System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CONNECT_BUDGET_MS)))
+      acquired.use {
+        synchronized(lock) {
           checkActive()
-          val peerUid = connection.peerCredentials.uid
-          if (peerUid != target.uid) return@use false
+          lease = acquired
+        }
+        checkActive()
+        val connection = acquired.socket
+        try {
+          connected.countDown()
+          stage = "broker peer identity"
+          checkActive()
+          val peer = connection.peerCredentials
+          if (peer.uid != Process.SYSTEM_UID || peer.pid != Process.myPid() || acquired.target != target) {
+            failure = "broker peer rejected: socketpair creator or registered launcher mismatch"
+            return@use false
+          }
+          stage = "native greeting/policy ACK"
           val accepted = NativeMonetProtocol.exchange(
-            input = input,
+            input = connection.inputStream,
             output = connection.outputStream,
             targetUid = target.uid,
-            peerUid = peerUid,
+            // This is the authenticated Binder registrant, NOT SO_PEERCRED's creator UID.
+            peerUid = acquired.target.uid,
             request = request,
             beforeIo = { prepareIo(connection) },
-            isCurrentTarget = { resolveLauncher(context) == target },
+            isCurrentTarget = { acquired.isCurrent(context) },
+            onFailure = { failure = it },
           )
           if (!accepted) return@use false
-          val stillCurrent = resolveLauncher(context) == target
           checkActive()
-          stillCurrent
+          true
+        } finally {
+          NativeMonetSocketBroker.release(acquired)
         }
       }
-    } catch (_: Exception) {
+    } catch (error: Exception) {
+      failure = nativeMonetFailure(stage, error)
       false
     } finally {
       connected.countDown()
@@ -177,33 +195,37 @@ internal class NativeMonetClient {
       connected.countDown()
       val connection = synchronized(lock) {
         cancelled = true
-        socket.also { socket = null }
+        lease.also { lease = null }
       } ?: return
-      try {
-        connection.shutdownInput()
-      } catch (_: Exception) {
-        // A connection attempt may not have reached the connected state.
-      }
-      try {
-        connection.shutdownOutput()
-      } catch (_: Exception) {
-        // Close is still necessary when shutdown is not supported by the peer.
-      }
-      try {
-        connection.close()
-      } catch (_: Exception) {
-        // Cancellation is best effort and must preserve the Boolean API.
-      }
+      // Closing the borrowed LocalSocket alone does not close its supplied FD.
+      NativeMonetSocketBroker.release(connection)
     }
   }
 
-  private companion object {
-    const val LAUNCHER_PACKAGE = "com.miui.home"
-    const val ADDRESS_PREFIX = "os.kei.hyper.home.monet."
-    const val CONNECT_BUDGET_MS = 250L
-    const val IO_TIMEOUT_MS = 250
-    const val EXCHANGE_BUDGET_MS = 900L
+  companion object {
+    /** Diagnostic only, for the owning runtime's state-transition log; never a readiness cache. */
+    @Volatile var lastTransportFailure: String? = null
+      private set
+    private const val CONNECT_BUDGET_MS = 1_000L
+    private const val IO_TIMEOUT_MS = 750
+    private const val EXCHANGE_BUDGET_MS = 2_500L
   }
+}
+
+/** Keep only a bounded one-line reason, never Throwable/Context/credential objects across attempts. */
+internal fun nativeMonetFailure(stage: String, failure: Throwable): String {
+  var cause = failure
+  repeat(8) {
+    if (cause is InvocationTargetException || cause is ExecutionException) {
+      cause.cause?.takeIf { it !== cause }?.let { cause = it }
+    }
+  }
+  val message = cause.message.orEmpty()
+    .replace(Regex("(?i)(authorization\\s*[:=]\\s*)(?:bearer|basic)\\s+[^\\s,;]+"), "$1[redacted]")
+    .replace(Regex("(?i)(authorization|password|passwd|token|secret|api[_-]?key)\\s*[:=]\\s*[^\\s,;]+"), "$1=[redacted]")
+    .replace(Regex("[\\r\\n\\t]"), " ")
+    .take(300)
+  return "$stage: ${cause.javaClass.simpleName}${if (message.isEmpty()) "" else ": $message"}"
 }
 
 /** Per-client lifecycle, kept free of Android calls so retirement can be tested on the host. */
@@ -345,6 +367,7 @@ internal object NativeMonetProtocol {
     return !segmentStart
   }
 
+  /** peerUid is independently authenticated by the transport: for Binder it is the registrant. */
   fun exchange(
     input: InputStream,
     output: OutputStream,
@@ -353,19 +376,27 @@ internal object NativeMonetProtocol {
     request: ByteArray?,
     beforeIo: () -> Unit = {},
     isCurrentTarget: () -> Boolean = { true },
+    onFailure: (String) -> Unit = {},
   ): Boolean {
-    if (targetUid < 0 || peerUid != targetUid) return false
+    fun reject(reason: String): Boolean { onFailure(reason); return false }
+    if (targetUid < 0 || peerUid != targetUid) return reject("registered launcher UID rejected")
     val greeting = readWords(input, 4, beforeIo)
-    if (greeting[0] != MAGIC || greeting[1] != VERSION || greeting[2] != targetUid ||
-      greeting[3] != PROFILE_VERSION || !isCurrentTarget()
-    ) return false
+    if (greeting[0] != MAGIC) return reject("native greeting magic mismatch")
+    if (greeting[1] != VERSION) return reject("native greeting protocol mismatch")
+    if (greeting[2] != targetUid) return reject("native greeting launcher UID mismatch")
+    if (greeting[3] != PROFILE_VERSION) return reject("native greeting profile mismatch")
+    if (!isCurrentTarget()) return reject("launcher changed before policy publication")
     if (request == null) return true
     beforeIo()
     output.write(request)
     beforeIo()
     output.flush()
     val ack = readWords(input, 3, beforeIo)
-    return ack[0] == MAGIC && ack[1] == VERSION && ack[2] == 0
+    if (ack[0] != MAGIC || ack[1] != VERSION) return reject("native policy ACK identity mismatch")
+    if (ack[2] != 0) return reject("native policy rejected: status=${ack[2]}")
+    // The lease can be retired or its foreground user replaced while the native side ACKs.
+    // Keep this check in the protocol so callers cannot treat that ACK as a current publication.
+    return if (isCurrentTarget()) true else reject("launcher changed after policy ACK")
   }
 
   private fun header(

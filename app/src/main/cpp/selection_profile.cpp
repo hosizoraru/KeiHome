@@ -849,7 +849,7 @@ bool PublishMonetSelectionProfile(const MonetSelectionProfile& p,
                                   const uint8_t verified_file_sha256[32]) {
     constexpr uint32_t displaced[] = {0xa9bf79fdu,0xaa0f03fdu,0xd10061efu,0xf81f83a1u};
     if (verified_file_sha256 == nullptr ||
-        memcmp(verified_file_sha256, kMonetSelectionImageSha256, 32) != 0 ||
+        !IsSupportedMonetImageDigest(verified_file_sha256) ||
         p.entry == nullptr || p.resource_probe_entry == 0 || p.update_callback_entry == 0 ||
         (p.resource_probe_entry & 3u) || (p.update_callback_entry & 3u) ||
         p.factory_pool_offset == 0 || p.factory_pool_offset > 0x100000 ||

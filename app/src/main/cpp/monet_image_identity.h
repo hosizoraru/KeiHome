@@ -7,3 +7,4 @@
 // Compressed/malformed archives and oversized images are rejected.
 bool HashMonetLibrary(const char* linker_path, uint8_t digest[32]);
 void MonetSha256(const void* data, size_t size, uint8_t digest[32]);
+bool IsSupportedMonetImageDigest(const uint8_t digest[32]);

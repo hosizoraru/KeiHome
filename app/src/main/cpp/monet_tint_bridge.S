@@ -13,6 +13,12 @@
     .hidden kh_tint_caller
     .hidden kh_render_equals_caller
     .hidden kh_layer_equals_caller
+    .hidden kh_monet_enabled_equals_original
+    .hidden kh_monet_enabled_equals_caller
+    .hidden kh_monet_settings_setter_caller
+    .hidden kh_monet_object_equals_entry
+    .hidden kh_monet_selection_revision
+    .hidden kh_monet_selection_notified
 
 // Use Dart SP x15, never native CSP. No calls, allocations, safepoints, SIMD
 // operations or Dart heap writes occur here. Save all used non-result GPRs
@@ -199,5 +205,89 @@ kh_monet_filter_equals_bridge:
     ldar x16, [x16]
     br x16
     .size kh_monet_filter_equals_bridge, .-kh_monet_filter_equals_bridge
+
+// Re-emit the ORIGINAL enabled Rx value once when its selection policy changes.
+// This is an equality result only: the existing setter/stream owns notifications
+// and every controller's lifetime. No Dart call, heap write or saved reference.
+    .p2align 2
+    .global kh_monet_enabled_equals_bridge
+    .hidden kh_monet_enabled_equals_bridge
+    .type kh_monet_enabled_equals_bridge, %function
+kh_monet_enabled_equals_bridge:
+    hint #38
+    // Object.== is shared by unrelated Dart code. Reject other callers with
+    // one saved scratch register and no flag/policy/heap work on that hot path.
+    str x16, [x15, #-16]!
+    KH_GLOBAL x16, kh_monet_enabled_equals_caller
+    ldar x16, [x16]
+    eor x16, x16, x30
+    cbnz x16, .Lenabled_unrelated
+    ldr x16, [x15], #16
+    KH_SAVE
+    add x16, x15, #64
+    sub x17, x29, #0x20
+    cmp x16, x17
+    b.ne .Lenabled_original
+    // bool CID 63 dispatches Object.== in this image; verify the live GDT too.
+    KH_GLOBAL x16, kh_monet_object_equals_entry
+    ldar x16, [x16]
+    ldr x17, [x21, #0x1f8]
+    cmp x16, x17
+    b.ne .Lenabled_original
+    KH_GLOBAL x16, kh_monet_settings_setter_caller
+    ldar x16, [x16]
+    ldr x17, [x29, #8] // Rx setter's caller, not Object.=='s caller.
+    cmp x16, x17
+    b.ne .Lenabled_original
+    add x17, x22, #0x20
+    ldr x16, [x15, #64]
+    cmp x16, x17
+    b.ne .Lenabled_original
+    ldr x16, [x15, #72]
+    cmp x16, x17
+    b.ne .Lenabled_original
+    ldr x16, [x26, #0x78]
+    cbz x16, .Lenabled_original
+    ldr x16, [x16, #0x2910]
+    KH_REFERENCE .Lenabled_original
+    ldur w9, [x16, #-1]
+    ubfx w9, w9, #12, #20
+    cmp w9, #KH_TINT_CONTROLLER_CID
+    b.ne .Lenabled_original
+    ldur w16, [x16, #0x23]
+    KH_REFERENCE .Lenabled_original
+    add x16, x16, x28, lsl #32
+    ldur w9, [x16, #-1]
+    ubfx w9, w9, #12, #20
+    cmp w9, #KH_TINT_RX_BOOL_CID
+    b.ne .Lenabled_original
+    ldur x17, [x29, #-8]
+    cmp x16, x17
+    b.ne .Lenabled_original
+    KH_GLOBAL x11, kh_monet_selection_revision
+    ldar x10, [x11]
+    cbz x10, .Lenabled_original
+    KH_GLOBAL x11, kh_monet_selection_notified
+.Lenabled_claim:
+    ldaxr x9, [x11]
+    cmp x9, x10
+    b.hs .Lenabled_already_claimed
+    stlxr w9, x10, [x11]
+    cbnz w9, .Lenabled_claim
+    KH_RESTORE
+    add x0, x22, #0x30
+    ret
+.Lenabled_already_claimed:
+    clrex
+.Lenabled_original:
+    KH_RESTORE
+    b .Lenabled_tail
+.Lenabled_unrelated:
+    add x15, x15, #16
+.Lenabled_tail:
+    KH_GLOBAL x16, kh_monet_enabled_equals_original
+    ldar x16, [x16]
+    br x16
+    .size kh_monet_enabled_equals_bridge, .-kh_monet_enabled_equals_bridge
 
     .section .note.GNU-stack,"",%progbits

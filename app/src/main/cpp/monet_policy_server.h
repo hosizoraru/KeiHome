@@ -11,7 +11,7 @@ constexpr uint32_t kNativeMonetProtocolVersion = 1u;
 constexpr uint32_t kNativeMonetProfileVersion = 1u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
-constexpr uint32_t kNativeMonetIoTimeoutMs = 1000u;
+constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
 constexpr uint32_t kNativeMonetKeepaliveMs = 15000u;
 constexpr uint32_t kNativeMonetExpiryMs = 45000u;
 
@@ -45,6 +45,8 @@ static_assert(sizeof(NativeMonetPolicy) == 16u + 512u * 260u);
 extern "C" {
 extern NativeMonetPolicy* kh_monet_policy;
 extern uint32_t kh_monet_readers;
+extern uint64_t kh_monet_selection_revision;
+extern uint64_t kh_monet_selection_notified;
 }
 
 // Reader ABI, including the null-pointer path:
@@ -72,8 +74,11 @@ inline void ReleaseNativeMonetPolicy() {
 // The detached worker owns its descriptors for the process lifetime; no signal,
 // restart, refresh command, unload, or standalone deployment path is provided.
 //
-// Abstract AF_UNIX/SOCK_STREAM name: os.kei.hyper.home.monet.<getuid()>.
-// Only uid 1000 AND SELinux peer context u:r:system_server:s0 are accepted.
+// The worker obtains a socketpair endpoint through a narrowly scoped private
+// IPackageManager Binder transaction. Java authenticates the launcher caller
+// before transferring it. There is no listening socket or SELinux policy edit.
+// Only a pair created by uid 1000 AND SELinux context u:r:system_server:s0 is
+// accepted here. Closing the Java owner reconnects to the new hot-reload owner.
 // One greeting/request/ACK per connection, all uint32 words little-endian:
 //   greeting: magic, protocolVersion, getuid(), profileVersion
 //   request:  magic, protocolVersion, flags, fgARGB, bgARGB, count

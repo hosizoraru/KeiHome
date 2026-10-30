@@ -30,12 +30,21 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private var lastPaletteRefresh: Long? = null
-  private data class Publication(
+  internal data class Publication(
     val colors: IconColors,
     val denied: Set<String>,
     val process: NativeMonetProcessIdentity?,
     val theme: ActiveIconTheme.Signature?,
-  )
+    val userId: Int,
+  ) {
+    // Changed backgrounds reach mounted icons through the launcher's own Rx.
+    // An unchanged background can suppress that event, so foreground-only
+    // changes still need the package refresh fallback.
+    fun needsPackageRefresh(previous: Publication?): Boolean = previous == null ||
+      userId != previous.userId || denied != previous.denied ||
+      process != previous.process || theme != previous.theme ||
+      (colors.background == previous.colors.background && colors.foreground != previous.colors.foreground)
+  }
   private var previousPolicy: Publication? = null
   private var acknowledgedReset = false
   private val paletteQuery = AtomicReference<CancellationSignal?>()
@@ -150,7 +159,8 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
       return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     }
     // Publishing authenticates the endpoint and waits for its ACK in the same exchange.
-    val policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature)
+    val policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature, userId)
+    val refreshPackages = policy.needsPackageRefresh(previousPolicy)
     acknowledgedReset = false
     if (action != null) {
       return when (MonetAction.applyAcknowledged(
@@ -158,7 +168,7 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
       )) {
         MonetAction.ApplyResult.APPLIED -> {
           previousPolicy = policy
-          SynchronizationResult.Applied(selected)
+          SynchronizationResult.Applied(selected, refreshPackages = true)
         }
         MonetAction.ApplyResult.WRITE_FAILED -> {
           withdraw(context, excludingObserver)
@@ -179,7 +189,7 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
     if (current == selected && marker == current) {
       previousPolicy = policy
       if (changed) resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
-      return if (changed) SynchronizationResult.Applied(selected)
+      return if (changed) SynchronizationResult.Applied(selected, refreshPackages)
       else SynchronizationResult.Unchanged(selected)
     }
     if (!Settings.System.putInt(resolver, KEY_MONOCHROME_COLOR, selected)) {
@@ -190,7 +200,7 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
     Settings.Secure.putString(resolver, KEY_AUTO_COLOR, selected.toString())
     previousPolicy = policy
     resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
-    return SynchronizationResult.Applied(selected)
+    return SynchronizationResult.Applied(selected, refreshPackages)
   }
 
   private fun withdraw(context: Context, excludingObserver: ContentObserver?): Boolean {
@@ -337,7 +347,7 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
     data object SelectionChanged : SynchronizationResult
     data class Manual(val color: Int?) : SynchronizationResult
     data class Unchanged(val color: Int) : SynchronizationResult
-    data class Applied(val color: Int) : SynchronizationResult
+    data class Applied(val color: Int, val refreshPackages: Boolean) : SynchronizationResult
     data class WriteFailed(val color: Int) : SynchronizationResult
   }
 

@@ -56,9 +56,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         is MonetColorSynchronizer.SynchronizationResult.Applied -> {
           xposed.log(
             Log.INFO, TAG,
-            "Monet icon palette acknowledged: ${result.color.toUInt().toString(16)}",
+            "Monet icon palette acknowledged: ${result.color.toUInt().toString(16)} " +
+              "packageRefresh=${result.refreshPackages}",
           )
-          schedulePaletteRefresh()
+          if (result.refreshPackages) schedulePaletteRefresh()
         }
         is MonetColorSynchronizer.SynchronizationResult.WriteFailed ->
           xposed.log(Log.WARN, TAG, "Monet icon background could not be written")

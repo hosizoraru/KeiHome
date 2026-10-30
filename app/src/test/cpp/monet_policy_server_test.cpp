@@ -16,6 +16,8 @@
 
 static_assert(std::is_same_v<decltype(kh_monet_readers), uint32_t>,
               "The shared reader ABI must be nonvolatile uint32_t");
+static_assert(std::is_same_v<decltype(kh_monet_tint_ever_enabled), uint32_t>,
+              "The assembly tint history ABI must be nonvolatile uint32_t");
 
 namespace {
 
@@ -66,12 +68,14 @@ PolicyAllocation* Policy(uint32_t color, uint32_t count = 1u) {
 }
 
 void Clear(PolicyState* state) {
+    const uint32_t tint_history = __atomic_load_n(&kh_monet_tint_ever_enabled, __ATOMIC_ACQUIRE);
     free(state->expiration);
     state->expiration = nullptr;
     state->expires_at = 0u;
     PublishPolicy(state, nullptr);
     assert(state->retired == nullptr);
     assert(__atomic_load_n(&kh_monet_readers, __ATOMIC_ACQUIRE) == 0u);
+    assert(__atomic_load_n(&kh_monet_tint_ever_enabled, __ATOMIC_ACQUIRE) == tint_history);
 }
 
 void TestPeerIdentityPredicate() {
@@ -103,6 +107,7 @@ void TestIdleWithoutServiceStaysNull() {
         ReleaseNativeMonetPolicy();
         assert(state.expiration == nullptr && state.expires_at == 0u);
         assert(state.retired == nullptr && state.retired_count == 0u);
+        assert(__atomic_load_n(&kh_monet_tint_ever_enabled, __ATOMIC_ACQUIRE) == 0u);
     }
 }
 
@@ -165,6 +170,62 @@ void TestWireAndLimits() {
     free(output);
 }
 
+void TestTintEnableHistory() {
+    PolicyState state{};
+    const auto history = [] {
+        return __atomic_load_n(&kh_monet_tint_ever_enabled, __ATOMIC_ACQUIRE);
+    };
+    assert(history() == 0u);
+    assert(CommitPolicy(&state, AllocatePolicy(), 1u));  // Disabled publication.
+    assert(history() == 0u);
+
+    // A rejected first enable must not arm invalidation. Fill retirement with
+    // disabled snapshots while a reader holds the original disabled policy.
+    const NativeMonetPolicy* pinned = AcquireNativeMonetPolicy();
+    assert(pinned != nullptr && pinned->flags == 0u);
+    for (uint32_t i = 0u; i < kMaxRetiredPolicies; ++i) {
+        assert(CommitPolicy(&state, AllocatePolicy(), 2u + i));
+    }
+    PolicyAllocation* rejected = Policy(0xff123456u, 0u);
+    assert(!CommitPolicy(&state, rejected, 10u));
+    free(rejected);
+    assert(history() == 0u);
+    ReleaseNativeMonetPolicy();
+    Clear(&state);
+    assert(history() == 0u);
+
+    std::atomic<bool> reader_ready{false};
+    std::thread reader([&] {
+        reader_ready.store(true, std::memory_order_release);
+        for (;;) {
+            const NativeMonetPolicy* live = AcquireNativeMonetPolicy();
+            const bool enabled = live != nullptr && live->flags == 1u;
+            if (enabled) assert(history() == 1u);
+            ReleaseNativeMonetPolicy();
+            if (enabled) break;
+            std::this_thread::yield();
+        }
+    });
+    while (!reader_ready.load(std::memory_order_acquire)) std::this_thread::yield();
+    // No deny entries are needed to enable tint; this is independent of the
+    // selection-notification revision and of whether a layer has painted yet.
+    assert(CommitPolicy(&state, Policy(0xff123456u, 0u), 11u));
+    reader.join();
+    assert(history() == 1u);
+    assert(CommitPolicy(&state, AllocatePolicy(), 12u));
+    assert(history() == 1u);
+    Clear(&state);
+    MaintainPolicy(&state, UINT64_MAX);
+    assert(history() == 1u);
+
+    // Replacing policy ownership cannot reset native process history, as when
+    // an API-102 Java owner reconnects to the resident native hooks.
+    PolicyState replacement{};
+    assert(CommitPolicy(&replacement, AllocatePolicy(), 13u));
+    Clear(&replacement);
+    assert(history() == 1u);
+}
+
 void TestLeaseAndRetirement() {
     PolicyState state{};
     const uint64_t start = 100u * kNanosecondsPerMs;
@@ -208,6 +269,7 @@ void TestLeaseAndRetirement() {
     assert(live->background == (0xff445566u ^ 0x00ffffffu));
     ReleaseNativeMonetPolicy();
     assert(state.expiration == nullptr);
+    assert(__atomic_load_n(&kh_monet_tint_ever_enabled, __ATOMIC_ACQUIRE) == 1u);
 
     PolicyAllocation* disabled = AllocatePolicy();
     assert(disabled != nullptr);
@@ -320,9 +382,10 @@ int main() {
     TestPeerIdentityPredicate();
     TestIdleWithoutServiceStaysNull();
     TestWireAndLimits();
+    TestTintEnableHistory();
     TestLeaseAndRetirement();
     TestBoundedRetirementStillExpires();
     TestSelectionNotificationRevisions();
     TestConcurrentReaders();
-    puts("monet peer identity, parser, lease and reader lifetime tests passed");
+    puts("monet peer identity, parser, tint history, lease and reader lifetime tests passed");
 }

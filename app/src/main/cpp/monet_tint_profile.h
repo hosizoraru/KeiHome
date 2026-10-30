@@ -38,10 +38,11 @@ extern "C" {
 // Integrator-owned symbols. All accesses, including those in the publisher,
 // must be atomic. Pointer: 8-byte
 // alignment; readers: 4-byte alignment. Foreground requires flags == 1.
-// Scoped equality invalidation is independent of policy and readers so a
-// refresh after withdrawal can replace a cached tint with stock black.
+// Scoped equality stays stock until the first enabled policy publication, then
+// remains independent of current policy/readers so every instance can replace
+// a cached tint with stock black after withdrawal.
 // count == 0 deliberately does NOT disable the last accepted tint colors.
-// kh_monet_policy/readers are declared by monet_policy_server.h.
+// Policy, readers and process-lifetime tint history are in monet_policy_server.h.
 extern void* kh_tint_original;
 extern void* kh_filter_equals_original;
 extern void* kh_monet_enabled_equals_original;

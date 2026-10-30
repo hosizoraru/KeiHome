@@ -59,7 +59,7 @@ def main():
     parser.add_argument("--output", type=Path, help="Build/report directory; defaults to a new system temporary directory")
     emulation = parser.add_mutually_exclusive_group()
     emulation.add_argument("--require-emulation", action="store_true", help="Fail if optional emulation dependencies are missing (recommended in CI)")
-    emulation.add_argument("--skip-emulation", action="store_true", help="Explicitly skip the 61 machine-code cases; still compile and test the resolver")
+    emulation.add_argument("--skip-emulation", action="store_true", help="Explicitly skip the 69 machine-code cases; still compile and test the resolver")
     args = parser.parse_args()
     if not __debug__:
         parser.error("Run Python without -O/PYTHONOPTIMIZE so test assertions stay enabled")
@@ -106,7 +106,7 @@ def main():
     sources = [CPP / name for name in (
         "monet_tint_bridge.S", "monet_tint_profile.h", "monet_tint_profile.cpp",
         "monet_image_identity.h", "monet_image_identity.cpp", "monet_policy_server.h",
-        "monet_hooks.cpp",
+        "monet_hooks.cpp", "monet_policy_server.cpp",
     )]
     sources.extend(p for p in TEST_DIR.iterdir() if p.is_file())
     record["source_sha256"] = {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(sources)}
@@ -124,7 +124,7 @@ def main():
         flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-fno-exceptions", "-fno-rtti",
                  "-fno-threadsafe-statics", "-fvisibility=hidden", "-fvisibility-inlines-hidden",
                  "-ffunction-sections", "-fdata-sections", "-mbranch-protection=standard"]
-        for name in ("monet_tint_profile", "monet_image_identity", "monet_hooks"):
+        for name in ("monet_tint_profile", "monet_image_identity", "monet_hooks", "monet_policy_server"):
             run([toolchain / f"aarch64-linux-android{API}-clang++", *flags,
                  "-c", CPP / (name + ".cpp"), "-o", output / (name + ".o")])
         bridge_object, symbols_object = output / "bridge.o", output / "test-symbols.o"
@@ -134,7 +134,7 @@ def main():
         elf = output / "bridge-test.elf"
         run([toolchain / "ld.lld", "-Ttext=0x100000", "-e", "kh_monet_tint_bridge",
              bridge_object, symbols_object, "-o", elf])
-        record["android_compile"] = "passed (including monet_hooks.cpp)"
+        record["android_compile"] = "passed (including monet_hooks.cpp and monet_policy_server.cpp)"
 
         print("[3/3] Optional AArch64 machine-code emulation", flush=True)
         report = output / "bridge-tests.json"
@@ -146,7 +146,7 @@ def main():
                 record["emulation"] = {"status": "skipped", "reason": "optional dependencies unavailable", "diagnostic": result.stderr.strip()}
             else:
                 details = json.loads(report.read_text())
-                assert details["unicorn_cases"] == 61 and details["all_passed"]
+                assert details["unicorn_cases"] == 69 and details["all_passed"]
                 record["emulation"] = {"status": "passed", "cases": details["unicorn_cases"]}
         if record["emulation"]["status"] == "skipped":
             report.write_text(json.dumps(record["emulation"], indent=2) + "\n")
@@ -156,7 +156,7 @@ def main():
             print("PARTIAL: resolver and Android compilation passed; machine-code emulation SKIPPED.", flush=True)
         else:
             record["overall"] = "passed"
-            print("PASS: 41 resolver rejection cases and 61 AArch64 machine-code cases.", flush=True)
+            print("PASS: 41 resolver rejection cases and 69 AArch64 machine-code cases.", flush=True)
         return 0
     except (OSError, RuntimeError, AssertionError, ValueError) as error:
         record["error"] = str(error)

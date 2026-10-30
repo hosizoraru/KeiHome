@@ -66,6 +66,8 @@ def run(name,kind='tint',success=False,**opt):
     w64(syms['kh_monet_selection_revision'],revision)
     w64(syms['kh_monet_selection_notified'],notified)
     w64(syms['kh_monet_policy'],0 if opt.get('null_policy') else POLICY)
+    ever_enabled=opt.get('ever_enabled',1)
+    w32(syms['kh_monet_tint_ever_enabled'],ever_enabled)
     initial_readers=opt.get('readers',0)
     w32(syms['kh_monet_readers'],initial_readers)
     background=opt.get('background',0xff123456)
@@ -102,9 +104,9 @@ def run(name,kind='tint',success=False,**opt):
     uc.reg_write(X[30],lr);uc.reg_write(ar.UC_ARM64_REG_SP,CSP)
     uc.reg_write(ar.UC_ARM64_REG_NZCV,0x60000000)
     before=[uc.reg_read(r) for r in X];vectors=[uc.reg_read(r) for r in Q]
-    writes=[]; policy_reads=[]; stop=[]; swapped=False
+    writes=[]; policy_reads=[]; stop=[]; swapped=False; current_dsp=DSP
     def on_write(u,access,a,n,v,user):
-        assert DSP-64<=a and a+n<=DSP or a==syms['kh_monet_readers'] and n==4 or a==syms['kh_monet_selection_notified'] and n==8,(name,'unexpected write',hex(a),n)
+        assert current_dsp-64<=a and a+n<=current_dsp or a==syms['kh_monet_readers'] and n==4 or a==syms['kh_monet_selection_notified'] and n==8,(name,'unexpected write',hex(a),n)
         writes.append((a,n,v))
     def on_read(u,access,a,n,v,user):
         nonlocal swapped
@@ -124,26 +126,43 @@ def run(name,kind='tint',success=False,**opt):
     uc.hook_add(UC_HOOK_MEM_WRITE,on_write);uc.hook_add(UC_HOOK_MEM_READ,on_read)
     uc.hook_add(UC_HOOK_CODE,on_code)
     entry={'tint':'kh_monet_tint_bridge','equals':'kh_monet_filter_equals_bridge','enabled':'kh_monet_enabled_equals_bridge'}[kind]
-    uc.emu_start(syms[entry],0,count=20000)
-    assert len(stop)==1,(name,'no terminal transfer')
-    if 'max_instructions' in opt:assert len(steps)<=opt['max_instructions'],(name,'hot-path instruction budget',len(steps))
-    expected_stop=lr if kind!='tint' and success else syms[kind+'_original_stop']
-    assert stop[0]==expected_stop,(name,'wrong transfer',hex(stop[0]),hex(expected_stop))
-    allowed={2,16} if kind=='tint' and success else {0} if kind!='tint' and success else {16}
-    for i,r in enumerate(X):
-        if i not in allowed:assert uc.reg_read(r)==before[i],(name,'clobber x'+str(i))
-    assert [uc.reg_read(r) for r in Q]==vectors,(name,'SIMD clobber')
-    assert uc.reg_read(ar.UC_ARM64_REG_NZCV)==0x60000000,(name,'flags clobber')
-    assert uc.reg_read(ar.UC_ARM64_REG_SP)==CSP,(name,'native SP changed')
-    assert r32(syms['kh_monet_readers'])==initial_readers,(name,'reader leak')
-    if kind=='tint':assert uc.reg_read(X[2])==(foreground if success else before[2]),(name,'ARGB')
-    elif success:assert uc.reg_read(X[0])==NULL+0x30,(name,'not Dart false')
-    if opt.get('no_policy_read'):assert not policy_reads,(name,'unexpected policy access')
-    assert struct.unpack('<Q',uc.mem_read(syms['kh_monet_selection_notified'],8))[0] == (revision if kind=='enabled' and success else notified)
-    if kind in ('equals','enabled'):
-        assert not policy_reads, (name, 'equality must not consult policy')
-        assert not any(a == syms['kh_monet_readers'] for a, _, _ in writes), (name, 'equality must not pin readers')
-    return {'name':name,'passed':True,'writes':len(writes),'policy_reads':len(policy_reads)}
+    invocations=opt.get('repeat',1)
+    total_writes=total_policy_reads=0
+    for invocation in range(invocations):
+        if invocation:
+            assert kind=='equals' and opt.get('withdraw') in ('disabled','null')
+            # Reuse this VM and its untouched history flag. Later setter frames
+            # represent distinct owners whose old filters can survive withdrawal.
+            if opt['withdraw']=='null':w64(syms['kh_monet_policy'],0)
+            else:w32(POLICY,0)
+            current_dsp=DSP+invocation*0x100
+            before[15]=current_dsp;before[29]=current_dsp+0x20
+            w64(current_dsp,FILTER);w64(current_dsp+8,FILTER)
+            w64(before[29]-8,H+0x5001+invocation*0x100)
+            for r,value in zip(X,before):uc.reg_write(r,value)
+            writes.clear();policy_reads.clear();stop.clear();steps.clear()
+        uc.emu_start(syms[entry],0,count=20000)
+        assert len(stop)==1,(name,invocation,'no terminal transfer')
+        if 'max_instructions' in opt:assert len(steps)<=opt['max_instructions'],(name,'hot-path instruction budget',len(steps))
+        expected_stop=lr if kind!='tint' and success else syms[kind+'_original_stop']
+        assert stop[0]==expected_stop,(name,invocation,'wrong transfer',hex(stop[0]),hex(expected_stop))
+        allowed={2,16} if kind=='tint' and success else {0} if kind!='tint' and success else {16}
+        for i,r in enumerate(X):
+            if i not in allowed:assert uc.reg_read(r)==before[i],(name,'clobber x'+str(i))
+        assert [uc.reg_read(r) for r in Q]==vectors,(name,'SIMD clobber')
+        assert uc.reg_read(ar.UC_ARM64_REG_NZCV)==0x60000000,(name,'flags clobber')
+        assert uc.reg_read(ar.UC_ARM64_REG_SP)==CSP,(name,'native SP changed')
+        assert r32(syms['kh_monet_readers'])==initial_readers,(name,'reader leak')
+        assert r32(syms['kh_monet_tint_ever_enabled'])==ever_enabled,(name,'tint history changed')
+        if kind=='tint':assert uc.reg_read(X[2])==(foreground if success else before[2]),(name,'ARGB')
+        elif success:assert uc.reg_read(X[0])==NULL+0x30,(name,'not Dart false')
+        if opt.get('no_policy_read'):assert not policy_reads,(name,'unexpected policy access')
+        assert struct.unpack('<Q',uc.mem_read(syms['kh_monet_selection_notified'],8))[0] == (revision if kind=='enabled' and success else notified)
+        if kind in ('equals','enabled'):
+            assert not policy_reads, (name, 'equality must not consult policy')
+            assert not any(a == syms['kh_monet_readers'] for a, _, _ in writes), (name, 'equality must not pin readers')
+        total_writes+=len(writes);total_policy_reads+=len(policy_reads)
+    return {'name':name,'passed':True,'invocations':invocations,'writes':total_writes,'policy_reads':total_policy_reads}
 
 cases=[
  ('tint-match',dict(success=True)),
@@ -211,11 +230,18 @@ cases += [
  ('enabled-mismatched-gdt',dict(kind='enabled',gdt_entry=0x800704)),
  ('enabled-mismatched-frame',dict(kind='enabled',frame=FP+8)),
 ]
+for caller_name,caller in [('render',RENDER_LR),('layer',LAYER_LR)]:
+    cases += [
+        (f'equals-{caller_name}-never-enabled-null',dict(kind='equals',caller=caller,ever_enabled=0,null_policy=True,no_live_roots_read=True)),
+        (f'equals-{caller_name}-never-enabled-disabled',dict(kind='equals',caller=caller,ever_enabled=0,flags=0,no_live_roots_read=True)),
+        (f'equals-{caller_name}-enabled-then-disabled-all-instances',dict(kind='equals',caller=caller,success=True,repeat=4,withdraw='disabled')),
+        (f'equals-{caller_name}-enabled-then-null-all-instances',dict(kind='equals',caller=caller,success=True,repeat=4,withdraw='null')),
+    ]
 results=[run(n,**o) for n,o in cases]
 instructions=list(Cs(CS_ARCH_ARM64,CS_MODE_ARM).disasm(textbytes,textaddr))
 assert not any(i.mnemonic in ('bl','blr','svc','hvc','smc') for i in instructions)
 report={'unicorn_cases':len(results),'all_passed':True,'no_calls_or_syscalls':True,
-        'scoped_equality':'Policy-independent; no policy reads or reader-counter writes, including null/disabled/saturated cases',
+        'scoped_equality':'Stock until first enabled publication; process-lifetime invalidation thereafter for every instance, including withdrawal; no policy reads or reader-counter writes',
         'registers_checked':'All X except intended result and dead x16 tail scratch; all Q; x15, native SP, x28, FP, LR, NZCV',
         'memory_writes_allowed':'64-byte temporary Dart stack; atomic reader counter; primitive selection notification generation',
         'limits':'Instruction emulation, not VM/Flutter/device validation or an ARM weak-memory concurrency proof',

@@ -14,10 +14,12 @@ enabled_original_stop:
     .data
     .balign 8
     .global kh_monet_policy, kh_monet_readers, kh_tint_original
+    .global kh_monet_tint_ever_enabled
     .global kh_filter_equals_original, kh_tint_caller
     .global kh_render_equals_caller, kh_layer_equals_caller
 kh_monet_policy: .quad 0
 kh_monet_readers: .word 0
+kh_monet_tint_ever_enabled: .word 0
     .balign 8
 kh_tint_original: .quad tint_original_stop
 kh_filter_equals_original: .quad equals_original_stop

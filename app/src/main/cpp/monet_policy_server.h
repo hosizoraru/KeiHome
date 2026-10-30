@@ -45,6 +45,11 @@ static_assert(sizeof(NativeMonetPolicy) == 16u + 512u * 260u);
 extern "C" {
 extern NativeMonetPolicy* kh_monet_policy;
 extern uint32_t kh_monet_readers;
+// Native process-lifetime history, not a consumed notification generation.
+// Atomically set before the first enabled publication; never reset on policy
+// withdrawal, expiry, disconnect or API-102 Java hot reload. Equality may use
+// stock behavior only while this remains zero. No Dart references are stored.
+extern uint32_t kh_monet_tint_ever_enabled;
 extern uint64_t kh_monet_selection_revision;
 extern uint64_t kh_monet_selection_notified;
 }

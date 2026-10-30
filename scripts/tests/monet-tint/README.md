@@ -57,28 +57,55 @@ The retained checks are:
   and preserve previously published caller globals. Mutations affect only the
   test's in-memory copy.
 - NDK compilation checks the tint bridge, tint profile, shared image identity,
-  and `monet_hooks.cpp` with the native warning/visibility/branch-protection
-  flags. The test ELF links the actual repository bridge with authored
-  trampoline stops and primitive globals from `test_symbols.S`.
-- **61 AArch64 machine-code cases** run that ELF in Unicorn with synthetic
-  registers, native policy storage, Dart stack, PP, and heap objects. They check
-  successful tint, caller/object/mode/input guards, Smi/Mint background values,
-  wrong CIDs, null/sentinel state, policy withdrawal, reader saturation and a
-  policy pointer swap. Every case verifies register/vector/NZCV/stack
-  preservation, reader balance, and permitted writes. Disassembly rejects
-  added calls/syscalls.
+  `monet_hooks.cpp`, and `monet_policy_server.cpp` with the native
+  warning/visibility/branch-protection flags. The test ELF links the actual
+  repository bridge with authored trampoline stops and primitive globals from
+  `test_symbols.S`.
+- **69 AArch64 machine-code cases covering 81 bridge invocations** run that ELF
+  in Unicorn with synthetic registers, native policy storage, Dart stack, PP,
+  and heap objects. They check successful tint, caller/object/mode/input guards,
+  Smi/Mint background values, wrong CIDs, null/sentinel state, never-enabled
+  equality, repeated invalidation after withdrawal, reader saturation and a
+  policy pointer swap. Every invocation verifies register/vector/NZCV/stack
+  preservation, reader balance, permitted writes, and unchanged tint history.
+  Disassembly rejects added calls/syscalls.
 
-ColorFilter equality is intentionally **independent of policy**: the two verified
-setter return PCs and both operands matching the live constant are sufficient
-to return Dart false. Its tests require zero policy reads and zero reader-counter
-writes, including null policy, flags zero, reserved flags and a saturated
-counter. Other callers or operands still enter the original equality function.
-Thus the standard foreground refresh after a disable/manual-selection ACK can
-invalidate an old native filter; the foreground bridge, whose policy guard
-still applies, then passes through the original black ARGB. With an enabled
-policy and expired denies (`count == 0`), the accepted colors remain eligible
-when the live selected background matches. The hooks themselves do not schedule
-refresh, acknowledge Rx updates, or prove that a UI frame repainted.
+ColorFilter equality preserves **stock behavior until the first enabled policy
+publication**. The native process-lifetime flag `kh_monet_tint_ever_enabled`
+starts at zero. For both verified setter callers, the bridge then transfers to
+the original equality function before reading live Dart roots. Disabled
+publications and rejected first-enable requests leave the flag zero. The
+publisher sets it atomically before an enabled policy becomes visible, including
+an enabled policy with no deny entries (`count == 0`).
+
+**After enablement, equality invalidation is independent of current policy.**
+The flag is never consumed or reset on withdrawal, expiry, disconnect, or
+API-102 Java hot reload. The two verified setter return PCs and both operands
+matching the live constant then return Dart false on every invocation. Other
+callers or operands still enter the original equality function. Equality tests
+require zero policy reads and zero reader-counter writes, including null policy,
+flags zero, reserved flags and a saturated counter. Both render and layer callers
+have null/disabled never-enabled cases. Each also has two stateful withdrawal
+cases: one enabled invocation followed by three distinct setter frames after
+disabled or null-policy withdrawal, reusing the same emulator and history flag.
+
+This preserves the standard foreground refresh after a disable/manual-selection
+ACK: each instance can invalidate an old native filter, and the foreground
+bridge, whose policy guard still applies, passes through the original black
+ARGB. With an enabled policy and expired denies (`count == 0`), the accepted
+colors remain eligible when the live selected background matches. The
+optimization only avoids forced invalidation in processes that have never
+enabled tint; it does not suppress invalidation after prior enablement. The
+hooks themselves do not schedule refresh, acknowledge Rx updates, or prove that
+a UI frame repainted.
+
+Run the separate publisher suite with
+`bash scripts/tests/test-monet-policy-server.sh`. It checks the real policy
+publisher under AddressSanitizer and UndefinedBehaviorSanitizer, including
+rejected first enablement, visibility of tint history to a reader acquiring an
+enabled policy, and preservation through withdrawal, expiry, cleanup, and
+replacement policy ownership. These host checks do not exercise actual Java
+hot reload or Flutter layer lifetimes.
 
 A separate `Object.==` guard makes the original enabled-Rx setter notify once
 when the native selection revision changes. Unrelated equality callers take a

@@ -27,6 +27,7 @@
 extern "C" {
 NativeMonetPolicy* kh_monet_policy = nullptr;
 uint32_t kh_monet_readers = 0u;
+uint32_t kh_monet_tint_ever_enabled = 0u;
 uint64_t kh_monet_selection_revision = 0u;
 uint64_t kh_monet_selection_notified = 0u;
 }
@@ -145,6 +146,11 @@ void ReclaimDrainedPolicies(PolicyState* state) {
 }
 
 void PublishPolicy(PolicyState* state, PolicyAllocation* next) {
+    if (next != nullptr && next->policy.flags == 1u) {
+        // Arm invalidation before any reader can apply this tint. Never clear
+        // it: retained layers may outlive withdrawal and API-102 Java reloads.
+        __atomic_store_n(&kh_monet_tint_ever_enabled, uint32_t{1}, __ATOMIC_RELEASE);
+    }
     NativeMonetPolicy* old = __atomic_exchange_n(
             &kh_monet_policy, next != nullptr ? &next->policy : nullptr,
             __ATOMIC_SEQ_CST);

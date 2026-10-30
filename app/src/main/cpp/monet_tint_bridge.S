@@ -8,6 +8,7 @@
     .text
     .hidden kh_monet_policy
     .hidden kh_monet_readers
+    .hidden kh_monet_tint_ever_enabled
     .hidden kh_tint_original
     .hidden kh_filter_equals_original
     .hidden kh_tint_caller
@@ -185,6 +186,11 @@ kh_monet_filter_equals_bridge:
     cmp x30, x16
     b.ne .Lequals_original
 .Lequals_scoped:
+    // No native tint can predate the first enabled publication. This history
+    // is never consumed/reset, including across withdrawal and Java hot reload.
+    KH_GLOBAL x16, kh_monet_tint_ever_enabled
+    ldar w16, [x16]
+    cbz w16, .Lequals_original
     add x17, x27, #0xa7, lsl #12
     ldr x17, [x17, #0xb18]
     ldr x16, [x15, #64] // Original Dart SP[0]: other.

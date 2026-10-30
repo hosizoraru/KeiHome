@@ -118,7 +118,8 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
       return if (reset) SynchronizationResult.Restored else SynchronizationResult.Disabled
     }
 
-    if (!SupportedMonetLauncher.matches(context)) return SynchronizationResult.Unsupported
+    // Compatibility comes from the live native resolver and its authenticated
+    // policy ACK below. A launcher update must not require an APK hash allowlist.
     val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
     val palette = if (customization != null) {
       val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette

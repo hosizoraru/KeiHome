@@ -5,9 +5,10 @@ navigation. English, Simplified Chinese and Japanese cover all new controls.
 
 ## Page responsibilities
 
-- Status: compact framework state, light/dark functionality, Monet source/style
-  and color chips, last accepted color application, app counts, and collapsed
-  runtime details. A loaded hook is not proof of a visually updated icon.
+- Status: four compact MIUIX cards for framework identity, runtime, Monet and app
+  counts. Runtime and Monet details expand independently. The framework version
+  name/code come from API 102 service getters, separately from the API level and
+  module build. A loaded hook is not proof of a visually updated icon.
   The light/dark refresh timestamp remains unreported without a runtime receipt.
 - Apps: search/filter the accessible launcher applications and show their actual
   light, dark, Monet-light and Monet-dark resources. The default filter includes
@@ -58,11 +59,28 @@ quality. Cached alpha masks are recolored at draw time; palette changes do not
 rerasterize them. Item cancellation cancels its load. Cache clearing prevents old
 in-flight work from repopulating the cache, and published bitmaps are not recycled.
 
-Generated palettes are cached by seed/style rather than repeatedly converted to
-JSON. Picker scheme previews are computed off the main thread once per seed.
+Generated palettes are cached by seed/style/family overrides rather than repeatedly
+converted to JSON. Picker scheme previews are computed off the main thread once per seed.
 Relative application time updates in a small lifecycle-aware leaf. Settings
 setters publish directly to shared StateFlow after updating private preferences;
 they do not depend on a weak SharedPreferences listener to repaint the UI.
+
+Status, Monet and Settings are forms, not collections: each uses a scrollable
+Column under the tab's SaveableStateProvider. Previously a single giant lazy item
+owned their nested saveable state and discarded it during tab disposal. Device
+tests reproduced both the draft loss and the relevant expansion-state boundary;
+the revised containers retain them. Apps keeps its keyed lazy list. Per-page
+scroll state and the existing MIUIX top/bottom chrome remain in place.
+
+The MIUIX color dialog uses TextFieldState/InputTransformation for HEX input.
+Picker movement changes local editor state; confirmation changes the saved draft;
+Apply alone submits the runtime request. Slider changes preserve requested HCT
+values instead of round-tripping them through gamut-mapped RGB. The dialog gives
+scrollable content the remaining height after its buttons, including with the
+keyboard open, and uses the overlay dismissal lifecycle before returning a result.
+Exact role/background-family changes reuse tonal ramps and recolor existing icon
+masks. Neither preview generation nor wallpaper/Settings/Binder access was added
+to composition or to color-slider callbacks.
 
 Optional compiler diagnostics: `-PcomposeCompilerReports=true`. For complete
 reports after an incremental build, add `-Pkotlin.incremental=false`. Inspect

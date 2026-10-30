@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Constants proven against libapp.so build id 4f1bdaed62b77ed2de7d3ebc34e453ca.
-// Shared with the preprocessed assembler; these are NOT public Dart VM ABI.
+// Policy layout shared with the assembler. Dart object fields are validated
+// from the mapped instruction graph; relocatable IDs/slots are published below.
 #define KH_TINT_POLICY_FLAGS 0
 #define KH_TINT_POLICY_FOREGROUND 4
 #define KH_TINT_POLICY_BACKGROUND 8
-#define KH_TINT_CONTROLLER_CID 0x0fa4
-#define KH_TINT_RX_INT_CID 0x0ef2
-#define KH_TINT_RX_BOOL_CID 0x0ef6
 #define KH_TINT_MINT_CID 0x003d
 
 #ifndef __ASSEMBLER__
@@ -54,6 +51,11 @@ extern uintptr_t kh_layer_equals_caller;
 extern uintptr_t kh_monet_enabled_equals_caller;
 extern uintptr_t kh_monet_settings_setter_caller;
 extern uintptr_t kh_monet_object_equals_entry;
+extern uintptr_t kh_monet_filter_pool_offset;
+extern uintptr_t kh_monet_controller_field_offset;
+extern uint32_t kh_monet_controller_cid;
+extern uint32_t kh_monet_rx_int_cid;
+extern uint32_t kh_monet_rx_bool_cid;
 
 // Dart ABI entry points. NEVER call these as C functions.
 void kh_monet_tint_bridge();
@@ -89,12 +91,16 @@ struct MonetTintProfile {
     void* enabled_equals_entry;
     uintptr_t enabled_equals_caller;
     uintptr_t settings_setter_caller;
+    uintptr_t filter_pool_offset;
+    uintptr_t controller_field_offset;
+    uint32_t controller_cid;
+    uint32_t rx_int_cid;
+    uint32_t rx_bool_cid;
 };
 
-extern const uint8_t kMonetTintImageSha256[32];
-
 // Setup-thread functions, not functions callable from either Dart bridge.
-// Resolve before installing either hook; a patched function fails its hash.
+// Resolve before installing either hook. Matches instruction contracts and
+// decodes their call graph; neither a version RVA nor a SHA allowlist is used.
 // Failure clears *out and leaves all global caller addresses unchanged.
 bool ResolveMonetTintProfile(const MonetTintImageView& image,
                              MonetTintProfile* out,

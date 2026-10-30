@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-// Exact-image profile generated from SHA-256
-// fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463.
-// Function names/boundaries were independently checked against same-ELF
-// .gnu_debugdata and control flow. Do not apply these offsets to another build.
+// Mapped-code resolution follows MiuiBackGestureHook's runtime_profile_resolver:
+// bounded executable scans, decoded ARM64 operands, unique structural matches,
+// and verified call relationships. Add/LDR decoders are adapted from that project.
+// Source: https://github.com/wxxsfxyzm/MiuiBackGestureHook (Apache-2.0).
 #include "monet_tint_profile.h"
 #include "monet_image_identity.h"
 
@@ -15,318 +15,240 @@ uintptr_t kh_layer_equals_caller = 0;
 uintptr_t kh_monet_enabled_equals_caller = 0;
 uintptr_t kh_monet_settings_setter_caller = 0;
 uintptr_t kh_monet_object_equals_entry = 0;
+uintptr_t kh_monet_filter_pool_offset = 0;
+uintptr_t kh_monet_controller_field_offset = 0;
+uint32_t kh_monet_controller_cid = 0;
+uint32_t kh_monet_rx_int_cid = 0;
+uint32_t kh_monet_rx_bool_cid = 0;
 }
-
-const uint8_t kMonetTintImageSha256[32] = {
-    0xfb, 0x8b, 0x1f, 0x91, 0xeb, 0xa2, 0xd9, 0xc4,
-    0x38, 0x75, 0xf4, 0x9b, 0xbd, 0xed, 0x70, 0xcc,
-    0xa4, 0x62, 0xbe, 0x34, 0x1f, 0xc3, 0x79, 0xb9,
-    0x86, 0x4e, 0x7c, 0x61, 0x36, 0xd6, 0xe4, 0x63,
-};
 
 namespace {
-constexpr uintptr_t kSnapshotRva = 0x866940;
-constexpr uintptr_t kBuildIdRva = 0x1c8;
-constexpr uint8_t kBuildIdNote[32] = {
-    0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
-    0x03, 0x00, 0x00, 0x00, 0x47, 0x4e, 0x55, 0x00,
-    0x4f, 0x1b, 0xda, 0xed, 0x62, 0xb7, 0x7e, 0xd2,
-    0xde, 0x7d, 0x3e, 0xbc, 0x34, 0xe4, 0x53, 0xca,
-};
-
-// Only SHA-256 digests are stored, not copied proprietary function bodies.
-// Every interval is range-checked before hashing by the shared implementation.
-struct CodeSpan {
-    uintptr_t rva;
-    size_t size;
+struct Pattern {
+    const char* name;
+    size_t count;
+    uint32_t prefix[4];
     uint8_t digest[32];
 };
-constexpr CodeSpan kCodeSpans[] = {
-    // IdentityEquals: authenticated caller/frame and receiver layout.
-    {0x1b29fa8, 28, {
-        0xc7, 0xcb, 0x8a, 0x88, 0x15, 0x57, 0x88, 0xf7,
-        0x4f, 0x97, 0x53, 0x3d, 0x70, 0xa5, 0xf3, 0x13,
-        0x87, 0x0b, 0xcd, 0x79, 0xf2, 0x91, 0xea, 0xe7,
-        0x17, 0x02, 0x31, 0xbb, 0x8a, 0x7e, 0x92, 0x58,
-    }},
-    // RxValueSetter: authenticated caller/frame and receiver layout.
-    {0xb1956c, 312, {
-        0x18, 0xdc, 0xb2, 0x3d, 0xaa, 0x74, 0xef, 0xb6,
-        0x1c, 0x36, 0x5a, 0xdf, 0xcb, 0xb1, 0x98, 0xd2,
-        0xc0, 0xa8, 0x47, 0xd6, 0x19, 0xe5, 0x08, 0x02,
-        0xd8, 0x0a, 0x2b, 0xe8, 0x1d, 0xfc, 0xf1, 0x0d,
-    }},
-    // LoadMonochromeSettings: authenticated caller/frame and receiver layout.
-    {0x19df24c, 804, {
-        0x27, 0x10, 0xd2, 0xf9, 0xb4, 0x34, 0x3e, 0x9d,
-        0x93, 0x8d, 0xc9, 0x61, 0xb8, 0x5c, 0xbc, 0xd4,
-        0x0e, 0xd7, 0x05, 0x1b, 0x61, 0xcc, 0xa4, 0xc1,
-        0x47, 0x8b, 0x13, 0x70, 0xc0, 0x67, 0x88, 0x12,
-    }},
-    // RxBoolConstructor: authenticated caller/frame and receiver layout.
-    {0x8a74b4, 84, {
-        0xd0, 0xa1, 0x1a, 0xac, 0x93, 0xa7, 0x43, 0x1d,
-        0x35, 0x67, 0xc3, 0x4e, 0x97, 0xb6, 0xa0, 0x0f,
-        0xe0, 0x68, 0xcc, 0x87, 0x68, 0x0f, 0xd8, 0xeb,
-        0x7b, 0x96, 0xc7, 0xa3, 0xe2, 0xc4, 0x90, 0x8d,
-    }},
-    // RxBoolAllocator: authenticated caller/frame and receiver layout.
-    {0x18b6618, 12, {
-        0xc3, 0x54, 0xdc, 0x15, 0x36, 0x24, 0x14, 0x28,
-        0x5f, 0xd9, 0xfa, 0x37, 0x34, 0x80, 0x04, 0xb7,
-        0x9b, 0x9b, 0xc8, 0x7c, 0x6a, 0xf9, 0x5b, 0x0e,
-        0x81, 0xa2, 0xd0, 0xa5, 0x6b, 0x50, 0x95, 0xc6,
-    }},
-
-    // ModeConstructor: [0x8f3078, 0x8f3178)
-    {0x8f3078, 256, {
-        0xb3, 0xb0, 0xf0, 0xfd, 0xcb, 0x00, 0xa6, 0x7e,
-        0x4e, 0x54, 0x41, 0xe8, 0xe0, 0x53, 0x0a, 0xbf,
-        0xd9, 0x2c, 0x50, 0x7b, 0x47, 0x8b, 0xec, 0xfb,
-        0xdb, 0xb5, 0xa7, 0xd9, 0x75, 0xff, 0x08, 0x7d,
-    }},
-    // ModeFfi: [0x8f3178, 0x8f322c)
-    {0x8f3178, 180, {
-        0x19, 0xc9, 0xf3, 0xde, 0xc6, 0x18, 0xea, 0x38,
-        0x95, 0x2c, 0xf0, 0x59, 0x74, 0x8b, 0x77, 0x1b,
-        0xf2, 0x87, 0x5b, 0x94, 0xa8, 0xfc, 0x82, 0x8a,
-        0x7c, 0xf8, 0xba, 0xaa, 0x2d, 0x4d, 0x57, 0x34,
-    }},
-    // FilterEquals: [0x174ac8c, 0x174adc8)
-    {0x174ac8c, 316, {
-        0x64, 0x80, 0x77, 0xe9, 0xd3, 0x6a, 0x27, 0x2d,
-        0x23, 0xd0, 0xeb, 0x07, 0xdb, 0x07, 0x52, 0xe2,
-        0x92, 0x25, 0x55, 0xdb, 0x43, 0x4d, 0x25, 0x58,
-        0x14, 0x53, 0xab, 0x20, 0x04, 0xc0, 0x28, 0x6a,
-    }},
-    // RenderSetter: [0x152a4dc, 0x152a540)
-    {0x152a4dc, 100, {
-        0x85, 0x97, 0x25, 0xfb, 0xe8, 0xeb, 0x33, 0x23,
-        0x93, 0xc4, 0x53, 0x5c, 0xb9, 0x36, 0xe3, 0x77,
-        0x6c, 0x83, 0xca, 0x95, 0x28, 0xcd, 0x99, 0x53,
-        0x56, 0xa1, 0xae, 0x98, 0x31, 0xf7, 0xaa, 0x9f,
-    }},
-    // LayerSetter: [0xfb6668, 0xfb66cc)
-    {0xfb6668, 100, {
-        0x04, 0xcb, 0xd1, 0x95, 0x8a, 0x97, 0xe8, 0xcc,
-        0xea, 0x96, 0x83, 0xfb, 0xe2, 0x71, 0xc5, 0x2b,
-        0x2c, 0xe0, 0x9a, 0x9f, 0x19, 0x26, 0x9d, 0x82,
-        0xf4, 0xe8, 0x49, 0x9e, 0x5c, 0x59, 0x5b, 0x66,
-    }},
-    // ForegroundBuild: [0x116c438, 0x116c844)
-    {0x116c438, 1036, {
-        0x83, 0x23, 0x54, 0xdb, 0xb0, 0xef, 0xaf, 0xa2,
-        0x07, 0xd9, 0xe6, 0x51, 0x49, 0x13, 0x20, 0xa6,
-        0xe3, 0x8a, 0x74, 0x42, 0xa5, 0xaf, 0xf3, 0xdb,
-        0xbd, 0xfa, 0xfc, 0x5b, 0xb4, 0x4d, 0x20, 0x05,
-    }},
-    // BackgroundClosure: [0x116c844, 0x116c9e4)
-    {0x116c844, 416, {
-        0x4a, 0x12, 0xe7, 0x9c, 0x01, 0xe5, 0xdb, 0xc9,
-        0x3b, 0x6a, 0xa5, 0x5a, 0x69, 0x3b, 0x16, 0x18,
-        0xd3, 0xf6, 0x11, 0xc4, 0x97, 0x2d, 0x10, 0x5a,
-        0x85, 0x23, 0xf1, 0xdf, 0xf2, 0xd8, 0xf0, 0x69,
-    }},
-    // DemoBuild: [0x1215b50, 0x1215d54)
-    {0x1215b50, 516, {
-        0x76, 0x95, 0xca, 0xaa, 0x97, 0xe4, 0x33, 0xfb,
-        0x32, 0x08, 0x35, 0xc3, 0x19, 0xc6, 0x79, 0xa3,
-        0xb4, 0x58, 0x9f, 0x53, 0x3d, 0xb5, 0x77, 0x06,
-        0x11, 0x67, 0xb1, 0x41, 0xce, 0x74, 0x6c, 0x08,
-    }},
-    // ControllerAccessor: [0xebf4a0, 0xebf4f8)
-    {0xebf4a0, 88, {
-        0xb4, 0xa5, 0x0c, 0xf0, 0x04, 0x72, 0x33, 0xe6,
-        0x9b, 0xcd, 0x13, 0x00, 0xf9, 0x8f, 0x49, 0x11,
-        0xdf, 0x93, 0x51, 0x4a, 0xb4, 0x59, 0x99, 0xdc,
-        0x45, 0xd5, 0x02, 0xb7, 0xba, 0x5f, 0x4a, 0xd4,
-    }},
-    // ControllerOnInit: [0xe931ec, 0xe93224)
-    {0xe931ec, 56, {
-        0xa2, 0x54, 0xe1, 0xf1, 0xc5, 0x45, 0xc1, 0x83,
-        0xe0, 0xa4, 0xbf, 0xbb, 0x16, 0x9c, 0x27, 0xcd,
-        0xb7, 0x8b, 0xe7, 0xfb, 0x74, 0x82, 0xe3, 0x0a,
-        0xf9, 0x93, 0xf1, 0xf2, 0xae, 0xf8, 0xc5, 0xdb,
-    }},
-    // ControllerFactory: [0x1b00400, 0x1b004a8)
-    {0x1b00400, 168, {
-        0xa9, 0xb3, 0x10, 0x6b, 0x05, 0xfd, 0x1c, 0x71,
-        0xae, 0xd0, 0x28, 0x1b, 0x87, 0xb1, 0x98, 0xf8,
-        0xdf, 0xc7, 0x7b, 0x37, 0xb9, 0xd2, 0x56, 0x88,
-        0xa2, 0x8d, 0x6f, 0x57, 0x0d, 0x38, 0x07, 0xa3,
-    }},
-    // ControllerConstructor: [0x16348a8, 0x1634978)
-    {0x16348a8, 208, {
-        0x15, 0x25, 0x69, 0xe9, 0x8b, 0x25, 0xa0, 0xd7,
-        0x25, 0x59, 0x53, 0x80, 0xde, 0xaf, 0xac, 0x9e,
-        0x3a, 0xa3, 0x6d, 0x1e, 0x10, 0xf3, 0x7c, 0x9f,
-        0x93, 0x39, 0xb9, 0x74, 0xbf, 0x5d, 0x1d, 0x6c,
-    }},
-    // RxIntConstructor: [0x8b1928, 0x8b19b0)
-    {0x8b1928, 136, {
-        0x3b, 0x11, 0x74, 0xb5, 0xf1, 0x31, 0x2a, 0x70,
-        0xfa, 0x94, 0x41, 0xae, 0x2e, 0x78, 0xf9, 0xa3,
-        0x1e, 0xb4, 0xa2, 0x82, 0x9d, 0x02, 0xc1, 0xef,
-        0x01, 0x47, 0xe5, 0x75, 0x2a, 0x4d, 0x29, 0x9a,
-    }},
-    // RxIntAllocator: [0x18b8cec, 0x18b8cf8)
-    {0x18b8cec, 12, {
-        0x20, 0x98, 0x95, 0x25, 0x28, 0x4e, 0xa8, 0xa0,
-        0x06, 0xb5, 0x97, 0x85, 0x08, 0x1f, 0x60, 0x80,
-        0x37, 0xd7, 0x1c, 0x7f, 0x85, 0x7e, 0x4e, 0xfb,
-        0x30, 0xb8, 0x8a, 0x13, 0x4e, 0x3c, 0xe8, 0xb4,
-    }},
-    // RxGetter: [0x17d148c, 0x17d14f0)
-    {0x17d148c, 100, {
-        0xfb, 0xc6, 0x2e, 0xda, 0x17, 0xfe, 0xf8, 0x34,
-        0x01, 0xce, 0xd8, 0xad, 0x9a, 0x5e, 0xe6, 0xe4,
-        0xca, 0x59, 0x3b, 0x23, 0x7c, 0xed, 0xc6, 0x0c,
-        0x24, 0x0b, 0xcf, 0xdc, 0xcc, 0x9d, 0xfd, 0x74,
-    }},
-    // MintFastAllocator: [0x1b58510, 0x1b58538)
-    {0x1b58510, 40, {
-        0x8d, 0x28, 0x97, 0xae, 0xb7, 0x3e, 0xb6, 0x95,
-        0x10, 0xb8, 0x2e, 0x89, 0x50, 0x2a, 0xdd, 0xde,
-        0x49, 0x3c, 0x8d, 0xb7, 0x42, 0x3d, 0x06, 0x9f,
-        0x37, 0x08, 0x19, 0x54, 0x9c, 0x6b, 0x88, 0x77,
-    }},
-};
+#include "monet_tint_patterns.h"
+constexpr size_t kMaxContractWords = 320;
 
 bool Reject(const char** reason, const char* message) {
-    if (reason != nullptr) *reason = message;
+    if (reason) *reason = message;
     return false;
 }
-
-bool Address(const MonetTintImageView& image, uintptr_t rva, size_t size,
-             bool executable, uintptr_t* result) {
-    if (rva > UINTPTR_MAX - image.load_bias) return false;
-    const uintptr_t address = image.load_bias + rva;
-    if (size == 0 || size > UINTPTR_MAX - address) return false;
+bool Contains(const MonetTintImageView& image, uintptr_t address, size_t size,
+              bool executable = true) {
+    if (!size || size > UINTPTR_MAX - address) return false;
+    for (size_t i = 0; i < image.readable_range_count; ++i) {
+        const auto& r = image.readable_ranges[i];
+        if ((!executable || r.executable) && address >= r.begin &&
+            address - r.begin <= r.size && size <= r.size - (address - r.begin)) return true;
+    }
+    return false;
+}
+uint32_t Word(uintptr_t pc) {
+    uint32_t word;
+    memcpy(&word, reinterpret_cast<const void*>(pc), sizeof(word));
+    return word;
+}
+uint32_t Normalized(uintptr_t start, size_t count, size_t i, Role role) {
+    const uint32_t w = Word(start + i * 4);
+    const uint32_t previous = i ? Word(start + (i - 1) * 4) : 0;
+    const uint32_t next = i + 1 < count ? Word(start + (i + 1) * 4) : 0;
+    if ((w & 0xfc000000u) == 0x94000000u) return w & 0xfc000000u;
+    if ((w & 0xfc000000u) == 0x14000000u) {
+        const int64_t target = static_cast<int64_t>(i) +
+            ((int64_t(w & 0x3ffffffu) ^ 0x2000000) - 0x2000000);
+        if (target < 0 || target >= static_cast<int64_t>(count)) return w & 0xfc000000u;
+    }
+    // Only PP and Thread-field-table indices move. Object fields, registers,
+    // local branches, stack slots and the null/sentinel ABI remain exact.
+    if ((w & 0xffc003e0u) == 0x91400360u) return w & 0xffc003ffu;
+    if ((previous & 0xffc003e0u) == 0x91400360u &&
+        ((w >> 5) & 31) == (previous & 31) && (w & 0x3b000000u) == 0x39000000u) {
+        return w & 0xffc003ffu;
+    }
+    if ((w & 0xffc003e0u) == 0xf9400360u && ((w >> 10) & 4095) * 8 > 0x100) {
+        return w & 0xffc003ffu;
+    }
+    if ((previous & 0xffffffe0u) == 0xf9403f40u &&
+        ((w >> 5) & 31) == (previous & 31) && (w & 0xff800000u) == 0xf9000000u) {
+        return w & 0xffc003ffu;
+    }
+    if ((w & 0xffc003ffu) == 0x9100001eu && next == 0xf87e7abeu) return w & 0xffc003ffu;
+    // The original equality implementation's class number is relocatable.
+    // The bridge compares the live constant identity, not this numeric CID.
+    if (role == kFilterEquals && i == 31) return w & 0xffe0001fu;
+    return w;
+}
+bool Matches(const MonetTintImageView& image, uintptr_t address, Role role) {
+    const auto& p = kPatterns[role];
+    if (!address || (address & 3) || p.count > kMaxContractWords ||
+        !Contains(image, address, p.count * 4)) return false;
+    for (size_t i = 0; i < 4; ++i) {
+        if (Normalized(address, p.count, i, role) != p.prefix[i]) return false;
+    }
+    uint32_t normalized[kMaxContractWords];
+    for (size_t i = 0; i < p.count; ++i) normalized[i] = Normalized(address, p.count, i, role);
+    uint8_t digest[32];
+    MonetSha256(normalized, p.count * 4, digest);
+    return memcmp(digest, p.digest, sizeof(digest)) == 0;
+}
+template<typename Predicate>
+uintptr_t Find(const MonetTintImageView& image, Role role, Predicate predicate) {
+    uintptr_t result = 0;
     for (size_t i = 0; i < image.readable_range_count; ++i) {
         const auto& range = image.readable_ranges[i];
-        if (executable && !range.executable) continue;
-        if (address < range.begin || address - range.begin > range.size) continue;
-        if (size > range.size - (address - range.begin)) continue;
-        *result = address;
-        return true;
+        const size_t size = kPatterns[role].count * 4;
+        if (!range.executable || range.size < size) continue;
+        for (uintptr_t p = range.begin; p - range.begin <= range.size - size; p += 4) {
+            if (Word(p) != kPatterns[role].prefix[0] || !Matches(image, p, role) || !predicate(p)) continue;
+            if (result && result != p) return 0;
+            result = p;
+        }
     }
-    return false;
+    return result;
 }
-
-bool DecodeBl(const MonetTintImageView& image, uintptr_t rva,
-              uintptr_t* target, uintptr_t* return_pc) {
-    uintptr_t address = 0;
-    if (!Address(image, rva, 4, true, &address)) return false;
-    uint32_t word = 0;
-    memcpy(&word, reinterpret_cast<const void*>(address), sizeof(word));
-    if ((word & 0xfc000000u) != 0x94000000u) return false;
-    int64_t offset = word & 0x03ffffffu;
-    if ((offset & 0x02000000) != 0) offset -= 0x04000000;
-    offset *= 4;
-    uintptr_t target_rva = 0;
-    if (offset < 0) {
-        const auto distance = static_cast<uintptr_t>(-offset);
-        if (rva < distance) return false;
-        target_rva = rva - distance;
-    } else {
-        const auto distance = static_cast<uintptr_t>(offset);
-        if (rva > UINTPTR_MAX - distance) return false;
-        target_rva = rva + distance;
-    }
-    if (!Address(image, target_rva, 4, true, target)) return false;
-    *return_pc = address + 4;
-    return true;
+uintptr_t Find(const MonetTintImageView& image, Role role) {
+    return Find(image, role, [](uintptr_t) { return true; });
 }
-
-bool Calls(const MonetTintImageView& image, uintptr_t caller_rva,
-           uintptr_t callee_rva) {
-    uintptr_t target = 0, return_pc = 0, expected = 0;
-    return DecodeBl(image, caller_rva, &target, &return_pc) &&
-           Address(image, callee_rva, 4, true, &expected) && target == expected;
+uintptr_t Call(const MonetTintImageView& image, uintptr_t pc, bool link = true) {
+    if (!pc || !Contains(image, pc, 4)) return 0;
+    const uint32_t w = Word(pc);
+    if ((w & 0xfc000000u) != (link ? 0x94000000u : 0x14000000u)) return 0;
+    const int64_t offset = ((int64_t(w & 0x03ffffffu) ^ 0x02000000) - 0x02000000) * 4;
+    if ((offset < 0 && pc < uintptr_t(-offset)) ||
+        (offset >= 0 && uintptr_t(offset) > UINTPTR_MAX - pc)) return 0;
+    const uintptr_t target = offset < 0 ? pc - uintptr_t(-offset) : pc + uintptr_t(offset);
+    return Contains(image, target, 4) ? target : 0;
 }
-}  // namespace
+// Adapted from MiuiBackGestureHook's DecodeAddImmediate/DecodeLdr64Immediate.
+bool PoolPair(uintptr_t pc, uintptr_t* offset) {
+    const uint32_t add = Word(pc), ldr = Word(pc + 4);
+    const uint32_t reg = add & 31;
+    if ((add & 0xffc003e0u) != 0x91400360u ||
+        (ldr & 0xffc003ffu) != (0xf9400000u | (reg << 5) | reg)) return false;
+    *offset = ((add >> 10) & 0xfffu) * 4096u + ((ldr >> 10) & 0xfffu) * 8u;
+    return *offset != 0 && *offset < 0x100000;
+}
+uintptr_t TableSlot(uintptr_t pc) { return ((Word(pc) >> 10) & 4095u) * 8u; }
+bool AllocatorCid(const MonetTintImageView& image, uintptr_t pc, uint32_t size_tag,
+                  uint32_t* cid) {
+    if (!Contains(image, pc, 12)) return false;
+    const uint32_t low = Word(pc), high = Word(pc + 4), branch = Word(pc + 8);
+    if ((low & 0xffe0001fu) != 0xd2800002u ||
+        (high & 0xffe0001fu) != 0xf2a00002u ||
+        (branch & 0xfc000000u) != 0x14000000u) return false;
+    const uint32_t tag = ((low >> 5) & 0xffffu) | (((high >> 5) & 0xffffu) << 16);
+    if ((tag & 0xfffu) != size_tag || !Matches(image, Call(image, pc + 8, false),
+            size_tag == 0x41c ? kObjectAllocator : kTypedAllocator)) return false;
+    *cid = tag >> 12;
+    return *cid > 63 && *cid < 0x100000;
+}
+} // namespace
 
-bool ResolveMonetTintProfile(const MonetTintImageView& image,
-                             MonetTintProfile* out,
+bool ResolveMonetTintProfile(const MonetTintImageView& image, MonetTintProfile* out,
                              const char** rejection) {
-    if (rejection != nullptr) *rejection = nullptr;
-    if (out == nullptr) return Reject(rejection, "missing tint output");
+    if (rejection) *rejection = nullptr;
+    if (!out) return Reject(rejection, "missing tint output");
     *out = {};
-    if (image.load_bias == 0 || image.readable_ranges == nullptr ||
-        image.readable_range_count == 0 || image.readable_range_count > 32 ||
-        image.verified_file_sha256 == nullptr) {
-        return Reject(rejection, "missing tint image/ranges/verified SHA-256");
+    if (!image.load_bias || !image.readable_ranges || !image.readable_range_count ||
+        image.readable_range_count > 32 || !image.verified_file_sha256) {
+        return Reject(rejection, "missing tint image/ranges/backing identity");
     }
+    size_t executable_size = 0;
     for (size_t i = 0; i < image.readable_range_count; ++i) {
-        const auto& range = image.readable_ranges[i];
-        if (range.size == 0 || range.size > UINTPTR_MAX - range.begin) {
-            return Reject(rejection, "invalid tint image range");
+        const auto& r = image.readable_ranges[i];
+        if (!r.size || r.size > UINTPTR_MAX - r.begin || (r.begin & 3)) return Reject(rejection, "invalid tint range");
+        if (r.executable) {
+            if (r.size > 0x8000000 - executable_size) return Reject(rejection, "oversized tint image");
+            executable_size += r.size;
         }
     }
-    if (!IsSupportedMonetImageDigest(image.verified_file_sha256)) {
-        return Reject(rejection, "unsupported tint backing-file SHA-256");
+    constexpr uint8_t note_header[] = {4,0,0,0,16,0,0,0,3,0,0,0,'G','N','U',0};
+    if (!Contains(image, image.load_bias, 64, false) ||
+        (image.snapshot_instructions & 3) || !Contains(image, image.snapshot_instructions, 16) ||
+        !Contains(image, image.snapshot_build_id, 32, false) ||
+        memcmp(reinterpret_cast<void*>(image.snapshot_build_id), note_header, sizeof(note_header))) {
+        return Reject(rejection, "invalid live Dart anchors");
     }
-    uintptr_t snapshot = 0, build_id = 0;
-    if (!Address(image, kSnapshotRva, 16, true, &snapshot) ||
-        !Address(image, kBuildIdRva, sizeof(kBuildIdNote), false, &build_id) ||
-        snapshot != image.snapshot_instructions ||
-        build_id != image.snapshot_build_id) {
-        return Reject(rejection, "tint snapshot/build-id anchor or mapping mismatch");
+    const uintptr_t foreground = Find(image, kForegroundBuild);
+    const uintptr_t background = Find(image, kBackgroundClosure);
+    const uintptr_t mode = Find(image, kModeConstructor);
+    const uintptr_t identity = Find(image, kIdentityEquals);
+    if (!foreground || !background || !mode || !identity) return Reject(rejection, "ambiguous tint/widget instruction contracts");
+    const uintptr_t ffi = Call(image, mode + 0xd0);
+    const uintptr_t getter = Call(image, background + 0x7c);
+    if (!Matches(image, ffi, kModeFfi) || !Matches(image, getter, kRxGetter)) {
+        return Reject(rejection, "tint FFI or background getter contract changed");
     }
-    if (memcmp(reinterpret_cast<const void*>(build_id), kBuildIdNote,
-               sizeof(kBuildIdNote)) != 0) {
-        return Reject(rejection, "unsupported tint Dart build id");
+    uintptr_t filter_pool = 0, type_pool = 0;
+    if (!PoolPair(foreground + 0x2dc, &filter_pool) || !PoolPair(background + 0x38, &type_pool)) {
+        return Reject(rejection, "tint pool operands changed");
     }
-    for (const auto& span : kCodeSpans) {
-        uintptr_t address = 0;
-        if (!Address(image, span.rva, span.size, true, &address)) {
-            return Reject(rejection, "tint code interval outside readable executable PT_LOAD");
-        }
-        uint8_t digest[32];
-        MonetSha256(reinterpret_cast<const void*>(address), span.size, digest);
-        if (memcmp(digest, span.digest, sizeof(digest)) != 0) {
-            return Reject(rejection, "tint full-function hash changed or already hooked");
-        }
+    const uintptr_t field_slot = TableSlot(background + 0x54);
+    const auto same_type = [&](uintptr_t pc) {
+        uintptr_t pool = 0; return PoolPair(pc, &pool) && pool == type_pool;
+    };
+    const uintptr_t factory = Find(image, kControllerFactory, [&](uintptr_t pc) {
+        return same_type(pc + 0x34) && same_type(pc + 0x5c);
+    });
+    const uintptr_t accessor = Find(image, kControllerAccessor, [&](uintptr_t pc) {
+        return TableSlot(pc + 0x10) == field_slot && same_type(pc + 0x38);
+    });
+    const uintptr_t on_init = Find(image, kControllerOnInit, [&](uintptr_t pc) {
+        return TableSlot(pc + 0x20) == field_slot;
+    });
+    if (!factory || !accessor || !on_init || !same_type(background + 0x60)) {
+        return Reject(rejection, "controller ownership graph changed");
     }
-
-    // Decode actual BL instructions after authenticating complete callers.
-    // 0x8f3148 is the call; 0x8f314c is its LR. Distinguish image RVAs from
-    // _kDartIsolateSnapshotInstructions-relative offsets at integration time.
-    uintptr_t mode = 0, mode_lr = 0, equals = 0, render_lr = 0;
-    uintptr_t layer_equals = 0, layer_lr = 0;
-    if (!DecodeBl(image, 0x8f3148, &mode, &mode_lr) ||
-        !DecodeBl(image, 0x152a500, &equals, &render_lr) ||
-        !DecodeBl(image, 0xfb668c, &layer_equals, &layer_lr) ||
-        mode != image.load_bias + 0x8f3178 ||
-        equals != image.load_bias + 0x174ac8c || layer_equals != equals ||
-        !Calls(image, 0x116c8c0, 0x17d148c) ||
-        !Calls(image, 0x1b0044c, 0x1b0049c) ||
-        !Calls(image, 0x1b00458, 0x16348a8) ||
-        !Calls(image, 0x16348c8, 0x8b1928) ||
-        !Calls(image, 0x8b1940, 0x18b8cec) ||
-        !Calls(image, 0x8b1974, 0x1b58510) ||
-        !Calls(image, 0x19df2f8, 0xb1956c) ||
-        !Calls(image, 0x16348f0, 0x8a74b4) ||
-        !Calls(image, 0x8a74cc, 0x18b6618)) {
-        return Reject(rejection, "tint call graph or background integer ABI mismatch");
+    const uintptr_t constructor = Call(image, factory + 0x58);
+    const uintptr_t load_settings = Call(image, factory + 0x84);
+    if (!Matches(image, constructor, kControllerConstructor) || !Matches(image, load_settings, kLoadSettingsPrefix)) {
+        return Reject(rejection, "controller field or settings ABI changed");
     }
-    *out = {image.load_bias, reinterpret_cast<void*>(mode),
-            reinterpret_cast<void*>(equals), mode_lr, render_lr, layer_lr,
-            reinterpret_cast<void*>(image.load_bias + 0x1b29fa8),
-            image.load_bias + 0xb19624, image.load_bias + 0x19df2fc};
+    const uintptr_t rx_int = Call(image, constructor + 0x20);
+    const uintptr_t rx_bool = Call(image, constructor + 0x48);
+    const uintptr_t setter = Call(image, load_settings + 0xac);
+    if (!Matches(image, rx_int, kRxIntConstructor) || !Matches(image, rx_bool, kRxBoolConstructor) ||
+        Call(image, constructor + 0x98) != rx_int || Call(image, constructor + 0x70) != rx_bool ||
+        !Matches(image, Call(image, rx_int + 0x4c), kMintAllocator) ||
+        !Matches(image, setter, kRxSetter) || Call(image, load_settings + 0x44) != setter) {
+        return Reject(rejection, "Rx integer/boolean/notification ABI changed");
+    }
+    uint32_t controller_cid = 0, rx_int_cid = 0, rx_bool_cid = 0;
+    if (!AllocatorCid(image, Call(image, factory + 0x4c), 0x41c, &controller_cid) ||
+        !AllocatorCid(image, Call(image, rx_int + 0x18), 0x21c, &rx_int_cid) ||
+        !AllocatorCid(image, Call(image, rx_bool + 0x18), 0x21c, &rx_bool_cid)) {
+        return Reject(rejection, "controller/Rx allocation tags changed");
+    }
+    const auto filter_setter = [&](uintptr_t pc) { return Matches(image, Call(image, pc + 0x24), kFilterEquals); };
+    const uintptr_t render = Find(image, kRenderSetter, filter_setter);
+    const uintptr_t layer = Find(image, kLayerSetter, filter_setter);
+    if (!render || !layer || Call(image, render + 0x24) != Call(image, layer + 0x24)) {
+        return Reject(rejection, "filter setter/equality graph changed");
+    }
+    const uintptr_t demo = Find(image, kDemoBuild, [&](uintptr_t pc) {
+        uintptr_t pool = 0; return PoolPair(pc + 0x1d4, &pool) && pool == filter_pool;
+    });
+    if (!demo) return Reject(rejection, "shared foreground constant relationship changed");
+    *out = {image.load_bias, reinterpret_cast<void*>(ffi),
+        reinterpret_cast<void*>(Call(image, render + 0x24)), mode + 0xd4,
+        render + 0x28, layer + 0x28, reinterpret_cast<void*>(identity), setter + 0xb8,
+        load_settings + 0xb0, filter_pool, field_slot, controller_cid, rx_int_cid, rx_bool_cid};
     return true;
 }
 
-void PublishMonetTintCallers(const MonetTintProfile& profile) {
-    __atomic_store_n(&kh_tint_caller, profile.tint_caller, __ATOMIC_RELEASE);
-    __atomic_store_n(&kh_render_equals_caller, profile.render_equals_caller,
-                     __ATOMIC_RELEASE);
-    __atomic_store_n(&kh_layer_equals_caller, profile.layer_equals_caller,
-                     __ATOMIC_RELEASE);
-    __atomic_store_n(&kh_monet_enabled_equals_caller, profile.enabled_equals_caller,
-                     __ATOMIC_RELEASE);
-    __atomic_store_n(&kh_monet_settings_setter_caller, profile.settings_setter_caller,
-                     __ATOMIC_RELEASE);
-    __atomic_store_n(&kh_monet_object_equals_entry,
-                     reinterpret_cast<uintptr_t>(profile.enabled_equals_entry), __ATOMIC_RELEASE);
+void PublishMonetTintCallers(const MonetTintProfile& p) {
+    __atomic_store_n(&kh_tint_caller, p.tint_caller, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_render_equals_caller, p.render_equals_caller, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_layer_equals_caller, p.layer_equals_caller, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_enabled_equals_caller, p.enabled_equals_caller, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_settings_setter_caller, p.settings_setter_caller, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_object_equals_entry, reinterpret_cast<uintptr_t>(p.enabled_equals_entry), __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_filter_pool_offset, p.filter_pool_offset, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_controller_field_offset, p.controller_field_offset, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_controller_cid, p.controller_cid, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_rx_int_cid, p.rx_int_cid, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_monet_rx_bool_cid, p.rx_bool_cid, __ATOMIC_RELEASE);
 }

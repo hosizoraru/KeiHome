@@ -16,6 +16,7 @@ add_library(keihome_hyos_lsp SHARED
     monet_image_identity.cpp
     monet_policy_server.cpp
     monet_tint_profile.cpp
+    monochrome_gate_resolver.cpp
     monet_tint_bridge.S
     selection_profile.cpp
     monet_selection_bridge.S

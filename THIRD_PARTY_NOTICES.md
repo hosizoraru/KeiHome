@@ -29,11 +29,17 @@ Kyant0/AndroidLiquidGlass: <https://github.com/Kyant0/AndroidLiquidGlass>.
 
 ## MiuiBackGestureHook native hook infrastructure
 
-The LSPosed native hook backend, madvise hook-page guard, and HYOS process
-activation approach under `app/src/main/cpp/` are adapted from
+The LSPosed native hook backend, madvise hook-page guard, HYOS process
+activation, and ARM64 operand decoding / mapped-image resolution approach
+under `app/src/main/cpp/` are adapted from
 wxxsfxyzm/MiuiBackGestureHook:
 
 Source: <https://github.com/wxxsfxyzm/MiuiBackGestureHook>
+
+Dynamic resolver reference:
+`miui-home-hyos-native/runtime_profile_resolver.cpp`. KeiHome adapts the
+bounded scan, unique structural candidate and decoded-call-graph mechanism
+to its own Dart icon paths; the gesture-specific Rust targets are not used.
 
 Licensed under the Apache License, Version 2.0. See
 `LICENSES/Apache-2.0.txt`.

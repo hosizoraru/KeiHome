@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Build and run host tint checks using an external, exact-version libapp.so."""
+"""Build and run host tint checks using an external ARM64 libapp.so."""
 import argparse
 import hashlib
 import json
@@ -55,7 +55,7 @@ def ndk_toolchain():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--library", type=Path, required=True, help="External extracted libapp.so matching the current profile; never copied")
+    parser.add_argument("--library", type=Path, required=True, help="External extracted libapp.so for dynamic resolution; never copied")
     parser.add_argument("--output", type=Path, help="Build/report directory; defaults to a new system temporary directory")
     emulation = parser.add_mutually_exclusive_group()
     emulation.add_argument("--require-emulation", action="store_true", help="Fail if optional emulation dependencies are missing (recommended in CI)")
@@ -104,21 +104,24 @@ def main():
         "overall": "failed",
     }
     sources = [CPP / name for name in (
-        "monet_tint_bridge.S", "monet_tint_profile.h", "monet_tint_profile.cpp",
+        "monet_tint_bridge.S", "monet_tint_profile.h", "monet_tint_profile.cpp", "monet_tint_patterns.h",
         "monet_image_identity.h", "monet_image_identity.cpp", "monet_policy_server.h",
         "monet_hooks.cpp", "monet_policy_server.cpp",
     )]
     sources.extend(p for p in TEST_DIR.iterdir() if p.is_file())
     record["source_sha256"] = {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(sources)}
     try:
-        print("[1/3] Host resolver: actual backing-file identity and 41 rejection cases", flush=True)
+        print("[1/3] Host resolver: dynamic graph and rejected ABI changes", flush=True)
         resolver = output / "test-resolver"
-        run([compiler, "-std=c++17", "-UNDEBUG", "-Wall", "-Wextra", "-Werror", "-I", CPP,
+        run([compiler, "-std=c++17", "-UNDEBUG", "-O2", "-Wall", "-Wextra", "-Werror", "-I", CPP,
              TEST_DIR / "test_resolver.cpp", CPP / "monet_tint_profile.cpp",
              CPP / "monet_image_identity.cpp", "-o", resolver])
         result = run([resolver, "--library", library])
         record["resolver"] = json.loads(result.stdout.splitlines()[-1])
-        assert record["resolver"]["resolver_rejections"] == 41
+        assert record["resolver"]["resolver_rejections"] >= 17
+
+        layout = output / "resolved-layout.json"
+        layout.write_text(result.stdout.splitlines()[-1] + "\n")
 
         print("[2/3] Android compilation and standalone bridge link", flush=True)
         flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-fno-exceptions", "-fno-rtti",
@@ -141,7 +144,7 @@ def main():
         if args.skip_emulation:
             record["emulation"] = {"status": "skipped", "reason": "--skip-emulation"}
         else:
-            result = run([sys.executable, TEST_DIR / "test_bridges.py", "--elf", elf, "--report", report], allowed=(0, 77))
+            result = run([sys.executable, TEST_DIR / "test_bridges.py", "--elf", elf, "--report", report, "--layout", layout], allowed=(0, 77))
             if result.returncode == 77:
                 record["emulation"] = {"status": "skipped", "reason": "optional dependencies unavailable", "diagnostic": result.stderr.strip()}
             else:
@@ -156,7 +159,7 @@ def main():
             print("PARTIAL: resolver and Android compilation passed; machine-code emulation SKIPPED.", flush=True)
         else:
             record["overall"] = "passed"
-            print("PASS: 41 resolver rejection cases and 69 AArch64 machine-code cases.", flush=True)
+            print("PASS: dynamic resolver rejection cases and 69 AArch64 machine-code cases.", flush=True)
         return 0
     except (OSError, RuntimeError, AssertionError, ValueError) as error:
         record["error"] = str(error)

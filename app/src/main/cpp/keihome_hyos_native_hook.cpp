@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // The launcher is a Flutter/Dart AOT process. This payload changes one
-// authenticated branch in the async capability check. It does not replace
+// dynamically resolved branch in the async capability check. It does not replace
 // the Future-returning Dart function, retain Dart objects, replay a root
 // tree, or restart the launcher.
 
@@ -23,28 +23,6 @@ constexpr char kLauncherProcessName[] = "com.miui.home";
 constexpr char kHyosSpawnerPath[] = "/system_ext/bin/hyos_spawner";
 constexpr char kDartLibraryName[] = "libapp.so";
 constexpr char kHyperRuntimeName[] = "libhyper_os_flutter.so";
-constexpr char kSnapshotInstructionsSymbol[] =
-    "_kDartIsolateSnapshotInstructions";
-constexpr char kSnapshotBuildIdSymbol[] = "_kDartSnapshotBuildId";
-
-// Generated from the current HyperOS launcher AOT image.  The resolver
-// authenticates the image's Dart build id before using this offset.
-constexpr uint8_t kKnownDartBuildId[32] = {
-    0x04, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
-    0x03, 0x00, 0x00, 0x00, 0x47, 0x4e, 0x55, 0x00,
-    0x4f, 0x1b, 0xda, 0xed, 0x62, 0xb7, 0x7e, 0xd2,
-    0xde, 0x7d, 0x3e, 0xbc, 0x34, 0xe4, 0x53, 0xca,
-};
-// MonochromeController.isSupportMonochrome is async. Its domestic-build
-// branch is at snapshot + 0x1234c58 and jumps to the unsupported Future
-// result when bit 4 of the resolved region is set. Replace only that TBZ
-// with an unconditional branch to the existing supported Future path.
-constexpr uintptr_t kMonochromeRegionGateOffset = 0x1234c58;
-constexpr uint32_t kMonochromeRegionGateInstruction = 0x36200261;
-constexpr uint32_t kMonochromeRegionGatePatch = 0x14000013;
-constexpr uintptr_t kMonochromeSupportedPathOffset = 0x1234ca4;
-
-using SnapshotInstructionsFn = const uint8_t* (*)();
 using NativeOnModuleLoaded = void (*)(const char*, void*);
 
 volatile uint32_t g_hook_state = 0u;
@@ -92,83 +70,6 @@ bool IsLauncherHookProcess() {
     return IsLauncherProcess() || IsHyosSpawnerProcess();
 }
 
-bool IsExecutableAddress(const void* address) {
-    if (address == nullptr) return false;
-    FILE* maps = fopen("/proc/self/maps", "re");
-    if (maps == nullptr) return false;
-    const uintptr_t needle = reinterpret_cast<uintptr_t>(address);
-    char line[512];
-    bool found = false;
-    while (fgets(line, sizeof(line), maps) != nullptr) {
-        unsigned long long begin = 0;
-        unsigned long long end = 0;
-        char permissions[5] = {};
-        if (sscanf(
-                line, "%llx-%llx %4s", &begin, &end, permissions) != 3) {
-            continue;
-        }
-        if (needle >= begin && needle < end && permissions[2] == 'x') {
-            found = true;
-            break;
-        }
-    }
-    fclose(maps);
-    return found;
-}
-
-bool ResolveMonochromeRegionGate(
-    void* handle, void** target, const char** rejection) {
-    if (target == nullptr) return false;
-    *target = nullptr;
-    if (handle == nullptr) {
-        if (rejection != nullptr) *rejection = "missing libapp handle";
-        return false;
-    }
-
-    auto* snapshot = reinterpret_cast<const uint8_t*>(
-        dlsym(handle, kSnapshotInstructionsSymbol));
-    auto* build_id = reinterpret_cast<const uint8_t*>(
-        dlsym(handle, kSnapshotBuildIdSymbol));
-    if (snapshot == nullptr || build_id == nullptr) {
-        if (rejection != nullptr) *rejection = "missing Dart snapshot symbols";
-        return false;
-    }
-    if (memcmp(build_id, kKnownDartBuildId, sizeof(kKnownDartBuildId)) != 0) {
-        if (rejection != nullptr) *rejection = "unsupported Dart build id";
-        return false;
-    }
-
-    Dl_info snapshot_info = {};
-    if (dladdr(snapshot, &snapshot_info) == 0 ||
-        snapshot_info.dli_fname == nullptr ||
-        !EndsWith(snapshot_info.dli_fname, kDartLibraryName)) {
-        if (rejection != nullptr) *rejection = "snapshot is not launcher libapp";
-        return false;
-    }
-    auto* candidate = snapshot + kMonochromeRegionGateOffset;
-    auto* supported_path = snapshot + kMonochromeSupportedPathOffset;
-    Dl_info target_info = {};
-    if (dladdr(candidate, &target_info) == 0 ||
-        target_info.dli_fname == nullptr ||
-        strcmp(target_info.dli_fname, snapshot_info.dli_fname) != 0 ||
-        !IsExecutableAddress(candidate) ||
-        !IsExecutableAddress(supported_path)) {
-        if (rejection != nullptr) {
-            *rejection = "region gate is outside executable image";
-        }
-        return false;
-    }
-
-    uint32_t instruction = 0u;
-    memcpy(&instruction, candidate, sizeof(instruction));
-    if (instruction != kMonochromeRegionGateInstruction) {
-        if (rejection != nullptr) *rejection = "region gate instruction mismatch";
-        return false;
-    }
-    *target = const_cast<uint8_t*>(candidate);
-    return true;
-}
-
 bool TryInstallMonochromeGatePatch(void* handle) {
     uint32_t expected = 0u;
     if (!__atomic_compare_exchange_n(
@@ -178,8 +79,8 @@ bool TryInstallMonochromeGatePatch(void* handle) {
     }
 
     const char* rejection = "unknown";
-    void* target = nullptr;
-    if (!ResolveMonochromeRegionGate(handle, &target, &rejection)) {
+    MonochromeGatePatch patch{};
+    if (!ResolveLoadedMonochromeGate(handle, &patch, &rejection)) {
         __atomic_store_n(&g_hook_state, uint32_t{3}, __ATOMIC_RELEASE);
         __android_log_print(
             ANDROID_LOG_WARN, kLogTag, "Monet hook disabled: %s", rejection);
@@ -193,8 +94,8 @@ bool TryInstallMonochromeGatePatch(void* handle) {
         return false;
     }
     if (PatchArm64Instruction(
-            target, kMonochromeRegionGateInstruction,
-            kMonochromeRegionGatePatch) != kHookSuccess) {
+            patch.address, patch.expected_instruction,
+            patch.replacement_instruction) != kHookSuccess) {
         __atomic_store_n(&g_hook_state, uint32_t{3}, __ATOMIC_RELEASE);
         __android_log_print(
             ANDROID_LOG_WARN, kLogTag, "Monet hook installation failed");
@@ -204,7 +105,7 @@ bool TryInstallMonochromeGatePatch(void* handle) {
     __android_log_print(
         ANDROID_LOG_INFO, kLogTag,
         "Monet async support gate patched without launcher restart: target=%p",
-        target);
+        patch.address);
     return true;
 }
 

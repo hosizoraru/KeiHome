@@ -36,3 +36,12 @@ kh_monet_selection_revision: .quad 0
 kh_monet_selection_notified: .quad 0
 kh_monet_object_equals_entry: .quad 0
     .section .note.GNU-stack,"",%progbits
+    .data
+    .balign 8
+    .global kh_monet_filter_pool_offset, kh_monet_controller_field_offset
+    .global kh_monet_controller_cid, kh_monet_rx_int_cid, kh_monet_rx_bool_cid
+kh_monet_filter_pool_offset: .quad 0
+kh_monet_controller_field_offset: .quad 0
+kh_monet_controller_cid: .word 0
+kh_monet_rx_int_cid: .word 0
+kh_monet_rx_bool_cid: .word 0

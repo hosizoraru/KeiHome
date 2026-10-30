@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Exact-image constants shared with the assembler; not a public Dart VM ABI.
+// Structurally verified constants shared with the unchanged assembler. These
+// are a bounded Dart AOT contract, not an assumed public Dart VM ABI.
 #define KH_SELECTION_ONE_BYTE_CID 94
 #define KH_SELECTION_MAX_COUNT 512
 #define KH_SELECTION_MAX_LENGTH 255
@@ -63,10 +64,9 @@ struct MonetSelectionProfile {
     uint32_t displaced[4];
 };
 
-extern const uint8_t kMonetSelectionImageSha256[32];
-
-// Main verifies the exact backing file's build id/SHA before installation.
-// These functions independently prove ELF bounds, complete instruction shapes,
+// Main computes the mapped backing file's digest before installation; support
+// is resolved from instructions, never inferred from a known image hash.
+// These functions independently prove ELF bounds, bounded instruction shapes,
 // String ABI, direct call coverage, x16 deadness and pool-slot relationships.
 // No memory read precedes a supplied-readable-range check. All failures clear
 // output; no resolver changes hooks, globals, Dart objects or launcher caches.
@@ -78,7 +78,9 @@ bool ResolveMonetSelection(const MonetSelectionImageView& image,
                            MonetSelectionProfile* out,
                            const char** rejection = nullptr);
 
-// Requires the actual SHA computed by main from this mapped backing ELF.
+// Requires the actual nonzero SHA computed by main from this mapped backing
+// ELF. No image allowlist is consulted. The first publication binds the entire
+// code-only profile and this digest; any subsequent different identity fails.
 // Publishes only stable code addresses/offsets; the assembler checks live PP
 // Function.entry_point linkage on EVERY enabled call, under the original live
 // roots. No external PP capture, C callback or stable safepoint is necessary.

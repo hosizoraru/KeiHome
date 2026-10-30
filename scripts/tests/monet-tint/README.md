@@ -1,7 +1,7 @@
 **Monet tint host validation**
 
 Run from any working directory by supplying the script's path and an external,
-extracted ARM64 `libapp.so` matching the current native tint profile:
+extracted ARM64 `libapp.so` from the launcher build being checked:
 
 ```bash
 bash scripts/tests/monet-tint/validate.sh \
@@ -49,13 +49,13 @@ Python `-O`/`PYTHONOPTIMIZE` is rejected and the host compiler uses `-UNDEBUG`.
 
 The retained checks are:
 
-- The actual resolver, linked with repository `monet_tint_profile.cpp` and
-  `monet_image_identity.cpp`, accepts the exact external library using its real
-  backing-file SHA. It exercises **41 rejected inputs** covering modified
-  functions/call instructions, build identity, mapping boundaries, permissions,
-  missing anchors, overflow and malformed metadata. Rejections clear the result
-  and preserve previously published caller globals. Mutations affect only the
-  test's in-memory copy.
+- The actual resolver maps the ELF's real load segments and obtains its exported
+  snapshot anchors. One structural contract set resolves both 7722 and 8593,
+  deriving BL targets, PP slots, field-table offsets and allocation CIDs. No
+  production version RVA or SHA allowlist is involved. Focused mutations reject
+  changed hook entry ABI, broken caller edges and invalid image mappings;
+  rejection clears output without modifying previously published globals.
+  Changing only the test build ID/digest remains accepted, as intended.
 - NDK compilation checks the tint bridge, tint profile, shared image identity,
   `monet_hooks.cpp`, and `monet_policy_server.cpp` with the native
   warning/visibility/branch-protection flags. The test ELF links the actual
@@ -123,15 +123,21 @@ controller updates and painting remain owned by the launcher's original stream.
 **Provenance and scope**
 
 These harnesses were authored for the independent 2026-10-29 KeiHome tint ABI
-review and migrated from its host-only experiments. The original dataset was
-the launcher image with build ID `4f1bdaed62b77ed2de7d3ebc34e453ca`; its required
-SHA-256 is maintained by `kMonetTintImageSha256` in the native profile. The test's
-numeric RVAs and PT_LOAD extents are metadata verified against that image, not
-copied function bodies. The synthetic ARM64 stop routines are only authored
-`nop`/`ret` instructions; all bridge instructions come from compiling repository
-assembly. No proprietary ELF, heap dump, extracted instruction array, or copied
-official-source tree is included here. No generator or oversized duplicate
-binary fixture is needed to run these tests.
+review and migrated from its host-only experiments. The original reviewed dataset was launcher 7722; launcher 8593 supplies an
+independent relocation/layout regression. `monet_tint_patterns.h` stores short
+structural prefixes and canonical instruction digests, never complete extracted
+function bodies. Canonicalization masks BL/external-tail relocations, PP indices,
+Thread field-table slots, GDT selector indices and the equality implementation's
+class number. Local control flow, object-field offsets, register/stack shapes,
+Boolean values and String/integer representation remain exact. Actual call and
+pool relationships disambiguate matches. Controller/Rx CIDs come from their
+allocation tags and the corresponding allocation/constructor contracts.
+
+`resolved-layout.json` is passed into the machine-code harness, so the test
+executes the production bridge with the supplied image's actual metadata rather
+than silently reusing 7722 constants. The fixtures, extracted code and binaries
+remain external. This is an intentionally bounded code-family resolver; new
+compiler or object-layout changes can require a new structural contract.
 
 The host tests do not use ADB, launch an emulator/device, install an APK, or
 deploy hooks. Unicorn instruction execution is not Dart GC stress, an ARM

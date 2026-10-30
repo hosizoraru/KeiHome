@@ -17,6 +17,11 @@
     .hidden kh_monet_enabled_equals_original
     .hidden kh_monet_enabled_equals_caller
     .hidden kh_monet_settings_setter_caller
+    .hidden kh_monet_filter_pool_offset
+    .hidden kh_monet_controller_field_offset
+    .hidden kh_monet_controller_cid
+    .hidden kh_monet_rx_int_cid
+    .hidden kh_monet_rx_bool_cid
     .hidden kh_monet_object_equals_entry
     .hidden kh_monet_selection_revision
     .hidden kh_monet_selection_notified
@@ -91,24 +96,30 @@
     b.eq \failure
     .endm
 
-// Same-image chain: Thread field table -> MonochromeController -> RxInt ->
+// Resolved-image chain: Thread field table -> MonochromeController -> RxInt ->
 // selected int. Do not invoke the Rx getter (its read-reporting has side
 // effects). Class IDs come from the authenticated constructors/allocators.
     .macro KH_MATCH_BACKGROUND failure
     ldr x16, [x26, #0x78]
     cbz x16, \failure
-    ldr x16, [x16, #0x2910]
+    KH_GLOBAL x17, kh_monet_controller_field_offset
+    ldr x17, [x17]
+    ldr x16, [x16, x17]
     KH_REFERENCE \failure
     ldur w9, [x16, #-1]
     ubfx w9, w9, #12, #20
-    cmp w9, #KH_TINT_CONTROLLER_CID
+    KH_GLOBAL x17, kh_monet_controller_cid
+    ldr w17, [x17]
+    cmp w9, w17
     b.ne \failure
     ldur w16, [x16, #0x1f]
     KH_REFERENCE \failure
     add x16, x16, x28, lsl #32
     ldur w9, [x16, #-1]
     ubfx w9, w9, #12, #20
-    cmp w9, #KH_TINT_RX_INT_CID
+    KH_GLOBAL x17, kh_monet_rx_int_cid
+    ldr w17, [x17]
+    cmp w9, w17
     b.ne \failure
     ldur w16, [x16, #0x13]
     tbz w16, #0, .Lbackground_smi\@
@@ -146,10 +157,11 @@ kh_monet_tint_bridge:
     ldar x16, [x16]
     cmp x30, x16
     b.ne .Ltint_original
-    // Entry is BEFORE 0x8f3178's prologue. x29 still belongs to _ColorFilter.mode.
+    // Entry is BEFORE the resolved FFI prologue. x29 still belongs to _ColorFilter.mode.
     ldur x16, [x29, #-0x10]
-    add x17, x27, #0xa7, lsl #12
-    ldr x17, [x17, #0xb18]
+    KH_GLOBAL x17, kh_monet_filter_pool_offset
+    ldr x17, [x17]
+    ldr x17, [x27, x17]
     cmp x16, x17
     b.ne .Ltint_original
     cmp x3, #5 // BlendMode.srcIn.index, unboxed.
@@ -191,8 +203,9 @@ kh_monet_filter_equals_bridge:
     KH_GLOBAL x16, kh_monet_tint_ever_enabled
     ldar w16, [x16]
     cbz w16, .Lequals_original
-    add x17, x27, #0xa7, lsl #12
-    ldr x17, [x17, #0xb18]
+    KH_GLOBAL x17, kh_monet_filter_pool_offset
+    ldr x17, [x17]
+    ldr x17, [x27, x17]
     ldr x16, [x15, #64] // Original Dart SP[0]: other.
     cmp x16, x17
     b.ne .Lequals_original
@@ -254,18 +267,24 @@ kh_monet_enabled_equals_bridge:
     b.ne .Lenabled_original
     ldr x16, [x26, #0x78]
     cbz x16, .Lenabled_original
-    ldr x16, [x16, #0x2910]
+    KH_GLOBAL x17, kh_monet_controller_field_offset
+    ldr x17, [x17]
+    ldr x16, [x16, x17]
     KH_REFERENCE .Lenabled_original
     ldur w9, [x16, #-1]
     ubfx w9, w9, #12, #20
-    cmp w9, #KH_TINT_CONTROLLER_CID
+    KH_GLOBAL x17, kh_monet_controller_cid
+    ldr w17, [x17]
+    cmp w9, w17
     b.ne .Lenabled_original
     ldur w16, [x16, #0x23]
     KH_REFERENCE .Lenabled_original
     add x16, x16, x28, lsl #32
     ldur w9, [x16, #-1]
     ubfx w9, w9, #12, #20
-    cmp w9, #KH_TINT_RX_BOOL_CID
+    KH_GLOBAL x17, kh_monet_rx_bool_cid
+    ldr w17, [x17]
+    cmp w9, w17
     b.ne .Lenabled_original
     ldur x17, [x29, #-8]
     cmp x16, x17

@@ -72,6 +72,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--libapp',type=Path,default=os.environ.get('LIBAPP_FIXTURE'),
                    help='optional external libapp.so; never copied into the repository')
+    p.add_argument('--fixture',nargs=2,action='append',default=[],metavar=('LIBAPP','DEBUG_ELF'),
+                   help='repeat for independent symbol/Capstone ABI checks on multiple real images')
     p.add_argument('--output-dir',type=Path)
     a=p.parse_args()
     out=(a.output_dir or Path(tempfile.mkdtemp(prefix='keihome-monet-selection-'))).resolve()
@@ -106,14 +108,32 @@ def main():
         host_cxx=os.environ.get('CXX') or shutil.which('clang++')
         if not host_cxx:raise RuntimeError('host C++ compiler missing; set CXX')
         host_flags=['-std=c++17','-O2','-Wall','-Wextra','-Werror','-I',CPP]
-        if a.libapp:
-            fixture=a.libapp.resolve()
+        fixtures=([(a.libapp,None)] if a.libapp else [])+[(Path(lib),Path(debug)) for lib,debug in a.fixture]
+        if fixtures:
             run([host_cxx,*host_flags,HERE/'test_profile.cpp',CPP/'selection_profile.cpp',CPP/'monet_image_identity.cpp',
                  '-o',out/'test_profile'],out/'host-profile-build.log')
-            run([out/'test_profile',fixture],out/'native-profile-tests.txt')
-            report['checks']['profile_fixture']={'passed':True,'path':str(fixture),
-                'sha256':hashlib.sha256(fixture.read_bytes()).hexdigest(),
-                'result':(out/'native-profile-tests.txt').read_text().splitlines()[-1]}
+            report['checks']['profile_fixtures']=[]
+            for index,(lib,debug) in enumerate(fixtures):
+                fixture=lib.resolve()
+                log=out/f'native-profile-tests-{index}.txt'
+                result=run([out/'test_profile',fixture],log)
+                actual=json.loads(next(line.removeprefix('PROFILE ') for line in result.splitlines() if line.startswith('PROFILE ')))
+                entry={'passed':True,'path':str(fixture),'profile':actual,
+                    'sha256':hashlib.sha256(fixture.read_bytes()).hexdigest(),
+                    'timing':json.loads(next(line.removeprefix('TIMING ') for line in result.splitlines() if line.startswith('TIMING '))),
+                    'result':result.splitlines()[-1]}
+                if debug and importlib.util.find_spec('capstone'):
+                    from audit_fixture import audit
+                    evidence=audit(fixture,debug.resolve())
+                    for role,value in actual.items():
+                        expected=evidence[role] if role.endswith('_pool') else evidence['roles'][role]['rva']
+                        assert value==expected,(role,hex(value),hex(expected))
+                    audit_path=out/f'abi-audit-{index}.json'
+                    audit_path.write_text(json.dumps(evidence,indent=2)+'\n')
+                    entry['independent_symbol_capstone_audit']=str(audit_path)
+                else:
+                    entry['independent_symbol_capstone_audit']='SKIPPED: supply --fixture LIBAPP DEBUG_ELF with a Capstone interpreter'
+                report['checks']['profile_fixtures'].append(entry)
         else:
             report['checks']['profile_fixture']='SKIPPED: no external --libapp / LIBAPP_FIXTURE supplied'
         if platform.machine().lower() in ('arm64','aarch64'):

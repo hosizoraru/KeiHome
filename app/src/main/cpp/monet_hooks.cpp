@@ -52,6 +52,33 @@ bool Reject(const char* reason) {
 }
 } // namespace
 
+bool ResolveLoadedMonochromeGate(void* handle, MonochromeGatePatch* out,
+                                const char** rejection) {
+    auto* snapshot = dlsym(handle, "_kDartIsolateSnapshotInstructions");
+    Dl_info info{};
+    if (!snapshot || !dladdr(snapshot, &info) || !info.dli_fbase) {
+        if (rejection) *rejection = "missing gate snapshot anchor";
+        return false;
+    }
+    Image image{};
+    image.base = reinterpret_cast<uintptr_t>(info.dli_fbase);
+    dl_iterate_phdr(FindImage, &image);
+    MonochromeGateExecutableRange ranges[16];
+    size_t count = 0, span = 0;
+    if (!image.valid) {
+        if (rejection) *rejection = "missing gate mapped ranges";
+        return false;
+    }
+    for (size_t i = 0; i < image.count; ++i) {
+        const auto& r = image.tint_ranges[i];
+        const uintptr_t begin = r.begin - image.base, end = begin + r.size;
+        if (end > span) span = end;
+        if (r.executable) ranges[count++] = {begin, end};
+    }
+    return ResolveMonochromeGate({reinterpret_cast<const uint8_t*>(image.base), span,
+        ranges, count}, out, rejection);
+}
+
 bool InstallMonetHooksAtLibraryLoad(void* handle) {
     uint32_t expected = 0;
     if (!__atomic_compare_exchange_n(&g_install_state, &expected, 1u, false,
@@ -93,6 +120,9 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
     if (!StartNativeMonetPolicyServer()) return Reject("authenticated policy server unavailable");
     __atomic_store_n(&g_install_state, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",
-            "Two-tone native profile ready: tint=%p selection=%p", tint.tint_entry, selection.entry);
+            "Two-tone native profile ready: dynamic tint=%p selection=%p "
+            "filter_pool=0x%zx controller_slot=0x%zx cids=%u/%u/%u",
+            tint.tint_entry, selection.entry, size_t(tint.filter_pool_offset),
+            size_t(tint.controller_field_offset), tint.controller_cid, tint.rx_int_cid, tint.rx_bool_cid);
     return true;
 }

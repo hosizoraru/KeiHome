@@ -1,59 +1,142 @@
-# Monochrome selection bridge host tests
+# Dynamic monochrome selection contracts and host checks
 
 Run from any directory. Nothing connects to Android, loads a launcher, patches a
-process, downloads dependencies, or changes the supplied ELF.
+process, downloads dependencies, or modifies an input ELF. Mutation tests use
+private host memory copies.
 
 ```sh
-NDK_DIR=/path/to/android-ndk \
-PYTHON=/path/to/python3 \
+PYTHON=/path/to/python-with-capstone \
 ./scripts/tests/monet-selection/run.sh \
-  --libapp /external/path/to/libapp.so \
+  --fixture /external/old/libapp.so /external/old/debug.elf \
+  --fixture /external/new/libapp.so /external/new/libapp.debug.elf \
   --output-dir /tmp/keihome-monet-selection-tests
 ```
 
-`NDK_DIR` defaults to the project's NDK 30.0.16248370 in the local Android SDK.
-`PYTHON` selects the interpreter; only the optional instruction-path model needs
-Capstone. `CXX` can select the host C++ compiler. `--libapp` is optional and can
-also be supplied through `LIBAPP_FIXTURE`. Missing optional capabilities appear
-as **SKIPPED** in `report.json`, never as verified results.
+`--fixture` is repeatable. Its independently decoded debug ELF supplies an
+address/size oracle only to the tests. The production resolver uses no symbols,
+fixture addresses, build numbers or known-image hashes. `--libapp FILE` remains
+available for the host mutation checks without a debug-symbol oracle;
+`LIBAPP_FIXTURE` is its environment equivalent.
 
-The fixture must be an independently supplied launcher image accepted by
-`monet_image_identity.cpp`: APK ELF SHA-256
-`fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`,
-or extracted AVD ELF SHA-256
-`44ab76174a5085b9cc45d44420b82e53c46423e2f58d32e0eee86264dc683dd5`.
-Do not add this ELF, decompilation, or full extracted function bytes to the
-repository. Production code holds four-instruction prefixes, function hashes,
-call relationships and small explicit ABI checks. The runner puts generated
-objects, logs and reports in the selected temporary output directory.
+`NDK_DIR` defaults to the project's installed NDK 30.0.16248370. `CXX` selects the
+host compiler. Capstone is optional for the instruction-path model and ABI audit;
+missing capabilities are **SKIPPED** in `report.json`. No dependency is downloaded.
+The report includes first-resolution wall time and executable image size for
+each fixture. These are optimized host measurements, not Android launch times.
 
-The checks cover:
+## Runtime contract and reproducibility
 
-- NDK compilation of the production resolver and assembly with warnings as errors.
-- Actual compiled AArch64 instructions: no BL/BLR, syscall or exception, and one
-  false return plus one original tail transfer through x16.
-- With the external ELF: native C++ resolution, every overwritten-function word
-  mutation, String layout/boolean drift, x16 deadness, unexpected callers,
-  branch-to-patch-interior, duplicated root, malformed ELF/readable ranges,
-  relocated host mapping, segmented mappings and profile publication identity.
-- With Capstone: 35 bounded instruction-path cases, including deny/miss, flags,
-  count/length limits, null/Smi/non-String, live factory/callback mismatch,
-  RCU counter saturation/retry and register/NZCV/x15 preservation.
-- On an ARM64 host: execution of the production bridge against a synthetic
-  tagged heap and a native original stub. On macOS the harness changes only
-  object-format directives and relocation spelling; every unrelocated text byte
-  must equal the Android ELF object before execution. It checks deny and original
-  paths, register/NZCV preservation, balanced readers and fresh live roots.
-  Each old heap/pool arena becomes PROT_NONE before another invocation, exposing
-  any retained/reused reference. These are native bridge lifetime regressions;
-  they do not claim that the Dart VM, a Dart GC cycle, or launcher rendering ran.
+`app/src/main/cpp/monet_selection_patterns.h` contains generated instruction-body
+hashes, four-word scan prefixes and function-relative graph edges. It contains
+no image RVA table, complete extracted functions or image SHA allowlist. Generate
+it from the two external fixtures with:
 
-Integration order: main verifies the exact backing ELF and resolves both tint
-and selection before any capability patch, publishes the code-only selection
-profile, installs the framework hooks on the first fresh libapp notification,
-then starts the policy server after all original pointers are available. The
-selection bridge itself validates Function.entry_point through live x27 on each
-enabled invocation. No setup-time PP cache or external safepoint is required.
+```sh
+python3 scripts/tests/monet-selection/generate_contracts.py \
+  --fixture /external/old/libapp.so /external/old/debug.elf \
+  --fixture /external/new/libapp.so /external/new/libapp.debug.elf \
+  --evidence /tmp/selection-contract-evidence.json
+```
 
-Actual launcher/GC/visual acceptance remains a separate gate requiring a new,
-authorized launcher generation. This runner does not create that generation.
+The default output is the production header; `--output` can select a temporary
+file for comparison. Keep fixture binaries, decompilation, and generated audit
+JSON outside the repository. The JSON intentionally includes observed RVAs as
+evidence; the production header does not.
+
+The decoder uses the bounded segment/branch-validation approach of the
+Apache-2.0 reference
+`MiuiBackGestureHook/miui-home-hyos-native/runtime_profile_resolver.cpp`.
+The Dart canonicalization and graph implementation are independent. It masks
+only decoded external PC-relative branch displacements, PP slot indices, and
+indices immediately following `LDR Xt, [THR, #0x78]`. It preserves register
+operands, every local branch, frame sizes, VM reserved PP slots, object fields,
+CIDs and boolean constants. Repeated slot identities remain distinct and equal
+where required within each body. Selection's cross-function type/callback/
+initializer/factory relationships receive additional checks.
+
+Every masked external edge must exist in its contract, land in executable
+file-backed bytes, and reach the expected role or dependency body. Named direct
+dependencies are checked in full; unnamed stubs retain 128-byte contracts.
+Their external edges also authenticate a target role or an unmasked 32-byte
+terminal anchor. This is a bounded graph contract, not transitive validation of
+all launcher code. Terminal anchors deliberately remain conservative: a future
+compiler change can require another reviewed contract even when its ABI is
+ultimately compatible.
+
+The reviewed images need distinct shapes for changed controller fields and
+added conditions in `shouldUseMonochrome`/`_updateMonochromeState`, as well as the
+changed folder-builder body. Those differences remain exact; they are not hidden
+by generic immediate masks. Candidate ambiguity fails closed. The implementation
+bounds readable ranges, LOADs, image span, body size, candidate count (128 per
+role) and dependency depth. Only primitive code addresses and offsets are
+returned.
+
+## ABI evidence for the unchanged bridge
+
+Both fixtures independently establish these contracts:
+
+- `_hasMonochromeLayer` receives the live package String in x1. `shouldUseMonochrome`
+  restores its incoming x1; `_updateMonochromeState` loads/decompresses the model's
+  package field and moves it to x1. Each is a direct caller exactly once.
+- The two `shouldUseMonochrome` callers are the icon query closure and folder
+  fallback. Icon build stores the package getter result in closure context;
+  the query closure reloads it. The folder argument is followed through its
+  actual stack store/reload, including the changed stack slot in the newer body.
+  The complete bodies and downstream String consumers are authenticated.
+- Header at tagged pointer -1, CID bits 12..31, OneByteString CID 94,
+  TwoByteString CID 95, tagged length +7, one-byte payload +15, and false
+  `x22 + 0x30` are confirmed by String equality and allocation code. The bridge
+  accepts only bounded, nonempty ASCII OneByteString inputs and otherwise uses
+  the original function.
+- The original prologue does not read x16. Its first callee, AllocateContext,
+  overwrites x16 at +0x14 before any read or branch, including the allocation
+  slow path. The Has body then overwrites it at +0x30 before its own first use.
+  The original tail transfer through x16 therefore does not discard live input.
+- Decoded PP offsets identify controller type, update callback, cache initializer
+  and resource factory in that order at 8-byte spacing. ClosureAllocateFast
+  loads `[Function + 7]` and copies it to the closure entry, proving the entry
+  layout used by the bridge. On every enabled invocation the bridge checks both
+  live PP function entries against the resolved code addresses. It captures no
+  external PP and retains no Dart reference.
+- Executable mappings are scanned for all incoming direct branches to Has,
+  Should, Update and Resource (two callers each), and branches into the displaced
+  patch interior are rejected. This enumerates direct callers; it does not claim
+  whole-program enumeration of arbitrary indirect calls. Runtime String and
+  live-pool guards apply to every invocation.
+
+The bridge stays a call-free leaf, preserving the existing Dart roots, x15,
+NZCV, return address and register contract. Native policy memory uses the
+existing reader-count/RCU lifetime; all acquired paths release their reader
+before returning false or transferring to the original trampoline. Main must
+keep the mapped image and original trampoline executable for that publication.
+
+## Checks and integration
+
+The runner checks NDK compilation with warnings as errors, the actual 142
+AArch64 bridge instructions, 35 bounded instruction-path cases, both real
+fixture profiles against the symbol/Capstone oracle, and 77 profile/identity
+assertions per fixture. These include every Has instruction mutation, String
+layout/boolean drift, x16 deadness, dependency drift, broken pool linkage,
+extra callers, patch-interior targets and malformed readable mappings.
+
+Positive mutation cases move the Has body and rewrite both callers and its
+outgoing BLs, coherently move selection PP slots, and change a non-code ELF byte.
+They must continue to resolve, proving independence from original RVAs and known
+file SHA values. The PP mutation tests do not rewrite a Dart heap: live function
+entry checks remain necessary before the bridge can apply its veto.
+
+On ARM64 hosts the runner also executes the production bridge against a
+synthetic tagged heap. On macOS only object-format directives and relocation
+spelling change; every unrelocated text byte must equal the Android object.
+The native harness checks 1,445 assertions across 39 fresh root generations and
+sets retired heap/pool arenas to `PROT_NONE` before later calls. This verifies
+reference lifetime in the harness; it does not execute a Dart VM, GC cycle or
+launcher rendering.
+
+Public resolver signatures and `MonetSelectionProfile` fields are unchanged.
+Main computes the exact backing ELF digest, resolves the current mapped image,
+then calls `PublishMonetSelectionProfile(profile, digest)` before installation.
+Publication requires a nonzero computed digest and binds the entire code profile
+and digest immutably. It never consults a known-image allowlist; an identical
+publication is idempotent and a changed identity/profile is rejected. The unused
+`kMonetSelectionImageSha256` fixture constant has been removed.

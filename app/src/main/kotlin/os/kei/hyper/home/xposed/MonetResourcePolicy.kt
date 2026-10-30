@@ -3,14 +3,16 @@ package os.kei.hyper.home.xposed
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.os.UserHandle
 import android.os.UserManager
 import android.os.SystemClock
 import java.io.File
+import java.io.IOException
 
 /** Policy for HYOS's package-keyed monochrome selector, not activity aliases. */
-internal class MonetResourcePolicy {
+internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
   private data class Source(
     val packageName: String,
     val path: String,
@@ -22,6 +24,8 @@ internal class MonetResourcePolicy {
   private var previousSources: List<Source>? = null
   private var previousDenied: Set<String> = emptySet()
   private var previousUserId: Int? = null
+  var themeSignature: ActiveIconTheme.Signature? = null
+    private set
   private data class CachedMasks(val configuration: Configuration, val denied: Set<String>, val retryAfter: Long)
   private val configurations = ArrayDeque<CachedMasks>()
 
@@ -49,20 +53,29 @@ internal class MonetResourcePolicy {
         .filter { it.icon != 0 }
     }
     val byPackage = applications.groupBy { it.packageName }
+    val launcherApps = context.getSystemService(LauncherApps::class.java)
+    val components = profiles.flatMap { launcherApps?.getActivityList(null, it).orEmpty() }
+      .groupBy { it.componentName.packageName }
+      .mapValues { (_, entries) -> entries.map { it.componentName.className }.toSet() }
+    val theme = iconTheme.snapshot(byPackage.keys, components, modEnabled = true)
+    if (!theme.complete) throw IOException("Active icon theme inventory is incomplete")
+    val sameTheme = theme.signature == themeSignature
+    if (!sameTheme) android.util.Log.i("KeiHomeIconTheme",
+      "Resource inventory complete=${theme.complete} themedPackages=${theme.coveredPackages.size}")
     val configuration = Configuration(context.resources.configuration)
     val sources = applications.map { app ->
       val file = File(app.sourceDir)
       Source(app.packageName, app.sourceDir, file.length(), file.lastModified(), app.icon)
     }.distinct().sortedWith(compareBy(Source::packageName, Source::path, Source::icon))
-    if (userId != previousUserId || sources != previousSources) configurations.clear()
+    if (userId != previousUserId || sources != previousSources || !sameTheme) configurations.clear()
     val cached = configurations.firstOrNull { it.configuration == configuration }
-    if (cached != null && SystemClock.elapsedRealtime() < cached.retryAfter) return cached.denied
+    if (cached != null && SystemClock.elapsedRealtime() < cached.retryAfter) return cached.denied + theme.coveredPackages
 
     // A package-only Dart key cannot represent conflicting profile resources.
     // Keep the original selection when profiles disagree about the source/icon.
     val unambiguous = sources.groupBy(Source::packageName).filterValues { it.size == 1 }.keys
     val representatives: List<ApplicationInfo> = byPackage
-      .filterKeys { it in unambiguous }
+      .filterKeys { it in unambiguous && it !in theme.coveredPackages }
       .values.map { it.first() }
     val masks = representatives.chunked(128).flatMap { batch ->
       if (!isCurrent()) return emptySet()
@@ -71,7 +84,7 @@ internal class MonetResourcePolicy {
     if (!isCurrent()) return emptySet()
     val previousByPackage = previousSources.orEmpty().groupBy(Source::packageName)
     val unchanged = sources.groupBy(Source::packageName)
-      .filter { (name, entries) -> previousByPackage[name] == entries }.keys
+      .filter { (name, entries) -> sameTheme && previousByPackage[name] == entries }.keys
     val retained = cached?.denied ?: previousDenied.takeIf { userId == previousUserId }.orEmpty()
     val denied = retainedUnusableMasks(masks, retained, unchanged)
     // An interrupted probe does not make a known bad mask usable. Retry unknown
@@ -79,6 +92,7 @@ internal class MonetResourcePolicy {
     previousSources = sources
     previousUserId = userId
     previousDenied = denied
+    themeSignature = theme.signature
     val retryAfter = if (masks.size == representatives.size &&
       masks.values.none { it == LauncherMaskStatus.UNKNOWN }
     ) Long.MAX_VALUE else SystemClock.elapsedRealtime() + 60_000L
@@ -86,7 +100,9 @@ internal class MonetResourcePolicy {
     configurations.removeAll { it.configuration == configuration }
     configurations.addLast(CachedMasks(configuration, denied, retryAfter))
     if (configurations.size > 4) configurations.removeFirst()
-    return denied
+    // The Dart veto selects the launcher's original styled path, preserving theme day/night art.
+    // A theme PNG/MAML is not an APK monochrome mask and must not inherit its verdict.
+    return denied + theme.coveredPackages
   }
 }
 

@@ -317,6 +317,43 @@ class IconRefreshHotReloadTest {
   }
 
   @Test
+  fun slowShutdownAndRollbackDoNotHoldTheHookEntryLock() {
+    val lifecycle = IconRefreshReloadLifecycle()
+    val preparing = CountDownLatch(1)
+    val continuePrepare = CountDownLatch(1)
+    val recovering = CountDownLatch(1)
+    val continueRecovery = CountDownLatch(1)
+    val reload = thread {
+      assertFalse(lifecycle.retire(
+        prepare = { preparing.countDown(); continuePrepare.await(2, TimeUnit.SECONDS) },
+        await = { false }, commit = { error("must not commit") },
+        rollback = { recovering.countDown(); continueRecovery.await(2, TimeUnit.SECONDS) },
+      ))
+    }
+    try {
+      assertTrue(preparing.await(2, TimeUnit.SECONDS))
+      val duringPrepare = CountDownLatch(1)
+      val first = thread { lifecycle.trackHook { duringPrepare.countDown() } }
+      assertTrue(duringPrepare.await(1, TimeUnit.SECONDS))
+      first.join(1_000)
+      continuePrepare.countDown()
+      assertTrue(recovering.await(2, TimeUnit.SECONDS))
+      val duringRecovery = CountDownLatch(1)
+      val second = thread { lifecycle.trackHook { duringRecovery.countDown() } }
+      assertTrue(duringRecovery.await(1, TimeUnit.SECONDS))
+      second.join(1_000)
+      assertFalse(lifecycle.retire({ true }, { true }, {}, {}))
+    } finally {
+      continuePrepare.countDown()
+      continueRecovery.countDown()
+      reload.join(2_000)
+    }
+    assertFalse(reload.isAlive)
+    assertFalse(lifecycle.retired)
+    assertTrue(lifecycle.retire({ true }, { true }, {}, {}))
+  }
+
+  @Test
   fun hookExceptionsDoNotLeaveActivityCountStuck() {
     val lifecycle = IconRefreshReloadLifecycle()
     assertThrows(IllegalStateException::class.java) {
@@ -371,35 +408,6 @@ class IconRefreshHotReloadTest {
     assertTrue(closing.awaitStopped(System.nanoTime()))
     closing.pruneStopped()
     assertFalse(closing.hasLiveThreads())
-  }
-
-  @Test
-  fun liveProbeReplyThreadRejectsRetirementUntilItStops() {
-    val entered = CountDownLatch(1)
-    val release = CountDownLatch(1)
-    val reply = thread(name = "KeiHomeIconProbeReply") {
-      entered.countDown()
-      release.await(2, TimeUnit.SECONDS)
-    }
-    try {
-      assertTrue(entered.await(2, TimeUnit.SECONDS))
-      assertFalse(iconProbeReplyThreadsStopped())
-      val lifecycle = IconRefreshReloadLifecycle()
-      var rolledBack = false
-      assertFalse(lifecycle.retire(
-        prepare = { true },
-        await = ::iconProbeReplyThreadsStopped,
-        commit = { error("must not commit") },
-        rollback = { rolledBack = true },
-      ))
-      assertTrue(rolledBack)
-      assertFalse(lifecycle.retired)
-    } finally {
-      release.countDown()
-      reply.join(2_000)
-    }
-    assertFalse(reply.isAlive)
-    assertTrue(iconProbeReplyThreadsStopped())
   }
 
   @Test

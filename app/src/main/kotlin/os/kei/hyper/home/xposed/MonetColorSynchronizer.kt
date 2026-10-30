@@ -5,9 +5,12 @@ import android.content.SharedPreferences
 import android.database.ContentObserver
 import android.app.ActivityManager
 import android.os.UserHandle
+import android.os.CancellationSignal
+import android.os.OperationCanceledException
 import android.net.Uri
 import android.provider.Settings
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicReference
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemes
@@ -21,9 +24,9 @@ import os.kei.hyper.home.data.parseMonetPaletteJson
  * secure marker lets a later wallpaper/theme change distinguish a value
  * written by this module from one selected by the user.
  */
-internal class MonetColorSynchronizer {
+internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
   private val native = NativeMonetClient()
-  private val resources = MonetResourcePolicy()
+  private val resources = MonetResourcePolicy(iconTheme)
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private var lastPaletteRefresh: Long? = null
@@ -31,28 +34,34 @@ internal class MonetColorSynchronizer {
     val colors: IconColors,
     val denied: Set<String>,
     val process: NativeMonetProcessIdentity?,
+    val theme: ActiveIconTheme.Signature?,
   )
   private var previousPolicy: Publication? = null
   private var acknowledgedReset = false
+  private val paletteQuery = AtomicReference<CancellationSignal?>()
 
   fun start(): Boolean = native.start()
-  fun stop() = native.stop()
+  fun stop() {
+    paletteQuery.getAndSet(null)?.cancel()
+    native.stop()
+  }
   fun awaitStopped(deadlineNanos: Long): Boolean = native.awaitStopped(deadlineNanos)
 
   fun synchronize(
     baseContext: Context,
     excludingObserver: ContentObserver? = null,
     actionPreferences: SharedPreferences? = null,
+    wallpaperChanged: Boolean = false,
     mayWrite: () -> Boolean = { true },
   ): SynchronizationResult {
     if (!mayWrite()) return SynchronizationResult.SelectionChanged
     val userId = currentUserId() ?: return SynchronizationResult.Unsupported
     val context = contextForUser(baseContext, userId) ?: return SynchronizationResult.Unsupported
-    val stillCurrent = { mayWrite() && currentUserId() == userId }
+    val stillCurrent = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == userId }
     val resolver = context.contentResolver
     val refresh = MonetAction.paletteRefresh(actionPreferences, userId)
     val forceRefresh = refresh != null && refresh != lastPaletteRefresh
-    val wallpaper = wallpaperSeeds.readAndPublish(context, userId, forceRefresh)
+    val wallpaper = wallpaperSeeds.readAndPublish(context, userId, forceRefresh || wallpaperChanged, stillCurrent)
     if (forceRefresh && stillCurrent()) {
       Settings.Secure.putString(resolver, MonetAction.PALETTE_REFRESHED, refresh.toString())
       lastPaletteRefresh = refresh
@@ -105,7 +114,7 @@ internal class MonetColorSynchronizer {
     val palette = if (customization != null) {
       val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette
       MonetSchemes.generate(seed, customization.style)
-    } else readPalette(context, resolver) ?: return SynchronizationResult.NoPalette
+    } else readPalette(context, resolver, stillCurrent) ?: return SynchronizationResult.NoPalette
     val colors = MonetColorPolicy.selectPair(
       palette = palette,
       uiMode = context.resources.configuration.uiMode,
@@ -141,7 +150,7 @@ internal class MonetColorSynchronizer {
       return actionInterruption() ?: SynchronizationResult.NativeUnavailable
     }
     // Publishing authenticates the endpoint and waits for its ACK in the same exchange.
-    val policy = Publication(colors, denied, native.acknowledgedProcess)
+    val policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature)
     acknowledgedReset = false
     if (action != null) {
       return when (MonetAction.applyAcknowledged(
@@ -214,29 +223,41 @@ internal class MonetColorSynchronizer {
   private fun readPalette(
     context: Context,
     resolver: android.content.ContentResolver,
+    isCurrent: () -> Boolean,
   ): Map<String, Int>? =
-    readLauncherPalette(resolver) ?: readFrameworkPalette(context)
+    readLauncherPalette(resolver, isCurrent) ?: readFrameworkPalette(context).takeIf { isCurrent() }
 
   private fun readLauncherPalette(
     resolver: android.content.ContentResolver,
-  ): Map<String, Int>? = try {
-    val raw = resolver.query(PALETTE_URI, null, null, null, null)?.use { cursor ->
-      if (!cursor.moveToFirst()) null
-      else {
-        val result = cursor.getColumnIndex("result")
-        if (result < 0) null else cursor.getString(result)
-      }
-    }
-    raw?.let { parseMonetPaletteJson(it) }
-      ?.flatMap { family ->
-        family.colors.mapNotNull { color ->
-          color.tone?.let { tone -> "${family.name}$tone" to color.value }
+    isCurrent: () -> Boolean,
+  ): Map<String, Int>? {
+    val cancellation = CancellationSignal()
+    paletteQuery.set(cancellation)
+    try {
+      if (!isCurrent()) throw OperationCanceledException()
+      val raw = resolver.query(PALETTE_URI, null, null, null, null, cancellation)?.use { cursor ->
+        if (!cursor.moveToFirst()) null
+        else {
+          val result = cursor.getColumnIndex("result")
+          if (result < 0) null else cursor.getString(result)
         }
       }
-      ?.toMap()
-      ?.takeIf { it.isNotEmpty() }
-  } catch (_: Throwable) {
-    null
+      if (!isCurrent()) throw OperationCanceledException()
+      return raw?.let { parseMonetPaletteJson(it) }
+        ?.flatMap { family ->
+          family.colors.mapNotNull { color ->
+            color.tone?.let { tone -> "${family.name}$tone" to color.value }
+          }
+        }
+        ?.toMap()
+        ?.takeIf { it.isNotEmpty() }
+    } catch (cancelled: OperationCanceledException) {
+      throw cancelled
+    } catch (_: Exception) {
+      return null
+    } finally {
+      paletteQuery.compareAndSet(cancellation, null)
+    }
   }
 
   private fun readFrameworkPalette(context: Context): Map<String, Int>? {

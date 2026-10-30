@@ -23,17 +23,19 @@ import java.lang.reflect.Modifier
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import os.kei.hyper.home.data.MonetAction
 
 internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lifecycle = IconRefreshReloadLifecycle()
   private val lock = lifecycle.lock
   private val generations = IconRefreshGeneration()
+  private val iconTheme = ActiveIconTheme()
   private val pending = PendingIconRefresh()
   private var lastMonetState: String? = null
   private var nativeBrokerReady = false
   private var nativeBrokerInstallFailure: String? = null
-  private val monetColorSynchronizer = MonetColorSynchronizer()
+  private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme)
   private val monetColorMonitor = MonetColorMonitor(
     monetColorSynchronizer,
     onResult = { result ->
@@ -100,9 +102,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         service = oldService
       }
 
+      prepareRefreshWorker()
       synchronized(lock) {
-        // Prepare the Looper before publishing any new hooks that can run under the WM lock.
-        refreshHandlerLocked()
         if (reconcileAfterReload) {
           // Reconciliation reads the current configuration; it only needs a fresh token.
           val generation = generations.next(
@@ -133,7 +134,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             if (chain.getArg(0) as? Int != NativeMonetSocketBroker.TRANSACTION) {
               chain.proceed()
             } else lifecycle.trackHook {
-              synchronized(lock) { startMonetMonitorLocked() }
+              startMonetMonitor()
               NativeMonetSocketBroker.onTransact(
                 chain.getArg(1) as Parcel, chain.getArg(2) as? Parcel, chain.getArg(3) as Int,
               )
@@ -161,9 +162,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             if (chain.getArg(0) == LAUNCHER_PACKAGE) {
               synchronized(lock) {
                 service = chain.thisObject
-                startMonetMonitorLocked()
                 postPendingLocked()
               }
+              startMonetMonitor()
             }
           } catch (failure: Throwable) {
             logFailure("could not observe launcher listener", failure)
@@ -180,11 +181,24 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         listener.first.executable == resolved.registerListener)
 
       val configurationHooker = XposedInterface.Hooker { chain ->
-        lifecycle.trackHook {
+        android.os.Trace.beginSection("KeiHome:configuration-hook")
+        try { lifecycle.trackHook {
           val previous = readUiMode(chain.thisObject)
-          val result = chain.proceed()
+          android.os.Trace.beginSection("KeiHome:original-configuration")
+          val result = try { chain.proceed() } finally { android.os.Trace.endSection() }
           try {
             val changes = result as? Int ?: 0
+            if (changes and CONFIG_THEME != 0 && iconThemeChanged(chain.thisObject)) {
+              // Only revision/queue work belongs in the WM transaction; inspect files on workers.
+              iconTheme.invalidate()
+              synchronized(lock) {
+                if (!lifecycle.retired) {
+                  generations.nextFullRefresh()?.let { pending.replace(IconRefreshRequest(it, 0)) }
+                  postPendingLocked()
+                }
+              }
+              monetColorMonitor.request()
+            }
             if (changes and ActivityInfo.CONFIG_UI_MODE != 0) {
               val current = readUiMode(chain.thisObject)
               if (previous != null && current != null) {
@@ -196,7 +210,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             logFailure("could not schedule icon refresh", failure)
           }
           result
-        }
+        } } finally { android.os.Trace.endSection() }
       }
       val configuration = installOrReplaceIconHook(
         xposed, oldConfiguration, CONFIGURATION_HOOK_ID, resolved.updateConfiguration,
@@ -209,9 +223,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       check(removeOldHooks(oldHooks, replaced))
       synchronized(lock) {
         hooksReady = true
-        startMonetMonitorLocked()
         postPendingLocked()
       }
+      startMonetMonitor()
       xposed.log(Log.INFO, TAG, "System-server icon refresh hooks installed")
       return true
     } catch (failure: Throwable) {
@@ -232,54 +246,54 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     }
   }
 
-  fun retire(saveState: () -> Unit): Boolean = lifecycle.retire(
-    prepare = {
-      closingWorkers.pruneStopped()
-      if (closingWorkers.hasLiveThreads()) {
-        false
-      } else {
+  fun retire(saveState: () -> Unit): Boolean {
+    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
+    return lifecycle.retire(
+      prepare = prepare@ {
+        val closing = synchronized(lock) {
+          closingWorkers.pruneStopped()
+          if (closingWorkers.hasLiveThreads()) return@prepare false
+          pending.invalidatePost()
+          handler?.removeCallbacksAndMessages(null)
+          handler = null
+          worker?.also {
+            worker = null
+            closingWorkers.track(it)
+          }
+        }
         NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
-        pending.invalidatePost()
-        handler?.removeCallbacksAndMessages(null)
-        handler = null
-        worker?.let {
-          worker = null
-          closingWorkers.track(it)
-          // A package sweep may be sleeping between callbacks. Interrupt it
-          // so API 102 hot reload can hand over promptly without waiting for
-          // the full sweep or touching the launcher process.
-          it.interrupt()
-          it.quitSafely()
-        }
+        closing?.interrupt()
+        closing?.quitSafely()
         true
-      }
-    },
-    await = ::awaitRetirement,
-    commit = {
-      closingWorkers.pruneStopped()
-      saveState()
-      generations.retire()
-    },
-    rollback = {
-      refreshHandlerLocked()
-      startMonetMonitorLocked()
-      postPendingLocked()
-    },
-  )
+      },
+      await = { awaitRetirement(deadline) },
+      commit = {
+        closingWorkers.pruneStopped()
+        saveState()
+        generations.retire()
+      },
+      rollback = {
+        prepareRefreshWorker()
+        startMonetMonitor()
+        synchronized(lock) { postPendingLocked() }
+      },
+    )
+  }
 
-  private fun awaitRetirement(): Boolean {
-    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
+  private fun awaitRetirement(deadline: Long): Boolean {
     return closingWorkers.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
       NativeMonetSocketBroker.awaitStopped(deadline) &&
-      iconProbeReplyThreadsStopped()
+      IconResourceProbeClient.awaitOwnedReplyThreadsStopped(deadline)
   }
 
-  private fun startMonetMonitorLocked() {
-    if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
+  private fun startMonetMonitor() {
     try {
-      val context = service?.let { profile.context.get(it) } as? Context ?: return
+      val context = synchronized(lock) {
+        if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
+        service?.let { profile.context.get(it) } as? Context
+      } ?: return
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       monetColorMonitor.start(context)
     } catch (failure: Throwable) {
@@ -311,6 +325,12 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     null
   }
 
+  private fun iconThemeChanged(activityTaskManager: Any?): Boolean = try {
+    val configuration = profile.getGlobalConfiguration.invoke(activityTaskManager)
+    val extra = profile.extraConfiguration?.get(configuration)
+    ((profile.themeChangedFlags?.get(extra) as? Number)?.toLong() ?: 0L) and 8L != 0L
+  } catch (_: Exception) { false }
+
   private fun schedulePaletteRefresh() {
     synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
@@ -336,65 +356,56 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       pending.posted
     ) return
     val request = pending.request ?: return
-    repeat(2) {
-      try {
-        val currentHandler = refreshHandlerLocked()
-        val ticket = pending.markPosted()
-        val delay = if (request.attempt == 0) REFRESH_DELAY_MS else SNAPSHOT_RETRY_MS
-        if (currentHandler.postDelayed({ refresh(request, ticket) }, delay)) return
-        pending.postFailed(ticket)
-      } catch (failure: Throwable) {
-        pending.invalidatePost()
-        logFailure("could not queue pending icon refresh", failure)
-      }
-      handler = null
-      worker?.let { failedWorker ->
-        worker = null
-        closingWorkers.track(failedWorker)
-        try {
-          failedWorker.quitSafely()
-        } catch (failure: Throwable) {
-          logFailure("could not stop failed refresh worker", failure)
-        }
-      }
-      if (lifecycle.activeJobs != 0) return
+    // Installation/rollback own thread creation. A platform callback only queues work.
+    val currentHandler = handler ?: return
+    val ticket = pending.markPosted()
+    val delay = if (request.attempt == 0) REFRESH_DELAY_MS else SNAPSHOT_RETRY_MS
+    if (!currentHandler.postDelayed({ refresh(request, ticket) }, delay)) {
+      pending.postFailed(ticket)
+      xposed.log(Log.WARN, TAG, "Could not queue pending icon refresh")
     }
-    xposed.log(Log.WARN, TAG, "Could not queue pending icon refresh")
   }
 
-  private fun refreshHandlerLocked(): Handler = handler ?: HandlerThread(
-    "KeiHomeIconRefresh", android.os.Process.THREAD_PRIORITY_BACKGROUND,
-  ).let { thread ->
+  private fun prepareRefreshWorker() {
+    if (synchronized(lock) { handler != null }) return
+    val thread = HandlerThread("KeiHomeIconRefresh", android.os.Process.THREAD_PRIORITY_DEFAULT)
     val interrupted = Thread.interrupted()
     try {
       thread.start()
-      worker = thread
-      Handler(thread.looper).also { handler = it }
+      val ready = Handler(thread.looper)
+      synchronized(lock) {
+        worker = thread
+        handler = ready
+      }
     } finally {
       if (interrupted) Thread.currentThread().interrupt()
     }
   }
 
+  private fun refreshCurrent(generation: Long): Boolean = !Thread.currentThread().isInterrupted &&
+    !lifecycle.retiring && !lifecycle.retired && generations.isCurrent(generation)
+
   private fun refresh(request: IconRefreshRequest, ticket: Long) {
     val generation = request.generation
     synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !pending.claim(request, ticket)) return
-      if (!generations.isCurrent(generation)) return
+      if (!refreshCurrent(generation)) return
       lifecycle.activeJobs += 1
     }
     var sent = 0
+    var completed = false
     try {
       val launcherService = service ?: return
       val listeners = snapshotListeners(launcherService)
       if (listeners == null) {
         val exhausted = synchronized(lock) {
-          if (!lifecycle.retired && generations.isCurrent(generation) &&
+          if (!lifecycle.retired && refreshCurrent(generation) &&
             request.attempt < MAX_SNAPSHOT_RETRIES
           ) {
             pending.replace(IconRefreshRequest(generation, request.attempt + 1))
             postPendingLocked()
             false
-          } else if (!lifecycle.retired && generations.isCurrent(generation)) {
+          } else if (!lifecycle.retired && refreshCurrent(generation)) {
             true
           } else {
             false
@@ -415,7 +426,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           continue
         }
         for (user in profiles) {
-          if (!generations.isCurrent(generation)) {
+          if (!refreshCurrent(generation)) {
             return
           }
           if (profile.isEnabledProfile.invoke(
@@ -427,10 +438,19 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             val fullRefresh = generations.needsFullRefresh(generation)
             // A palette refresh already includes every entry; probing first only adds AMS work.
             val probedPackages = if (fullRefresh) activities.map { it.componentName.packageName }.toSet()
-            else probe.packagesToRefresh(activities) { generations.isCurrent(generation) }
+            else probe.packagesToRefresh(activities) { refreshCurrent(generation) }
+            if (!refreshCurrent(generation)) return
+            val theme = iconTheme.snapshot(
+              activities.map { it.componentName.packageName }.toSet(),
+              activities.groupBy { it.componentName.packageName }
+                .mapValues { (_, entries) -> entries.map { it.componentName.className }.toSet() },
+              modEnabled = true,
+            )
             val shortcutsByPackage = shortcutsByPackage(launcherApps, user) ?: emptyMap()
             val shortcutPackages = shortcutsByPackage.keys
-            val packages = (probedPackages + shortcutPackages).toSortedSet()
+            val themePackages = if (theme.complete) theme.coveredPackages
+            else activities.map { it.componentName.packageName }.toSet()
+            val packages = (probedPackages + themePackages + shortcutPackages).toSortedSet()
             xposed.log(
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +
@@ -438,7 +458,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                 "shortcuts=${shortcutPackages.size}",
             )
             for (packageName in packages) {
-              if (!generations.isCurrent(generation)) {
+              if (!refreshCurrent(generation)) {
                 return
               }
               if (!listener.callback.asBinder().isBinderAlive) {
@@ -475,6 +495,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                 }
               }
             }
+          } catch (_: IconProbeCancelledException) {
+            return
           } catch (failure: Throwable) {
             logFailure(
               "icon refresh skipped user=${profile.userId.invoke(user)}",
@@ -484,12 +506,18 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         }
       }
       xposed.log(Log.INFO, TAG, "Icon refresh generation=$generation callbacks=$sent")
+      completed = true
       generations.complete(generation)
+    } catch (_: IconProbeCancelledException) {
+      // A newer configuration or retirement owns the next refresh.
     } catch (failure: Throwable) {
       logFailure("icon refresh stopped", failure)
     } finally {
       synchronized(lock) {
         lifecycle.activeJobs -= 1
+        if (!completed && !lifecycle.retired && generations.isCurrent(generation) &&
+          (lifecycle.retiring || Thread.currentThread().isInterrupted) && pending.request == null
+        ) pending.replace(request.copy(attempt = 0))
         if (pending.request != null && !pending.posted) postPendingLocked()
       }
     }
@@ -509,7 +537,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       entry is IInterface && profile.callbackClass.isInstance(entry) &&
         entry.asBinder() == listener.callback.asBinder()
     } as? IInterface ?: return false
-    if (!generations.isCurrent(generation)) return false
+    if (!refreshCurrent(generation)) return false
     if (profile.isEnabledProfile.invoke(
         launcherService, listener.cookie, user, "KeiHome icon refresh",
       ) != true ||
@@ -537,7 +565,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       entry is IInterface && profile.callbackClass.isInstance(entry) &&
         entry.asBinder() == listener.callback.asBinder()
     } as? IInterface ?: return false
-    if (!generations.isCurrent(generation)) return false
+    if (!refreshCurrent(generation)) return false
     if (profile.isEnabledProfile.invoke(
         launcherService, listener.cookie, user, "KeiHome shortcut refresh",
       ) != true ||
@@ -623,6 +651,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val registerListener: Method,
     val updateConfiguration: Method,
     val getGlobalConfiguration: Method,
+    val extraConfiguration: Field?,
+    val themeChangedFlags: Field?,
     val context: Field,
     val listeners: Field,
     val registeredCallbacks: RegisteredCallbackReader,
@@ -698,6 +728,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           IInterface::class.java,
           IBinder::class.java,
         )
+        val extraConfiguration = runCatching { Configuration::class.java.field("extraConfig") }.getOrNull()
+        val themeChangedFlags = runCatching { extraConfiguration?.type?.field("themeChangedFlags") }.getOrNull()
         return ServerProfile(
           launcherClass = launcher,
           cookieClass = cookie,
@@ -707,6 +739,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           ),
           updateConfiguration = updateConfiguration,
           getGlobalConfiguration = activityTaskManager.method("getGlobalConfiguration"),
+          extraConfiguration = extraConfiguration,
+          themeChangedFlags = themeChangedFlags,
           context = launcher.field("mContext"),
           listeners = listeners,
           registeredCallbacks = registeredCallbacks,
@@ -749,6 +783,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     const val SNAPSHOT_RETRY_MS = 250L
     const val MAX_SNAPSHOT_RETRIES = 3
     const val RETIRE_TIMEOUT_MS = 5_000L
+    const val CONFIG_THEME = 0x00400000
   }
 }
 
@@ -775,14 +810,6 @@ internal fun installOrReplaceIconHook(
   } else {
     xposed.hook(executable).setId(id).intercept(hooker) to null
   }
-}
-
-internal fun iconProbeReplyThreadsStopped(): Boolean = try {
-  Thread.getAllStackTraces().keys.none {
-    it.isAlive && it.name == "KeiHomeIconProbeReply"
-  }
-} catch (_: Throwable) {
-  false
 }
 
 // Access is serialized by the lifecycle except while retirement waits.
@@ -860,11 +887,12 @@ internal class PendingIconRefresh {
 
 internal class IconRefreshReloadLifecycle {
   val lock = Any()
+  private val retirement = ReentrantLock()
   var activeHooks = 0
   var activeJobs = 0
-  var retiring = false
+  @Volatile var retiring = false
     private set
-  var retired = false
+  @Volatile var retired = false
     private set
 
   fun <T> trackHook(block: () -> T): T {
@@ -882,51 +910,40 @@ internal class IconRefreshReloadLifecycle {
     commit: () -> Unit,
     rollback: () -> Unit,
   ): Boolean {
-    synchronized(lock) {
-      if (retired || retiring || activeHooks != 0) return false
-      retiring = true
+    if (!retirement.tryLock()) return false
+    try {
+      synchronized(lock) {
+        if (retired || retiring || activeHooks != 0) return false
+        retiring = true
+      }
+      fun recover() {
+        synchronized(lock) { retiring = false }
+        try { rollback() } catch (_: Throwable) { }
+      }
       try {
+        // Shutdown and Looper recovery must never hold the lock used by platform hooks.
         if (!prepare()) {
-          retiring = false
+          synchronized(lock) { retiring = false }
           return false
         }
       } catch (_: Throwable) {
-        retiring = false
-        try {
-          rollback()
-        } catch (_: Throwable) {
-        }
+        recover()
         return false
       }
-    }
-
-    val stopped = try {
-      await()
-    } catch (_: Throwable) {
-      false
-    }
-    synchronized(lock) {
-      if (!stopped || activeHooks != 0 || activeJobs != 0) {
-        retiring = false
-        try {
-          rollback()
-        } catch (_: Throwable) {
-        }
-        return false
+      val stopped = try { await() } catch (_: Throwable) { false }
+      val committed = synchronized(lock) {
+        if (!stopped || activeHooks != 0 || activeJobs != 0) false
+        else try {
+          commit()
+          retired = true
+          retiring = false
+          true
+        } catch (_: Throwable) { false }
       }
-      try {
-        commit()
-      } catch (_: Throwable) {
-        retiring = false
-        try {
-          rollback()
-        } catch (_: Throwable) {
-        }
-        return false
-      }
-      retired = true
-      retiring = false
-      return true
+      if (!committed) recover()
+      return committed
+    } finally {
+      retirement.unlock()
     }
   }
 }

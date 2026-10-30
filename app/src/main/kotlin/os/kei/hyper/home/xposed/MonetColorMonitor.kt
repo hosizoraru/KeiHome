@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.provider.Settings
+import android.os.OperationCanceledException
+import java.util.concurrent.atomic.AtomicBoolean
 import os.kei.hyper.home.data.MonetAction
 
 /**
@@ -38,7 +40,9 @@ internal class MonetColorMonitor(
     synchronizer.awaitStopped(deadlineNanos)
 
   private inner class Watch(private val context: Context) : MonitorWorker {
-    override val thread = HandlerThread("KeiHomeMonet", android.os.Process.THREAD_PRIORITY_BACKGROUND)
+    // In system_server, service calls can hold AMS/Settings locks on this thread.
+    // Background nice would also deprioritize the owner while UI callers wait.
+    override val thread = HandlerThread("KeiHomeMonet", android.os.Process.THREAD_PRIORITY_DEFAULT)
     private val handler by lazy { Handler(thread.looper) }
     @Volatile override var closed = false
       private set
@@ -52,7 +56,11 @@ internal class MonetColorMonitor(
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
         key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
     }
-    private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ -> request() }
+    private val wallpaperDirty = AtomicBoolean(true)
+    private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
+      wallpaperDirty.set(true)
+      request()
+    }
 
     private fun connectActionPreferences() {
       if (closed || actionPreferences != null) return
@@ -83,7 +91,9 @@ internal class MonetColorMonitor(
         var nextDelay = HEARTBEAT_MS
         try {
           connectActionPreferences()
-          val result = synchronizer.synchronize(context, observer, actionPreferences) { !closed }
+          val result = synchronizer.synchronize(
+            context, observer, actionPreferences, wallpaperDirty.getAndSet(false),
+          ) { !closed }
           onResult(result)
           if (result is MonetColorSynchronizer.SynchronizationResult.NativeUnavailable) {
             nextDelay = retryDelay
@@ -91,6 +101,10 @@ internal class MonetColorMonitor(
           } else {
             retryDelay = 1_000L
           }
+        } catch (_: OperationCanceledException) {
+          wallpaperDirty.set(true)
+        } catch (_: IconProbeCancelledException) {
+          wallpaperDirty.set(true)
         } catch (failure: Throwable) {
           onFailure(failure)
         } finally {

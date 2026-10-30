@@ -7,6 +7,7 @@ import android.app.ActivityManager
 import android.os.UserHandle
 import android.os.CancellationSignal
 import android.os.OperationCanceledException
+import android.os.SystemClock
 import android.net.Uri
 import android.provider.Settings
 import java.io.IOException
@@ -15,6 +16,12 @@ import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.parseMonetPaletteJson
+import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.status.IconRefreshReceipt
+import os.kei.hyper.home.status.NativeRuntimeState
+import os.kei.hyper.home.status.RuntimeStatusInbox
+import os.kei.hyper.home.status.RuntimeStatusReport
+import os.kei.hyper.home.status.RuntimeStatusRequest
 
 /**
  * Keeps HyperOS's selected monochrome icon color aligned with its live
@@ -55,6 +62,39 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
     native.stop()
   }
   fun awaitStopped(deadlineNanos: Long): Boolean = native.awaitStopped(deadlineNanos)
+
+  /** Runs on the existing monitor worker, serialized with policy exchanges and retirement. */
+  fun reportRuntimeStatus(
+    baseContext: Context,
+    request: RuntimeStatusRequest,
+    refresh: IconRefreshReceipt?,
+    isCurrent: () -> Boolean,
+  ): Boolean {
+    if (!isCurrent()) return false
+    val context = contextForUser(baseContext, request.userId) ?: return false
+    val activeUser = currentUserId()
+    val available = activeUser == request.userId && native.isAvailable(context)
+    // The client retains the last successful identity across failures; never use it alone.
+    val process = native.acknowledgedProcess.takeIf { available }
+    val state = when {
+      activeUser != null && activeUser != request.userId -> NativeRuntimeState.INACTIVE_USER
+      process != null -> NativeRuntimeState.READY
+      else -> NativeRuntimeState.UNAVAILABLE
+    }
+    val report = RuntimeStatusReport(
+      requestId = request.id, userId = request.userId,
+      moduleVersion = BuildConfig.VERSION_CODE.toLong(), checkedAtElapsed = SystemClock.elapsedRealtime(),
+      nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
+      refresh = refresh,
+      detail = if (state == NativeRuntimeState.UNAVAILABLE) {
+        if (activeUser == null) "Foreground user unavailable" else NativeMonetClient.lastTransportFailure
+      } else null,
+    )
+    if (!isCurrent() || currentUserId() != activeUser) return false
+    return context.contentResolver.call(
+      RuntimeStatusInbox.AUTHORITY, RuntimeStatusInbox.REPORT_METHOD, report.encode(), null,
+    )?.getBoolean("accepted") == true
+  }
 
   fun synchronize(
     baseContext: Context,

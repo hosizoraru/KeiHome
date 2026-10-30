@@ -9,8 +9,11 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.provider.Settings
 import android.os.OperationCanceledException
+import android.os.SystemClock
 import java.util.concurrent.atomic.AtomicBoolean
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.status.IconRefreshReceipt
+import os.kei.hyper.home.status.RuntimeStatusProtocol
 
 /**
  * Observe only the settings and palette consumed by the known launcher.
@@ -21,6 +24,8 @@ internal class MonetColorMonitor(
   private val onResult: (MonetColorSynchronizer.SynchronizationResult) -> Unit,
   private val onFailure: (Throwable) -> Unit,
   private val requestPreferences: () -> SharedPreferences? = { null },
+  private val statusPreferences: () -> SharedPreferences? = { null },
+  private val refreshReceipt: () -> IconRefreshReceipt? = { null },
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -50,12 +55,16 @@ internal class MonetColorMonitor(
     private var wallpaperRegistered = false
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
+    private var runtimePreferences: SharedPreferences? = null
+    private var lastStatusRequest: String? = null
+    private var statusPreferenceFailureReported = false
     private var preferenceFailureReported = false
     // The framework holds listeners weakly. This worker owns the strong reference until stop.
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
         key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
     }
+    private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestStatus() }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
       wallpaperDirty.set(true)
@@ -76,6 +85,50 @@ internal class MonetColorMonitor(
       }
     }
 
+    private fun connectStatusPreferences() {
+      if (closed || runtimePreferences != null) return
+      try {
+        statusPreferences()?.let { preferences ->
+          preferences.registerOnSharedPreferenceChangeListener(statusListener)
+          runtimePreferences = preferences
+          statusPreferenceFailureReported = false
+          requestStatus()
+        }
+      } catch (failure: Exception) {
+        if (!statusPreferenceFailureReported) onFailure(failure)
+        statusPreferenceFailureReported = true
+      }
+    }
+
+    private fun requestStatus() {
+      if (closed) return
+      handler.removeCallbacks(checkStatus)
+      handler.postDelayed(checkStatus, 100L)
+    }
+
+    private val checkStatus = Runnable {
+      if (closed) return@Runnable
+      try {
+        val request = RuntimeStatusProtocol.readRequest(runtimePreferences) ?: return@Runnable
+        if (request.id == lastStatusRequest || !request.isPending(SystemClock.elapsedRealtime())) return@Runnable
+        val canRun = synchronized(this@Watch) { !closed && synchronizer.start() }
+        if (!canRun) {
+          requestStatus()
+          return@Runnable
+        }
+        val isCurrent = {
+          !closed && !Thread.currentThread().isInterrupted &&
+            request.isPending(SystemClock.elapsedRealtime()) &&
+            RuntimeStatusProtocol.readRequest(runtimePreferences) == request
+        }
+        if (synchronizer.reportRuntimeStatus(context, request, refreshReceipt(), isCurrent)) {
+          lastStatusRequest = request.id
+        }
+      } catch (failure: Exception) {
+        if (!closed) onFailure(failure)
+      }
+    }
+
     private val synchronize = Runnable {
       val canRun = synchronized(this@Watch) {
         if (closed) return@Runnable
@@ -91,6 +144,7 @@ internal class MonetColorMonitor(
         var nextDelay = HEARTBEAT_MS
         try {
           connectActionPreferences()
+          connectStatusPreferences()
           val result = synchronizer.synchronize(
             context, observer, actionPreferences, wallpaperDirty.getAndSet(false),
           ) { !closed }
@@ -125,6 +179,7 @@ internal class MonetColorMonitor(
         if (closed) return@post
         connectActionPreferences()
         try {
+          connectStatusPreferences()
           val resolver = context.contentResolver
           resolver.registerContentObserver(
             Settings.System.getUriFor("key_monochrome"), false, observer,
@@ -164,6 +219,12 @@ internal class MonetColorMonitor(
           onFailure(failure)
         }
         actionPreferences = null
+        try {
+          runtimePreferences?.unregisterOnSharedPreferenceChangeListener(statusListener)
+        } catch (failure: Exception) {
+          onFailure(failure)
+        }
+        runtimePreferences = null
         if (wallpaperRegistered) {
           WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
           wallpaperRegistered = false

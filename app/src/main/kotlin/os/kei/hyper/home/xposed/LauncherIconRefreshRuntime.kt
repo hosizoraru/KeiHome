@@ -25,6 +25,8 @@ import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.status.IconRefreshReceipt
+import os.kei.hyper.home.status.RuntimeStatusProtocol
 
 internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lifecycle = IconRefreshReloadLifecycle()
@@ -35,6 +37,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var lastMonetState: String? = null
   private var nativeBrokerReady = false
   private var nativeBrokerInstallFailure: String? = null
+  @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme)
   private val monetColorMonitor = MonetColorMonitor(
     monetColorSynchronizer,
@@ -71,6 +74,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       xposed.log(Log.WARN, TAG, "Monet icon background synchronization failed", failure)
     },
     requestPreferences = { xposed.getRemotePreferences(MonetAction.GROUP) },
+    statusPreferences = { xposed.getRemotePreferences(RuntimeStatusProtocol.GROUP) },
+    refreshReceipt = { lastRefreshReceipt },
   )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
@@ -507,6 +512,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         }
       }
       xposed.log(Log.INFO, TAG, "Icon refresh generation=$generation callbacks=$sent")
+      lastRefreshReceipt = IconRefreshReceipt(sent, System.currentTimeMillis())
       completed = true
       generations.complete(generation)
     } catch (_: IconProbeCancelledException) {

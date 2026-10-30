@@ -5,11 +5,14 @@ import android.content.pm.LauncherApps
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -34,6 +37,9 @@ import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
 import os.kei.hyper.home.status.upgradeOlderSystemTarget
+import os.kei.hyper.home.status.RuntimeStatusProtocol
+import os.kei.hyper.home.status.RuntimeStatusReport
+import os.kei.hyper.home.status.RuntimeStatusUiState
 
 internal data class FrameworkUiState(
   val connected: Boolean = false,
@@ -61,6 +67,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val previews = IconPreviewRepository(application)
   val framework: StateFlow<FrameworkUiState>
     field = MutableStateFlow(FrameworkUiState())
+  val runtime: StateFlow<RuntimeStatusUiState>
+    field = MutableStateFlow(RuntimeStatusUiState())
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
   val apps: StateFlow<AppsUiState>
@@ -74,6 +82,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   private val paletteReader = MonetPaletteReader(application)
   private val paletteMutex = Mutex()
+  private val runtimeMutex = Mutex()
+  private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
   private var visiblePage: Int? = null
   private var locale = ""
@@ -94,7 +104,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       FrameworkConnection.service.collectLatest { service ->
         framework.value = FrameworkUiState(connected = service != null)
-        if (service != null) {
+        runtime.value = RuntimeStatusUiState()
+        if (service != null) coroutineScope {
+          if (visiblePage == 0) launch { readRuntimeStatus() }
           readFramework()
           delay(1_500)
           withContext(Dispatchers.IO) {
@@ -115,6 +127,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 0 || page == 2) launch {
         while (true) { readFramework(); delay(5_000) }
       }
+      if (page == 0) launch {
+        while (true) { readRuntimeStatus(); delay(10_000) }
+      }
       if (page in 0..2) launch {
         while (true) { readPalette(); delay(5_000) }
       }
@@ -130,6 +145,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         if (page == 0 || page == 2) readFramework()
+        if (page == 0) readRuntimeStatus()
         val wallpaperRefreshed = if (page == 2) refreshWallpaper() else true
         readPalette()
         if (page == 0 || page == 1) {
@@ -142,6 +158,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           }
         }
         val failed = !wallpaperRefreshed || monet.value.readFailed ||
+          (page == 0 && (runtime.value.readFailed || runtime.value.timedOut)) ||
           ((page == 0 || page == 2) && framework.value.readFailed) ||
           ((page == 0 || page == 1) && apps.value.error != null)
         refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
@@ -209,6 +226,41 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     } catch (cancellation: CancellationException) {
       throw cancellation
     } catch (_: Exception) { framework.update { it.copy(readFailed = true) } }
+  }
+
+  private suspend fun readRuntimeStatus() {
+    val requestedAt = SystemClock.elapsedRealtime()
+    runtimeMutex.withLock {
+      val service = FrameworkConnection.service.value ?: return
+      // Share a probe that completed while a manual refresh waited for the periodic one.
+      if ((runtime.value.report?.checkedAtElapsed ?: -1L) >= requestedAt) return
+      // Binder calls cannot always be interrupted. Keep at most one outstanding I/O task,
+      // while allowing the page/refresh to finish at its deadline and cancel its observation.
+      if (runtimeRead?.isCompleted == false) {
+        runtime.value = RuntimeStatusUiState(timedOut = true)
+        return
+      }
+      runtime.update {
+        RuntimeStatusUiState(report = it.report?.takeIf { report ->
+          report.isFresh(SystemClock.elapsedRealtime())
+        }, checking = true)
+      }
+      val operation = viewModelScope.async(Dispatchers.IO) { RuntimeStatusProtocol.query(service) }
+      runtimeRead = operation
+      try {
+        val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }
+        if (FrameworkConnection.service.value === service) {
+          runtime.value = RuntimeStatusUiState(report = report, timedOut = report == null)
+        }
+      } catch (cancellation: CancellationException) {
+        if (FrameworkConnection.service.value === service) runtime.update { it.copy(checking = false) }
+        throw cancellation
+      } catch (_: Exception) {
+        if (FrameworkConnection.service.value === service) runtime.value = RuntimeStatusUiState(readFailed = true)
+      } finally {
+        operation.cancel()
+      }
+    }
   }
 
   private suspend fun readPalette() = paletteMutex.withLock {

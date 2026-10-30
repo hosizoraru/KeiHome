@@ -1,0 +1,74 @@
+package os.kei.hyper.home.status
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class RuntimeStatusReportTest {
+  private val request = RuntimeStatusRequest("6ad7c033-914d-4adc-b7a9-794be04328ad", 0, 100_000)
+  private val ready = RuntimeStatusReport(
+    request.id, request.userId, 123, 100_500, NativeRuntimeState.READY,
+    launcherPid = 9700, launcherStartTicks = 3210,
+    refresh = IconRefreshReceipt(55, 1_793_373_931_000),
+  )
+
+  @Test
+  fun readyObservationRoundTripsWithActualProcessAndCallbackReceipt() {
+    assertEquals(ready, RuntimeStatusReport.decode(ready.encode()))
+  }
+
+  @Test
+  fun failureKeepsItsReasonButDoesNotInheritAnOldSuccessfulIdentity() {
+    val failed = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE,
+      launcherPid = null, launcherStartTicks = null, refresh = null, detail = "peer | timeout\nreason")
+    val decoded = RuntimeStatusReport.decode(failed.encode())!!
+    assertEquals(failed, decoded)
+    assertNull(decoded.launcherPid)
+    assertNull(decoded.launcherStartTicks)
+  }
+
+  @Test
+  fun readinessRequiresACompleteProcessIdentity() {
+    assertNull(RuntimeStatusReport.decode(ready.copy(launcherPid = null).encode()))
+    assertNull(RuntimeStatusReport.decode(ready.copy(launcherStartTicks = null).encode()))
+  }
+
+  @Test
+  fun staleAndForeignRepliesCannotSatisfyTheCurrentRequest() {
+    assertTrue(ready.matches(request, 101_000))
+    assertFalse(ready.copy(requestId = "previous-request").matches(request, 101_000))
+    assertFalse(ready.copy(userId = 10).matches(request, 101_000))
+    assertFalse(ready.copy(checkedAtElapsed = 99_999).matches(request, 101_000))
+    assertFalse(ready.matches(request, 100_499))
+    assertFalse(ready.matches(request, request.startedAtElapsed + RuntimeStatusRequest.REQUEST_LIFETIME_MS + 1))
+    assertFalse(ready.matches(request, ready.checkedAtElapsed + RuntimeStatusReport.FRESHNESS_MS + 1))
+  }
+
+  @Test
+  fun cachedReadinessExpiresAndCannotSurviveAResetElapsedClock() {
+    assertTrue(ready.isFresh(ready.checkedAtElapsed + RuntimeStatusReport.FRESHNESS_MS))
+    assertFalse(ready.isFresh(ready.checkedAtElapsed + RuntimeStatusReport.FRESHNESS_MS + 1))
+    assertFalse(ready.isFresh(100))
+  }
+
+  @Test
+  fun requestsDoNotReplayAfterExpiryOrWithAFutureClock() {
+    assertTrue(request.isPending(request.startedAtElapsed))
+    assertTrue(request.isPending(request.startedAtElapsed + RuntimeStatusRequest.REQUEST_LIFETIME_MS))
+    assertFalse(request.isPending(request.startedAtElapsed + RuntimeStatusRequest.REQUEST_LIFETIME_MS + 1))
+    assertFalse(request.isPending(request.startedAtElapsed - 1))
+    assertFalse(request.copy(startedAtElapsed = -1).isPending(0))
+  }
+
+  @Test
+  fun unsupportedAndMalformedReceiptsDoNotBecomeReadiness() {
+    assertNull(RuntimeStatusReport.decode(null))
+    assertNull(RuntimeStatusReport.decode(""))
+    assertNull(RuntimeStatusReport.decode(ready.encode().replaceFirst("1|", "2|")))
+    assertNull(RuntimeStatusReport.decode(ready.encode().replace("READY", "RUNNING")))
+    assertNull(RuntimeStatusReport.decode(ready.encode() + "|extra"))
+    assertNull(RuntimeStatusReport.decode(ready.encode() + "not base64!"))
+  }
+}

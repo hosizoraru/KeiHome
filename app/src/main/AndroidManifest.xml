@@ -41,6 +41,10 @@
             android:isolatedProcess="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
             android:process=":icon_probe" />
+        <provider
+            android:name=".status.RuntimeStatusProvider"
+            android:authorities="${applicationId}.runtime"
+            android:exported="false" />
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"
             tools:node="remove"

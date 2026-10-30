@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="monet_custom_seed">自定义种子色</string>
+  <string name="monet_custom_palettes">强调色与中性色</string>
+  <string name="monet_custom_palette_count">已自定义 %1$d / 5 组色系</string>
+  <string name="monet_custom_palette_hint">3 组强调色与 2 组中性色。未修改的色系继续跟随方案。</string>
+  <string name="monet_custom_override">自定义</string>
+  <string name="monet_custom_inherited">跟随方案</string>
+  <string name="monet_custom_icon_colors">主题图标配色</string>
+  <string name="monet_custom_aosp_roles">AOSP 前景与背景</string>
+  <string name="monet_custom_background_family">图标底色色系</string>
+  <string name="monet_custom_background_hint">可选任意强调色或中性色；手动指定的底色优先。</string>
+  <string name="monet_custom_light_foreground">浅色 · 前景</string>
+  <string name="monet_custom_light_background">浅色 · 背景</string>
+  <string name="monet_custom_dark_foreground">深色 · 前景</string>
+  <string name="monet_custom_dark_background">深色 · 背景</string>
+  <string name="monet_custom_picker">调色方式</string>
+  <string name="monet_custom_grid">调色板</string>
+  <string name="monet_custom_sliders">滑杆</string>
+  <string name="monet_custom_hct_hint">色相与彩度决定色系，明度随角色变化。颜色会按可用色域调整。</string>
+  <string name="monet_custom_hue">色相</string>
+  <string name="monet_custom_chroma">彩度</string>
+  <string name="monet_custom_opaque">请选择不透明颜色（不透明度 100%）。</string>
+  <string name="monet_custom_reset">恢复跟随方案</string>
+  <string name="monet_custom_cancel">取消</string>
+  <string name="monet_custom_use">使用此颜色</string>
+  <string name="monet_custom_low_contrast">请将深浅两种模式的前景／背景对比度调至至少 4.5:1 后再应用。</string>
+  <string name="monet_custom_discard">恢复已保存方案</string>
+</resources>

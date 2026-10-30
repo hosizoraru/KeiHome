@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import java.util.Locale
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetSchemes
+import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.MonetIconRole
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -50,7 +52,9 @@ private val PaletteTones = listOf(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99,
 
 /** Inspect only the draft palette supplied by the picker; reported device colors stay separate. */
 @Composable
-internal fun MonetPaletteDetails(seed: Int, palette: Map<String, Int>, modifier: Modifier = Modifier) {
+internal fun MonetPaletteDetails(
+  seed: Int, palette: Map<String, Int>, modifier: Modifier = Modifier, choice: MonetCustomization? = null,
+) {
   var familyIndex by rememberSaveable { mutableIntStateOf(0) }
   val familyNames = listOf(
     stringResource(R.string.monet_family_primary),
@@ -70,18 +74,23 @@ internal fun MonetPaletteDetails(seed: Int, palette: Map<String, Int>, modifier:
       Text(stringResource(R.string.monet_details_roles), modifier = Modifier.padding(16.dp),
         style = MiuixTheme.textStyles.body1)
       for (dark in listOf(false, true)) {
-        val roles = remember(palette, dark) { MonetSchemes.iconRoles(palette, dark) } ?: continue
+        val roles = remember(palette, dark, choice) { MonetSchemes.iconRoles(palette, dark, choice) } ?: continue
+        val foregroundRole = if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND
+        val backgroundRole = if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND
         Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
           style = MiuixTheme.textStyles.body2)
         MonetCopyableColor(
-          label = stringResource(R.string.monet_details_foreground, familyNames[0], if (dark) 80 else 30),
+          label = if (choice?.iconOverrides?.containsKey(foregroundRole) == true) roleName(foregroundRole)
+            else stringResource(R.string.monet_details_foreground,
+              familyName(foregroundRole.family(choice)), foregroundRole.tone),
           color = roles.foreground,
           modifier = Modifier.testTag("monet.role.${if (dark) "dark" else "light"}.foreground"),
         )
         MonetCopyableColor(
-          label = stringResource(R.string.monet_details_background,
-            familyNames[if (dark) 1 else 0], if (dark) 20 else 90),
+          label = if (choice?.iconOverrides?.containsKey(backgroundRole) == true) roleName(backgroundRole)
+            else stringResource(R.string.monet_details_background,
+              familyName(backgroundRole.family(choice)), backgroundRole.tone),
           color = roles.background,
           modifier = Modifier.testTag("monet.role.${if (dark) "dark" else "light"}.background"),
         )

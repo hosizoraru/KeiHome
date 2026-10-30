@@ -45,6 +45,7 @@ import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.IconPreviewRepository
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.data.MonetIconRole
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -64,7 +65,8 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     scan.capabilities.orEmpty().filter { it.matchesFilter(selectedFilter) }
   }
   val visible = remember(filterMatches, query) { filterMatches.filter { it.matchesQuery(query) } }
-  val colors = remember(monet.snapshot?.activePalette) { previewColors(monet.snapshot) }
+  val colors = remember(monet.snapshot?.activePalette, monet.snapshot?.customization,
+    monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
   LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -110,8 +112,12 @@ internal data class IconPreviewColors(val lightBackground: Int, val lightForegro
 internal fun previewColors(snapshot: MonetPaletteSnapshot?): IconPreviewColors? {
   fun tone(family: String, tone: Int) = snapshot?.families?.firstOrNull { it.name == family }
     ?.colors?.firstOrNull { it.tone == tone }?.value
-  return IconPreviewColors(tone("primary", 90) ?: return null, tone("primary", 30) ?: return null,
-    tone("secondary", 20) ?: return null, tone("primary", 80) ?: return null)
+  val choice = snapshot?.customization?.takeIf { snapshot.customizationActive }
+  fun color(role: MonetIconRole) = role.color(choice, ::tone)
+  return IconPreviewColors(color(MonetIconRole.LIGHT_BACKGROUND) ?: return null,
+    color(MonetIconRole.LIGHT_FOREGROUND) ?: return null,
+    color(MonetIconRole.DARK_BACKGROUND) ?: return null,
+    color(MonetIconRole.DARK_FOREGROUND) ?: return null)
 }
 
 @Composable

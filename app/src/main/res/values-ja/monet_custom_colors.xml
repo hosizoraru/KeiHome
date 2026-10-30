@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="monet_custom_seed">シードカラーを選ぶ</string>
+  <string name="monet_custom_palettes">アクセントとニュートラル</string>
+  <string name="monet_custom_palette_count">5 色系中 %1$d 色系をカスタマイズ</string>
+  <string name="monet_custom_palette_hint">アクセント 3 色系とニュートラル 2 色系。未編集の色系は選択したスタイルに従います。</string>
+  <string name="monet_custom_override">カスタム</string>
+  <string name="monet_custom_inherited">パレットに従う</string>
+  <string name="monet_custom_icon_colors">テーマアイコンの配色</string>
+  <string name="monet_custom_aosp_roles">AOSP の前景と背景</string>
+  <string name="monet_custom_background_family">アイコン背景の色系</string>
+  <string name="monet_custom_background_hint">アクセントとニュートラルから選択。個別に指定した背景色が優先されます。</string>
+  <string name="monet_custom_light_foreground">ライト · 前景</string>
+  <string name="monet_custom_light_background">ライト · 背景</string>
+  <string name="monet_custom_dark_foreground">ダーク · 前景</string>
+  <string name="monet_custom_dark_background">ダーク · 背景</string>
+  <string name="monet_custom_picker">色の選び方</string>
+  <string name="monet_custom_grid">カラーパレット</string>
+  <string name="monet_custom_sliders">スライダー</string>
+  <string name="monet_custom_hct_hint">色相とクロマで色系を指定し、明るさは用途に応じて変化します。色は表現可能な色域に調整されます。</string>
+  <string name="monet_custom_hue">色相</string>
+  <string name="monet_custom_chroma">クロマ</string>
+  <string name="monet_custom_opaque">不透明な色を選んでください（不透明度 100%）。</string>
+  <string name="monet_custom_reset">パレットに戻す</string>
+  <string name="monet_custom_cancel">キャンセル</string>
+  <string name="monet_custom_use">この色を使う</string>
+  <string name="monet_custom_low_contrast">両モードの前景と背景のコントラストを 4.5:1 以上に調整してください。</string>
+  <string name="monet_custom_discard">保存済みの設定に戻す</string>
+</resources>

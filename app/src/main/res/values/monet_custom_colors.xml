@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="monet_custom_seed">Custom seed color</string>
+  <string name="monet_custom_palettes">Accent &amp; neutral palettes</string>
+  <string name="monet_custom_palette_count">%1$d of 5 palettes customized</string>
+  <string name="monet_custom_palette_hint">Three accent and two neutral palettes. Unedited families follow the selected style.</string>
+  <string name="monet_custom_override">Custom</string>
+  <string name="monet_custom_inherited">From palette</string>
+  <string name="monet_custom_icon_colors">Themed icon colors</string>
+  <string name="monet_custom_aosp_roles">AOSP foreground &amp; background</string>
+  <string name="monet_custom_background_family">Icon background palette</string>
+  <string name="monet_custom_background_hint">Use any accent or neutral palette. Exact background colors take priority.</string>
+  <string name="monet_custom_light_foreground">Light · foreground</string>
+  <string name="monet_custom_light_background">Light · background</string>
+  <string name="monet_custom_dark_foreground">Dark · foreground</string>
+  <string name="monet_custom_dark_background">Dark · background</string>
+  <string name="monet_custom_picker">Color picker</string>
+  <string name="monet_custom_grid">Palette</string>
+  <string name="monet_custom_sliders">Sliders</string>
+  <string name="monet_custom_hct_hint">Hue and chroma define the family; roles choose lightness. Colors adjust to the available display gamut.</string>
+  <string name="monet_custom_hue">Hue</string>
+  <string name="monet_custom_chroma">Chroma</string>
+  <string name="monet_custom_opaque">Choose an opaque color (opacity 100%).</string>
+  <string name="monet_custom_reset">Follow palette</string>
+  <string name="monet_custom_cancel">Cancel</string>
+  <string name="monet_custom_use">Use color</string>
+  <string name="monet_custom_low_contrast">Increase foreground/background contrast to at least 4.5:1 in both modes before applying.</string>
+  <string name="monet_custom_discard">Restore saved selection</string>
+</resources>

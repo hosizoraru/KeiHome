@@ -91,7 +91,20 @@ internal fun MonetContent(
     }
   }
   val schemes = generated.second.takeIf { generated.first == seed }.orEmpty()
-  val palette = schemes[choice.style]
+  val customKey = Triple(seed, choice.style, choice.paletteOverrides)
+  val customPalette by produceState<Pair<Any?, Map<String, Int>?>>(null to null, customKey) {
+    value = customKey to withContext(Dispatchers.Default) {
+      if (seed == null || choice.paletteOverrides.isEmpty()) null
+      else MonetSchemes.generate(seed, choice.style, choice.paletteOverrides)
+    }
+  }
+  val palette = if (choice.paletteOverrides.isEmpty()) schemes[choice.style]
+    else customPalette.second.takeIf { customPalette.first == customKey }
+  val legible = remember(palette, choice.backgroundFamily, choice.iconOverrides) {
+    palette != null && listOf(false, true).all { dark ->
+      MonetSchemes.iconRoles(palette, dark, choice)?.contrastRatio?.let { it >= 4.5 } == true
+    }
+  }
   val applying = actionStatus == MonetActionStatus.APPLYING
   val change: (MonetCustomization) -> Unit = { if (!applying) draft = it.encode() }
   val sourceNames = listOf(
@@ -107,7 +120,8 @@ internal fun MonetContent(
         when {
           readFailed -> stringResource(R.string.monet_unavailable)
           snapshot == null -> stringResource(R.string.monet_loading)
-          current != null -> "${sourceNames[current.source.ordinal]} · ${styleName(current.style)}"
+          current != null -> "${sourceNames[current.source.ordinal]} · ${styleName(current.style)}" +
+            if (current.hasCustomColors) " · ${stringResource(R.string.monet_custom_override)}" else ""
           snapshot.monochrome.enabled == true -> stringResource(R.string.monet_launcher_selection)
           else -> stringResource(R.string.monet_icons_disabled)
         },
@@ -161,6 +175,9 @@ internal fun MonetContent(
           }
         }
       }
+      if (choice.source == MonetSeedSource.BASIC_COLOR) {
+        MonetSeedColorField(choice.color, enabled = !applying) { change(choice.copy(color = it)) }
+      }
     }
     SmallTitle(stringResource(R.string.monet_scheme_section))
     val columns = if (LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale > 1.15f) 1 else 2
@@ -210,12 +227,16 @@ internal fun MonetContent(
         modifier = Modifier.padding(horizontal = 16.dp),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
+    if (seed != null) {
+      // Keep editor expansion state while the new palette is generated off the UI thread.
+      MonetAdvancedColors(choice, seed, palette.orEmpty(), enabled = !applying && palette != null, onChange = change)
+    }
     if (palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          IconPalettePreview(palette, dark = false, modifier = Modifier.weight(1f))
-          IconPalettePreview(palette, dark = true, modifier = Modifier.weight(1f))
+          IconPalettePreview(palette, dark = false, choice = choice, modifier = Modifier.weight(1f))
+          IconPalettePreview(palette, dark = true, choice = choice, modifier = Modifier.weight(1f))
         }
         Text(stringResource(R.string.monet_details_contrast_note),
           modifier = Modifier.padding(top = 10.dp),
@@ -225,10 +246,11 @@ internal fun MonetContent(
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
       TextButton(
         text = stringResource(R.string.monet_apply_scheme), modifier = Modifier.fillMaxWidth(),
-        enabled = actionAvailable && !applying && palette != null,
+        enabled = actionAvailable && !applying && legible,
         onClick = { onApply(choice) },
       )
       val message = when {
+        palette != null && !legible -> R.string.monet_custom_low_contrast
         !actionAvailable || actionStatus == MonetActionStatus.UNAVAILABLE -> R.string.monet_action_unavailable
         applying -> R.string.monet_action_applying
         actionStatus == MonetActionStatus.APPLIED && snapshot?.customization == choice -> R.string.monet_action_applied
@@ -239,13 +261,15 @@ internal fun MonetContent(
       Text(stringResource(message), modifier = Modifier.padding(top = 10.dp)
         .semantics { liveRegion = LiveRegionMode.Polite },
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (draft != null) TextButton(stringResource(R.string.monet_custom_discard),
+        onClick = { draft = null }, enabled = !applying, modifier = Modifier.fillMaxWidth())
     }
     TextButton(text = stringResource(if (details) R.string.monet_hide_details else R.string.monet_show_details),
       onClick = { details = !details }, modifier = Modifier.fillMaxWidth())
     if (details) {
       SmallTitle(stringResource(R.string.monet_details_draft))
       if (palette != null && seed != null) {
-        MonetPaletteDetails(seed, palette)
+        MonetPaletteDetails(seed, palette, choice = choice)
       } else {
         Text(stringResource(if (seed == null) R.string.monet_seed_waiting else R.string.monet_loading),
           modifier = Modifier.padding(horizontal = 16.dp), style = MiuixTheme.textStyles.body2)
@@ -257,16 +281,21 @@ internal fun MonetContent(
 }
 
 @Composable
-private fun IconPalettePreview(palette: Map<String, Int>, dark: Boolean, modifier: Modifier = Modifier) {
-  val roles = remember(palette, dark) { MonetSchemes.iconRoles(palette, dark) } ?: return
+private fun IconPalettePreview(
+  palette: Map<String, Int>, dark: Boolean, choice: MonetCustomization, modifier: Modifier = Modifier,
+) {
+  val roles = remember(palette, dark, choice.backgroundFamily, choice.iconOverrides) {
+    MonetSchemes.iconRoles(palette, dark, choice)
+  } ?: return
   val foreground = Color(roles.foreground)
   val background = Color(roles.background)
   val neutral = Color(palette.getValue(if (dark) "neutral12" else "neutral96"))
+  val content = Color(palette.getValue(if (dark) "neutral90" else "neutral10"))
   Column(modifier.clip(RoundedCornerShape(16.dp)).background(neutral).padding(12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
-      color = foreground, style = MiuixTheme.textStyles.footnote1)
+      color = content, style = MiuixTheme.textStyles.footnote1)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
@@ -281,12 +310,12 @@ private fun IconPalettePreview(palette: Map<String, Int>, dark: Boolean, modifie
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
       Box(Modifier.size(10.dp).clip(CircleShape).background(foreground))
-      Text(stringResource(R.string.monet_accent_and_neutral), color = foreground,
+      Text(stringResource(R.string.monet_accent_and_neutral), color = content,
         style = MiuixTheme.textStyles.footnote2)
     }
     Text(stringResource(R.string.monet_details_contrast, roles.contrastRatio),
       modifier = Modifier.testTag("monet.contrast.${if (dark) "dark" else "light"}"),
-      color = foreground, style = MiuixTheme.textStyles.footnote2)
+      color = content, style = MiuixTheme.textStyles.footnote2)
   }
 }
 

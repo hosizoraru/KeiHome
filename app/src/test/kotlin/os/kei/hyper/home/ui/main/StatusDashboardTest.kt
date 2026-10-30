@@ -104,6 +104,15 @@ class StatusDashboardTest {
   }
 
   @Test
+  fun launcherFailureHasSameErrorSeverityAsSystemFailure() {
+    val loaded = HookedTarget.State.UP_TO_DATE
+    val failed = HookedTarget.State.FAILED
+    assertEquals(StatusTone.ERROR, statusTone(true, false, true, loaded, failed))
+    assertEquals(StatusTone.ERROR, statusTone(true, false, true, failed, loaded))
+    assertEquals(StatusTone.WARNING, statusTone(true, false, true, loaded, null))
+  }
+
+  @Test
   fun appliedPaletteAgeChangesAtTheMinuteBoundary() {
     val appliedAt = 1_000_000L
     assertEquals(0L, dashboardPaletteAgeMinutes(appliedAt, appliedAt + 59_999))

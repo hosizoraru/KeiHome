@@ -6,14 +6,19 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,13 +29,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -42,6 +51,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
 import os.kei.hyper.home.status.FrameworkSnapshot
+import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -75,7 +85,8 @@ internal fun statusTone(
   launcherTarget: HookedTarget.State?,
 ): StatusTone = when {
   !connected || readFailed ||
-    systemInScope == false || systemTarget == HookedTarget.State.FAILED -> StatusTone.ERROR
+    systemInScope == false || systemTarget == HookedTarget.State.FAILED ||
+    launcherTarget == HookedTarget.State.FAILED -> StatusTone.ERROR
   systemInScope == true &&
     systemTarget == HookedTarget.State.UP_TO_DATE &&
     launcherTarget == HookedTarget.State.UP_TO_DATE -> StatusTone.READY
@@ -200,11 +211,14 @@ private fun FrameworkHero(state: FrameworkCardState, onRefresh: () -> Unit) {
       state.systemState, state.launcherState,
     ),
     onRefresh = onRefresh,
-    footer = if (state.reported && state.apiVersion != null) {
-      stringResource(R.string.dashboard_connection_api, state.apiVersion)
-    } else if (state.connected && !state.readFailed) {
-      stringResource(R.string.status_framework_pending)
-    } else null,
+    // The hero describes framework loading, not hook execution or Monet readiness.
+    footer = when {
+      state.reported && state.apiVersion != null ->
+        stringResource(R.string.status_hero_load_report_api, state.apiVersion)
+      state.reported -> stringResource(R.string.status_hero_load_report)
+      state.connected && !state.readFailed -> stringResource(R.string.status_framework_pending)
+      else -> null
+    },
   )
 }
 
@@ -539,20 +553,26 @@ internal fun StatusOverviewCard(
   footer: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
+  val dark = LocalKeiHomeDarkTheme.current
+  val colors = MiuixTheme.colorScheme
+  // Status colors stay semantic even when the app's accent comes from wallpaper.
+  // Use the app appearance, which may differ from the system's light/dark mode.
+  val accentColor = when (tone) {
+    StatusTone.READY -> colorResource(
+      if (dark) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent,
+    )
+    StatusTone.WARNING -> colorResource(
+      if (dark) R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent,
+    )
+    StatusTone.ERROR -> colors.error
+  }
   val backgroundColor = when (tone) {
-    StatusTone.READY -> MiuixTheme.colorScheme.secondaryContainer
-    StatusTone.WARNING -> MiuixTheme.colorScheme.surfaceVariant
-    StatusTone.ERROR -> MiuixTheme.colorScheme.errorContainer
+    StatusTone.READY, StatusTone.WARNING -> lerp(colors.surface, accentColor, 0.16f)
+    StatusTone.ERROR -> colors.errorContainer
   }
   val contentColor = when (tone) {
-    StatusTone.READY -> MiuixTheme.colorScheme.onSecondaryContainer
-    StatusTone.WARNING -> MiuixTheme.colorScheme.onSurface
-    StatusTone.ERROR -> MiuixTheme.colorScheme.onErrorContainer
-  }
-  val accentColor = when (tone) {
-    StatusTone.READY -> MiuixTheme.colorScheme.primary
-    StatusTone.WARNING -> MiuixTheme.colorScheme.onSurfaceSecondary
-    StatusTone.ERROR -> MiuixTheme.colorScheme.error
+    StatusTone.READY, StatusTone.WARNING -> colors.onSurface
+    StatusTone.ERROR -> colors.onErrorContainer
   }
   val icon = when (tone) {
     StatusTone.READY -> MiuixIcons.Ok
@@ -561,28 +581,45 @@ internal fun StatusOverviewCard(
   }
 
   Card(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier
+      .fillMaxWidth()
+      .semantics { this.onClick(label = refreshLabel, action = null) },
     insideMargin = PaddingValues(0.dp),
-    colors = CardDefaults.defaultColors(color = backgroundColor),
+    colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
     onClick = onRefresh,
     showIndication = true,
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
-    Column(
-      modifier = Modifier
-        .semantics { this.onClick(label = refreshLabel, action = null) }
-        .padding(16.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Box(Modifier.fillMaxWidth().clipToBounds()) {
+      // This layer follows the text's measured height; the decorative symbol never
+      // expands the card or overlaps the text column, including at large font sizes.
+      Box(Modifier.matchParentSize()) {
+        Icon(
+          imageVector = icon,
+          modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .offset(x = 27.dp, y = 31.dp)
+            .size(130.dp)
+            .then(
+              if (tone == StatusTone.READY) {
+                Modifier.border(5.dp, accentColor, CircleShape).padding(26.dp)
+              } else Modifier,
+            ),
+          tint = accentColor,
+          contentDescription = null,
+        )
+      }
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(min = 144.dp)
+          .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
       ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
           Text(
             text = title,
-            style = MiuixTheme.textStyles.title2,
+            style = MiuixTheme.textStyles.title2.copy(fontWeight = FontWeight.SemiBold),
             color = contentColor,
           )
           Text(
@@ -591,36 +628,38 @@ internal fun StatusOverviewCard(
             color = contentColor.copy(alpha = 0.84f),
           )
         }
-        Icon(
-          imageVector = icon,
-          modifier = Modifier.size(28.dp),
-          tint = accentColor,
-          contentDescription = null,
-        )
+        if (footer != null) {
+          Text(
+            text = footer,
+            modifier = Modifier.padding(top = 16.dp),
+            style = MiuixTheme.textStyles.footnote1,
+            color = contentColor,
+          )
+        }
       }
-      if (footer != null) {
-        Text(footer, style = MiuixTheme.textStyles.footnote1, color = contentColor)
-      }
-      if (details.isNotEmpty()) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          details.forEach { detail ->
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-              Text(
-                text = detail.label,
-                modifier = Modifier.weight(1f),
-                style = MiuixTheme.textStyles.body2,
-                color = contentColor.copy(alpha = 0.7f),
-              )
-              Text(
-                text = detail.value,
-                modifier = Modifier.weight(1.2f),
-                style = MiuixTheme.textStyles.body2,
-                color = contentColor,
-              )
-            }
+    }
+    if (details.isNotEmpty()) {
+      Column(
+        modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        details.forEach { detail ->
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            Text(
+              text = detail.label,
+              modifier = Modifier.weight(1f),
+              style = MiuixTheme.textStyles.body2,
+              color = contentColor.copy(alpha = 0.7f),
+            )
+            Text(
+              text = detail.value,
+              modifier = Modifier.weight(1.2f),
+              style = MiuixTheme.textStyles.body2,
+              color = contentColor,
+            )
           }
         }
       }

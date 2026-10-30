@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_hero_load_report">Load status</string>
+    <string name="status_hero_load_report_api" translatable="false">API %1$d</string>
+
+    <!-- Semantic accents, selected using KeiHome's app appearance. -->
+    <color name="status_hero_loaded_accent">#28854B</color>
+    <color name="status_hero_loaded_accent_dark">#74D99A</color>
+    <color name="status_hero_warning_accent">#986600</color>
+    <color name="status_hero_warning_accent_dark">#E9C46B</color>
+</resources>

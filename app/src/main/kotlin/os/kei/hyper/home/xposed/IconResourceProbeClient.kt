@@ -15,6 +15,7 @@ import android.os.Message
 import android.os.Messenger
 import android.os.SystemClock
 import android.util.Log
+import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -50,26 +51,15 @@ internal class IconResourceProbeClient(private val context: Context) {
     inspectLauncherMask: Boolean,
     maskOnly: Boolean,
     isCurrent: () -> Boolean,
-  ): IconProbeBatch {
+  ): IconProbeBatch = runCancellableIconProbe(isCurrent) {
     val unknown = IconProbeBatch(packages.keys, emptyMap())
-    if (packages.isEmpty() || packages.size > MAX_PACKAGES) return unknown
+    if (packages.isEmpty() || packages.size > MAX_PACKAGES) return@runCancellableIconProbe unknown
 
     val connectionReady = CountDownLatch(1)
     val resultsReady = CountDownLatch(packages.size)
     val results = ConcurrentHashMap<Int, Boolean>()
     val masks = ConcurrentHashMap<Int, LauncherMaskStatus>()
-    val replyThread = HandlerThread("KeiHomeIconProbeReply").also { it.start() }
-    val reply = Messenger(Handler(replyThread.looper) { message ->
-      if (message.arg1 !in 0 until packages.size) return@Handler true
-      masks[message.arg1] = LauncherMaskStatus.fromWire(message.data.getInt(
-        IconProbeProtocol.LAUNCHER_MASK, LauncherMaskStatus.UNKNOWN.ordinal,
-      ))
-      if (results.putIfAbsent(message.arg1, message.data.getBoolean(
-          IconProbeProtocol.REQUIRES_REFRESH, true,
-        )) == null
-      ) resultsReady.countDown()
-      true
-    })
+    val replyThread = HandlerThread("KeiHomeIconProbeReply")
     val remote = AtomicReference<Messenger?>()
     val connection = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -87,17 +77,31 @@ internal class IconResourceProbeClient(private val context: Context) {
     }
     var bindAttempted = false
     try {
+      replyThreads.start(replyThread)
+      val reply = Messenger(Handler(replyThread.looper) { message ->
+        if (message.arg1 !in 0 until packages.size) return@Handler true
+        masks[message.arg1] = LauncherMaskStatus.fromWire(message.data.getInt(
+          IconProbeProtocol.LAUNCHER_MASK, LauncherMaskStatus.UNKNOWN.ordinal,
+        ))
+        if (results.putIfAbsent(message.arg1, message.data.getBoolean(
+            IconProbeProtocol.REQUIRES_REFRESH, true,
+          )) == null
+        ) resultsReady.countDown()
+        true
+      })
+      checkIconProbeActive(isCurrent)
       val intent = Intent().setClassName(MODULE_PACKAGE, PROBE_SERVICE)
       bindAttempted = true
       val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
       if (!bound || !connectionReady.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-        return unknown
+        return@runCancellableIconProbe unknown
       }
-      val target = remote.get() ?: return unknown
+      checkIconProbeActive(isCurrent)
+      val target = remote.get() ?: return@runCancellableIconProbe unknown
       val config = Configuration(context.resources.configuration)
       val indexed = packages.entries.toList()
       for ((index, entry) in indexed.withIndex()) {
-        if (!isCurrent()) return unknown
+        checkIconProbeActive(isCurrent)
         try {
           target.send(Message.obtain().apply {
             arg1 = index
@@ -110,27 +114,39 @@ internal class IconResourceProbeClient(private val context: Context) {
             data.putBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK, inspectLauncherMask)
             data.putBoolean(IconProbeProtocol.MASK_ONLY, maskOnly)
           })
+        } catch (cancelled: InterruptedException) {
+          throw cancelled
+        } catch (cancelled: IconProbeCancelledException) {
+          throw cancelled
         } catch (_: Throwable) {
           if (results.putIfAbsent(index, true) == null) resultsReady.countDown()
         }
       }
       val deadline = SystemClock.elapsedRealtime() + PROBE_TIMEOUT_MS
-      while (isCurrent() && resultsReady.count > 0 && SystemClock.elapsedRealtime() < deadline) {
+      while (resultsReady.count > 0 && SystemClock.elapsedRealtime() < deadline) {
+        checkIconProbeActive(isCurrent)
         resultsReady.await(POLL_MS, TimeUnit.MILLISECONDS)
       }
-      if (!isCurrent()) return unknown
+      checkIconProbeActive(isCurrent)
       val refresh = indexed.mapIndexedNotNull { index, entry ->
         if (results[index] != false) entry.key else null
       }.toSet()
-      return IconProbeBatch(refresh, indexed.mapIndexed { index, entry ->
+      IconProbeBatch(refresh, indexed.mapIndexed { index, entry ->
         entry.key to (masks[index] ?: LauncherMaskStatus.UNKNOWN)
       }.toMap())
+    } catch (cancelled: InterruptedException) {
+      Thread.currentThread().interrupt()
+      throw cancelled
+    } catch (cancelled: IconProbeCancelledException) {
+      throw cancelled
     } catch (_: Throwable) {
-      return unknown
+      unknown
     } finally {
       if (bindAttempted) {
         try {
           context.unbindService(connection)
+        } catch (_: InterruptedException) {
+          Thread.currentThread().interrupt()
         } catch (_: Throwable) {
         }
       }
@@ -140,20 +156,51 @@ internal class IconResourceProbeClient(private val context: Context) {
         if (replyThread.isAlive) Log.w(TAG, "Probe reply thread did not stop in time")
       } catch (_: InterruptedException) {
         Thread.currentThread().interrupt()
+      } finally {
+        replyThreads.reapTerminated()
       }
     }
   }
 
-  private companion object {
-    const val TAG = "KeiHomeIconProbe"
-    const val MODULE_PACKAGE = "os.kei.hyper.home"
-    const val PROBE_SERVICE = "$MODULE_PACKAGE.xposed.IconResourceProbeService"
-    const val MAX_PACKAGES = 512
-    const val CONNECT_TIMEOUT_MS = 3_000L
-    const val PROBE_TIMEOUT_MS = 5_000L
-    const val POLL_MS = 100L
-    const val REPLY_THREAD_TIMEOUT_MS = 1_000L
+  companion object {
+    private val replyThreads = IconProbeThreadRegistry()
+
+    /** Await this generation's reply threads after stopping probe admission; never scans the VM. */
+    fun awaitOwnedReplyThreadsStopped(deadlineNanos: Long): Boolean =
+      replyThreads.awaitStopped(deadlineNanos)
+
+    private const val TAG = "KeiHomeIconProbe"
+    private const val MODULE_PACKAGE = "os.kei.hyper.home"
+    private const val PROBE_SERVICE = "$MODULE_PACKAGE.xposed.IconResourceProbeService"
+    private const val MAX_PACKAGES = 512
+    private const val CONNECT_TIMEOUT_MS = 3_000L
+    private const val PROBE_TIMEOUT_MS = 5_000L
+    private const val POLL_MS = 100L
+    private const val REPLY_THREAD_TIMEOUT_MS = 1_000L
   }
+}
+
+/** Cancellation must abort the caller's sweep, never become an unknown/all-packages result. */
+internal class IconProbeCancelledException(cause: InterruptedException? = null) :
+  CancellationException("Icon resource probe cancelled") {
+  init { if (cause != null) initCause(cause) }
+}
+
+internal fun checkIconProbeActive(isCurrent: () -> Boolean) {
+  if (Thread.currentThread().isInterrupted || !isCurrent()) throw IconProbeCancelledException()
+}
+
+internal fun <T> runCancellableIconProbe(isCurrent: () -> Boolean, operation: () -> T): T {
+  checkIconProbeActive(isCurrent)
+  val result = try {
+    operation()
+  } catch (interrupted: InterruptedException) {
+    Thread.currentThread().interrupt()
+    throw IconProbeCancelledException(interrupted)
+  }
+  // Cleanup may itself be interrupted after a result has already been computed.
+  checkIconProbeActive(isCurrent)
+  return result
 }
 
 internal data class IconProbeBatch(

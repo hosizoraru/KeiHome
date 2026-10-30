@@ -3,6 +3,7 @@ package os.kei.hyper.home.data
 import com.materialkolor.contrast.Contrast
 import com.materialkolor.dynamiccolor.ColorSpec.SpecVersion.SPEC_2021
 import com.materialkolor.hct.Hct
+import com.materialkolor.palettes.TonalPalette
 import com.materialkolor.quantize.QuantizerCelebi
 import com.materialkolor.scheme.DynamicScheme.Platform.PHONE
 import com.materialkolor.scheme.SchemeExpressive
@@ -32,7 +33,7 @@ internal object MonetSchemes {
    * SPEC_2021 palettes are independent of light/dark mode; pin it for repeatable selection.
    * MonetColorPolicy selects light primary90/30 and dark secondary20/primary80 from this map.
    */
-  fun generate(seed: Int, style: MonetSchemeStyle): Map<String, Int> {
+  private fun palettes(seed: Int, style: MonetSchemeStyle): List<TonalPalette> {
     val hct = Hct.fromInt(seed)
     val scheme = when (style) {
       MonetSchemeStyle.TONAL_SPOT -> SchemeTonalSpot(hct, false, 0.0, SPEC_2021, PHONE)
@@ -43,16 +44,22 @@ internal object MonetSchemes {
       MonetSchemeStyle.RAINBOW -> SchemeRainbow(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.FRUIT_SALAD -> SchemeFruitSalad(hct, false, 0.0, SPEC_2021, PHONE)
     }
-    return buildMap {
-      for ((name, palette) in listOf(
-        "primary" to scheme.primaryPalette,
-        "secondary" to scheme.secondaryPalette,
-        "tertiary" to scheme.tertiaryPalette,
-        "neutral" to scheme.neutralPalette,
-        "neutral-variant" to scheme.neutralVariantPalette,
-      )) {
-        for (tone in 0..100) put("$name$tone", palette.tone(tone))
-      }
+    return listOf(scheme.primaryPalette, scheme.secondaryPalette, scheme.tertiaryPalette,
+      scheme.neutralPalette, scheme.neutralVariantPalette)
+  }
+
+  fun familySpecs(seed: Int, style: MonetSchemeStyle): Map<MonetPaletteFamily, MonetTonalSpec> =
+    MonetPaletteFamily.entries.zip(palettes(seed, style)).associate { (family, palette) ->
+      family to MonetTonalSpec(palette.hue, palette.chroma)
+    }
+
+  fun generate(
+    seed: Int, style: MonetSchemeStyle,
+    overrides: Map<MonetPaletteFamily, MonetTonalSpec> = emptyMap(),
+  ): Map<String, Int> = buildMap {
+    for ((family, original) in MonetPaletteFamily.entries.zip(palettes(seed, style))) {
+      val palette = overrides[family]?.let { TonalPalette.fromHueAndChroma(it.hue, it.chroma) } ?: original
+      for (tone in 0..100) put("${family.key}$tone", palette.tone(tone))
     }
   }
 
@@ -61,9 +68,14 @@ internal object MonetSchemes {
    * This measures the actual opaque sRGB pair, not nominal HCT tones or rendered icon pixels.
    * Missing or translucent colors cannot provide this readout without a compositing background.
    */
-  fun iconRoles(palette: Map<String, Int>, dark: Boolean): MonetIconRoles? {
-    val foreground = palette[if (dark) "primary80" else "primary30"] ?: return null
-    val background = palette[if (dark) "secondary20" else "primary90"] ?: return null
+  fun iconRoles(
+    palette: Map<String, Int>, dark: Boolean, choice: MonetCustomization? = null,
+  ): MonetIconRoles? {
+    fun color(role: MonetIconRole) = role.color(choice) { family, tone -> palette["$family$tone"] }
+    val foreground = color(if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)
+      ?: return null
+    val background = color(if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
+      ?: return null
     val ratio = opaqueContrastRatio(foreground, background) ?: return null
     return MonetIconRoles(foreground, background, ratio)
   }

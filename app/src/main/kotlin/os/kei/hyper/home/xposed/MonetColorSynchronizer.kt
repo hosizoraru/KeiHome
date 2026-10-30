@@ -122,11 +122,12 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
     val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
     val palette = if (customization != null) {
       val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette
-      MonetSchemes.generate(seed, customization.style)
+      MonetSchemes.generate(seed, customization.style, customization.paletteOverrides)
     } else readPalette(context, resolver, stillCurrent) ?: return SynchronizationResult.NoPalette
     val colors = MonetColorPolicy.selectPair(
       palette = palette,
       uiMode = context.resources.configuration.uiMode,
+      customization = customization,
     )
       ?: return SynchronizationResult.NoColor
     val selected = colors.background

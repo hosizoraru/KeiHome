@@ -121,7 +121,7 @@ internal fun parseMonetPaletteJson(raw: String): List<MonetColorFamily> {
 internal class MonetPaletteReader(context: Context) {
   private val context = context.applicationContext
   private val resolver = context.contentResolver
-  private var generatedKey: Pair<Int, MonetSchemeStyle>? = null
+  private var generatedKey: Triple<Int, MonetSchemeStyle, Map<MonetPaletteFamily, MonetTonalSpec>>? = null
   private var generatedPalette: MonetPaletteSource? = null
 
   fun read(): MonetPaletteSnapshot {
@@ -134,9 +134,9 @@ internal class MonetPaletteReader(context: Context) {
       ownedColor == monochrome.colorArgb
     val selectedPalette = customization?.takeIf { active }?.let { choice ->
       choice.seed(wallpaper)?.let { seed ->
-        val key = seed to choice.style
+        val key = Triple(seed, choice.style, choice.paletteOverrides)
         if (generatedKey != key) {
-          val tones = MonetSchemes.generate(seed, choice.style)
+          val tones = MonetSchemes.generate(seed, choice.style, choice.paletteOverrides)
           generatedPalette = MonetPaletteSource("KeiHome", MonetReadState.AVAILABLE,
             MONET_FAMILY_ORDER.map { name ->
               MonetColorFamily(name, (0..100).map { MonetColor(it, tones.getValue("$name$it")) })

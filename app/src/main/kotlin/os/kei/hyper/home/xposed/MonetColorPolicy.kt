@@ -2,6 +2,8 @@ package os.kei.hyper.home.xposed
 
 import android.content.res.Configuration
 import kotlin.math.pow
+import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.MonetIconRole
 
 internal data class IconColors(val foreground: Int, val background: Int)
 
@@ -44,10 +46,14 @@ internal object MonetColorPolicy {
   fun selectPair(
     palette: Map<String, Int>,
     uiMode: Int = Configuration.UI_MODE_NIGHT_NO,
+    customization: MonetCustomization? = null,
   ): IconColors? {
     val dark = uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-    val background = palette[if (dark) "secondary20" else "primary90"] ?: return null
-    val foreground = palette[if (dark) "primary80" else "primary30"] ?: return null
+    fun color(role: MonetIconRole) = role.color(customization) { family, tone -> palette["$family$tone"] }
+    val background = color(if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
+      ?: return null
+    val foreground = color(if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)
+      ?: return null
     return if (isLegiblePair(foreground, background)) {
       IconColors(foreground = foreground, background = background)
     } else {

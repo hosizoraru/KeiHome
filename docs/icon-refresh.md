@@ -97,7 +97,7 @@ packages are refreshed instead of risking missed icons.
 The solution uses launcher package callbacks and does not depend on whether
 `libhyper_os_flutter.so` comes from the launcher APK or the system partition.
 
-## Two-tone Monet on the verified HYOS image
+## Runtime-resolved two-tone Monet
 
 ### Official icon styles and theme-owned artwork
 
@@ -133,18 +133,28 @@ pass after restoring display power. These results do not establish no-restart
 acceptance for arbitrary theme packages or close the historical ANR issue.
 See `anr-investigation.md` for the separate stability failures and test conditions.
 
-The native foundation accepts only two reviewed `libapp.so` identities, both
-with Dart build ID `4f1bdaed62b77ed2de7d3ebc34e453ca`:
+The native foundation now resolves the loaded Dart image instead of consulting
+an APK SHA/version allowlist. Following MiuiBackGestureHook's mapped-code
+resolver approach, it scans bounded executable segments, identifies instruction
+contracts, and verifies their actual call relationships. Branch destinations,
+object-pool indices, controller field-table slots and allocation class IDs are
+decoded from the current image. Object-field layouts, stack/register contracts,
+String representation and GC/lifetime boundaries remain explicit checks.
 
-- APK ELF: `fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463`.
-- Extracted AVD ELF: `44ab76174a5085b9cc45d44420b82e53c46423e2f58d32e0eee86264dc683dd5`.
+Tint fingerprints normalize only relocation operands. The optional capability
+gate parses the async support/preference graph and derives its branch target,
+preserving the original `Future<bool>` completion. Selection verifies the entry's
+callers and live factory/callback pool linkage before a package-specific veto.
+No resolver retains a Dart heap reference, calls into Dart, or uses a version RVA.
+Native policy acknowledgement is the system-side compatibility boundary; the
+old Kotlin whole-file SHA gate has been removed. The backing-file hash is still
+computed to bind a native publication to its loaded image, not to whitelist it.
 
-The extracted image differs in two Recents timeout instructions outside the icon
-ABI. Both full-file hashes are explicit allowlist entries. Changed dependencies,
-ambiguous structure, unrecognized images, or missing authenticated policy leave
-original selection/tint behavior in place. The capability patch preserves the
-existing asynchronous `Future<bool>` contract. This is not general compatibility
-with arbitrary HyperOS versions.
+The same instruction contracts are exercised against the 7722 and 8593 images.
+This supports compatible code families across relocation changes; it does not
+promise arbitrary future compiler/object-layout changes. Ambiguous or changed
+contracts preserve original behavior. See `launcher-8593-compatibility.md` for
+initial failure evidence and the subsequent device adaptation record.
 
 The tone roles follow AOSP iconloaderlib's Android 16 resources:
 

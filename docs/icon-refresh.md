@@ -99,6 +99,40 @@ The solution uses launcher package callbacks and does not depend on whether
 
 ## Two-tone Monet on the verified HYOS image
 
+### Official icon styles and theme-owned artwork
+
+The resource policy now inventories the active `/data/system/theme/icons` archive,
+the stock archive when no active archive exists, and the system `miui_mod_icons`
+directory. The verified launcher initializes its mod-source gate to true; the
+Default, Classic and Boundless configurations do not override that gate.
+The inventory recognizes exact package/component PNG names, fancy/animating MAML
+descriptors and explicitly declared Classic layers. It does not guess aliases or
+interpret an arbitrary PNG as an adaptive-icon monochrome layer.
+
+Packages with matching theme artwork keep the launcher's original styled path.
+An APK's monochrome mask cannot replace a theme's own drawing, including its
+native light/dark selection. Night changes also refresh theme-covered launcher
+entries through LauncherApps. A real icon-theme configuration change invalidates
+the worker-side inventory and requests a full refresh. No theme archive is edited
+by the module, and no Dart object is retained or replayed for this feature.
+
+The existing native veto is package-keyed, so a themed Activity protects its whole
+package. Unknown native aliases and theme-provided monochrome formats are not
+claimed as supported. Inventory completion means the recognized resources were
+read successfully, not that their rendering or night behavior was proven. An
+incomplete/replaced archive preserves the last published Monet policy; the night
+refresh conservatively includes all visible entries until the inventory recovers.
+
+AVD resource inspection found no proven light/dark pair in the three supplied
+official packs. Unit fixtures cover night-qualified resource ownership; visual
+checks cover each pack's native artwork, APK night icons and Monet rendering.
+Latest Classic/Boundless functional screenshots used a temporary secondary-display
+power-off control. Classic previously triggered a real launcher input ANR under
+normal load. The subsequent default-style, two-display mixed check was a bounded
+pass after restoring display power. These results do not establish no-restart
+acceptance for arbitrary theme packages or close the historical ANR issue.
+See `anr-investigation.md` for the separate stability failures and test conditions.
+
 The native foundation accepts only two reviewed `libapp.so` identities, both
 with Dart build ID `4f1bdaed62b77ed2de7d3ebc34e453ca`:
 
@@ -133,7 +167,12 @@ bridge changes only the unboxed ARGB argument at the verified conversion call.
 It checks the caller, live pool constant, blend mode, original color, current
 controller and selected background. The two original filter setters own engine
 filter invalidation; narrowly scoped equality prevents an obsolete filter from
-being retained, including after policy withdrawal. Other filters pass through.
+being retained, including after policy withdrawal. Before the process accepts its
+first enabled tint policy, equality stays stock: no module-tinted filter can exist
+yet. A native-owned monotonic flag is armed before publication and survives Java
+hot reload, expiry and withdrawal. It retains no Dart object. After first enablement,
+the existing per-instance invalidation behavior remains; this is not an active-mode
+frame-rate optimization. Other filters pass through.
 The launcher's resource debug demo shares this exact constant and is also in
 scope.
 
@@ -145,7 +184,12 @@ Dart stack shape, bool GDT entry, two true operands and the live controller's
 RxBool receiver. On a new selection revision it returns false once, allowing
 the original Rx setter and stream to recompute subscribed controllers.
 A compare-and-swap cannot consume a newer revision or rewind another reader.
-Palette-only renewals do not generate selection revisions.
+Palette-only renewals do not generate selection revisions. When the acknowledged background
+changes and the user, native owner, fallback set and theme source remain the same,
+the original color observer paints the new palette without a full package sweep.
+Foreground-only changes with an unchanged background still request a sweep to
+avoid Rx equality suppressing the update. First publication, Java reload and
+explicit apply retain their full source reconciliation.
 
 These bridges do not allocate, invoke Dart/C, retain heap references, write
 Dart objects, replay a State, or replace the Flutter root tree. They use live

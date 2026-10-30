@@ -35,9 +35,10 @@ AlarmManager, AppOps or SystemUI hook, scope expansion or timeout override was a
   while the caller can hold the window-manager lock. Failed installation closes
   the worker and monitor. `KeiHome:night-observer` traces only our scheduling
   callback, not the original configuration transaction.
-- Run color monitoring, icon callback dispatch and isolated resource probing at
-  Android background thread priority. The original system configuration call
-  and UI threads retain their priorities and ownership.
+- Earlier versions ran the system-server workers at background thread priority.
+  The October 30 follow-up below restores normal priority for workers that can
+  hold shared framework locks. Resource decoding still runs in the isolated probe
+  process. The original configuration call and UI threads keep their ownership.
 - Full palette sweeps already include every launcher entry, so skip the redundant
   night-resource probe that formerly preceded them.
 - Retain up to four mask-result configurations, including both night variants.
@@ -112,3 +113,257 @@ is not presented as an experimentally measured notification-rate reduction.
 Future recurrence requires a trace covering the blocked Binder reply and the
 contemporaneous lock owner. The historical incidents should not be closed solely
 because these theme-switch runs passed.
+
+## October 30 follow-up: icon styles and mixed transitions
+
+The following evidence supersedes any interpretation of the earlier bounded runs
+as complete ANR acceptance. Only the authorized HyperOS AVD was operated.
+
+### Implemented changes
+
+- Configuration hooks queue work only on a prepared Handler. Worker creation,
+  monitor startup, shutdown and rollback no longer hold the lifecycle lock used
+  by framework callbacks. The retirement deadline includes preparation.
+- Track the generation's owned probe reply threads, including startup, instead
+  of using `Thread.getAllStackTraces()` in system_server. Cancelled probes abort
+  their sweep instead of turning into an unknown/all-packages fallback. An
+  interrupted refresh remains pending for the successful generation handover.
+- Monitor startup/shutdown run outside the monitor lock. Replacement waiters stay
+  owned until actual thread termination. Palette queries receive a cancellation
+  signal and stop with the retired monitor.
+- Cache wallpaper extraction by user/home/lock IDs. Read static image data before
+  asking the OEM service to extract reported colors; color callbacks and explicit
+  refresh still invalidate the cache. Cancellation is checked between stages.
+- Preserve theme-owned icon artwork using the inventory documented in
+  `icon-refresh.md`. Both ordinary night changes and icon-style changes refresh
+  affected launcher entries without process termination.
+- Final version `1793322784` restores normal nice 0 for the icon and Monet workers.
+  These execute system-server service code and can hold shared AMS/Settings locks;
+  assigning background nice to the owner can delay foreground waiters. A captured
+  740.413 ms settings call ran at scheduler priority 130 (nice 10), with
+  711.290 ms runnable. Normal priority removes this avoidable inversion risk; it
+  does not establish that all OS-side stalls have been fixed.
+
+API 102 reloads succeeded at increasing versions `1793319213`, `1793320162`,
+`1793320889`, and `1793322784`. No native payload/ABI changes or native deployment
+restart were requested. The final runtime threads were checked at nice 0.
+The focused ownership, cancellation, retirement and theme tests passed; the final
+priority-only change required Release compilation, R8/lint and runtime checking,
+not another complete unit-test run.
+
+### Failures retained, not excluded from acceptance
+
+The Boundless mixed baseline captured a 5,088.406 ms SystemUI configuration
+callback. Of that time, 2,477.588 ms was runnable and 2,040.162 ms sleeping.
+The critical Binder path was SystemUI -> WMS.watchRotation -> system_server
+TID 9023. WM's `performSurfacePlacement` spent 499.210 of its 523.024 ms runnable.
+The initial monitor owner and later wake source were different threads.
+
+A subsequent mixed run captured an 18,853.455 ms callback. Its 8,225 ms in tracing
+stop were ended by `crash_dump64` processes targeting SystemUI; the longest such
+stop was 7,752 ms. The callback also contained 5,387 ms sleeping, 3,530 ms runnable,
+1,416 ms running and 295 ms uninterruptible. Only 252.705 ms was synchronous Binder
+wall time. The module wrapper added 4.296 ms around a 2,528.069 ms original call.
+This is diagnostic amplification plus scheduling pressure, not proof of a single
+KeiHome-owned deadlock. The later volume-panel `mDisplay is null` WTF reporting
+began after this callback and cannot explain its start.
+
+At **09:12:31 +08**, the asynchronous-fixture run produced a real launcher focus
+ANR. ActivityManager terminated PID 9692 with reason `user request after error`;
+the spawner later created PID 32243. No module kill/restart operation was issued.
+The incident reported CPU pressure `some avg10=73.59` and 93% total CPU usage.
+It is a failed no-restart acceptance run. SystemUI and system_server survived.
+The priority-only build had not been installed at the time of this ANR.
+
+The final priority build hot-reloaded without changing PID/start identity, but a
+night-only run still triggered SystemUI SCOUT hangs. A development-only restart
+of the exact SystemUI process preserved launcher and system_server identity;
+another night run still reported SCOUT hangs. Thus neither the priority change
+nor a clean SystemUI alone is sufficient evidence of resolution.
+
+The AVD native-compat service also contributed CPU during install reconciliation.
+Its existing package-change loop performs verified native/VINTF/APEX checks.
+Its process nice was changed from 0 to 10 for this boot; verified module assets
+and manifests were not modified. In the 18.853 s callback its descendants used
+2.859 CPU-seconds (2.53% of six-CPU capacity), less than the diagnostic, GC and
+rendering consumers. This temporary AVD adjustment is not a phone-side module fix.
+
+The rear-display process was a further concrete load source, alongside media
+decoding and compositor work. It was temporarily force-stopped for a diagnostic
+control and automatically restarted as PID 3373; its package remained enabled
+and `stopped=false`. The subsequent night-only run and two mixed cycles passed
+with unchanged launcher/system_server/SystemUI identities and no SCOUT/ANR event.
+These were not tests with the rear display permanently disabled. Restarting this
+service changes runtime state and cannot be reported as a controlled KeiHome
+speedup or a universal watchdog fix. No rear-display operation was added to the
+module. The old SystemUI's development restart and the earlier launcher ANR remain
+explicitly recorded above rather than hidden by the later passing baseline.
+The first control scripts did not capture keyguard state; their navigation claims
+are therefore not accepted. The final harness explicitly wakes/dismisses the
+unsecured AVD keyguard and records `showing=false` before measuring transitions.
+The rear launcher was separately verified resumed, visible and drawn on display 1.
+
+The explicitly unlocked final mixed run **failed**: the first cycle retained all
+process identities, but the second triggered SCOUT hangs in SystemUI, launcher,
+KeiHome and system_server and timed out on activity/restoration shell calls.
+Transient debugger clones also made some `pidof` snapshots ambiguous. The original
+launcher PID 32243 was still present at inspection. Therefore the earlier 225.460 ms
+maximum SystemUI callback from the post-rear-restart trace is only a conditional
+observation; it is not final foreground/background acceptance. Historical watchdog
+causality and the unlocked mixed-transition stall remain open.
+
+After retaining this evidence, testing stopped. Default icons were restored
+(no active icons archive; stock fallback), the static wallpaper's SHA-256 matched
+its original backup, night mode was restored to `yes`, and the temporary wallpaper
+app and named device helpers were removed. A user-authorized development recovery
+reboot/relaunch of this AVD was performed to clear the sustained diagnostic/load
+state. It is not a runtime switching mechanism or a passing no-restart result.
+The native-compat service's temporary nice adjustment does not survive that boot.
+
+Final APK: `KeiHome-1.0-1793322784-release.apk`. Permanent evidence, both failures
+and conditional passes, is in
+`/Users/voyager/.codex/visualizations/2026/10/30/keihome-theme-anr/`.
+
+### Repeatable checks
+
+`scripts/prepare-wallpaper-fixture.py --output <temporary-directory>` builds a
+temporary, explicitly targeted AVD app with only SET_WALLPAPER. It backs up the
+owner's static home/lock images, rejects live-wallpaper configuration, uses a real
+app identity and increments its own versionCode before installation. Wallpaper
+work runs off its main thread. The generated APK/assets are local QA artifacts.
+
+Run `scripts/check-theme-continuity.py --wallpaper-fixture --cycles 2 --evidence
+<directory>` for mixed transitions. `--phase night`, `--phase wallpaper` and
+`--phase navigation` isolate the triggers. The fixture acknowledges completion;
+cleanup attempts wallpaper and night-mode restoration independently. The script
+records process identities, action timings, framework events and OEM SCOUT hangs.
+It retains failure reports instead of equating missing `am_anr` with success.
+
+After testing, restore the original wallpaper and night mode, then uninstall only
+`os.kei.home.wallpaper.fixture`. Never automate launcher data clearing, timeout
+suppression, SystemUI restart or rear-display shutdown as a module workaround.
+
+
+## Follow-up control and reduced refresh work
+
+A module-disabled control was added after the earlier inconclusive stress runs.
+KeiHome was disabled for user 0 and the AVD was cold started. LSPosed reported it
+disabled, and the launcher had no executable KeiHome mapping (read-only APK icon
+resource mappings are not native injection). The unlocked mixed test still
+produced SystemUI SCOUT hangs and an activity-start timeout. The first SystemUI
+warning, at 12:45:28.166, was in keyguard-hide/insets handling, before the wallpaper
+fixture launched at 12:45:29.900 and before KeiHome's UI launched at 12:45:32.387.
+Later WMShell stacks waited in `IWindowOrganizerController.finishTransition`.
+The original launcher PID/start ticks remained `9676 / 3583`. A temporary SystemUI
+debugger clone made one `pidof` inspection ambiguous; subsequent inspection found
+original PID 9661/start 3581 still alive. This control establishes that these stalls
+can occur without loaded KeiHome hooks. It does not exclude added load when the
+module is enabled or establish the cause of the historical AlarmManager watchdog.
+The saved trace request failed to recover a useful contemporaneous owner stack.
+
+Simpleperf sampled only system_server, SystemUI and the launcher, at 199 Hz.
+A passing 30-second enabled navigation/night capture had 4,689 samples; 39.86%
+landed in `goldfish_pipe.ko:writel`, mostly raster/Vulkan threads. The failing
+40-second disabled mixed capture had 10,716 samples; 13.75% landed there. These
+are different workloads, sample shares are not a speed comparison, and sampling
+cannot explain sleeping time. No app-side GPU/driver fix is claimed.
+Evidence is retained under `/tmp/keihome-anr-followup/`, including both perf.data
+files, `disabled-systemui-stack.txt`, `disabled-logcat.txt`, and `disabled-mixed/`.
+
+Two additional changes remove provably unnecessary module work:
+
+- A color-only publication now relies on the existing launcher color observer,
+  without also issuing a full LauncherApps package/shortcut sweep. A foreground-only
+  change with the same background still refreshes, since the native Rx value can
+  compare equal and suppress notification. First ownership,
+  Java hot reload, user/native owner changes, changed fallback selection, changed
+  icon-theme sources and explicit apply actions still reconcile package sources.
+  Night-resource refresh remains independent of palette publication.
+- Before the first enabled native tint policy in a process, filter equality stays
+  stock. After enablement, conservative per-instance invalidation remains intact,
+  including withdrawal and Java hot reload. The process-lifetime atomic history
+  adds no Dart reference, heap write, new caller or ABI assumption. This only
+  removes pre-enablement repaint work; it is not a general ANR cure.
+
+The focused publication tests pass (4 cases), along with the native publisher's
+ASan/UBSan tests, 69 AArch64 bridge cases (81 invocations), 41 resolver rejection
+cases and Android ARM64/API 37 compilation. Release assembly, R8 and required lint
+passed for versionCode 1793336340. No complete unrelated test suite was rerun.
+
+The wallpaper fixture now serializes requests, handles an intent delivered to an
+existing Activity, avoids uiMode recreation and acknowledges the exact request ID
+and mode. The harness records timed-out operations as well as successful ones.
+Older count-only wallpaper logs are not treated as proof for individual requests.
+The disabled control's SCOUT/timeout evidence remains valid independently of that
+fixture correction; its wallpaper completion counts are not acceptance evidence.
+
+The module was re-enabled after the control. Installation into that already-running,
+previously disabled system_server did not produce a reload owner; that deployment
+is not counted as API-102 hot-reload success. The following development recovery
+loads the native payload at normal process startup. Emulator shutdown/host recovery
+is recorded separately from normal theme-switch process continuity.
+
+
+### Classic switch recurrence on the final candidate
+
+Version 1793337343 hot-reloaded successfully, keeping launcher `9679 / 3501`,
+system_server `8814 / 2705`, and SystemUI `9673 / 3500`. The preceding candidate
+1793336914 also passed a wallpaper-only green/original cycle with no new target
+ANR, SCOUT hang or restart. Its two palette publications logged
+`packageRefresh=false` and did not emit a package sweep.
+
+Applying Classic through the native theme manager nevertheless produced a real
+launcher ANR at **13:32:04**: `[Gesture Monitor] swipe-up` did not respond to DOWN
+for 5,012 ms. ActivityManager killed PID 9679 at 13:32:06 with `user request after
+error`, and the spawner created PID 8576/start 146965. No module or QA process-kill
+command was issued for this event. This is a failed continuity run. The Classic
+publication's 70 callbacks completed at 13:31:04; the logs do not establish them
+as the owner of the subsequent block. CPU pressure was `some avg10=67.49`, with
+87% total CPU including about 30% IRQ; rear display, media decoding and graphics
+services were prominent consumers. The recovered native ANR report contains
+waiting channels, not a conclusive lock owner. No new native tombstone was found.
+
+Evidence: `classic-events.txt`, `classic-home-anr.txt`, `classic-module.log` and
+`classic-switch.log` in the follow-up evidence directory. Later checks after the
+system-created replacement cannot retroactively pass that failed run.
+
+A secondary-display load control uses `cmd display power-off 1`, followed by
+`power-reset 1` for restoration. It does not disable a package or add a runtime
+mitigation to KeiHome. Results under that condition must be labeled separately
+from normal two-display acceptance.
+
+
+### Final bounded checks and restoration
+
+- API-102 Java replacement passed at `1793336340 -> 1793336914 -> 1793337343`.
+  Both validated deployments preserved all three process identities and requested
+  no native replacement. Native code was loaded by the separately documented
+  development recovery boot; Java hot reload is not a native-code swap claim.
+- With secondary display 1 powered off, two complete mixed cycles passed with
+  launcher `8576 / 146965`, system_server `8814 / 2705` and SystemUI `9673 / 3500`
+  unchanged, with no new target SCOUT hang or ANR/crash in that run. Classic's
+  blue/green wallpaper palettes and both night modes were visually checked on
+  KeiHome and both ErinAO icons. Boundless's light/dark Monet colors, stock themed
+  artwork, and HyperPods ordinary-icon fallback were also visible. Default was
+  restored through the same native picker. These are functional checks under
+  reduced display load, not normal two-display stability acceptance. Dock drag
+  setup was unsuccessful and made no persistent layout change; it supplies no
+  new Dock acceptance evidence.
+- After `power-reset 1`, a final normal two-display mixed cycle passed with the
+  same identities, three individually acknowledged wallpaper applications
+  (including restoration), and no new target ANR/crash/SCOUT hang. The updated
+  harness verifies the actual resumed package on display 0 after launching
+  KeiHome and after HOME, rather than assuming successful key injection changed
+  the foreground. Both foreground checks passed in each direction. This is one
+  post-control run, not evidence that the earlier Classic ANR is fixed.
+- The original blue wallpaper hash was restored, default icon source returned
+  to stock fallback, night mode remained `yes`, and native Monet stayed enabled.
+  Display 1 power was reset. Other LSPosed module enablement was not changed.
+  The wallpaper fixture and named on-device capture helpers were removed.
+
+The final installable Release is versionCode **1793337343**. Permanent evidence
+and the APK are retained in
+`/Users/voyager/.codex/visualizations/2026/10/30/keihome-anr-followup/`.
+The historical watchdog owner, SystemUI stall causality and normal-load Classic
+ANR remain unresolved. Do not label this version an ANR fix or a fully accepted
+no-restart release on the basis of its reduced refresh work and bounded passes.

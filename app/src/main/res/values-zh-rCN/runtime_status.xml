@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_module_ready">模块已就绪</string>
+    <string name="runtime_native_ready">桌面已就绪</string>
+    <string name="runtime_ready_summary">系统：%1$s · 桌面已就绪</string>
+    <string name="runtime_endpoint_verified">API %1$d · 桌面已连接</string>
+    <string name="runtime_checking">正在检查状态…</string>
+    <string name="runtime_not_reported">等待桌面状态</string>
+    <string name="runtime_expired">状态已过期</string>
+    <string name="runtime_generation_mismatch">上报版本不一致</string>
+    <string name="runtime_unavailable">等待桌面连接</string>
+    <string name="runtime_inactive_user">非当前用户</string>
+    <string name="runtime_timed_out">状态查询超时</string>
+    <string name="runtime_read_failed">无法读取状态</string>
+    <string name="runtime_launcher_process">桌面进程</string>
+    <string name="runtime_launcher_pid">PID %1$d</string>
+    <string name="runtime_diagnostic">诊断信息</string>
+    <string name="runtime_reporting_generation">运行模块版本</string>
+    <string name="runtime_java_load_report">Java 加载报告</string>
+    <string name="runtime_java_optional">未上报 · 已使用原生检测</string>
+    <string name="runtime_java_summary">Java 报告：%1$s</string>
+    <string name="runtime_framework_api">框架 API</string>
+    <string name="runtime_callbacks_unreported">回调派发：暂无记录</string>
+    <plurals name="runtime_callbacks_dispatched">
+        <item quantity="other">已派发 %1$d 个回调 · %2$s</item>
+    </plurals>
+    <string name="runtime_native_note">就绪表示桌面取色与回退接口可用。</string>
+</resources>

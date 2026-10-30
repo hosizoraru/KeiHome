@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_module_ready">Module ready</string>
+    <string name="runtime_native_ready">Launcher ready</string>
+    <string name="runtime_ready_summary">System: %1$s · Launcher ready</string>
+    <string name="runtime_endpoint_verified">API %1$d · Launcher connected</string>
+    <string name="runtime_checking">Checking status…</string>
+    <string name="runtime_not_reported">Waiting for launcher status</string>
+    <string name="runtime_expired">Status expired</string>
+    <string name="runtime_generation_mismatch">Reporting build differs</string>
+    <string name="runtime_unavailable">Waiting for launcher connection</string>
+    <string name="runtime_inactive_user">User inactive</string>
+    <string name="runtime_timed_out">Status query timed out</string>
+    <string name="runtime_read_failed">Unable to read status</string>
+    <string name="runtime_launcher_process">Launcher process</string>
+    <string name="runtime_launcher_pid">PID %1$d</string>
+    <string name="runtime_diagnostic">Diagnostic</string>
+    <string name="runtime_reporting_generation">Running module build</string>
+    <string name="runtime_java_load_report">Java load report</string>
+    <string name="runtime_java_optional">Not reported · using native detection</string>
+    <string name="runtime_java_summary">Java report: %1$s</string>
+    <string name="runtime_framework_api">Framework API</string>
+    <string name="runtime_callbacks_unreported">Callback dispatch: no record</string>
+    <plurals name="runtime_callbacks_dispatched">
+        <item quantity="one">%1$d callback dispatched · %2$s</item>
+        <item quantity="other">%1$d callbacks dispatched · %2$s</item>
+    </plurals>
+    <string name="runtime_native_note">Ready means the launcher color and fallback hooks are available.</string>
+</resources>

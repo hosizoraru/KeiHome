@@ -136,6 +136,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit) {
   val framework by model.framework.collectAsStateWithLifecycle()
+  val runtime by model.runtime.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
   val apps by model.apps.collectAsStateWithLifecycle()
   val counts = remember(apps.capabilities) { apps.capabilities?.let { list ->
@@ -145,7 +146,8 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
   StatusBody(connected = framework.connected, snapshot = framework.snapshot, readFailed = framework.readFailed,
     monetSnapshot = monet.snapshot, monetReadFailed = monet.readFailed, onRefresh = { model.refresh(0) },
     onOpenMonet = onOpenMonet, onOpenApps = onOpenApps,
-    installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third)
+    installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
+    runtime = runtime)
 }
 
 @Composable

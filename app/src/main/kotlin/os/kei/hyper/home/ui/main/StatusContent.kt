@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import android.os.SystemClock
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -23,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +54,10 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
 import os.kei.hyper.home.status.FrameworkSnapshot
+import os.kei.hyper.home.status.IconRefreshReceipt
+import os.kei.hyper.home.status.NativeRuntimeState
+import os.kei.hyper.home.status.RuntimeStatusReport
+import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -77,6 +84,7 @@ internal data class StatusDetail(
   val value: String,
 )
 
+/** Framework load severity only; the dashboard also requires a current native reply. */
 internal fun statusTone(
   connected: Boolean,
   readFailed: Boolean,
@@ -106,14 +114,15 @@ internal fun StatusBody(
   nightApps: Int? = null,
   monetApps: Int? = null,
   onOpenApps: () -> Unit = {},
+  runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
 ) {
   // The containing page's SaveableStateProvider retains these across tab switches.
   var runtimeExpanded by rememberSaveable { mutableStateOf(false) }
   var monetExpanded by rememberSaveable { mutableStateOf(false) }
   val framework = frameworkCardState(connected, readFailed, snapshot)
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    FrameworkHero(framework, onRefresh)
-    RuntimeStatusCard(framework, runtimeExpanded, { runtimeExpanded = !runtimeExpanded })
+    RuntimeStatusSection(framework, runtime, runtimeExpanded,
+      { runtimeExpanded = !runtimeExpanded }, onRefresh)
     DashboardMonetCard(
       snapshot = monetSnapshot,
       readFailed = monetReadFailed,
@@ -175,23 +184,112 @@ internal fun loadedState(
   else -> state
 }
 
-@Composable
-private fun FrameworkHero(state: FrameworkCardState, onRefresh: () -> Unit) {
-  val title = when {
-    !state.connected || state.readFailed -> R.string.status_overview_error_title
-    state.systemInScope == false -> R.string.polish_status_scope_needed
-    state.systemState == HookedTarget.State.FAILED -> R.string.status_target_failed
-    state.launcherState == HookedTarget.State.FAILED -> R.string.polish_status_launcher_failed
-    state.systemState == HookedTarget.State.RELOADING ||
-      state.launcherState == HookedTarget.State.RELOADING -> R.string.status_target_reloading
-    state.systemState == HookedTarget.State.STALE ||
-      state.launcherState == HookedTarget.State.STALE -> R.string.polish_status_update_pending
-    state.systemInScope == true && state.systemState == HookedTarget.State.UP_TO_DATE &&
-      state.launcherState == HookedTarget.State.UP_TO_DATE -> R.string.polish_status_loaded
-    state.systemState == HookedTarget.State.UP_TO_DATE ||
-      state.launcherState == HookedTarget.State.UP_TO_DATE -> R.string.dashboard_partly_loaded
-    else -> R.string.polish_status_waiting
+internal enum class NativeStatusKind(@param:StringRes val label: Int) {
+  READY(R.string.runtime_native_ready),
+  CHECKING(R.string.runtime_checking),
+  NOT_REPORTED(R.string.runtime_not_reported),
+  EXPIRED(R.string.runtime_expired),
+  GENERATION_MISMATCH(R.string.runtime_generation_mismatch),
+  UNAVAILABLE(R.string.runtime_unavailable),
+  INACTIVE_USER(R.string.runtime_inactive_user),
+  TIMED_OUT(R.string.runtime_timed_out),
+  READ_FAILED(R.string.runtime_read_failed),
+}
+
+@Immutable
+internal data class RuntimeCardState(
+  val kind: NativeStatusKind,
+  val report: RuntimeStatusReport?,
+)
+
+internal fun runtimeCardState(
+  runtime: RuntimeStatusUiState,
+  now: Long,
+  installedVersion: Long = BuildConfig.VERSION_CODE.toLong(),
+): RuntimeCardState {
+  // Authentication and process identity are checked by the transport. Time and reporting
+  // generation must still be checked here, including on the first composition after resume.
+  val report = runtime.report?.takeIf { it.isFresh(now) && !runtime.readFailed && !runtime.timedOut }
+  val kind = when {
+    runtime.readFailed -> NativeStatusKind.READ_FAILED
+    runtime.timedOut -> NativeStatusKind.TIMED_OUT
+    report == null -> when {
+      runtime.checking -> NativeStatusKind.CHECKING
+      runtime.report != null -> NativeStatusKind.EXPIRED
+      else -> NativeStatusKind.NOT_REPORTED
+    }
+    else -> when (report.nativeState) {
+      NativeRuntimeState.INACTIVE_USER -> NativeStatusKind.INACTIVE_USER
+      NativeRuntimeState.UNAVAILABLE -> NativeStatusKind.UNAVAILABLE
+      NativeRuntimeState.READY -> if (report.moduleVersion == installedVersion) NativeStatusKind.READY
+        else NativeStatusKind.GENERATION_MISMATCH
+    }
   }
+  return RuntimeCardState(kind, report)
+}
+
+@Immutable
+internal data class ModuleStatusPresentation(@param:StringRes val title: Int, val tone: StatusTone)
+
+internal fun moduleStatusPresentation(
+  framework: FrameworkCardState,
+  runtime: RuntimeCardState,
+): ModuleStatusPresentation {
+  val title = when {
+    !framework.connected || framework.readFailed -> R.string.status_overview_error_title
+    framework.systemInScope == false -> R.string.polish_status_scope_needed
+    framework.systemState == HookedTarget.State.FAILED -> R.string.status_target_failed
+    framework.launcherState == HookedTarget.State.FAILED -> R.string.polish_status_launcher_failed
+    runtime.kind == NativeStatusKind.READ_FAILED -> R.string.runtime_read_failed
+    framework.systemState == HookedTarget.State.RELOADING -> R.string.status_target_reloading
+    framework.systemState == HookedTarget.State.STALE -> R.string.polish_status_update_pending
+    framework.systemInScope != true || framework.systemState != HookedTarget.State.UP_TO_DATE ->
+      R.string.polish_status_waiting
+    runtime.kind == NativeStatusKind.READY -> R.string.runtime_module_ready
+    else -> runtime.kind.label
+  }
+  val frameworkTone = statusTone(framework.connected, framework.readFailed, framework.systemInScope,
+    framework.systemState, framework.launcherState)
+  val tone = when {
+    frameworkTone == StatusTone.ERROR || runtime.kind == NativeStatusKind.READ_FAILED -> StatusTone.ERROR
+    title == R.string.runtime_module_ready -> StatusTone.READY
+    else -> StatusTone.WARNING
+  }
+  return ModuleStatusPresentation(title, tone)
+}
+
+@Composable
+private fun RuntimeStatusSection(
+  framework: FrameworkCardState,
+  runtime: RuntimeStatusUiState,
+  expanded: Boolean,
+  onToggle: () -> Unit,
+  onRefresh: () -> Unit,
+) {
+  val current = if (framework.connected && !framework.readFailed) runtime else RuntimeStatusUiState()
+  val checkedAt = current.report?.checkedAtElapsed
+  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  var elapsed by remember(checkedAt) { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+  // Wake once at expiry, and immediately on resume. No dashboard-wide polling clock.
+  LaunchedEffect(checkedAt, lifecycle) {
+    if (checkedAt == null) return@LaunchedEffect
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      val now = SystemClock.elapsedRealtime()
+      elapsed = now
+      if (now >= checkedAt && now - checkedAt <= RuntimeStatusReport.FRESHNESS_MS) {
+        delay(RuntimeStatusReport.FRESHNESS_MS - (now - checkedAt) + 1)
+        elapsed = SystemClock.elapsedRealtime()
+      }
+    }
+  }
+  val native = runtimeCardState(current, maxOf(elapsed, SystemClock.elapsedRealtime()))
+  FrameworkHero(framework, native, onRefresh)
+  RuntimeStatusCard(framework, native, expanded, onToggle)
+}
+
+@Composable
+private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, onRefresh: () -> Unit) {
+  val presentation = moduleStatusPresentation(state, runtime)
   val summary = when {
     !state.connected -> stringResource(R.string.status_framework_disconnected)
     state.readFailed -> stringResource(R.string.status_framework_error)
@@ -203,16 +301,19 @@ private fun FrameworkHero(state: FrameworkCardState, onRefresh: () -> Unit) {
     )
   }
   StatusOverviewCard(
-    title = stringResource(title),
+    title = stringResource(presentation.title),
     summary = summary,
     details = emptyList(),
-    tone = statusTone(
-      state.connected, state.readFailed, state.systemInScope,
-      state.systemState, state.launcherState,
-    ),
+    tone = presentation.tone,
     onRefresh = onRefresh,
-    // The hero describes framework loading, not hook execution or Monet readiness.
     footer = when {
+      // Java hot reload is a separate observation from the resident native endpoint.
+      state.launcherState == HookedTarget.State.STALE ||
+        state.launcherState == HookedTarget.State.RELOADING -> stringResource(
+          R.string.runtime_java_summary, targetLabel(state.launcherState, state.reported),
+        )
+      presentation.tone == StatusTone.READY && state.apiVersion != null ->
+        stringResource(R.string.runtime_endpoint_verified, state.apiVersion)
       state.reported && state.apiVersion != null ->
         stringResource(R.string.status_hero_load_report_api, state.apiVersion)
       state.reported -> stringResource(R.string.status_hero_load_report)
@@ -231,21 +332,38 @@ private fun frameworkVersionLabel(version: String?, code: Long?): String = when 
 }
 
 @Composable
-private fun RuntimeStatusCard(state: FrameworkCardState, expanded: Boolean, onToggle: () -> Unit) {
-  val summary = if (state.reported) {
-    stringResource(
-      R.string.dashboard_targets,
-      targetLabel(state.systemState, reported = true),
-      targetLabel(state.launcherState, reported = true),
-    )
-  } else stringResource(R.string.dashboard_current_unknown)
+private fun RuntimeStatusCard(
+  state: FrameworkCardState,
+  runtime: RuntimeCardState,
+  expanded: Boolean,
+  onToggle: () -> Unit,
+) {
+  val summary = if (runtime.kind == NativeStatusKind.READY) {
+    stringResource(R.string.runtime_ready_summary, targetLabel(state.systemState, state.reported))
+  } else stringResource(runtime.kind.label)
+  val report = runtime.report
   DashboardExpandableCard(
     title = stringResource(R.string.dashboard_runtime),
     summary = summary,
     expanded = expanded,
     onToggle = onToggle,
-    footer = { DashboardFootnote(stringResource(R.string.dashboard_refresh_unreported)) },
+    footer = { DashboardCallbackReceipt(report?.refresh) },
   ) {
+    report?.launcherPid?.let { pid ->
+      DashboardDetail(
+        title = stringResource(R.string.runtime_launcher_process),
+        value = stringResource(R.string.runtime_launcher_pid, pid),
+      )
+    }
+    report?.detail?.takeIf { it.isNotBlank() }?.let { detail ->
+      DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail)
+    }
+    report?.let {
+      DashboardDetail(
+        title = stringResource(R.string.runtime_reporting_generation),
+        value = stringResource(R.string.dashboard_version_code, it.moduleVersion),
+      )
+    }
     DashboardDetail(
       title = stringResource(R.string.dashboard_system_scope),
       value = stringResource(when (state.systemInScope) {
@@ -255,17 +373,28 @@ private fun RuntimeStatusCard(state: FrameworkCardState, expanded: Boolean, onTo
       }),
     )
     TargetDetail("system_server", state.systemState, state.systemVersion, state.reported)
-    TargetDetail("com.miui.home", state.launcherState, state.launcherVersion, state.reported)
+    if (state.reported && state.launcherState == null && runtime.kind == NativeStatusKind.READY) {
+      DashboardDetail(
+        title = stringResource(R.string.runtime_java_load_report),
+        value = stringResource(R.string.runtime_java_optional),
+      )
+    } else {
+      TargetDetail(stringResource(R.string.runtime_java_load_report),
+        state.launcherState, state.launcherVersion, state.reported)
+    }
     DashboardDetail(
       title = stringResource(R.string.dashboard_framework_version),
       value = frameworkVersionLabel(state.frameworkVersion, state.frameworkVersionCode),
     )
+    state.apiVersion?.let {
+      DashboardDetail(title = stringResource(R.string.runtime_framework_api), value = it.toString())
+    }
     DashboardDetail(
       title = stringResource(R.string.polish_installed_version),
       value = stringResource(R.string.polish_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
     )
     DashboardFootnote(
-      text = stringResource(R.string.dashboard_load_report_note),
+      text = stringResource(R.string.runtime_native_note),
       modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
     )
   }
@@ -380,7 +509,7 @@ internal fun dashboardPaletteAgeMinutes(timestamp: Long, now: Long): Long? =
   if (timestamp <= 0 || timestamp > now) null else (now - timestamp) / 60_000
 
 @Composable
-private fun DashboardPaletteAge(timestamp: Long?) {
+private fun dashboardAgeMinutes(timestamp: Long?): Long? {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var minutes by remember(timestamp) {
     mutableStateOf(timestamp?.let { dashboardPaletteAgeMinutes(it, System.currentTimeMillis()) })
@@ -398,18 +527,37 @@ private fun DashboardPaletteAge(timestamp: Long?) {
       }
     }
   }
-  val age = minutes
-  val relative = when {
-    age == null -> stringResource(R.string.status_unknown)
-    age == 0L -> stringResource(R.string.polish_time_now)
-    age < 60 -> pluralStringResource(R.plurals.polish_time_minutes, age.toInt(), age.toInt())
-    age < 1_440 -> (age / 60).toInt().let {
-      pluralStringResource(R.plurals.polish_time_hours, it, it)
-    }
-    else -> (age / 1_440).coerceAtMost(Int.MAX_VALUE.toLong()).toInt().let {
-      pluralStringResource(R.plurals.polish_time_days, it, it)
-    }
+  return minutes
+}
+
+@Composable
+private fun dashboardRelativeTime(age: Long?): String = when {
+  age == null -> stringResource(R.string.status_unknown)
+  age == 0L -> stringResource(R.string.polish_time_now)
+  age < 60 -> pluralStringResource(R.plurals.polish_time_minutes, age.toInt(), age.toInt())
+  age < 1_440 -> (age / 60).toInt().let {
+    pluralStringResource(R.plurals.polish_time_hours, it, it)
   }
+  else -> (age / 1_440).coerceAtMost(Int.MAX_VALUE.toLong()).toInt().let {
+    pluralStringResource(R.plurals.polish_time_days, it, it)
+  }
+}
+
+@Composable
+private fun DashboardCallbackReceipt(receipt: IconRefreshReceipt?) {
+  if (receipt == null || receipt.callbacks < 0 || receipt.completedAtMillis <= 0) {
+    DashboardFootnote(stringResource(R.string.runtime_callbacks_unreported))
+    return
+  }
+  val relative = dashboardRelativeTime(dashboardAgeMinutes(receipt.completedAtMillis))
+  DashboardFootnote(pluralStringResource(
+    R.plurals.runtime_callbacks_dispatched, receipt.callbacks, receipt.callbacks, relative,
+  ))
+}
+
+@Composable
+private fun DashboardPaletteAge(timestamp: Long?) {
+  val relative = dashboardRelativeTime(dashboardAgeMinutes(timestamp))
   DashboardFootnote(
     if (timestamp == null) stringResource(R.string.dashboard_no_palette_record)
     else stringResource(R.string.dashboard_last_palette, relative),

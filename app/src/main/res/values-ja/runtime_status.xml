@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_module_ready">モジュール準備完了</string>
+    <string name="runtime_native_ready">ホーム準備完了</string>
+    <string name="runtime_ready_summary">システム：%1$s · ホーム準備完了</string>
+    <string name="runtime_endpoint_verified">API %1$d · ホーム接続済み</string>
+    <string name="runtime_checking">状態を確認中…</string>
+    <string name="runtime_not_reported">ホームの状態を待機中</string>
+    <string name="runtime_expired">状態の有効期限切れ</string>
+    <string name="runtime_generation_mismatch">報告ビルドが不一致</string>
+    <string name="runtime_unavailable">ホームの接続を待機中</string>
+    <string name="runtime_inactive_user">現在のユーザーではありません</string>
+    <string name="runtime_timed_out">状態の照会がタイムアウト</string>
+    <string name="runtime_read_failed">状態の取得に失敗</string>
+    <string name="runtime_launcher_process">ホームのプロセス</string>
+    <string name="runtime_launcher_pid">PID %1$d</string>
+    <string name="runtime_diagnostic">診断情報</string>
+    <string name="runtime_reporting_generation">動作中のモジュールビルド</string>
+    <string name="runtime_java_load_report">Java 読み込み報告</string>
+    <string name="runtime_java_optional">未報告 · ネイティブ検出を使用</string>
+    <string name="runtime_java_summary">Java 報告：%1$s</string>
+    <string name="runtime_framework_api">フレームワーク API</string>
+    <string name="runtime_callbacks_unreported">コールバック送出：記録なし</string>
+    <plurals name="runtime_callbacks_dispatched">
+        <item quantity="other">コールバック %1$d 件を送出 · %2$s</item>
+    </plurals>
+    <string name="runtime_native_note">準備完了は、ホームの配色とフォールバックのフックが利用できる状態です。</string>
+</resources>

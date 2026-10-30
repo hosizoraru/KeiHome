@@ -163,9 +163,13 @@ The final Release build, R8/lint and nine focused status-dashboard JVM tests pas
 Manual checks covered Chinese, English and Japanese, both UI appearances,
 runtime/Monet expansion, retained expansion after switching tabs, and status-page
 refresh. All four collapsed cards fit on the AVD screen. The framework's actual
-identity is `LSPosed 2.2.1-log (7936)`, API 102. Its Java target list does not
-report this native launcher, so the UI truthfully remains partly loaded; native
-Monet readiness was validated separately by the logs and icon screenshots above.
+identity is `LSPosed 2.2.1-log (7936)`, API 102. At this checkpoint its Java target
+list did not report this native launcher, so the UI remained partly loaded;
+native Monet readiness was validated separately by the logs and icon screenshots
+above. The subsequent [native-aware status dashboard](status-dashboard.md)
+uses an authenticated native observation instead. That follow-up also records
+a newly reproduced disposed-image exit during mixed Monet/night switching;
+the earlier bounded passes do not establish current full-switch stability.
 
 The AVD is left on 8593, night mode `yes`, with app language following the system.
 The two temporary `/data/local/tmp/keihome-launcher-*.apk` copies were removed;

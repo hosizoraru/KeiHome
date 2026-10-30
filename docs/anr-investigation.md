@@ -367,3 +367,51 @@ and the APK are retained in
 The historical watchdog owner, SystemUI stall causality and normal-load Classic
 ANR remain unresolved. Do not label this version an ANR fix or a fully accepted
 no-restart release on the basis of its reduced refresh work and bounded passes.
+
+## October 31: 8593 disposed-image failure during status verification
+
+The native-aware status work reproduced a separate failure after Monet off/on
+followed by a night-mode change. The private-provider build `1793379907` finished
+dispatching generation 4 (70 callbacks) at `01:12:46.247 +08`. The launcher
+brightness callback arrived at `01:12:48.467`; the first `Cannot clone a disposed
+image` exception followed at `01:12:48.877`. SafeRescueParty reached its error
+threshold and launcher PID `1202` died. Subsequent provider-start timeouts affected
+replacement processes, including `25635`; they did not precede the original
+image error. The recovered launcher was `25951 / 1121724`. SystemUI retained PID
+`9628` but reported SCOUT hangs. This is a failed continuity check, not an ANR
+closure or a status-only deployment failure.
+
+Read-only analysis of the exact 8593 ELF identifies a narrower ownership lead:
+
+- `RawImage.updateRenderObject` calls `Image.clone` at `0x158b98c`, before passing
+  the clone to the RenderImage setter. The exception at `0xa06ba8` follows the
+  disposed flag check on the Dart Image wrapper. `Image.dispose` writes that flag
+  at `0x93e3a0`; another handle retaining the engine image would not repair this
+  already-disposed wrapper.
+- `MonochromeController._refreshIcons` calls `MonochromeIconCache.clear` at
+  `0x1a5e658`, before notifying icon controllers. The cache disposes the first and
+  optional second image at `0xed2774` and `0xed278c`, then clears its map.
+- `MonochromeIconCache.get` at `0x13a3b24` returns the cached entry without cloning
+  its images. `_MonochromeIconWidgetState` stores those images and passes them to
+  RawImage from its build path. Its widget-update comparison does not include a
+  disposed flag or cache generation. By contrast, the inspected IconCacheV2
+  getters clone their returned images.
+
+These contracts could leave a mounted widget holding a wrapper disposed by cache
+invalidation. The missing evidence is the identity link between a specific
+cache disposal, the widget-held wrapper and the failing RawImage. The next useful
+observation is that disposal caller/identity relationship on the Dart thread,
+without retaining raw Dart references or bypassing GC ownership. Do not replace
+this proof with suppressing the exception or preventing all image disposal.
+
+Existing Java package/shortcut callbacks can overlap the launcher's asynchronous
+work; the 220 ms pacing is between packages, not between each package callback
+and its shortcut callback. Completion of dispatch does not establish completion
+of that image work. Native tint/selection hooks do not directly dispose images,
+but scoped filter equality overrides and enabled-state re-emission can influence
+rebuild timing. Neither is established as the cause by the captured stacks.
+
+This failure also occurred with the intermediate Settings reply transport.
+Moving status replies to the private provider removes that observer interaction
+but did not remove the failure. See [status-dashboard.md](status-dashboard.md)
+for the successful status/reload checks and retained evidence paths.

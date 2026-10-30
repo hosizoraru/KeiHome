@@ -31,12 +31,12 @@ class MainScreenTest {
   @Test
   fun separatesModuleStatusFromSettings() {
     val context = composeTestRule.activity
-    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.settings_language)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertDoesNotExist()
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable()).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
   }
 
   @Test
@@ -67,7 +67,7 @@ class MainScreenTest {
     ).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_seed_source)).assertExists()
-    composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertDoesNotExist()
   }
 
   @Test
@@ -82,8 +82,12 @@ class MainScreenTest {
   }
 
   @Test
-  fun retainsChromeAcrossRepeatedStatusAndMonetNavigation() {
+  fun retainsChromeAndExpandedRuntimeAcrossRepeatedStatusAndMonetNavigation() {
     val context = composeTestRule.activity
+    composeTestRule.onNode(
+      hasText(context.getString(R.string.dashboard_runtime)) and hasClickAction(),
+    ).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_system_scope)).assertExists()
     repeat(3) {
       composeTestRule.onNode(
         hasText(context.getString(R.string.navigation_monet)) and isSelectable(),
@@ -94,7 +98,8 @@ class MainScreenTest {
       composeTestRule.onNode(
         hasText(context.getString(R.string.navigation_status)) and isSelectable(),
       ).performClick()
-      composeTestRule.onNodeWithText(context.getString(R.string.polish_status_module)).assertExists()
+      composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
+      composeTestRule.onNodeWithText(context.getString(R.string.dashboard_system_scope)).assertExists()
       composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh))
         .assertExists()
     }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_partly_loaded">一部読み込み済み</string>
+    <string name="dashboard_reading_status">状態を確認中…</string>
+    <string name="dashboard_framework_identity">%1$s · %2$s</string>
+    <string name="dashboard_connection_api">接続済み · API %1$d</string>
+    <string name="dashboard_version_pair">%1$s (%2$d)</string>
+    <string name="dashboard_version_code">ビルド %1$d</string>
+    <string name="dashboard_version_unknown">バージョン不明</string>
+    <string name="dashboard_framework_version">フレームワーク版</string>
+    <string name="dashboard_runtime">動作状況</string>
+    <string name="dashboard_targets">システム：%1$s · ホーム：%2$s</string>
+    <string name="dashboard_current_unknown">現在の状態は不明</string>
+    <string name="dashboard_refresh_unreported">アイコン更新：未報告</string>
+    <string name="dashboard_system_scope">システムのスコープ</string>
+    <string name="dashboard_load_report_note">フレームワークの読み込み報告です。アイコンの実際の変化は未確認です。</string>
+    <string name="dashboard_palette_available">取得済み</string>
+    <string name="dashboard_on">オン</string>
+    <string name="dashboard_off">オフ</string>
+    <string name="dashboard_monet_summary">アイコン：%1$s · 配色：%2$s</string>
+    <string name="dashboard_style">スタイル</string>
+    <string name="dashboard_monet_report_note">設定と配色を取得しても、ホームのアイコン表示を確認したことにはなりません。</string>
+    <string name="dashboard_no_palette_record">前回の配色：記録なし</string>
+    <string name="dashboard_last_palette">前回の配色：%1$s</string>
+    <string name="dashboard_apps">アプリ · 前回の検出</string>
+    <string name="dashboard_apps_unscanned">アプリ · 未スキャン</string>
+    <string name="dashboard_expand">%1$sの詳細を表示</string>
+    <string name="dashboard_collapse">%1$sの詳細を閉じる</string>
+    <string name="dashboard_expanded">展開済み</string>
+    <string name="dashboard_collapsed">折りたたみ済み</string>
+</resources>

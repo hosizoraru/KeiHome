@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_partly_loaded">Partly loaded</string>
+    <string name="dashboard_reading_status">Reading status…</string>
+    <string name="dashboard_framework_identity">%1$s · %2$s</string>
+    <string name="dashboard_connection_api">Connected · API %1$d</string>
+    <string name="dashboard_version_pair">%1$s (%2$d)</string>
+    <string name="dashboard_version_code">Build %1$d</string>
+    <string name="dashboard_version_unknown">Version unknown</string>
+    <string name="dashboard_framework_version">Framework version</string>
+    <string name="dashboard_runtime">Runtime</string>
+    <string name="dashboard_targets">System: %1$s · Launcher: %2$s</string>
+    <string name="dashboard_current_unknown">Current state unknown</string>
+    <string name="dashboard_refresh_unreported">Icon refresh: not reported</string>
+    <string name="dashboard_system_scope">System scope</string>
+    <string name="dashboard_load_report_note">The framework reports module loading. Visible icon changes have not been confirmed.</string>
+    <string name="dashboard_palette_available">Read</string>
+    <string name="dashboard_on">On</string>
+    <string name="dashboard_off">Off</string>
+    <string name="dashboard_monet_summary">Icons: %1$s · Palette: %2$s</string>
+    <string name="dashboard_style">Style</string>
+    <string name="dashboard_monet_report_note">Reported settings and palette do not confirm how launcher icons look.</string>
+    <string name="dashboard_no_palette_record">Last palette: no record</string>
+    <string name="dashboard_last_palette">Last palette: %1$s</string>
+    <string name="dashboard_apps">Apps · last scan</string>
+    <string name="dashboard_apps_unscanned">Apps · not scanned</string>
+    <string name="dashboard_expand">Show %1$s details</string>
+    <string name="dashboard_collapse">Hide %1$s details</string>
+    <string name="dashboard_expanded">Expanded</string>
+    <string name="dashboard_collapsed">Collapsed</string>
+</resources>

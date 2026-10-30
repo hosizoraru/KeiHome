@@ -41,6 +41,8 @@ internal data class FrameworkSnapshot(
   val systemInScope: Boolean,
   val target: FrameworkTarget?,
   val launcherTarget: FrameworkTarget?,
+  val frameworkVersion: String? = null,
+  val frameworkVersionCode: Long? = null,
 )
 
 internal data class FrameworkTarget(val state: HookedTarget.State, val loadedVersionCode: Long)
@@ -52,8 +54,8 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
       (it.processName == "system_server" || it.processName == "system")
   }
   val launcherTarget = targets.firstOrNull {
-    it.processName == "com.miui.home" ||
-      it.processName.startsWith("com.miui.home:")
+    // A launcher subprocess does not report the state of the visible launcher process.
+    it.processName == "com.miui.home"
   }
   return FrameworkSnapshot(
     name = frameworkName,
@@ -61,6 +63,10 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     systemInScope = "system" in scope,
     target = target?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
     launcherTarget = launcherTarget?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
+    // libxposed service 102 exposes these separately from the service API level.
+    // Let a service read failure invalidate the snapshot instead of retaining stale identity.
+    frameworkVersion = frameworkVersion.trim().takeIf { it.isNotEmpty() },
+    frameworkVersionCode = frameworkVersionCode.takeIf { it >= 0 },
   )
 }
 

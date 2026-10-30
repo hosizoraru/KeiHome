@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dashboard_partly_loaded">部分已加载</string>
+    <string name="dashboard_reading_status">正在读取状态…</string>
+    <string name="dashboard_framework_identity">%1$s · %2$s</string>
+    <string name="dashboard_connection_api">已连接 · API %1$d</string>
+    <string name="dashboard_version_pair">%1$s (%2$d)</string>
+    <string name="dashboard_version_code">构建 %1$d</string>
+    <string name="dashboard_version_unknown">版本未知</string>
+    <string name="dashboard_framework_version">框架版本</string>
+    <string name="dashboard_runtime">运行状态</string>
+    <string name="dashboard_targets">系统：%1$s · 桌面：%2$s</string>
+    <string name="dashboard_current_unknown">当前状态未知</string>
+    <string name="dashboard_refresh_unreported">图标刷新：未上报</string>
+    <string name="dashboard_system_scope">系统作用域</string>
+    <string name="dashboard_load_report_note">框架仅报告模块加载状态，尚未确认图标的实际变化。</string>
+    <string name="dashboard_palette_available">已读取</string>
+    <string name="dashboard_on">已开</string>
+    <string name="dashboard_off">已关</string>
+    <string name="dashboard_monet_summary">图标：%1$s · 调色板：%2$s</string>
+    <string name="dashboard_style">风格</string>
+    <string name="dashboard_monet_report_note">读取到设置和调色板，不代表已确认桌面图标的实际效果。</string>
+    <string name="dashboard_no_palette_record">上次配色：无记录</string>
+    <string name="dashboard_last_palette">上次配色：%1$s</string>
+    <string name="dashboard_apps">应用 · 上次扫描</string>
+    <string name="dashboard_apps_unscanned">应用 · 尚未扫描</string>
+    <string name="dashboard_expand">展开%1$s详情</string>
+    <string name="dashboard_collapse">收起%1$s详情</string>
+    <string name="dashboard_expanded">已展开</string>
+    <string name="dashboard_collapsed">已收起</string>
+</resources>

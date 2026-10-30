@@ -301,6 +301,10 @@ class MonetStatusContentTest {
       target = null,
       launcherTarget = null,
     )
+    val identity = context.getString(
+      R.string.dashboard_framework_identity, "Test framework",
+      context.getString(R.string.dashboard_version_unknown),
+    )
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
@@ -317,15 +321,15 @@ class MonetStatusContentTest {
       }
     }
 
-    composeTestRule.onNodeWithText("Test framework").assertExists()
+    composeTestRule.onNodeWithText(identity).assertExists()
     composeTestRule.runOnIdle { readFailed = true }
-    composeTestRule.onNodeWithText("Test framework").assertDoesNotExist()
+    composeTestRule.onNodeWithText(identity).assertDoesNotExist()
     composeTestRule.onNodeWithText(context.getString(R.string.status_framework_error))
       .assertExists()
     composeTestRule.runOnIdle { readFailed = false }
-    composeTestRule.onNodeWithText("Test framework").assertExists()
+    composeTestRule.onNodeWithText(identity).assertExists()
     composeTestRule.runOnIdle { connected = false }
-    composeTestRule.onNodeWithText("Test framework").assertDoesNotExist()
+    composeTestRule.onNodeWithText(identity).assertDoesNotExist()
     composeTestRule.onNodeWithText(context.getString(R.string.status_framework_disconnected))
       .assertExists()
   }

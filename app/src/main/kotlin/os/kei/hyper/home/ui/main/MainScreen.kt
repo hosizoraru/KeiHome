@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,7 +76,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = listOf(MiuixScrollBehavior(), MiuixScrollBehavior(), MiuixScrollBehavior(), MiuixScrollBehavior())
-  val lists = listOf(rememberLazyListState(), rememberLazyListState(), rememberLazyListState(), rememberLazyListState())
+  val appList = rememberLazyListState()
+  val pageScrolls = listOf(rememberScrollState(), rememberScrollState(), rememberScrollState(), rememberScrollState())
   val savedPages = rememberSaveableStateHolder()
   Scaffold(
     modifier = modifier,
@@ -102,24 +105,26 @@ fun MainScreen(modifier: Modifier = Modifier) {
       savedPages.SaveableStateProvider(selectedTab) {
         val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[selectedTab].nestedScrollConnection)
         if (selectedTab == 1) {
-          AppsPage(model, lists[1], padding, pageModifier)
+          AppsPage(model, appList, padding, pageModifier)
         } else {
-          LazyColumn(state = lists[selectedTab], modifier = pageModifier, contentPadding = padding,
+          // These pages are a single form. A nested lazy-item saveable owner drops the form's
+          // draft/expansion state when the outer page provider saves during tab disposal.
+          Column(modifier = pageModifier.verticalScroll(pageScrolls[selectedTab]).padding(padding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (selectedTab) {
-              0 -> item(key = "status", contentType = "status") {
+              0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                   StatusPage(model, onOpenApps = { selectedTab = 1 }, onOpenMonet = { selectedTab = 2 })
                   RefreshFeedback(model, 0)
                 }
               }
-              2 -> item(key = "monet", contentType = "monet") {
+              2 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                   MonetPage(model)
                   RefreshFeedback(model, 2)
                 }
               }
-              3 -> item(key = "settings", contentType = "settings") { SettingsPage(model) }
+              3 -> SettingsPage(model)
             }
           }
         }

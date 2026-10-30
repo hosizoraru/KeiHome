@@ -340,7 +340,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun schedulePaletteRefresh() {
     synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
-      val generation = generations.nextFullRefresh() ?: return
+      // Only Applied/Restored reach here, after the native publish/withdraw ACK.
+      // Pending resource/night/source work keeps its slower pacing in generations.
+      val generation = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK) ?: return
       pending.replace(IconRefreshRequest(generation, 0))
       postPendingLocked()
     }
@@ -365,7 +367,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     // Installation/rollback own thread creation. A platform callback only queues work.
     val currentHandler = handler ?: return
     val ticket = pending.markPosted()
-    val delay = if (request.attempt == 0) REFRESH_DELAY_MS else SNAPSHOT_RETRY_MS
+    val delay = if (request.attempt == 0) {
+      generations.cause(request.generation).initialDelayMs
+    } else SNAPSHOT_RETRY_MS
     if (!currentHandler.postDelayed({ refresh(request, ticket) }, delay)) {
       pending.postFailed(ticket)
       xposed.log(Log.WARN, TAG, "Could not queue pending icon refresh")
@@ -393,10 +397,11 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
 
   private fun refresh(request: IconRefreshRequest, ticket: Long) {
     val generation = request.generation
-    synchronized(lock) {
+    val cause = synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !pending.claim(request, ticket)) return
       if (!refreshCurrent(generation)) return
       lifecycle.activeJobs += 1
+      generations.cause(generation)
     }
     var sent = 0
     var completed = false
@@ -461,7 +466,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +
                 "activities=${activities.size} packages=${packages.size} " +
-                "shortcuts=${shortcutPackages.size}",
+                "shortcuts=${shortcutPackages.size} cause=$cause intervalMs=${cause.packageIntervalMs}",
             )
             for (packageName in packages) {
               if (!refreshCurrent(generation)) {
@@ -492,9 +497,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               } catch (failure: Throwable) {
                 logFailure("launcher callback failed for $packageName", failure)
               }
-              if (PACKAGE_INTERVAL_MS > 0) {
+              if (cause.packageIntervalMs > 0) {
                 try {
-                  Thread.sleep(PACKAGE_INTERVAL_MS)
+                  Thread.sleep(cause.packageIntervalMs)
                 } catch (_: InterruptedException) {
                   Thread.currentThread().interrupt()
                   return
@@ -785,8 +790,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     const val LAUNCHER_PACKAGE = "com.miui.home"
     const val LISTENER_HOOK_ID = "keihome_launcher_listener"
     const val CONFIGURATION_HOOK_ID = "keihome_night_configuration"
-    const val REFRESH_DELAY_MS = 1500L
-    const val PACKAGE_INTERVAL_MS = 220L
     const val SNAPSHOT_RETRY_MS = 250L
     const val MAX_SNAPSHOT_RETRIES = 3
     const val RETIRE_TIMEOUT_MS = 5_000L

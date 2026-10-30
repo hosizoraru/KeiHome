@@ -38,7 +38,7 @@ class IconRefreshGenerationTest {
   @Test
   fun themeTransitionsCarryAnUnfinishedPaletteRestoration() {
     val generations = IconRefreshGeneration()
-    val restore = generations.nextFullRefresh()!!
+    val restore = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
     val theme = generations.next(light, dark)!!
     generations.complete(restore)
     assertTrue(generations.needsFullRefresh(theme))
@@ -50,5 +50,106 @@ class IconRefreshGenerationTest {
     assertFalse(generations.needsFullRefresh(generations.next(light, dark)!!))
     generations.retire()
     assertNull(generations.nextFullRefresh())
+  }
+
+  @Test
+  fun paletteAckWithoutPendingResourcesUsesBoundedFasterPacing() {
+    val generations = IconRefreshGeneration()
+    val first = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    val second = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    assertFalse(generations.isCurrent(first))
+    assertTrue(generations.needsFullRefresh(second))
+    assertEquals(IconRefreshCause.PALETTE_ACK, generations.cause(second))
+    assertEquals(100L, generations.cause(second).initialDelayMs)
+    assertEquals(60L, generations.cause(second).packageIntervalMs)
+  }
+
+  @Test
+  fun fullResourceRefreshRemainsConservativeByDefault() {
+    val generations = IconRefreshGeneration()
+    val source = generations.nextFullRefresh()!!
+    assertTrue(generations.needsFullRefresh(source))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(source))
+    assertEquals(1500L, generations.cause(source).initialDelayMs)
+    assertEquals(220L, generations.cause(source).packageIntervalMs)
+  }
+
+  @Test
+  fun paletteAckCannotAccelerateAnUnfinishedNightRefresh() {
+    val generations = IconRefreshGeneration()
+    val night = generations.next(light, dark)!!
+    assertFalse(generations.needsFullRefresh(night))
+    val ack = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    assertFalse(generations.isCurrent(night))
+    assertTrue(generations.needsFullRefresh(ack))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(ack))
+    assertEquals(220L, generations.cause(ack).packageIntervalMs)
+    // A cancelled worker finishing late cannot erase the merged resource cause.
+    generations.complete(night)
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(ack))
+  }
+
+  @Test
+  fun sourceChangeDominatesPaletteAcksInEitherOrder() {
+    for (sourceFirst in listOf(false, true)) {
+      val generations = IconRefreshGeneration()
+      if (!sourceFirst) generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)
+      val source = generations.nextFullRefresh()!!
+      val ack = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+      assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(ack))
+      generations.complete(source)
+      val repeatedAck = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+      assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(repeatedAck))
+    }
+  }
+
+  @Test
+  fun nightChangeCancelsFastPaletteWorkAndCarriesFullRefreshForward() {
+    val generations = IconRefreshGeneration()
+    val palette = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    val night = generations.next(dark, light)!!
+    assertFalse(generations.isCurrent(palette))
+    assertTrue(generations.needsFullRefresh(night))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(night))
+    val newerNight = generations.next(light, dark)!!
+    generations.complete(night)
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(newerNight))
+    assertTrue(generations.needsFullRefresh(newerNight))
+  }
+
+  @Test
+  fun onlyCompletionOfTheCurrentResourceWorkAllowsAnotherFastPaletteSweep() {
+    val generations = IconRefreshGeneration()
+    val source = generations.nextFullRefresh()!!
+    val merged = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    generations.complete(source)
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(merged))
+    generations.complete(merged)
+    val stableModeAck = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    assertEquals(IconRefreshCause.PALETTE_ACK, generations.cause(stableModeAck))
+    assertTrue(generations.needsFullRefresh(stableModeAck))
+  }
+
+  @Test
+  fun unchangedOrUnknownNightModeDoesNotRetagPaletteWork() {
+    val generations = IconRefreshGeneration()
+    val palette = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    assertNull(generations.next(dark, dark or Configuration.UI_MODE_TYPE_CAR))
+    assertNull(generations.next(Configuration.UI_MODE_NIGHT_UNDEFINED, dark))
+    assertTrue(generations.isCurrent(palette))
+    assertEquals(IconRefreshCause.PALETTE_ACK, generations.cause(palette))
+  }
+
+  @Test
+  fun retiredAndStaleGenerationsCannotSelectFastPacing() {
+    val generations = IconRefreshGeneration()
+    val stale = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    val current = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(stale))
+    generations.retire()
+    generations.complete(current)
+    assertFalse(generations.isCurrent(current))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(current))
+    assertNull(generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK))
   }
 }

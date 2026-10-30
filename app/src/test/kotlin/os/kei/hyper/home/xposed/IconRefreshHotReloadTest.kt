@@ -169,6 +169,54 @@ class IconRefreshHotReloadTest {
   }
 
   @Test
+  fun paletteAckReplacingAnAlreadyClaimedResourceJobRetainsResourcePacing() {
+    val generations = IconRefreshGeneration()
+    val pending = PendingIconRefresh()
+    val resource = IconRefreshRequest(generations.nextFullRefresh()!!, 0)
+    pending.replace(resource)
+    assertTrue(pending.claim(resource, pending.markPosted()))
+    assertNull(pending.request) // Resource work is running, no longer queued.
+
+    val palette = IconRefreshRequest(
+      generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!, 0,
+    )
+    pending.replace(palette)
+    val ticket = pending.markPosted()
+    generations.complete(resource.generation)
+    assertFalse(generations.isCurrent(resource.generation))
+    assertTrue(pending.claim(palette, ticket))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(palette.generation))
+  }
+
+  @Test
+  fun snapshotRetryAndRollbackKeepPaletteCauseUntilResourcesSupersedeIt() {
+    val generations = IconRefreshGeneration()
+    val pending = PendingIconRefresh()
+    val palette = IconRefreshRequest(
+      generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)!!, 0,
+    )
+    pending.replace(palette)
+    assertTrue(pending.claim(palette, pending.markPosted()))
+    val retry = palette.copy(attempt = 1)
+    pending.replace(retry)
+    val beforeRollback = pending.markPosted()
+    pending.invalidatePost()
+    val afterRollback = pending.markPosted()
+    assertFalse(pending.claim(retry, beforeRollback))
+    assertEquals(IconRefreshCause.PALETTE_ACK, generations.cause(retry.generation))
+
+    val night = IconRefreshRequest(
+      generations.next(Configuration.UI_MODE_NIGHT_NO, Configuration.UI_MODE_NIGHT_YES)!!, 0,
+    )
+    pending.replace(night)
+    assertFalse(pending.claim(retry, afterRollback))
+    assertFalse(generations.isCurrent(retry.generation))
+    assertTrue(pending.claim(night, pending.markPosted()))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(night.generation))
+    assertTrue(generations.needsFullRefresh(night.generation))
+  }
+
+  @Test
   fun activeHookRejectsButActiveWorkerCanBeInterruptedForHandover() {
     val lifecycle = IconRefreshReloadLifecycle()
     val entered = CountDownLatch(1)

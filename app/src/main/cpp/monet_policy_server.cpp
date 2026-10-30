@@ -8,6 +8,7 @@
 #include <string.h>
 
 #if defined(__ANDROID__)
+#include "monet_image_recovery.h"
 #include <android/binder_ibinder.h>
 #include <android/binder_parcel.h>
 #include <dlfcn.h>
@@ -175,6 +176,9 @@ void PublishPolicy(PolicyState* state, PolicyAllocation* next) {
 }
 
 void MaintainPolicy(PolicyState* state, uint64_t now) {
+#if defined(__ANDROID__)
+    ReportMonetImageRecovery(now);
+#endif
     if (state->expiration != nullptr && now >= state->expires_at) {
         PolicyAllocation* expired = state->expiration;
         state->expiration = nullptr;

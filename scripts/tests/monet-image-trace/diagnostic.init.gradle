@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+// Optional local build input. No project/Kotlin/Manifest setting is persisted.
+// Main owns APK builds and integration; this helper has not been run on a device.
+def mode = gradle.startParameter.projectProperties.get('keihomeImageTrace')
+// Gradle also evaluates init scripts in plugin/composite builds without root -P values.
+if (mode == null) return
+if (!(mode in ['on', 'off'])) {
+    throw new GradleException('Use -PkeihomeImageTrace=on or off with diagnostic.init.gradle')
+}
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.pluginManager.withPlugin('com.android.application') {
+            project.extensions.getByName('android').defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+                "-DKEIHOME_MONET_IMAGE_TRACE=${mode == 'on' ? 'ON' : 'OFF'}".toString(),
+                '-DKEIHOME_IMAGE_TRACE_DELAY_MS=30000',
+                '-DKEIHOME_IMAGE_TRACE_WINDOW_MS=120000',
+            ])
+        }
+    }
+}

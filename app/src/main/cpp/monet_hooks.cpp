@@ -2,9 +2,13 @@
 #include "monet_hooks.h"
 #include "lsposed_hook_backend.h"
 #include "monet_image_identity.h"
+#include "monet_image_recovery.h"
 #include "monet_policy_server.h"
 #include "monet_tint_profile.h"
 #include "selection_profile.h"
+#if defined(KH_MONET_IMAGE_TRACE)
+#include "monet_image_trace.h"
+#endif
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -124,5 +128,9 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
             "filter_pool=0x%zx controller_slot=0x%zx cids=%u/%u/%u",
             tint.tint_entry, selection.entry, size_t(tint.filter_pool_offset),
             size_t(tint.controller_field_offset), tint.controller_cid, tint.rx_int_cid, tint.rx_bool_cid);
+#if defined(KH_MONET_IMAGE_TRACE)
+    InstallMonetImageTraceAtLibraryLoad({image.base, image.selection_ranges, image.count});
+#endif
+    InstallMonetImageRecoveryAtLibraryLoad({image.base, image.selection_ranges, image.count});
     return true;
 }

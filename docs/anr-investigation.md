@@ -461,3 +461,38 @@ was consumed and redrawn successfully after the apply step, but there is no
 module-off comparison proving that the SystemUI stall is caused by KeiHome.
 The project therefore does not claim the watchdog/SystemUI ANR family is
 resolved.
+
+### November 1: bounded contributor fixes and material switching
+
+The detailed October 31 ownership pass separates the first gesture-monitor
+timeout from a later AMS contention contributor. At 21:24:02-04 the
+`KeiHomeMonet` probe bind owned an AMS lock while main/foreground/display work
+waited. That is not the onset of the earlier input timeout. A single owned
+probe connection now serves all sequential mask chunks, and tiny connection
+callbacks no longer queue behind system-server main. Cancellation/death stops
+later chunks instead of starting more services.
+
+Converted-icon UI checks now read immutable warmed associations and native
+field getters only. Resource lookup, hashing and durable publication stay on
+owned workers. On release 1793454003, Arcticons native application succeeded,
+the rights hash took 11 ms, and launcher/SystemUI/system-server identities stayed
+unchanged.
+
+Releases 1793454003, 1793454004 and 1793454005 each passed Java API 102 hot reload
+with stable process identities. The new highlight machine code in 4004 was
+loaded by a separate, explicitly requested development spawner replacement.
+Subsequent material on/off exchanges kept launcher 29116/start 2930413.
+
+SystemUI fixture work exposed another invalid observation: after a privileged
+theme-sequence update and native removal of the synthetic component, Control
+Center retained a blank main panel. Its dump still contained visible children;
+the exact stale-state cause is not proved. Development SystemUI recovery restored
+it without replacing the launcher. Fresh fixture startup then allowed actual
+opt-in/off comparison in SystemUI 21621/start 3266530, including real preference
+change logs and the STARTED refresh. A locked-keyguard attempt was discarded.
+
+These contributor changes and bounded passes do not establish closure of
+historical watchdog/SystemUI ANRs or `Cannot clone a disposed image`. The
+native image-recovery branch still lacks a positive recovery-counter exercise.
+Evidence is under `/tmp/keihome-theme-research/`, including `anr-ownership.md`,
+versioned deployment receipts and `material-fixture/`.

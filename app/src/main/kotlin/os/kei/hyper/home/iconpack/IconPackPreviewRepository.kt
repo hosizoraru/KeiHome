@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
 import android.os.Build
@@ -102,6 +103,8 @@ internal class IconPackRenderer(private val context: Context) {
     private val dark: Boolean,
     private val android: AndroidIconPackResources.Session?,
   ) : Closeable {
+    private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
+
     fun render(entry: IconPackEntry, sizePx: Int, check: () -> Unit = {}): Bitmap? {
       require(sizePx in 1..512)
       check()
@@ -120,7 +123,7 @@ internal class IconPackRenderer(private val context: Context) {
             check()
             val drawable = session.resources.getDrawable(id, null).mutate()
             (drawable as? Animatable)?.stop()
-            draw(drawable, sizePx, check)
+            draw(drawable, sizePx, if (drawable is AdaptiveIconDrawable) nativeMask else null, check)
           }
         }
         is IconPackArtwork.Archive -> {
@@ -220,12 +223,14 @@ internal class IconPackRenderer(private val context: Context) {
     } finally { budget.visiting.remove(id) }
   }
 
-  private fun draw(drawable: Drawable, size: Int, check: () -> Unit): Bitmap {
+  private fun draw(drawable: Drawable, size: Int, nativeMask: NativeAdaptiveIconMask?, check: () -> Unit): Bitmap {
     val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     try {
       drawable.bounds = fit(drawable.intrinsicWidth.takeIf { it > 0 } ?: size,
         drawable.intrinsicHeight.takeIf { it > 0 } ?: size, size)
-      drawable.draw(Canvas(output))
+      val canvas = Canvas(output)
+      nativeMask?.pathFor(drawable)?.let { canvas.clipPath(it) }
+      drawable.draw(canvas)
       check()
       return output
     } catch (failure: Exception) { output.recycle(); throw failure }

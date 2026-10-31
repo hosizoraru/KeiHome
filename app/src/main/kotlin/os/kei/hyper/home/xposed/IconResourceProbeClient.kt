@@ -13,13 +13,11 @@ import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Message
 import android.os.Messenger
-import android.os.SystemClock
 import android.util.Log
 import java.util.concurrent.CancellationException
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 internal class IconResourceProbeClient(private val context: Context) {
   fun packagesToRefresh(
@@ -44,104 +42,107 @@ internal class IconResourceProbeClient(private val context: Context) {
         applicationInfo = app
         icon = app.icon
       } }
-    }, true, true, isCurrent)
+    }, true, true, isCurrent, MASK_BATCH_SIZE)
 
   private fun probeGroups(
     packages: Map<String, List<ActivityInfo>>,
     inspectLauncherMask: Boolean,
     maskOnly: Boolean,
     isCurrent: () -> Boolean,
+    batchSize: Int = MAX_PACKAGES,
   ): IconProbeBatch = runCancellableIconProbe(isCurrent) {
     val unknown = IconProbeBatch(packages.keys, emptyMap())
-    if (packages.isEmpty() || packages.size > MAX_PACKAGES) return@runCancellableIconProbe unknown
+    if (packages.isEmpty() || (!maskOnly && packages.size > MAX_PACKAGES)) {
+      return@runCancellableIconProbe unknown
+    }
+    val indexed = packages.entries.toList()
+    IconProbeSession(
+      indexed.map { it.key },
+      ProbeTransport(indexed, inspectLauncherMask, maskOnly, isCurrent),
+      isCurrent,
+    ).probe(batchSize)
+  }
 
-    val connectionReady = CountDownLatch(1)
-    val resultsReady = CountDownLatch(packages.size)
-    val results = ConcurrentHashMap<Int, Boolean>()
-    val masks = ConcurrentHashMap<Int, LauncherMaskStatus>()
-    val replyThread = HandlerThread("KeiHomeIconProbeReply")
-    val remote = AtomicReference<Messenger?>()
-    val connection = object : ServiceConnection {
+  private inner class ProbeTransport(
+    private val packages: List<Map.Entry<String, List<ActivityInfo>>>,
+    private val inspectLauncherMask: Boolean,
+    private val maskOnly: Boolean,
+    private val isCurrent: () -> Boolean,
+  ) : IconProbeTransport {
+    private val lock = Any()
+    private val replyThread = HandlerThread("KeiHomeIconProbeReply")
+    private var remote: Messenger? = null
+    private var closed = false
+    private var disconnected = false
+    private var bindAttempted = false
+    private lateinit var callbacks: IconProbeTransport.Callbacks
+    private lateinit var reply: Messenger
+    private lateinit var configuration: Configuration
+    private val connection = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-        remote.set(Messenger(binder))
-        connectionReady.countDown()
+        val accepted = synchronized(lock) {
+          if (closed || disconnected) false else {
+            remote = Messenger(binder)
+            true
+          }
+        }
+        if (accepted) callbacks.connected()
       }
 
       override fun onServiceDisconnected(name: ComponentName) {
-        remote.set(null)
-        connectionReady.countDown()
+        synchronized(lock) {
+          disconnected = true
+          remote = null
+        }
+        callbacks.disconnected()
       }
 
       override fun onBindingDied(name: ComponentName) = onServiceDisconnected(name)
       override fun onNullBinding(name: ComponentName) = onServiceDisconnected(name)
     }
-    var bindAttempted = false
-    try {
+
+    override fun bind(callbacks: IconProbeTransport.Callbacks): Boolean {
+      this.callbacks = callbacks
       replyThreads.start(replyThread)
-      val reply = Messenger(Handler(replyThread.looper) { message ->
-        if (message.arg1 !in 0 until packages.size) return@Handler true
-        masks[message.arg1] = LauncherMaskStatus.fromWire(message.data.getInt(
-          IconProbeProtocol.LAUNCHER_MASK, LauncherMaskStatus.UNKNOWN.ordinal,
-        ))
-        if (results.putIfAbsent(message.arg1, message.data.getBoolean(
-            IconProbeProtocol.REQUIRES_REFRESH, true,
-          )) == null
-        ) resultsReady.countDown()
+      reply = Messenger(Handler(replyThread.looper) { message ->
+        callbacks.result(
+          message.arg1,
+          message.data.getBoolean(IconProbeProtocol.REQUIRES_REFRESH, true),
+          LauncherMaskStatus.fromWire(message.data.getInt(
+            IconProbeProtocol.LAUNCHER_MASK, LauncherMaskStatus.UNKNOWN.ordinal,
+          )),
+        )
         true
       })
-      checkIconProbeActive(isCurrent)
+      configuration = Configuration(context.resources.configuration)
       val intent = Intent().setClassName(MODULE_PACKAGE, PROBE_SERVICE)
+      checkIconProbeActive(isCurrent)
       bindAttempted = true
-      val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-      if (!bound || !connectionReady.await(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-        return@runCancellableIconProbe unknown
+      // Connection callbacks only publish state; they must not queue behind system-server main.
+      return context.bindService(intent, Context.BIND_AUTO_CREATE, Executor { it.run() }, connection)
+    }
+
+    override fun send(requestId: Int) {
+      val target = synchronized(lock) { remote.takeUnless { closed || disconnected } }
+        ?: throw IllegalStateException("Icon probe disconnected")
+      target.send(Message.obtain().apply {
+        arg1 = requestId
+        replyTo = reply
+        data.putParcelableArrayList(
+          IconProbeProtocol.ACTIVITY_INFOS, ArrayList(packages[requestId].value),
+        )
+        data.putParcelable(IconProbeProtocol.CONFIGURATION, configuration)
+        data.putBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK, inspectLauncherMask)
+        data.putBoolean(IconProbeProtocol.MASK_ONLY, maskOnly)
+      })
+    }
+
+    override fun close() {
+      synchronized(lock) {
+        if (closed) return
+        closed = true
+        remote = null
       }
-      checkIconProbeActive(isCurrent)
-      val target = remote.get() ?: return@runCancellableIconProbe unknown
-      val config = Configuration(context.resources.configuration)
-      val indexed = packages.entries.toList()
-      for ((index, entry) in indexed.withIndex()) {
-        checkIconProbeActive(isCurrent)
-        try {
-          target.send(Message.obtain().apply {
-            arg1 = index
-            replyTo = reply
-            data.putParcelableArrayList(
-              IconProbeProtocol.ACTIVITY_INFOS,
-              ArrayList(entry.value),
-            )
-            data.putParcelable(IconProbeProtocol.CONFIGURATION, config)
-            data.putBoolean(IconProbeProtocol.INSPECT_LAUNCHER_MASK, inspectLauncherMask)
-            data.putBoolean(IconProbeProtocol.MASK_ONLY, maskOnly)
-          })
-        } catch (cancelled: InterruptedException) {
-          throw cancelled
-        } catch (cancelled: IconProbeCancelledException) {
-          throw cancelled
-        } catch (_: Throwable) {
-          if (results.putIfAbsent(index, true) == null) resultsReady.countDown()
-        }
-      }
-      val deadline = SystemClock.elapsedRealtime() + PROBE_TIMEOUT_MS
-      while (resultsReady.count > 0 && SystemClock.elapsedRealtime() < deadline) {
-        checkIconProbeActive(isCurrent)
-        resultsReady.await(POLL_MS, TimeUnit.MILLISECONDS)
-      }
-      checkIconProbeActive(isCurrent)
-      val refresh = indexed.mapIndexedNotNull { index, entry ->
-        if (results[index] != false) entry.key else null
-      }.toSet()
-      IconProbeBatch(refresh, indexed.mapIndexed { index, entry ->
-        entry.key to (masks[index] ?: LauncherMaskStatus.UNKNOWN)
-      }.toMap())
-    } catch (cancelled: InterruptedException) {
-      Thread.currentThread().interrupt()
-      throw cancelled
-    } catch (cancelled: IconProbeCancelledException) {
-      throw cancelled
-    } catch (_: Throwable) {
-      unknown
-    } finally {
       if (bindAttempted) {
         try {
           context.unbindService(connection)
@@ -173,10 +174,142 @@ internal class IconResourceProbeClient(private val context: Context) {
     private const val MODULE_PACKAGE = "os.kei.hyper.home"
     private const val PROBE_SERVICE = "$MODULE_PACKAGE.xposed.IconResourceProbeService"
     private const val MAX_PACKAGES = 512
-    private const val CONNECT_TIMEOUT_MS = 3_000L
-    private const val PROBE_TIMEOUT_MS = 5_000L
-    private const val POLL_MS = 100L
+    private const val MASK_BATCH_SIZE = 128
     private const val REPLY_THREAD_TIMEOUT_MS = 1_000L
+  }
+}
+
+internal interface IconProbeTransport : AutoCloseable {
+  interface Callbacks {
+    fun connected()
+    fun disconnected()
+    fun result(requestId: Int, refresh: Boolean, mask: LauncherMaskStatus)
+  }
+
+  fun bind(callbacks: Callbacks): Boolean
+  fun send(requestId: Int)
+}
+
+/** One sweep owns one binding. Only the active chunk can accept replies, even after a timeout. */
+internal class IconProbeSession(
+  private val packages: List<String>,
+  private val transport: IconProbeTransport,
+  private val isCurrent: () -> Boolean,
+  private val connectTimeoutMs: Long = 3_000L,
+  private val resultTimeoutMs: Long = 5_000L,
+) : IconProbeTransport.Callbacks {
+  private data class Reply(val refresh: Boolean, val mask: LauncherMaskStatus)
+  private val lock = Any()
+  private val connectionReady = CountDownLatch(1)
+  private val results = mutableMapOf<Int, Reply>()
+  private var connected = false
+  private var disconnected = false
+  private var started = false
+  private var closed = false
+  private var activeRequests = IntRange.EMPTY
+  private var remaining = 0
+  private var batchReady: CountDownLatch? = null
+
+  override fun connected() = synchronized(lock) {
+    if (!closed && !disconnected) connected = true
+    connectionReady.countDown()
+  }
+
+  override fun disconnected() = synchronized(lock) {
+    disconnected = true
+    connected = false
+    connectionReady.countDown()
+    batchReady?.countDown()
+    Unit
+  }
+
+  override fun result(requestId: Int, refresh: Boolean, mask: LauncherMaskStatus) {
+    synchronized(lock) {
+      if (closed || disconnected || requestId !in activeRequests || requestId in results) return
+      results[requestId] = Reply(refresh, mask)
+      if (--remaining == 0) batchReady?.countDown()
+    }
+  }
+
+  fun probe(batchSize: Int): IconProbeBatch = runCancellableIconProbe(isCurrent) {
+    require(batchSize > 0)
+    synchronized(lock) {
+      check(!started) { "Icon probe session already used" }
+      started = true
+    }
+    try {
+      if (packages.isNotEmpty() && transport.bind(this) && await(connectionReady, connectTimeoutMs)) {
+        for (start in packages.indices step batchSize) {
+          checkIconProbeActive(isCurrent)
+          val ready = CountDownLatch(1)
+          val requests = start until minOf(start + batchSize, packages.size)
+          val accepted = synchronized(lock) {
+            if (!connected || disconnected) false else {
+              activeRequests = requests
+              remaining = requests.count()
+              batchReady = ready
+              true
+            }
+          }
+          if (!accepted) break
+          for (id in requests) {
+            checkIconProbeActive(isCurrent)
+            if (!isConnected()) break
+            try {
+              transport.send(id)
+            } catch (cancelled: InterruptedException) {
+              throw cancelled
+            } catch (cancelled: IconProbeCancelledException) {
+              throw cancelled
+            } catch (_: Throwable) {
+              result(id, true, LauncherMaskStatus.UNKNOWN)
+            }
+          }
+          val complete = await(ready, resultTimeoutMs)
+          synchronized(lock) {
+            activeRequests = IntRange.EMPTY
+            batchReady = null
+          }
+          // Do not add another chunk behind unfinished remote decoding or revive a dead binding.
+          if (!complete || !isConnected()) break
+        }
+      }
+    } catch (cancelled: InterruptedException) {
+      Thread.currentThread().interrupt()
+      throw cancelled
+    } catch (cancelled: IconProbeCancelledException) {
+      throw cancelled
+    } catch (_: Throwable) {
+      // Missing replies remain unknown; already completed results keep their conservative verdicts.
+    } finally {
+      synchronized(lock) {
+        closed = true
+        connected = false
+        activeRequests = IntRange.EMPTY
+        batchReady = null
+      }
+      transport.close()
+    }
+    synchronized(lock) {
+      IconProbeBatch(
+        packages.indices.filter { results[it]?.refresh != false }.map { packages[it] }.toSet(),
+        packages.mapIndexed { id, name -> name to (results[id]?.mask ?: LauncherMaskStatus.UNKNOWN) }.toMap(),
+      )
+    }
+  }
+
+  private fun isConnected(): Boolean = synchronized(lock) { connected && !disconnected && !closed }
+
+  private fun await(ready: CountDownLatch, timeoutMs: Long): Boolean {
+    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+    while (ready.count != 0L) {
+      checkIconProbeActive(isCurrent)
+      val remaining = deadline - System.nanoTime()
+      if (remaining <= 0) return false
+      ready.await(minOf(remaining, TimeUnit.MILLISECONDS.toNanos(100)), TimeUnit.NANOSECONDS)
+    }
+    checkIconProbeActive(isCurrent)
+    return true
   }
 }
 

@@ -81,11 +81,8 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
     val representatives: List<ApplicationInfo> = byPackage
       .filterKeys { it in unambiguous && it !in theme.coveredPackages }
       .values.map { it.first() }
-    val masks = representatives.chunked(128).flatMap { batch ->
-      if (!isCurrent()) return emptySet()
-      IconResourceProbeClient(context).applicationMasks(batch, isCurrent).launcherMasks.entries
-    }.associate { it.toPair() }
-    if (!isCurrent()) return emptySet()
+    val masks = IconResourceProbeClient(context).applicationMasks(representatives, isCurrent).launcherMasks
+    checkIconProbeActive(isCurrent)
     val previousByPackage = previousSources.orEmpty().groupBy(Source::packageName)
     val unchanged = sources.groupBy(Source::packageName)
       .filter { (name, entries) -> sameTheme && previousByPackage[name] == entries }.keys

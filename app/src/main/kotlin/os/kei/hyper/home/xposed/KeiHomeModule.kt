@@ -11,16 +11,24 @@ import android.util.Log
 
 class KeiHomeModule : XposedModule() {
   private var launcherRefresh: LauncherIconRefreshRuntime? = null
+  private var themeIconImport: ThemeIconImportRuntime? = null
 
   override fun onModuleLoaded(param: ModuleLoadedParam) = Unit
 
-  override fun onPackageLoaded(param: PackageLoadedParam) = Unit
+  override fun onPackageLoaded(param: PackageLoadedParam) {
+    if (param.isFirstPackage && param.packageName == ThemeIconImportRuntime.PACKAGE_NAME && themeIconImport == null) {
+      installThemeImportHooks(param.defaultClassLoader)
+    }
+  }
 
   override fun onSystemServerStarting(param: SystemServerStartingParam) {
     installSystemServerHooks(param.classLoader, null)
   }
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
+    themeIconImport?.let { runtime ->
+      return runtime.retire { param.setSavedInstanceState(runtime.classLoader) }
+    }
     val runtime = launcherRefresh ?: return true
     return runtime.retire {
       try {
@@ -33,7 +41,25 @@ class KeiHomeModule : XposedModule() {
   }
 
   override fun onHotReloaded(param: HotReloadedParam) {
-    if (!param.isSystemServer) return
+    if (!param.isSystemServer) {
+      if (param.processName.substringBefore(':') == ThemeIconImportRuntime.PACKAGE_NAME) {
+        // A failed previous install may leave neither saved state nor a live hook handle.
+        val applicationLoader = runCatching {
+          val app = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+            .invoke(null) as? android.app.Application
+          app?.takeIf { it.packageName == ThemeIconImportRuntime.PACKAGE_NAME }?.classLoader
+        }.getOrNull()
+        val preferred = listOfNotNull(param.savedInstanceState as? ClassLoader) +
+          param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader } +
+          listOfNotNull(applicationLoader, Thread.currentThread().contextClassLoader, javaClass.classLoader)
+        val loader = preferred.distinct().firstOrNull {
+          runCatching { Class.forName(ThemeIconImportRuntime.SERVICE_CLASS, false, it) }.isSuccess
+        }
+        if (loader != null) installThemeImportHooks(loader, param.oldHookHandles)
+        else log(Log.WARN, "KeiHomeThemeImport", "Themes class loader unavailable after reload")
+      }
+      return
+    }
 
     val loader = findServerClassLoader(
       param.oldHookHandles.mapNotNull {
@@ -57,6 +83,12 @@ class KeiHomeModule : XposedModule() {
       log(Log.WARN, "KeiHomeIconRefresh", "System-server class loader unavailable")
       launcherRefresh = LauncherIconRefreshRuntime(this)
     }
+  }
+
+  private fun installThemeImportHooks(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
+    val runtime = ThemeIconImportRuntime(this, loader)
+    runtime.install(oldHooks)
+    themeIconImport = runtime
   }
 
   private fun findServerClassLoader(preferred: List<ClassLoader>): ClassLoader? =

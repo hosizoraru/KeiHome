@@ -21,6 +21,40 @@ class ActiveIconThemeTest {
   private val mod get() = File(temporary.root, "mod-icons")
   private fun reader(maxEntries: Int = 16_384) = ActiveIconTheme(active, stock, mod, maxEntries)
 
+  @Test fun reportsNightResourcesFromTheSystemModDirectory() {
+    val day = File(mod, "res/drawable/com.sample.mod.png")
+    val night = File(mod, "nightmode/res/drawable/com.sample.mod.png")
+    requireNotNull(day.parentFile).mkdirs()
+    requireNotNull(night.parentFile).mkdirs()
+    day.writeBytes(png())
+    night.writeBytes(png())
+    val report = reader().describe()
+    assertTrue(report.complete)
+    assertEquals(1, report.resourceCount)
+    assertEquals(1, report.nightResourceCount)
+  }
+
+  @Test fun reportedSourceAndNightInventoryFollowTheActiveArchive() {
+    archive(stock, mapOf("res/drawable/com.sample.stock.png" to png()))
+    val index = reader()
+    assertEquals(os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT, index.describe().source)
+    archive(active, mapOf(
+      "description.xml" to "<MIUI-Theme><title>Community icons</title></MIUI-Theme>".toByteArray(),
+      "res/drawable/com.sample.app.png" to png(),
+      "nightmode/res/drawable/com.sample.app.png" to png(),
+    ))
+    val report = index.describe()
+    assertEquals(os.kei.hyper.home.status.SystemIconThemeReport.Source.THEME, report.source)
+    assertEquals("Community icons", report.title)
+    assertEquals(1, report.resourceCount)
+    assertEquals(1, report.nightResourceCount)
+    assertTrue(report.complete)
+    active.writeText("broken replacement")
+    assertFalse(index.describe().complete)
+    assertTrue(active.delete())
+    assertEquals(os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT, index.describe().source)
+  }
+
   @Test fun indexesStaticVariantsAndBothDynamicFormatsWithoutPrefixGuessing() {
     archive(active, mapOf(
       "res/drawable/com.sample.day.png" to png(),

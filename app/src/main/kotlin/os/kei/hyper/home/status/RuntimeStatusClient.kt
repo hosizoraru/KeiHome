@@ -18,6 +18,7 @@ internal object RuntimeStatusProtocol {
   const val REQUEST_ID = "request_id"
   private const val REQUEST_USER = "request_user"
   private const val REQUEST_STARTED = "request_started"
+  private const val REQUEST_THEME = "request_theme"
 
   fun readRequest(preferences: SharedPreferences?): RuntimeStatusRequest? {
     val values = preferences?.all ?: return null
@@ -25,22 +26,24 @@ internal object RuntimeStatusProtocol {
       values[REQUEST_ID] as? String ?: return null,
       values[REQUEST_USER] as? Int ?: return null,
       values[REQUEST_STARTED] as? Long ?: return null,
+      values[REQUEST_THEME] as? Boolean ?: false,
     )
   }
 
-  private fun submit(service: XposedService): RuntimeStatusRequest {
+  private fun submit(service: XposedService, includeIconTheme: Boolean): RuntimeStatusRequest {
     val request = RuntimeStatusRequest(UUID.randomUUID().toString(), Process.myUid() / 100_000,
-      SystemClock.elapsedRealtime())
+      SystemClock.elapsedRealtime(), includeIconTheme)
     check(service.getRemotePreferences(GROUP).edit()
       .putString(REQUEST_ID, request.id)
       .putInt(REQUEST_USER, request.userId)
+      .putBoolean(REQUEST_THEME, includeIconTheme)
       .putLong(REQUEST_STARTED, request.startedAtElapsed).commit()) { "Runtime status request failed" }
     return request
   }
 
-  suspend fun query(service: XposedService): RuntimeStatusReport? = withContext(Dispatchers.IO) {
+  suspend fun query(service: XposedService, includeIconTheme: Boolean = false): RuntimeStatusReport? = withContext(Dispatchers.IO) {
     val deadline = SystemClock.elapsedRealtime() + 6_000L
-    val request = submit(service)
+    val request = submit(service, includeIconTheme)
     currentCoroutineContext().ensureActive()
     if (SystemClock.elapsedRealtime() >= deadline) return@withContext null
     withTimeoutOrNull((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(0)) {

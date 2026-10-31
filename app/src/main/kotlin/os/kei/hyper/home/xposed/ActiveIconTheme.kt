@@ -17,6 +17,7 @@ import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
+import os.kei.hyper.home.status.SystemIconThemeReport
 
 /**
  * Worker-thread resource inventory, not a monochrome-capability or renderability probe.
@@ -55,13 +56,41 @@ internal class ActiveIconTheme(
 
   enum class Kind { MISSING, FILE, DIRECTORY, UNKNOWN }
 
-  private data class Index(val stamp: SourceStamp, val revision: Long, val names: Set<String>?)
+  private data class Inventory(val names: Set<String>, val nightNames: Set<String> = emptySet(), val title: String? = null)
+  private data class Index(val stamp: SourceStamp, val revision: Long, val inventory: Inventory?) {
+    val names get() = inventory?.names
+  }
   private val revision = AtomicLong()
   private val cached = mutableMapOf<String, Index>()
 
   init { require(maxEntries > 0) }
 
   fun invalidate() { revision.incrementAndGet() }
+
+  /** Uses the same cached source inventory as the native-selection policy. */
+  @Synchronized
+  fun describe(): SystemIconThemeReport {
+    val generation = revision.get()
+    val active = index(activeIcons, directory = false, generation)
+    val primary = if (active.stamp.kind == Kind.MISSING) index(stockIcons, directory = false, generation) else active
+    val sources = listOf(primary, index(modIcons, directory = true, generation))
+    val complete = generation == revision.get() && sources.all { it.inventory != null }
+    val names = sources.flatMap { it.inventory?.names.orEmpty() }.toSet()
+    val nightNames = sources.flatMap { it.inventory?.nightNames.orEmpty() }.toSet()
+    return SystemIconThemeReport(
+      source = when (active.stamp.kind) {
+        Kind.MISSING -> SystemIconThemeReport.Source.DEFAULT
+        Kind.FILE -> SystemIconThemeReport.Source.THEME
+        else -> SystemIconThemeReport.Source.UNAVAILABLE
+      },
+      title = primary.inventory?.title,
+      archivePath = primary.stamp.path.takeIf { primary.stamp.kind == Kind.FILE },
+      resourceCount = if (complete) names.size else 0,
+      nightResourceCount = if (complete) nightNames.size else 0,
+      complete = complete,
+      revision = sources.joinToString(";") { "${it.stamp.identity}:${it.stamp.size}:${it.stamp.modified}:$generation" },
+    )
+  }
 
   /**
    * components maps each launcher package to its ActivityInfo.name values (full or relative).
@@ -104,7 +133,7 @@ internal class ActiveIconTheme(
     cached[sourceStamp.path]?.takeIf { it.stamp == sourceStamp && it.revision == generation }?.let { return it }
     val names = try {
       when (sourceStamp.kind) {
-        Kind.MISSING -> emptySet()
+        Kind.MISSING -> Inventory(emptySet())
         Kind.DIRECTORY -> if (directory) readDirectory(file) else null
         Kind.FILE -> if (!directory && sourceStamp.size <= MAX_PACK_BYTES) readArchive(file) else null
         Kind.UNKNOWN -> null
@@ -137,9 +166,10 @@ internal class ActiveIconTheme(
     } catch (_: SecurityException) { SourceStamp(path, Kind.UNKNOWN) }
   }
 
-  private fun readArchive(file: File): Set<String> = ZipFile(file).use { zip ->
+  private fun readArchive(file: File): Inventory = ZipFile(file).use { zip ->
     if (zip.size() > maxEntries) throw IOException("Icon pack entry limit")
     val result = linkedSetOf<String>()
+    val night = linkedSetOf<String>()
     val entries = zip.entries()
     var descriptorBytes = 0L
     while (entries.hasMoreElements()) {
@@ -166,14 +196,24 @@ internal class ActiveIconTheme(
         if (resource.descriptor) descriptor(input.readNBytes(MAX_DESCRIPTOR_BYTES + 1))
         else png(input.readNBytes(24))
       }
-      if (valid) result += resource.name
+      if (valid) {
+        result += resource.name
+        if (isNightResource(entry.name)) night += resource.name
+      }
     }
-    result
+    val title = zip.getEntry("description.xml")?.takeIf { it.size in 1..MAX_DESCRIPTOR_BYTES }?.let { entry ->
+      zip.getInputStream(entry).use { input ->
+        xmlRoot(input.readNBytes(MAX_DESCRIPTOR_BYTES + 1))?.getElementsByTagName("title")
+          ?.item(0)?.textContent?.trim()?.takeIf { it.isNotEmpty() }?.take(120)
+      }
+    }
+    Inventory(result, night, title)
   }
 
-  private fun readDirectory(file: File): Set<String> {
+  private fun readDirectory(file: File): Inventory {
     val root = file.toPath().toRealPath()
     val result = linkedSetOf<String>()
+    val night = linkedSetOf<String>()
     var visited = 0
     var descriptorBytes = 0L
     Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
@@ -186,7 +226,8 @@ internal class ActiveIconTheme(
       override fun visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult {
         if (++visited > maxEntries) throw IOException("Icon directory entry limit")
         if (!attrs.isRegularFile || attrs.size() <= 0) return FileVisitResult.CONTINUE
-        val resource = resource(root.relativize(path).joinToString("/"), allowFlat = true)
+        val relativePath = root.relativize(path).joinToString("/")
+        val resource = resource(relativePath, allowFlat = true)
           ?: return FileVisitResult.CONTINUE
         if (resource.descriptor) {
           if (attrs.size() > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
@@ -211,20 +252,28 @@ internal class ActiveIconTheme(
           if (resource.descriptor) descriptor(input.readNBytes(MAX_DESCRIPTOR_BYTES + 1))
           else png(input.readNBytes(24))
         }
-        if (valid) result += resource.name
+        if (valid) {
+          result += resource.name
+          if (isNightResource(relativePath)) night += resource.name
+        }
         return FileVisitResult.CONTINUE
       }
     })
-    return result
+    return Inventory(result, night)
   }
 
-  private data class Resource(val name: String, val descriptor: Boolean, val layer: String? = null) {
-    val layerConfig get() = "layer_animating_icons/$name/config.xml"
+  private fun isNightResource(path: String) = path.startsWith("nightmode/") || path.split('/').any {
+    it.startsWith("drawable-") && "night" in it.split('-')
+  }
+
+  private data class Resource(val name: String, val descriptor: Boolean, val layer: String? = null, val prefix: String = "") {
+    val layerConfig get() = "${prefix}layer_animating_icons/$name/config.xml"
   }
 
   private fun resource(path: String, allowFlat: Boolean): Resource? {
     if (path.length > 1024 || '\\' in path) return null
-    val parts = path.split('/')
+    val prefix = if (path.startsWith("nightmode/")) "nightmode/" else ""
+    val parts = path.removePrefix(prefix).split('/')
     if (parts.any { it.isEmpty() || it == "." || it == ".." }) return null
     val staticName = when {
       parts.size == 3 && parts[0] == "res" &&
@@ -242,7 +291,7 @@ internal class ActiveIconTheme(
         parts[2] == "fancy" && parts[3] == "manifest.xml" -> Resource(parts[1], descriptor = true)
       parts.size == 5 && parts[0] == "layer_animating_icons" &&
         parts[3] == "fancy" && parts[4] == "manifest.xml" ->
-        Resource(parts[1], descriptor = true, layer = parts[2])
+        Resource(parts[1], descriptor = true, layer = parts[2], prefix = prefix)
       else -> null
     }
   }

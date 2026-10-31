@@ -43,6 +43,7 @@ internal data class FrameworkSnapshot(
   val launcherTarget: FrameworkTarget?,
   val frameworkVersion: String? = null,
   val frameworkVersionCode: Long? = null,
+  val themesInScope: Boolean = false,
 )
 
 internal data class FrameworkTarget(val state: HookedTarget.State, val loadedVersionCode: Long)
@@ -67,18 +68,20 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     // Let a service read failure invalidate the snapshot instead of retaining stale identity.
     frameworkVersion = frameworkVersion.trim().takeIf { it.isNotEmpty() },
     frameworkVersionCode = frameworkVersionCode.takeIf { it >= 0 },
+    themesInScope = "com.android.thememanager" in scope,
   )
 }
 
-/** One retry on app connection if the install-time reload was refused by a busy old generation. */
+/** Retry Java targets on app connection if an in-flight operation refused install-time reload. */
 internal fun XposedService.upgradeOlderSystemTarget() {
   if (apiVersion < 102) return
-  val target = runningTargets.firstOrNull {
-    it.uid == android.os.Process.SYSTEM_UID &&
-      (it.processName == "system_server" || it.processName == "system") &&
+  val user = android.os.Process.myUid() / 100_000
+  val targets = runningTargets.filter {
+    ((it.uid == android.os.Process.SYSTEM_UID && it.processName in setOf("system_server", "system")) ||
+      (it.processName == "com.android.thememanager" && it.uid / 100_000 == user)) &&
       it.loadedVersionCode < BuildConfig.VERSION_CODE
-  } ?: return
-  hotReloadModule(target, null) { _, result ->
-    Log.i("KeiHomeReload", "API 102 upgrade result: ${result.status}, ${result.message}")
+  }
+  for (target in targets) hotReloadModule(target, null) { _, result ->
+    Log.i("KeiHomeReload", "API 102 upgrade ${target.processName}: ${result.status}, ${result.message}")
   }
 }

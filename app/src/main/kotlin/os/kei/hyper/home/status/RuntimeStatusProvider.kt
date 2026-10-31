@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
 import android.os.Process
+import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -30,8 +31,20 @@ class RuntimeStatusProvider : ContentProvider() {
   override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
     check(Binder.getCallingUid() == Process.SYSTEM_UID) { "Runtime status requires the system owner" }
     return Bundle().apply {
-      putBoolean("accepted", method == RuntimeStatusInbox.REPORT_METHOD && RuntimeStatusInbox.accept(arg))
+      putBoolean("accepted", when (method) {
+        RuntimeStatusInbox.REPORT_METHOD -> RuntimeStatusInbox.accept(arg)
+        IconPackImportProtocol.REPORT_METHOD -> IconPackImportProtocol.accept(requireNotNull(context), extras)
+        else -> false
+      })
     }
+  }
+
+  override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+    check(Binder.getCallingUid() == Process.SYSTEM_UID) { "Icon handoff requires the system owner" }
+    val path = uri.pathSegments
+    require(mode == "r" && path.size == 2 && path[0] == "icon-import")
+    return ParcelFileDescriptor.open(IconPackHandoffs.file(requireNotNull(context), path[1]),
+      ParcelFileDescriptor.MODE_READ_ONLY)
   }
 
   override fun query(uri: Uri, projection: Array<out String>?, selection: String?,

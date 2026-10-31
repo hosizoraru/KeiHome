@@ -9,7 +9,6 @@ import android.os.UserHandle
 import android.os.UserManager
 import android.os.SystemClock
 import java.io.File
-import java.io.IOException
 
 /** Policy for HYOS's package-keyed monochrome selector, not activity aliases. */
 internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
@@ -58,7 +57,12 @@ internal class MonetResourcePolicy(private val iconTheme: ActiveIconTheme) {
       .groupBy { it.componentName.packageName }
       .mapValues { (_, entries) -> entries.map { it.componentName.className }.toSet() }
     val theme = iconTheme.snapshot(byPackage.keys, components, modEnabled = true)
-    if (!theme.complete) throw IOException("Active icon theme inventory is incomplete")
+    if (!theme.complete) {
+      // A replacing/unreadable theme must not inherit the previous pack's APK-Monet choices.
+      // Keep every icon on the original native source until this inventory can be read again.
+      themeSignature = theme.signature
+      return byPackage.keys
+    }
     val sameTheme = theme.signature == themeSignature
     if (!sameTheme) android.util.Log.i("KeiHomeIconTheme",
       "Resource inventory complete=${theme.complete} themedPackages=${theme.coveredPackages.size}")

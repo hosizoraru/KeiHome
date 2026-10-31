@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantLock
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.RuntimeStatusProtocol
+import os.kei.hyper.home.status.IconPackImportProtocol
 
 internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lifecycle = IconRefreshReloadLifecycle()
@@ -37,8 +38,20 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var lastMonetState: String? = null
   private var nativeBrokerReady = false
   private var nativeBrokerInstallFailure: String? = null
+  private var convertedIconRuntime: ConvertedIconRuntime? = null
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme)
+  private val iconPackImportMonitor = IconPackImportMonitor(
+    { xposed.getRemotePreferences(IconPackImportProtocol.GROUP) },
+    { failure -> logFailure("native icon import failed", failure) },
+    { report, proof ->
+      lifecycle.withActiveRuntime {
+        check(hooksReady) { "Converted icon runtime is unavailable" }
+        checkNotNull(convertedIconRuntime) { "Converted icon validation hook is unavailable" }
+          .register(report, proof)
+      }
+    },
+  )
   private val monetColorMonitor = MonetColorMonitor(
     monetColorSynchronizer,
     onResult = { result ->
@@ -125,6 +138,15 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       val oldConfiguration = findMatchingIconHook(
         oldHooks, CONFIGURATION_HOOK_ID, resolved.updateConfiguration,
       )
+      try {
+        val drm = ConvertedIconRuntime(xposed)
+        val installedDrm = drm.install(loader, oldHooks)
+        installedDrm.second?.let(replaced::add)
+        handles += installedDrm.first
+        convertedIconRuntime = drm
+      } catch (failure: Throwable) {
+        logFailure("converted icon DRM validation unavailable", failure)
+      }
       // The transport is optional. Missing OEM/hidden Binder APIs must not take down the
       // independently working night-mode and LauncherApps callbacks.
       var nativeHandle: XposedInterface.HookHandle? = null
@@ -235,11 +257,11 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       xposed.log(Log.INFO, TAG, "System-server icon refresh hooks installed")
       return true
     } catch (failure: Throwable) {
+      synchronized(lock) { hooksReady = false }
       NativeMonetSocketBroker.stop()
       monetColorMonitor.stop()
-      worker?.quitSafely()
-      worker = null
-      handler = null
+      iconPackImportMonitor.stop()
+      stopRefreshWorker()
       handles.forEach {
         try {
           it.unhook()
@@ -256,21 +278,12 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
     return lifecycle.retire(
       prepare = prepare@ {
-        val closing = synchronized(lock) {
-          closingWorkers.pruneStopped()
-          if (closingWorkers.hasLiveThreads()) return@prepare false
-          pending.invalidatePost()
-          handler?.removeCallbacksAndMessages(null)
-          handler = null
-          worker?.also {
-            worker = null
-            closingWorkers.track(it)
-          }
-        }
+        closingWorkers.pruneStopped()
+        if (closingWorkers.hasLiveThreads()) return@prepare false
+        stopRefreshWorker()
         NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
-        closing?.interrupt()
-        closing?.quitSafely()
+        iconPackImportMonitor.stop()
         true
       },
       await = { awaitRetirement(deadline) },
@@ -284,12 +297,15 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         startMonetMonitor()
         synchronized(lock) { postPendingLocked() }
       },
+      retireValidation = { convertedIconRuntime?.retire() ?: true },
+      resumeValidation = { convertedIconRuntime?.resume() },
     )
   }
 
   private fun awaitRetirement(deadline: Long): Boolean {
     return closingWorkers.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
+      iconPackImportMonitor.awaitStopped(deadline) &&
       NativeMonetSocketBroker.awaitStopped(deadline) &&
       IconResourceProbeClient.awaitOwnedReplyThreadsStopped(deadline)
   }
@@ -302,6 +318,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       } ?: return
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       monetColorMonitor.start(context)
+      iconPackImportMonitor.start(context)
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)
     }
@@ -390,6 +407,20 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     } finally {
       if (interrupted) Thread.currentThread().interrupt()
     }
+  }
+
+  private fun stopRefreshWorker() {
+    val closing = synchronized(lock) {
+      pending.invalidatePost()
+      handler?.removeCallbacksAndMessages(null)
+      handler = null
+      worker?.also {
+        worker = null
+        closingWorkers.track(it)
+      }
+    }
+    closing?.interrupt()
+    closing?.quitSafely()
   }
 
   private fun refreshCurrent(generation: Long): Boolean = !Thread.currentThread().isInterrupted &&
@@ -914,11 +945,19 @@ internal class IconRefreshReloadLifecycle {
     }
   }
 
+  /** Registration is owned work too; retirement cannot pass an in-flight durable grant write. */
+  fun <T> withActiveRuntime(block: () -> T): T = trackHook {
+    check(!retiring && !retired) { "Icon runtime is retiring" }
+    block()
+  }
+
   fun retire(
     prepare: () -> Boolean,
     await: () -> Boolean,
     commit: () -> Unit,
     rollback: () -> Unit,
+    retireValidation: () -> Boolean = { true },
+    resumeValidation: () -> Unit = {},
   ): Boolean {
     if (!retirement.tryLock()) return false
     try {
@@ -926,7 +965,10 @@ internal class IconRefreshReloadLifecycle {
         if (retired || retiring || activeHooks != 0) return false
         retiring = true
       }
+      var validationRetired = false
       fun recover() {
+        // Reopen the validator before admitting registrations or restarting the import worker.
+        try { if (validationRetired) resumeValidation() } catch (_: Throwable) { return }
         synchronized(lock) { retiring = false }
         try { rollback() } catch (_: Throwable) { }
       }
@@ -944,10 +986,14 @@ internal class IconRefreshReloadLifecycle {
       val committed = synchronized(lock) {
         if (!stopped || activeHooks != 0 || activeJobs != 0) false
         else try {
-          commit()
-          retired = true
-          retiring = false
-          true
+          // A slow/failed worker drain must leave periodic converted-icon validation active.
+          if (!retireValidation()) false else {
+            validationRetired = true
+            commit()
+            retired = true
+            retiring = false
+            true
+          }
         } catch (_: Throwable) { false }
       }
       if (!committed) recover()

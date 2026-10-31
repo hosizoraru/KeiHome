@@ -20,6 +20,17 @@ class RuntimeStatusReportTest {
   }
 
   @Test
+  fun iconThemeInventoryTravelsWithTheAuthenticatedObservation() {
+    val theme = SystemIconThemeReport(SystemIconThemeReport.Source.THEME, "Day | Night : icons",
+      "/data/system/theme/icons", 40, 12, true, "source-inode:3")
+    val report = ready.copy(iconTheme = theme)
+    assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    val legacy = ready.encode().split('|').take(11).toMutableList().apply { this[0] = "1" }.joinToString("|")
+    assertEquals(ready, RuntimeStatusReport.decode(legacy))
+    assertNull(SystemIconThemeReport.decode(theme.copy(nightResourceCount = 41).encode()))
+  }
+
+  @Test
   fun failureKeepsItsReasonButDoesNotInheritAnOldSuccessfulIdentity() {
     val failed = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE,
       launcherPid = null, launcherStartTicks = null, refresh = null, detail = "peer | timeout\nreason")
@@ -66,7 +77,7 @@ class RuntimeStatusReportTest {
   fun unsupportedAndMalformedReceiptsDoNotBecomeReadiness() {
     assertNull(RuntimeStatusReport.decode(null))
     assertNull(RuntimeStatusReport.decode(""))
-    assertNull(RuntimeStatusReport.decode(ready.encode().replaceFirst("1|", "2|")))
+    assertNull(RuntimeStatusReport.decode(ready.encode().replaceFirst("2|", "999|")))
     assertNull(RuntimeStatusReport.decode(ready.encode().replace("READY", "RUNNING")))
     assertNull(RuntimeStatusReport.decode(ready.encode() + "|extra"))
     assertNull(RuntimeStatusReport.decode(ready.encode() + "not base64!"))

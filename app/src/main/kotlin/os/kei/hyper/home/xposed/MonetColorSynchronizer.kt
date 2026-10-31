@@ -22,6 +22,7 @@ import os.kei.hyper.home.status.NativeRuntimeState
 import os.kei.hyper.home.status.RuntimeStatusInbox
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusRequest
+import os.kei.hyper.home.status.SystemIconThemeReport
 
 /**
  * Keeps HyperOS's selected monochrome icon color aligned with its live
@@ -31,7 +32,7 @@ import os.kei.hyper.home.status.RuntimeStatusRequest
  * secure marker lets a later wallpaper/theme change distinguish a value
  * written by this module from one selected by the user.
  */
-internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
+internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val native = NativeMonetClient()
   private val resources = MonetResourcePolicy(iconTheme)
   private val actionBaseline = MonetAction.Baseline()
@@ -86,6 +87,15 @@ internal class MonetColorSynchronizer(iconTheme: ActiveIconTheme) {
       moduleVersion = BuildConfig.VERSION_CODE.toLong(), checkedAtElapsed = SystemClock.elapsedRealtime(),
       nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
       refresh = refresh,
+      iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
+        val inventory = iconTheme.describe()
+        val identity = NativeIconPackManager.identity(context)
+        inventory.copy(source = when (identity?.default) {
+          true -> SystemIconThemeReport.Source.DEFAULT
+          false -> SystemIconThemeReport.Source.THEME
+          null -> SystemIconThemeReport.Source.UNAVAILABLE
+        }, title = identity?.title, localId = identity?.localId, nativeHash = identity?.hash)
+      } else null,
       detail = if (state == NativeRuntimeState.UNAVAILABLE) {
         if (activeUser == null) "Foreground user unavailable" else NativeMonetClient.lastTransportFailure
       } else null,

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.os.Looper
 import android.os.Process
 import android.system.Os
 import android.system.OsConstants
@@ -8,21 +9,54 @@ import android.util.AtomicFile
 import java.io.File
 import java.lang.reflect.Modifier
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Exact Themes 11540 association and private persistence; no active theme files are written. */
-internal class ConvertedIconGrants(private val loader: ClassLoader) {
+internal class ConvertedIconGrants(
+  private val loader: ClassLoader,
+  private val hashTiming: (String, Long) -> Unit = { _, _ -> },
+) {
   private val resourceClass = type("basemodule.resource.model.Resource")
   private val contextClass = type("ResourceContext")
   private val controllerClass = type("controller.ThemeController")
   private val resolverConstructor = type("model.ResourceResolver").getConstructor(resourceClass, contextClass)
   private val parentMethod = type("basemodule.resource.ResourceHelper").getMethod("h", resourceClass,
     type("basemodule.resource.NewResourceContext"))
-  private val lock = Any()
-  private var loaded: Map<String, ConvertedIconGrant>? = null
+  private val approvals = ConvertedIconApprovals()
+  // These verified 11540 getters only read Resource/RelatedResource fields. In particular,
+  // getParentResources is not ResourceHelper.h, which parses the parent's JSON on disk.
+  private val resourceGetters = listOf("getLocalId", "getHash", "getOnlineId", "getProductId",
+    "getAssemblyId", "getMetaPath", "getContentPath", "getResourceStorageType", "getParentResources")
+    .associateWith { resourceClass.getMethod(it) }
+  private val relatedClass = type("basemodule.resource.model.RelatedResource")
+  private val relatedGetters = listOf("getLocalId", "getResourceCode", "getMetaPath",
+    "getContentPath", "getResourceStorageType")
+    .associateWith { relatedClass.getMethod(it) }
+
+  /** Owned startup worker; association snapshots limit scope, never authorize DRM. */
+  fun initialize(context: Context) {
+    requireWorker()
+    approvals.load { read(context) }
+    val entries = approvals.entries()
+    if (entries.isEmpty()) return
+    val ctx = iconContext()
+    for (entry in entries) {
+      if (Thread.currentThread().isInterrupted) throw InterruptedException("Converted approval preload interrupted")
+      try {
+        association(lookup(ctx, entry.grant.localId), ctx, entry.grant)?.let { approvals.publish(entry, it) }
+      } catch (failure: Exception) {
+        if (failure is InterruptedException) throw failure
+        // A removed native resource cannot stop other valid receipts from warming.
+      }
+    }
+  }
+
+  fun retire() = approvals.retire()
 
   fun register(context: Context, stagePath: String, localId: String, expected: ConvertedIconArchive.Proof) {
+    requireWorker()
     checkVersion(context)
     val stage = File(stagePath)
     val directory = requireNotNull(stage.parentFile)
@@ -45,31 +79,40 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
     val parent = requireNotNull(parent(icon, ctx)) { "Imported converted Icon has no native parent" }
     val grant = ConvertedIconGrant(proof, localId, snapshot(parent).localId)
     require(grant.matches(snapshot(icon), snapshot(parent))) { "Converted native association/store ID mismatch" }
-    require(ConvertedIconArchive.digest(content(icon, ctx)) == proof.icons) { "Native Icon bytes do not match conversion" }
-    synchronized(lock) {
-      val updated = read(context).toMutableMap().apply { put(localId, grant) }
-      require(updated.size <= 700) { "Converted approval limit" }
-      write(context, updated)
-      loaded = updated
+    val approved = requireNotNull(association(icon, ctx, grant))
+    require(ConvertedIconArchive.digest(File(approved.contentPath)) == proof.icons) {
+      "Native Icon bytes do not match conversion"
+    }
+    check(approvals.register(grant, approved, { read(context) }, { write(context, it) })) {
+      "Converted approval generation retired"
     }
   }
 
   /** Background rights preflight rechecks current association and the complete native component. */
   fun eligible(resourceContext: Any, resource: Any): Boolean {
+    requireWorker()
     if (string(resourceContext, "getResourceCode") != "icons") return false
-    val ctx = appContext()
-    val candidate = approved(resource, resourceContext, ctx) ?: return false
-    val suppliedContent = content(resource, resourceContext)
-    val currentContent = content(lookup(resourceContext, candidate.localId), resourceContext)
-    return suppliedContent == currentContent &&
-      ConvertedIconArchive.digest(currentContent) == candidate.proof.icons
+    approvals.load { read(appContext()) }
+    val entry = approvals.entry(snapshot(resource).localId) ?: return false
+    var accepted = false
+    try {
+      val approved = association(resource, resourceContext, entry.grant) ?: return false
+      if (digest(File(approved.contentPath), "rights") != entry.grant.proof.icons ||
+        supplied(resource) != approved.supplied) return false
+      accepted = approvals.publish(entry, approved, preflight = true)
+      return accepted
+    } finally {
+      if (!accepted) approvals.invalidate(entry)
+    }
   }
 
-  /** This UI hook only limits related-component scope. It never grants rights by itself. */
-  fun iconsOnly(resource: Any): Boolean = approved(resource, iconContext(), appContext()) != null
+  /** UI: immutable values and field getters only; no store, native resolver, hash or writer lock. */
+  fun iconsOnly(resource: Any): Boolean = try { approvals.iconsOnly(supplied(resource)) }
+    catch (_: Exception) { false }
 
   /** Native post-apply scans other components normally. Only the exact approved icons file passes. */
   fun validates(task: Any, path: String, context: Context): Boolean {
+    requireWorker()
     val active = File(path)
     if (path != "/data/system/theme/icons" || active.canonicalPath != path || !active.isFile) return false
     val fields = task.javaClass.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }
@@ -79,29 +122,38 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
     val applied = snapshot(requireNotNull(resourceField.get(task)))
     if (!applied.hasNoStoreId) return false
     val ctx = iconContext()
-    val candidates = synchronized(lock) { read(context).values.toList() }.filter {
-      (applied.localId == it.localId && applied.hash == it.proof.icons.sha1) ||
-        (applied.localId == it.parentLocalId && applied.hash == it.proof.archive.sha1)
+    approvals.load { read(context) }
+    val candidates = approvals.entries().filter {
+      (applied.localId == it.grant.localId && applied.hash == it.grant.proof.icons.sha1) ||
+        (applied.localId == it.grant.parentLocalId && applied.hash == it.grant.proof.archive.sha1)
     }
-    val grants = candidates.filter { grant ->
-      val icon = lookup(ctx, grant.localId)
-      approved(icon, ctx, context) == grant
+    val grants = candidates.filter { entry ->
+      val icon = lookup(ctx, entry.grant.localId)
+      association(icon, ctx, entry.grant) != null
     }
     if (grants.isEmpty()) return false
-    val digest = ConvertedIconArchive.digest(active)
-    return grants.any { it.proof.icons == digest }
+    val digest = digest(active, "post-apply")
+    return grants.any { approvals.isCurrent(it) && it.grant.proof.icons == digest }
   }
 
-  private fun approved(resource: Any, ctx: Any, context: Context): ConvertedIconGrant? {
-    val supplied = snapshot(resource)
-    if (!supplied.hasNoStoreId) return null
-    val grant = synchronized(lock) { read(context)[supplied.localId] } ?: return null
-    val current = lookup(ctx, supplied.localId)
+  private fun association(resource: Any, ctx: Any, grant: ConvertedIconGrant): ConvertedIconAssociation? {
+    val supplied = supplied(resource)
+    if (!supplied.icon.hasNoStoreId) return null
+    val current = lookup(ctx, supplied.icon.localId)
     val parent = parent(current, ctx) ?: return null
-    if (supplied != snapshot(current) || !grant.matches(supplied, snapshot(parent))) return null
+    val parentSnapshot = snapshot(parent)
+    if (supplied.icon != snapshot(current) || !grant.matches(supplied.icon, parentSnapshot)) return null
     // Also check the caller's parent association; stale detail resources cannot gain approval.
-    if (snapshot(parent(resource, ctx) ?: return null) != snapshot(parent)) return null
-    return grant
+    if (snapshot(parent(resource, ctx) ?: return null) != parentSnapshot) return null
+    val currentContent = content(current, ctx)
+    if (content(resource, ctx) != currentContent) return null
+    return ConvertedIconAssociation(supplied, parentSnapshot, currentContent.path)
+  }
+
+  private fun digest(file: File, stage: String): ConvertedIconArchive.Digests {
+    val started = System.nanoTime()
+    try { return ConvertedIconArchive.digest(file) }
+    finally { hashTiming(stage, System.nanoTime() - started) }
   }
 
   private fun iconContext(): Any {
@@ -130,9 +182,26 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
     return file.canonicalFile.also { require(it.isFile) { "Native Icon content is not a regular file" } }
   }
 
-  private fun snapshot(resource: Any) = ConvertedIconResource(
-    requireNotNull(string(resource, "getLocalId")), requireNotNull(string(resource, "getHash")).lowercase(),
-    string(resource, "getOnlineId"), string(resource, "getProductId"), string(resource, "getAssemblyId"))
+  private fun snapshot(resource: Any): ConvertedIconResource {
+    fun value(name: String) = resourceGetters.getValue(name).invoke(resource) as? String
+    return ConvertedIconResource(requireNotNull(value("getLocalId")),
+      requireNotNull(value("getHash")).lowercase(), value("getOnlineId"), value("getProductId"), value("getAssemblyId"))
+  }
+
+  private fun supplied(resource: Any): ConvertedIconSupplied {
+    fun value(name: String) = resourceGetters.getValue(name).invoke(resource)
+    val parent = (value("getParentResources") as? List<*>)?.firstOrNull()
+    fun related(name: String) = parent?.let { relatedGetters.getValue(name).invoke(it) }
+    return ConvertedIconSupplied(snapshot(resource), value("getMetaPath") as? String,
+      value("getContentPath") as? String, (value("getResourceStorageType") as? Enum<*>)?.name,
+      parent?.let { ConvertedIconParent(related("getLocalId") as? String, related("getResourceCode") as? String,
+        related("getMetaPath") as? String, related("getContentPath") as? String,
+        (related("getResourceStorageType") as? Enum<*>)?.name) })
+  }
+
+  private fun requireWorker() {
+    check(Looper.myLooper() != Looper.getMainLooper()) { "Converted approval requires a worker thread" }
+  }
 
   private fun appContext(): Context = type("basemodule.context.AppContextManager").getMethod("q")
     .invoke(null) as Context
@@ -150,9 +219,8 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
   private fun storage(context: Context): AtomicFile = AtomicFile(File(
     context.getDir("keihome_converted_icons", Context.MODE_PRIVATE), "grants-v1.json"))
 
-  // Called under lock. Corrupt/unknown storage fails closed; it cannot produce an approval.
+  // Called only by workers under the publication state's writer lock.
   private fun read(context: Context): Map<String, ConvertedIconGrant> {
-    loaded?.let { return it }
     checkVersion(context)
     val file = storage(context)
     val grants = LinkedHashMap<String, ConvertedIconGrant>()
@@ -177,7 +245,6 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
           grants.put(grant.localId, grant) == null)
       }
     }
-    loaded = grants
     return grants
   }
 
@@ -208,4 +275,87 @@ internal class ConvertedIconGrants(private val loader: ClassLoader) {
     }
     return output.toByteArray()
   }
+}
+
+/** Values copied from native fields; no host Resource, Context or resolver is retained. */
+internal data class ConvertedIconParent(val localId: String?, val code: String?, val metaPath: String?,
+  val contentPath: String?, val storageType: String?)
+
+internal data class ConvertedIconSupplied(val icon: ConvertedIconResource, val metaPath: String?,
+  val contentPath: String?, val storageType: String?, val parent: ConvertedIconParent?)
+
+internal data class ConvertedIconAssociation(val supplied: ConvertedIconSupplied,
+  val parent: ConvertedIconResource, val contentPath: String)
+
+/**
+ * The writer alone touches persistence. Readers observe the last complete publication even while
+ * AtomicFile is stalled. A receipt token binds preflight results to this registration/generation.
+ */
+internal class ConvertedIconApprovals {
+  internal class Entry(val grant: ConvertedIconGrant, val association: ConvertedIconAssociation? = null,
+    val token: Any = Any())
+  private data class State(val entries: Map<String, Entry>? = null, val retired: Boolean = false)
+  private val writer = Any()
+  private val state = AtomicReference(State())
+
+  fun load(read: () -> Map<String, ConvertedIconGrant>) {
+    if (state.get().entries != null) return
+    synchronized(writer) {
+      val before = state.get()
+      check(!before.retired) { "Converted approval generation retired" }
+      if (before.entries != null) return
+      val entries = read().mapValues { Entry(it.value) }
+      check(state.compareAndSet(before, State(entries))) { "Converted approval generation retired" }
+    }
+  }
+
+  fun register(grant: ConvertedIconGrant, association: ConvertedIconAssociation,
+    read: () -> Map<String, ConvertedIconGrant>, persist: (Map<String, ConvertedIconGrant>) -> Unit): Boolean {
+    synchronized(writer) {
+      load(read)
+      require(grant.matches(association.supplied.icon, association.parent))
+      val grants = state.get().entries.orEmpty().mapValues { it.value.grant } + (grant.localId to grant)
+      require(grants.size <= 700) { "Converted approval limit" }
+      persist(grants)
+      val entry = Entry(grant, association)
+      while (true) {
+        val before = state.get()
+        if (before.retired) return false
+        if (state.compareAndSet(before, State(before.entries.orEmpty() + (grant.localId to entry)))) {
+          return true
+        }
+      }
+    }
+  }
+
+  fun entry(localId: String): Entry? = state.get().entries?.get(localId)
+  fun entries(): List<Entry> = state.get().entries?.values?.toList().orEmpty()
+  fun isCurrent(candidate: Entry): Boolean = entry(candidate.grant.localId)?.token === candidate.token
+
+  fun publish(entry: Entry, association: ConvertedIconAssociation, preflight: Boolean = false): Boolean {
+    require(entry.grant.matches(association.supplied.icon, association.parent))
+    return update(entry, association, preflight)
+  }
+
+  fun invalidate(entry: Entry) { update(entry, null, preflight = true) }
+
+  private fun update(entry: Entry, association: ConvertedIconAssociation?, preflight: Boolean): Boolean {
+    while (true) {
+      val before = state.get()
+      val entries = before.entries ?: return false
+      if (before.retired || entries[entry.grant.localId]?.token !== entry.token) return false
+      // A slow startup lookup cannot replace a newer completed preflight. A failed preflight
+      // revokes its token so older in-flight association reads cannot restore stale approval.
+      if (!preflight && entries[entry.grant.localId]?.association != null) return false
+      val updated = Entry(entry.grant, association, if (association == null) Any() else entry.token)
+      if (state.compareAndSet(before, State(entries + (entry.grant.localId to updated)))) return true
+    }
+  }
+
+  // A validated association can conservatively limit scope even without a fresh DRM preflight.
+  // This result is deliberately not used by either rights or post-apply validation.
+  fun iconsOnly(supplied: ConvertedIconSupplied): Boolean =
+    entry(supplied.icon.localId)?.association?.supplied == supplied
+
+  fun retire() { state.set(State(retired = true)) }
 }

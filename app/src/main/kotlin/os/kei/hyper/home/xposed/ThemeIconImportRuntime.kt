@@ -1,11 +1,15 @@
 package os.kei.hyper.home.xposed
 
 import android.app.Activity
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.Parcel
+import android.os.Process
 import android.util.Log
 import android.util.Pair
 import io.github.libxposed.api.XposedInterface
@@ -20,10 +24,17 @@ internal class ThemeIconImportRuntime(
 ) {
   private val gate = ThemeIconImportGate()
   private val approvalWarningLogged = AtomicBoolean()
-  private val grants by lazy { ConvertedIconGrants(classLoader) }
+  private val generation = System.identityHashCode(this).toString(16)
+  private val grants = ConvertedIconGrants(classLoader) { stage, nanos ->
+    xposed.log(Log.INFO, TAG,
+      "Converted $stage hash generation=$generation tid=${Process.myTid()} elapsedMs=${nanos / 1_000_000}")
+  }
+  private val initializationScheduled = AtomicBoolean()
+  @Volatile private var initializationThread: Thread? = null
   @Volatile private var grantsReady = false
 
   fun install(oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
+    val attach = Application::class.java.getDeclaredMethod("attach", Context::class.java)
     val service = Class.forName(SERVICE_CLASS, false, classLoader)
     val method = service.getDeclaredMethod("onBind", Intent::class.java)
     require(method.returnType == IBinder::class.java) { "Unexpected Themes onBind contract" }
@@ -52,7 +63,19 @@ internal class ThemeIconImportRuntime(
     require(validate.returnType == Pair::class.java && !Modifier.isStatic(validate.modifiers))
     // Resolve all exact 11540 contracts before changing hooks. Registration stays unavailable
     // until every approval callback is installed in this generation.
-    grants
+    installHook(attach, ATTACH_HOOK_ID, XposedInterface.Hooker { chain ->
+      if (!gate.enter()) null else try {
+        val result = chain.proceed()
+        try {
+          // ApplicationInfo belongs to the actual attached instance, not a guessed Themes
+          // application class or a heap-enumerated object. Run after native onCreate returns.
+          initialize(requireNotNull(chain.thisObject) as Application, afterAttach = true)
+        } catch (failure: Exception) {
+          warnApproval(failure)
+        }
+        result
+      } finally { gate.leave() }
+    }, oldHooks)
     val hooker = XposedInterface.Hooker { chain ->
       // Old callbacks can arrive during replacement. Once retired, they touch neither Xposed
       // chain APIs nor the native service. The verified original onBind also returns null.
@@ -62,7 +85,9 @@ internal class ThemeIconImportRuntime(
         } else {
           try {
             val host = requireNotNull(chain.thisObject)
-            guardedBinder(resolveNativeBinder(host), (host as Context).applicationContext)
+            val context = (host as Context).applicationContext
+            (context as? Application)?.let { initialize(it) }
+            guardedBinder(resolveNativeBinder(host), context)
           } catch (failure: Exception) {
             xposed.log(Log.WARN, TAG, "Could not resolve the native PC import Binder", failure)
             null
@@ -79,7 +104,7 @@ internal class ThemeIconImportRuntime(
     }, oldHooks)
     installHook(apply, APPLY_HOOK_ID, XposedInterface.Hooker { chain ->
       if (!gate.enter()) null else try {
-        if (chain.getArg(1) == "icons" && approved { grants.iconsOnly(requireNotNull(chain.getArg(2))) }) {
+        if (chain.getArg(1) == "icons" && grantsReady && grants.iconsOnly(requireNotNull(chain.getArg(2)))) {
           val args = chain.args.toTypedArray()
           args[8] = false // withRelateResource; native icons otherwise also relates wallpaper.
           chain.proceed(args)
@@ -94,7 +119,53 @@ internal class ThemeIconImportRuntime(
       } finally { gate.leave() }
     }, oldHooks)
     grantsReady = true
+    // API 102 does not replay attach on reload. This is the framework's live application,
+    // and only its host Context crosses into our new generation.
+    try {
+      val application = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+        .invoke(null) as? Application
+      application?.let { initialize(it) }
+    } catch (failure: Exception) {
+      warnApproval(failure)
+    }
     xposed.log(Log.INFO, TAG, "Installed private Themes import and converted-icon approval hooks")
+  }
+
+  private fun initialize(application: Application, afterAttach: Boolean = false) {
+    if (!grantsReady) return
+    val info = application.applicationInfo
+    if (info.packageName != PACKAGE_NAME || info.uid != Process.myUid()) return
+    if (initializationThread?.isAlive == true) return
+    if (!initializationScheduled.compareAndSet(false, true)) return
+    if (!gate.enter()) { initializationScheduled.set(false); return }
+    val start = Runnable {
+      try {
+        val worker = Thread({
+          try { grants.initialize(application) }
+          catch (failure: Exception) {
+            initializationScheduled.set(false)
+            warnApproval(failure)
+          } finally { gate.leave() }
+        }, "KeiHomeConvertedGrants").apply { isDaemon = true }
+        initializationThread = worker
+        worker.start()
+      }
+      catch (failure: Throwable) {
+        initializationScheduled.set(false)
+        gate.leave()
+        warnApproval(failure)
+      }
+    }
+    if (afterAttach) {
+      // Admission includes the queued callback, so retirement cannot leave an old closure
+      // on the main Looper or start an old-generation worker after a successful state save.
+      val posted = try { Handler(Looper.getMainLooper()).post(start) }
+        catch (failure: Exception) { warnApproval(failure); false }
+      if (!posted) {
+        initializationScheduled.set(false)
+        gate.leave()
+      }
+    } else start.run()
   }
 
   private fun installHook(method: Method, id: String, hooker: XposedInterface.Hooker,
@@ -107,17 +178,29 @@ internal class ThemeIconImportRuntime(
     oldHooks.filter { it !== old && it.id == id }.forEach { it.unhook() }
   }
 
-  private fun approved(check: () -> Boolean): Boolean = try { grantsReady && check() }
+  private fun approved(check: () -> Boolean): Boolean = try {
+      grantsReady && Looper.myLooper() != Looper.getMainLooper() && check()
+    }
     catch (failure: Exception) {
-      if (failure is InterruptedException) Thread.currentThread().interrupt()
-      if (approvalWarningLogged.compareAndSet(false, true)) {
-        xposed.log(Log.WARN, TAG, "Converted approval unavailable; retaining native rights behavior", failure)
-      }
+      warnApproval(failure)
       false
     }
 
+  private fun warnApproval(failure: Throwable) {
+    if (failure is InterruptedException) Thread.currentThread().interrupt()
+    if (approvalWarningLogged.compareAndSet(false, true)) {
+      xposed.log(Log.WARN, TAG, "Converted approval unavailable; retaining native rights behavior", failure)
+    }
+  }
+
   /** Never wait on an import from a lifecycle callback. Refuse reload until active calls finish. */
-  fun retire(saveState: () -> Unit): Boolean = gate.retire(saveState)
+  fun retire(saveState: () -> Unit): Boolean = gate.retire(
+    workersStopped = { initializationThread?.isAlive != true },
+  ) {
+    saveState()
+    grants.retire()
+    grantsReady = false
+  }
 
   private fun resolveNativeBinder(service: Any): IBinder {
     val candidates = service.javaClass.declaredFields.filter {
@@ -179,6 +262,7 @@ internal class ThemeIconImportRuntime(
     const val PRIVATE_ACTION = "os.kei.hyper.home.action.BIND_NATIVE_ICON_IMPORT"
     const val PC_DESCRIPTOR = "$PACKAGE_NAME.service.IThemePCService"
     const val HOOK_ID = "keihome.theme.icon_import.bind.v1"
+    private const val ATTACH_HOOK_ID = "keihome.theme.converted_icon.attach.v1"
     const val GRANT_DESCRIPTOR = "os.kei.hyper.home.IConvertedIconGrant.v1"
     const val REGISTER_CONVERTED = 0x004b4801
     private const val RIGHTS_HOOK_ID = "keihome.theme.converted_icon.rights.v1"
@@ -201,9 +285,9 @@ internal class ThemeIconImportGate {
 
   fun leave() = synchronized(lock) { check(active > 0); active-- }
 
-  fun retire(saveState: () -> Unit): Boolean = synchronized(lock) {
+  fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean = synchronized(lock) {
     if (retired) return@synchronized true
-    if (retiring || active != 0) return@synchronized false
+    if (retiring || active != 0 || !workersStopped()) return@synchronized false
     retiring = true
     try {
       saveState()

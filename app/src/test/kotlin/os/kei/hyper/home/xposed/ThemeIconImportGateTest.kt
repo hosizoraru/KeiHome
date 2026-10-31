@@ -41,4 +41,22 @@ class ThemeIconImportGateTest {
     assertEquals(1, saves)
     assertFalse(gate.enter())
   }
+
+  @Test fun queuedInitializationAndThreadReturnBothMustFinishBeforeRetirement() {
+    val gate = ThemeIconImportGate()
+    assertTrue(gate.enter()) // Queued attach callback owns admission before its worker starts.
+    var alive = false
+    assertFalse(gate.retire(workersStopped = { !alive }) { error("Callback still queued") })
+    alive = true
+    gate.leave() // Worker finally ran, but the thread has not returned from its entry point.
+    assertFalse(gate.retire(workersStopped = { !alive }) { error("Thread still alive") })
+    assertTrue(gate.enter())
+    gate.leave()
+    alive = false
+    assertFalse(gate.retire(workersStopped = { !alive }) { error("State transfer rejected") })
+    assertTrue(gate.enter()) // Failure keeps the old owner usable.
+    gate.leave()
+    assertTrue(gate.retire(workersStopped = { !alive }) {})
+    assertFalse(gate.enter())
+  }
 }

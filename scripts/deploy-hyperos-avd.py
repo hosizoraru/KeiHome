@@ -18,8 +18,8 @@ SERIAL = "emulator-5580"
 PACKAGE = "os.kei.hyper.home"
 
 
-def adb(*args):
-    return subprocess.check_output(["adb", "-s", SERIAL, *args], text=True, timeout=45).strip()
+def adb(*args, timeout=45):
+    return subprocess.check_output(["adb", "-s", SERIAL, *args], text=True, timeout=timeout).strip()
 
 
 def root(command):
@@ -27,12 +27,33 @@ def root(command):
 
 
 def process(name):
-    pid = adb("shell", "pidof", name)
-    if not pid.isdigit():
-        raise RuntimeError(f"Expected one {name} process, got {pid!r}")
-    stat = root(f"cat /proc/{pid}/stat")
-    fields = stat[stat.rfind(")") + 2:].split()
-    return {"pid": int(pid), "parent": int(fields[1]), "start": int(fields[19])}
+    for attempt in range(12):
+        raw = adb("shell", "pidof", name)
+        candidates = []
+        for value in raw.split():
+            if not value.isdigit():
+                continue
+            pid = int(value)
+            try:
+                stat = root(f"cat /proc/{pid}/stat")
+                fields = stat[stat.rfind(")") + 2:].split()
+                if len(fields) <= 19 or fields[0] == "Z":
+                    continue
+                candidates.append({
+                    "pid": pid,
+                    "parent": int(fields[1]),
+                    "start": int(fields[19]),
+                })
+            except (subprocess.CalledProcessError, ValueError, IndexError):
+                # A debugger/crash_dump clone can disappear between pidof and /proc.
+                continue
+        if candidates:
+            # The live application has the oldest start tick; transient debugger
+            # clones are newer. This is evidence-based selection, not pidof order.
+            return min(candidates, key=lambda item: item["start"])
+        if attempt < 11:
+            time.sleep(0.25)
+    raise RuntimeError(f"Expected a live {name} process, got {raw!r}")
 
 
 def spawner(parent):
@@ -60,8 +81,17 @@ def main():
     if not metadata or metadata[1] != PACKAGE:
         raise RuntimeError("APK is not KeiHome")
     new_version = int(metadata[2])
-    installed = adb("shell", "dumpsys", "package", PACKAGE)
-    old_version = int(re.search(r"versionCode=(\d+)", installed)[1])
+    # `dumpsys package` can wait behind a framework dump on a busy development
+    # AVD. PackageManager's compact listing provides the same version gate
+    # without taking the global package-dump path.
+    listed = adb("shell", "pm", "list", "packages", "--show-versioncode", PACKAGE)
+    version_match = re.search(rf"package:{re.escape(PACKAGE)}\s+versionCode:(\d+)", listed)
+    if not version_match:
+        installed = adb("shell", "dumpsys", "package", PACKAGE, timeout=120)
+        version_match = re.search(r"versionCode=(\d+)", installed)
+    if not version_match:
+        raise RuntimeError(f"Cannot read installed version for {PACKAGE}: {listed!r}")
+    old_version = int(version_match[1])
     if new_version <= old_version:
         raise RuntimeError(f"versionCode must increase: installed={old_version}, APK={new_version}")
     before = {name: process(name) for name in ("com.miui.home", "system_server", "com.android.systemui")}
@@ -69,7 +99,7 @@ def main():
     if not re.fullmatch(r"/data/adb/lspd/log/modules_[^/]+\.log", log):
         raise RuntimeError("Missing framework module log")
     size = int(root(f"stat -c %s {shlex.quote(log)}"))
-    result = adb("install", "-r", "--no-streaming", str(args.apk.resolve()))
+    result = adb("install", "-r", "--no-streaming", str(args.apk.resolve()), timeout=120)
     if "Success" not in result:
         raise RuntimeError(result)
     print(f"Installed {old_version} -> {new_version}", flush=True)

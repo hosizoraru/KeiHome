@@ -415,3 +415,49 @@ This failure also occurred with the intermediate Settings reply transport.
 Moving status replies to the private provider removes that observer interaction
 but did not remove the failure. See [status-dashboard.md](status-dashboard.md)
 for the successful status/reload checks and retained evidence paths.
+
+## October 31: community pack apply and periodic rollback
+
+The older Arcticons apply capture does not contain the actual final launcher
+exit. At 05:34:06 the native theme application succeeded; the system sent an
+ActivityRelaunchItem and launcher 9698 explicitly skipped process termination
+because a secondary display was present. Its Flutter isolate was recreated in
+the same process. The captured exception was `Application label not found for
+package: os.kei.hyper.home.test` in RecentsTaskLoader, not disposed-image cloning.
+The capture ends at 05:34:22.958. Persisted ApplicationExitInfo separately records
+PID 9698 exiting at 05:34:30.747, reason UNKNOWN/status 0, with no trace or ANR
+description. The missing interval prevents assigning a cause.
+
+After the next Phone boot, a distinct 18:46 event was proved to be
+`miui.drm.ThemeReceiver$ValidateThemeTask` invoking `ThemeRuntimeManager.resetDefault`
+and deleting the community icons archive. KeiHome now registers only completed,
+validated static conversion digests with that framework check. It does not
+suppress resetDefault, arbitrary DRM failures, or launcher errors.
+
+On releases 1793448125 and 1793448956, system/Theme API 102 reload, Arcticons
+reapplication, a real periodic validation, and Lawnicons native application
+preserved launcher 9685/start 3565, system-server 8810/start 2708 and SystemUI
+9676/start 3561. Native application still recreated a Dart isolate within the
+same process. Long app-start waits remain in the AVD observations, so this is
+bounded continuity evidence rather than closure of the earlier watchdog,
+SystemUI ANR, or disposed-wrapper lifetime issues.
+
+Evidence: `/tmp/keihome-pack-followup/launcher-exit-info.txt`,
+`reapply/`, `registered-validation/`, `second-validation-deploy/`,
+and `lawn-native/`. The image-recovery branch still has no positive runtime
+counter in the accepted captures.
+
+### October 31: MAML apply gesture-monitor ANR
+
+The later Arcticons MAML apply run produced another SystemUI input timeout:
+`miui-aosp-back` and `MultiTaskSwitch` gesture monitors were reported
+unresponsive, followed by ActivityManager killing SystemUI PID 9676. The
+launcher did not restart in the subsequent MAML light -> dark -> light cycle;
+it remained PID 9685/start 3565. The exact log is
+`/tmp/keihome-pack-followup/maml-arcticons/apply/logcat.txt`.
+
+This incident is kept separate from the generated MAML selector: the selector
+was consumed and redrawn successfully after the apply step, but there is no
+module-off comparison proving that the SystemUI stall is caused by KeiHome.
+The project therefore does not claim the watchdog/SystemUI ANR family is
+resolved.

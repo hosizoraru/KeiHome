@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import android.app.Application
+import android.net.Uri
+import android.os.Process
 import android.content.pm.LauncherApps
 import android.os.Handler
 import android.os.Looper
@@ -40,6 +42,14 @@ import os.kei.hyper.home.status.upgradeOlderSystemTarget
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusUiState
+import os.kei.hyper.home.iconpack.IconPackRepository
+import os.kei.hyper.home.iconpack.IconPackPreviewRepository
+import os.kei.hyper.home.iconpack.IconPackImportResult
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.status.IconPackHandoffs
+import os.kei.hyper.home.status.IconPackImportProtocol
+import os.kei.hyper.home.status.NativeIconImportReport
 
 internal data class FrameworkUiState(
   val connected: Boolean = false,
@@ -65,6 +75,10 @@ internal data class PageRefreshResult(val completedAt: Long, val failed: Boolean
 internal class HomeViewModel(application: Application) : AndroidViewModel(application) {
   val preferences = AppPreferences.get(application)
   val previews = IconPreviewRepository(application)
+  val packPreviews = IconPackPreviewRepository(application)
+  private val packRepository = IconPackRepository(application)
+  val iconPacks: StateFlow<IconPacksUiState>
+    field = MutableStateFlow(IconPacksUiState())
   val framework: StateFlow<FrameworkUiState>
     field = MutableStateFlow(FrameworkUiState())
   val runtime: StateFlow<RuntimeStatusUiState>
@@ -83,6 +97,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val paletteReader = MonetPaletteReader(application)
   private val paletteMutex = Mutex()
   private val runtimeMutex = Mutex()
+  private val iconPacksMutex = Mutex()
+  private var iconPacksDirty = true
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
   private var visiblePage: Int? = null
@@ -100,13 +116,28 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   init {
+    viewModelScope.launch {
+      val restored = withContext(Dispatchers.IO) {
+        IconPackImportProtocol.pendingSource(application) to IconPackImportProtocol.lastResult(application)
+      }
+      iconPacks.update { it.copy(nativeImporting = restored.first, nativeResult = restored.second) }
+    }
+    viewModelScope.launch {
+      IconPackImportProtocol.reports.collect { result ->
+        if (result != null && result.status != "IMPORTING") {
+          val associations = withContext(Dispatchers.IO) { IconPackImportProtocol.associations(application) }
+          val pending = withContext(Dispatchers.IO) { IconPackImportProtocol.pendingSource(application) }
+          iconPacks.update { it.copy(nativeAssociations = associations, nativeResult = result, nativeImporting = pending) }
+        }
+      }
+    }
     launcherApps?.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
     viewModelScope.launch {
       FrameworkConnection.service.collectLatest { service ->
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
         if (service != null) coroutineScope {
-          if (visiblePage == 0) launch { readRuntimeStatus() }
+          if (visiblePage == 0 || visiblePage == 3) launch { readRuntimeStatus(visiblePage == 3) }
           readFramework()
           delay(1_500)
           withContext(Dispatchers.IO) {
@@ -123,12 +154,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     visiblePage = page
     locale = localeTags
     if (page == 1 && (appsDirty || scannedLocale != locale)) scanApps()
+    if (page == 3 && iconPacksDirty) launch { readIconPacks() }
     try {
-      if (page == 0 || page == 2) launch {
+      if (page == 0 || page == 2 || page == 3) launch {
         while (true) { readFramework(); delay(5_000) }
       }
-      if (page == 0) launch {
-        while (true) { readRuntimeStatus(); delay(10_000) }
+      if (page == 0 || page == 3) launch {
+        while (true) { readRuntimeStatus(page == 3); delay(10_000) }
       }
       if (page in 0..2) launch {
         while (true) { readPalette(); delay(5_000) }
@@ -144,8 +176,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     refreshing.update { it + page }
     viewModelScope.launch {
       try {
-        if (page == 0 || page == 2) readFramework()
-        if (page == 0) readRuntimeStatus()
+        if (page == 0 || page == 2 || page == 3) readFramework()
+        if (page == 0 || page == 3) readRuntimeStatus(page == 3)
+        if (page == 3) { packPreviews.clear(); packRepository.invalidateInstalled(); readIconPacks() }
         val wallpaperRefreshed = if (page == 2) refreshWallpaper() else true
         readPalette()
         if (page == 0 || page == 1) {
@@ -158,8 +191,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           }
         }
         val failed = !wallpaperRefreshed || monet.value.readFailed ||
-          (page == 0 && (runtime.value.readFailed || runtime.value.timedOut)) ||
-          ((page == 0 || page == 2) && framework.value.readFailed) ||
+          ((page == 0 || page == 3) && (runtime.value.readFailed || runtime.value.timedOut)) ||
+          ((page == 0 || page == 2 || page == 3) && framework.value.readFailed) ||
+          (page == 3 && (iconPacks.value.error != null || iconPacks.value.failedSources > 0)) ||
           ((page == 0 || page == 1) && apps.value.error != null)
         refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
       } finally { refreshing.update { it - page } }
@@ -193,8 +227,84 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   private fun packagesChanged() {
     appsDirty = true
+    iconPacksDirty = true
     clearPreviewCache()
     if (visiblePage == 1) scanApps()
+    if (visiblePage == 3) viewModelScope.launch { readIconPacks() }
+  }
+
+  fun importIconPack(uri: Uri) {
+    if (iconPacks.value.importing) return
+    iconPacks.update { it.copy(importing = true, error = null, importName = null) }
+    viewModelScope.launch {
+      try {
+        when (val result = packRepository.import(uri)) {
+          is IconPackImportResult.Success -> {
+            readIconPacks()
+            iconPacks.update { it.copy(importName = result.pack.displayName) }
+          }
+          is IconPackImportResult.Failure -> iconPacks.update { it.copy(error = result.message) }
+        }
+      } finally { iconPacks.update { it.copy(importing = false) } }
+    }
+  }
+
+  fun importNativeIconPack(pack: IconPackDescriptor) {
+    if (iconPacks.value.nativeImporting != null) return
+    val service = FrameworkConnection.service.value ?: return
+    iconPacks.update { it.copy(nativeImporting = pack.id, nativeResult = null) }
+    viewModelScope.launch {
+      var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
+      try {
+        handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack, launcherIconTargets())
+        val result = IconPackImportProtocol.submit(getApplication(), service, handoff)
+          ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
+        iconPacks.update { it.copy(nativeResult = result) }
+        readIconPacks()
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (failure: Exception) {
+        iconPacks.update { it.copy(nativeResult = NativeIconImportReport(handoff?.token.orEmpty(),
+          Process.myUid() / 100_000, pack.id, "FAILED", message = failure.message)) }
+      } finally {
+        val pending = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+          IconPackImportProtocol.pendingSource(getApplication())
+        }
+        if (pending != pack.id) handoff?.file?.delete()
+        iconPacks.update { it.copy(nativeImporting = pending) }
+      }
+    }
+  }
+
+  fun recheckNativeIconImport() {
+    val service = FrameworkConnection.service.value ?: return
+    viewModelScope.launch { IconPackImportProtocol.recheck(service) }
+  }
+
+  private suspend fun launcherIconTargets(): List<IconPackComponent> = withContext(Dispatchers.IO) {
+    launcherApps?.getActivityList(null, Process.myUserHandle()).orEmpty().map {
+      IconPackComponent(it.componentName.packageName, it.componentName.className)
+    }.distinct()
+  }
+
+  private suspend fun readIconPacks() = iconPacksMutex.withLock {
+    iconPacksDirty = false
+    iconPacks.update { it.copy(loading = true, error = null) }
+    try {
+      val targets = launcherIconTargets()
+      val scans = coroutineScope {
+        val installed = async { packRepository.listInstalled() }
+        val imported = async { packRepository.listImported() }
+        listOf(installed.await(), imported.await())
+      }
+      val cards = withContext(Dispatchers.Default) {
+        scans.flatMap { it.packs }.map { iconPackCardData(it, targets) }
+      }
+      val associations = withContext(Dispatchers.IO) { IconPackImportProtocol.associations(getApplication()) }
+      iconPacks.update { it.copy(packs = cards, scanned = true,
+        nativeAssociations = associations, failedSources = scans.sumOf { scan -> scan.failures.size }) }
+    } catch (cancelled: CancellationException) { iconPacksDirty = true; throw cancelled
+    } catch (failure: Exception) { iconPacks.update { it.copy(error = failure.message.orEmpty()) }
+    } finally { iconPacks.update { it.copy(loading = false) } }
   }
 
   private fun scanApps() {
@@ -228,12 +338,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     } catch (_: Exception) { framework.update { it.copy(readFailed = true) } }
   }
 
-  private suspend fun readRuntimeStatus() {
+  private suspend fun readRuntimeStatus(includeIconTheme: Boolean = false) {
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
       val service = FrameworkConnection.service.value ?: return
       // Share a probe that completed while a manual refresh waited for the periodic one.
-      if ((runtime.value.report?.checkedAtElapsed ?: -1L) >= requestedAt) return
+      if ((runtime.value.report?.checkedAtElapsed ?: -1L) >= requestedAt &&
+        (!includeIconTheme || runtime.value.report?.iconTheme != null)) return
       // Binder calls cannot always be interrupted. Keep at most one outstanding I/O task,
       // while allowing the page/refresh to finish at its deadline and cancel its observation.
       if (runtimeRead?.isCompleted == false) {
@@ -245,7 +356,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           report.isFresh(SystemClock.elapsedRealtime())
         }, checking = true)
       }
-      val operation = viewModelScope.async(Dispatchers.IO) { RuntimeStatusProtocol.query(service) }
+      val operation = viewModelScope.async(Dispatchers.IO) { RuntimeStatusProtocol.query(service, includeIconTheme) }
       runtimeRead = operation
       try {
         val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }

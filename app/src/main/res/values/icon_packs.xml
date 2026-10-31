@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="icon_pack_native_eligibility_failed">Imported, but local icon support is not ready. Expand details to retry the update.</string>
+    <string name="navigation_icon_packs">Icon packs</string>
+    <string name="icon_pack_active">Used by the launcher</string>
+    <string name="icon_pack_system_default">System default</string>
+    <string name="icon_pack_system_theme">System icon theme</string>
+    <string name="icon_pack_waiting_system">Waiting for the system icon source</string>
+    <string name="icon_pack_inventory_incomplete">Some theme resources could not be read</string>
+    <string name="icon_pack_native_priority">Recognized theme artwork takes priority. Other apps keep their icon settings.</string>
+    <string name="icon_pack_inventory">%1$d resources · %2$d with night variants</string>
+    <string name="icon_pack_import_title">Bring your own icons</string>
+    <string name="icon_pack_import_summary">Read APK, MTZ or ZIP files. Preview the artwork before opening the system theme flow.</string>
+    <string name="icon_pack_importing">Importing…</string>
+    <string name="icon_pack_choose_file">Choose a file</string>
+    <string name="icon_pack_imported_name">Added: %1$s</string>
+    <string name="icon_pack_library">Available icon packs</string>
+    <string name="icon_pack_empty">No readable packs found. You can import a file.</string>
+    <string name="icon_pack_partial">%1$d sources could not be read</string>
+    <string name="icon_pack_read_failed">Could not read: %1$s</string>
+    <string name="icon_pack_installed">Installed</string>
+    <string name="icon_pack_imported">Imported locally</string>
+    <string name="icon_pack_coverage">%1$d mappings · matches %2$d installed apps</string>
+    <string name="icon_pack_details">Preview details</string>
+    <string name="icon_pack_hide_details">Hide details</string>
+    <string name="icon_pack_preview_note">Light resources above, dark resources below. Original pack colors are preserved.</string>
+    <string name="icon_pack_effects_note">Animation and masking effects depend on the native theme renderer.</string>
+    <string name="icon_pack_dark_preview">Dark icon preview</string>
+    <string name="icon_pack_light_preview">Light icon preview</string>
+    <string name="refresh_icon_packs_completed">Icon sources and library updated · %1$s</string>
+    <string name="icon_pack_current">Currently applied</string>
+    <string name="icon_pack_native_open">Open in system Themes</string>
+    <string name="icon_pack_native_import">Import into system Themes</string>
+    <string name="icon_pack_native_uncertain">Still waiting for Themes. Check its local library before retrying.</string>
+    <string name="icon_pack_native_unsupported">Native theme import is not available on this system yet.</string>
+    <string name="icon_pack_native_failed">Could not complete the native theme action.</string>
+    <string name="icon_pack_native_note">APK/ZIP exports include light and dark static icons for installed apps. Re-import after installing more apps. MTZ resources are preserved. Apply from the system Themes screen.</string>
+    <string name="icon_pack_recheck">Check import status</string>
+    <string name="icon_pack_native_update">Update imported icons</string>
+    <string name="icon_pack_scope_needed">To apply packs, enable the Themes scope in LSPosed, then restart Themes.</string>
+</resources>

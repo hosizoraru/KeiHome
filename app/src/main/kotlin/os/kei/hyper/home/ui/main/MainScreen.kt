@@ -53,6 +53,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Theme
@@ -69,15 +70,18 @@ fun MainScreen(modifier: Modifier = Modifier) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(selectedTab, locales) }
   }
   val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
-    stringResource(R.string.navigation_monet), stringResource(R.string.navigation_settings))
+    stringResource(R.string.navigation_monet), stringResource(R.string.navigation_icon_packs),
+    stringResource(R.string.navigation_settings))
   val navigation = remember(labels) { listOf(
     NavigationItem(labels[0], MiuixIcons.Info), NavigationItem(labels[1], MiuixIcons.GridView),
-    NavigationItem(labels[2], MiuixIcons.Theme), NavigationItem(labels[3], MiuixIcons.Settings),
+    NavigationItem(labels[2], MiuixIcons.Theme), NavigationItem(labels[3], MiuixIcons.Layers),
+    NavigationItem(labels[4], MiuixIcons.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
-  val behaviors = listOf(MiuixScrollBehavior(), MiuixScrollBehavior(), MiuixScrollBehavior(), MiuixScrollBehavior())
+  val behaviors = List(5) { MiuixScrollBehavior() }
   val appList = rememberLazyListState()
-  val pageScrolls = listOf(rememberScrollState(), rememberScrollState(), rememberScrollState(), rememberScrollState())
+  val packList = rememberLazyListState()
+  val pageScrolls = List(5) { rememberScrollState() }
   val savedPages = rememberSaveableStateHolder()
   Scaffold(
     modifier = modifier,
@@ -89,7 +93,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
           scrollBehavior = behaviors[selectedTab],
           actions = {
             if (selectedTab == 1) AppsFilterMenu(model)
-            if (selectedTab != 3) RefreshAction(model, selectedTab)
+            if (selectedTab != 4) RefreshAction(model, selectedTab)
           },
         )
       }
@@ -106,6 +110,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
         val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[selectedTab].nestedScrollConnection)
         if (selectedTab == 1) {
           AppsPage(model, appList, padding, pageModifier)
+        } else if (selectedTab == 3) {
+          IconPacksPage(model, packList, padding, pageModifier)
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
@@ -124,7 +130,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
                   RefreshFeedback(model, 2)
                 }
               }
-              3 -> SettingsPage(model)
+              4 -> SettingsPage(model)
             }
           }
         }

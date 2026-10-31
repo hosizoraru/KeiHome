@@ -30,6 +30,7 @@ internal fun RefreshFeedback(model: HomeViewModel, page: Int) {
   val message = if (value.failed) R.string.refresh_partial else when (page) {
     0 -> R.string.refresh_status_completed
     1 -> R.string.refresh_apps_completed
+    3 -> R.string.refresh_icon_packs_completed
     else -> R.string.refresh_monet_completed
   }
   Text(stringResource(message, time),

@@ -7,15 +7,19 @@ import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.zip.CRC32
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Node
+import os.kei.hyper.home.iconpack.NativeDayNightIcon
 
-/** Approval is only for the static output of our APK/classic-ZIP converter, never opaque MTZs. */
+/** Approves converted static PNG pairs with optional canonical local MAML, never opaque MTZs. */
 internal object ConvertedIconArchive {
   const val MAX_BYTES = 256L * 1024 * 1024
   private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")
-  private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+\\.png")
+  private const val DOTTED_NAME = "[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+"
+  private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$DOTTED_NAME\\.png")
+  private val fancyIconName = Regex("fancy_icons/($DOTTED_NAME)/(manifest\\.xml|day\\.png|night\\.png)")
   data class Digests(val sha1: String, val sha256: String)
   data class Proof(val origin: String, val archive: Digests, val icons: Digests)
 
@@ -99,26 +103,57 @@ internal object ConvertedIconArchive {
 
   private fun validateIcons(file: File) {
     val names = HashSet<String>()
+    val fancyNames = HashSet<String>()
     var total = 0L
     ZipFile(file).use { zip ->
       require(zip.size() in 2..20000) { "Converted icon count limit" }
       zip.entries().asSequence().forEach { entry ->
         checkInterrupted()
-        require(!entry.isDirectory && iconName.matches(entry.name) && entry.name.length <= 300 &&
-          names.add(entry.name) && names.size <= 20000) { "Not a static converted PNG icon: ${entry.name}" }
-        val limit = minOf(8L * 1024 * 1024, MAX_BYTES - total)
-        require(entry.size in 1..limit) { "Converted PNG size limit" }
-        val png = zip.getInputStream(entry).use { readLimited(it, limit) }
-        require(png.size.toLong() == entry.size && CRC32().apply { update(png) }.value == entry.crc) {
-          "Converted PNG ZIP integrity mismatch"
+        val fancy = fancyIconName.matchEntire(entry.name)
+        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null) &&
+          entry.name.length <= 300 && names.add(entry.name) && names.size <= 20000) {
+          "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
         }
-        total += png.size
-        validatePng(png, 512)
+        val manifest = fancy?.groupValues?.get(2) == "manifest.xml"
+        val limit = minOf(if (manifest) 64L * 1024 else 8L * 1024 * 1024, MAX_BYTES - total)
+        val bytes = readIconEntry(zip, entry, limit)
+        total += bytes.size
+        if (!manifest) validatePng(bytes, 512)
+        fancy?.let { fancyNames.add(it.groupValues[1]) }
+      }
+      // Never interpret supplied MAML. Recreate the local template from the validated fallback
+      // pair and require exactly the generated manifest and byte-identical copies of both PNGs.
+      for (name in fancyNames) {
+        checkInterrupted()
+        fun ordinary(path: String): ByteArray = readIconEntry(zip,
+          requireNotNull(zip.getEntry(path)) { "Generated pair is missing ordinary artwork: $path" },
+          8L * 1024 * 1024)
+        val light = ordinary("res/drawable-xxhdpi/$name.png")
+        val dark = ordinary("nightmode/res/drawable-xxhdpi/$name.png")
+        val canonical = NativeDayNightIcon.entries(name, light, dark)
+        for (leaf in listOf("manifest.xml", "day.png", "night.png")) {
+          val path = "fancy_icons/$name/$leaf"
+          val entry = requireNotNull(zip.getEntry(path)) { "Incomplete generated static pair: $path" }
+          val expected = canonical.getValue(path)
+          require(readIconEntry(zip, entry, expected.size.toLong()).contentEquals(expected)) {
+            "Generated static pair differs from canonical local content: $path"
+          }
+        }
       }
     }
-    require(names.any { !it.startsWith("nightmode/") } && names.any { it.startsWith("nightmode/") }) {
+    require(names.any { it.startsWith("res/drawable-xxhdpi/") } &&
+      names.any { it.startsWith("nightmode/res/drawable-xxhdpi/") }) {
       "Converted output must contain day and native nightmode PNG artwork"
     }
+  }
+
+  private fun readIconEntry(zip: ZipFile, entry: ZipEntry, limit: Long): ByteArray {
+    require(entry.size in 1..limit) { "Converted icon entry size limit" }
+    val bytes = zip.getInputStream(entry).use { readLimited(it, limit) }
+    require(bytes.size.toLong() == entry.size && CRC32().apply { update(bytes) }.value == entry.crc) {
+      "Converted icon ZIP integrity mismatch"
+    }
+    return bytes
   }
 
   private fun readLimited(input: InputStream, limit: Long): ByteArray {

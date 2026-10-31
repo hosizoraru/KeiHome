@@ -70,8 +70,11 @@ native filenames fail the export; missing or unsupported artwork is listed in
 `skippedTargets`. This is a static export, without ongoing calendar/clock or
 palette updates. `IconPackHandoffs` combines the two mode exports using native
 `nightmode/res/drawable-xxhdpi/` paths and packages an icons-only MTZ for Themes.
-The native resource loader selects its day/night tree. The source MTZ and its
-full inner module are retained when no static conversion is needed.
+Both native trees survive export; this alone does not prove the installed
+launcher's mode selection. For converted day/night PNG pairs, KeiHome also
+emits a canonical MAML selector so launcher 8593 can redraw the pair from its
+own `__darkmode` updater. The source MTZ and its full inner module are retained
+when no static conversion is needed.
 
 An exact archive SHA-256 can be checked with `pack.matchesLoadedIcons`. The
 native Themes library uses SHA-1 metadata instead, and the UI links an imported

@@ -18,6 +18,7 @@ import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
+import os.kei.hyper.home.iconpack.NativeDayNightIcon
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -57,6 +58,30 @@ internal object IconPackHandoffs {
                     output.putNextEntry(ZipEntry(name).apply { time = 0 })
                     zip.getInputStream(entry).use { it.copyTo(output) }
                     output.closeEntry()
+                  }
+                }
+              }
+              // The current Flutter icon chain does not select nightmode PNGs. The native
+              // MAML loader has its own configuration observer and can select this fixed pair.
+              // Keep both ordinary trees for native readers that do not allow fancy icons.
+              ZipFile(light.archive).use { dayZip ->
+                ZipFile(dark.archive).use { nightZip ->
+                  dayZip.entries().asSequence()
+                    .filterNot { it.isDirectory }
+                    .filter { it.name.startsWith("res/drawable-xxhdpi/") && it.name.endsWith(".png") }
+                    .forEach { dayEntry ->
+                    current.ensureActive()
+                    val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
+                    val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
+                    val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
+                    if (dayBytes.contentEquals(nightBytes)) return@forEach
+                    val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
+                    for ((path, bytes) in NativeDayNightIcon.entries(name, dayBytes, nightBytes)) {
+                      if (!path.startsWith("fancy_icons/")) continue
+                      output.putNextEntry(ZipEntry(path).apply { time = 0 })
+                      output.write(bytes)
+                      output.closeEntry()
+                    }
                   }
                 }
               }

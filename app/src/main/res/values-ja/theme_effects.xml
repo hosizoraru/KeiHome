@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="theme_effects_title">システムの質感効果を保持</string>
+    <string name="theme_effects_summary">対応済みのコントロールセンター・音量パネルの質感とアイコンのハイライトを復元。システムの省電力・ぼかし設定に従います。変更後はパネルを開き直してください。</string>
+    <string name="theme_effects_disconnected">フレームワーク未接続。</string>
+    <string name="theme_effects_framework_failed">スコープ未確認。更新してください。</string>
+    <string name="theme_effects_scope_needed">システムフレームワークまたはシステム UI をスコープに追加してください。</string>
+    <string name="theme_effects_system_ui_scope_needed">コントロールセンター・音量パネルにはシステム UI のスコープが必要です。</string>
+    <string name="theme_effects_system_scope_needed">アイコンのハイライトにはシステムフレームワークのスコープが必要です。</string>
+    <string name="theme_effects_unavailable">リモート設定を利用できません。</string>
+    <string name="theme_effects_loading">設定を確認中…</string>
+    <string name="theme_effects_saving">保存中…</string>
+    <string name="theme_effects_read_failed">設定未確認。</string>
+    <string name="theme_effects_save_failed">保存未確認。</string>
+    <string name="theme_effects_resave_off">オフとして再保存</string>
+    <string name="theme_effects_saved_on">オン</string>
+    <string name="theme_effects_saved_off">オフ</string>
+    <string name="theme_effects_status">%1$s · %2$s</string>
+    <string name="theme_effects_system_target_status">システムフレームワーク：%1$s</string>
+    <string name="theme_effects_system_ui_target_status">システム UI：%1$s</string>
+    <string name="theme_effects_target_pending">モジュール読込待ち</string>
+    <string name="theme_effects_target_loaded">モジュール読込済み</string>
+    <string name="theme_effects_target_failed">モジュール読込失敗</string>
+</resources>

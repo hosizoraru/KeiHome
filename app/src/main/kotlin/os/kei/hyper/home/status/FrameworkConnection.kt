@@ -44,6 +44,8 @@ internal data class FrameworkSnapshot(
   val frameworkVersion: String? = null,
   val frameworkVersionCode: Long? = null,
   val themesInScope: Boolean = false,
+  val systemUiInScope: Boolean = false,
+  val systemUiTarget: FrameworkTarget? = null,
 )
 
 internal data class FrameworkTarget(val state: HookedTarget.State, val loadedVersionCode: Long)
@@ -58,17 +60,24 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     // A launcher subprocess does not report the state of the visible launcher process.
     it.processName == "com.miui.home"
   }
+  val user = android.os.Process.myUid() / 100_000
+  val systemUiTarget = targets.firstOrNull {
+    it.processName == "com.android.systemui" && it.uid / 100_000 == user
+  }
+  val currentScope = scope
   return FrameworkSnapshot(
     name = frameworkName,
     apiVersion = apiVersion,
-    systemInScope = "system" in scope,
+    systemInScope = "system" in currentScope,
     target = target?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
     launcherTarget = launcherTarget?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
     // libxposed service 102 exposes these separately from the service API level.
     // Let a service read failure invalidate the snapshot instead of retaining stale identity.
     frameworkVersion = frameworkVersion.trim().takeIf { it.isNotEmpty() },
     frameworkVersionCode = frameworkVersionCode.takeIf { it >= 0 },
-    themesInScope = "com.android.thememanager" in scope,
+    themesInScope = "com.android.thememanager" in currentScope,
+    systemUiInScope = "com.android.systemui" in currentScope,
+    systemUiTarget = systemUiTarget?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
   )
 }
 
@@ -78,7 +87,8 @@ internal fun XposedService.upgradeOlderSystemTarget() {
   val user = android.os.Process.myUid() / 100_000
   val targets = runningTargets.filter {
     ((it.uid == android.os.Process.SYSTEM_UID && it.processName in setOf("system_server", "system")) ||
-      (it.processName == "com.android.thememanager" && it.uid / 100_000 == user)) &&
+      (it.processName in setOf("com.android.thememanager", "com.android.systemui") &&
+        it.uid / 100_000 == user)) &&
       it.loadedVersionCode < BuildConfig.VERSION_CODE
   }
   for (target in targets) hotReloadModule(target, null) { _, result ->

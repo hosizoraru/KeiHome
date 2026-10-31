@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="theme_effects_title">保留系统材质效果</string>
+    <string name="theme_effects_summary">恢复已适配的控制中心、音量面板材质与图标高光，遵循系统省电和模糊设置。更改后重新打开面板。</string>
+    <string name="theme_effects_disconnected">框架未连接。</string>
+    <string name="theme_effects_framework_failed">无法读取作用域，请刷新。</string>
+    <string name="theme_effects_scope_needed">请将系统框架或系统界面加入作用域。</string>
+    <string name="theme_effects_system_ui_scope_needed">控制中心与音量面板需将系统界面加入作用域。</string>
+    <string name="theme_effects_system_scope_needed">图标高光需将系统框架加入作用域。</string>
+    <string name="theme_effects_unavailable">远程设置不可用。</string>
+    <string name="theme_effects_loading">读取设置中…</string>
+    <string name="theme_effects_saving">保存中…</string>
+    <string name="theme_effects_read_failed">设置未确认。</string>
+    <string name="theme_effects_save_failed">保存未确认。</string>
+    <string name="theme_effects_resave_off">重新设为关闭</string>
+    <string name="theme_effects_saved_on">已开启</string>
+    <string name="theme_effects_saved_off">已关闭</string>
+    <string name="theme_effects_status">%1$s · %2$s</string>
+    <string name="theme_effects_system_target_status">系统框架：%1$s</string>
+    <string name="theme_effects_system_ui_target_status">系统界面：%1$s</string>
+    <string name="theme_effects_target_pending">模块待加载</string>
+    <string name="theme_effects_target_loaded">模块已加载</string>
+    <string name="theme_effects_target_failed">模块加载失败</string>
+</resources>

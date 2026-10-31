@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="theme_effects_title">Keep system materials</string>
+    <string name="theme_effects_summary">Restores supported Control Center and volume panel materials, and icon highlights. Respects system power-saving and blur settings. Reopen the panel after changes.</string>
+    <string name="theme_effects_disconnected">Framework disconnected.</string>
+    <string name="theme_effects_framework_failed">Scope unavailable. Refresh to retry.</string>
+    <string name="theme_effects_scope_needed">Add System Framework or System UI to the module scope.</string>
+    <string name="theme_effects_system_ui_scope_needed">Control Center and volume panels need System UI in scope.</string>
+    <string name="theme_effects_system_scope_needed">Icon highlights need System Framework in scope.</string>
+    <string name="theme_effects_unavailable">Remote settings unavailable.</string>
+    <string name="theme_effects_loading">Reading choice…</string>
+    <string name="theme_effects_saving">Saving…</string>
+    <string name="theme_effects_read_failed">Choice unconfirmed.</string>
+    <string name="theme_effects_save_failed">Save unconfirmed.</string>
+    <string name="theme_effects_resave_off">Save as off again</string>
+    <string name="theme_effects_saved_on">On</string>
+    <string name="theme_effects_saved_off">Off</string>
+    <string name="theme_effects_status">%1$s · %2$s</string>
+    <string name="theme_effects_system_target_status">System Framework: %1$s</string>
+    <string name="theme_effects_system_ui_target_status">System UI: %1$s</string>
+    <string name="theme_effects_target_pending">Module pending load</string>
+    <string name="theme_effects_target_loaded">Module loaded</string>
+    <string name="theme_effects_target_failed">Module load failed</string>
+</resources>

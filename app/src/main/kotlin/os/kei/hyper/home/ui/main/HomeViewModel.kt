@@ -35,6 +35,7 @@ import os.kei.hyper.home.data.MonetActionStatus
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetPaletteReader
 import os.kei.hyper.home.data.MonetPaletteSnapshot
+import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -57,11 +58,28 @@ internal data class FrameworkUiState(
   val readFailed: Boolean = false,
 )
 
+internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
+  connected && !readFailed && snapshot?.let { it.systemInScope || it.systemUiInScope } == true
+
 internal data class MonetUiState(
   val snapshot: MonetPaletteSnapshot? = null,
   val readFailed: Boolean = false,
   val action: MonetActionStatus = MonetActionStatus.IDLE,
 )
+
+internal data class ThemeEffectsUiState(
+  val savedChoice: Boolean? = null,
+  val loading: Boolean = false,
+  val saving: Boolean = false,
+  val readFailed: Boolean = false,
+  val saveFailed: Boolean = false,
+  val unavailable: Boolean = false,
+)
+
+// An unknown choice may only be recovered by an explicit write of off.
+internal fun ThemeEffectsUiState.canSaveThemeEffects(enabled: Boolean): Boolean =
+  !saving && !loading && !unavailable &&
+    ((savedChoice != null && !readFailed) || (!enabled && (readFailed || saveFailed)))
 
 internal data class AppsUiState(
   val capabilities: List<InstalledIconCapability>? = null,
@@ -85,6 +103,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(RuntimeStatusUiState())
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
+  val themeEffects: StateFlow<ThemeEffectsUiState>
+    field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
     field = MutableStateFlow(AppsUiState())
   val filter: StateFlow<Int>
@@ -98,6 +118,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val paletteMutex = Mutex()
   private val runtimeMutex = Mutex()
   private val iconPacksMutex = Mutex()
+  private val themeEffectsMutex = Mutex()
   private var iconPacksDirty = true
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
@@ -136,9 +157,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       FrameworkConnection.service.collectLatest { service ->
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
+        themeEffects.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
           if (visiblePage == 0 || visiblePage == 3) launch { readRuntimeStatus(visiblePage == 3) }
           readFramework()
+          readThemeEffects()
           delay(1_500)
           withContext(Dispatchers.IO) {
             try { service.upgradeOlderSystemTarget() }
@@ -157,7 +180,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     if (page == 3 && iconPacksDirty) launch { readIconPacks() }
     try {
       if (page == 0 || page == 2 || page == 3) launch {
-        while (true) { readFramework(); delay(5_000) }
+        while (true) {
+          readFramework()
+          if (page == 3) readThemeEffects()
+          delay(5_000)
+        }
       }
       if (page == 0 || page == 3) launch {
         while (true) { readRuntimeStatus(page == 3); delay(10_000) }
@@ -178,7 +205,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       try {
         if (page == 0 || page == 2 || page == 3) readFramework()
         if (page == 0 || page == 3) readRuntimeStatus(page == 3)
-        if (page == 3) { packPreviews.clear(); packRepository.invalidateInstalled(); readIconPacks() }
+        if (page == 3) {
+          readThemeEffects()
+          packPreviews.clear()
+          packRepository.invalidateInstalled()
+          readIconPacks()
+        }
         val wallpaperRefreshed = if (page == 2) refreshWallpaper() else true
         readPalette()
         if (page == 0 || page == 1) {
@@ -194,6 +226,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           ((page == 0 || page == 3) && (runtime.value.readFailed || runtime.value.timedOut)) ||
           ((page == 0 || page == 2 || page == 3) && framework.value.readFailed) ||
           (page == 3 && (iconPacks.value.error != null || iconPacks.value.failedSources > 0)) ||
+          (page == 3 && (themeEffects.value.readFailed || themeEffects.value.saveFailed)) ||
           ((page == 0 || page == 1) && apps.value.error != null)
         refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
       } finally { refreshing.update { it - page } }
@@ -335,7 +368,66 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (FrameworkConnection.service.value === service) framework.value = FrameworkUiState(true, result)
     } catch (cancellation: CancellationException) {
       throw cancellation
-    } catch (_: Exception) { framework.update { it.copy(readFailed = true) } }
+    } catch (_: Exception) {
+      if (FrameworkConnection.service.value === service) framework.update { it.copy(readFailed = true) }
+    }
+  }
+
+  private suspend fun readThemeEffects(): Unit {
+    themeEffectsMutex.withLock {
+      val service = FrameworkConnection.service.value ?: return
+      if (!framework.value.themeEffectsInScope() || themeEffects.value.saving || themeEffects.value.saveFailed) return
+      themeEffects.update { it.copy(loading = it.savedChoice == null) }
+      try {
+        val saved = ThemeEffectsPreferences.read(service)
+        // A read that was already running must not clear a queued save's busy state.
+        if (FrameworkConnection.service.value === service && !themeEffects.value.saving) {
+          themeEffects.value = ThemeEffectsUiState(savedChoice = saved)
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: UnsupportedOperationException) {
+        if (FrameworkConnection.service.value === service && !themeEffects.value.saving) {
+          themeEffects.value = ThemeEffectsUiState(unavailable = true)
+        }
+      } catch (_: Exception) {
+        if (FrameworkConnection.service.value === service && !themeEffects.value.saving) {
+          themeEffects.value = ThemeEffectsUiState(readFailed = true)
+        }
+      } finally {
+        if (FrameworkConnection.service.value === service) themeEffects.update { it.copy(loading = false) }
+      }
+    }
+  }
+
+  fun setPreserveSystemMaterials(enabled: Boolean) {
+    val service = FrameworkConnection.service.value ?: return
+    val state = themeEffects.value
+    if (!framework.value.themeEffectsInScope() || !state.canSaveThemeEffects(enabled)) return
+    themeEffects.update { it.copy(saving = true) }
+    viewModelScope.launch {
+      themeEffectsMutex.withLock {
+        try {
+          if (FrameworkConnection.service.value !== service || !framework.value.themeEffectsInScope()) return@withLock
+          ThemeEffectsPreferences.save(service, enabled)
+          if (FrameworkConnection.service.value === service) {
+            themeEffects.value = ThemeEffectsUiState(savedChoice = enabled)
+          }
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: UnsupportedOperationException) {
+          if (FrameworkConnection.service.value === service) {
+            themeEffects.update { it.copy(unavailable = true) }
+          }
+        } catch (_: Exception) {
+          if (FrameworkConnection.service.value === service) {
+            themeEffects.update { it.copy(saveFailed = true) }
+          }
+        } finally {
+          if (FrameworkConnection.service.value === service) themeEffects.update { it.copy(saving = false) }
+        }
+      }
+    }
   }
 
   private suspend fun readRuntimeStatus(includeIconTheme: Boolean = false) {

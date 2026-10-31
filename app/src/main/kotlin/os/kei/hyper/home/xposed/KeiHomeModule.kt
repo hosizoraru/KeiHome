@@ -6,18 +6,34 @@ import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
+import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import android.util.Log
 
 class KeiHomeModule : XposedModule() {
   private var launcherRefresh: LauncherIconRefreshRuntime? = null
   private var themeIconImport: ThemeIconImportRuntime? = null
+  private var systemUiTheme: SystemUiThemeCompatibilityRuntime? = null
 
   override fun onModuleLoaded(param: ModuleLoadedParam) = Unit
 
   override fun onPackageLoaded(param: PackageLoadedParam) {
-    if (param.isFirstPackage && param.packageName == ThemeIconImportRuntime.PACKAGE_NAME && themeIconImport == null) {
-      installThemeImportHooks(param.defaultClassLoader)
+    if (!param.isFirstPackage) return
+    when (param.packageName) {
+      ThemeIconImportRuntime.PACKAGE_NAME ->
+        if (themeIconImport == null) installThemeImportHooks(param.defaultClassLoader)
+      SystemUiThemeCompatibilityRuntime.PACKAGE_NAME -> {
+        if (systemUiTheme == null) installSystemUiThemeHooks(param.defaultClassLoader)
+      }
+    }
+  }
+
+  override fun onPackageReady(param: PackageReadyParam) {
+    when (param.packageName) {
+      ThemeIconImportRuntime.PACKAGE_NAME ->
+        if (themeIconImport == null) installThemeImportHooks(param.classLoader)
+      SystemUiThemeCompatibilityRuntime.PACKAGE_NAME ->
+        if (systemUiTheme == null) installSystemUiThemeHooks(param.classLoader)
     }
   }
 
@@ -26,6 +42,9 @@ class KeiHomeModule : XposedModule() {
   }
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
+    systemUiTheme?.let { runtime ->
+      return runtime.retire { param.setSavedInstanceState(runtime.classLoader) }
+    }
     themeIconImport?.let { runtime ->
       return runtime.retire { param.setSavedInstanceState(runtime.classLoader) }
     }
@@ -42,6 +61,15 @@ class KeiHomeModule : XposedModule() {
 
   override fun onHotReloaded(param: HotReloadedParam) {
     if (!param.isSystemServer) {
+      if (param.processName.substringBefore(':') == SystemUiThemeCompatibilityRuntime.PACKAGE_NAME) {
+        val loader = findSystemUiClassLoader(
+          param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader } +
+            listOfNotNull(param.savedInstanceState as? ClassLoader),
+        )
+        if (loader != null) installSystemUiThemeHooks(loader, param.oldHookHandles)
+        else log(Log.WARN, "KeiHomeSystemUiTheme", "SystemUI class loader unavailable after reload")
+        return
+      }
       if (param.processName.substringBefore(':') == ThemeIconImportRuntime.PACKAGE_NAME) {
         // A failed previous install may leave neither saved state nor a live hook handle.
         val applicationLoader = runCatching {
@@ -90,6 +118,22 @@ class KeiHomeModule : XposedModule() {
     runtime.install(oldHooks)
     themeIconImport = runtime
   }
+
+  private fun installSystemUiThemeHooks(
+    loader: ClassLoader,
+    oldHooks: List<XposedInterface.HookHandle> = emptyList(),
+  ) {
+    val runtime = SystemUiThemeCompatibilityRuntime(this, loader)
+    systemUiTheme = runtime
+    runtime.install(oldHooks)
+  }
+
+  private fun findSystemUiClassLoader(preferred: List<ClassLoader>): ClassLoader? =
+    (preferred + listOfNotNull(
+      Thread.currentThread().contextClassLoader,
+      ClassLoader.getSystemClassLoader(),
+      javaClass.classLoader,
+    )).distinct().firstOrNull(SystemUiThemeCompatibilityRuntime::isHostClassLoader)
 
   private fun findServerClassLoader(preferred: List<ClassLoader>): ClassLoader? =
     (preferred + listOfNotNull(

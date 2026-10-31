@@ -30,21 +30,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.libxposed.service.HookedTarget
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackPreviews
 import os.kei.hyper.home.iconpack.IconPackSource
+import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -52,6 +57,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
+  val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
   val activeId = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme?.localId
   val importReady = framework.connected && framework.snapshot?.themesInScope == true &&
@@ -63,6 +69,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     item(key = "native", contentType = "native") { SystemIconThemeCard(runtime) }
+    item(key = "theme-effects", contentType = "theme-effects") {
+      ThemeEffectsCard(themeEffects, framework, model::setPreserveSystemMaterials)
+    }
     item(key = "import", contentType = "import") {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -102,6 +111,81 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
     }
   }
+}
+
+@Composable
+internal fun ThemeEffectsCard(
+  state: ThemeEffectsUiState,
+  framework: FrameworkUiState,
+  onCheckedChange: (Boolean) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val snapshot = framework.snapshot.takeIf { framework.connected && !framework.readFailed }
+  val inScope = framework.themeEffectsInScope()
+  val available = inScope && !state.unavailable
+  val enabled = available && state.savedChoice != null && !state.loading && !state.saving && !state.readFailed
+  val targetStatuses = listOfNotNull(
+    snapshot?.takeIf { it.systemInScope }?.let {
+      stringResource(R.string.theme_effects_system_target_status, stringResource(themeEffectsTargetStatus(it.target)))
+    },
+    snapshot?.takeIf { it.systemUiInScope }?.let {
+      stringResource(R.string.theme_effects_system_ui_target_status, stringResource(themeEffectsTargetStatus(it.systemUiTarget)))
+    },
+  )
+  val scopeGuidance = when {
+    snapshot == null || !inScope -> null
+    !snapshot.systemUiInScope -> R.string.theme_effects_system_ui_scope_needed
+    !snapshot.systemInScope -> R.string.theme_effects_system_scope_needed
+    else -> null
+  }
+  val status = when {
+    !framework.connected -> stringResource(R.string.theme_effects_disconnected)
+    framework.readFailed -> stringResource(R.string.theme_effects_framework_failed)
+    snapshot == null -> stringResource(R.string.theme_effects_loading)
+    !inScope -> stringResource(R.string.theme_effects_scope_needed)
+    state.unavailable -> stringResource(R.string.theme_effects_unavailable)
+    state.saving -> stringResource(R.string.theme_effects_saving)
+    state.saveFailed -> stringResource(R.string.theme_effects_save_failed)
+    state.readFailed -> stringResource(R.string.theme_effects_read_failed)
+    state.loading || state.savedChoice == null -> stringResource(R.string.theme_effects_loading)
+    else -> stringResource(R.string.theme_effects_status,
+      stringResource(if (state.savedChoice) R.string.theme_effects_saved_on else R.string.theme_effects_saved_off),
+      targetStatuses.joinToString(" · "))
+  }
+  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Column {
+      SwitchPreference(
+        title = stringResource(R.string.theme_effects_title),
+        summary = stringResource(R.string.theme_effects_summary),
+        checked = state.savedChoice == true,
+        enabled = enabled,
+        onCheckedChange = onCheckedChange,
+        modifier = Modifier.testTag("theme-effects.switch"),
+      )
+      Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(status, style = MiuixTheme.textStyles.footnote2,
+          color = if (state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
+            else MiuixTheme.colorScheme.onSurfaceSecondary)
+        if (state.readFailed || state.saveFailed) {
+          TextButton(stringResource(R.string.theme_effects_resave_off),
+            onClick = { onCheckedChange(false) },
+            enabled = available && state.canSaveThemeEffects(false),
+            modifier = Modifier.testTag("theme-effects.resave-off"))
+        }
+        if (scopeGuidance != null) Text(stringResource(scopeGuidance),
+          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
+    }
+  }
+}
+
+// Framework target state confirms module loading, not a native hook or preference ACK.
+private fun themeEffectsTargetStatus(target: FrameworkTarget?): Int = when {
+  target?.state == HookedTarget.State.FAILED -> R.string.theme_effects_target_failed
+  target?.state == HookedTarget.State.UP_TO_DATE &&
+    target.loadedVersionCode == BuildConfig.VERSION_CODE.toLong() -> R.string.theme_effects_target_loaded
+  else -> R.string.theme_effects_target_pending
 }
 
 @Composable

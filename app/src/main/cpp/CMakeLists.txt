@@ -12,6 +12,10 @@ endif()
 add_library(keihome_hyos_lsp SHARED
     keihome_hyos_native_hook.cpp
     lsposed_hook_backend.cpp
+    arm64_exact_patch.cpp
+    icon_highlight_profile.cpp
+    icon_highlight_hooks.cpp
+    icon_highlight_bridge.S
     monet_hooks.cpp
     monet_image_identity.cpp
     monet_image_recovery.cpp

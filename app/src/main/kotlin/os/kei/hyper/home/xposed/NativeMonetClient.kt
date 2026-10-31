@@ -39,11 +39,19 @@ internal class NativeMonetClient {
   @Volatile private var failure: String? = null
   @Volatile var acknowledgedProcess: NativeMonetProcessIdentity? = null
     private set
+  @Volatile var acknowledgedMaterialProcess: NativeMonetProcessIdentity? = null
+    private set
+  @Volatile var lastMaterialFailure: String? = null
+    private set
 
-  /** Reason for the last failed exchange; a completed successful exchange clears it. */
+  /** Policy/readiness diagnostics; an optional material exchange cannot overwrite these. */
   val lastFailure: String? get() = failure
 
-  private fun recordFailure(reason: String?) {
+  private fun recordFailure(reason: String?, materialCommand: Boolean = false) {
+    if (materialCommand) {
+      lastMaterialFailure = reason
+      return
+    }
     failure = reason
     lastTransportFailure = reason
   }
@@ -72,12 +80,22 @@ internal class NativeMonetClient {
 
   fun disable(context: Context): Boolean = communicate(context, NativeMonetProtocol.disableRequest())
 
+  /** Reports attempted writes on the caller thread, without changing Monet's identity/diagnostics. */
+  fun setThemeMaterials(context: Context, enabled: Boolean, onWriteAttempted: () -> Unit): Boolean =
+    communicate(context, NativeMonetProtocol.themeMaterialsRequest(enabled),
+      materialCommand = true, onWriteAttempted = onWriteAttempted)
+
   /** Authenticate and read the greeting, then close without sending a request. */
   fun isAvailable(context: Context): Boolean = communicate(context, request = null)
 
-  private fun communicate(context: Context, request: ByteArray?): Boolean {
+  private fun communicate(
+    context: Context,
+    request: ByteArray?,
+    materialCommand: Boolean = false,
+    onWriteAttempted: () -> Unit = {},
+  ): Boolean {
     if (Process.myUid() != Process.SYSTEM_UID || Thread.currentThread().isInterrupted) {
-      recordFailure("caller: requires active system_server worker")
+      recordFailure("caller: requires active system_server worker", materialCommand)
       return false
     }
     val attempt = Attempt(context, request)
@@ -96,7 +114,10 @@ internal class NativeMonetClient {
       }
       task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS).also {
         succeeded = it
-        if (it) acknowledgedProcess = attempt.process
+        if (it) {
+          if (materialCommand) acknowledgedMaterialProcess = attempt.process
+          else acknowledgedProcess = attempt.process
+        }
       }
     } catch (failure: InterruptedException) {
       Thread.currentThread().interrupt()
@@ -117,7 +138,10 @@ internal class NativeMonetClient {
       attempt.cancel()
       task.cancel(true)
       worker.release(task)
-      recordFailure(if (succeeded) null else outerFailure ?: attempt.failure ?: "exchange rejected")
+      recordFailure(
+        if (succeeded) null else outerFailure ?: attempt.failure ?: "exchange rejected", materialCommand,
+      )
+      if (attempt.writeAttempted) onWriteAttempted()
     }
   }
 
@@ -132,6 +156,8 @@ internal class NativeMonetClient {
     @Volatile var failure: String? = null
       private set
     @Volatile var stage = "launcher identity"
+      private set
+    @Volatile var writeAttempted = false
       private set
 
     fun remainingNanos(): Long = (deadline - System.nanoTime()).coerceAtLeast(0)
@@ -169,6 +195,12 @@ internal class NativeMonetClient {
             beforeIo = { prepareIo(connection) },
             isCurrentTarget = { acquired.isCurrent(context) },
             onFailure = { failure = it },
+            onWriteAttempt = {
+              synchronized(lock) {
+                checkActive()
+                writeAttempted = true
+              }
+            },
           )
           if (!accepted) return@use false
           checkActive()
@@ -202,6 +234,7 @@ internal class NativeMonetClient {
     fun cancel() {
       connected.countDown()
       val connection = synchronized(lock) {
+        // Freeze writeAttempted before the caller reports it; a cancelled worker cannot mark it later.
         cancelled = true
         lease.also { lease = null }
       } ?: return
@@ -335,8 +368,11 @@ internal class NativeMonetWorker {
 internal object NativeMonetProtocol {
   private const val MAGIC = 0x334d484b
   private const val VERSION = 1
-  private const val PROFILE_VERSION = 1
+  private const val MONET_CAPABILITY = 1
+  private const val THEME_MATERIALS_CAPABILITY = 2
+  private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY
   private const val ENABLED = 1
+  private const val THEME_MATERIALS = 2
   private const val MAX_ENTRIES = 512
   private const val MAX_ENTRY_BYTES = 255
 
@@ -360,6 +396,9 @@ internal object NativeMonetProtocol {
   }
 
   fun disableRequest(): ByteArray = header(flags = 0, foreground = 0, background = 0, count = 0).array()
+
+  fun themeMaterialsRequest(enabled: Boolean): ByteArray =
+    header(flags = THEME_MATERIALS, foreground = if (enabled) 1 else 0, background = 0, count = 0).array()
 
   private fun isPackageName(name: String): Boolean {
     if (name.length !in 1..MAX_ENTRY_BYTES) return false
@@ -385,6 +424,7 @@ internal object NativeMonetProtocol {
     beforeIo: () -> Unit = {},
     isCurrentTarget: () -> Boolean = { true },
     onFailure: (String) -> Unit = {},
+    onWriteAttempt: () -> Unit = {},
   ): Boolean {
     fun reject(reason: String): Boolean { onFailure(reason); return false }
     if (targetUid < 0 || peerUid != targetUid) return reject("registered launcher UID rejected")
@@ -392,10 +432,26 @@ internal object NativeMonetProtocol {
     if (greeting[0] != MAGIC) return reject("native greeting magic mismatch")
     if (greeting[1] != VERSION) return reject("native greeting protocol mismatch")
     if (greeting[2] != targetUid) return reject("native greeting launcher UID mismatch")
-    if (greeting[3] != PROFILE_VERSION) return reject("native greeting profile mismatch")
+    val capabilities = greeting[3]
+    if (capabilities == 0 || capabilities and KNOWN_CAPABILITIES.inv() != 0) {
+      return reject("native greeting capabilities invalid")
+    }
+    val requiredCapability = if (request == null) MONET_CAPABILITY else {
+      if (request.size < 6 * Int.SIZE_BYTES) return reject("native request header incomplete")
+      when (ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN).getInt(2 * Int.SIZE_BYTES)) {
+        0, ENABLED -> MONET_CAPABILITY
+        THEME_MATERIALS -> THEME_MATERIALS_CAPABILITY
+        else -> return reject("native request opcode unsupported")
+      }
+    }
+    if (capabilities and requiredCapability == 0) {
+      return reject(if (requiredCapability == MONET_CAPABILITY) "native Monet capability unavailable"
+      else "native theme materials capability unavailable")
+    }
     if (!isCurrentTarget()) return reject("launcher changed before policy publication")
     if (request == null) return true
     beforeIo()
+    onWriteAttempt()
     output.write(request)
     beforeIo()
     output.flush()

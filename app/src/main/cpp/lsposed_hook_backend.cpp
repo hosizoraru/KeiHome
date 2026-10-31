@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "lsposed_hook_backend.h"
+#include "arm64_exact_patch.h"
 
 #include <android/log.h>
 #include <elf.h>
@@ -660,6 +661,24 @@ int RemoveInlineHook(void* target) {
         return kHookFailed;
     }
     return g_lsposed_api->unhookFunc(target) == 0 ? kHookSuccess : kHookFailed;
+}
+
+int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
+                             const uint32_t replacement[4], bool fresh_image) {
+    if (!fresh_image || !EnsureLsposedMadviseGuard()) return kHookFailed;
+    const Arm64ExactPatchOps ops{
+        nullptr, PageSize(),
+        [](void*, uintptr_t page) { return ReadProtection(page); },
+        [](void*, uintptr_t page) { return AddProtectedPage(page); },
+        [](void*, uintptr_t page, size_t size, int protection) {
+            return mprotect(reinterpret_cast<void*>(page), size, protection) == 0;
+        },
+        [](void*, void* address, size_t size) {
+            auto* start = static_cast<char*>(address);
+            __builtin___clear_cache(start, start + size);
+        }};
+    return PatchArm64Tail16(target, expected, replacement, fresh_image, ops)
+            ? kHookSuccess : kHookFailed;
 }
 
 NativeSymbolResolver* NewNativeSymbolResolver(const char* path, void* base) {

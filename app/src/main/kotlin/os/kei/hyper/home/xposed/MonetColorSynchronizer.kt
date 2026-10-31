@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemes
+import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.data.parseMonetPaletteJson
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.status.IconRefreshReceipt
@@ -37,6 +38,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val resources = MonetResourcePolicy(iconTheme)
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
+  private val themeMaterials = ThemeMaterialLease()
   private var lastPaletteRefresh: Long? = null
   internal data class Publication(
     val colors: IconColors,
@@ -63,6 +65,27 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     native.stop()
   }
   fun awaitStopped(deadlineNanos: Long): Boolean = native.awaitStopped(deadlineNanos)
+
+  /** Independent of palette/settings/probes: works with Monet disabled on the same owned worker. */
+  fun synchronizeThemeMaterials(
+    baseContext: Context,
+    preferences: SharedPreferences?,
+    mayWrite: () -> Boolean,
+  ): Boolean {
+    if (!mayWrite() || Thread.currentThread().isInterrupted) return false
+    val userId = currentUserId() ?: return false
+    val context = contextForUser(baseContext, userId) ?: return false
+    val enabled = preferences?.getBoolean(ThemeEffectsPreferences.KEY, false) ?: false
+    val isCurrent = {
+      mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == userId &&
+        (preferences?.getBoolean(ThemeEffectsPreferences.KEY, false) ?: false) == enabled
+    }
+    return themeMaterials.synchronize(
+      enabled, userId, nowElapsed = { SystemClock.elapsedRealtime() }, isCurrent = isCurrent,
+    ) { onWriteAttempted ->
+      if (native.setThemeMaterials(context, enabled, onWriteAttempted)) native.acknowledgedMaterialProcess else null
+    }
+  }
 
   /** Runs on the existing monitor worker, serialized with policy exchanges and retirement. */
   fun reportRuntimeStatus(
@@ -408,5 +431,52 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     const val KEY_MONOCHROME = "key_monochrome"
     const val KEY_MONOCHROME_COLOR = "key_monochrome_color"
     const val KEY_AUTO_COLOR = "keihome_monet_auto_color"
+  }
+}
+
+/** Confirmed changes and recovery from uncertain writes reconcile icons; normal renewals do not. */
+internal class ThemeMaterialLease {
+  private data class Acknowledged(
+    val enabled: Boolean,
+    val userId: Int,
+    val process: NativeMonetProcessIdentity,
+    val atElapsed: Long,
+  )
+  private var previous: Acknowledged? = null
+  private var dirty = false
+
+  /** exchange reports attempted writes on this caller's thread before returning or throwing. */
+  fun synchronize(
+    enabled: Boolean,
+    userId: Int,
+    nowElapsed: () -> Long,
+    isCurrent: () -> Boolean,
+    exchange: (onWriteAttempted: () -> Unit) -> NativeMonetProcessIdentity?,
+  ): Boolean {
+    if (!isCurrent()) return false
+    // Conservative lease age starts before I/O, not after a potentially delayed ACK.
+    val started = nowElapsed()
+    var writeAttempted = false
+    var acknowledged = false
+    try {
+      val process = exchange { writeAttempted = true } ?: return false
+      if (!isCurrent()) return false
+      val old = previous
+      val refresh = dirty || if (old == null || old.userId != userId || old.process != process) enabled else {
+        old.enabled != enabled ||
+          (enabled && (started < old.atElapsed || started - old.atElapsed >= EXPIRY_MS))
+      }
+      previous = Acknowledged(enabled, userId, process, started)
+      dirty = false
+      acknowledged = true
+      return refresh
+    } finally {
+      // Native may commit before an ACK is lost or becomes stale, even if we return to the old value.
+      if (writeAttempted && !acknowledged) dirty = true
+    }
+  }
+
+  private companion object {
+    const val EXPIRY_MS = 45_000L
   }
 }

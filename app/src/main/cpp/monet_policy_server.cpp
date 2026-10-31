@@ -31,6 +31,9 @@ uint32_t kh_monet_readers = 0u;
 uint32_t kh_monet_tint_ever_enabled = 0u;
 uint64_t kh_monet_selection_revision = 0u;
 uint64_t kh_monet_selection_notified = 0u;
+uint32_t kh_monet_installed = 0u;
+uint32_t kh_theme_materials_installed = 0u;
+uint32_t kh_theme_materials_enabled = 0u;
 }
 
 namespace {
@@ -53,7 +56,23 @@ struct PolicyState {
     uint32_t retired_count;
     PolicyAllocation* expiration;
     uint64_t expires_at;
+    uint64_t materials_expires_at;
 };
+
+struct RequestHeader {
+    uint32_t flags;
+    uint32_t foreground;
+    uint32_t background;
+    uint32_t count;
+};
+
+uint32_t InstalledCapabilities() {
+    const uint32_t monet = __atomic_load_n(&kh_monet_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeMonetCapability : 0u;
+    const uint32_t materials = __atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeThemeMaterialsCapability : 0u;
+    return monet | materials;
+}
 
 uint32_t ReadLe32(const uint8_t* bytes) {
     return uint32_t{bytes[0]} | (uint32_t{bytes[1]} << 8u) |
@@ -96,7 +115,7 @@ bool IsSafePackageName(const char* name, uint32_t length) {
 // The same streaming decoder serves the authenticated socket and in-memory
 // host tests. No network/authentication bypass is compiled for tests.
 template <typename Reader>
-bool ReadPolicyRequest(Reader read_exactly, NativeMonetPolicy* output) {
+bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
     uint8_t header[24];
     if (output == nullptr || !read_exactly(header, sizeof(header))) return false;
     const uint32_t flags = ReadLe32(header + 8u);
@@ -105,17 +124,26 @@ bool ReadPolicyRequest(Reader read_exactly, NativeMonetPolicy* output) {
     const uint32_t count = ReadLe32(header + 20u);
     if (ReadLe32(header) != kNativeMonetMagic ||
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
-            flags > 1u || count > kNativeMonetMaxPackages ||
+            flags > kNativeThemeMaterialsCommand || count > kNativeMonetMaxPackages ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
-                            (background >> 24u) != 0xffu))) {
+                            (background >> 24u) != 0xffu)) ||
+            (flags == kNativeThemeMaterialsCommand &&
+             (foreground > 1u || background != 0u || count != 0u))) {
         return false;
     }
-    output->flags = flags;
-    output->foreground = foreground;
-    output->background = background;
-    output->count = count;
-    for (uint32_t i = 0u; i < count; ++i) {
+    *output = {flags, foreground, background, count};
+    return true;
+}
+
+template <typename Reader>
+bool ReadPolicyBody(Reader read_exactly, const RequestHeader& header, NativeMonetPolicy* output) {
+    if (output == nullptr || header.flags > 1u) return false;
+    output->flags = header.flags;
+    output->foreground = header.foreground;
+    output->background = header.background;
+    output->count = header.count;
+    for (uint32_t i = 0u; i < header.count; ++i) {
         uint8_t length_bytes[4];
         if (!read_exactly(length_bytes, sizeof(length_bytes))) return false;
         const uint32_t length = ReadLe32(length_bytes);
@@ -127,6 +155,13 @@ bool ReadPolicyRequest(Reader read_exactly, NativeMonetPolicy* output) {
         entry.name[length] = '\0';
     }
     return true;
+}
+
+template <typename Reader>
+bool ReadPolicyRequest(Reader read_exactly, NativeMonetPolicy* output) {
+    RequestHeader header{};
+    return ReadRequestHeader(read_exactly, &header) &&
+            ReadPolicyBody(read_exactly, header, output);
 }
 
 PolicyAllocation* AllocatePolicy() {
@@ -179,6 +214,12 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
 #endif
+    if (state->materials_expires_at != 0u &&
+            (now >= state->materials_expires_at ||
+             __atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) != 1u)) {
+        __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
+        state->materials_expires_at = 0u;
+    }
     if (state->expiration != nullptr && now >= state->expires_at) {
         PolicyAllocation* expired = state->expiration;
         state->expiration = nullptr;
@@ -191,6 +232,9 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
 // Takes ownership only on success. Expiry is allocated before committing so
 // memory pressure at the lease boundary cannot leave an old deny list enabled.
 bool CommitPolicy(PolicyState* state, PolicyAllocation* next, uint64_t now) {
+    // Defense in depth: flags 2 must never reach the ABI consumed by Dart bridges.
+    if (next == nullptr || next->policy.flags > 1u ||
+            __atomic_load_n(&kh_monet_installed, __ATOMIC_ACQUIRE) != 1u) return false;
     MaintainPolicy(state, now);
     if (state->retired_count >= kMaxRetiredPolicies) return false;
     PolicyAllocation* expiration = nullptr;
@@ -207,6 +251,46 @@ bool CommitPolicy(PolicyState* state, PolicyAllocation* next, uint64_t now) {
             ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
     PublishPolicy(state, next);
     return true;
+}
+
+bool CommitThemeMaterials(PolicyState* state, bool enabled, uint64_t now) {
+    MaintainPolicy(state, now);
+    if (__atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) != 1u) return false;
+    state->materials_expires_at = enabled
+            ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
+    __atomic_store_n(&kh_theme_materials_enabled, enabled ? uint32_t{1} : uint32_t{0},
+                     __ATOMIC_RELEASE);
+    return true;
+}
+
+// Decode/dispatch is shared with host tests. Material commands allocate no policy
+// and cannot reach CommitPolicy/PublishPolicy, including on missing capability.
+template <typename Reader, typename Clock>
+bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_before_deadline) {
+    RequestHeader header{};
+    if (!ReadRequestHeader(read_exactly, &header)) return false;
+    if (header.flags == kNativeThemeMaterialsCommand) {
+        const uint64_t now = now_before_deadline();
+        return now != 0u && CommitThemeMaterials(state, header.foreground == 1u, now);
+    }
+    if ((InstalledCapabilities() & kNativeMonetCapability) == 0u) return false;
+    PolicyAllocation* next = AllocatePolicy();
+    if (next == nullptr) return false;
+    const bool decoded = ReadPolicyBody(read_exactly, header, &next->policy);
+    const uint64_t now = now_before_deadline();
+    if (decoded && now != 0u && CommitPolicy(state, next, now)) return true;
+    free(next);
+    return false;
+}
+
+uint64_t NextMaintenanceWake(const PolicyState* state, uint64_t deadline) {
+    if (state->expiration != nullptr && state->expires_at < deadline) {
+        deadline = state->expires_at;
+    }
+    if (state->materials_expires_at != 0u && state->materials_expires_at < deadline) {
+        deadline = state->materials_expires_at;
+    }
+    return deadline;
 }
 
 #if defined(__linux__)
@@ -334,10 +418,7 @@ WaitResult WaitForFd(int fd, short events, uint64_t deadline,
         if (now == 0u) return WaitResult::Failed;
         MaintainPolicy(policies, now);
         if (now >= deadline) return WaitResult::Timeout;
-        uint64_t wake = deadline;
-        if (policies->expiration != nullptr && policies->expires_at < wake) {
-            wake = policies->expires_at;
-        }
+        uint64_t wake = NextMaintenanceWake(policies, deadline);
         // Retired snapshots need a reader grace period, never a blocking writer
         // wait that could overrun the connection's deadline or the policy lease.
         if (policies->retired != nullptr && now + 10u * kNanosecondsPerMs < wake) {
@@ -394,7 +475,7 @@ void HandleConnection(ServerState* server, int fd, uint64_t accepted_at) {
     WriteLe32(greeting, kNativeMonetMagic);
     WriteLe32(greeting + 4u, kNativeMonetProtocolVersion);
     WriteLe32(greeting + 8u, server->uid);
-    WriteLe32(greeting + 12u, kNativeMonetProfileVersion);
+    WriteLe32(greeting + 12u, InstalledCapabilities());
     if (!Transfer(fd, greeting, sizeof(greeting), true, greeting_deadline, &server->policies)) {
         return;
     }
@@ -406,22 +487,20 @@ void HandleConnection(ServerState* server, int fd, uint64_t accepted_at) {
                   &server->policies) != WaitResult::Ready) return;
     const uint64_t deadline = NowNs() +
             uint64_t{kNativeMonetIoTimeoutMs} * kNanosecondsPerMs;
-    PolicyAllocation* next = AllocatePolicy();
-    bool accepted = next != nullptr && ReadPolicyRequest(
+    const bool accepted = ReadAndCommitRequest(&server->policies,
             [&](void* bytes, size_t length) {
                 return Transfer(fd, static_cast<uint8_t*>(bytes), length, false,
                                 deadline, &server->policies);
-            }, &next->policy);
-    const uint64_t now = NowNs();
-    accepted = accepted && now != 0u && now < deadline &&
-            CommitPolicy(&server->policies, next, now);
-    if (!accepted) free(next);
+            }, [&] {
+                const uint64_t now = NowNs();
+                return now < deadline ? now : uint64_t{0};
+            });
     uint8_t ack[12];
     WriteLe32(ack, kNativeMonetMagic);
     WriteLe32(ack + 4u, kNativeMonetProtocolVersion);
     WriteLe32(ack + 8u, accepted ? 0u : 1u);
     // Timeout/disconnect may prevent delivery; it never rolls back a committed
-    // immutable generation. The next authenticated full request is idempotent.
+    // command. Repeating the authenticated policy or material command is idempotent.
     Transfer(fd, ack, sizeof(ack), true, deadline, &server->policies);
 }
 
@@ -437,7 +516,13 @@ void* PolicyWorker(void* data) {
             if (connection < 0) {
                 // A retiring Java owner closes its pair and temporarily
                 // rejects acquisition. The successor can accept automatically.
-                timespec delay{retry_ms / 1000u, (retry_ms % 1000u) * 1000000u};
+                const uint64_t after_request = NowNs();
+                if (after_request == 0u) break;
+                MaintainPolicy(&server->policies, after_request);
+                const uint64_t delay_ns = NextMaintenanceWake(&server->policies,
+                        after_request + retry_ms * kNanosecondsPerMs) - after_request;
+                timespec delay{static_cast<time_t>(delay_ns / 1000000000u),
+                               static_cast<long>(delay_ns % 1000000000u)};
                 nanosleep(&delay, nullptr);
                 if (retry_ms < 4000u) retry_ms *= 2u;
                 continue;
@@ -450,6 +535,8 @@ void* PolicyWorker(void* data) {
     }
     free(server->policies.expiration);
     server->policies.expiration = nullptr;
+    __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
+    server->policies.materials_expires_at = 0u;
     PublishPolicy(&server->policies, nullptr);
     __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
     // With the public pointer null, new readers cannot prolong access to an old

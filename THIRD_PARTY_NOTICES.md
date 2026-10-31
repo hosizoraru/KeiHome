@@ -1,5 +1,35 @@
 # Third-party notices
 
+## DexKit 2.3.0
+
+KeiHome distributes the unmodified `org.luckypray:dexkit:2.3.0` Android
+library for bounded runtime DEX contract discovery. DexKit's Java/Kotlin
+portions are licensed under the Apache License 2.0. Its native `Core/`
+implementation is licensed under the GNU Lesser General Public License 3.0
+(LGPL-3.0).
+
+- Exact corresponding source: <https://github.com/LuckyPray/DexKit/tree/2.3.0>
+- DexKit license details: <https://github.com/LuckyPray/DexKit/blob/2.3.0/README.md#license>
+- Apache License 2.0: `app/src/main/assets/licenses/DexKit-Apache-2.0.txt`
+- LGPL-3.0 for DexKit `Core/`: `app/src/main/assets/licenses/DexKit-LGPL-3.0.txt`
+- GNU GPL 3.0 incorporated by the LGPL: `app/src/main/assets/licenses/GPL-3.0.txt`
+- Source access and rebuilding: `app/src/main/assets/licenses/DexKit-SOURCE.txt`
+
+Copyright (C) 2022 LuckyPray. KeiHome does not modify DexKit. Recipients may
+modify DexKit and reverse-engineer KeiHome as needed to debug modifications
+to DexKit; no KeiHome distribution term may restrict those rights.
+
+KeiHome APK distributions must provide access to the corresponding DexKit
+source and the exact KeiHome source revision, including build scripts,
+dependency information, any local changes and any required installation
+information for rebuilding with a compatible modified library. The source
+access and rebuilding instructions are in `DexKit-SOURCE.txt`. An upstream
+link alone does not identify the corresponding KeiHome source for an APK.
+
+The APK packages `META-INF/DEXKIT-NOTICE` and all four files above under
+`assets/licenses/`. No DexKit source archive is embedded in the APK; the
+APK distribution must supply the matching source access.
+
 ## MaterialKolor color utilities
 
 Wallpaper quantization, seed ranking and tonal schemes use MaterialKolor's

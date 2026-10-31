@@ -8,12 +8,16 @@
 
 constexpr uint32_t kNativeMonetMagic = 0x334d484bu;
 constexpr uint32_t kNativeMonetProtocolVersion = 1u;
+// Binder channel-acquisition ABI only. Socket greeting word 4 is a capability mask.
 constexpr uint32_t kNativeMonetProfileVersion = 1u;
+constexpr uint32_t kNativeMonetCapability = 1u;
+constexpr uint32_t kNativeThemeMaterialsCapability = 2u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
 constexpr uint32_t kNativeMonetKeepaliveMs = 15000u;
 constexpr uint32_t kNativeMonetExpiryMs = 45000u;
+constexpr uint32_t kNativeThemeMaterialsCommand = 2u;
 
 struct NativeMonetPolicyEntry {
     uint32_t len;
@@ -52,6 +56,16 @@ extern uint32_t kh_monet_readers;
 extern uint32_t kh_monet_tint_ever_enabled;
 extern uint64_t kh_monet_selection_revision;
 extern uint64_t kh_monet_selection_notified;
+// Owned here, written by the Monet installer: release-store 1 only AFTER all
+// required Monet hooks succeed and BEFORE starting the policy server. A failed
+// or partial install leaves this zero even when highlight starts the transport.
+extern uint32_t kh_monet_installed;
+// Independent of NativeMonetPolicy and its Dart ABI. The highlight installer
+// release-stores installed=1 ONLY after its validated bridge is active. The
+// server release-stores enabled; the bridge acquire-loads it on use. Both start
+// disabled, and only an authenticated material command renews the enable lease.
+extern uint32_t kh_theme_materials_installed;
+extern uint32_t kh_theme_materials_enabled;
 }
 
 // Reader ABI, including the null-pointer path:
@@ -85,11 +99,18 @@ inline void ReleaseNativeMonetPolicy() {
 // Only a pair created by uid 1000 AND SELinux context u:r:system_server:s0 is
 // accepted here. Closing the Java owner reconnects to the new hot-reload owner.
 // One greeting/request/ACK per connection, all uint32 words little-endian:
-//   greeting: magic, protocolVersion, getuid(), profileVersion
+//   greeting: magic, protocolVersion, getuid(), capabilities
+//             1=Monet (including legacy greeting 1), 2=highlight, 3=both
+//             0 is unavailable; unknown bits are rejected by the client
 //   request:  magic, protocolVersion, flags, fgARGB, bgARGB, count
 //             then count repetitions of length + ASCII package bytes
 //   ACK:      magic, protocolVersion, status (0 committed, 1 rejected)
-// flags 0 requires count 0. flags 1 requires opaque colors. Other flags fail.
+// flags 0 requires count 0. flags 1 requires opaque colors. Both require an
+// installed Monet feature, rechecked at commit. Readiness requires capability 1.
+// flags 2 is a separate material command: fg=0/1, bg=count=0; it never publishes
+// a NativeMonetPolicy. It is ACKed only with the highlight bridge installed.
 // An authenticated complete policy every 15 s renews the 45 s deny-list lease;
-// no separate heartbeat/refresh opcode exists. Bad/partial requests never renew.
+// an enabled material command independently renews a 45 s material lease, whose
+// expiry clears enabled. Bad/partial requests never renew either lease. Legacy
+// servers reject flags 2 without withdrawing or changing their Monet policy.
 bool StartNativeMonetPolicyServer();

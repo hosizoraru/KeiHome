@@ -25,6 +25,7 @@ import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.IconPackImportProtocol
@@ -89,6 +90,11 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     requestPreferences = { xposed.getRemotePreferences(MonetAction.GROUP) },
     statusPreferences = { xposed.getRemotePreferences(RuntimeStatusProtocol.GROUP) },
     refreshReceipt = { lastRefreshReceipt },
+    themePreferences = { xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP) },
+    onThemeMaterialsChanged = {
+      xposed.log(Log.INFO, TAG, "Theme material change acknowledged; reconciling mounted icons")
+      schedulePaletteRefresh()
+    },
   )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
@@ -357,7 +363,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun schedulePaletteRefresh() {
     synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
-      // Only Applied/Restored reach here, after the native publish/withdraw ACK.
+      // Palette publication/withdrawal or a changed material opt-in reached its native ACK.
       // Pending resource/night/source work keeps its slower pacing in generations.
       val generation = generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK) ?: return
       pending.replace(IconRefreshRequest(generation, 0))

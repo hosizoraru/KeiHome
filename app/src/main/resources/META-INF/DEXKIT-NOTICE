@@ -1,0 +1,22 @@
+KeiHome distributes the unmodified org.luckypray:dexkit:2.3.0 Android library.
+Copyright (C) 2022 LuckyPray.
+
+DexKit Java/Kotlin portions: Apache License 2.0
+DexKit native Core/ implementation: GNU Lesser General Public License 3.0
+
+Corresponding source for the exact release and its build instructions:
+https://github.com/LuckyPray/DexKit/tree/2.3.0
+https://github.com/LuckyPray/DexKit/blob/2.3.0/README.md#license
+
+This APK includes the complete license texts and source access instructions:
+assets/licenses/DexKit-Apache-2.0.txt
+assets/licenses/DexKit-LGPL-3.0.txt
+assets/licenses/GPL-3.0.txt
+assets/licenses/DexKit-SOURCE.txt
+
+Recipients may modify DexKit and reverse-engineer KeiHome as needed to debug
+modifications to DexKit; no KeiHome distribution term may restrict those rights.
+
+The APK distributor must provide access to the exact corresponding KeiHome
+source, DexKit source, build instructions and required installation information.
+See assets/licenses/DexKit-SOURCE.txt for the source and rebuilding requirements.

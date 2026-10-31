@@ -9,6 +9,7 @@ dependencies {
 
   compileOnly(libs.libxposed.api)
   implementation(libs.libxposed.service)
+  implementation(libs.dexkit)
   // Same pure color engine already used by MIUIX; also needed on our compile classpath.
   implementation(libs.material.color.utilities)
 

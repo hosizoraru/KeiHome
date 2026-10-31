@@ -12,6 +12,7 @@ import android.os.OperationCanceledException
 import android.os.SystemClock
 import java.util.concurrent.atomic.AtomicBoolean
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 
@@ -26,6 +27,8 @@ internal class MonetColorMonitor(
   private val requestPreferences: () -> SharedPreferences? = { null },
   private val statusPreferences: () -> SharedPreferences? = { null },
   private val refreshReceipt: () -> IconRefreshReceipt? = { null },
+  private val themePreferences: () -> SharedPreferences? = { null },
+  private val onThemeMaterialsChanged: () -> Unit = {},
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -56,15 +59,20 @@ internal class MonetColorMonitor(
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
     private var runtimePreferences: SharedPreferences? = null
+    private var materialPreferences: SharedPreferences? = null
     private var lastStatusRequest: String? = null
     private var statusPreferenceFailureReported = false
     private var preferenceFailureReported = false
+    private var materialPreferenceFailureReported = false
     // The framework holds listeners weakly. This worker owns the strong reference until stop.
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
         key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
     }
     private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestStatus() }
+    private val materialListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+      if (key == null || key == ThemeEffectsPreferences.KEY) requestMaterials()
+    }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
       wallpaperDirty.set(true)
@@ -97,6 +105,45 @@ internal class MonetColorMonitor(
       } catch (failure: Exception) {
         if (!statusPreferenceFailureReported) onFailure(failure)
         statusPreferenceFailureReported = true
+      }
+    }
+
+    private fun connectMaterialPreferences() {
+      if (closed || materialPreferences != null) return
+      try {
+        themePreferences()?.let { preferences ->
+          preferences.registerOnSharedPreferenceChangeListener(materialListener)
+          materialPreferences = preferences
+          materialPreferenceFailureReported = false
+        }
+      } catch (failure: Exception) {
+        if (!materialPreferenceFailureReported) onFailure(failure)
+        materialPreferenceFailureReported = true
+      }
+    }
+
+    private fun requestMaterials() {
+      if (closed) return
+      handler.removeCallbacks(synchronizeMaterials)
+      handler.post(synchronizeMaterials)
+    }
+
+    private val synchronizeMaterials = Runnable {
+      val canRun = synchronized(this@Watch) {
+        if (closed) return@Runnable
+        synchronizer.start()
+      }
+      if (!canRun) {
+        if (!closed) handler.postDelayed({ requestMaterials() }, 1_000L)
+        return@Runnable
+      }
+      try {
+        connectMaterialPreferences()
+        if (synchronizer.synchronizeThemeMaterials(context, materialPreferences) { !closed } && !closed) {
+          onThemeMaterialsChanged()
+        }
+      } catch (failure: Exception) {
+        if (!closed) onFailure(failure)
       }
     }
 
@@ -145,6 +192,10 @@ internal class MonetColorMonitor(
         try {
           connectActionPreferences()
           connectStatusPreferences()
+          // Renew the independent opt-in before any Monet-OFF/manual/no-palette early return.
+          // A rejected optional opcode does not change normal Monet retry/publication state.
+          handler.removeCallbacks(synchronizeMaterials)
+          synchronizeMaterials.run()
           val result = synchronizer.synchronize(
             context, observer, actionPreferences, wallpaperDirty.getAndSet(false),
           ) { !closed }
@@ -178,6 +229,8 @@ internal class MonetColorMonitor(
       handler.post {
         if (closed) return@post
         connectActionPreferences()
+        connectMaterialPreferences()
+        requestMaterials()
         try {
           connectStatusPreferences()
           val resolver = context.contentResolver
@@ -193,9 +246,11 @@ internal class MonetColorMonitor(
           )
           WallpaperManager.getInstance(context).addOnColorsChangedListener(wallpaperListener, handler)
           wallpaperRegistered = true
-          if (!closed) request()
         } catch (failure: Throwable) {
           onFailure(failure)
+        } finally {
+          // Material renewal must still run if a palette/wallpaper observer is unavailable.
+          if (!closed) request()
         }
       }
     }
@@ -225,6 +280,12 @@ internal class MonetColorMonitor(
           onFailure(failure)
         }
         runtimePreferences = null
+        try {
+          materialPreferences?.unregisterOnSharedPreferenceChangeListener(materialListener)
+        } catch (failure: Exception) {
+          onFailure(failure)
+        }
+        materialPreferences = null
         if (wallpaperRegistered) {
           WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
           wallpaperRegistered = false

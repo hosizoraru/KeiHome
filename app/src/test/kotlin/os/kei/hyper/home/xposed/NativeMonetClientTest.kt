@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import java.io.InputStream
 import java.io.InterruptedIOException
+import java.io.OutputStream
 import java.lang.reflect.InvocationTargetException
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
@@ -48,6 +49,176 @@ class NativeMonetClientTest {
   }
 
   @Test
+  fun themeMaterialsUsesSeparateOpcodeAndExactLegacySizedHeader() {
+    assertArrayEquals(
+      hex("4b484d33 01000000 02000000 01000000 00000000 00000000"),
+      NativeMonetProtocol.themeMaterialsRequest(true),
+    )
+    assertArrayEquals(
+      hex("4b484d33 01000000 02000000 00000000 00000000 00000000"),
+      NativeMonetProtocol.themeMaterialsRequest(false),
+    )
+    for (enabled in listOf(false, true)) {
+      val output = ByteArrayOutputStream()
+      val command = NativeMonetProtocol.themeMaterialsRequest(enabled)
+      assertTrue(exchange(ByteArrayInputStream(greeting(3) + ack()), output, request = command))
+      assertArrayEquals(command, output.toByteArray())
+    }
+  }
+
+  @Test
+  fun legacyGreetingSkipsMaterialCommandButKeepsNormalMonetPublicationWorking() {
+    val material = NativeMonetProtocol.themeMaterialsRequest(true)
+    val rejectedOutput = ByteArrayOutputStream()
+    var writes = 0
+    assertFalse(exchange(
+      ByteArrayInputStream(greeting() + words(magic, 1, 1)), rejectedOutput, request = material,
+      onWriteAttempt = { writes++ },
+    ))
+    assertEquals(0, rejectedOutput.size())
+    assertEquals(0, writes)
+    for (ordinary in listOf(request(), NativeMonetProtocol.disableRequest())) {
+      val output = ByteArrayOutputStream()
+      assertTrue(exchange(ByteArrayInputStream(greeting() + ack()), output, request = ordinary))
+      assertArrayEquals(ordinary, output.toByteArray())
+    }
+  }
+
+  @Test
+  fun capabilityBitsAuthorizeOnlyTheirOwnCommandsAndReadinessRequiresMonet() {
+    val requests = listOf(
+      null to 1,
+      request() to 1,
+      NativeMonetProtocol.disableRequest() to 1,
+      NativeMonetProtocol.themeMaterialsRequest(false) to 2,
+      NativeMonetProtocol.themeMaterialsRequest(true) to 2,
+    )
+    for (capabilities in 1..3) {
+      for ((request, required) in requests) {
+        val output = ByteArrayOutputStream()
+        val input = ByteArrayInputStream(greeting(capabilities) + ack())
+        val accepted = capabilities and required != 0
+        assertEquals("capabilities=$capabilities required=$required request=${request != null}",
+          accepted, exchange(input, output, request = request))
+        assertArrayEquals(if (accepted && request != null) request else byteArrayOf(), output.toByteArray())
+        assertEquals(if (accepted && request != null) 0 else 12, input.available())
+      }
+    }
+  }
+
+  @Test
+  fun emptyAndUnknownCapabilityBitsRejectEveryCommandBeforeWriting() {
+    val requests = listOf(null, request(), NativeMonetProtocol.disableRequest(),
+      NativeMonetProtocol.themeMaterialsRequest(false), NativeMonetProtocol.themeMaterialsRequest(true))
+    for (capabilities in listOf(0, 4, 5, 6, 7, Int.MIN_VALUE, -1)) {
+      for (request in requests) {
+        val output = ByteArrayOutputStream()
+        var failure: String? = null
+        assertFalse(NativeMonetProtocol.exchange(
+          ByteArrayInputStream(greeting(capabilities) + ack()), output,
+          targetUid, targetUid, request, onFailure = { failure = it },
+        ))
+        assertEquals(0, output.size())
+        assertEquals("native greeting capabilities invalid", failure)
+      }
+    }
+  }
+
+  @Test
+  fun capablePeerRejectingMaterialCommandDoesNotPoisonSubsequentMonetExchanges() {
+    val material = NativeMonetProtocol.themeMaterialsRequest(true)
+    val rejectedOutput = ByteArrayOutputStream()
+    assertFalse(exchange(
+      ByteArrayInputStream(greeting(3) + words(magic, 1, 1)), rejectedOutput, request = material,
+    ))
+    assertArrayEquals(material, rejectedOutput.toByteArray())
+    for (ordinary in listOf(request(), NativeMonetProtocol.disableRequest())) {
+      assertTrue(exchange(ByteArrayInputStream(greeting(3) + ack()),
+        ByteArrayOutputStream(), request = ordinary))
+    }
+  }
+
+  @Test
+  fun malformedRequestCannotBorrowAnotherCommandsCapability() {
+    val unknown = NativeMonetProtocol.themeMaterialsRequest(true).also {
+      ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN).putInt(8, 3)
+    }
+    for (request in listOf(byteArrayOf(), unknown.copyOf(12), unknown)) {
+      val output = ByteArrayOutputStream()
+      assertFalse(exchange(ByteArrayInputStream(greeting(3) + ack()), output, request = request))
+      assertEquals(0, output.size())
+    }
+  }
+
+  @Test
+  fun materialCommandRequiresCompleteAckAndCurrentLauncherJustLikePolicy() {
+    val material = NativeMonetProtocol.themeMaterialsRequest(true)
+    for (length in 0 until 12) {
+      var writes = 0
+      assertThrows(EOFException::class.java) {
+        exchange(ByteArrayInputStream(greeting(2) + ack().copyOf(length)),
+          ByteArrayOutputStream(), request = material, onWriteAttempt = { writes++ })
+      }
+      assertEquals(1, writes)
+    }
+    var checks = 0
+    var writes = 0
+    assertFalse(NativeMonetProtocol.exchange(
+      ByteArrayInputStream(greeting(2) + ack()), ByteArrayOutputStream(),
+      targetUid, targetUid, material, isCurrentTarget = { ++checks == 1 },
+      onWriteAttempt = { writes++ },
+    ))
+    assertEquals(1, writes)
+  }
+
+  @Test
+  fun failedRequestWriteIsMarkedBeforeItCanPartiallyReachNative() {
+    var writes = 0
+    val output = object : OutputStream() {
+      override fun write(value: Int) {
+        assertEquals(1, writes)
+        throw InterruptedIOException("Partial request write")
+      }
+    }
+    assertThrows(InterruptedIOException::class.java) {
+      NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(2)), output, targetUid, targetUid,
+        NativeMonetProtocol.themeMaterialsRequest(true), onWriteAttempt = { writes++ },
+      )
+    }
+    assertEquals(1, writes)
+  }
+
+  @Test
+  fun materialLeaseReconcilesLostAckButNotPreflightRejection() {
+    val process = NativeMonetProcessIdentity(42, 100L)
+    val lease = ThemeMaterialLease()
+    val output = ByteArrayOutputStream()
+    fun sync(enabled: Boolean, capabilities: Int = 2, response: ByteArray = ack()): Boolean =
+      lease.synchronize(enabled, 0, { 0L }, { true }) { onWriteAttempted ->
+        try {
+          if (NativeMonetProtocol.exchange(
+              ByteArrayInputStream(greeting(capabilities) + response), output,
+              targetUid, targetUid, NativeMonetProtocol.themeMaterialsRequest(enabled),
+              onWriteAttempt = onWriteAttempted,
+            )) process else null
+        } catch (_: EOFException) {
+          null
+        }
+      }
+    assertFalse(sync(false))
+    output.reset()
+    assertFalse(sync(true, capabilities = 1))
+    assertEquals(0, output.size())
+    assertFalse(sync(false))
+    output.reset()
+    assertFalse(sync(true, response = byteArrayOf()))
+    assertArrayEquals(NativeMonetProtocol.themeMaterialsRequest(true), output.toByteArray())
+    assertTrue(sync(false))
+    repeat(10) { assertFalse(sync(false)) }
+  }
+
+  @Test
   fun publishRejectsInvalidColorsAndNeverTruncatesOversizedOrNonAsciiDenySets() {
     assertNull(NativeMonetProtocol.publishRequest(0x0021005d, background, emptySet()))
     assertNull(NativeMonetProtocol.publishRequest(foreground, 0x80eaddff.toInt(), emptySet()))
@@ -67,8 +238,10 @@ class NativeMonetClientTest {
   fun readinessAuthenticatesGreetingAndClosesWithoutRequestOrAck() {
     val output = ByteArrayOutputStream()
     val input = ByteArrayInputStream(greeting())
-    assertTrue(exchange(input, output, request = null))
+    var writes = 0
+    assertTrue(exchange(input, output, request = null, onWriteAttempt = { writes++ }))
     assertEquals(0, output.size())
+    assertEquals(0, writes)
     assertEquals(0, input.available())
   }
 
@@ -82,7 +255,7 @@ class NativeMonetClientTest {
   }
 
   @Test
-  fun greetingMustMatchMagicVersionFullUidAndProfileBeforeAnyRequest() {
+  fun greetingMustMatchMagicVersionFullUidAndCapabilityBeforeAnyRequest() {
     val invalidGreetings = listOf(
       words(0x334d484a, 1, targetUid, 1),
       words(magic, 2, targetUid, 1),
@@ -102,11 +275,13 @@ class NativeMonetClientTest {
   @Test
   fun userSwitchBetweenConnectionAndGreetingPreventsRequest() {
     val output = ByteArrayOutputStream()
+    var writes = 0
     assertFalse(NativeMonetProtocol.exchange(
       ByteArrayInputStream(greeting()), output, targetUid, targetUid, request(),
-      isCurrentTarget = { false },
+      isCurrentTarget = { false }, onWriteAttempt = { writes++ },
     ))
     assertEquals(0, output.size())
+    assertEquals(0, writes)
   }
 
   @Test
@@ -152,7 +327,7 @@ class NativeMonetClientTest {
       words(0, 1, targetUid, 1) to "magic",
       words(magic, 2, targetUid, 1) to "protocol",
       words(magic, 1, targetUid + 100_000, 1) to "UID",
-      words(magic, 1, targetUid, 2) to "profile",
+      words(magic, 1, targetUid, 2) to "Monet capability",
     )) {
       val output = ByteArrayOutputStream()
       val failures = mutableListOf<String>()
@@ -245,14 +420,17 @@ class NativeMonetClientTest {
   @Test
   fun cancellationAfterGreetingPreventsRequest() {
     var checks = 0
+    var writes = 0
     val output = ByteArrayOutputStream()
     assertThrows(InterruptedIOException::class.java) {
       NativeMonetProtocol.exchange(
         ByteArrayInputStream(greeting()), output, targetUid, targetUid, request(),
         beforeIo = { if (++checks == 2) throw InterruptedIOException() },
+        onWriteAttempt = { writes++ },
       )
     }
     assertEquals(0, output.size())
+    assertEquals(0, writes)
   }
 
   @Test
@@ -368,12 +546,15 @@ class NativeMonetClientTest {
     output: ByteArrayOutputStream,
     peerUid: Int = targetUid,
     request: ByteArray? = request(),
-  ): Boolean = NativeMonetProtocol.exchange(input, output, targetUid, peerUid, request)
+    onWriteAttempt: () -> Unit = {},
+  ): Boolean = NativeMonetProtocol.exchange(
+    input, output, targetUid, peerUid, request, onWriteAttempt = onWriteAttempt,
+  )
 
   private fun request(): ByteArray =
     requireNotNull(NativeMonetProtocol.publishRequest(foreground, background, setOf("com.example")))
 
-  private fun greeting(): ByteArray = words(magic, 1, targetUid, 1)
+  private fun greeting(capabilities: Int = 1): ByteArray = words(magic, 1, targetUid, capabilities)
 
   private fun ack(): ByteArray = words(magic, 1, 0)
 

@@ -1,0 +1,82 @@
+KeiHome - DexKit source access and rebuilding
+
+Library distributed without source modifications:
+  org.luckypray:dexkit:2.3.0
+  AAR SHA-256:
+  8df532c4126b58490667f71127dc57aef62ccf3578d1d17330f2a1cb8836218e
+
+DexKit corresponding source and build files:
+  https://github.com/LuckyPray/DexKit/tree/2.3.0
+  https://github.com/LuckyPray/DexKit/archive/refs/tags/2.3.0.tar.gz
+
+Obtain the full native Core/, JNI adapter, JVM sources, build scripts and
+any referenced submodules/dependencies at the revisions used by that tag.
+The Maven sources JAR contains JVM sources and is not the complete native
+corresponding source.
+
+KeiHome source repository:
+  https://github.com/hosizoraru/KeiHome
+
+For each distributed APK, its distributor must identify and provide access
+to the exact corresponding KeiHome source revision or source archive. Include
+local changes present in that APK, the Gradle wrapper, build-logic/, app/,
+gradle/, settings files, native build sources and dependency information.
+A default-branch link or version number alone does not identify that source.
+
+Distribution requirements
+
+Keep this notice and the full Apache-2.0, LGPL-3.0 and GPL-3.0 license texts
+with the APK. For network distribution, provide clear source download
+directions alongside the APK, with equivalent access at no further charge,
+for the Minimal Corresponding Source and Corresponding Application Code
+needed by LGPL-3.0 section 4(d)(0) and GPL-3.0 section 6(d). Retain access to
+the required sources for as long as required by those terms. Include source
+for any modifications to DexKit and any installation information required
+by LGPL-3.0 section 4(e).
+
+This file specifies source access and release requirements. It does not
+claim that an unpublished local APK's exact source archive is already
+published, and it is not a substitute for providing that archive/access.
+
+Rebuilding with a compatible modified DexKit
+
+1. Obtain the exact KeiHome source corresponding to the APK and DexKit
+   2.3.0's full source. Make the intended library changes and build an Android
+   AAR using DexKit's build scripts and their declared toolchain. Keep the
+   JNI entry points and JVM API compatible, and include arm64-v8a.
+
+2. Replace KeiHome's implementation(libs.dexkit) dependency in
+   app/build.gradle.kts with the locally built AAR, for example:
+
+     implementation(files("libs/dexkit-modified.aar"))
+
+   Place that AAR at app/libs/dexkit-modified.aar. File dependencies do not
+   carry Maven transitive metadata; retain the matching runtime dependencies:
+
+     implementation("com.google.flatbuffers:flatbuffers-java:23.5.26")
+     implementation("dev.rikka.ndk.thirdparty:cxx:1.2.0")
+
+   KeiHome already provides Kotlin's standard library. Preserve any further
+   runtime dependencies required by the modified DexKit build.
+
+3. Use the checked-in Gradle wrapper and the toolchain versions declared
+   by the corresponding KeiHome revision. The revision accompanying this
+   notice uses Android SDK 37, NDK 30.0.16248370, CMake 4.1.2 and Java 17
+   compilation. Resolve the pinned dependencies; settings.gradle.kts also
+   declares a MIUIX snapshot repository. If that exact snapshot requires
+   credentials or is no longer accessible, the distributor must provide
+   sufficient dependency access/materials to reproduce the combined work.
+
+4. Build the modified application from the KeiHome source root:
+
+     ./gradlew :app:assembleRelease
+
+   The checked-in build uses the builder's local debug signing key. The
+   publisher's private signing key is not part of the corresponding source.
+   Install the complete modified APK using Android's package installation
+   and the target Xposed framework's module-loading procedure, subject to
+   Android's signing requirements. Any further installation information
+   required by LGPL-3.0 section 4(e) must accompany the source distribution.
+
+Recipients may modify DexKit and reverse-engineer KeiHome as needed to debug
+modifications to DexKit; no KeiHome distribution term may restrict those rights.

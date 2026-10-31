@@ -6,6 +6,7 @@
 #include "monet_policy_server.h"
 #include "monet_tint_profile.h"
 #include "selection_profile.h"
+#include "icon_highlight_hooks.h"
 #if defined(KH_MONET_IMAGE_TRACE)
 #include "monet_image_trace.h"
 #endif
@@ -83,7 +84,7 @@ bool ResolveLoadedMonochromeGate(void* handle, MonochromeGatePatch* out,
         ranges, count}, out, rejection);
 }
 
-bool InstallMonetHooksAtLibraryLoad(void* handle) {
+static bool InstallMonetFeatureAtLibraryLoad(void* handle) {
     uint32_t expected = 0;
     if (!__atomic_compare_exchange_n(&g_install_state, &expected, 1u, false,
             __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return expected == 2;
@@ -121,7 +122,10 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
             &kh_selection_original) != kHookSuccess ||
         InstallInlineHook(tint.enabled_equals_entry, reinterpret_cast<void*>(kh_monet_enabled_equals_bridge),
             &kh_monet_enabled_equals_original) != kHookSuccess) return Reject("framework hook installation");
-    if (!StartNativeMonetPolicyServer()) return Reject("authenticated policy server unavailable");
+    // Process-lifetime capability, not transport liveness. A resolver or partial
+    // hook failure cannot advertise Monet; later socket failure cannot undo
+    // hooks that are already installed. The server independently gates flags 0/1.
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&g_install_state, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",
             "Two-tone native profile ready: dynamic tint=%p selection=%p "
@@ -133,4 +137,19 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
 #endif
     InstallMonetImageRecoveryAtLibraryLoad({image.base, image.selection_ranges, image.count});
     return true;
+}
+
+bool InstallMonetHooksAtLibraryLoad(void* handle) {
+    const bool highlight = InstallIconHighlightAtLibraryLoad(handle);
+    const bool monet = InstallMonetFeatureAtLibraryLoad(handle);
+    // Both attempts and their capability stores finish before any greeting.
+    // Request admission uses the server's matching capability bit, so partial
+    // Monet hooks cannot receive policy through a highlight-only endpoint.
+    if ((monet || highlight) && !StartNativeMonetPolicyServer()) {
+        __android_log_print(ANDROID_LOG_WARN, "KeiHomeMonet",
+                "Native features installed (Monet=%u highlight=%u), "
+                "authenticated policy transport unavailable",
+                monet ? 1u : 0u, highlight ? 1u : 0u);
+    }
+    return monet;
 }

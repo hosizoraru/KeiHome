@@ -18,6 +18,9 @@ static_assert(std::is_same_v<decltype(kh_monet_readers), uint32_t>,
               "The shared reader ABI must be nonvolatile uint32_t");
 static_assert(std::is_same_v<decltype(kh_monet_tint_ever_enabled), uint32_t>,
               "The assembly tint history ABI must be nonvolatile uint32_t");
+static_assert(std::is_same_v<decltype(kh_theme_materials_enabled), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_theme_materials_installed), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_monet_installed), uint32_t>);
 
 namespace {
 
@@ -51,6 +54,16 @@ bool Decode(const Bytes& bytes, NativeMonetPolicy* policy) {
         offset += length;
         return true;
     }, policy);
+}
+
+bool ApplyRequest(PolicyState* state, const Bytes& bytes, uint64_t now) {
+    size_t offset = 0u;
+    return ReadAndCommitRequest(state, [&](void* target, size_t length) {
+        if (length > bytes.size() - offset) return false;
+        memcpy(target, bytes.data() + offset, length);
+        offset += length;
+        return true;
+    }, [=] { return now; });
 }
 
 PolicyAllocation* Policy(uint32_t color, uint32_t count = 1u) {
@@ -326,6 +339,179 @@ void TestSelectionNotificationRevisions() {
     assert(kh_monet_selection_revision == initial + 3u);
 }
 
+void TestMaterialCommandAdmissionAndPolicyIsolation() {
+    PolicyState state{};
+    assert(CommitPolicy(&state, Policy(0xff123456u), 1u));
+    const NativeMonetPolicy* pinned = AcquireNativeMonetPolicy();
+    const uint64_t policy_expiry = state.expires_at;
+    const uint64_t selection = kh_monet_selection_revision;
+    const uint32_t history = kh_monet_tint_ever_enabled;
+    const Bytes enabled = Request(kNativeThemeMaterialsCommand, 1u, 0u, {});
+    const Bytes disabled = Request(kNativeThemeMaterialsCommand, 0u, 0u, {});
+    assert(enabled.size() == 24u);
+
+    // Missing/failed highlight installation cannot ACK either setting.
+    assert(!ApplyRequest(&state, enabled, 2u));
+    assert(!ApplyRequest(&state, disabled, 2u));
+    assert(kh_theme_materials_enabled == 0u && state.materials_expires_at == 0u);
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{1}, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, enabled, 3u));
+    assert(kh_theme_materials_enabled == 1u);
+    const uint64_t expiry = state.materials_expires_at;
+    assert(expiry == 3u + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs);
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == policy_expiry);
+
+    for (size_t length = 0u; length < enabled.size(); ++length) {
+        assert(!ApplyRequest(&state, Bytes(enabled.begin(), enabled.begin() + length), 4u));
+    }
+    for (const Bytes& bad : std::vector<Bytes>{
+            Request(2u, 2u, 0u, {}), Request(2u, UINT32_MAX, 0u, {}),
+            Request(2u, 1u, 1u, {}), Request(2u, 1u, 0u, {"com.example"}),
+            Request(3u, 1u, 0u, {})}) {
+        assert(!ApplyRequest(&state, bad, 4u));
+    }
+    for (size_t offset : {size_t{0}, size_t{4}}) {
+        Bytes bad = enabled;
+        WriteLe32(bad.data() + offset, 0u);
+        assert(!ApplyRequest(&state, bad, 4u));
+    }
+    assert(!ApplyRequest(&state, disabled, 0u));  // Deadline/clock rejected before commit.
+    auto* invalid_policy = AllocatePolicy();
+    invalid_policy->policy.flags = kNativeThemeMaterialsCommand;
+    assert(!Decode(enabled, &invalid_policy->policy));
+    assert(!CommitPolicy(&state, invalid_policy, 4u));
+    free(invalid_policy);
+    assert(state.materials_expires_at == expiry && kh_theme_materials_enabled == 1u);
+    assert(kh_monet_policy == pinned && pinned->count == 1u);
+    assert(pinned->foreground == 0xff123456u);
+    assert(state.expires_at == policy_expiry && state.retired_count == 0u);
+    assert(kh_monet_selection_revision == selection && kh_monet_tint_ever_enabled == history);
+
+    assert(ApplyRequest(&state, disabled, 5u));
+    assert(kh_theme_materials_enabled == 0u && state.materials_expires_at == 0u);
+    assert(kh_monet_policy == pinned && kh_monet_selection_revision == selection);
+    ReleaseNativeMonetPolicy();
+    Clear(&state);
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{0}, __ATOMIC_RELEASE);
+}
+
+void TestMaterialLeaseRenewalAndMonetOff() {
+    PolicyState state{};
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    const uint64_t heartbeat = uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs;
+    const Bytes enabled = Request(2u, 1u, 0u, {});
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{1}, __ATOMIC_RELEASE);
+    assert(kh_monet_policy == nullptr);
+    const uint64_t selection = kh_monet_selection_revision;
+    assert(ApplyRequest(&state, enabled, 1u));
+    assert(kh_monet_policy == nullptr && kh_monet_selection_revision == selection);
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == 1u + lease);
+    assert(ApplyRequest(&state, enabled, 1u + heartbeat));
+    assert(state.materials_expires_at == 1u + heartbeat + lease);
+
+    // Ordinary Monet enable and disable remain usable and do not renew this lease.
+    assert(ApplyRequest(&state, Request(1u, 0xff000000u, 0xffffffffu, {"com.example"}), 2u + heartbeat));
+    assert(ApplyRequest(&state, Request(0u, 0u, 0u, {}), 3u + heartbeat));
+    assert(kh_monet_policy->flags == 0u && kh_theme_materials_enabled == 1u);
+    assert(state.materials_expires_at == 1u + heartbeat + lease);
+    MaintainPolicy(&state, 1u + lease);
+    assert(kh_theme_materials_enabled == 1u);
+    MaintainPolicy(&state, heartbeat + lease);
+    assert(kh_theme_materials_enabled == 1u);
+    const NativeMonetPolicy* disabled = kh_monet_policy;
+    MaintainPolicy(&state, 1u + heartbeat + lease);
+    assert(kh_theme_materials_enabled == 0u && state.materials_expires_at == 0u);
+    assert(kh_monet_policy == disabled && disabled->flags == 0u);
+
+    assert(ApplyRequest(&state, enabled, 2u + heartbeat + lease));
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{0}, __ATOMIC_RELEASE);
+    assert(!ApplyRequest(&state, enabled, 3u + heartbeat + lease));
+    assert(kh_theme_materials_enabled == 0u && state.materials_expires_at == 0u);
+    // A rejected extension on this process must not reject an ordinary policy.
+    assert(ApplyRequest(&state, Request(1u, 0xff000000u, 0xffffffffu, {}), 4u + heartbeat + lease));
+    Clear(&state);
+}
+
+void TestMaterialCommandDoesNotConsumePolicyRetirementCapacity() {
+    PolicyState state{};
+    assert(CommitPolicy(&state, Policy(0xff123456u), 1u));
+    const NativeMonetPolicy* pinned = AcquireNativeMonetPolicy();
+    for (uint32_t i = 0u; i < kMaxRetiredPolicies; ++i) {
+        assert(CommitPolicy(&state, Policy(0xff000010u + i), 2u + i));
+    }
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{1}, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, Request(2u, 1u, 0u, {}), 100u));
+    assert(state.retired_count == kMaxRetiredPolicies && pinned->foreground == 0xff123456u);
+    assert(ApplyRequest(&state, Request(2u, 0u, 0u, {}), 101u));
+    assert(state.retired_count == kMaxRetiredPolicies);
+    ReleaseNativeMonetPolicy();
+    Clear(&state);
+    __atomic_store_n(&kh_theme_materials_installed, uint32_t{0}, __ATOMIC_RELEASE);
+}
+
+void TestInstalledCapabilitiesAndCommandAdmission() {
+    const Bytes enable = Request(1u, 0xff123456u, 0xffabcdefu, {"com.example"});
+    const Bytes disable = Request(0u, 0u, 0u, {});
+    const Bytes material_enable = Request(2u, 1u, 0u, {});
+    const Bytes material_disable = Request(2u, 0u, 0u, {});
+    for (uint32_t capabilities = 0u; capabilities <= 3u; ++capabilities) {
+        PolicyState state{};
+        const bool monet = (capabilities & kNativeMonetCapability) != 0u;
+        const bool materials = (capabilities & kNativeThemeMaterialsCapability) != 0u;
+        __atomic_store_n(&kh_monet_installed, monet ? 1u : 0u, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_theme_materials_installed, materials ? 1u : 0u, __ATOMIC_RELEASE);
+        assert(InstalledCapabilities() == capabilities);
+        assert(ApplyRequest(&state, enable, 1u) == monet);
+        assert((kh_monet_policy != nullptr) == monet);
+        if (monet) assert(kh_monet_policy->flags == 1u && kh_monet_policy->count == 1u);
+        const NativeMonetPolicy* before_materials = kh_monet_policy;
+        const uint64_t expiry = state.expires_at;
+        const uint64_t revision = kh_monet_selection_revision;
+        assert(ApplyRequest(&state, material_enable, 2u) == materials);
+        assert(kh_theme_materials_enabled == (materials ? 1u : 0u));
+        assert(kh_monet_policy == before_materials && state.expires_at == expiry);
+        assert(kh_monet_selection_revision == revision);
+        const uint64_t material_expiry = state.materials_expires_at;
+        assert(ApplyRequest(&state, disable, 3u) == monet);
+        assert(state.materials_expires_at == material_expiry);
+        assert(kh_theme_materials_enabled == (materials ? 1u : 0u));
+        assert(ApplyRequest(&state, material_disable, 4u) == materials);
+        assert(kh_theme_materials_enabled == 0u);
+        Clear(&state);
+    }
+
+    // Only the installer's exact success value grants capability, never an
+    // in-progress or failed state borrowed from its internal state machine.
+    for (uint32_t uninstalled : {0u, 2u, 3u, UINT32_MAX}) {
+        __atomic_store_n(&kh_monet_installed, uninstalled, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_theme_materials_installed, uninstalled, __ATOMIC_RELEASE);
+        assert(InstalledCapabilities() == 0u);
+    }
+
+    // Recheck at commit as well as in the greeting/dispatcher. No valid policy
+    // command can reach an incomplete Monet installation through highlight.
+    PolicyState state{};
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_theme_materials_installed, 1u, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, enable, 1u));
+    const NativeMonetPolicy* before_rejection = kh_monet_policy;
+    const uint64_t expiry = state.expires_at;
+    __atomic_store_n(&kh_monet_installed, 0u, __ATOMIC_RELEASE);
+    assert(InstalledCapabilities() == kNativeThemeMaterialsCapability);
+    assert(!ApplyRequest(&state, enable, 2u));
+    assert(!ApplyRequest(&state, disable, 2u));
+    PolicyAllocation* rejected = Policy(0xff000001u);
+    assert(!CommitPolicy(&state, rejected, 2u));
+    free(rejected);
+    assert(kh_monet_policy == before_rejection && state.expires_at == expiry);
+    assert(ApplyRequest(&state, material_enable, 3u));
+    assert(ApplyRequest(&state, material_disable, 4u));
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_theme_materials_installed, 0u, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, enable, 5u));
+    Clear(&state);
+}
+
 void TestConcurrentReaders() {
     PolicyState state{};
     std::atomic<bool> stop{false};
@@ -379,13 +565,19 @@ void TestConcurrentReaders() {
 int main() {
     assert(!StartNativeMonetPolicyServer());  // This host is not com.miui.home.
     assert(__atomic_load_n(&kh_monet_policy, __ATOMIC_ACQUIRE) == nullptr);
+    assert(InstalledCapabilities() == 0u);
     TestPeerIdentityPredicate();
     TestIdleWithoutServiceStaysNull();
     TestWireAndLimits();
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
     TestTintEnableHistory();
     TestLeaseAndRetirement();
     TestBoundedRetirementStillExpires();
     TestSelectionNotificationRevisions();
+    TestMaterialCommandAdmissionAndPolicyIsolation();
+    TestMaterialLeaseRenewalAndMonetOff();
+    TestMaterialCommandDoesNotConsumePolicyRetirementCapacity();
+    TestInstalledCapabilitiesAndCommandAdmission();
     TestConcurrentReaders();
-    puts("monet peer identity, parser, tint history, lease and reader lifetime tests passed");
+    puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");
 }

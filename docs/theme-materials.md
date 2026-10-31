@@ -95,16 +95,18 @@ launcher and Dock displayed the pack's artwork without a launcher replacement.
 The worker-side converted-rights hash took 11 ms. This does not close the
 historical watchdog or disposed-image investigation.
 
-Release 1793454006 passed Java API 102 reload with launcher 29116/start 2930413,
+Release 1793454007 passed Java API 102 reload with launcher 29116/start 2930413,
 SystemUI 7121/start 3462801 and system-server 8810/start 2708 unchanged.
 After a separate development SystemUI restart to load the isolated fixture,
-SystemUI 18184/start 3893864 remained unchanged through on/off/on comparisons.
-Control Center restored both brightness and nonzero music-volume fills on
-opt-out. Standalone volume switched between solid and glass. Its first cold
-opt-in exposed missing small-tile background geometry; the next change addresses
-that separately. Two APP_SCOUT_WARNING reports remain recorded. The first
-captured main in the host battery Compose recomposition, not in a KeiHome hook;
-this single stack does not establish the cause of the delayed frame.
+SystemUI 13339/start 4431890 remained unchanged through the final comparison;
+launcher and system-server remained unchanged as well. Control Center restored
+both brightness and nonzero music-volume fills on opt-out. Standalone volume
+switched between solid and glass. The follow-up cold opt-in restored round
+small-tile geometry on the first open, and the captured full panel retained
+round tiles, filled sliders and glass surfaces. Two APP_SCOUT_WARNING reports
+remain recorded. The first captured main in the host battery Compose
+recomposition, not in a KeiHome hook; this single stack does not establish the
+cause of the delayed frame.
 
 Evidence: `/tmp/keihome-theme-research/material-fixture/` and the versioned
 deployment folders. Synthetic component fixtures establish specific contracts;

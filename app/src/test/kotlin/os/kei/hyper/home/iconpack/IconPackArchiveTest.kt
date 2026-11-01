@@ -93,6 +93,17 @@ class IconPackArchiveTest {
     assertTrue(index.entries.isEmpty())
   }
 
+  @Test fun classicConversionKeepsItsSourceTitleAndAuthor() {
+    val index = inspect(file(zip("appfilter.xml" to filter("day"),
+      "res/drawable/day.png" to png,
+      "description.xml" to ("<MIUI-Theme><title>Local style &amp; artwork</title>" +
+        "<author>Source authors</author><description>User-supplied conversion</description></MIUI-Theme>").toByteArray())))
+    assertEquals(IconPackFormat.CLASSIC_ZIP, index.format)
+    assertEquals("Local style & artwork", index.description.title)
+    assertEquals("Source authors", index.description.author)
+    assertEquals("User-supplied conversion", index.description.description)
+  }
+
   @Test fun rejectsUnsafePathsInOuterAndNestedArchives() {
     for (path in listOf("../escape.png", "/absolute.png", "res/../outside", "res//bad", "res/./bad", "C:/bad", "res\\bad", "bad\u0000name")) {
       assertThrows(path, IOException::class.java) { inspect(file(zip(path to png))) }

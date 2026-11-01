@@ -1,0 +1,18 @@
+{
+  "com.android.contacts/com.android.contacts.activities.PeopleActivity": "com.android.contacts",
+  "com.android.contacts/com.android.contacts.activities.TwelveKeyDialer": {
+    "package": "com.android.contacts",
+    "prefix": "dialer_"
+  },
+  "com.android.browser/com.android.browser.launch.SplashActivity": "com.heytap.browser",
+  "com.android.camera/com.android.camera.Camera": "com.oplus.camera",
+  "com.android.fileexplorer/com.android.fileexplorer.FileExplorerTabActivity": "com.coloros.filemanager",
+  "com.miui.gallery/com.miui.gallery.MainActivity": "com.coloros.gallery3d",
+  "com.miui.weather2/com.miui.weather2.ActivityWeatherMain": "com.coloros.weather2",
+  "com.android.calendar/com.android.calendar.homepage.AllInOneActivity": "com.coloros.calendar",
+  "com.android.deskclock/com.android.deskclock.DeskClockTabActivity": "com.coloros.alarmclock",
+  "com.android.soundrecorder/com.android.soundrecorder.StartActivity": "com.coloros.soundrecorder",
+  "com.miui.calculator/com.miui.calculator.cal.CalculatorActivity": "com.coloros.calculator",
+  "com.miui.notes/com.miui.notes.notesui.feature.note.presentation.list.AINoteListActivity": "com.coloros.note",
+  "com.miui.compass/com.miui.compass.CompassActivity": "com.coloros.compass2"
+}

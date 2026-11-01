@@ -165,7 +165,8 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         light = artwork(light?.mappings?.get(component)), dark = artwork(dark?.mappings?.get(component)))
     }
     if (entries.isEmpty()) throw IconPackException("Appfilter contains no supported component mappings")
-    return IconPackArchiveIndex(IconPackFormat.CLASSIC_ZIP, entries, notices = notices,
+    val metadata = if ("description.xml" in paths) description(file, check) else IconPackDescription()
+    return IconPackArchiveIndex(IconPackFormat.CLASSIC_ZIP, entries, description = metadata, notices = notices,
       directives = light?.directives.orEmpty() + dark?.directives.orEmpty())
   }
 

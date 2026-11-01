@@ -95,9 +95,9 @@ clang++ -std=c++17 -O2 -UNDEBUG -Wall -Wextra -Werror \
   scripts/tests/theme-night/candidate/theme_night_resolver.cpp \
   app/src/main/cpp/monet_image_identity.cpp \
   -o /tmp/keihome-theme-night-test/resolver
-/tmp/keihome-theme-night-test/resolver /tmp/keihome-launcher-8593/libapp.so
+/tmp/keihome-theme-night-test/resolver .artifacts/inputs/launchers/8593/libapp.so
 /tmp/keihome-theme-night-test/resolver \
-  /tmp/keihome-launcher-analysis-20261029/unpacked/lib/arm64-v8a/libapp.so
+  .artifacts/inputs/launchers/7722/libapp.so
 ```
 
 The generator uses external debug symbols only as a test oracle. Production

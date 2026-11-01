@@ -17,3 +17,5 @@
 local.properties
 __pycache__/
 *.pyc
+# Local research inputs, compressed evidence and release diagnostics.
+/.artifacts/

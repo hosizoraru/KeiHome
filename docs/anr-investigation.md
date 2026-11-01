@@ -1,5 +1,9 @@
 # Theme-switch latency and historical ANRs
 
+Historical `/tmp/keihome-*` evidence below was consolidated on November 1.
+See the [research archive index](research/README.md) for retained inputs and
+archive-member lookup. The original failure evidence remains available.
+
 ## Evidence and limits
 
 The historical 2026-10-30 03:03 watchdog and 03:52 SystemUI input ANR are different

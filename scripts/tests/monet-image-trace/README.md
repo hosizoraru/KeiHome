@@ -6,10 +6,13 @@ procedure. This is instrumentation, not a disposal fix.
 
 ```bash
 /tmp/keihome-capstone-venv/bin/python scripts/tests/monet-image-trace/validate.py \
-  --library /tmp/keihome-launcher-8593/libapp.so \
-  --library /tmp/keihome-launcher-analysis-20261029/unpacked/lib/arm64-v8a/libapp.so \
+  --library .artifacts/inputs/launchers/8593/libapp.so \
+  --library .artifacts/inputs/launchers/7722/libapp.so \
   --output /tmp/keihome-image-trace-validation
 ```
+
+See [the research index](../../../docs/research/README.md) for retained local
+fixtures and old `/tmp` evidence. The fixtures are not committed.
 
 The runner needs Python with Capstone/Unicorn/pyelftools, a host C++17 compiler,
 and an installed NDK with API 37 wrappers. `CXX` and `NDK_DIR` override discovery.

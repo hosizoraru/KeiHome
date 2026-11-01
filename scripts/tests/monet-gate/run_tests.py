@@ -31,8 +31,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULTS = [
-    Path('/tmp/keihome-launcher-analysis-20261029/unpacked/lib/arm64-v8a/libapp.so'),
-    Path('/tmp/keihome-launcher-8593/libapp.so'),
+    ROOT / '.artifacts/inputs/launchers/7722/libapp.so',
+    ROOT / '.artifacts/inputs/launchers/8593/libapp.so',
 ]
 
 

@@ -9,11 +9,15 @@ Requires Python with Unicorn, a host `clang++`, and the NDK LLVM tools. Example:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /tmp/keihome-capstone-venv/bin/python \
   scripts/tests/icon-highlight/run.py \
-  /tmp/keihome-theme-research/apk-home/lib/arm64-v8a/libapp.so \
-  /tmp/keihome-launcher-analysis-20261029/unpacked/lib/arm64-v8a/libapp.so \
+  .artifacts/inputs/launchers/8593/libapp.so \
+  .artifacts/inputs/launchers/7722/libapp.so \
   --output /tmp/keihome-theme-research/launcher-evidence/highlight-implementation/host-tests \
   --ndk /Users/voyager/Library/Android/sdk/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/bin
 ```
+
+Local input provenance and archived evidence are indexed in
+[the research index](../../../docs/research/README.md). The APK/ELF inputs
+are private local fixtures and are not committed.
 
 - C++ resolver is compiled and invoked against mapped PT_LOADs. Each result is
   compared with that exact ELF's own decompressed debug symbols. Production

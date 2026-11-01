@@ -1,5 +1,9 @@
 # Theme material compatibility
 
+Historical `/tmp/keihome-*` evidence below was consolidated on November 1.
+See the [research archive index](research/README.md) for retained inputs and
+archive-member lookup.
+
 The Icon packs page has an opt-in **Preserve system materials** switch. Its
 API 102 remote preference is independent of the selected theme, icon source and
 Monet palette. The default is off. Saving a preference or seeing an LSPosed

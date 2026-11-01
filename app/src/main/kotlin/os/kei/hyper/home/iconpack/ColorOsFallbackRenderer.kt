@@ -56,8 +56,8 @@ import os.kei.hyper.home.xposed.MonochromeMaskQuality
  */
 internal class ColorOsFallbackRenderer(
   private val context: Context,
-  private val onSkip: (IconPackComponent, SkipReason) -> Unit = { _, _ -> },
   private val style: String = "classic",
+  private val onSkip: (IconPackComponent, SkipReason) -> Unit = { _, _ -> },
 ) {
   enum class SkipReason {
     MISSING_ACTIVITY, AMBIGUOUS_ACTIVITY, MISSING_ICON, RESOURCE_UNAVAILABLE,

@@ -3,7 +3,8 @@
 This work targets the user-owned ColorOS17_API37 AVD (`emulator-5574`) and
 HyperOS Phone AVD (`emulator-5580`). Source firmware resources remain in ignored
 `.artifacts/inputs/coloros/`; no ColorOS artwork or decompiled implementation is
-bundled into KeiHome.
+checked into the source tree. Optional local builds can include generated
+resource-only profiles as described in [the source settings](icon-source-settings.md).
 
 ## Verified source contracts
 
@@ -170,9 +171,11 @@ filenames. The final local APK and checksum receipt are retained under
   or install ColorOS framework code on HyperOS.
 - Source resource-default masks are verified separately from active G2/customized
   shape geometry. The latter has not been reproduced.
-- This completes the inspected Classic/default-size profile. Other style
-  content, active G2/custom sizing and arbitrary source animations are not
-  claimed as complete ports.
+- Classic/default-size has the earlier full device validation. The source
+  settings now expose Daylight, Night Shadow, Material and Pebble profiles,
+  including ART toggles and original-app fallbacks. Active G2/custom sizing,
+  exact Material smooth curves and arbitrary source animations remain outside
+  the implementation.
 - Supported calendar/clock templates retain day/night ART+ artwork; they are
   not yet combined with the palette template. Unsupported live sources keep
   the original native icon. PNG-only native fallback readers cannot execute

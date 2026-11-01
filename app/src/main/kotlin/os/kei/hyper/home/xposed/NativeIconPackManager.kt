@@ -85,8 +85,9 @@ internal object NativeIconPackManager {
         val defaults = context.contentResolver.call(provider, "isDefaultIcon", null, null)
           ?: return@asSystemWorker null
         if (!defaults.containsKey("defaultIcon")) return@asSystemWorker null
+        val componentId = NativeIconComponentIdentity.fromProvider(before[2], before[3])
         if (before == readIdentityRow(context)) {
-          return@asSystemWorker Identity(title.nonBlank() ?: before[1], before[0],
+          return@asSystemWorker Identity(title.nonBlank() ?: before[1], componentId,
             defaults.getBoolean("defaultIcon"), before[3])
         }
       }

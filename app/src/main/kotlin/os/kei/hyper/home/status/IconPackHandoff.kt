@@ -2,8 +2,10 @@ package os.kei.hyper.home.status
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LightingColorFilter
 import android.graphics.Paint
 import java.io.File
 import java.util.UUID
@@ -14,11 +16,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.NativePaletteIcon
+import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -35,26 +41,37 @@ internal object IconPackHandoffs {
   }
 
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
-    pack: IconPackDescriptor, targets: List<IconPackComponent>): IconPackHandoff {
-    val light = repository.exportNativeIcons(pack, targets, darkMode = false)
+    pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance): IconPackHandoff {
+    val sourceAppearance = when (pack.format) {
+      IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
+      else -> appearance
+    }
+    val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false))
     var darkFile: File? = null
     var merged: File? = null
     val token = UUID.randomUUID().toString()
     val target = file(context, token)
     try {
       val icons = if (light.preservesNativeResources) light.archive else {
-        val dark = repository.exportNativeIcons(pack, targets, darkMode = true)
-        darkFile = dark.archive
+        val dark = when (sourceAppearance) {
+          IconPackAppearance.SYSTEM ->
+            repository.exportNativeIcons(pack, targets, darkMode = true).archive.also { darkFile = it }
+          IconPackAppearance.DIM_AT_NIGHT ->
+            dimmedIcons(context, light.archive).also { darkFile = it }
+          else -> light.archive
+        }
         withContext(Dispatchers.IO) {
           val current = currentCoroutineContext()
+          val dynamic = colorOsDynamicEntries(pack, targets, sourceAppearance) { current.ensureActive() }
           File.createTempFile("paired-icons-", ".zip", context.cacheDir).also { paired ->
             merged = paired
             ZipOutputStream(paired.outputStream()).use { output ->
-              listOf(light.archive to false, dark.archive to true).forEach { (source, night) ->
+              listOf(light.archive to false, dark to true).forEach { (source, night) ->
                 ZipFile(source).use { zip ->
                   zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
                     current.ensureActive()
                     val name = if (night) "nightmode/${entry.name}" else entry.name
+                    if (name in dynamic) return@forEach
                     output.putNextEntry(ZipEntry(name).apply { time = 0 })
                     zip.getInputStream(entry).use { it.copyTo(output) }
                     output.closeEntry()
@@ -64,26 +81,40 @@ internal object IconPackHandoffs {
               // The current Flutter icon chain does not select nightmode PNGs. The native
               // MAML loader has its own configuration observer and can select this fixed pair.
               // Keep both ordinary trees for native readers that do not allow fancy icons.
-              ZipFile(light.archive).use { dayZip ->
-                ZipFile(dark.archive).use { nightZip ->
-                  dayZip.entries().asSequence()
-                    .filterNot { it.isDirectory }
-                    .filter { it.name.startsWith("res/drawable-xxhdpi/") && it.name.endsWith(".png") }
-                    .forEach { dayEntry ->
-                    current.ensureActive()
-                    val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
-                    val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
-                    val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
-                    if (dayBytes.contentEquals(nightBytes)) return@forEach
-                    val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
-                    for ((path, bytes) in NativeDayNightIcon.entries(name, dayBytes, nightBytes)) {
-                      if (!path.startsWith("fancy_icons/")) continue
-                      output.putNextEntry(ZipEntry(path).apply { time = 0 })
-                      output.write(bytes)
-                      output.closeEntry()
-                    }
+              if (sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
+                ZipFile(light.archive).use { dayZip ->
+                  ZipFile(dark).use { nightZip ->
+                    dayZip.entries().asSequence()
+                      .filterNot { it.isDirectory }
+                      .filter { it.name.startsWith("res/drawable-xxhdpi/") && it.name.endsWith(".png") }
+                      .forEach { dayEntry ->
+                        current.ensureActive()
+                        val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
+                        val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
+                        val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
+                        val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
+                        if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
+                        val mask = light.monochrome[name].takeIf { sourceAppearance == IconPackAppearance.SYSTEM }
+                        val background = light.paletteBackground
+                        if (mask == null && dayBytes.contentEquals(nightBytes)) return@forEach
+                        val generated = if (mask != null && background != null)
+                          NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
+                        else NativeDayNightIcon.entries(name, dayBytes, nightBytes)
+                        for ((path, bytes) in generated) {
+                          if (!path.startsWith("fancy_icons/")) continue
+                          output.putNextEntry(ZipEntry(path).apply { time = 0 })
+                          output.write(bytes)
+                          output.closeEntry()
+                        }
+                      }
                   }
                 }
+              }
+              for ((path, bytes) in dynamic) {
+                current.ensureActive()
+                output.putNextEntry(ZipEntry(path).apply { time = 0 })
+                output.write(bytes)
+                output.closeEntry()
               }
             }
           }
@@ -112,8 +143,11 @@ internal object IconPackHandoffs {
             val canvas = Canvas(cover)
             canvas.drawColor(Color.rgb(242, 243, 246))
             canvas.drawRect(200f, 0f, 400f, 860f, Paint().apply { color = Color.rgb(35, 36, 40) })
-            artwork?.light?.let { canvas.drawBitmap(it, 28f, 358f, null) }
-            artwork?.dark?.let { canvas.drawBitmap(it, 228f, 358f, null) }
+            val lightArtwork = if (sourceAppearance.sourceDarkMode(false)) artwork?.dark else artwork?.light
+            val darkArtwork = if (sourceAppearance.sourceDarkMode(true)) artwork?.dark else artwork?.light
+            lightArtwork?.let { canvas.drawBitmap(it, 28f, 358f, null) }
+            val nightPaint = if (sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) nightDimmingPaint() else null
+            darkArtwork?.let { canvas.drawBitmap(it, 228f, 358f, nightPaint) }
             output.putNextEntry(ZipEntry("preview/preview_icons_0.png").apply { time = 0 })
             check(cover.compress(Bitmap.CompressFormat.PNG, 100, output))
             output.closeEntry()
@@ -134,6 +168,85 @@ internal object IconPackHandoffs {
       darkFile?.delete()
       merged?.delete()
     }
+  }
+
+  private fun colorOsDynamicEntries(
+    pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
+    check: () -> Unit,
+  ): Map<String, ByteArray> {
+    val profile = pack.colorOsProfile ?: return emptyMap()
+    val output = linkedMapOf<String, ByteArray>()
+    val sharedActivities = targets.distinct().filter { it.className != null }.groupBy { it.className }
+      .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
+    ZipFile(profile.file).use { source ->
+      for ((pkg, group) in targets.distinct().groupBy { it.packageName }) {
+        for (target in group) {
+          check()
+          val name = profile.source(target)?.dynamicName ?: continue
+          val kind = when (name) {
+            "ic_launcher_calender" -> NativeColorOsDynamicIcon.Kind.CALENDAR
+            "ic_launcher_clock" -> NativeColorOsDynamicIcon.Kind.CLOCK
+            else -> continue
+          }
+          val leaves = listOf("day.png", "night.png") + if (kind == NativeColorOsDynamicIcon.Kind.CLOCK)
+            listOf("clock_day_bg.png", "clock_day_hour_rectangle.png", "clock_day_minute_rectangle.png",
+              "night_clock_day_bg.png", "night_clock_day_hour_rectangle.png", "night_clock_day_minute_rectangle.png")
+            else emptyList()
+          if (leaves.any { source.getEntry("coloros-dynamic/$name/$it") == null }) continue
+          val assets = leaves.associateWith { profile.read("coloros-dynamic/$name/$it", check) }
+          val aliases = listOfNotNull(target.className?.takeUnless { it in sharedActivities }) +
+            if (group.size == 1 || target.className == null) listOf(pkg) else emptyList()
+          for (alias in aliases.distinct()) {
+            output.putAll(NativeColorOsDynamicIcon.entries(alias, kind, assets,
+              fixedDark = when (appearance) {
+                IconPackAppearance.LIGHT, IconPackAppearance.DIM_AT_NIGHT -> false
+                IconPackAppearance.DARK -> true
+                IconPackAppearance.SYSTEM -> null
+              },
+              dim = appearance == IconPackAppearance.DIM_AT_NIGHT))
+          }
+        }
+      }
+    }
+    return output
+  }
+
+  private suspend fun dimmedIcons(context: Context, source: File): File = withContext(Dispatchers.IO) {
+    val current = currentCoroutineContext()
+    val archive = File.createTempFile("dimmed-icons-", ".zip", context.cacheDir)
+    try {
+      val paint = nightDimmingPaint()
+      ZipFile(source).use { zip ->
+        ZipOutputStream(archive.outputStream()).use { output ->
+          zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
+            current.ensureActive()
+            output.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
+            if (entry.name.startsWith("res/drawable-xxhdpi/") && entry.name.endsWith(".png")) {
+              val bitmap = zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
+                ?: error("Cannot decode exported icon")
+              try {
+                val dimmed = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+                try {
+                  Canvas(dimmed).drawBitmap(bitmap, 0f, 0f, paint)
+                  check(dimmed.compress(Bitmap.CompressFormat.PNG, 100, output))
+                } finally { dimmed.recycle() }
+              } finally { bitmap.recycle() }
+            } else zip.getInputStream(entry).use { it.copyTo(output) }
+            output.closeEntry()
+          }
+        }
+      }
+      current.ensureActive()
+      archive
+    } catch (failure: Throwable) {
+      archive.delete()
+      throw failure
+    }
+  }
+
+  // ColorOS's default-style night filter multiplies RGB by floor(255 * 0.84) / 255.
+  private fun nightDimmingPaint() = Paint().apply {
+    colorFilter = LightingColorFilter(IconPackAppearance.DIM_COLOR_MULTIPLY, 0)
   }
 
   private fun iconPackPreviewEntry(pack: IconPackDescriptor, targets: List<IconPackComponent>): os.kei.hyper.home.iconpack.IconPackEntry? {

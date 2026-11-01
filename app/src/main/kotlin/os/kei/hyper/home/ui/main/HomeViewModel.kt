@@ -285,11 +285,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   fun importNativeIconPack(pack: IconPackDescriptor) {
     if (iconPacks.value.nativeImporting != null) return
     val service = FrameworkConnection.service.value ?: return
+    val appearance = preferences.state.value.iconPackAppearance
     iconPacks.update { it.copy(nativeImporting = pack.id, nativeResult = null) }
     viewModelScope.launch {
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
-        handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack, launcherIconTargets())
+        handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
+          launcherIconTargets(), appearance)
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         iconPacks.update { it.copy(nativeResult = result) }

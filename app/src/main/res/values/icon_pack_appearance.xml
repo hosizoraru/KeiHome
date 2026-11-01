@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="icon_pack_coloros_originals">Plus %1$d original icons · %2$d live icons</string>
+    <string name="icon_pack_appearance_title">Imported icon brightness</string>
+    <string name="icon_pack_appearance_summary">Day/night appearance for converted icons</string>
+    <string name="icon_pack_appearance_system">Follow system</string>
+    <string name="icon_pack_appearance_light">Always light</string>
+    <string name="icon_pack_appearance_dark">Always dark</string>
+    <string name="icon_pack_appearance_dim">Dim at night</string>
+    <string name="icon_pack_appearance_update_note">Next import/update only. Reapply in Themes.</string>
+    <string name="icon_pack_appearance_scope_note">Brightness selection applies to converted APK / classic ZIP artwork. Native MTZ / icons ZIPs keep their own behavior.</string>
+    <string name="icon_pack_appearance_system_note">Follow system uses the pack\'s light/dark artwork where the launcher supports it. Other icons may stay light.</string>
+    <string name="icon_pack_appearance_dim_note">Uses light artwork, dimmed to 214/255 at night like ColorOS Default style. This is separate from dark artwork; night switching needs launcher support.</string>
+    <string name="icon_pack_appearance_preview_note">Next import preview: light system above, dark system below, using the selected brightness.</string>
+    <string name="icon_pack_appearance_snapshot_note">Supported ColorOS calendars, clocks and Monet colors update live. Other artwork is converted for installed apps. Import again after adding apps or updating a pack.</string>
+</resources>

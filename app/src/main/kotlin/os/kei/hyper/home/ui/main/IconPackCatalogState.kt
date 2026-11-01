@@ -8,6 +8,8 @@ internal data class IconPackCardData(
   val pack: IconPackDescriptor,
   val matchedApps: Int,
   val previewEntries: List<IconPackEntry>,
+  val originalApps: Int = 0,
+  val dynamicApps: Int = 0,
 )
 
 internal data class IconPacksUiState(
@@ -31,7 +33,13 @@ internal fun iconPackCardData(pack: IconPackDescriptor, targets: List<IconPackCo
       target.className?.let(native::get) ?: native[target.packageName]
     entry?.let { target.packageName to it }
   }
+  val dynamicPackages = if (pack.colorOsProfile == null) emptySet() else targets.filter {
+    pack.colorOsProfile.source(it)?.requiresLiveIcon == true
+  }.map { it.packageName }.toSet()
   return IconPackCardData(pack, matches.map { it.first }.distinct().size,
     matches.map { it.second }.distinctBy { it.key }.take(4)
-      .ifEmpty { pack.entries.filter { it.light != null || it.dark != null }.take(4) })
+      .ifEmpty { pack.entries.filter { it.light != null || it.dark != null }.take(4) },
+    originalApps = if (pack.colorOsProfile == null) 0 else
+      (targets.map { it.packageName }.toSet() - matches.map { it.first }.toSet() - dynamicPackages).size,
+    dynamicApps = dynamicPackages.size)
 }

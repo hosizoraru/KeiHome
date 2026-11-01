@@ -15,6 +15,9 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.NativeIconPngFixtures
+import os.kei.hyper.home.iconpack.NativePaletteIcon
+import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 
 class ConvertedIconArchiveTest {
   @Test fun acceptsBothAuthenticatedConversionOriginsAndPreservesNativeDigests() {
@@ -79,6 +82,131 @@ class ConvertedIconArchiveTest {
       canonical + "\n",
     )
     for (manifest in manifests) rejects(zip(entries + (path to manifest.toByteArray(Charsets.UTF_8))))
+  }
+
+  @Test fun acceptsCanonicalPaletteIconsBesideExistingPairsAndStaticFallbacks() {
+    val entries = generatedPalette() + generatedPair("com.pair") + mapOf(
+      "res/drawable-xxhdpi/com.static.png" to png(),
+      "nightmode/res/drawable-xxhdpi/com.static.png" to png(),
+    )
+    withArchive(zip(*entries.toList().reversed().toTypedArray())) { file ->
+      ConvertedIconArchive.inspect(file, "CONVERTED_CLASSIC_ZIP")
+      ConvertedIconArchive.inspect(file, "CONVERTED_APK")
+    }
+  }
+
+  @Test fun paletteManifestCannotChangeObserverSourceTypesOrTimingOrRunOtherMaml() {
+    val entries = generatedPalette()
+    val path = "$fancy/manifest.xml"
+    val canonical = String(entries.getValue(path), Charsets.UTF_8)
+    for (manifest in listOf(
+      canonical.replace("settings/system/keihome_maml_fg_hex", "settings/secure/other"),
+      canonical.replace("content://settings", "content://foreign"),
+      canonical.replace("updateInterval=\"-1\"", "updateInterval=\"0\""),
+      canonical.replace("queryAtStart=\"true\"", "queryAtStart=\"false\""),
+      canonical.replace("column=\"value\"", "column=\"name\""),
+      canonical.replace("row=\"0\"", "row=\"1\""),
+      canonical.replace("type=\"int\"", "type=\"string\""),
+      canonical.replace("tintmode=\"5\"", "tintmode=\"3\""),
+      canonical.replace("@palette_fg", "@foreign"),
+      canonical.replace("bg.png", "../bg.png"),
+      canonical.replace("</Icon>", "<Script>anything</Script></Icon>"),
+      canonical + "\n",
+    )) rejects(zip(entries + (path to manifest.toByteArray())))
+  }
+
+  @Test fun paletteRequiresBothValidatedMasksAndExactFallbackCopies() {
+    val entries = generatedPalette()
+    for (missing in listOf("$fancy/manifest.xml", "$fancy/mask.png", "$fancy/bg.png", "$fancy/day.png",
+      "$fancy/night.png", day, night)) rejects(zip(entries - missing))
+    for (mask in listOf("$fancy/mask.png", "$fancy/bg.png")) {
+      for (bad in listOf(png(2), NativeIconPngFixtures.mask(3), "bad".toByteArray(),
+        NativeIconPngFixtures.mask().apply { this[29] = 0 })) {
+        rejects(zip(entries + (mask to bad)))
+      }
+    }
+    for (path in listOf("$fancy/day.png", "$fancy/night.png", day, night)) {
+      rejects(zip(entries + (path to png(2, pixel = 2))))
+    }
+    rejects(zip(generatedPair() + ("$fancy/bg.png" to NativeIconPngFixtures.mask())))
+    rejects(zip(entries + ("$fancy/extra.png" to NativeIconPngFixtures.mask())))
+  }
+
+  @Test fun acceptsOnlyTheSixFixedAppearanceVariantsForBothDynamicTemplates() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      for (fixedDark in listOf(null, false, true)) for (dim in listOf(false, true)) {
+        val entries = generatedDynamic(kind, fixedDark, dim) + generatedPair("com.pair") +
+          NativePaletteIcon.entries("com.palette", NativeIconPngFixtures.rgba(), NativeIconPngFixtures.rgba(),
+            NativeIconPngFixtures.mask(), NativeIconPngFixtures.indexedMask())
+        val content = zip(*entries.toList().reversed().toTypedArray())
+        withArchive(content) { file ->
+          for (origin in listOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")) {
+            assertEquals(hash(content, "SHA-256"), ConvertedIconArchive.inspect(file, origin).icons.sha256)
+          }
+          assertEquals(listOf(file.name), requireNotNull(file.parentFile).list()!!.toList())
+        }
+      }
+    }
+  }
+
+  @Test fun dynamicClockAllowsItsMatchedAssetGroupToDifferFromBackgroundDimensions() {
+    val entries = generatedDynamic(NativeColorOsDynamicIcon.Kind.CLOCK, clockSize = 240)
+    withArchive(zip(entries)) { ConvertedIconArchive.inspect(it, "CONVERTED_CLASSIC_ZIP") }
+    rejects(zip(entries + ("$fancy/clock_day_hour_rectangle.png" to png(239))))
+    rejects(zip(entries + ("$fancy/clock_day_bg.png" to png(513))))
+    rejects(zip(entries + ("$fancy/clock_day_minute_rectangle.png" to "bad".toByteArray())))
+    rejects(zip(entries + ("$fancy/night_clock_day_hour_rectangle.png" to png(239))))
+    rejects(zip(entries + ("$fancy/night_clock_day_bg.png" to png(513))))
+    rejects(zip(entries + ("$fancy/night_clock_day_minute_rectangle.png" to "bad".toByteArray())))
+    rejects(zip(entries.filterKeys { !it.startsWith("$fancy/night_clock_") }))
+  }
+
+  @Test fun dynamicTemplatesRequireEveryFixedAssetAndByteIdenticalNormalBackgroundFallbacks() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      val entries = generatedDynamic(kind)
+      for (missing in entries.keys) rejects(zip(entries - missing))
+      for (path in listOf(day, night, "$fancy/day.png", "$fancy/night.png")) {
+        rejects(zip(entries + (path to png(2, pixel = 22))))
+      }
+      for (extra in listOf("fallback.png", "fallback-night.png", "clock_day_second.png",
+        "clock_night_bg.png", "clock_day_minute.png", "bg.png")) {
+        rejects(zip(entries + ("$fancy/$extra" to png(2))))
+      }
+    }
+    val calendar = generatedDynamic(NativeColorOsDynamicIcon.Kind.CALENDAR)
+    val clock = generatedDynamic(NativeColorOsDynamicIcon.Kind.CLOCK)
+    rejects(zip(calendar + clock.filterKeys { it.contains("/clock_day_") }))
+    rejects(zip(clock + generatedPalette().filterKeys { it.endsWith("/mask.png") || it.endsWith("/bg.png") }))
+  }
+
+  @Test fun dynamicManifestsCannotChangeExpressionsUpdaterViewportOrAddOtherMaml() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      val entries = generatedDynamic(kind)
+      val path = "$fancy/manifest.xml"
+      val canonical = String(entries.getValue(path), Charsets.UTF_8)
+      val alternatives = mutableListOf(
+        canonical.replace("DateTime.Minute", "DateTime.Second"),
+        canonical.replace("frameRate=\"0\"", "frameRate=\"1\""),
+        canonical.replace("width=\"150\"", "width=\"240\""),
+        canonical.replace("day.png", "https://example.invalid/day.png"),
+        canonical.replace("</Icon>", "<VariableBinders /></Icon>"),
+        canonical.replace("</Icon>", "<Script>anything</Script></Icon>"),
+        canonical + "\n",
+      )
+      if (kind == NativeColorOsDynamicIcon.Kind.CALENDAR) {
+        alternatives += canonical.replace("#date", "#year")
+        alternatives += canonical.replace("format=\"EEEE\"", "format=\"EEE\"")
+        alternatives += canonical.replace("#FF000000", "#FF101010")
+      } else {
+        alternatives += canonical.replace("#hour12*30+#minute/2", "#hour12*30")
+        alternatives += canonical.replace("#minute*6", "#second*6")
+        alternatives += canonical.replace("centerX=\"75\"", "centerX=\"120\"")
+      }
+      for (manifest in alternatives) {
+        assertNotEquals("Mutation must change the canonical $kind manifest", canonical, manifest)
+        rejects(zip(entries + (path to manifest.toByteArray())))
+      }
+    }
   }
 
   @Test fun generatedPairRequiresEveryLocalFileAndBothMatchingOrdinaryImages() {
@@ -244,6 +372,22 @@ class ConvertedIconArchiveTest {
     val dark = png(pixel = 1)
     return NativeDayNightIcon.entries(component, light, dark) +
       ("nightmode/res/drawable-xxhdpi/$component.png" to dark)
+  }
+
+  private fun generatedPalette(): Map<String, ByteArray> = NativePaletteIcon.entries("com.example",
+    NativeIconPngFixtures.rgba(), NativeIconPngFixtures.rgba { _, _ -> 128 },
+    NativeIconPngFixtures.mask(), NativeIconPngFixtures.indexedMask())
+
+  private fun generatedDynamic(
+    kind: NativeColorOsDynamicIcon.Kind, fixedDark: Boolean? = null, dim: Boolean = false, clockSize: Int = 3,
+  ): Map<String, ByteArray> {
+    val assets = linkedMapOf("day.png" to png(2), "night.png" to png(2, pixel = 1))
+    if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) {
+      for ((index, leaf) in listOf("clock_day_bg.png", "clock_day_hour_rectangle.png",
+        "clock_day_minute_rectangle.png", "night_clock_day_bg.png", "night_clock_day_hour_rectangle.png",
+        "night_clock_day_minute_rectangle.png").withIndex()) assets[leaf] = png(clockSize, pixel = (index + 2).toByte())
+    }
+    return NativeColorOsDynamicIcon.entries("com.example", kind, assets, fixedDark, dim)
   }
 
   private fun zip(entries: Map<String, ByteArray>) = zip(*entries.toList().toTypedArray())

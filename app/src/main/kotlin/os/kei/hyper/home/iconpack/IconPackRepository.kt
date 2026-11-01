@@ -147,7 +147,8 @@ internal class IconPackRepository(
           (record.iconsFile != null && sha256(record.iconsFile, check) != record.nativeIconsSha256)
         ) throw IconPackException("Stored icons module checksum mismatch")
         IconPackDescriptor(record.id, index.description.title ?: record.originalName, index.format,
-          IconPackSource.Imported(record), index.entries, index.description, index.previews, index.notices, index.directives)
+          IconPackSource.Imported(record), index.entries, index.description, index.previews, index.notices, index.directives,
+          colorOsProfile = ColorOsPackProfile.load(record, check))
       } finally { scratch.delete() }
     }
     check()

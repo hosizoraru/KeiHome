@@ -185,7 +185,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     }
     actionInterruption()?.let { return it }
     if (action == null && initial.enabled != "1") {
-      val reset = withdraw(context, excludingObserver)
+      val reset = withdraw(context, excludingObserver, stillCurrent)
       // The background remains stored when the toggle alone is turned off.
       // Keep its ownership marker so re-enabling can resume automatic colors.
       return if (reset) SynchronizationResult.Restored else SynchronizationResult.Disabled
@@ -212,7 +212,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     if (action == null && ((currentRaw != null && current == null) ||
       !MonetColorPolicy.mayReplace(true, current, marker))
     ) {
-      val reset = withdraw(context, excludingObserver)
+      val reset = withdraw(context, excludingObserver, stillCurrent)
       if (marker != null && stillCurrent()) {
         Settings.Secure.putString(resolver, KEY_AUTO_COLOR, null)
       }
@@ -237,34 +237,54 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     val policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature, userId)
     val refreshPackages = policy.needsPackageRefresh(previousPolicy)
     acknowledgedReset = false
+    var paletteChanged = false
+    fun publishPalette(): SynchronizationResult? {
+      val result = publishMamlPalette(context, colors, excludingObserver) {
+        actionCurrent() && Settings.System.getInt(resolver, KEY_MONOCHROME, 0) == 1 &&
+          parseInt32(Settings.System.getString(resolver, KEY_MONOCHROME_COLOR)) == selected &&
+          parseInt32(Settings.Secure.getString(resolver, KEY_AUTO_COLOR)) == selected
+      }
+      return when (result) {
+        GeneratedPalettePublication.Result.CHANGED -> { paletteChanged = true; null }
+        GeneratedPalettePublication.Result.UNCHANGED -> null
+        GeneratedPalettePublication.Result.SELECTION_CHANGED -> SynchronizationResult.SelectionChanged
+        GeneratedPalettePublication.Result.NATIVE_UNAVAILABLE -> SynchronizationResult.NativeUnavailable
+        GeneratedPalettePublication.Result.WRITE_FAILED -> {
+          withdraw(context, excludingObserver, stillCurrent)
+          SynchronizationResult.WriteFailed(selected)
+        }
+      }
+    }
     if (action != null) {
       return when (MonetAction.applyAcknowledged(
         action, selected, initial, actionStore, nativeAcknowledged = true, isCurrent = actionCurrent,
       )) {
         MonetAction.ApplyResult.APPLIED -> {
+          publishPalette()?.let { return it }
           previousPolicy = policy
           SynchronizationResult.Applied(selected, refreshPackages = true)
         }
         MonetAction.ApplyResult.WRITE_FAILED -> {
-          withdraw(context, excludingObserver)
+          withdraw(context, excludingObserver, stillCurrent)
           SynchronizationResult.WriteFailed(selected)
         }
         MonetAction.ApplyResult.SELECTION_CHANGED -> {
-          withdraw(context, excludingObserver)
+          withdraw(context, excludingObserver, stillCurrent)
           SynchronizationResult.SelectionChanged
         }
         MonetAction.ApplyResult.NATIVE_UNAVAILABLE -> SynchronizationResult.NativeUnavailable
       }
     }
     if (!stillCurrent() || Settings.System.getString(resolver, KEY_MONOCHROME_COLOR) != currentRaw) {
-      native.disable(context)
+      withdraw(context, excludingObserver, stillCurrent)
       return SynchronizationResult.SelectionChanged
     }
     val changed = previousPolicy != policy
     if (current == selected && marker == current) {
+      publishPalette()?.let { return it }
       previousPolicy = policy
       if (changed) resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
-      return if (changed) SynchronizationResult.Applied(selected, refreshPackages)
+      return if (changed || paletteChanged) SynchronizationResult.Applied(selected, refreshPackages)
       else SynchronizationResult.Unchanged(selected)
     }
     if (!Settings.System.putInt(resolver, KEY_MONOCHROME_COLOR, selected)) {
@@ -273,14 +293,35 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     // This marker is private to KeiHome and is only used to avoid replacing
     // a later user-selected color.
     Settings.Secure.putString(resolver, KEY_AUTO_COLOR, selected.toString())
+    publishPalette()?.let { return it }
     previousPolicy = policy
     resolver.notifyChange(Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver)
     return SynchronizationResult.Applied(selected, refreshPackages)
   }
 
-  private fun withdraw(context: Context, excludingObserver: ContentObserver?): Boolean {
-    if (!native.disable(context)) return false
-    val changed = previousPolicy != null || !acknowledgedReset
+  private fun publishMamlPalette(
+    context: Context, colors: IconColors?, excludingObserver: ContentObserver?, isCurrent: () -> Boolean,
+  ): GeneratedPalettePublication.Result {
+    val resolver = context.contentResolver
+    return GeneratedPalettePublication.publish(colors, nativeAcknowledged = true,
+      store = object : GeneratedPalettePublication.Store {
+        override fun read(key: String): String? = Settings.System.getString(resolver, key)
+        override fun write(key: String, value: String) = Settings.System.putString(resolver, key, value)
+        override fun notifyChanged(key: String) {
+          resolver.notifyChange(Settings.System.getUriFor(key), excludingObserver)
+        }
+      }, isCurrent = isCurrent)
+  }
+
+  private fun withdraw(
+    context: Context, excludingObserver: ContentObserver?, isCurrent: () -> Boolean,
+  ): Boolean {
+    if (!isCurrent() || !native.disable(context)) return false
+    val palette = publishMamlPalette(context, null, excludingObserver, isCurrent)
+    if (palette == GeneratedPalettePublication.Result.SELECTION_CHANGED) return false
+    if (palette == GeneratedPalettePublication.Result.WRITE_FAILED) throw IOException("Could not disable generated icon palette")
+    val changed = previousPolicy != null || !acknowledgedReset ||
+      palette == GeneratedPalettePublication.Result.CHANGED
     if (changed) context.contentResolver.notifyChange(
       Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver,
     )

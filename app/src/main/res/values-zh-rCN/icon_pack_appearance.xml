@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="icon_pack_coloros_originals">另有 %1$d 个原始图标 · %2$d 个动态图标</string>
+    <string name="icon_pack_appearance_title">导入图标明暗</string>
+    <string name="icon_pack_appearance_summary">转换图标的日夜显示方式</string>
+    <string name="icon_pack_appearance_system">跟随系统</string>
+    <string name="icon_pack_appearance_light">始终浅色</string>
+    <string name="icon_pack_appearance_dark">始终深色</string>
+    <string name="icon_pack_appearance_dim">夜间调暗</string>
+    <string name="icon_pack_appearance_update_note">下次导入／更新后生效，需重新应用。</string>
+    <string name="icon_pack_appearance_scope_note">明暗选项用于 APK／经典 ZIP 的转换结果；原生 MTZ／icons ZIP 保持原有行为。</string>
+    <string name="icon_pack_appearance_system_note">跟随系统使用图标包自身的明暗资源，需桌面支持；部分图标可能保持浅色。</string>
+    <string name="icon_pack_appearance_dim_note">使用浅色资源，夜间按 ColorOS 默认风格调暗至 214/255，不使用深色资源；明暗切换需桌面支持。</string>
+    <string name="icon_pack_appearance_preview_note">下次导入预览：上为系统浅色，下为系统深色，按当前选项显示。</string>
+    <string name="icon_pack_appearance_snapshot_note">支持的 ColorOS 日期、时钟与 Monet 配色可实时更新。其他图标按已安装应用转换；新增应用或来源更新后需重新导入。</string>
+</resources>

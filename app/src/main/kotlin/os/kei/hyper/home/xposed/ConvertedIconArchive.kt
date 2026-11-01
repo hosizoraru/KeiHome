@@ -2,7 +2,6 @@ package os.kei.hyper.home.xposed
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
@@ -11,7 +10,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Node
-import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.GeneratedIconPng
 
 /** Approves converted static PNG pairs with optional canonical local MAML, never opaque MTZs. */
 internal object ConvertedIconArchive {
@@ -19,7 +18,9 @@ internal object ConvertedIconArchive {
   private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")
   private const val DOTTED_NAME = "[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+"
   private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$DOTTED_NAME\\.png")
-  private val fancyIconName = Regex("fancy_icons/($DOTTED_NAME)/(manifest\\.xml|day\\.png|night\\.png)")
+  private val fancyIconName = Regex("fancy_icons/($DOTTED_NAME)/(manifest\\.xml|day\\.png|night\\.png|mask\\.png|bg\\.png|" +
+    "clock_day_bg\\.png|clock_day_hour_rectangle\\.png|clock_day_minute_rectangle\\.png|" +
+    "night_clock_day_bg\\.png|night_clock_day_hour_rectangle\\.png|night_clock_day_minute_rectangle\\.png)")
   data class Digests(val sha1: String, val sha256: String)
   data class Proof(val origin: String, val archive: Digests, val icons: Digests)
 
@@ -121,23 +122,11 @@ internal object ConvertedIconArchive {
         if (!manifest) validatePng(bytes, 512)
         fancy?.let { fancyNames.add(it.groupValues[1]) }
       }
-      // Never interpret supplied MAML. Recreate the local template from the validated fallback
-      // pair and require exactly the generated manifest and byte-identical copies of both PNGs.
+      // Regenerate the fixed selector, palette, calendar and clock templates without interpreting XML.
       for (name in fancyNames) {
         checkInterrupted()
-        fun ordinary(path: String): ByteArray = readIconEntry(zip,
-          requireNotNull(zip.getEntry(path)) { "Generated pair is missing ordinary artwork: $path" },
-          8L * 1024 * 1024)
-        val light = ordinary("res/drawable-xxhdpi/$name.png")
-        val dark = ordinary("nightmode/res/drawable-xxhdpi/$name.png")
-        val canonical = NativeDayNightIcon.entries(name, light, dark)
-        for (leaf in listOf("manifest.xml", "day.png", "night.png")) {
-          val path = "fancy_icons/$name/$leaf"
-          val entry = requireNotNull(zip.getEntry(path)) { "Incomplete generated static pair: $path" }
-          val expected = canonical.getValue(path)
-          require(readIconEntry(zip, entry, expected.size.toLong()).contentEquals(expected)) {
-            "Generated static pair differs from canonical local content: $path"
-          }
+        GeneratedNativeIconValidator.validate(name, names) { path, limit ->
+          readIconEntry(zip, requireNotNull(zip.getEntry(path)) { "Missing generated icon resource: $path" }, limit)
         }
       }
     }
@@ -169,37 +158,8 @@ internal object ConvertedIconArchive {
     return output.toByteArray()
   }
 
-  private fun validatePng(bytes: ByteArray, maxDimension: Int) {
-    val input = DataInputStream(ByteArrayInputStream(bytes))
-    require(input.readLong() == -8552249625308161526L) { "Converted artwork is not PNG" }
-    var header = false
-    var pixels = false
-    val allowed = setOf("IHDR", "PLTE", "IDAT", "IEND", "tRNS", "sRGB", "gAMA", "cHRM", "iCCP", "sBIT", "pHYs")
-    while (input.available() > 0) {
-      val length = input.readInt()
-      require(length >= 0 && length <= input.available() - 8) { "Invalid PNG chunk size" }
-      val type = ByteArray(4).also(input::readFully)
-      val name = String(type, Charsets.US_ASCII)
-      require(name in allowed && (header || name == "IHDR")) { "Unexpected PNG chunk" }
-      val data = ByteArray(length).also(input::readFully)
-      val crc = CRC32().apply { update(type); update(data) }
-      require(crc.value == (input.readInt().toLong() and 0xffffffffL)) { "PNG CRC mismatch" }
-      when (name) {
-        "IHDR" -> {
-          require(!header && length == 13)
-          val dims = DataInputStream(ByteArrayInputStream(data))
-          require(dims.readInt() in 1..maxDimension && dims.readInt() in 1..maxDimension) { "PNG dimension limit" }
-          header = true
-        }
-        "IDAT" -> pixels = true
-        "IEND" -> {
-          require(length == 0 && header && pixels && input.available() == 0) { "Invalid PNG end" }
-          return
-        }
-      }
-    }
-    error("Missing PNG end")
-  }
+  private fun validatePng(bytes: ByteArray, maxDimension: Int) =
+    GeneratedIconPng.validate(bytes, maxDimension)
 
   private fun validateDescription(bytes: ByteArray) {
     val xml = String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")

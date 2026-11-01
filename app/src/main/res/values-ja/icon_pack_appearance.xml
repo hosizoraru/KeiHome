@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="icon_pack_coloros_originals">ほか %1$d 個の元アイコン · %2$d 個のライブアイコン</string>
+    <string name="icon_pack_appearance_title">取り込むアイコンの明暗</string>
+    <string name="icon_pack_appearance_summary">変換アイコンの昼夜表示</string>
+    <string name="icon_pack_appearance_system">システムに従う</string>
+    <string name="icon_pack_appearance_light">常にライト</string>
+    <string name="icon_pack_appearance_dark">常にダーク</string>
+    <string name="icon_pack_appearance_dim">夜間に暗くする</string>
+    <string name="icon_pack_appearance_update_note">次回の取り込み・更新後に反映。再適用が必要です。</string>
+    <string name="icon_pack_appearance_scope_note">明暗の選択は APK・従来形式 ZIP の変換のみ。ネイティブの MTZ・icons ZIP は元の動作を維持します。</string>
+    <string name="icon_pack_appearance_system_note">システムへの追従にはパックの明暗リソースとホーム側の対応が必要です。一部はライトのままになる場合があります。</string>
+    <string name="icon_pack_appearance_dim_note">ライト素材を夜間に 214/255 へ減光します（ColorOS の標準スタイル相当）。ダーク素材とは別です。切り替えにはホーム側の対応が必要です。</string>
+    <string name="icon_pack_appearance_preview_note">次回取り込みのプレビューです。上段はシステムがライト時、下段はダーク時。選択した明暗で表示します。</string>
+    <string name="icon_pack_appearance_snapshot_note">対応する ColorOS の日付・時計・Monet 配色はリアルタイムに更新します。その他はインストール済みアプリ用に変換するため、アプリ追加や元パック更新後は再インポートしてください。</string>
+</resources>

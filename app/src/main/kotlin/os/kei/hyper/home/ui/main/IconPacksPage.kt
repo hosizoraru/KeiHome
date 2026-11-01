@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -37,8 +38,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.libxposed.service.HookedTarget
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackPreviews
 import os.kei.hyper.home.iconpack.IconPackSource
@@ -47,8 +50,10 @@ import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -58,6 +63,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
+  val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val activeId = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme?.localId
   val importReady = framework.connected && framework.snapshot?.themesInScope == true &&
@@ -71,6 +77,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     item(key = "native", contentType = "native") { SystemIconThemeCard(runtime) }
     item(key = "theme-effects", contentType = "theme-effects") {
       ThemeEffectsCard(themeEffects, framework, model::setPreserveSystemMaterials)
+    }
+    item(key = "appearance", contentType = "appearance") {
+      IconPackAppearancePreference(preferences.iconPackAppearance, model.preferences::setIconPackAppearance,
+        enabled = state.nativeImporting == null)
     }
     item(key = "import", contentType = "import") {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
@@ -104,11 +114,43 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
     }
     items(state.packs, key = { it.pack.id }, contentType = { "pack" }) { card ->
-      IconPackCard(card, model.packPreviews, state.nativeAssociations[card.pack.id],
+      IconPackCard(card, model.packPreviews, preferences.iconPackAppearance, state.nativeAssociations[card.pack.id],
         activeId, state.nativeImporting == card.pack.id,
         importReady && state.nativeImporting == null,
         state.nativeResult?.takeIf { it.sourceId == card.pack.id },
         onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
+    }
+  }
+}
+
+@Composable
+private fun IconPackAppearancePreference(
+  appearance: IconPackAppearance,
+  onChange: (IconPackAppearance) -> Unit,
+  enabled: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val system = stringResource(R.string.icon_pack_appearance_system)
+  val light = stringResource(R.string.icon_pack_appearance_light)
+  val dark = stringResource(R.string.icon_pack_appearance_dark)
+  val dim = stringResource(R.string.icon_pack_appearance_dim)
+  val items = remember(system, light, dark, dim) {
+    listOf(system, light, dark, dim).map { DropdownItem(text = it) }
+  }
+  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Column {
+      OverlaySpinnerPreference(
+        title = stringResource(R.string.icon_pack_appearance_title),
+        summary = stringResource(R.string.icon_pack_appearance_summary),
+        items = items,
+        selectedIndex = appearance.ordinal,
+        onSelectedIndexChange = { onChange(IconPackAppearance.entries[it]) },
+        enabled = enabled,
+        modifier = Modifier.testTag("icon-packs.appearance"),
+      )
+      Text(stringResource(R.string.icon_pack_appearance_update_note),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
   }
 }
@@ -190,12 +232,14 @@ private fun themeEffectsTargetStatus(target: FrameworkTarget?): Int = when {
 
 @Composable
 private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepository,
-  nativeId: String?, activeId: String?, importing: Boolean, enabled: Boolean,
+  appearance: IconPackAppearance, nativeId: String?, activeId: String?, importing: Boolean, enabled: Boolean,
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit) {
   val context = LocalContext.current
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   var expanded by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
+  val native = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS
+  val previewAppearance = if (native) IconPackAppearance.SYSTEM else appearance
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
       Text(pack.displayName, style = MiuixTheme.textStyles.title4)
@@ -203,12 +247,14 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
       Text(stringResource(R.string.icon_pack_coverage, pack.entries.size, card.matchedApps),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (pack.colorOsProfile != null) Text(stringResource(R.string.icon_pack_coloros_originals, card.originalApps, card.dynamicApps),
+        style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       if (nativeId != null && nativeId == activeId) Text(stringResource(R.string.icon_pack_current),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
       if (card.previewEntries.isNotEmpty()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           card.previewEntries.forEach { entry ->
-            PackIconPair(pack, entry, previews, Modifier.weight(1f))
+            PackIconPair(pack, entry, previews, previewAppearance, Modifier.weight(1f))
           }
         }
       }
@@ -242,9 +288,21 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
       if (expanded) {
         if (nativeId != null) TextButton(stringResource(R.string.icon_pack_native_update),
           onClick = onImport, enabled = enabled)
-        Text(stringResource(R.string.icon_pack_preview_note), style = MiuixTheme.textStyles.footnote2,
+        Text(stringResource(if (native) R.string.icon_pack_preview_note else R.string.icon_pack_appearance_preview_note),
+          style = MiuixTheme.textStyles.footnote2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        Text(stringResource(R.string.icon_pack_native_note), style = MiuixTheme.textStyles.footnote2,
+        Text(stringResource(R.string.icon_pack_appearance_scope_note),
+          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        if (!native && appearance == IconPackAppearance.SYSTEM) {
+          Text(stringResource(R.string.icon_pack_appearance_system_note),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+        if (!native && appearance == IconPackAppearance.DIM_AT_NIGHT) {
+          Text(stringResource(R.string.icon_pack_appearance_dim_note),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+        Text(stringResource(if (native) R.string.icon_pack_native_note else R.string.icon_pack_appearance_snapshot_note),
+          style = MiuixTheme.textStyles.footnote2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
         pack.description.author?.let { Text(it, style = MiuixTheme.textStyles.footnote1) }
         if (pack.notices.isNotEmpty()) Text(stringResource(R.string.icon_pack_effects_note),
@@ -255,19 +313,27 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
 }
 
 @Composable
-private fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, repository: IconPackPreviewRepository, modifier: Modifier) {
+private fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, repository: IconPackPreviewRepository,
+  appearance: IconPackAppearance, modifier: Modifier) {
   val configuration = LocalConfiguration.current.toString()
   val preview by produceState<IconPackPreviews?>(null, pack.source, entry, configuration) {
     value = repository.load(pack, entry, 144)
   }
-  val light = remember(preview?.light) { preview?.light?.asImageBitmap() }
-  val dark = remember(preview?.dark) { preview?.dark?.asImageBitmap() }
+  val lightArtwork = if (appearance.sourceDarkMode(false)) preview?.dark else preview?.light
+  val darkArtwork = if (appearance.sourceDarkMode(true)) preview?.dark else preview?.light
+  val light = remember(lightArtwork) { lightArtwork?.asImageBitmap() }
+  val dark = remember(darkArtwork) { darkArtwork?.asImageBitmap() }
+  val nightFilter = remember(appearance) {
+    if (appearance == IconPackAppearance.DIM_AT_NIGHT) {
+      ColorFilter.lighting(Color(IconPackAppearance.DIM_COLOR_MULTIPLY).copy(alpha = 1f), Color.Black)
+    } else null
+  }
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
     listOf(light to false, dark to true).forEach { (bitmap, isDark) ->
       Box(Modifier.size(50.dp).clip(RoundedCornerShape(12.dp))
         .background(if (isDark) Color(0xff232428) else Color(0xfff0f1f4)), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),
-          Modifier.size(40.dp))
+          Modifier.size(40.dp), colorFilter = if (isDark) nightFilter else null)
         else Text("—", color = if (isDark) Color.White else Color.DarkGray)
       }
     }

@@ -24,12 +24,37 @@ internal class IconPackRepository(
   private val application = context.applicationContext
   private val worker = dispatcher.limitedParallelism(2)
   private val store = IconPackStore(File(application.noBackupFilesDir, "icon-packs"), limits)
+  private val builtinRoot = File(application.cacheDir, "builtin-icon-packs")
+  private val builtinDirectory = File(builtinRoot, os.kei.hyper.home.BuildConfig.VERSION_CODE.toString())
+  private val builtinStore = IconPackStore(builtinDirectory, limits)
   private val android = AndroidIconPackResources(application, limits)
   private val importedCache = mutableMapOf<String, IconPackDescriptor>()
   private data class InstalledKey(val packageName: String, val version: Long, val updated: Long, val configuration: String)
   private val installedCache = mutableMapOf<InstalledKey, AndroidIconPackIndex?>()
+  private var builtinCache: IconPackScanResult? = null
 
   fun invalidateInstalled() = synchronized(installedCache) { installedCache.clear() }
+
+  suspend fun listBuiltins(): IconPackScanResult = withContext(worker) {
+    builtinCache?.let { return@withContext it }
+    // Bundled copies are regenerable cache, independent of the user's imported-pack quota.
+    builtinRoot.listFiles()?.filter { it != builtinDirectory }?.forEach { it.deleteRecursively() }
+    val caller = currentCoroutineContext()
+    val packs = mutableListOf<IconPackDescriptor>()
+    val failures = mutableListOf<IconPackFailure>()
+    val names = application.assets.list("builtin-icon-packs").orEmpty().filter { it.endsWith(".zip") }
+    for (name in names) {
+      caller.ensureActive()
+      try {
+        val record = application.assets.open("builtin-icon-packs/$name").use { input ->
+          builtinStore.import(input, name, Build.VERSION.SDK_INT, { caller.ensureActive() })
+        }
+        packs += load(record.record) { caller.ensureActive() }.copy(builtinKey = name.removeSuffix(".zip"))
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (failure: Exception) { failures += IconPackFailure(name, failure.message.orEmpty()) }
+    }
+    IconPackScanResult(packs, failures).also { builtinCache = it }
+  }
 
   suspend fun listInstalled(): IconPackScanResult = withContext(worker) {
     val caller = currentCoroutineContext()

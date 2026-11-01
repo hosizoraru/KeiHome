@@ -168,6 +168,7 @@ internal fun MonetContent(
         Text(
           when {
             choice.source == MonetSeedSource.BASIC_COLOR -> stringResource(R.string.monet_basic_hint)
+            choice.source == MonetSeedSource.SYSTEM_COLOR -> stringResource(R.string.pack_system_palette_hint)
             colors.isNotEmpty() -> stringResource(R.string.monet_seed_count, colors.size)
             else -> stringResource(R.string.monet_seed_waiting)
           },

@@ -33,4 +33,5 @@
   <string name="pack_back">Back</string>
   <string name="pack_inspiration_install">Install / update Inspiration icons</string>
   <string name="pack_monet_ordinary_locked">Original artwork is active. Apply Inspiration to enable Monet.</string>
+  <string name="pack_system_palette_hint">Use the current system palette</string>
 </resources>

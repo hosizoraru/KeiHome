@@ -41,7 +41,8 @@ internal object IconPackHandoffs {
   }
 
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
-    pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance): IconPackHandoff {
+    pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
+    includePalette: Boolean = true): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
@@ -81,7 +82,7 @@ internal object IconPackHandoffs {
               // The current Flutter icon chain does not select nightmode PNGs. The native
               // MAML loader has its own configuration observer and can select this fixed pair.
               // Keep both ordinary trees for native readers that do not allow fancy icons.
-              if (sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
+              if (includePalette || sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
                 ZipFile(light.archive).use { dayZip ->
                   ZipFile(dark).use { nightZip ->
                     dayZip.entries().asSequence()
@@ -94,7 +95,7 @@ internal object IconPackHandoffs {
                         val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
                         val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
                         if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
-                        val mask = light.monochrome[name].takeIf { sourceAppearance == IconPackAppearance.SYSTEM }
+                        val mask = light.monochrome[name].takeIf { includePalette }
                         val background = light.paletteBackground
                         if (mask == null && dayBytes.contentEquals(nightBytes)) return@forEach
                         val generated = if (mask != null && background != null)

@@ -33,6 +33,7 @@ import os.kei.hyper.home.data.InstalledIconScanner
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetActionStatus
 import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.ColorOsStyle
 import os.kei.hyper.home.data.MonetPaletteReader
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.ThemeEffectsPreferences
@@ -146,6 +147,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       IconPackImportProtocol.reports.collect { result ->
         if (result != null && result.status != "IMPORTING") {
+          if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
           val associations = withContext(Dispatchers.IO) { IconPackImportProtocol.associations(application) }
           val pending = withContext(Dispatchers.IO) { IconPackImportProtocol.pendingSource(application) }
           iconPacks.update { it.copy(nativeAssociations = associations, nativeResult = result, nativeImporting = pending) }
@@ -177,7 +179,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     visiblePage = page
     locale = localeTags
     if (page == 1 && (appsDirty || scannedLocale != locale)) scanApps()
-    if (page == 3 && iconPacksDirty) launch { readIconPacks() }
+    if (page in 2..3 && iconPacksDirty) launch { readIconPacks() }
     try {
       if (page == 0 || page == 2 || page == 3) launch {
         while (true) {
@@ -186,8 +188,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           delay(5_000)
         }
       }
-      if (page == 0 || page == 3) launch {
-        while (true) { readRuntimeStatus(page == 3); delay(10_000) }
+      if (page == 0 || page in 2..3) launch {
+        while (true) { readRuntimeStatus(page in 2..3); delay(10_000) }
       }
       if (page in 0..2) launch {
         while (true) { readPalette(); delay(5_000) }
@@ -204,7 +206,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         if (page == 0 || page == 2 || page == 3) readFramework()
-        if (page == 0 || page == 3) readRuntimeStatus(page == 3)
+        if (page == 0 || page in 2..3) readRuntimeStatus(page in 2..3)
         if (page == 3) {
           readThemeEffects()
           packPreviews.clear()
@@ -282,18 +284,20 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  fun importNativeIconPack(pack: IconPackDescriptor) {
+  fun importNativeIconPack(pack: IconPackDescriptor, includePalette: Boolean = true) {
     if (iconPacks.value.nativeImporting != null) return
     val service = FrameworkConnection.service.value ?: return
     val appearance = preferences.state.value.iconPackAppearance
+    if (pack.builtinKey != null) preferences.prepareColorOsComponent(pack.id, includePalette)
     iconPacks.update { it.copy(nativeImporting = pack.id, nativeResult = null) }
     viewModelScope.launch {
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
-          launcherIconTargets(), appearance)
+          launcherIconTargets(), appearance, includePalette)
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
+        if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
         iconPacks.update { it.copy(nativeResult = result) }
         readIconPacks()
       } catch (cancelled: CancellationException) { throw cancelled
@@ -328,8 +332,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       val targets = launcherIconTargets()
       val scans = coroutineScope {
         val installed = async { packRepository.listInstalled() }
+        val builtins = async { packRepository.listBuiltins() }
         val imported = async { packRepository.listImported() }
-        listOf(installed.await(), imported.await())
+        val builtinResult = builtins.await()
+        val builtinIds = builtinResult.packs.map { it.id }.toSet()
+        listOf(builtinResult, installed.await(),
+          imported.await().let { it.copy(packs = it.packs.filterNot { pack -> pack.id in builtinIds }) })
       }
       val cards = withContext(Dispatchers.Default) {
         scans.flatMap { it.packs }.map { iconPackCardData(it, targets) }
@@ -478,13 +486,51 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun applyMonet(choice: MonetCustomization) {
+    preferences.setMonetInspiration(choice.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION)
+    submitMonet(choice)
+  }
+
+  fun setMonetEnabled(enabled: Boolean) {
+    if (enabled && ordinaryColorOsActive()) return
+    val choice = monet.value.snapshot?.customization ?: MonetCustomization()
+    val active = runtime.value.report?.iconTheme?.localId
+    val inspiration = preferences.state.value.monetInspiration ?:
+      (active != null && preferences.state.value.colorOsComponents[active] == true)
+    submitMonet(choice.copy(style = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION
+      else choice.style.takeUnless { it == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION }
+        ?: os.kei.hyper.home.data.MonetSchemeStyle.TONAL_SPOT), enabled)
+  }
+
+  fun ordinaryColorOsActive(): Boolean {
+    val active = runtime.value.report?.iconTheme?.localId ?: return false
+    return preferences.state.value.colorOsComponents[active] == false
+  }
+
+  fun applyColorOs(inspiration: Boolean = false) {
+    val selected = preferences.state.value
+    val style = if (inspiration) ColorOsStyle.INSPIRATION else selected.colorOsStyle
+    preferences.setColorOsStyle(style)
+    if (style.usesMonet) preferences.setMonetInspiration(true)
+    val key = "coloros-${style.artworkKey}-art-${if (style.usesMonet || selected.colorOsArtPlus) "on" else "off"}"
+    val pack = iconPacks.value.packs.firstOrNull { it.pack.builtinKey == key }?.pack ?: return
+    // An ordinary ColorOS component has no palette template, even if another source enables Monet.
+    if (!style.usesMonet) submitMonet(monet.value.snapshot?.customization ?: MonetCustomization(), false)
+    val title = if (style.usesMonet) getApplication<Application>().getString(os.kei.hyper.home.R.string.pack_style_inspiration)
+      else "ColorOS · ${getApplication<Application>().getString(colorOsStyleLabel(style))} · ART${if (selected.colorOsArtPlus) "+" else "-"}"
+    importNativeIconPack(pack.copy(id = style.importSourceId(pack.id, selected.iconPackAppearance),
+      displayName = title), includePalette = style.usesMonet)
+  }
+
+  private fun submitMonet(choice: MonetCustomization, enabled: Boolean = true) {
+    if (enabled && ordinaryColorOsActive()) return
     val service = FrameworkConnection.service.value ?: return
-    if (applyJob?.isActive == true && monet.value.action == MonetActionStatus.APPLYING) return
     applyJob?.cancel()
     monet.update { it.copy(action = MonetActionStatus.APPLYING) }
     applyJob = viewModelScope.launch {
       try {
-        val request = withContext(Dispatchers.IO) { MonetAction.submit(service, choice) }
+        val request = withContext(Dispatchers.IO) {
+          MonetAction.submit(service, choice.copy(iconAppearance = preferences.state.value.iconPackAppearance), enabled)
+        }
         // Continue waiting across navigation/configuration changes, including a late native ACK.
         val started = android.os.SystemClock.elapsedRealtime()
         while (android.os.SystemClock.elapsedRealtime() - started < MonetAction.REQUEST_LIFETIME_MS &&

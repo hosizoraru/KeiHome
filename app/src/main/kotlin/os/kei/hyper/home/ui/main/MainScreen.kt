@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -13,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Info
@@ -64,23 +67,30 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun MainScreen(modifier: Modifier = Modifier) {
   val model: HomeViewModel = viewModel()
   var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+  val page = listOf(0, 1, 3, 2, 4)[selectedTab]
+  var packSection by rememberSaveable { mutableStateOf("home") }
+  val backState = androidx.navigationevent.compose.rememberNavigationEventState(
+    currentInfo = androidx.navigationevent.NavigationEventInfo.None)
+  androidx.navigationevent.compose.NavigationBackHandler(backState,
+    isBackEnabled = page == 3 && packSection != "home", onBackCompleted = {
+      packSection = when (packSection) { "coloros" -> "builtin"; "builtin", "installed", "imported" -> "library"; else -> "home" }
+    })
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, selectedTab, locales) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(selectedTab, locales) }
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(page, locales) }
   }
   val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
-    stringResource(R.string.navigation_monet), stringResource(R.string.navigation_icon_packs),
+    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_monet),
     stringResource(R.string.navigation_settings))
   val navigation = remember(labels) { listOf(
     NavigationItem(labels[0], MiuixIcons.Info), NavigationItem(labels[1], MiuixIcons.GridView),
-    NavigationItem(labels[2], MiuixIcons.Theme), NavigationItem(labels[3], MiuixIcons.Layers),
+    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Theme),
     NavigationItem(labels[4], MiuixIcons.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = List(5) { MiuixScrollBehavior() }
   val appList = rememberLazyListState()
-  val packList = rememberLazyListState()
   val pageScrolls = List(5) { rememberScrollState() }
   val savedPages = rememberSaveableStateHolder()
   Scaffold(
@@ -88,12 +98,21 @@ fun MainScreen(modifier: Modifier = Modifier) {
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(
-          title = if (selectedTab == 0) stringResource(R.string.app_name) else labels[selectedTab],
+          title = if (page == 3 && packSection != "home") stringResource(when (packSection) {
+            "library" -> R.string.icon_pack_library; "builtin" -> R.string.pack_builtin
+            "installed" -> R.string.pack_installed; "imported" -> R.string.pack_imported
+            else -> R.string.pack_coloros_title
+          }) else if (page == 0) stringResource(R.string.app_name) else labels[selectedTab],
+          navigationIcon = {
+            if (page == 3 && packSection != "home") IconButton(onClick = {
+              packSection = when (packSection) { "coloros" -> "builtin"; "builtin", "installed", "imported" -> "library"; else -> "home" }
+            }) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) }
+          },
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behaviors[selectedTab],
           actions = {
             if (selectedTab == 1) AppsFilterMenu(model)
-            if (selectedTab != 4) RefreshAction(model, selectedTab)
+            if (selectedTab != 4) RefreshAction(model, page)
           },
         )
       }
@@ -106,21 +125,24 @@ fun MainScreen(modifier: Modifier = Modifier) {
     val padding = PaddingValues(start = 16.dp, end = 16.dp,
       top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      savedPages.SaveableStateProvider(selectedTab) {
+      savedPages.SaveableStateProvider(page) {
         val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[selectedTab].nestedScrollConnection)
         if (selectedTab == 1) {
           AppsPage(model, appList, padding, pageModifier)
-        } else if (selectedTab == 3) {
-          IconPacksPage(model, packList, padding, pageModifier)
+        } else if (page == 3) {
+          androidx.compose.runtime.key(packSection) {
+            val sectionList = rememberLazyListState()
+            IconPacksPage(model, sectionList, padding, pageModifier, packSection, { packSection = it })
+          }
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
           Column(modifier = pageModifier.verticalScroll(pageScrolls[selectedTab]).padding(padding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            when (selectedTab) {
+            when (page) {
               0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                  StatusPage(model, onOpenApps = { selectedTab = 1 }, onOpenMonet = { selectedTab = 2 })
+                  StatusPage(model, onOpenApps = { selectedTab = 1 }, onOpenMonet = { selectedTab = 3 })
                   RefreshFeedback(model, 0)
                 }
               }
@@ -160,8 +182,36 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
 private fun MonetPage(model: HomeViewModel) {
   val monet by model.monet.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
+  val runtime by model.runtime.collectAsStateWithLifecycle()
+  val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val ordinary = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == false
+  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
+    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
+  top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    top.yukonga.miuix.kmp.preference.SwitchPreference(
+      title = stringResource(R.string.pack_monet_toggle),
+      summary = stringResource(if (ordinary) R.string.pack_monet_ordinary_locked else R.string.pack_monet_toggle_summary),
+      checked = monet.snapshot?.monochrome?.enabled == true,
+      enabled = !ordinary && framework.connected && monet.snapshot != null &&
+        framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong() &&
+        monet.action != os.kei.hyper.home.data.MonetActionStatus.APPLYING,
+      onCheckedChange = model::setMonetEnabled)
+  }
+  val inspiration = preferences.monetInspiration ?:
+    (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
+      runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
+  top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference(
+      title = stringResource(R.string.pack_monet_design),
+      items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
+      selectedIndex = if (inspiration) 1 else 0,
+      onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
+  }
+  if (inspiration) ColorOsSettings(model, ready, inspiration = true)
   MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
-    actionAvailable = framework.connected && !framework.readFailed &&
+    preferredStyle = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION else null,
+    preferredAppearance = preferences.iconPackAppearance,
+    actionAvailable = !ordinary && framework.connected && !framework.readFailed &&
       framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
     actionStatus = monet.action, onApply = model::applyMonet)
 }

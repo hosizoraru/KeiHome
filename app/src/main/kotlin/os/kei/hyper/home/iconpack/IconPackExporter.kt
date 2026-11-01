@@ -74,7 +74,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val names = linkedMapOf<String, String>()
       val monochrome = linkedMapOf<String, ByteArray>()
       val colorOs = pack.colorOsProfile
-      val fallback = colorOs?.let { ColorOsFallbackRenderer(context) }
+      val fallback = colorOs?.let { ColorOsFallbackRenderer(context, style = it.style) }
       val mask = colorOs?.read(colorOs.maskPath, check)?.let { bytes ->
         GeneratedIconPng.squareSize(bytes)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IconPackException("Invalid ColorOS shape mask")
@@ -88,7 +88,7 @@ internal class IconPackExporter(private val context: Context, private val limits
         val scaled = Bitmap.createScaledBitmap(bitmap, sizePx, sizePx, true)
         return encodePng(if (scaled === bitmap) bitmap.copy(Bitmap.Config.ARGB_8888, false) else scaled)
       }
-      val paletteBackground = mask?.let(::scaledPng)
+      var paletteBackground = mask?.let(::scaledPng)
       IconPackRenderer(context).open(pack, darkMode).use { renderer ->
         try {
         ZipOutputStream(LimitedOutput(archive.outputStream(), limits.maxInputBytes)).use { zip ->
@@ -144,13 +144,21 @@ internal class IconPackExporter(private val context: Context, private val limits
               target.className?.takeUnless { it in sharedActivities }?.let { write(it, png) }
               if (common != null && !packageWritten) { write(pkg, png); packageWritten = true }
               if (target.className == null && !packageWritten) write(pkg, png)
-              if (!darkMode && colorOs != null) {
-                val sourceMask = colorOs.source(target)?.monochromePath?.let { colorOs.read(it, check) }
+              if (colorOs != null || entry != null) {
+                val sourceMask = colorOs?.source(target)?.monochromePath?.let { colorOs.read(it, check) }
                 sourceMask?.let(GeneratedIconPng::squareSize)
+                val declaredLayers = if (colorOs == null && entry != null) try {
+                  renderer.themedLayers(entry, sizePx, check)
+                } catch (cancelled: CancellationException) { throw cancelled
+                } catch (_: Exception) { null } else null
+                declaredLayers?.second?.let { background ->
+                  try { if (paletteBackground == null) paletteBackground = scaledPng(background) }
+                  finally { background.recycle() }
+                }
                 // Source artwork is a separate mask, never a luminance conversion of its PNG.
-                if (sourceMask != null || entry == null) {
+                if (sourceMask != null || entry == null || declaredLayers != null) {
                   val bitmap = if (sourceMask != null) BitmapFactory.decodeByteArray(sourceMask, 0, sourceMask.size)
-                    else fallback?.monochrome(target, false, sizePx, mask, check)
+                    else declaredLayers?.first ?: fallback?.monochrome(target, false, sizePx, mask, check)
                   if (bitmap != null) {
                     try {
                       require(bitmap.width in 1..512 && bitmap.height == bitmap.width)

@@ -760,8 +760,17 @@ def export_pack(tree: SourceTree, args: argparse.Namespace, style_id: str, art: 
             "cat/MeowStyle has no position/prefix in the supplied common style arrays; outline/special classic resources are not guessed.",
         ],
     }
-    if safe_classic_profile:
-        manifest["fallback"] = {"kind": "coloros-classic-v1", "mask": "coloros-mask.png"}
+    expected_mask = {
+        "pebble": "0x0c0400d0 string/icon_mask_theme_pebble",
+        "material": "config:material-radius-8",
+        "daylight": "0x0c0400cf string/icon_mask_theme_rectangle",
+        "nightshadow": "0x0c0400cf string/icon_mask_theme_rectangle",
+    }.get(style_id)
+    if safe_classic_profile or (expected_mask and mask is not None and arrays and args.mask_provenance and
+                               source_proof.get("resource") == expected_mask and
+                               source_proof.get("sourceSha256") == FRAMEWORK_RES_SHA256):
+        manifest["fallback"] = {"kind": "coloros-classic-v1" if style_id == "classic" else "coloros-style-v1",
+                                "mask": "coloros-mask.png"}
     files["coloros-source-manifest.json"] = json_bytes(manifest)
     suffix = f"-{args.name_suffix}" if args.name_suffix else ""
     name = f"coloros-{style_id}-art-{'on' if art == 'on' else 'off'}{suffix}.zip"

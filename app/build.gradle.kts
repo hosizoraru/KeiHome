@@ -2,6 +2,9 @@ plugins {
   id("keihome.android.application")
 }
 
+// Local firmware-derived profiles are optional build inputs, never checked into source control.
+android.sourceSets.getByName("main").assets.srcDir(rootProject.file(".artifacts/generated/assets"))
+
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

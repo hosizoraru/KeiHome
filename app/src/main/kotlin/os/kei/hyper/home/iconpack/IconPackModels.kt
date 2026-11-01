@@ -179,6 +179,7 @@ internal data class IconPackDescriptor(
   /** Raw appfilter directives, preserved for a future renderer; no masking/recoloring is applied. */
   val directives: List<IconPackDirective> = emptyList(),
   val colorOsProfile: ColorOsPackProfile? = null,
+  val builtinKey: String? = null,
 ) {
   /** Only an observed hash from the native integration establishes a loaded-theme relationship. */
   fun matchesLoadedIcons(observedSha256: String?): Boolean = observedSha256 != null &&

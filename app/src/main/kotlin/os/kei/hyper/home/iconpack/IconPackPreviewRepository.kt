@@ -7,6 +7,7 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
@@ -104,6 +105,29 @@ internal class IconPackRenderer(private val context: Context) {
     private val android: AndroidIconPackResources.Session?,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
+
+    /** Android's declared monochrome layer is independent of the pack's colored artwork. */
+    fun themedLayers(entry: IconPackEntry, sizePx: Int, check: () -> Unit): Pair<Bitmap, Bitmap>? {
+      val artwork = entry.artwork(dark) as? IconPackArtwork.Resource ?: return null
+      val session = android ?: return null
+      val id = session.drawableId(artwork.drawable)
+      if (id == 0) return null
+      validateDrawable(session.resources, id, DrawableBudget(), 0, check)
+      val drawable = session.resources.getDrawable(id, null).mutate() as? AdaptiveIconDrawable ?: return null
+      if (drawable.monochrome == null) return null
+      drawable.setBounds(0, 0, sizePx, sizePx)
+      val background = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+      try {
+        Canvas(background).drawPath(nativeMask?.pathFor(drawable) ?: drawable.iconMask,
+          Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        val foreground = ColorOsFallbackRenderer(context).rasterize(drawable, false, sizePx,
+          mask = background, monochrome = true, check = check)
+        return foreground to background
+      } catch (failure: Throwable) {
+        background.recycle()
+        throw failure
+      }
+    }
 
     fun render(entry: IconPackEntry, sizePx: Int, check: () -> Unit = {}): Bitmap? {
       require(sizePx in 1..512)

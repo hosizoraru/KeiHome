@@ -33,4 +33,5 @@
   <string name="pack_back">戻る</string>
   <string name="pack_inspiration_install">インスピレーションをインストール・更新</string>
   <string name="pack_monet_ordinary_locked">元のデザインを使用中。インスピレーション適用後に有効化できます。</string>
+  <string name="pack_system_palette_hint">現在のシステムパレットを使用</string>
 </resources>

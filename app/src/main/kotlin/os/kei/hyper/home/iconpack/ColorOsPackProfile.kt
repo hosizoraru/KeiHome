@@ -9,6 +9,7 @@ internal data class ColorOsPackProfile(
   val file: File,
   val maskPath: String,
   val icons: Map<IconPackComponent, ColorOsIconSource>,
+  val style: String = "classic",
 ) {
   fun source(target: IconPackComponent): ColorOsIconSource? =
     icons[target] ?: icons[IconPackComponent(target.packageName)]
@@ -23,8 +24,9 @@ internal data class ColorOsPackProfile(
       val root = JSONObject(String(IconPackArchive.readEntry(record.originalFile,
         "coloros-source-manifest.json", 4 * 1024 * 1024, check), Charsets.UTF_8))
       val fallback = root.optJSONObject("fallback") ?: return null
-      if (root.optInt("schema_version") != 1 || root.optString("style") != "classic" ||
-        fallback.optString("kind") != "coloros-classic-v1" ||
+      val style = root.optString("style")
+      if (root.optInt("schema_version") != 1 || style !in setOf("classic", "daylight", "nightshadow", "material", "pebble") ||
+        fallback.optString("kind") !in setOf("coloros-classic-v1", "coloros-style-v1") ||
         fallback.optString("mask") != "coloros-mask.png") return null
       val icons = linkedMapOf<IconPackComponent, ColorOsIconSource>()
       val rows = root.getJSONArray("entries")
@@ -42,7 +44,7 @@ internal data class ColorOsPackProfile(
         }
         icons[component] = ColorOsIconSource(mono, dynamic, dynamicNames != null && dynamicNames.length() > 0)
       }
-      return ColorOsPackProfile(record.originalFile, "coloros-mask.png", icons)
+      return ColorOsPackProfile(record.originalFile, "coloros-mask.png", icons, style)
     }
   }
 }

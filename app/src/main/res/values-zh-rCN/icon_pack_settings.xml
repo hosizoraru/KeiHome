@@ -33,4 +33,5 @@
   <string name="pack_back">返回</string>
   <string name="pack_inspiration_install">安装 / 更新灵感图标</string>
   <string name="pack_monet_ordinary_locked">当前方案保留原画；应用灵感方案后可开启。</string>
+  <string name="pack_system_palette_hint">使用系统当前调色板</string>
 </resources>

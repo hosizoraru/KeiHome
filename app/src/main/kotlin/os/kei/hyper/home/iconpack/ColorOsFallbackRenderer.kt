@@ -57,6 +57,7 @@ import os.kei.hyper.home.xposed.MonochromeMaskQuality
 internal class ColorOsFallbackRenderer(
   private val context: Context,
   private val onSkip: (IconPackComponent, SkipReason) -> Unit = { _, _ -> },
+  private val style: String = "classic",
 ) {
   enum class SkipReason {
     MISSING_ACTIVITY, AMBIGUOUS_ACTIVITY, MISSING_ICON, RESOURCE_UNAVAILABLE,
@@ -102,7 +103,8 @@ internal class ColorOsFallbackRenderer(
       val drawable = resources.getDrawable(id, null).mutate().apply {
         layoutDirection = configuration.layoutDirection
       }
-      return rasterize(drawable, dark, sizePx, mask, resources.displayMetrics.density, monochrome, check)
+      return rasterize(drawable, dark && style == "classic", sizePx, mask,
+        resources.displayMetrics.density, monochrome, check)
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (interrupted: InterruptedException) {
@@ -165,6 +167,32 @@ internal class ColorOsFallbackRenderer(
           throw Unavailable(SkipReason.UNUSABLE_MONOCHROME)
         }
         canvas.drawColor(Color.WHITE, PorterDuff.Mode.SRC_IN)
+      } else if (style == "nightshadow") {
+        canvas.drawColor(Color.BLACK)
+        val foreground = createBitmap(sizePx, sizePx)
+        try {
+          val layer = Canvas(foreground)
+          drawLayer(layer, drawable, Rect(0, 0, sizePx, sizePx), dark, check)
+          val circle = createBitmap(sizePx, sizePx)
+          try {
+            Canvas(circle).drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f,
+              Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+            applyMask(layer, circle, sizePx)
+          } finally { circle.recycle() }
+          val inset = sizePx * 0.125f
+          canvas.drawBitmap(foreground, null,
+            android.graphics.RectF(inset, inset, sizePx - inset, sizePx - inset), Paint(Paint.FILTER_BITMAP_FLAG))
+        } finally { foreground.recycle() }
+      } else if (style == "material") {
+        val extent = (sizePx * 0.8375f).toInt()
+        val offset = (sizePx - extent) / 2
+        val bounds = Rect(offset, offset, offset + extent, offset + extent)
+        if (adaptive == null && hasTransparentEdges(drawable, check)) {
+          drawLayer(canvas, 0xfffbfbfb.toInt().toDrawable(), bounds, dark, check)
+          val fg = (sizePx * 38f * 1.25f / 60f).toInt()
+          val start = (sizePx - fg) / 2
+          drawLayer(canvas, drawable, Rect(start, start, start + fg, start + fg), dark, check)
+        } else drawLayer(canvas, drawable, bounds, dark, check)
       } else if (adaptive != null) {
         if (adaptive.background == null && adaptive.foreground == null) {
           throw Unavailable(SkipReason.MISSING_ICON)

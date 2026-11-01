@@ -93,3 +93,31 @@ remained unchanged across installation.
 Local evidence, screenshots, build logs and deployment receipts are under
 `.artifacts/research/ui-browser/`. Existing Flutter image ownership, watchdog
 and SystemUI investigations retain their independent acceptance requirements.
+
+## Compact cards and reverse ordering, 2026-11-02
+
+Release `1793573694` compacts Apps without removing the four icon previews.
+The scope and count share one row; the applied source and an accessible
+explanation disclosure share the next. Preview notes are collapsed initially.
+Each card retains the app name and package, moves user/system origin beside
+the name, and groups artwork, launcher and capability metadata into wrapping
+pills. Detected support uses a check, missing support a dash, and unknown
+support an information symbol with a full accessible state description.
+The fallback original-image caption uses an intentional line break.
+
+On the same 1120-pixel-wide AVD, the vertical distance between the first two
+app labels changed from 788 to 561 pixels, approximately 29% less. This is a
+layout-density measurement, not a frame-time or performance benchmark.
+
+The sort menu has separate groups for its rule and Reverse order. Reversing
+inverts the complete selected order, including coverage priority. Filter reset
+preserves both rule and direction. Choosing either sort control scrolls to the
+start so a previously scrolled position cannot hide the new order's beginning.
+
+Nine focused browser JVM tests passed, including explicit reverse expectations
+for all four rules. Release/R8/required lint and API 102 deployment passed.
+AVD checks covered disclosure, reversing from the middle of the list, retained
+rule/direction after filter reset, and both App light/dark appearances. The App
+was returned to its current default/System preference and normal name ordering.
+The launcher, SystemUI and system_server identities remained unchanged during
+deployment. Local evidence is in `.artifacts/research/ui-density/`.

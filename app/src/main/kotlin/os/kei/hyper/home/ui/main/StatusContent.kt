@@ -464,6 +464,7 @@ private fun DashboardMonetCard(
         "HOME_WALLPAPER", "home_wallpaper" -> R.string.monet_source_home
         "LOCK_WALLPAPER", "lock_wallpaper" -> R.string.monet_source_lock
         "BASIC_COLOR", "preset" -> R.string.monet_source_basic
+        "SYSTEM_COLOR" -> R.string.pack_source_system
         else -> R.string.status_unknown
       }),
     )
@@ -501,6 +502,7 @@ private fun dashboardMonetStyle(style: String?): String = when (style) {
   "EXPRESSIVE" -> stringResource(R.string.monet_style_expressive)
   "RAINBOW" -> stringResource(R.string.monet_style_rainbow)
   "FRUIT_SALAD" -> stringResource(R.string.monet_style_fruit_salad)
+  "COLOROS_INSPIRATION" -> stringResource(R.string.pack_style_inspiration)
   else -> style?.takeIf { it.isNotBlank() } ?: stringResource(R.string.status_unknown)
 }
 

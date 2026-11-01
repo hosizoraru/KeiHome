@@ -138,7 +138,7 @@
     <string name="monet_preview_dark">Dark</string>
     <string name="monet_preview_light">Light</string>
     <string name="monet_accent_and_neutral">Foreground / background</string>
-    <string name="monet_apply_scheme">Apply to launcher icons</string>
+    <string name="monet_apply_scheme">Apply colors and enable Monet</string>
     <string name="monet_scope_hint">Applies to launcher icons. Wallpaper seeds update automatically; fixed colors and custom families stay fixed.</string>
     <string name="monet_show_details">View palette details</string>
     <string name="monet_hide_details">Hide palette details</string>

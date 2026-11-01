@@ -17,7 +17,7 @@ import com.materialkolor.score.Score
 import com.materialkolor.utils.ColorUtils
 
 internal enum class MonetSchemeStyle {
-  TONAL_SPOT, VIBRANT, NEUTRAL, MONOCHROME, EXPRESSIVE, RAINBOW, FRUIT_SALAD,
+  TONAL_SPOT, VIBRANT, NEUTRAL, MONOCHROME, EXPRESSIVE, RAINBOW, FRUIT_SALAD, COLOROS_INSPIRATION,
 }
 
 internal data class MonetIconRoles(
@@ -36,7 +36,7 @@ internal object MonetSchemes {
   private fun palettes(seed: Int, style: MonetSchemeStyle): List<TonalPalette> {
     val hct = Hct.fromInt(seed)
     val scheme = when (style) {
-      MonetSchemeStyle.TONAL_SPOT -> SchemeTonalSpot(hct, false, 0.0, SPEC_2021, PHONE)
+      MonetSchemeStyle.TONAL_SPOT, MonetSchemeStyle.COLOROS_INSPIRATION -> SchemeTonalSpot(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.VIBRANT -> SchemeVibrant(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.NEUTRAL -> SchemeNeutral(hct, false, 0.0, SPEC_2021, PHONE)
       MonetSchemeStyle.MONOCHROME -> SchemeMonochrome(hct, false, 0.0, SPEC_2021, PHONE)
@@ -71,10 +71,12 @@ internal object MonetSchemes {
   fun iconRoles(
     palette: Map<String, Int>, dark: Boolean, choice: MonetCustomization? = null,
   ): MonetIconRoles? {
+    val sourceDark = choice?.iconAppearance?.sourceDarkMode(dark) ?: dark
     fun color(role: MonetIconRole) = role.color(choice) { family, tone -> palette["$family$tone"] }
-    val foreground = color(if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)
+      ?.let { choice?.iconAppearance?.tintColor(it, dark) ?: it }
+    val foreground = color(if (sourceDark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)
       ?: return null
-    val background = color(if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
+    val background = color(if (sourceDark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
       ?: return null
     val ratio = opaqueContrastRatio(foreground, background) ?: return null
     return MonetIconRoles(foreground, background, ratio)

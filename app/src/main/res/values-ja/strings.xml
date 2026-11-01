@@ -135,7 +135,7 @@
     <string name="monet_preview_dark">ダーク</string>
     <string name="monet_preview_light">ライト</string>
     <string name="monet_accent_and_neutral">前景 / 背景</string>
-    <string name="monet_apply_scheme">ホームのアイコンに適用</string>
+    <string name="monet_apply_scheme">配色を適用して Monet をオン</string>
     <string name="monet_scope_hint">ホーム画面のテーマアイコンに適用。壁紙のシードは自動更新され、固定色とカスタム色系は維持されます。</string>
     <string name="monet_show_details">パレットの詳細</string>
     <string name="monet_hide_details">詳細を閉じる</string>

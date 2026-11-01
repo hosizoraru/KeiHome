@@ -6,6 +6,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
+internal enum class ColorOsStyle(val key: String) {
+  CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
+  MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
+  val usesMonet: Boolean get() = this == INSPIRATION
+  val artworkKey: String get() = if (usesMonet) "classic" else key
+  fun importSourceId(assetId: String, appearance: IconPackAppearance): String =
+    "coloros:$key:${appearance.name}:$assetId"
+}
 
 internal enum class IconPackAppearance {
   SYSTEM, LIGHT, DARK, DIM_AT_NIGHT;
@@ -14,6 +22,12 @@ internal enum class IconPackAppearance {
     SYSTEM -> systemDarkMode
     LIGHT, DIM_AT_NIGHT -> false
     DARK -> true
+  }
+
+  fun tintColor(argb: Int, systemDarkMode: Boolean): Int {
+    if (this != DIM_AT_NIGHT || !systemDarkMode) return argb
+    fun channel(shift: Int) = ((argb ushr shift and 255) * 214 / 255) shl shift
+    return (argb and -0x1000000) or channel(16) or channel(8) or channel(0)
   }
 
   companion object {
@@ -25,6 +39,10 @@ internal data class AppPreferencesState(
   val appearance: AppAppearance = AppAppearance.SYSTEM,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
+  val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
+  val colorOsArtPlus: Boolean = true,
+  val colorOsComponents: Map<String, Boolean> = emptyMap(),
+  val monetInspiration: Boolean? = null,
 )
 
 internal class AppPreferences private constructor(context: Context) {
@@ -39,6 +57,14 @@ internal class AppPreferences private constructor(context: Context) {
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
     } ?: IconPackAppearance.SYSTEM,
+    colorOsStyle = ColorOsStyle.entries.firstOrNull {
+      it.name == preferences.getString("color_os_style", null)
+    } ?: ColorOsStyle.CLASSIC,
+    colorOsArtPlus = preferences.getBoolean("color_os_art", true),
+    colorOsComponents = preferences.all.filterKeys { it.startsWith("coloros_component_") }
+      .mapNotNull { (key, value) -> (value as? Boolean)?.let { key.removePrefix("coloros_component_") to it } }.toMap(),
+    monetInspiration = if (preferences.contains("monet_inspiration"))
+      preferences.getBoolean("monet_inspiration", false) else null,
   )
 
   fun setAppearance(value: AppAppearance) {
@@ -54,6 +80,33 @@ internal class AppPreferences private constructor(context: Context) {
   fun setIconPackAppearance(value: IconPackAppearance) {
     preferences.edit().putString("icon_pack_appearance", value.name).apply()
     state.update { it.copy(iconPackAppearance = value) }
+  }
+
+  fun setColorOsStyle(value: ColorOsStyle) {
+    preferences.edit().putString("color_os_style", value.name).apply()
+    state.update { it.copy(colorOsStyle = value) }
+  }
+
+  fun setColorOsArtPlus(value: Boolean) {
+    preferences.edit().putBoolean("color_os_art", value).apply()
+    state.update { it.copy(colorOsArtPlus = value) }
+  }
+
+  fun prepareColorOsComponent(sourceId: String, monet: Boolean) {
+    preferences.edit().putBoolean("coloros_prepared_$sourceId", monet).apply()
+  }
+
+  fun setMonetInspiration(enabled: Boolean) {
+    preferences.edit().putBoolean("monet_inspiration", enabled).apply()
+    state.update { it.copy(monetInspiration = enabled) }
+  }
+
+  fun recordColorOsComponent(sourceId: String, localId: String) {
+    val key = "coloros_prepared_$sourceId"
+    if (!preferences.contains(key)) return
+    val monet = preferences.getBoolean(key, false)
+    preferences.edit().putBoolean("coloros_component_$localId", monet).apply()
+    state.update { it.copy(colorOsComponents = it.colorOsComponents + (localId to monet)) }
   }
 
   companion object {

@@ -5,6 +5,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MonetCustomizationTest {
+  @Test
+  fun forcedIconAppearanceAndSystemSourceSurvivePersistence() {
+    for (appearance in IconPackAppearance.entries) {
+      val choice = MonetCustomization(source = MonetSeedSource.SYSTEM_COLOR, iconAppearance = appearance,
+        style = MonetSchemeStyle.COLOROS_INSPIRATION)
+      assertEquals(choice, MonetCustomization.decode(choice.encode()))
+    }
+  }
   private val wallpaper = WallpaperColorSnapshot(MonetReadState.AVAILABLE,
     listOf(0xff113355.toInt(), 0xff773355.toInt()), listOf(0xff337755.toInt()))
 

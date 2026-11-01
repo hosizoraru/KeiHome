@@ -132,8 +132,15 @@ internal class MonetPaletteReader(context: Context) {
     val ownedColor = readSetting(MonetAction.Setting.AUTO_COLOR.key)?.toIntOrNull()
     val active = customization != null && monochrome.enabled == true && ownedColor != null &&
       ownedColor == monochrome.colorArgb
+    val frameworkPalette = readFrameworkPalette()
     val selectedPalette = customization?.takeIf { active }?.let { choice ->
-      choice.seed(wallpaper)?.let { seed ->
+      if (choice.source == MonetSeedSource.SYSTEM_COLOR && choice.paletteOverrides.isEmpty()) {
+        return@let frameworkPalette
+      }
+      val selectedSeed = if (choice.source == MonetSeedSource.SYSTEM_COLOR)
+        frameworkPalette.families.firstOrNull { it.name == "primary" }?.colors?.firstOrNull { it.tone == 50 }?.value
+        else choice.seed(wallpaper)
+      selectedSeed?.let { seed ->
         val key = Triple(seed, choice.style, choice.paletteOverrides)
         if (generatedKey != key) {
           val tones = MonetSchemes.generate(seed, choice.style, choice.paletteOverrides)
@@ -151,7 +158,7 @@ internal class MonetPaletteReader(context: Context) {
       style = if (active) customization.style.name else settings.second,
       wallpaper = wallpaper,
       launcherPalette = readLauncherPalette(),
-      frameworkPalette = readFrameworkPalette(),
+      frameworkPalette = frameworkPalette,
       monochrome = monochrome,
       customization = customization,
       customizationActive = active,

@@ -3,7 +3,7 @@ package os.kei.hyper.home.data
 import org.json.JSONArray
 import org.json.JSONObject
 
-internal enum class MonetSeedSource { HOME_WALLPAPER, LOCK_WALLPAPER, BASIC_COLOR }
+internal enum class MonetSeedSource { HOME_WALLPAPER, LOCK_WALLPAPER, BASIC_COLOR, SYSTEM_COLOR }
 
 internal data class MonetCustomization(
   val source: MonetSeedSource = MonetSeedSource.HOME_WALLPAPER,
@@ -13,6 +13,7 @@ internal data class MonetCustomization(
   val paletteOverrides: Map<MonetPaletteFamily, MonetTonalSpec> = emptyMap(),
   val backgroundFamily: MonetPaletteFamily? = null,
   val iconOverrides: Map<MonetIconRole, Int> = emptyMap(),
+  val iconAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
 ) {
   init {
     require(color ushr 24 == 255)
@@ -20,7 +21,7 @@ internal data class MonetCustomization(
   }
 
   fun seed(wallpaper: WallpaperColorSnapshot): Int? = when (source) {
-    MonetSeedSource.BASIC_COLOR -> color
+    MonetSeedSource.BASIC_COLOR, MonetSeedSource.SYSTEM_COLOR -> color
     MonetSeedSource.HOME_WALLPAPER -> wallpaper.colors.let { it.getOrNull(colorIndex) ?: it.firstOrNull() }
     MonetSeedSource.LOCK_WALLPAPER -> wallpaper.lockColors.let { it.getOrNull(colorIndex) ?: it.firstOrNull() }
   }
@@ -30,13 +31,13 @@ internal data class MonetCustomization(
 
   fun encode(): String {
     val base = "$source:$style:$colorIndex:$color"
-    if (!hasCustomColors) return base
+    if (!hasCustomColors && iconAppearance == IconPackAppearance.SYSTEM) return base
     val palettes = MonetPaletteFamily.entries.mapNotNull { family ->
       paletteOverrides[family]?.let { "$family=${it.hue},${it.chroma}" }
     }.joinToString(";")
     val icons = MonetIconRole.entries.mapNotNull { role -> iconOverrides[role]?.let { "$role=$it" } }
       .joinToString(";")
-    return "$base:v2:$palettes:${backgroundFamily?.name ?: "AUTO"}:$icons"
+    return "$base:v3:$palettes:${backgroundFamily?.name ?: "AUTO"}:$icons:$iconAppearance"
   }
 
   companion object {
@@ -44,7 +45,8 @@ internal data class MonetCustomization(
       .map(Long::toInt)
 
     fun decode(raw: String?): MonetCustomization? = try {
-      raw?.split(':')?.takeIf { it.size == 4 || it.size == 8 && it[4] == "v2" }?.let { fields ->
+      raw?.split(':')?.takeIf { it.size == 4 || it.size == 8 && it[4] == "v2" ||
+        it.size == 9 && it[4] == "v3" }?.let { fields ->
         val palettes = if (fields.size == 4 || fields[5].isEmpty()) emptyMap() else {
           fields[5].split(';').associate { entry ->
             val (key, values) = entry.split('=')
@@ -70,6 +72,7 @@ internal data class MonetCustomization(
             else -> MonetPaletteFamily.valueOf(fields[6])
           },
           icons,
+          if (fields.size == 9) IconPackAppearance.valueOf(fields[8]) else IconPackAppearance.SYSTEM,
         )
       }
     } catch (_: Exception) { null }

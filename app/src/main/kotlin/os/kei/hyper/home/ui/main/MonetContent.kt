@@ -189,6 +189,7 @@ private fun monetSourceLabel(source: String?): String = stringResource(when (sou
   "HOME_WALLPAPER", "home_wallpaper" -> R.string.monet_source_home
   "LOCK_WALLPAPER", "lock_wallpaper" -> R.string.monet_source_lock
   "BASIC_COLOR", "preset" -> R.string.monet_source_basic
+  "SYSTEM_COLOR" -> R.string.pack_source_system
   else -> R.string.polish_monet_source_unknown
 })
 
@@ -201,6 +202,7 @@ private fun monetStyleLabel(style: String?): String = when (style) {
   "EXPRESSIVE" -> stringResource(R.string.monet_style_expressive)
   "RAINBOW" -> stringResource(R.string.monet_style_rainbow)
   "FRUIT_SALAD" -> stringResource(R.string.monet_style_fruit_salad)
+  "COLOROS_INSPIRATION" -> stringResource(R.string.pack_style_inspiration)
   else -> style?.takeIf { it.isNotBlank() } ?: stringResource(R.string.monet_unknown)
 }
 

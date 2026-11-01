@@ -8,6 +8,7 @@ import io.github.libxposed.service.XposedService
 
 internal data class MonetActionRequest(
   val revision: Long, val userId: Int, val customization: MonetCustomization? = null,
+  val enabled: Boolean = true,
 )
 
 internal enum class MonetActionStatus { IDLE, APPLYING, APPLIED, UNCONFIRMED, UNAVAILABLE, FAILED }
@@ -18,6 +19,7 @@ internal object MonetAction {
   const val REQUEST_REVISION = "request_revision"
   const val REQUEST_USER = "request_user"
   const val REQUEST_CUSTOMIZATION = "request_customization"
+  const val REQUEST_ENABLED = "request_enabled"
   const val REFRESH_REVISION = "refresh_revision"
   const val REFRESH_USER = "refresh_user"
   const val PALETTE_REFRESHED = "keihome_palette_refreshed"
@@ -76,7 +78,8 @@ internal object MonetAction {
     val revision = snapshot[REQUEST_REVISION] as? Long ?: return null
     val user = snapshot[REQUEST_USER] as? Int ?: return null
     val customization = MonetCustomization.decode(snapshot[REQUEST_CUSTOMIZATION] as? String)
-    return MonetActionRequest(revision, user, customization).takeIf { revision > 0 && user >= 0 }
+    return MonetActionRequest(revision, user, customization, snapshot[REQUEST_ENABLED] as? Boolean ?: true)
+      .takeIf { revision > 0 && user >= 0 }
   }
 
   fun read(preferences: SharedPreferences?): MonetActionRequest? =
@@ -149,23 +152,25 @@ internal object MonetAction {
 
   /** API 102 sends the revision, user and complete choice in one Binder update bundle. */
   @Synchronized
-  fun submit(service: XposedService, customization: MonetCustomization? = null): MonetActionRequest {
+  fun submit(service: XposedService, customization: MonetCustomization? = null, enabled: Boolean = true): MonetActionRequest {
     if (service.apiVersion < 102 || service.frameworkProperties and XposedService.PROP_CAP_REMOTE == 0L) {
       throw UnsupportedOperationException("Framework remote preferences unavailable")
     }
-    return submit(service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(), customization)
+    return submit(service.getRemotePreferences(GROUP), Process.myUid(), System.currentTimeMillis(), customization, enabled)
   }
 
   internal fun submit(
     preferences: SharedPreferences, appUid: Int, now: Long, customization: MonetCustomization? = null,
+    enabled: Boolean = true,
   ): MonetActionRequest {
     require(appUid >= 0)
     val previous = preferences.all[REQUEST_REVISION] as? Long ?: 0L
-    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000, customization)
+    val request = MonetActionRequest(nextRevision(previous, now), appUid / 100_000, customization, enabled)
     // commit can update the service client's cache before a failed Binder write. Never infer
     // persistence from that cache and never report application success from commit alone.
     check(preferences.edit().putLong(REQUEST_REVISION, request.revision)
       .putInt(REQUEST_USER, request.userId)
+      .putBoolean(REQUEST_ENABLED, enabled)
       .putString(REQUEST_CUSTOMIZATION, customization?.encode()).commit()) { "Monet request commit failed" }
     return request
   }
@@ -175,6 +180,21 @@ internal object MonetAction {
   } catch (_: Exception) {
     // Custom Secure keys may be unreadable to an app on an OEM build. This is not success.
     false
+  }
+
+  fun applyDisabled(request: MonetActionRequest, initial: Selection, store: Store,
+    isCurrent: () -> Boolean): ApplyResult {
+    require(!request.enabled)
+    var expected = initial
+    for ((setting, value) in listOf(
+      Setting.HANDLED to request.revision.toString(), Setting.ENABLED to "0",
+    )) {
+      checkSelection(request, expected, store, isCurrent)?.let { return it }
+      if (!store.write(setting, value)) return ApplyResult.WRITE_FAILED
+      expected = expected.updated(setting, value)
+    }
+    store.notifyChanged()
+    return ApplyResult.APPLIED
   }
 
   /**

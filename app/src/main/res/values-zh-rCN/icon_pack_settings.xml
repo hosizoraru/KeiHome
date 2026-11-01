@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_library_summary">内置方案、已安装 APK 与导入文件</string>
+  <string name="pack_builtin">内置图标方案</string>
+  <string name="pack_builtin_summary">HyperOS 与 ColorOS</string>
+  <string name="pack_installed">APK 图标包</string>
+  <string name="pack_installed_summary">已安装或从文件添加的 APK</string>
+  <string name="pack_imported">MTZ / ZIP 图标包</string>
+  <string name="pack_imported_summary">按图标包原有的亮暗色和取色资源显示</string>
+  <string name="pack_coloros_title">ColorOS 图标</string>
+  <string name="pack_coloros_summary">经典、彩昼、夜影、材料、鹅卵石</string>
+  <string name="pack_coloros_plain">保留原版重绘与亮暗色，应用时关闭 Monet。灵感取色位于 Monet 页面。</string>
+  <string name="pack_style_classic">经典</string>
+  <string name="pack_style_daylight">彩昼</string>
+  <string name="pack_style_night">夜影</string>
+  <string name="pack_style_material">材料</string>
+  <string name="pack_style_pebble">鹅卵石</string>
+  <string name="pack_style_inspiration">ColorOS 灵感</string>
+  <string name="pack_art_plus">ART+ 图标</string>
+  <string name="pack_art_summary">优先使用设计师重绘，未覆盖的应用保留原图处理</string>
+  <string name="pack_local_unavailable">此版本未包含本地 ColorOS 资源</string>
+  <string name="pack_generate">生成并导入方案</string>
+  <string name="pack_apply_native">在系统主题中应用</string>
+  <string name="pack_apply_note">调整后重新生成，再到系统主题中应用。</string>
+  <string name="pack_hyperos">HyperOS · 默认 / 经典 / 无界</string>
+  <string name="pack_hyperos_summary">亮暗色保持原生逻辑；Monet 可独立开关</string>
+  <string name="pack_hyperos_open">打开系统桌面设置</string>
+  <string name="pack_monet_toggle">Monet 图标</string>
+  <string name="pack_monet_toggle_summary">关闭后显示原图标与原版亮暗色</string>
+  <string name="pack_monet_design">图标取色风格</string>
+  <string name="pack_inspiration_summary">双色图标，支持壁纸、锁屏壁纸、系统配色与自定义颜色</string>
+  <string name="pack_source_system">跟随系统颜色</string>
+  <string name="pack_back">返回</string>
+  <string name="pack_inspiration_install">安装 / 更新灵感图标</string>
+  <string name="pack_monet_ordinary_locked">当前方案保留原画；应用灵感方案后可开启。</string>
+</resources>

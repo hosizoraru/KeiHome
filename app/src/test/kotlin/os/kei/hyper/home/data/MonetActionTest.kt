@@ -34,9 +34,26 @@ class MonetActionTest {
     val remote = Preferences()
     assertEquals(request, MonetAction.submit(remote.preferences, 1_210_141, 100_000L))
     assertEquals(1, remote.commits)
-    assertEquals(mapOf<String, Any>("request_revision" to 100_000L, "request_user" to 12), remote.values)
+    assertEquals(mapOf<String, Any>("request_revision" to 100_000L, "request_user" to 12,
+      "request_enabled" to true), remote.values)
     assertEquals(100_001L, MonetAction.submit(remote.preferences, 1_210_141, 100_000L).revision)
     assertEquals(100_002L, MonetAction.submit(remote.preferences, 1_210_141, 90_000L).revision)
+  }
+
+  @Test
+  fun disableIsAnExplicitUserRequestAndPreservesOriginalColorChoice() {
+    val remote = Preferences()
+    val off = MonetAction.submit(remote.preferences, 1_210_141, request.revision, enabled = false)
+    assertFalse(MonetAction.decode(remote.values)!!.enabled)
+    val before = initial.copy(enabled = "1", autoColor = "42", customization = "saved-choice")
+    val store = Store(before)
+    assertEquals(ApplyResult.APPLIED, MonetAction.applyDisabled(off, before, store) { true })
+    assertEquals("0", store.selection.enabled)
+    assertEquals(before.background, store.selection.background)
+    assertEquals(before.autoColor, store.selection.autoColor)
+    assertEquals(before.customization, store.selection.customization)
+    // Acknowledgement waits for native/MAML withdrawal in the synchronizer.
+    assertEquals(before.applied, store.selection.applied)
   }
 
   @Test
@@ -345,7 +362,7 @@ class MonetActionTest {
             SharedPreferences.Editor::class.java.classLoader, arrayOf(SharedPreferences.Editor::class.java),
           ) { editor, operation, args ->
             when (operation.name) {
-              "putLong", "putInt", "putString" -> { pending[args[0] as String] = args[1]; editor }
+              "putLong", "putInt", "putString", "putBoolean" -> { pending[args[0] as String] = args[1]; editor }
               "commit" -> {
                 commits += 1
                 pending.forEach { (key, value) -> if (value == null) values.remove(key) else values[key] = value }

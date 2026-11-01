@@ -135,7 +135,7 @@
     <string name="monet_preview_dark">深色</string>
     <string name="monet_preview_light">浅色</string>
     <string name="monet_accent_and_neutral">前景 / 背景</string>
-    <string name="monet_apply_scheme">应用到桌面图标</string>
+    <string name="monet_apply_scheme">应用配色并开启 Monet</string>
     <string name="monet_scope_hint">应用于桌面主题图标。壁纸种子色自动更新，固定色与自定义色系保持不变。</string>
     <string name="monet_show_details">查看色阶详情</string>
     <string name="monet_hide_details">收起色阶详情</string>

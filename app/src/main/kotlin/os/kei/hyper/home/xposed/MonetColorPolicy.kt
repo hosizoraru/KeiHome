@@ -48,8 +48,10 @@ internal object MonetColorPolicy {
     uiMode: Int = Configuration.UI_MODE_NIGHT_NO,
     customization: MonetCustomization? = null,
   ): IconColors? {
-    val dark = uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val systemDark = uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val dark = customization?.iconAppearance?.sourceDarkMode(systemDark) ?: systemDark
     fun color(role: MonetIconRole) = role.color(customization) { family, tone -> palette["$family$tone"] }
+      ?.let { customization?.iconAppearance?.tintColor(it, systemDark) ?: it }
     val background = color(if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND)
       ?: return null
     val foreground = color(if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND)

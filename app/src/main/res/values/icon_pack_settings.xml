@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_library_summary">Built-in styles, installed APKs and imported files</string>
+  <string name="pack_builtin">Built-in styles</string>
+  <string name="pack_builtin_summary">HyperOS and ColorOS</string>
+  <string name="pack_installed">APK icon packs</string>
+  <string name="pack_installed_summary">Installed packs and APK files</string>
+  <string name="pack_imported">MTZ / ZIP icon packs</string>
+  <string name="pack_imported_summary">Preserve the pack’s original artwork and supported colors</string>
+  <string name="pack_coloros_title">ColorOS icons</string>
+  <string name="pack_coloros_summary">Classic, Daylight, Night Shadow, Material, Pebble</string>
+  <string name="pack_coloros_plain">Original artwork and light/dark modes. Applying disables Monet. Inspiration is on the Monet page.</string>
+  <string name="pack_style_classic">Classic</string>
+  <string name="pack_style_daylight">Daylight</string>
+  <string name="pack_style_night">Night Shadow</string>
+  <string name="pack_style_material">Material</string>
+  <string name="pack_style_pebble">Pebble</string>
+  <string name="pack_style_inspiration">ColorOS Inspiration</string>
+  <string name="pack_art_plus">ART+ icons</string>
+  <string name="pack_art_summary">Prefer redesigned artwork; use original app icons elsewhere</string>
+  <string name="pack_local_unavailable">Local ColorOS resources are not included in this build</string>
+  <string name="pack_generate">Generate and import</string>
+  <string name="pack_apply_native">Apply in system Themes</string>
+  <string name="pack_apply_note">After changing these options, regenerate and apply in system Themes.</string>
+  <string name="pack_hyperos">HyperOS · Default / Classic / Boundless</string>
+  <string name="pack_hyperos_summary">Keep native light/dark behavior; Monet is optional</string>
+  <string name="pack_hyperos_open">Open launcher settings</string>
+  <string name="pack_monet_toggle">Monet icons</string>
+  <string name="pack_monet_toggle_summary">Turn off to use original artwork and light/dark resources</string>
+  <string name="pack_monet_design">Icon color style</string>
+  <string name="pack_inspiration_summary">Two-tone icons using home/lock wallpaper, system colors or custom colors</string>
+  <string name="pack_source_system">Follow system colors</string>
+  <string name="pack_back">Back</string>
+  <string name="pack_inspiration_install">Install / update Inspiration icons</string>
+  <string name="pack_monet_ordinary_locked">Original artwork is active. Apply Inspiration to enable Monet.</string>
+</resources>

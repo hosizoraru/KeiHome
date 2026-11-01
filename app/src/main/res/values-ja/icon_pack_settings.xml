@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_library_summary">内蔵スタイル・インストール済み APK・読み込んだファイル</string>
+  <string name="pack_builtin">内蔵スタイル</string>
+  <string name="pack_builtin_summary">HyperOS と ColorOS</string>
+  <string name="pack_installed">APK アイコンパック</string>
+  <string name="pack_installed_summary">インストール済み・ファイルから追加した APK</string>
+  <string name="pack_imported">MTZ / ZIP アイコンパック</string>
+  <string name="pack_imported_summary">パック本来の明暗と対応する配色を使用</string>
+  <string name="pack_coloros_title">ColorOS アイコン</string>
+  <string name="pack_coloros_summary">クラシック・デイライト・ナイトシャドウ・マテリアル・ペブル</string>
+  <string name="pack_coloros_plain">元のデザインと明暗を維持し、適用時に Monet をオフにします。インスピレーションは Monet ページにあります。</string>
+  <string name="pack_style_classic">クラシック</string>
+  <string name="pack_style_daylight">デイライト</string>
+  <string name="pack_style_night">ナイトシャドウ</string>
+  <string name="pack_style_material">マテリアル</string>
+  <string name="pack_style_pebble">ペブル</string>
+  <string name="pack_style_inspiration">ColorOS インスピレーション</string>
+  <string name="pack_art_plus">ART+ アイコン</string>
+  <string name="pack_art_summary">リデザインを優先し、未対応のアプリは元のアイコンを使用</string>
+  <string name="pack_local_unavailable">このビルドにはローカル ColorOS 素材が含まれていません</string>
+  <string name="pack_generate">生成してインポート</string>
+  <string name="pack_apply_native">システムテーマで適用</string>
+  <string name="pack_apply_note">変更後は再生成し、システムテーマで適用してください。</string>
+  <string name="pack_hyperos">HyperOS · デフォルト / クラシック / バウンドレス</string>
+  <string name="pack_hyperos_summary">明暗は標準の動作を維持。Monet は個別に切り替え可能</string>
+  <string name="pack_hyperos_open">ホーム設定を開く</string>
+  <string name="pack_monet_toggle">Monet アイコン</string>
+  <string name="pack_monet_toggle_summary">オフにすると元のアイコンと明暗の素材を使用</string>
+  <string name="pack_monet_design">アイコンの配色スタイル</string>
+  <string name="pack_inspiration_summary">ホーム・ロック壁紙、システム配色、カスタム色によるツートーン</string>
+  <string name="pack_source_system">システムの色に合わせる</string>
+  <string name="pack_back">戻る</string>
+  <string name="pack_inspiration_install">インスピレーションをインストール・更新</string>
+  <string name="pack_monet_ordinary_locked">元のデザインを使用中。インスピレーション適用後に有効化できます。</string>
+</resources>

@@ -184,6 +184,17 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       }
     }
     actionInterruption()?.let { return it }
+    if (action?.enabled == false) {
+      val disabled = MonetAction.applyDisabled(action, initial, actionStore, actionCurrent)
+      if (disabled != MonetAction.ApplyResult.APPLIED) return SynchronizationResult.SelectionChanged
+      withdraw(context, excludingObserver, stillCurrent)
+      if (!acknowledgedReset) return SynchronizationResult.NativeUnavailable
+      if (!stillCurrent()) return SynchronizationResult.SelectionChanged
+      if (!actionStore.write(MonetAction.Setting.APPLIED, action.revision.toString())) {
+        return SynchronizationResult.WriteFailed(0)
+      }
+      return SynchronizationResult.Applied(0, refreshPackages = true)
+    }
     if (action == null && initial.enabled != "1") {
       val reset = withdraw(context, excludingObserver, stillCurrent)
       // The background remains stored when the toggle alone is turned off.
@@ -194,8 +205,13 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     // Compatibility comes from the live native resolver and its authenticated
     // policy ACK below. A launcher update must not require an APK hash allowlist.
     val customization = action?.customization ?: MonetCustomization.decode(initial.customization)
-    val palette = if (customization != null) {
-      val seed = customization.seed(wallpaper) ?: return SynchronizationResult.NoPalette
+    val palette = if (customization?.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR &&
+      customization.paletteOverrides.isEmpty()) {
+      readFrameworkPalette(context) ?: return SynchronizationResult.NoPalette
+    } else if (customization != null) {
+      val seed = if (customization.source == os.kei.hyper.home.data.MonetSeedSource.SYSTEM_COLOR)
+        readFrameworkPalette(context)?.get("primary50") else customization.seed(wallpaper)
+      if (seed == null) return SynchronizationResult.NoPalette
       MonetSchemes.generate(seed, customization.style, customization.paletteOverrides)
     } else readPalette(context, resolver, stillCurrent) ?: return SynchronizationResult.NoPalette
     val colors = MonetColorPolicy.selectPair(

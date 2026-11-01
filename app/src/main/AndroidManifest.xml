@@ -10,6 +10,9 @@
         android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         tools:node="remove" />
 
+    <!-- The browser explicitly lists installed system and user applications, including non-launcher packages. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
     <queries>
         <intent><action android:name="org.adw.launcher.THEMES" /></intent>
         <intent><action android:name="com.novalauncher.THEME" /></intent>

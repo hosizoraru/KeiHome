@@ -117,7 +117,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
           true -> SystemIconThemeReport.Source.DEFAULT
           false -> SystemIconThemeReport.Source.THEME
           null -> SystemIconThemeReport.Source.UNAVAILABLE
-        }, title = identity?.title, localId = identity?.localId, nativeHash = identity?.hash)
+        }, title = identity?.title, localId = identity?.localId, nativeHash = identity?.hash,
+          previewKey = CurrentIconSnapshotPublisher.publish(context, inventory, isCurrent)
+            ?.takeIf { isCurrent() && iconTheme.describe().revision == inventory.revision })
       } else null,
       detail = if (state == NativeRuntimeState.UNAVAILABLE) {
         if (activeUser == null) "Foreground user unavailable" else NativeMonetClient.lastTransportFailure

@@ -1,0 +1,62 @@
+package os.kei.hyper.home.ui.main
+
+import org.junit.Assert.*
+import org.junit.Test
+import os.kei.hyper.home.data.*
+import os.kei.hyper.home.iconpack.*
+import java.io.File
+
+class IconBrowserTest {
+  private fun app(pkg: String, system: Boolean = false, launcher: Boolean = true, updated: Long = 0) =
+    InstalledIconCapability(pkg, pkg, 0, true, IconCapabilityStatus.DETECTED,
+      IconCapabilityStatus.DETECTED, systemApp = system, hasLauncher = launcher, updatedAt = updated)
+  private fun source(): IconBrowserSource {
+    fun entry(name: String) = IconPackEntry(name, nativeName = name)
+    val entries = listOf(entry("os.test.covered"), entry("os.test.dynamic"), entry("os.test.absent"))
+    val record = StoredIconPack("test", "test", 0, IconPackFormat.MIUI_ICONS, File("unused"), null, 0, null)
+    val pack = IconPackDescriptor("test", "test", IconPackFormat.MIUI_ICONS, IconPackSource.Imported(record), entries)
+    return IconBrowserSource("test", pack, entries.associateBy { it.nativeName!! }, emptySet(), setOf("os.test.dynamic"))
+  }
+  @Test fun coveredArtworkDoesNotInheritApkMonochromeSupport() {
+    val rows = browserRows(listOf(app("os.test.covered"), app("os.test.original")), source(), IconBrowserOptions(), "")
+    assertEquals(IconCapabilityStatus.NOT_DETECTED, rows.first { it.covered }.app.monochrome)
+    assertEquals(IconCapabilityStatus.DETECTED, rows.first { !it.covered }.app.monochrome)
+  }
+  @Test fun nativeDayNightPairIsCountedEvenWhenBothFallbackEntriesPointToTheDayPng() {
+    val source = source().copy(nightNames = setOf("os.test.covered"))
+    val row = browserRows(listOf(app("os.test.covered")), source, IconBrowserOptions(support = 1), "").single()
+    assertEquals(IconCapabilityStatus.DETECTED, row.app.nightMode)
+  }
+  @Test fun packagePrefixNeverEstablishesCoverage() {
+    assertFalse(browserRows(listOf(app("os.test.covered.extra")), source(), IconBrowserOptions(), "").single().covered)
+  }
+  @Test fun allPackIconsIncludesUninstalledResourcesButNotUncoveredApps() {
+    val rows = browserRows(listOf(app("os.test.covered"), app("os.test.other")), source(), IconBrowserOptions(scope = 2), "")
+    assertEquals(3, rows.size)
+    assertEquals(2, rows.count { !it.installed })
+    assertTrue(rows.all { it.covered })
+  }
+  @Test fun systemAndLauncherFiltersAreIndependent() {
+    val apps = listOf(app("os.sys.hidden", true, false), app("os.sys.launcher", true), app("os.user.app"))
+    assertEquals(2, browserRows(apps, null, IconBrowserOptions(origin = 2), "").size)
+    assertEquals("os.sys.launcher", browserRows(apps, null, IconBrowserOptions(scope = 1, origin = 2), "").single().app.packageName)
+  }
+  @Test fun dynamicResourcesRemainUnknownAndSearchUsesPackageNames() {
+    val row = browserRows(listOf(app("os.test.dynamic")), source(), IconBrowserOptions(support = 4), "DYNAMIC").single()
+    assertEquals(IconCapabilityStatus.UNKNOWN, row.app.monochrome)
+    assertTrue(row.dynamic)
+  }
+  @Test fun overlaysAreHiddenByDefaultWithoutGuessingFromThePackageName() {
+    val overlay = app("os.test.resource").copy(overlayApp = true)
+    val normal = app("os.test.overlay.editor")
+    assertEquals(listOf(normal), browserRows(listOf(overlay, normal), null, IconBrowserOptions(), "").map { it.app })
+    assertEquals(2, browserRows(listOf(overlay, normal), null, IconBrowserOptions(showOverlays = true), "").size)
+  }
+  @Test fun recentlyUpdatedSortRetainsUserProfileIdentity() {
+    val a = app("os.old.app", updated = 1)
+    val b = app("os.new.app", updated = 10).copy(userId = 10, personalProfile = false)
+    val rows = browserRows(listOf(a, b), null, IconBrowserOptions(sort = 2), "")
+    assertEquals(b, rows.first().app)
+    assertNotEquals(rows.first().key, rows.last().key)
+  }
+}

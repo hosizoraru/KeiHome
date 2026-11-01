@@ -33,6 +33,7 @@ internal data class AppIconPreviews(
   val lightMonochrome: Bitmap? = null,
   val darkMonochrome: Bitmap? = null,
   val componentName: ComponentName? = null,
+  val backgroundMask: Bitmap? = null,
 ) {
   val lightMonochromeFallback: Boolean get() = lightMonochrome == null
   val darkMonochromeFallback: Boolean get() = darkMonochrome == null
@@ -48,6 +49,7 @@ internal class IconPreviewRepository(
   private val renderer = dispatcher.limitedParallelism(2)
   private val lock = Any()
   private var generation = 0L
+  private var defaultPreview: Pair<Int, AppIconPreviews>? = null
   private val cache = object : LruCache<PreviewKey, CachedPreview>(4 * 1024 * 1024) {
     override fun sizeOf(key: PreviewKey, value: CachedPreview): Int =
       value.previews.let { listOf(it.light, it.dark, it.lightMonochrome, it.darkMonochrome) }
@@ -61,6 +63,11 @@ internal class IconPreviewRepository(
       val caller = currentCoroutineContext()
       caller.ensureActive()
       val target = previewOrNull { resolve(app, sizePx) } ?: return@withContext AppIconPreviews()
+      if (target.key.iconId == 0) {
+        synchronized(lock) { defaultPreview?.takeIf { it.first == sizePx }?.second }?.let { return@withContext it }
+        val icon = drawIconBitmap(application.packageManager.defaultActivityIcon.mutate(), sizePx)
+        return@withContext AppIconPreviews(icon, icon).also { synchronized(lock) { defaultPreview = sizePx to it } }
+      }
       val cached = synchronized(lock) {
         if (generation == requestedGeneration) cache.get(target.key) else null
       }
@@ -107,6 +114,7 @@ internal class IconPreviewRepository(
   fun clear() = synchronized(lock) {
     generation++
     cache.evictAll()
+    defaultPreview = null
   }
 
   private fun resolve(app: InstalledIconCapability, sizePx: Int): Target? {
@@ -114,22 +122,22 @@ internal class IconPreviewRepository(
     val user = application.getSystemService(UserManager::class.java)
       ?.getUserForSerialNumber(app.userId) ?: return null
     val entry = application.getSystemService(LauncherApps::class.java)
-      ?.getActivityList(app.packageName, user)?.firstOrNull() ?: return null
+      ?.getActivityList(app.packageName, user)?.firstOrNull()
     // The scanner groups a package's entries and uses its first entry's label. Preserve that order.
-    val info = entry.activityInfo
-    val iconId = info.iconResource
-    if (iconId == 0) return null
+    val info = entry?.activityInfo
+    val appInfo = info?.applicationInfo ?: application.packageManager.getApplicationInfo(app.packageName, 0)
+    val iconId = info?.iconResource ?: appInfo.icon
     val base = Configuration(hostResources.configuration).apply {
       uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
     }
-    val applicationInfo = info.applicationInfo
+    val applicationInfo = appInfo
     val paths = (listOfNotNull(applicationInfo.sourceDir, applicationInfo.publicSourceDir) +
       applicationInfo.splitSourceDirs.orEmpty().toList() +
       applicationInfo.splitPublicSourceDirs.orEmpty().toList()).distinct()
     val files = paths.map { path -> File(path).let { ApkStamp(path, it.lastModified(), it.length()) } }
     return Target(
       PreviewKey(
-        app.userId, entry.componentName, app.versionCode, iconId, sizePx, files, base,
+        app.userId, entry?.componentName ?: ComponentName(app.packageName, app.packageName), app.versionCode, iconId, sizePx, files, base,
         hostResources.displayMetrics.densityDpi,
       ),
       applicationInfo,

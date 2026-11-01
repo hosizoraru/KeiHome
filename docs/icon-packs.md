@@ -18,7 +18,9 @@ withdraws guessed source decisions until it can be indexed.
 ## Import path
 
 - Installed APKs and SAF-imported APK/ZIP/MTZ files are cataloged without broad
-  storage/package permissions. Foreign APK code is not loaded by the previewer.
+  storage permissions. The all-installed Apps browser uses `QUERY_ALL_PACKAGES`
+  to include non-launcher and system apps; pack discovery still uses its existing
+  package queries. Foreign APK code is not loaded by the previewer.
 - APK/classic ZIP conversion exports static icons for current launcher entries.
   Both light and dark trees are emitted; new apps or pack updates require updating
   the imported snapshot. Unsupported masks/clock/calendar effects remain notices.

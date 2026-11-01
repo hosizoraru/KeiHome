@@ -18,6 +18,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -92,6 +93,8 @@ internal data class AppsUiState(
 internal data class PageRefreshResult(val completedAt: Long, val failed: Boolean)
 
 internal class HomeViewModel(application: Application) : AndroidViewModel(application) {
+  val browserOptions = MutableStateFlow(IconBrowserOptions())
+  val browserSource = MutableStateFlow<IconBrowserSource?>(null)
   val preferences = AppPreferences.get(application)
   val previews = IconPreviewRepository(application)
   val packPreviews = IconPackPreviewRepository(application)
@@ -161,7 +164,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         runtime.value = RuntimeStatusUiState()
         themeEffects.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
-          if (visiblePage == 0 || visiblePage == 3) launch { readRuntimeStatus(visiblePage == 3) }
+          if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
           readFramework()
           readThemeEffects()
           delay(1_500)
@@ -178,18 +181,18 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   suspend fun observePage(page: Int, localeTags: String): Unit = coroutineScope {
     visiblePage = page
     locale = localeTags
-    if (page == 1 && (appsDirty || scannedLocale != locale)) scanApps()
+    if (page in 0..1 && (appsDirty || scannedLocale != locale)) scanApps()
     if (page in 2..3 && iconPacksDirty) launch { readIconPacks() }
     try {
-      if (page == 0 || page == 2 || page == 3) launch {
+      if (page in 0..3) launch {
         while (true) {
           readFramework()
           if (page == 3) readThemeEffects()
           delay(5_000)
         }
       }
-      if (page == 0 || page in 2..3) launch {
-        while (true) { readRuntimeStatus(page in 2..3); delay(10_000) }
+      if (page in 0..3) launch {
+        while (true) { readRuntimeStatus(true); delay(10_000) }
       }
       if (page in 0..2) launch {
         while (true) { readPalette(); delay(5_000) }
@@ -205,8 +208,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     refreshing.update { it + page }
     viewModelScope.launch {
       try {
-        if (page == 0 || page == 2 || page == 3) readFramework()
-        if (page == 0 || page in 2..3) readRuntimeStatus(page in 2..3)
+        if (page in 0..3) readFramework()
+        if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()
           packPreviews.clear()
@@ -357,7 +360,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     apps.update { it.copy(loading = true, error = null) }
     scanJob = viewModelScope.launch {
       try {
-        val result = withContext(Dispatchers.Default) { InstalledIconScanner(getApplication()).scan() }
+        val result = withContext(Dispatchers.Default) {
+          val caller = kotlinx.coroutines.currentCoroutineContext()
+          InstalledIconScanner(getApplication()).scan { caller.ensureActive() }
+        }
         scannedLocale = requestedLocale
         apps.update { it.copy(capabilities = result, loading = false) }
       } catch (cancellation: CancellationException) {
@@ -440,17 +446,23 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  private suspend fun readRuntimeStatus(includeIconTheme: Boolean = false) {
+  private suspend fun readRuntimeStatus(includeIconTheme: Boolean = true, force: Boolean = false) {
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
       val service = FrameworkConnection.service.value ?: return
+      // Rapid pager changes reuse a recent receipt; manual refresh still requests a new one.
+      val previous = runtime.value.report
+      if (!force && !runtime.value.readFailed && !runtime.value.timedOut && previous != null &&
+        requestedAt - previous.checkedAtElapsed in 0..3_000 && (!includeIconTheme || previous.iconTheme != null)) return
       // Share a probe that completed while a manual refresh waited for the periodic one.
       if ((runtime.value.report?.checkedAtElapsed ?: -1L) >= requestedAt &&
         (!includeIconTheme || runtime.value.report?.iconTheme != null)) return
       // Binder calls cannot always be interrupted. Keep at most one outstanding I/O task,
       // while allowing the page/refresh to finish at its deadline and cancel its observation.
       if (runtimeRead?.isCompleted == false) {
-        runtime.value = RuntimeStatusUiState(timedOut = true)
+        val fresh = runtime.value.report?.takeIf { it.isFresh(requestedAt) }
+        runtime.value = RuntimeStatusUiState(report = fresh, checking = true)
+        if (fresh == null) browserSource.value = null
         return
       }
       runtime.update {
@@ -464,12 +476,23 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }
         if (FrameworkConnection.service.value === service) {
           runtime.value = RuntimeStatusUiState(report = report, timedOut = report == null)
+          val theme = report?.iconTheme
+          if (theme?.previewKey == null) browserSource.value = null
+          else if (browserSource.value?.revision != theme.previewKey) {
+            browserSource.value = null
+            try { browserSource.value = readBrowserSource(getApplication(), theme) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { android.util.Log.w("KeiHomeBrowser", "Active icon resources unavailable", failure) }
+          }
         }
       } catch (cancellation: CancellationException) {
         if (FrameworkConnection.service.value === service) runtime.update { it.copy(checking = false) }
         throw cancellation
       } catch (_: Exception) {
-        if (FrameworkConnection.service.value === service) runtime.value = RuntimeStatusUiState(readFailed = true)
+        if (FrameworkConnection.service.value === service) {
+          runtime.value = RuntimeStatusUiState(readFailed = true)
+          browserSource.value = null
+        }
       } finally {
         operation.cancel()
       }

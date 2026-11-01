@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="browser_all">All</string>
+  <string name="browser_ui_palette">App color mode</string>
+  <string name="browser_ui_palette_hint">Independent App colors, or follow desktop Monet.</string>
+  <string name="browser_ui_default">Miuix default</string>
+  <string name="browser_ui_monet">Monet colors</string>
+  <string name="browser_ui_follow">Follow desktop Monet</string>
+  <string name="browser_ui_monet_system">Monet · System</string>
+  <string name="browser_ui_monet_light">Monet · Light</string>
+  <string name="browser_ui_monet_dark">Monet · Dark</string>
+  <string name="browser_scope">Browse</string>
+  <string name="browser_scope_installed">All installed apps</string>
+  <string name="browser_scope_launcher">Home screen apps</string>
+  <string name="browser_scope_pack">All pack icons</string>
+  <string name="browser_origin">App source</string>
+  <string name="browser_origin_all">User and system apps</string>
+  <string name="browser_origin_user">User apps</string>
+  <string name="browser_origin_system">System apps</string>
+  <string name="browser_coverage">Pack coverage</string>
+  <string name="browser_covered">Pack artwork</string>
+  <string name="browser_original">No direct match · APK preview</string>
+  <string name="browser_support">Icon features</string>
+  <string name="browser_both">Day/night and Monet</string>
+  <string name="browser_sort">Sort by</string>
+  <string name="browser_sort_name">App name</string>
+  <string name="browser_sort_package">Package name</string>
+  <string name="browser_sort_updated">Recently updated</string>
+  <string name="browser_sort_covered">Pack artwork first</string>
+  <string name="browser_reset">Reset filters</string>
+  <string name="browser_preview_note">Current pack resource previews. Dynamic artwork uses a static fallback; live scripts require desktop verification.</string>
+  <string name="browser_source_pending">Waiting for pack resources · showing APK resources</string>
+  <string name="browser_dynamic">Dynamic artwork · verify on desktop</string>
+  <string name="browser_dashboard_coverage">%1$d apps covered</string>
+  <string name="browser_pager_title">Page navigation</string>
+  <string name="browser_page_scroll">Enable page user scroll</string>
+  <string name="browser_pager_mode">Pager gesture mode</string>
+  <string name="browser_pager_hint">iOS-like stops list momentum before allowing a page swipe.</string>
+  <string name="browser_pager_native">Default</string>
+  <string name="browser_pager_cross">Cross-axis</string>
+  <string name="browser_pager_ios">iOS-like</string>
+  <string name="browser_count">Showing %1$d / %2$d items</string>
+  <string name="browser_no_launcher">No home screen entry</string>
+  <string name="browser_show_overlays">Show resource overlays</string>
+  <string name="browser_resources_ready">Resources ready</string>
+</resources>

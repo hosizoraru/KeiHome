@@ -8,4 +8,16 @@
     <color name="status_hero_loaded_accent_dark">#74D99A</color>
     <color name="status_hero_warning_accent">#986600</color>
     <color name="status_hero_warning_accent_dark">#E9C46B</color>
+    <color name="status_hero_ready_container">#DDEFE3</color>
+    <color name="status_hero_ready_container_dark">#183D2C</color>
+    <color name="status_hero_ready_content">#153522</color>
+    <color name="status_hero_ready_content_dark">#E3F5E9</color>
+    <color name="status_hero_warning_container">#FFF0CC</color>
+    <color name="status_hero_warning_container_dark">#493919</color>
+    <color name="status_hero_warning_content">#463415</color>
+    <color name="status_hero_warning_content_dark">#FFF1D2</color>
+    <color name="status_hero_error_container">#FBE3E5</color>
+    <color name="status_hero_error_container_dark">#4B2427</color>
+    <color name="status_hero_error_content">#581B23</color>
+    <color name="status_hero_error_content_dark">#FFE8E9</color>
 </resources>

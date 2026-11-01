@@ -1,5 +1,16 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.utils.pagerGestureOverride
+import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
+import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
+import top.yukonga.miuix.kmp.utils.springAnimateToPage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +65,8 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.extended.Sort
+import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Layers
@@ -66,7 +79,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun MainScreen(modifier: Modifier = Modifier) {
   val model: HomeViewModel = viewModel()
-  var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+  val interaction by remember(model) {
+    model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture })
+  val gestureMode = when (interaction.second) {
+    os.kei.hyper.home.data.AppPagerGesture.NATIVE -> PagerInterceptionMode.Native
+    os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
+    os.kei.hyper.home.data.AppPagerGesture.IOS_LIKE -> PagerInterceptionMode.TapToHalt
+  }
+  val pager = rememberPagerState { 5 }
+  val navigationScope = rememberCoroutineScope()
+  val selectedTab = pager.currentPage
+  fun selectTab(index: Int) { navigationScope.launch { pager.springAnimateToPage(index) } }
   val page = listOf(0, 1, 3, 2, 4)[selectedTab]
   var packSection by rememberSaveable { mutableStateOf("home") }
   val backState = androidx.navigationevent.compose.rememberNavigationEventState(
@@ -111,7 +135,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behaviors[selectedTab],
           actions = {
-            if (selectedTab == 1) AppsFilterMenu(model)
+            if (selectedTab == 1) { AppsFilterMenu(model); AppsSortMenu(model) }
             if (selectedTab != 4) RefreshAction(model, page)
           },
         )
@@ -119,15 +143,24 @@ fun MainScreen(modifier: Modifier = Modifier) {
     },
     bottomBar = {
       IosLiquidGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
-        onItemClick = { selectedTab = it }, backdrop = backdrop, isBlurActive = backdrop != null)
+        onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null)
     },
   ) { insets ->
     val padding = PaddingValues(start = 16.dp, end = 16.dp,
       top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      savedPages.SaveableStateProvider(page) {
-        val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[selectedTab].nestedScrollConnection)
-        if (selectedTab == 1) {
+      val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
+      HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
+        modifier = Modifier.fillMaxSize().pagerGestureOverride(pagerState = pager,
+          flingBehavior = fling, mode = gestureMode, enabled = interaction.first),
+        flingBehavior = fling, verticalAlignment = Alignment.Top,
+        pageNestedScrollConnection = if (gestureMode == PagerInterceptionMode.CrossAxis)
+          top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
+        else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
+        val page = listOf(0, 1, 3, 2, 4)[tab]
+        savedPages.SaveableStateProvider(page) {
+        val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[tab].nestedScrollConnection)
+        if (tab == 1) {
           AppsPage(model, appList, padding, pageModifier)
         } else if (page == 3) {
           androidx.compose.runtime.key(packSection) {
@@ -137,12 +170,12 @@ fun MainScreen(modifier: Modifier = Modifier) {
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
-          Column(modifier = pageModifier.verticalScroll(pageScrolls[selectedTab]).padding(padding),
+          Column(modifier = pageModifier.verticalScroll(pageScrolls[tab]).padding(padding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
               0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                  StatusPage(model, onOpenApps = { selectedTab = 1 }, onOpenMonet = { selectedTab = 3 })
+                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = { selectTab(3) }, onOpenPacks = { selectTab(2) })
                   RefreshFeedback(model, 0)
                 }
               }
@@ -156,18 +189,21 @@ fun MainScreen(modifier: Modifier = Modifier) {
             }
           }
         }
+        }
       }
     }
   }
 }
 
 @Composable
-private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit) {
+private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit, onOpenPacks: () -> Unit) {
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
   val apps by model.apps.collectAsStateWithLifecycle()
-  val counts = remember(apps.capabilities) { apps.capabilities?.let { list ->
+  val source by model.browserSource.collectAsStateWithLifecycle()
+  val effective = remember(apps.capabilities, source) { apps.capabilities?.let { browserRows(it, source, IconBrowserOptions(), "") } }
+  val counts = remember(effective) { effective?.map { it.app }?.let { list ->
     Triple(list.size, list.count { it.nightMode == IconCapabilityStatus.DETECTED },
       list.count { it.monochrome == IconCapabilityStatus.DETECTED })
   } }
@@ -175,7 +211,8 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     monetSnapshot = monet.snapshot, monetReadFailed = monet.readFailed, onRefresh = { model.refresh(0) },
     onOpenMonet = onOpenMonet, onOpenApps = onOpenApps,
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
-    runtime = runtime)
+    runtime = runtime,
+    iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered }, onOpenPacks = onOpenPacks)
 }
 
 @Composable
@@ -219,19 +256,49 @@ private fun MonetPage(model: HomeViewModel) {
 @Composable
 private fun SettingsPage(model: HomeViewModel) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
-  SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setShowIconPreviews,
-    model::clearPreviewCache)
+  SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode, model.preferences::setShowIconPreviews,
+    model::clearPreviewCache, model.preferences::setPageUserScroll, model.preferences::setPagerGesture)
 }
 
 @Composable
 private fun AppsFilterMenu(model: HomeViewModel) {
-  val selected by model.filter.collectAsStateWithLifecycle()
-  val labels = appFilterLabels()
-  val entry = remember(labels, selected) { DropdownEntry(items = labels.mapIndexed { index, label ->
-    DropdownItem(text = label, selected = selected == index, onClick = { model.setFilter(index) })
-  }) }
+  val options by model.browserOptions.collectAsStateWithLifecycle()
+  @Composable
+  fun group(title: Int, labels: List<Int>, selected: Int, update: (Int) -> Unit) =
+    DropdownItem(text = stringResource(title),
+      children = labels.mapIndexed { index, label -> DropdownItem(text = stringResource(label),
+        selected = selected == index, onClick = { update(index) }) })
+  val filters = DropdownEntry(items = listOf(
+    group(R.string.browser_scope, browserScopeLabels(), options.scope) { model.browserOptions.value = options.copy(scope = it) },
+    group(R.string.browser_origin, listOf(R.string.browser_origin_all, R.string.browser_origin_user, R.string.browser_origin_system),
+      options.origin) { model.browserOptions.value = options.copy(origin = it) },
+    group(R.string.browser_coverage, listOf(R.string.browser_all, R.string.browser_covered, R.string.browser_original),
+      options.coverage) { model.browserOptions.value = options.copy(coverage = it) },
+    group(R.string.browser_support, listOf(R.string.browser_all, R.string.filter_night, R.string.filter_monochrome,
+      R.string.browser_both, R.string.filter_unknown), options.support) { model.browserOptions.value = options.copy(support = it) },
+  ))
+  val controls = DropdownEntry(items = listOf(
+    DropdownItem(text = stringResource(R.string.browser_show_overlays), selected = options.showOverlays,
+      onClick = { model.browserOptions.value = options.copy(showOverlays = !options.showOverlays) }),
+    DropdownItem(text = stringResource(R.string.browser_reset), onClick = { model.browserOptions.value = IconBrowserOptions(sort = options.sort) }),
+  ))
+  OverlayIconCascadingDropdownMenu(entries = listOf(filters, controls)) {
+    Icon(MiuixIcons.Filter, stringResource(R.string.filter_title), tint =
+      if (options.copy(sort = 0) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
+  }
+}
+
+@Composable
+private fun AppsSortMenu(model: HomeViewModel) {
+  val options by model.browserOptions.collectAsStateWithLifecycle()
+  val labels = listOf(R.string.browser_sort_name, R.string.browser_sort_package,
+    R.string.browser_sort_updated, R.string.browser_sort_covered)
+  val entry = DropdownEntry(items = labels.mapIndexed { index, label ->
+    DropdownItem(text = stringResource(label), selected = options.sort == index,
+      onClick = { model.browserOptions.value = model.browserOptions.value.copy(sort = index) })
+  })
   OverlayIconDropdownMenu(entry = entry) {
-    Icon(MiuixIcons.Filter, stringResource(R.string.filter_title), tint = MiuixTheme.colorScheme.onBackground)
+    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort), tint = MiuixTheme.colorScheme.onBackground)
   }
 }
 
@@ -261,3 +328,6 @@ internal fun appFilterLabels() = listOf(
   stringResource(R.string.filter_monochrome), stringResource(R.string.filter_unknown),
   stringResource(R.string.filter_all),
 )
+
+internal fun browserScopeLabels() = listOf(R.string.browser_scope_installed, R.string.browser_scope_launcher,
+  R.string.browser_scope_pack)

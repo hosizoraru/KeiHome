@@ -40,8 +40,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun SettingsContent(
   preferences: AppPreferencesState,
   onAppearanceChange: (AppAppearance) -> Unit,
+  onColorModeChange: (os.kei.hyper.home.data.AppColorMode) -> Unit,
   onPreviewsChange: (Boolean) -> Unit,
   onClearIconCache: () -> Unit,
+  onPageUserScrollChange: (Boolean) -> Unit,
+  onPagerGestureChange: (os.kei.hyper.home.data.AppPagerGesture) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     SmallTitle(
@@ -49,8 +52,38 @@ internal fun SettingsContent(
       modifier = Modifier.semantics { heading() },
     )
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      AppearancePreference(preferences.appearance, onAppearanceChange)
+      val labels = listOf(R.string.language_system, R.string.polish_appearance_light, R.string.polish_appearance_dark,
+        R.string.browser_ui_monet_system, R.string.browser_ui_monet_light, R.string.browser_ui_monet_dark,
+        R.string.browser_ui_follow)
+      val selected = when (preferences.colorMode) {
+        os.kei.hyper.home.data.AppColorMode.DEFAULT -> preferences.appearance.ordinal
+        os.kei.hyper.home.data.AppColorMode.MONET -> preferences.appearance.ordinal + 3
+        os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS -> 6
+      }
+      OverlaySpinnerPreference(title = stringResource(R.string.browser_ui_palette),
+        summary = stringResource(R.string.browser_ui_palette_hint),
+        items = labels.map { DropdownItem(text = stringResource(it)) }, selectedIndex = selected,
+        onSelectedIndexChange = { index ->
+          if (index == 6) onColorModeChange(os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS)
+          else {
+            onAppearanceChange(AppAppearance.entries[index % 3])
+            onColorModeChange(if (index < 3) os.kei.hyper.home.data.AppColorMode.DEFAULT else os.kei.hyper.home.data.AppColorMode.MONET)
+          }
+        })
+      if (preferences.colorMode == os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS)
+        AppearancePreference(preferences.appearance, onAppearanceChange)
       LanguagePreference()
+    }
+    SmallTitle(stringResource(R.string.browser_pager_title))
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      SwitchPreference(title = stringResource(R.string.browser_page_scroll),
+        checked = preferences.pageUserScroll, onCheckedChange = onPageUserScrollChange)
+      OverlaySpinnerPreference(title = stringResource(R.string.browser_pager_mode),
+        summary = stringResource(R.string.browser_pager_hint),
+        items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
+          .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.pagerGesture.ordinal,
+        enabled = preferences.pageUserScroll,
+        onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
     }
     SmallTitle(
       stringResource(R.string.polish_settings_previews),

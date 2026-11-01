@@ -115,6 +115,8 @@ internal fun StatusBody(
   monetApps: Int? = null,
   onOpenApps: () -> Unit = {},
   runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
+  iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
+  coveredApps: Int? = null, onOpenPacks: () -> Unit = {},
 ) {
   // The containing page's SaveableStateProvider retains these across tab switches.
   var runtimeExpanded by rememberSaveable { mutableStateOf(false) }
@@ -130,6 +132,18 @@ internal fun StatusBody(
       onToggle = { monetExpanded = !monetExpanded },
       onOpenMonet = onOpenMonet,
     )
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp), onClick = onOpenPacks) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(stringResource(R.string.icon_pack_active), style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          Text(iconSource?.title ?: stringResource(R.string.status_unknown), style = MiuixTheme.textStyles.body1)
+        }
+        Text(if (iconSource?.previewKey != null && coveredApps != null)
+          stringResource(R.string.browser_dashboard_coverage, coveredApps) else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready else R.string.status_needs_verification),
+          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.primary)
+      }
+    }
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
   }
 }
@@ -717,12 +731,14 @@ internal fun StatusOverviewCard(
     StatusTone.ERROR -> colors.error
   }
   val backgroundColor = when (tone) {
-    StatusTone.READY, StatusTone.WARNING -> lerp(colors.surface, accentColor, 0.16f)
-    StatusTone.ERROR -> colors.errorContainer
+    StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_container_dark else R.color.status_hero_ready_container)
+    StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_container_dark else R.color.status_hero_warning_container)
+    StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_container_dark else R.color.status_hero_error_container)
   }
   val contentColor = when (tone) {
-    StatusTone.READY, StatusTone.WARNING -> colors.onSurface
-    StatusTone.ERROR -> colors.onErrorContainer
+    StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_content_dark else R.color.status_hero_ready_content)
+    StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_content_dark else R.color.status_hero_warning_content)
+    StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
   }
   val icon = when (tone) {
     StatusTone.READY -> MiuixIcons.Ok

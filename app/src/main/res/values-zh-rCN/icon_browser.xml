@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="browser_all">全部</string>
+  <string name="browser_ui_palette">App 配色模式</string>
+  <string name="browser_ui_palette_hint">独立设置 App 配色，或跟随桌面 Monet。</string>
+  <string name="browser_ui_default">MIUIX 默认</string>
+  <string name="browser_ui_monet">Monet 配色</string>
+  <string name="browser_ui_follow">跟随桌面 Monet</string>
+  <string name="browser_ui_monet_system">Monet · 跟随系统</string>
+  <string name="browser_ui_monet_light">Monet · 亮色</string>
+  <string name="browser_ui_monet_dark">Monet · 暗色</string>
+  <string name="browser_scope">查看范围</string>
+  <string name="browser_scope_installed">全部已安装应用</string>
+  <string name="browser_scope_launcher">仅桌面入口</string>
+  <string name="browser_scope_pack">图标包全部图标</string>
+  <string name="browser_origin">安装来源</string>
+  <string name="browser_origin_all">用户与系统应用</string>
+  <string name="browser_origin_user">用户应用</string>
+  <string name="browser_origin_system">系统应用</string>
+  <string name="browser_coverage">图标包覆盖</string>
+  <string name="browser_covered">图标包重绘</string>
+  <string name="browser_original">未直接匹配 · 原图预览</string>
+  <string name="browser_support">图标支持</string>
+  <string name="browser_both">亮暗色与 Monet</string>
+  <string name="browser_sort">排序方式</string>
+  <string name="browser_sort_name">应用名称</string>
+  <string name="browser_sort_package">包名</string>
+  <string name="browser_sort_updated">最近更新</string>
+  <string name="browser_sort_covered">图标包覆盖优先</string>
+  <string name="browser_reset">重置筛选</string>
+  <string name="browser_preview_note">当前图标包资源预览；动态资源展示静态备用图，实际动画与脚本以桌面为准。</string>
+  <string name="browser_source_pending">等待当前图标包资源 · 暂显示 APK 资源</string>
+  <string name="browser_dynamic">动态资源 · 待桌面验证</string>
+  <string name="browser_dashboard_coverage">覆盖 %1$d 个应用</string>
+  <string name="browser_pager_title">页面切换</string>
+  <string name="browser_page_scroll">允许左右滑动页面</string>
+  <string name="browser_pager_mode">Pager 手势模式</string>
+  <string name="browser_pager_hint">iOS-like 会先停止列表惯性滚动，再允许横滑切页。</string>
+  <string name="browser_pager_native">默认</string>
+  <string name="browser_pager_cross">跨轴拦截</string>
+  <string name="browser_pager_ios">iOS-like</string>
+  <string name="browser_count">显示 %1$d / %2$d 项</string>
+  <string name="browser_no_launcher">无桌面入口</string>
+  <string name="browser_show_overlays">显示资源覆盖包</string>
+  <string name="browser_resources_ready">资源已读取</string>
+</resources>

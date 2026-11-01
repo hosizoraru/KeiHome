@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
+internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
+internal enum class AppPagerGesture { NATIVE, CROSS_AXIS, IOS_LIKE }
 internal enum class ColorOsStyle(val key: String) {
   CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
@@ -37,6 +39,9 @@ internal enum class IconPackAppearance {
 
 internal data class AppPreferencesState(
   val appearance: AppAppearance = AppAppearance.SYSTEM,
+  val colorMode: AppColorMode = AppColorMode.FOLLOW_ICONS,
+  val pageUserScroll: Boolean = true,
+  val pagerGesture: AppPagerGesture = AppPagerGesture.IOS_LIKE,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
@@ -53,6 +58,11 @@ internal class AppPreferences private constructor(context: Context) {
     appearance = AppAppearance.entries.firstOrNull {
       it.name == preferences.getString("appearance", null)
     } ?: AppAppearance.SYSTEM,
+    colorMode = AppColorMode.entries.firstOrNull { it.name == preferences.getString("ui_color_mode", null) }
+      ?: AppColorMode.FOLLOW_ICONS,
+    pageUserScroll = preferences.getBoolean("page_user_scroll", true),
+    pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
+      ?: AppPagerGesture.IOS_LIKE,
     showIconPreviews = preferences.getBoolean("icon_previews", true),
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
@@ -70,6 +80,21 @@ internal class AppPreferences private constructor(context: Context) {
   fun setAppearance(value: AppAppearance) {
     preferences.edit().putString("appearance", value.name).apply()
     state.update { it.copy(appearance = value) }
+  }
+
+  fun setPageUserScroll(value: Boolean) {
+    preferences.edit().putBoolean("page_user_scroll", value).apply()
+    state.update { it.copy(pageUserScroll = value) }
+  }
+
+  fun setPagerGesture(value: AppPagerGesture) {
+    preferences.edit().putString("pager_gesture", value.name).apply()
+    state.update { it.copy(pagerGesture = value) }
+  }
+
+  fun setColorMode(value: AppColorMode) {
+    preferences.edit().putString("ui_color_mode", value.name).apply()
+    state.update { it.copy(colorMode = value) }
   }
 
   fun setShowIconPreviews(value: Boolean) {

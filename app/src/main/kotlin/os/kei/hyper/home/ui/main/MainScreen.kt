@@ -73,7 +73,6 @@ import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Theme
-import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -135,7 +134,10 @@ fun MainScreen(modifier: Modifier = Modifier) {
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behaviors[selectedTab],
           actions = {
-            if (selectedTab == 1) { AppsFilterMenu(model); AppsSortMenu(model) }
+            if (selectedTab == 1) {
+              AppsFilterMenu(model)
+              AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
+            }
             if (selectedTab != 4) RefreshAction(model, page)
           },
         )
@@ -280,25 +282,38 @@ private fun AppsFilterMenu(model: HomeViewModel) {
   val controls = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_show_overlays), selected = options.showOverlays,
       onClick = { model.browserOptions.value = options.copy(showOverlays = !options.showOverlays) }),
-    DropdownItem(text = stringResource(R.string.browser_reset), onClick = { model.browserOptions.value = IconBrowserOptions(sort = options.sort) }),
+    DropdownItem(text = stringResource(R.string.browser_reset), onClick = {
+      model.browserOptions.value = IconBrowserOptions(sort = options.sort, reverse = options.reverse)
+    }),
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(filters, controls)) {
     Icon(MiuixIcons.Filter, stringResource(R.string.filter_title), tint =
-      if (options.copy(sort = 0) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
+      if (options.copy(sort = 0, reverse = false) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
 
 @Composable
-private fun AppsSortMenu(model: HomeViewModel) {
+private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
   val options by model.browserOptions.collectAsStateWithLifecycle()
   val labels = listOf(R.string.browser_sort_name, R.string.browser_sort_package,
     R.string.browser_sort_updated, R.string.browser_sort_covered)
   val entry = DropdownEntry(items = labels.mapIndexed { index, label ->
     DropdownItem(text = stringResource(label), selected = options.sort == index,
-      onClick = { model.browserOptions.value = model.browserOptions.value.copy(sort = index) })
+      onClick = {
+        model.browserOptions.value = model.browserOptions.value.copy(sort = index)
+        onOrderChange()
+      })
   })
-  OverlayIconDropdownMenu(entry = entry) {
-    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort), tint = MiuixTheme.colorScheme.onBackground)
+  val direction = DropdownEntry(items = listOf(
+    DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = options.reverse,
+      onClick = {
+        model.browserOptions.value = model.browserOptions.value.copy(reverse = !options.reverse)
+        onOrderChange()
+      }),
+  ))
+  OverlayIconCascadingDropdownMenu(entries = listOf(entry, direction)) {
+    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort),
+      tint = if (options.reverse) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
 

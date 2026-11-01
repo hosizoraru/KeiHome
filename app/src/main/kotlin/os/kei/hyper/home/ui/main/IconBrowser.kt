@@ -17,7 +17,8 @@ import os.kei.hyper.home.status.CurrentIconSnapshot
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 internal data class IconBrowserOptions(val scope: Int = 0, val origin: Int = 0,
-  val coverage: Int = 0, val support: Int = 0, val sort: Int = 0, val showOverlays: Boolean = false)
+  val coverage: Int = 0, val support: Int = 0, val sort: Int = 0, val showOverlays: Boolean = false,
+  val reverse: Boolean = false)
 internal data class IconBrowserSource(val revision: String, val pack: IconPackDescriptor,
   val entries: Map<String, IconPackEntry>, val paletteNames: Set<String>, val dynamicNames: Set<String>,
   val nightNames: Set<String> = emptySet())
@@ -102,12 +103,13 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
         else -> true
       }) && r.app.matchesQuery(query)
   }
-  return when (options.sort) {
+  val sorted = when (options.sort) {
     1 -> result.sortedBy { it.app.packageName }
     2 -> result.sortedByDescending { it.app.updatedAt }
     3 -> result.sortedWith(compareByDescending<IconBrowserRow> { it.covered }.thenBy { it.app.label.lowercase() })
     else -> result.sortedWith(compareBy<IconBrowserRow> { it.app.label.lowercase() }.thenBy { it.app.packageName })
   }
+  return if (options.reverse) sorted.reversed() else sorted
 }
 
 internal suspend fun browserPreview(model: HomeViewModel, row: IconBrowserRow,

@@ -43,4 +43,19 @@
   <string name="browser_no_launcher">无桌面入口</string>
   <string name="browser_show_overlays">显示资源覆盖包</string>
   <string name="browser_resources_ready">资源已读取</string>
+  <string name="browser_sort_reverse">倒序</string>
+  <string name="browser_badge_user">用户</string>
+  <string name="browser_badge_system">系统</string>
+  <string name="browser_badge_redrawn">重绘</string>
+  <string name="browser_badge_original">原图预览</string>
+  <string name="browser_badge_dynamic">动态</string>
+  <string name="browser_badge_pending">来源待确认</string>
+  <string name="browser_badge_no_launcher">无入口</string>
+  <string name="browser_count_compact">%1$d / %2$d</string>
+  <string name="browser_loading">读取中</string>
+  <string name="browser_note_show">展开预览说明</string>
+  <string name="browser_note_hide">收起预览说明</string>
+  <string name="browser_preview_monet_light">Monet 浅</string>
+  <string name="browser_preview_monet_dark">Monet 深</string>
+  <string name="browser_preview_original">%1$s\n原图</string>
 </resources>

@@ -43,4 +43,19 @@
   <string name="browser_no_launcher">ホーム画面のエントリなし</string>
   <string name="browser_show_overlays">リソースオーバーレイを表示</string>
   <string name="browser_resources_ready">リソース読み込み済み</string>
+  <string name="browser_sort_reverse">逆順</string>
+  <string name="browser_badge_user">ユーザー</string>
+  <string name="browser_badge_system">システム</string>
+  <string name="browser_badge_redrawn">描き直し</string>
+  <string name="browser_badge_original">元のプレビュー</string>
+  <string name="browser_badge_dynamic">動的</string>
+  <string name="browser_badge_pending">確認待ち</string>
+  <string name="browser_badge_no_launcher">起動項目なし</string>
+  <string name="browser_count_compact">%1$d / %2$d</string>
+  <string name="browser_loading">読込中</string>
+  <string name="browser_note_show">プレビューの説明を表示</string>
+  <string name="browser_note_hide">説明を閉じる</string>
+  <string name="browser_preview_monet_light">Monet 明</string>
+  <string name="browser_preview_monet_dark">Monet 暗</string>
+  <string name="browser_preview_original">%1$s\n元画像</string>
 </resources>

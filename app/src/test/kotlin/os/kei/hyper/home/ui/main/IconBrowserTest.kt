@@ -59,4 +59,21 @@ class IconBrowserTest {
     assertEquals(b, rows.first().app)
     assertNotEquals(rows.first().key, rows.last().key)
   }
+  @Test fun reverseAppliesToEachSelectedRule() {
+    val apps = listOf(
+      app("os.apple", updated = 1).copy(label = "Zulu"),
+      app("os.banana", updated = 3).copy(label = "Alpha"),
+      app("os.test.covered", updated = 2).copy(label = "Bravo"),
+    )
+    val expected = listOf(
+      listOf("os.apple", "os.test.covered", "os.banana"),
+      listOf("os.test.covered", "os.banana", "os.apple"),
+      listOf("os.apple", "os.test.covered", "os.banana"),
+      listOf("os.apple", "os.banana", "os.test.covered"),
+    )
+    expected.forEachIndexed { sort, packages ->
+      assertEquals("Rule $sort", packages,
+        browserRows(apps, source(), IconBrowserOptions(sort = sort, reverse = true), "").map { it.app.packageName })
+    }
+  }
 }

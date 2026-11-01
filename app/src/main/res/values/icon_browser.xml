@@ -43,4 +43,19 @@
   <string name="browser_no_launcher">No home screen entry</string>
   <string name="browser_show_overlays">Show resource overlays</string>
   <string name="browser_resources_ready">Resources ready</string>
+  <string name="browser_sort_reverse">Reverse order</string>
+  <string name="browser_badge_user">User</string>
+  <string name="browser_badge_system">System</string>
+  <string name="browser_badge_redrawn">Redrawn</string>
+  <string name="browser_badge_original">Original preview</string>
+  <string name="browser_badge_dynamic">Dynamic</string>
+  <string name="browser_badge_pending">Source pending</string>
+  <string name="browser_badge_no_launcher">No launcher</string>
+  <string name="browser_count_compact">%1$d / %2$d</string>
+  <string name="browser_loading">Loading</string>
+  <string name="browser_note_show">Show preview details</string>
+  <string name="browser_note_hide">Hide preview details</string>
+  <string name="browser_preview_monet_light">Monet light</string>
+  <string name="browser_preview_monet_dark">Monet dark</string>
+  <string name="browser_preview_original">%1$s\nOriginal</string>
 </resources>

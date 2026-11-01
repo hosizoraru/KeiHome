@@ -28,6 +28,13 @@ internal data class MonetIconRoles(
 
 /** Shared, Android-free color calculations for wallpaper previews and the injected runtime. */
 internal object MonetSchemes {
+  /** Framework palettes expose a sparse set of tones. Preview surfaces use a reported neighbor. */
+  fun nearestTone(palette: Map<String, Int>, family: String, tone: Int): Int? =
+    palette["$family$tone"] ?: palette.entries.mapNotNull { (key, color) ->
+      key.takeIf { it.startsWith(family) }?.removePrefix(family)?.toIntOrNull()
+        ?.takeIf { it in 0..100 }?.let { it to color }
+    }.minByOrNull { kotlin.math.abs(it.first - tone) }?.second
+
   /**
    * Opaque ARGB tones 0..100 in the existing palette-key format, e.g. primary90.
    * SPEC_2021 palettes are independent of light/dark mode; pin it for repeatable selection.

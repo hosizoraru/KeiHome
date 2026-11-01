@@ -322,13 +322,15 @@ internal fun MonetContent(
 private fun IconPalettePreview(
   palette: Map<String, Int>, dark: Boolean, choice: MonetCustomization, modifier: Modifier = Modifier,
 ) {
-  val roles = remember(palette, dark, choice.backgroundFamily, choice.iconOverrides) {
+  val roles = remember(palette, dark, choice) {
     MonetSchemes.iconRoles(palette, dark, choice)
   } ?: return
   val foreground = Color(roles.foreground)
   val background = Color(roles.background)
-  val neutral = Color(palette.getValue(if (dark) "neutral12" else "neutral96"))
-  val content = Color(palette.getValue(if (dark) "neutral90" else "neutral10"))
+  val neutral = MonetSchemes.nearestTone(palette, "neutral", if (dark) 12 else 96)?.let(::Color)
+    ?: MiuixTheme.colorScheme.surface
+  val content = MonetSchemes.nearestTone(palette, "neutral", if (dark) 90 else 10)?.let(::Color)
+    ?: MiuixTheme.colorScheme.onSurface
   Column(modifier.clip(RoundedCornerShape(16.dp)).background(neutral).padding(12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {

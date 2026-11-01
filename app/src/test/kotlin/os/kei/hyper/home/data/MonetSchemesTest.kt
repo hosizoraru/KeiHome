@@ -11,6 +11,15 @@ import org.junit.Test
 import os.kei.hyper.home.xposed.MonetColorPolicy
 
 class MonetSchemesTest {
+  @Test
+  fun sparseSystemPalettePreviewUsesReportedNeutralTones() {
+    val sparse = mapOf("neutral95" to 95, "neutral10" to 10, "neutral-variant96" to 999)
+    assertEquals(95, MonetSchemes.nearestTone(sparse, "neutral", 96))
+    assertEquals(10, MonetSchemes.nearestTone(sparse, "neutral", 12))
+    assertEquals(999, MonetSchemes.nearestTone(sparse, "neutral-variant", 96))
+    assertNull(MonetSchemes.nearestTone(sparse, "primary", 96))
+    assertNull(MonetSchemes.nearestTone(emptyMap(), "neutral", 12))
+  }
   private val families = listOf("primary", "secondary", "tertiary", "neutral", "neutral-variant")
 
   @Test

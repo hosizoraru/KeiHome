@@ -107,6 +107,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val preferences = AppPreferences.get(application)
   val browserOptions: StateFlow<IconBrowserOptions>
     field = MutableStateFlow(preferences.readBrowserOptions())
+  val packSort: StateFlow<Pair<Int, Boolean>>
+    field = MutableStateFlow(preferences.readPackSort())
+
+  fun updatePackSort(order: Int, reverse: Boolean) {
+    packSort.value = order.coerceIn(0, 3) to reverse
+    preferences.savePackSort(order, reverse)
+  }
 
   fun updateBrowserOptions(value: IconBrowserOptions) {
     browserOptions.value = value
@@ -115,7 +122,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun setRememberMenuSelections(value: Boolean) {
     preferences.setRememberMenuSelections(value)
-    if (value) preferences.saveBrowserOptions(browserOptions.value)
+    if (value) {
+      preferences.saveBrowserOptions(browserOptions.value)
+      preferences.savePackSort(packSort.value.first, packSort.value.second)
+    }
   }
   val browserSource = MutableStateFlow<IconBrowserSource?>(null)
   val iconPackUpdateNeeded: StateFlow<Boolean>

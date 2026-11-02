@@ -96,7 +96,7 @@ internal class IconPackRepository(
         }
         if (index == null) continue
         packs += IconPackDescriptor("installed:$pkg", index.displayName, IconPackFormat.INSTALLED_APK,
-          IconPackSource.Installed(pkg, info.longVersionCode, info.lastUpdateTime), index.entries,
+          IconPackSource.Installed(pkg, info.longVersionCode, info.lastUpdateTime, info.versionName), index.entries,
           notices = index.notices, directives = index.directives)
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { failures += IconPackFailure(pkg, failure.message ?: "Icon pack cannot be read") }

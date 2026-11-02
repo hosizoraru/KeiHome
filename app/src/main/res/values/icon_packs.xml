@@ -13,6 +13,15 @@
     <string name="icon_pack_import_summary">Read APK, MTZ or ZIP files. Preview the artwork before opening the system theme flow.</string>
     <string name="icon_pack_importing">Importing…</string>
     <string name="icon_pack_choose_file">Choose a file</string>
+    <string name="icon_pack_choose_apk_file">Add an APK file</string>
+    <string name="icon_pack_apk_file_guidance">Installing the icon pack is recommended for version and update visibility. An APK file must be selected again when it changes.</string>
+    <string name="icon_pack_search">Search icon packs</string>
+    <string name="icon_pack_appearance_short_note">Reapply after importing or updating.</string>
+    <string name="icon_pack_search_empty">No matching icon packs</string>
+    <string name="icon_pack_sort_name">Icon pack name</string>
+    <string name="icon_pack_sort_identity">Package or file name</string>
+    <string name="icon_pack_sort_updated">Recently updated or added</string>
+    <string name="icon_pack_sort_matched">Matched apps</string>
     <string name="icon_pack_imported_name">Added: %1$s</string>
     <string name="icon_pack_library">Available icon packs</string>
     <string name="icon_pack_empty">No readable packs found. You can import a file.</string>

@@ -12,6 +12,15 @@
     <string name="icon_pack_import_summary">读取 APK、MTZ 或 ZIP，预览后交给系统主题应用。</string>
     <string name="icon_pack_importing">正在导入…</string>
     <string name="icon_pack_choose_file">选择文件</string>
+    <string name="icon_pack_choose_apk_file">从 APK 文件添加</string>
+    <string name="icon_pack_apk_file_guidance">建议先安装图标包，方便查看版本和更新；从文件添加的 APK 更新后需要重新选择。</string>
+    <string name="icon_pack_search">搜索图标包</string>
+    <string name="icon_pack_appearance_short_note">导入或更新后需重新应用。</string>
+    <string name="icon_pack_search_empty">没有找到匹配的图标包</string>
+    <string name="icon_pack_sort_name">图标包名称</string>
+    <string name="icon_pack_sort_identity">包名或文件名</string>
+    <string name="icon_pack_sort_updated">最近更新或添加</string>
+    <string name="icon_pack_sort_matched">匹配应用数</string>
     <string name="icon_pack_imported_name">已添加：%1$s</string>
     <string name="icon_pack_library">可用图标包</string>
     <string name="icon_pack_empty">未发现可识别的图标包，可从文件导入。</string>

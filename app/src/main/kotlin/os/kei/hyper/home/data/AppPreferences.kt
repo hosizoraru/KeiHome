@@ -115,7 +115,8 @@ internal class AppPreferences private constructor(context: Context) {
   fun setRememberMenuSelections(value: Boolean) {
     preferences.edit().apply {
       putBoolean("remember_menus", value)
-      if (!value) preferences.allKeys().orEmpty().filter { it.startsWith("browser_") }.forEach(::remove)
+      if (!value) preferences.allKeys().orEmpty()
+        .filter { it.startsWith("browser_") || it.startsWith("pack_sort_") }.forEach(::remove)
     }.apply()
     state.update { it.copy(rememberMenuSelections = value) }
   }
@@ -139,6 +140,14 @@ internal class AppPreferences private constructor(context: Context) {
         }
       }
     }.apply()
+  }
+
+  fun readPackSort(): Pair<Int, Boolean> = if (!state.value.rememberMenuSelections) 0 to false else
+    preferences.getInt("pack_sort_order", 0).coerceIn(0, 3) to preferences.getBoolean("pack_sort_reverse", false)
+
+  fun savePackSort(order: Int, reverse: Boolean) {
+    if (!state.value.rememberMenuSelections) return
+    preferences.edit().putInt("pack_sort_order", order.coerceIn(0, 3)).putBoolean("pack_sort_reverse", reverse).apply()
   }
 
   fun setPagerGesture(value: AppPagerGesture) {

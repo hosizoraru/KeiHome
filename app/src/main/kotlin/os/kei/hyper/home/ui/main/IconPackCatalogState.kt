@@ -3,8 +3,11 @@ package os.kei.hyper.home.ui.main
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntry
+import os.kei.hyper.home.iconpack.IconPackFormat
+import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.data.ColorOsStyle
 import os.kei.hyper.home.data.SystemIconFallback
+import java.util.Locale
 
 internal data class IconPackCardData(
   val pack: IconPackDescriptor,
@@ -28,6 +31,41 @@ internal data class IconPacksUiState(
   val nativeSources: Map<String, String> = emptyMap(),
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,
 )
+
+internal fun activeCatalogPackId(activeId: String?, state: IconPacksUiState): String? {
+  if (activeId == null) return null
+  val source = state.nativeSources[activeId] ?: state.nativeAssociations.entries
+    .firstOrNull { it.value == activeId }?.key ?: return null
+  return SystemIconFallback.baseSourceId(source)
+}
+
+internal fun catalogPackRows(state: IconPacksUiState, section: String, activePackId: String?,
+  query: String, order: Int, reverse: Boolean): List<IconPackCardData> {
+  val needle = query.trim().lowercase(Locale.ROOT)
+  fun identity(card: IconPackCardData): String = when (val source = card.pack.source) {
+    is IconPackSource.Installed -> source.packageName
+    is IconPackSource.Imported -> source.record.originalName
+  }
+  fun updated(card: IconPackCardData): Long = when (val source = card.pack.source) {
+    is IconPackSource.Installed -> source.updatedAt
+    is IconPackSource.Imported -> source.record.importedAt
+  }
+  val name = compareBy<IconPackCardData> { it.pack.displayName.lowercase(Locale.ROOT) }.thenBy { it.pack.id }
+  val comparator = when (order) {
+    1 -> compareBy<IconPackCardData> { identity(it).lowercase(Locale.ROOT) }.then(name)
+    2 -> compareByDescending<IconPackCardData> { updated(it) }.then(name)
+    3 -> compareByDescending<IconPackCardData> { it.matchedApps }.then(name)
+    else -> name
+  }.let { if (reverse) it.reversed() else it }
+  return state.packs.asSequence().filter { card ->
+    card.pack.builtinKey == null && when (section) {
+      "installed" -> card.pack.format == IconPackFormat.INSTALLED_APK || card.pack.format == IconPackFormat.APK
+      "imported" -> card.pack.format != IconPackFormat.INSTALLED_APK && card.pack.format != IconPackFormat.APK
+      else -> false
+    } && (needle.isEmpty() || card.pack.displayName.lowercase(Locale.ROOT).contains(needle) ||
+      identity(card).lowercase(Locale.ROOT).contains(needle))
+  }.sortedWith(compareByDescending<IconPackCardData> { it.pack.id == activePackId }.then(comparator)).toList()
+}
 
 /** Reverse receipts are authoritative. Older owned ColorOS components can be recovered only
  * when their known source and generated title resolve to a single original configuration. */

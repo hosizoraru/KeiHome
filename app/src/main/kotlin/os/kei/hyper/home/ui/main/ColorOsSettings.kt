@@ -69,12 +69,12 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         }
       }
     }
-    if (card != null && !inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("ColorOS · ${stringResource(colorOsStyleLabel(style))}", style = MiuixTheme.textStyles.title3)
+    if (card != null && !inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("ColorOS · ${stringResource(colorOsStyleLabel(style))}", style = MiuixTheme.textStyles.body1)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           card.previewEntries.forEach { entry ->
-            PackIconPair(card.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f))
+            PackIconPair(card.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f), compact = true)
           }
         }
         Text(stringResource(if (inspiration) R.string.pack_inspiration_summary else R.string.pack_coloros_plain),
@@ -82,7 +82,7 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
       }
     }
     if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,
-      model.preferences::setIconPackAppearance, !busy)
+      model.preferences::setIconPackAppearance, !busy, compact = true)
     if (!inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       SwitchPreference(title = stringResource(R.string.pack_art_plus),
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,

@@ -13,6 +13,15 @@
     <string name="icon_pack_import_summary">APK・MTZ・ZIP を読み込み、プレビューしてからシステムテーマで適用できます。</string>
     <string name="icon_pack_importing">読み込み中…</string>
     <string name="icon_pack_choose_file">ファイルを選択</string>
+    <string name="icon_pack_choose_apk_file">APK ファイルを追加</string>
+    <string name="icon_pack_apk_file_guidance">バージョンや更新を確認しやすいよう、アイコンパックのインストールを推奨します。ファイルから追加した APK は更新時に再選択が必要です。</string>
+    <string name="icon_pack_search">アイコンパックを検索</string>
+    <string name="icon_pack_appearance_short_note">取り込み・更新後に再適用します。</string>
+    <string name="icon_pack_search_empty">一致するアイコンパックがありません</string>
+    <string name="icon_pack_sort_name">アイコンパック名</string>
+    <string name="icon_pack_sort_identity">パッケージ名・ファイル名</string>
+    <string name="icon_pack_sort_updated">最近の更新・追加</string>
+    <string name="icon_pack_sort_matched">対応アプリ数</string>
     <string name="icon_pack_imported_name">追加済み：%1$s</string>
     <string name="icon_pack_library">利用可能なパック</string>
     <string name="icon_pack_empty">読み取れるパックがありません。ファイルから取り込めます。</string>

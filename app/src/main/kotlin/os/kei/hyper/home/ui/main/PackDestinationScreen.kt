@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -14,18 +16,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Sort
+import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -38,6 +46,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   }
   val behavior = MiuixScrollBehavior()
   val list = rememberLazyListState()
+  val scope = rememberCoroutineScope()
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(
     topBar = {
@@ -52,7 +61,12 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
-          } }, actions = { RefreshAction(model, 3) })
+          } }, actions = {
+            if (section == "installed" || section == "imported") PackSortMenu(model) {
+              scope.launch { list.scrollToItem(0) }
+            }
+            RefreshAction(model, 3)
+          })
       }
     }, floatingActionButton = { PackActionFab(model, 3, section) },
   ) { insets ->
@@ -62,5 +76,28 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           bottom = insets.calculateBottomPadding() + if (section == "coloros") 100.dp else 24.dp),
         Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), section, onNavigate)
     }
+  }
+}
+
+@Composable
+private fun PackSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
+  val sort by model.packSort.collectAsStateWithLifecycle()
+  val labels = listOf(R.string.icon_pack_sort_name, R.string.icon_pack_sort_identity,
+    R.string.icon_pack_sort_updated, R.string.icon_pack_sort_matched)
+  val choices = DropdownEntry(items = labels.mapIndexed { index, label ->
+    DropdownItem(text = stringResource(label), selected = sort.first == index, onClick = {
+      model.updatePackSort(index, model.packSort.value.second)
+      onOrderChange()
+    })
+  })
+  val direction = DropdownEntry(items = listOf(
+    DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = sort.second, onClick = {
+      model.updatePackSort(model.packSort.value.first, !model.packSort.value.second)
+      onOrderChange()
+    }),
+  ))
+  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction)) {
+    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort),
+      tint = if (sort.first != 0 || sort.second) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }

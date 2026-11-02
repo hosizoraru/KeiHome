@@ -44,6 +44,10 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
       focusEnvironment = route == "about/environment")
     return
   }
+  if (route == SettingsSection.LOG.route) {
+    LogSettingsScreen(onBack)
+    return
+  }
   val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
   val license = bundledLicenseForRoute(route)
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }

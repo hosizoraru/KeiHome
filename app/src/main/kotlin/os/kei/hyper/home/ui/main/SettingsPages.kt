@@ -38,6 +38,7 @@ internal enum class SettingsSection(val route: String, @param:StringRes val titl
   APP("app", R.string.settings_app_section, R.string.settings_app_summary),
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
   CACHE("cache", R.string.settings_cache_section, R.string.settings_cache_summary),
+  LOG("log", R.string.settings_log_section, R.string.settings_log_summary),
   ABOUT("about", R.string.polish_settings_about, R.string.settings_about_summary),
 }
 
@@ -55,6 +56,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             SettingsSection.APP -> MiuixIcons.Settings
             SettingsSection.HOOK -> MiuixIcons.Layers
             SettingsSection.CACHE -> MiuixIcons.Refresh
+            SettingsSection.LOG -> MiuixIcons.Info
             SettingsSection.ABOUT -> MiuixIcons.Info
           }
           BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
@@ -63,7 +65,17 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
-    } else SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate)
+    } else {
+      if (listOf(stringResource(R.string.settings_log_section), stringResource(R.string.settings_log_summary))
+          .any { it.contains(query.trim(), ignoreCase = true) }) {
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+          BasicComponent(title = stringResource(R.string.settings_log_section),
+            summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
+            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+        }
+      }
+      SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate)
+    }
   }
 }
 

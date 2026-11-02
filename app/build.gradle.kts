@@ -2,8 +2,31 @@ plugins {
   id("keihome.android.application")
 }
 
+abstract class PrepareThirdPartyNotices : DefaultTask() {
+  @get:InputFile
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val notice: RegularFileProperty
+
+  @get:OutputDirectory
+  abstract val outputDirectory: DirectoryProperty
+
+  @TaskAction
+  fun prepare() {
+    val output = outputDirectory.file("THIRD_PARTY_NOTICES.md").get().asFile
+    output.parentFile.mkdirs()
+    notice.get().asFile.copyTo(output, overwrite = true)
+  }
+}
+
 // Local firmware-derived profiles are optional build inputs, never checked into source control.
 android.sourceSets.getByName("main").assets.srcDir(rootProject.file(".artifacts/generated/assets"))
+val noticeAssets = tasks.register<PrepareThirdPartyNotices>("prepareThirdPartyNotices") {
+  notice.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
+  outputDirectory.set(layout.buildDirectory.dir("generated/assets/third-party-notices"))
+}
+androidComponents.onVariants { variant ->
+  variant.sources.assets?.addGeneratedSourceDirectory(noticeAssets, PrepareThirdPartyNotices::outputDirectory)
+}
 // MMKV is used through JNI. This payload imports no C++ Prefab packages.
 android.buildFeatures.prefab = false
 

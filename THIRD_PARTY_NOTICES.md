@@ -1,5 +1,14 @@
 # Third-party notices
 
+## Tencent MMKV 2.4.3
+
+KeiHome uses Tencent MMKV for App-owned preferences. MMKV is distributed under
+the BSD 3-Clause License. Its complete upstream license and third-party notices
+are included in `app/src/main/assets/licenses/MMKV-BSD-3-Clause.txt`.
+
+Copyright (C) 2018 THL A29 Limited, a Tencent company.
+Source: <https://github.com/Tencent/MMKV/tree/v2.4.3>
+
 ## DexKit 2.3.0
 
 KeiHome distributes the unmodified `org.luckypray:dexkit:2.3.0` Android
@@ -48,6 +57,7 @@ The following files are adapted from the compose-miuix-ui/miuix example app:
 - `app/src/main/kotlin/os/kei/hyper/home/ui/components/MiuixSampleChrome.kt`
 - `app/src/main/kotlin/os/kei/hyper/home/ui/components/liquid/*`
 - `app/src/main/kotlin/os/kei/hyper/home/ui/components/animation/*`
+- `app/src/main/kotlin/os/kei/hyper/home/ui/components/about/*` (background shader and animation)
 
 Source: <https://github.com/compose-miuix-ui/miuix>
 

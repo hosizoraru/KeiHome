@@ -94,6 +94,7 @@ internal class CurrentIconPreviewRepository(
     }
   }
 
+  fun sizeBytes(): Int = synchronized(lock) { cache.size() }
   fun clear() = synchronized(lock) { generation++; cache.evictAll() }
 
   private data class Key(val revision: String, val pack: String, val entry: String,

@@ -286,6 +286,21 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  /** Keep the fallback controls current only while they are visible. */
+  suspend fun observeFallbackResources(): Unit = coroutineScope {
+    launch { if (iconPacksDirty) readIconPacks() }
+    while (true) {
+      if (appsDirty) scanApps()
+      readRuntimeStatus(true)
+      delay(10_000)
+    }
+  }
+
+  suspend fun observeAboutIcon(): Unit = coroutineScope {
+    launch { while (true) { readRuntimeStatus(true); delay(10_000) } }
+    launch { while (true) { readPalette(); delay(5_000) } }
+  }
+
   fun setFilter(value: Int) { filter.value = value }
 
   fun refresh(page: Int) {
@@ -331,6 +346,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     currentPreviews.clear()
     apps.update { it.copy(previewGeneration = it.previewGeneration + 1) }
   }
+
+  internal fun previewCacheBytes(): Long =
+    previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes()
 
   private suspend fun refreshWallpaper(): Boolean {
     val service = FrameworkConnection.service.value ?: return false

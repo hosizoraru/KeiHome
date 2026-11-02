@@ -111,6 +111,8 @@ internal class IconPreviewRepository(
     }
   }
 
+  fun sizeBytes(): Int = synchronized(lock) { cache.size() }
+
   fun clear() = synchronized(lock) {
     generation++
     cache.evictAll()

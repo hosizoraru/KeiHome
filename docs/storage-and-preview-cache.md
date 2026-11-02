@@ -1,5 +1,25 @@
 # App storage and complete icon preview caching
 
+## Cache overview
+
+Settings shows a snapshot of the private `cacheDir`, grouped into active icon
+snapshots, built-in pack copies, import/export working files and other temporary
+files. The last category includes platform or diagnostic files in that directory.
+The scan runs off the UI thread, does not follow symbolic links, and reports an
+incomplete result if any file cannot be read. It can be refreshed from the top
+bar and is remeasured after clearing previews. File lengths are logical bytes,
+not filesystem block allocation.
+
+The separate in-memory figure is an estimate based on the three bounded preview
+caches, and can include shared bitmaps more than once. Clearing previews evicts
+only those memory caches; it does not delete active snapshots, imported packs,
+settings, or import/export files that another process may still be using.
+Android can independently reclaim files in its cache directory.
+
+Preview requests treat a snapshot removed during loading as temporarily
+unavailable while still propagating coroutine cancellation. This prevents a
+stale ZIP reference from crashing the app during theme changes or cache eviction.
+
 ## MMKV
 
 App-owned display preferences now use Tencent MMKV **2.4.3**, the stable

@@ -75,6 +75,7 @@ internal class IconPackPreviewRepository(
     }
   }
 
+  fun sizeBytes(): Int = synchronized(lock) { cache.size() }
   fun clear() = synchronized(lock) { generation++; cache.evictAll() }
 
   private data class Key(val packId: String, val source: IconPackSource, val entry: String,

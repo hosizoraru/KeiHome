@@ -94,6 +94,10 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
             }
           }, endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
       }
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+        Text(stringResource(R.string.logs_app_note), style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         OverlaySpinnerPreference(title = stringResource(R.string.logs_level),
           items = levelLabels.map { DropdownItem(text = stringResource(it)) },

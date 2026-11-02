@@ -2,7 +2,8 @@
     <string name="settings_log_section">ログ</string>
     <string name="settings_log_summary">レベル、容量、共有、削除</string>
     <string name="logs_source">フックログ · LSPosed</string>
-    <string name="logs_scope">この画面はアプリログを保存。タップしてフックログを確認</string>
+    <string name="logs_scope">モジュールの動作とフックログを確認</string>
+    <string name="logs_app_note">画面や設定の問題は下のアプリログを共有。モジュールやランチャーのフック問題は先に LSPosed を確認してください。</string>
     <string name="logs_lsposed_unavailable">LSPosed Manager を開けません</string>
     <string name="logs_level">ログレベル</string>
     <string name="logs_level_verbose">詳細</string>

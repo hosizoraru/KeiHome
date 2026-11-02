@@ -2,7 +2,8 @@
     <string name="settings_log_section">Logs</string>
     <string name="settings_log_summary">Level, size, export and cleanup</string>
     <string name="logs_source">Hook logs · LSPosed</string>
-    <string name="logs_scope">This page stores App logs; tap for Hook logs</string>
+    <string name="logs_scope">View module activity and Hook logs</string>
+    <string name="logs_app_note">For UI or settings issues, export app logs below. For module or launcher Hook issues, check LSPosed first.</string>
     <string name="logs_lsposed_unavailable">LSPosed Manager is unavailable</string>
     <string name="logs_level">Log level</string>
     <string name="logs_level_verbose">Verbose</string>

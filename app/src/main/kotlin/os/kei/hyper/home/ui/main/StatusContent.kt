@@ -821,9 +821,7 @@ internal fun StatusOverviewCard(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .heightIn(min = 144.dp)
           .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
           Text(
@@ -840,7 +838,7 @@ internal fun StatusOverviewCard(
         if (footer != null) {
           Text(
             text = footer,
-            modifier = Modifier.padding(top = 16.dp),
+            modifier = Modifier.padding(top = 12.dp),
             style = MiuixTheme.textStyles.footnote1,
             color = contentColor,
           )

@@ -6,7 +6,6 @@ import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -42,7 +40,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -97,9 +94,10 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     }
     item(key = "summary", contentType = "summary") {
       val disclosure = stringResource(if (showPreviewNote) R.string.browser_note_hide else R.string.browser_note_show)
-      Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-        .clickable(role = Role.Button, onClickLabel = disclosure) { showPreviewNote = !showPreviewNote }
-        .heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 4.dp),
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp),
+        onClick = { showPreviewNote = !showPreviewNote }) {
+      Column(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(stringResource(browserScopeLabels()[options.scope]), style = MiuixTheme.textStyles.body2,
@@ -121,6 +119,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         RefreshFeedback(model, 1)
+      }
       }
     }
     scan.error?.let { error -> item(key = "error", contentType = "message") {

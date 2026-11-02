@@ -2,7 +2,8 @@
     <string name="settings_log_section">日志</string>
     <string name="settings_log_summary">等级、大小、导出与清理</string>
     <string name="logs_source">Hook 日志 · LSPosed</string>
-    <string name="logs_scope">本页保存 App 日志；点击查看 Hook 日志</string>
+    <string name="logs_scope">查看模块运行与 Hook 日志</string>
+    <string name="logs_app_note">界面或设置异常时，可导出下方的 App 日志；模块与桌面 Hook 问题请优先查看 LSPosed。</string>
     <string name="logs_lsposed_unavailable">无法打开 LSPosed 管理器</string>
     <string name="logs_level">日志等级</string>
     <string name="logs_level_verbose">详细</string>

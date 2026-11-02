@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="splash_section">App launch</string>
+    <string name="splash_adapt">Adapt splash backgrounds</string>
+    <string name="splash_adapt_summary">Use ColorOS lightness handling for plain light backgrounds in the app’s night mode. Keeps brand colors, custom icons and snapshots. Takes effect on the next cold launch.</string>
+    <string name="splash_scope">Connect the framework and add System UI to the module scope.</string>
+</resources>

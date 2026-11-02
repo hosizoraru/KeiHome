@@ -48,6 +48,9 @@ internal fun SettingsContent(
   onAutoApplyChange: (Boolean) -> Unit,
   onRememberMenusChange: (Boolean) -> Unit,
   onTopBarBlurChange: (os.kei.hyper.home.data.AppTopBarBlur) -> Unit,
+  splash: ThemeEffectsUiState,
+  splashInScope: Boolean,
+  onSplashChange: (Boolean) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     SmallTitle(
@@ -81,6 +84,27 @@ internal fun SettingsContent(
         items = listOf(R.string.top_bar_gaussian, R.string.top_bar_progressive)
           .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.topBarBlur.ordinal,
         onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
+    }
+    SmallTitle(stringResource(R.string.splash_section))
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      val issue = when {
+        !splashInScope -> R.string.splash_scope
+        splash.unavailable -> R.string.theme_effects_unavailable
+        splash.saving -> R.string.theme_effects_saving
+        splash.saveFailed -> R.string.theme_effects_save_failed
+        splash.readFailed -> R.string.theme_effects_read_failed
+        splash.loading || splash.savedChoice == null -> R.string.theme_effects_loading
+        else -> null
+      }
+      SwitchPreference(title = stringResource(R.string.splash_adapt),
+        summary = stringResource(issue ?: R.string.splash_adapt_summary),
+        checked = splash.savedChoice == true,
+        enabled = splashInScope && splash.canSaveThemeEffects(splash.savedChoice != true),
+        onCheckedChange = onSplashChange)
+      if (splashInScope && (splash.readFailed || splash.saveFailed)) {
+        BasicComponent(title = stringResource(R.string.theme_effects_resave_off),
+          enabled = splash.canSaveThemeEffects(false), onClick = { onSplashChange(false) })
+      }
     }
     SmallTitle(stringResource(R.string.pack_action_settings))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

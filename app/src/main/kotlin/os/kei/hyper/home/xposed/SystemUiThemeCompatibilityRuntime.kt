@@ -18,6 +18,7 @@ import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.data.ThemeEffectsPreferences
+import os.kei.hyper.home.data.SplashAppearancePreferences
 
 /**
  * Keeps the real theme identity and resources intact. Only the material gate
@@ -33,6 +34,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val handles = mutableListOf<XposedInterface.HookHandle>()
   private val preferenceLock = Any()
   private val enabled = AtomicBoolean()
+  private val splashEnabled = AtomicBoolean(SplashAppearancePreferences.DEFAULT)
   private val materialRevision = AtomicLong(1L)
   private val volumeRevisions = WeakHashMap<Any, Long>()
   private val controlCenterRevisions = WeakHashMap<Any, Long>()
@@ -44,6 +46,15 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val restoredLogged = AtomicBoolean()
   private val firstMaterialCall = AtomicBoolean()
   @Volatile private var preferences: SharedPreferences? = null
+  @Volatile private var splashPreferences: SharedPreferences? = null
+  private val splashPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+    if (key == null || key == SplashAppearancePreferences.KEY) {
+      if (lifecycle.enter()) try {
+        splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
+        xposed.log(Log.INFO, "KeiHomeSplash", "Neutral splash adaptation: ${splashEnabled.get()}")
+      } finally { lifecycle.leave() }
+    }
+  }
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == null || key == ThemeEffectsPreferences.KEY) {
       if (lifecycle.enter()) try {
@@ -82,6 +93,15 @@ internal class SystemUiThemeCompatibilityRuntime(
     })
     launchOwned {
       initializePreferences()
+      try {
+        val prefs = xposed.getRemotePreferences(SplashAppearancePreferences.GROUP)
+        prefs.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
+        splashPreferences = prefs
+        splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
+        SplashBackgroundRuntime(xposed, classLoader, lifecycle, splashEnabled, ::replace).install()
+      } catch (failure: Exception) {
+        xposed.log(Log.WARN, "KeiHomeSplash", "Native splash profile unavailable; keeping system behavior", failure)
+      }
       // On hot reload the plugin already exists. Read the host's live loader,
       // never create a second loader for the same plugin.
       val injector = Class.forName(INJECTOR_CLASS, false, classLoader)
@@ -309,11 +329,14 @@ internal class SystemUiThemeCompatibilityRuntime(
     workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
   ) {
     preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+    splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
     try { saveState() } catch (failure: Throwable) {
       preferences?.registerOnSharedPreferenceChangeListener(preferenceListener)
+      splashPreferences?.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
       throw failure
     }
     preferences = null
+    splashPreferences = null
   }
 
   private fun replace(method: Method, id: String, hooker: XposedInterface.Hooker) {

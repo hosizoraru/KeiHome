@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="splash_section">应用启动</string>
+    <string name="splash_adapt">启动遮罩夜间适配</string>
+    <string name="splash_adapt_summary">应用处于夜间模式时，按 ColorOS 逻辑调暗浅色纯色背景。保留品牌色、自定义启动图标和快照，下次冷启动生效。</string>
+    <string name="splash_scope">请连接框架，并将系统界面加入模块作用域。</string>
+</resources>

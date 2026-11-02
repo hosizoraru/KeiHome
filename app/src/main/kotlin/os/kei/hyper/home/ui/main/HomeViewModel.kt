@@ -45,6 +45,7 @@ import os.kei.hyper.home.data.ColorOsStyle
 import os.kei.hyper.home.data.MonetPaletteReader
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.ThemeEffectsPreferences
+import os.kei.hyper.home.data.SplashAppearancePreferences
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -69,6 +70,9 @@ internal data class FrameworkUiState(
 
 internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
   connected && !readFailed && snapshot?.let { it.systemInScope || it.systemUiInScope } == true
+
+internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
+  connected && !readFailed && snapshot?.systemUiInScope == true
 
 internal data class MonetUiState(
   val snapshot: MonetPaletteSnapshot? = null,
@@ -130,6 +134,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(MonetUiState())
   val themeEffects: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
+  val splashAppearance: StateFlow<ThemeEffectsUiState>
+    field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
     field = MutableStateFlow(AppsUiState())
   val filter: StateFlow<Int>
@@ -144,6 +150,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val runtimeMutex = Mutex()
   private val iconPacksMutex = Mutex()
   private val themeEffectsMutex = Mutex()
+  private val splashAppearanceMutex = Mutex()
   private var iconPacksDirty = true
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
@@ -156,6 +163,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private var applyJob: Job? = null
   private var packageChangeJob: Job? = null
   private val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(
+    application, Handler(Looper.getMainLooper()),
+  ) { packagesChanged() }
+  private val overlayObserver = os.kei.hyper.home.data.IconOverlayObserver(
     application, Handler(Looper.getMainLooper()),
   ) { packagesChanged() }
   private val packageCallback = object : LauncherApps.Callback() {
@@ -227,10 +237,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
         themeEffects.value = ThemeEffectsUiState()
+        splashAppearance.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
           readFramework()
           readThemeEffects()
+          readSplashAppearance()
           delay(1_500)
           withContext(Dispatchers.IO) {
             try { service.upgradeOlderSystemTarget() }
@@ -249,6 +261,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     if (page in 0..1 && (appsDirty || scannedLocale != locale)) scanApps()
     if (page in 2..3 && iconPacksDirty) launch { readIconPacks() }
     try {
+      if (page == 4) launch {
+        readFramework()
+        readSplashAppearance()
+      }
       if (page in 0..3) launch {
         while (true) {
           readFramework()
@@ -275,7 +291,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     refreshing.update { it + page }
     viewModelScope.launch {
       try {
-        if (page in 0..3) readFramework()
+        readFramework()
+        if (page == 4) readSplashAppearance()
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()
@@ -547,6 +564,58 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  private suspend fun readSplashAppearance() = splashAppearanceMutex.withLock {
+    val service = FrameworkConnection.service.value ?: return@withLock
+    if (!framework.value.splashAppearanceInScope() || splashAppearance.value.saving ||
+      splashAppearance.value.saveFailed) return@withLock
+    splashAppearance.update { it.copy(loading = it.savedChoice == null) }
+    try {
+      val saved = SplashAppearancePreferences.read(service)
+      if (FrameworkConnection.service.value === service && !splashAppearance.value.saving) {
+        splashAppearance.value = ThemeEffectsUiState(savedChoice = saved)
+      }
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: UnsupportedOperationException) {
+      if (FrameworkConnection.service.value === service && !splashAppearance.value.saving) {
+        splashAppearance.value = ThemeEffectsUiState(unavailable = true)
+      }
+    } catch (_: Exception) {
+      if (FrameworkConnection.service.value === service && !splashAppearance.value.saving) {
+        splashAppearance.value = ThemeEffectsUiState(readFailed = true)
+      }
+    } finally {
+      if (FrameworkConnection.service.value === service) splashAppearance.update { it.copy(loading = false) }
+    }
+  }
+
+  fun setSplashAppearance(enabled: Boolean) {
+    val service = FrameworkConnection.service.value ?: return
+    if (!framework.value.splashAppearanceInScope() ||
+      !splashAppearance.value.canSaveThemeEffects(enabled)) return
+    splashAppearance.update { it.copy(saving = true) }
+    viewModelScope.launch {
+      splashAppearanceMutex.withLock {
+        try {
+          if (FrameworkConnection.service.value !== service ||
+            !framework.value.splashAppearanceInScope()) return@withLock
+          SplashAppearancePreferences.save(service, enabled)
+          if (FrameworkConnection.service.value === service) {
+            splashAppearance.value = ThemeEffectsUiState(savedChoice = enabled)
+          }
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: UnsupportedOperationException) {
+          if (FrameworkConnection.service.value === service) splashAppearance.update { it.copy(unavailable = true) }
+        } catch (_: Exception) {
+          if (FrameworkConnection.service.value === service) splashAppearance.update { it.copy(saveFailed = true) }
+        } finally {
+          if (FrameworkConnection.service.value === service) splashAppearance.update { it.copy(saving = false) }
+        }
+      }
+    }
+  }
+
   private suspend fun readRuntimeStatus(includeIconTheme: Boolean = true, force: Boolean = false) {
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
@@ -686,6 +755,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   override fun onCleared() {
     packageObserver.close()
+    overlayObserver.close()
     launcherApps?.unregisterCallback(packageCallback)
     previews.clear()
   }

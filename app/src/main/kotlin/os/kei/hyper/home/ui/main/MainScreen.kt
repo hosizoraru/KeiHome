@@ -241,9 +241,12 @@ private fun MonetPage(model: HomeViewModel) {
 @Composable
 private fun SettingsPage(model: HomeViewModel) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val splash by model.splashAppearance.collectAsStateWithLifecycle()
+  val framework by model.framework.collectAsStateWithLifecycle()
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode, model.preferences::setShowIconPreviews,
     model::clearPreviewCache, model.preferences::setPageUserScroll, model.preferences::setPagerGesture,
-    model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections, model.preferences::setTopBarBlur)
+    model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections, model.preferences::setTopBarBlur,
+    splash, framework.splashAppearanceInScope(), model::setSplashAppearance)
 }
 
 @Composable

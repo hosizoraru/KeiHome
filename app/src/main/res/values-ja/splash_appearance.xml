@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="splash_section">アプリの起動</string>
+    <string name="splash_adapt">起動画面の夜間対応</string>
+    <string name="splash_adapt_summary">アプリの夜間モードで、明るい単色背景に ColorOS の明度処理を適用します。ブランド色、独自アイコン、スナップショットは保持し、次回のコールド起動から反映します。</string>
+    <string name="splash_scope">フレームワークに接続し、システム UI をモジュールのスコープに追加してください。</string>
+</resources>

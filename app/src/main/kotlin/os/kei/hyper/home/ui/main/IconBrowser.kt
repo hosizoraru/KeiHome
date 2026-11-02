@@ -111,6 +111,7 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
   } else installed
   val result = rows.filter { r ->
     (options.showOverlays || !r.app.overlayApp) &&
+      (options.showDevelopmentPackages || !isDevelopmentPackage(r.app.packageName)) &&
       (options.scope != 1 || r.app.hasLauncher) &&
       (options.origin == 0 || (r.installed && (if (options.origin == 1) !r.app.systemApp else r.app.systemApp))) &&
       (options.coverage == 0 || (if (options.coverage == 1) r.covered else !r.covered)) &&
@@ -131,8 +132,25 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
   return if (options.reverse) sorted.reversed() else sorted
 }
 
+internal fun isDevelopmentPackage(packageName: String): Boolean =
+  packageName.contains(".test", ignoreCase = true) || packageName.contains(".baselineprofile", ignoreCase = true)
+
 internal suspend fun browserPreview(model: HomeViewModel, row: IconBrowserRow,
-  source: IconBrowserSource?): AppIconPreviews {
-  if (source == null || row.entry == null) return if (row.installed) model.previews.load(row.app) else AppIconPreviews()
-  return model.currentPreviews.load(source, row.entry)
+  source: IconBrowserSource?): AppIconPreviews = loadPreviewOrEmpty(
+  onFailure = { android.util.Log.w("KeiHomeBrowser", "Icon preview is temporarily unavailable", it) },
+) {
+    if (source == null || row.entry == null) {
+      if (row.installed) model.previews.load(row.app) else AppIconPreviews()
+    } else model.currentPreviews.load(source, row.entry)
 }
+
+internal suspend fun loadPreviewOrEmpty(onFailure: (Exception) -> Unit = {},
+  load: suspend () -> AppIconPreviews): AppIconPreviews =
+  try {
+    load()
+  } catch (cancelled: kotlinx.coroutines.CancellationException) {
+    throw cancelled
+  } catch (failure: Exception) {
+    onFailure(failure)
+    AppIconPreviews()
+  }

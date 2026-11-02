@@ -9,8 +9,8 @@ import java.io.File
 class IconBrowserTest {
   @Test fun selectedSystemFallbackIsPreviewedButDoesNotClaimPackRedrawOrApkMonochrome() {
     val source = source().copy(systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT,
-      setOf("os.test.covered")))
-    val apps = listOf(app("os.test.covered", system = true))
+      setOf("os.demo.covered")))
+    val apps = listOf(app("os.demo.covered", system = true))
     val row = browserRows(apps, source, IconBrowserOptions(), "").single()
     assertNotNull(row.entry)
     assertFalse(row.covered)
@@ -24,26 +24,26 @@ class IconBrowserTest {
       IconCapabilityStatus.DETECTED, systemApp = system, hasLauncher = launcher, updatedAt = updated)
   private fun source(): IconBrowserSource {
     fun entry(name: String) = IconPackEntry(name, nativeName = name)
-    val entries = listOf(entry("os.test.covered"), entry("os.test.dynamic"), entry("os.test.absent"))
+    val entries = listOf(entry("os.demo.covered"), entry("os.demo.dynamic"), entry("os.demo.absent"))
     val record = StoredIconPack("test", "test", 0, IconPackFormat.MIUI_ICONS, File("unused"), null, 0, null)
     val pack = IconPackDescriptor("test", "test", IconPackFormat.MIUI_ICONS, IconPackSource.Imported(record), entries)
-    return IconBrowserSource("test", pack, entries.associateBy { it.nativeName!! }, emptySet(), setOf("os.test.dynamic"))
+    return IconBrowserSource("test", pack, entries.associateBy { it.nativeName!! }, emptySet(), setOf("os.demo.dynamic"))
   }
   @Test fun coveredArtworkDoesNotInheritApkMonochromeSupport() {
-    val rows = browserRows(listOf(app("os.test.covered"), app("os.test.original")), source(), IconBrowserOptions(), "")
+    val rows = browserRows(listOf(app("os.demo.covered"), app("os.demo.original")), source(), IconBrowserOptions(), "")
     assertEquals(IconCapabilityStatus.NOT_DETECTED, rows.first { it.covered }.app.monochrome)
     assertEquals(IconCapabilityStatus.DETECTED, rows.first { !it.covered }.app.monochrome)
   }
   @Test fun nativeDayNightPairIsCountedEvenWhenBothFallbackEntriesPointToTheDayPng() {
-    val source = source().copy(nightNames = setOf("os.test.covered"))
-    val row = browserRows(listOf(app("os.test.covered")), source, IconBrowserOptions(support = 1), "").single()
+    val source = source().copy(nightNames = setOf("os.demo.covered"))
+    val row = browserRows(listOf(app("os.demo.covered")), source, IconBrowserOptions(support = 1), "").single()
     assertEquals(IconCapabilityStatus.DETECTED, row.app.nightMode)
   }
   @Test fun packagePrefixNeverEstablishesCoverage() {
-    assertFalse(browserRows(listOf(app("os.test.covered.extra")), source(), IconBrowserOptions(), "").single().covered)
+    assertFalse(browserRows(listOf(app("os.demo.covered.extra")), source(), IconBrowserOptions(), "").single().covered)
   }
   @Test fun allPackIconsIncludesUninstalledResourcesButNotUncoveredApps() {
-    val rows = browserRows(listOf(app("os.test.covered"), app("os.test.other")), source(), IconBrowserOptions(scope = 2), "")
+    val rows = browserRows(listOf(app("os.demo.covered"), app("os.demo.other")), source(), IconBrowserOptions(scope = 2), "")
     assertEquals(3, rows.size)
     assertEquals(2, rows.count { !it.installed })
     assertTrue(rows.all { it.covered })
@@ -54,15 +54,23 @@ class IconBrowserTest {
     assertEquals("os.sys.launcher", browserRows(apps, null, IconBrowserOptions(scope = 1, origin = 2), "").single().app.packageName)
   }
   @Test fun dynamicResourcesRemainUnknownAndSearchUsesPackageNames() {
-    val row = browserRows(listOf(app("os.test.dynamic")), source(), IconBrowserOptions(support = 4), "DYNAMIC").single()
+    val row = browserRows(listOf(app("os.demo.dynamic")), source(), IconBrowserOptions(support = 4), "DYNAMIC").single()
     assertEquals(IconCapabilityStatus.UNKNOWN, row.app.monochrome)
     assertTrue(row.dynamic)
   }
   @Test fun overlaysAreHiddenByDefaultWithoutGuessingFromThePackageName() {
-    val overlay = app("os.test.resource").copy(overlayApp = true)
-    val normal = app("os.test.overlay.editor")
+    val overlay = app("os.demo.resource").copy(overlayApp = true)
+    val normal = app("os.demo.overlay.editor")
     assertEquals(listOf(normal), browserRows(listOf(overlay, normal), null, IconBrowserOptions(), "").map { it.app })
     assertEquals(2, browserRows(listOf(overlay, normal), null, IconBrowserOptions(showOverlays = true), "").size)
+  }
+  @Test fun testAndBaselinePackagesAreHiddenByDefaultAndCanBeShown() {
+    val apps = listOf(app("com.example.test"), app("com.example.test.runner"),
+      app("com.example.baselineprofile"), app("com.example.release"))
+    assertEquals(listOf("com.example.release"),
+      browserRows(apps, null, IconBrowserOptions(), "").map { it.app.packageName })
+    assertEquals(4, browserRows(apps, null, IconBrowserOptions(showDevelopmentPackages = true), "").size)
+    assertFalse(isDevelopmentPackage("com.example.baseline"))
   }
   @Test fun recentlyUpdatedSortRetainsUserProfileIdentity() {
     val a = app("os.old.app", updated = 1)
@@ -75,13 +83,13 @@ class IconBrowserTest {
     val apps = listOf(
       app("os.apple", updated = 1).copy(label = "Zulu"),
       app("os.banana", updated = 3).copy(label = "Alpha"),
-      app("os.test.covered", updated = 2).copy(label = "Bravo"),
+      app("os.demo.covered", updated = 2).copy(label = "Bravo"),
     )
     val expected = listOf(
-      listOf("os.apple", "os.test.covered", "os.banana"),
-      listOf("os.test.covered", "os.banana", "os.apple"),
-      listOf("os.apple", "os.test.covered", "os.banana"),
-      listOf("os.apple", "os.banana", "os.test.covered"),
+      listOf("os.apple", "os.demo.covered", "os.banana"),
+      listOf("os.demo.covered", "os.banana", "os.apple"),
+      listOf("os.apple", "os.demo.covered", "os.banana"),
+      listOf("os.apple", "os.banana", "os.demo.covered"),
     )
     expected.forEachIndexed { sort, packages ->
       assertEquals("Rule $sort", packages,

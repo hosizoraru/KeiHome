@@ -197,6 +197,10 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
         CapabilityPill(stringResource(R.string.apps_night_feature), app.nightMode,
           colorResource(if (LocalKeiHomeDarkTheme.current) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent))
         CapabilityPill("Monet", app.monochrome)
+        if (previews != null && previews?.light == null && previews?.dark == null &&
+          previews?.lightMonochrome == null && previews?.darkMonochrome == null) {
+          MetadataPill(stringResource(R.string.browser_preview_unavailable), MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
         if (!app.personalProfile) MetadataPill(stringResource(R.string.profile_user, app.userId), MiuixTheme.colorScheme.primary)
       }
       if (showPreviews) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -249,13 +253,6 @@ private fun CapabilityPill(label: String, status: IconCapabilityStatus, positive
 }
 
 @Composable
-private fun MetadataPill(label: String, color: Color) {
-  Text(label, modifier = Modifier.clip(CircleShape).background(color.copy(alpha = 0.10f))
-    .padding(horizontal = 7.dp, vertical = 3.dp),
-    style = MiuixTheme.textStyles.footnote2, color = color)
-}
-
-@Composable
 private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
   foreground: Int? = null, background: Int? = null, original: Boolean = false, backgroundMask: Bitmap? = null,
 ) {
@@ -268,7 +265,7 @@ private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
 }
 
 @Composable
-private fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, modifier: Modifier, backgroundMask: Bitmap? = null) {
+internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, modifier: Modifier, backgroundMask: Bitmap? = null) {
   val maskImage = remember(backgroundMask) { backgroundMask?.asImageBitmap() }
   val image = remember(bitmap) { bitmap?.asImageBitmap() }
   val shape = remember { AdaptiveIconDrawable(ColorDrawable(android.graphics.Color.WHITE), null).apply {

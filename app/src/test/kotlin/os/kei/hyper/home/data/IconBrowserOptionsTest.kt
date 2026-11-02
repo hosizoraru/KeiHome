@@ -5,7 +5,7 @@ import org.junit.Test
 
 class IconBrowserOptionsTest {
   @Test fun savesEveryUserChoiceIncludingDirectionAndOverlayVisibility() {
-    val value = IconBrowserOptions(2, 1, 2, 4, 3, true, true)
+    val value = IconBrowserOptions(2, 1, 2, 4, 3, true, true, true)
     assertEquals(value, IconBrowserOptions.restore(value.stored()))
   }
   @Test fun olderAndInvalidStorageRestoresSafeDefaults() {

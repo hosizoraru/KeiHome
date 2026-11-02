@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.vector.ImageVector
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
@@ -30,11 +31,12 @@ internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean,
 }
 
 @Composable
-internal fun PackInlineAction(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+internal fun PackInlineAction(label: String, onClick: () -> Unit, enabled: Boolean = true,
+  icon: ImageVector = MiuixIcons.Theme) {
   val color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary
   Row(Modifier.heightIn(min = 48.dp).clickable(enabled = enabled, onClickLabel = label, onClick = onClick),
     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    Icon(MiuixIcons.Theme, null, Modifier.size(20.dp), tint = color)
+    Icon(icon, null, Modifier.size(20.dp), tint = color)
     Text(label, style = MiuixTheme.textStyles.footnote1, color = color)
   }
 }

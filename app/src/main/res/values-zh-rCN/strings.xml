@@ -141,11 +141,11 @@
     <string name="monet_hide_details">收起色阶详情</string>
     <string name="monet_selected_palette">所选图标配色</string>
     <string name="system_fallback_title">未覆盖系统应用的图标</string>
-    <string name="system_fallback_summary">使用自定义图标包时，未重绘的系统应用采用哪套 HyperOS 图标。</string>
+    <string name="system_fallback_summary">自定义图标包未覆盖时使用的系统图标。</string>
     <string name="system_fallback_default">默认</string>
     <string name="system_fallback_classic">经典</string>
     <string name="system_fallback_boundless">无界</string>
-    <string name="system_fallback_update_note">重新生成并应用后生效。包内重绘优先，时钟、日历保留动态；缺少资源时沿用系统回退。</string>
+    <string name="system_fallback_update_note">更新并应用后生效。包内重绘优先，时钟与日历保持动态；无资源时沿用系统回退。</string>
     <string name="system_fallback_update">更新当前图标包</string>
     <string name="system_fallback_applied">当前回退：%1$s · 补齐 %2$d 项</string>
     <string name="system_fallback_source_needed">请从图标库选择原始方案，重新生成并应用。</string>

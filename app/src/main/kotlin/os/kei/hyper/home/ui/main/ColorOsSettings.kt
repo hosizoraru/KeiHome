@@ -81,21 +81,21 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
           style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
-    IconPackAppearancePreference(preferences.iconPackAppearance, model.preferences::setIconPackAppearance, !busy,
-      compact = inspiration)
+    if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,
+      model.preferences::setIconPackAppearance, !busy)
     if (!inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       SwitchPreference(title = stringResource(R.string.pack_art_plus),
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,
         enabled = !busy, onCheckedChange = model.preferences::setColorOsArtPlus)
     }
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    val result = state.nativeResult?.takeIf {
+      it.sourceId == card?.pack?.id?.let { id ->
+        preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
+      }
+    }
+    if (!inspiration || card == null || result != null) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (card == null) Text(stringResource(R.string.pack_local_unavailable))
-        val result = state.nativeResult?.takeIf {
-          it.sourceId == card?.pack?.id?.let { id ->
-            preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
-          }
-        }
         if (result?.imported == true) {
           NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
         } else if (result != null) {
@@ -104,7 +104,7 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
           if (result.status == "UNCERTAIN") TextButton(stringResource(R.string.icon_pack_recheck),
             onClick = model::recheckNativeIconImport)
         }
-        Text(stringResource(if (preferences.autoApplyIconPack) R.string.pack_action_hint_auto
+        if (!inspiration) Text(stringResource(if (preferences.autoApplyIconPack) R.string.pack_action_hint_auto
           else R.string.pack_action_hint_manual), style = MiuixTheme.textStyles.footnote2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }

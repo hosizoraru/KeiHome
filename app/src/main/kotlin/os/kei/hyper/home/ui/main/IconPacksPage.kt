@@ -60,11 +60,11 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 
 @Composable
 internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues,
-  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {}) {
+  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {},
+  onOpenSettings: () -> Unit = {}) {
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
-  val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val activeId = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme?.localId
@@ -84,11 +84,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
       "home" -> {
-        item("native") { SystemIconThemeCard(runtime) }
+        item("native") { SystemIconThemeCard(runtime) { model.refresh(3) } }
+        item("completion") { PackCompletionCard(model, onOpenSettings) }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
-        item("system-fallback") { SystemIconFallbackCard(model, importReady) }
-        item("effects") { ThemeEffectsCard(themeEffects, framework, model::setPreserveSystemMaterials) }
       }
       "library" -> {
         item("builtin") { PackNavigationCard(stringResource(R.string.pack_builtin),
@@ -162,6 +161,23 @@ internal fun IconPackAppearancePreference(
   modifier: Modifier = Modifier,
   compact: Boolean = false,
 ) {
+  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    Column {
+      IconPackAppearanceControl(appearance, onChange, enabled, compact)
+      if (!compact) Text(stringResource(R.string.icon_pack_appearance_update_note),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+  }
+}
+
+@Composable
+internal fun IconPackAppearanceControl(
+  appearance: IconPackAppearance,
+  onChange: (IconPackAppearance) -> Unit,
+  enabled: Boolean,
+  compact: Boolean = false,
+) {
   val system = stringResource(R.string.icon_pack_appearance_system)
   val light = stringResource(R.string.icon_pack_appearance_light)
   val dark = stringResource(R.string.icon_pack_appearance_dark)
@@ -169,22 +185,15 @@ internal fun IconPackAppearancePreference(
   val items = remember(system, light, dark, dim) {
     listOf(system, light, dark, dim).map { DropdownItem(text = it) }
   }
-  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    Column {
-      OverlaySpinnerPreference(
-        title = stringResource(R.string.icon_pack_appearance_title),
-        summary = if (compact) "" else stringResource(R.string.icon_pack_appearance_summary),
-        items = items,
-        selectedIndex = appearance.ordinal,
-        onSelectedIndexChange = { onChange(IconPackAppearance.entries[it]) },
-        enabled = enabled,
-        modifier = Modifier.testTag("icon-packs.appearance"),
-      )
-      if (!compact) Text(stringResource(R.string.icon_pack_appearance_update_note),
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    }
-  }
+  OverlaySpinnerPreference(
+    title = stringResource(R.string.icon_pack_appearance_title),
+    summary = if (compact) null else stringResource(R.string.icon_pack_appearance_summary),
+    items = items,
+    selectedIndex = appearance.ordinal,
+    onSelectedIndexChange = { onChange(IconPackAppearance.entries[it]) },
+    enabled = enabled,
+    modifier = Modifier.testTag("icon-packs.appearance"),
+  )
 }
 
 @Composable

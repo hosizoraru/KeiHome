@@ -71,7 +71,8 @@ import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
+  onOpenSettingsSection: (String) -> Unit, modifier: Modifier = Modifier) {
   val interaction by remember(model) {
     model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged()
   }.collectAsStateWithLifecycle(initialValue = model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture })
@@ -151,7 +152,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           AppsPage(model, appList, padding, pageModifier)
         } else if (page == 3) {
           val sectionList = rememberLazyListState()
-          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
+          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection,
+            onOpenSettings = { onOpenSettingsSection("hook") })
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
@@ -170,7 +172,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                   RefreshFeedback(model, 2)
                 }
               }
-              4 -> SettingsPage(model)
+              4 -> SettingsRootPage(model, onOpenSettingsSection)
             }
           }
         }
@@ -206,6 +208,7 @@ private fun MonetPage(model: HomeViewModel) {
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val packs by model.iconPacks.collectAsStateWithLifecycle()
   val ordinary = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == false
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
@@ -228,6 +231,8 @@ private fun MonetPage(model: HomeViewModel) {
       items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
       selectedIndex = if (inspiration) 1 else 0,
       onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
+    if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
+      model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
   }
   if (inspiration) ColorOsSettings(model, ready, inspiration = true)
   MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
@@ -236,17 +241,6 @@ private fun MonetPage(model: HomeViewModel) {
     actionAvailable = !ordinary && framework.connected && !framework.readFailed &&
       framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
     actionStatus = monet.action, onApply = model::applyMonet)
-}
-
-@Composable
-private fun SettingsPage(model: HomeViewModel) {
-  val preferences by model.preferences.state.collectAsStateWithLifecycle()
-  val splash by model.splashAppearance.collectAsStateWithLifecycle()
-  val framework by model.framework.collectAsStateWithLifecycle()
-  SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode, model.preferences::setShowIconPreviews,
-    model::clearPreviewCache, model.preferences::setPageUserScroll, model.preferences::setPagerGesture,
-    model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections, model.preferences::setTopBarBlur,
-    splash, framework.splashAppearanceInScope(), model::setSplashAppearance)
 }
 
 @Composable
@@ -269,6 +263,8 @@ private fun AppsFilterMenu(model: HomeViewModel) {
   val controls = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_show_overlays), selected = options.showOverlays,
       onClick = { model.updateBrowserOptions(options.copy(showOverlays = !options.showOverlays)) }),
+    DropdownItem(text = stringResource(R.string.browser_show_development), selected = options.showDevelopmentPackages,
+      onClick = { model.updateBrowserOptions(options.copy(showDevelopmentPackages = !options.showDevelopmentPackages)) }),
     DropdownItem(text = stringResource(R.string.browser_reset), onClick = {
       model.updateBrowserOptions(IconBrowserOptions(sort = options.sort, reverse = options.reverse))
     }),

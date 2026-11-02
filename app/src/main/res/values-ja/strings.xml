@@ -145,7 +145,7 @@
     <string name="system_fallback_default">デフォルト</string>
     <string name="system_fallback_classic">クラシック</string>
     <string name="system_fallback_boundless">バウンドレス</string>
-    <string name="system_fallback_update_note">変更後はパックを再生成して適用してください。パックのアイコンを優先し、時計とカレンダーの動作を維持します。素材がない場合はシステムの安全な代替を使用します。</string>
+    <string name="system_fallback_update_note">更新して適用すると反映されます。パックの画像を優先し、時計とカレンダーの動作を維持します。素材がない場合はシステムの代替を使用します。</string>
     <string name="system_fallback_update">現在のアイコンパックを更新</string>
     <string name="system_fallback_applied">現在の代替：%1$s · %2$d 項目</string>
     <string name="system_fallback_source_needed">ライブラリで元のパックを選び、再生成して適用してください。</string>

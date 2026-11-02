@@ -20,6 +20,7 @@ import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.PackDestinationScreen
+import os.kei.hyper.home.ui.main.SettingsDestinationScreen
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
@@ -39,16 +40,24 @@ fun MainNavigation() {
     val route = PackRoute(section)
     if (backStack.lastOrNull() != route) backStack.add(route)
   }
+  fun openSettings(section: String) {
+    val route = SettingsRoute(section)
+    if (backStack.lastOrNull() != route) backStack.add(route)
+  }
   NavDisplay(backStack = backStack,
     onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
     transition = NavTransitions.MiuixDefault,
     effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
       dimAmount = 0.26f, blockInputDuringTransition = true,
       backdropColor = MiuixTheme.colorScheme.surface)) {
-    entry<Main> { MainScreen(model = model, onOpenPackSection = ::open) }
+    entry<Main> { MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings) }
     entry<PackRoute>(swipeDismiss = swipe) { route ->
       PackDestinationScreen(model, route.section,
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::open)
+    }
+    entry<SettingsRoute>(swipeDismiss = swipe) { route ->
+      SettingsDestinationScreen(model, route.section,
+        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings)
     }
   }
 }

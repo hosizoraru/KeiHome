@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -169,10 +170,14 @@ private fun ColorEditRow(
   title: String, color: Int, enabled: Boolean, tag: String, summary: String? = null, onClick: () -> Unit,
 ) {
   val hex = colorHex(color)
-  BasicComponent(title = title, summary = listOfNotNull(summary, hex).joinToString(" · "),
+  BasicComponent(title = title, summary = hex,
+    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag), endActions = {
-      Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))
-        .semantics { contentDescription = hex })
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (summary != null) MetadataPill(summary, MiuixTheme.colorScheme.primary)
+        Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))
+          .semantics { contentDescription = hex })
+      }
     })
 }
 

@@ -266,11 +266,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 4) launch {
         readFramework()
         readSplashAppearance()
+        while (true) { readThemeEffects(); delay(5_000) }
       }
       if (page in 0..3) launch {
         while (true) {
           readFramework()
-          if (page == 3) readThemeEffects()
           delay(5_000)
         }
       }
@@ -309,7 +309,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         readFramework()
-        if (page == 4) readSplashAppearance()
+        if (page == 4) { readSplashAppearance(); readThemeEffects() }
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()

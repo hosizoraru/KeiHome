@@ -1,5 +1,33 @@
 # Apps browser and App appearance
 
+## Settings and About
+
+Settings is grouped into App, system and hook, cache, and About destinations.
+Search matches localized setting labels and summaries. System icon fallback
+and system material controls live in the system and hook destination, while
+the icon-pack landing page shows the currently applied source and completion
+state. Test and baseline-profile packages are hidden by default and can be
+revealed separately from overlays.
+
+About uses the pinned MIUIX example's OS3 background shader and draw node,
+with its light/dark presets and a static fallback when runtime shaders are
+unavailable. Animation follows the Activity lifecycle and respects Android's
+disabled-animation setting. Frame updates invalidate drawing rather than
+recomposing the page. The icon uses the active pack's own day/night and
+available monochrome resources, according to the system icon state, with the
+App's own resources as fallback. Some dynamic native icons remain static
+previews because arbitrary theme scripts are not executed by the App.
+
+The project source is labeled as planned for later release. Bundled third-party
+notices and license texts remain available offline; the APK's DexKit notice
+describes the corresponding-source obligations for any distribution.
+
+On HyperOS `emulator-5580`, visual checks covered both system day/night modes,
+the active ColorOS icon's two resources, the moving background, settings and
+cache refresh. The tested ColorOS Classic ART+ scheme did not permit enabling
+Monet without applying a different scheme, so that state was not changed for
+this check. The current scheme and initial dark/Monet-off settings were retained.
+
 ## Current source
 
 Status and Apps read the applied native Icon component, including mixed themes,

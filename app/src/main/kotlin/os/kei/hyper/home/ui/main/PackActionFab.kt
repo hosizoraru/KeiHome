@@ -43,8 +43,10 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String) {
   val update = page == 3 && section == "home"
   val generate = page == 3 && section == "coloros"
   val busy = state.nativeImporting != null
+  // Read the observed report before the early return so a later source discovery shows the FAB.
+  val activeSource = runtime.report?.iconTheme?.localId
   if ((!update && !generate && !(page == 2 && inspiration)) ||
-    (update && model.currentFallbackSource() == null)) return
+    (update && (activeSource == null || model.currentFallbackSource() == null))) return
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
   val label = stringResource(if (busy && state.preparing) R.string.pack_action_preparing

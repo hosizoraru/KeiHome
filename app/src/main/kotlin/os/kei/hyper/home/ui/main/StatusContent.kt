@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.colorResource
@@ -139,9 +141,9 @@ internal fun StatusBody(
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
           Text(iconSource?.title ?: stringResource(R.string.status_unknown), style = MiuixTheme.textStyles.body1)
         }
-        Text(if (iconSource?.previewKey != null && coveredApps != null)
+        MetadataPill(if (iconSource?.previewKey != null && coveredApps != null)
           stringResource(R.string.browser_dashboard_coverage, coveredApps) else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready else R.string.status_needs_verification),
-          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.primary)
+          color = MiuixTheme.colorScheme.primary)
       }
     }
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
@@ -566,17 +568,18 @@ private fun DashboardCallbackReceipt(receipt: IconRefreshReceipt?) {
     return
   }
   val relative = dashboardRelativeTime(dashboardAgeMinutes(receipt.completedAtMillis))
-  DashboardFootnote(pluralStringResource(
+  MetadataPill(pluralStringResource(
     R.plurals.runtime_callbacks_dispatched, receipt.callbacks, receipt.callbacks, relative,
-  ))
+  ), MiuixTheme.colorScheme.primary)
 }
 
 @Composable
 private fun DashboardPaletteAge(timestamp: Long?) {
   val relative = dashboardRelativeTime(dashboardAgeMinutes(timestamp))
-  DashboardFootnote(
+  MetadataPill(
     if (timestamp == null) stringResource(R.string.dashboard_no_palette_record)
     else stringResource(R.string.dashboard_last_palette, relative),
+    MiuixTheme.colorScheme.onSurfaceSecondary,
   )
 }
 
@@ -598,10 +601,12 @@ private fun AppCapabilitiesCard(
       role = Role.Button,
       endActions = { DashboardArrow() },
       bottomAction = {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          CapabilityCount(installedApps, stringResource(R.string.polish_apps_total), Modifier.weight(1f))
-          CapabilityCount(nightApps, stringResource(R.string.polish_apps_night), Modifier.weight(1f))
-          CapabilityCount(monetApps, stringResource(R.string.polish_apps_monet), Modifier.weight(1f))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          CapabilityCount(installedApps, stringResource(R.string.polish_apps_total), MiuixTheme.colorScheme.primary)
+          CapabilityCount(nightApps, stringResource(R.string.polish_apps_night), colorResource(
+            if (LocalKeiHomeDarkTheme.current) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent))
+          CapabilityCount(monetApps, stringResource(R.string.polish_apps_monet), MiuixTheme.colorScheme.primary)
         }
       },
     )
@@ -609,17 +614,10 @@ private fun AppCapabilitiesCard(
 }
 
 @Composable
-private fun CapabilityCount(count: Int?, label: String, modifier: Modifier) {
-  Column(modifier.semantics(mergeDescendants = true) {}) {
-    Text(
-      text = count?.takeIf { it >= 0 }?.let { stringResource(R.string.polish_apps_count, it) }
-        ?: stringResource(R.string.polish_value_pending),
-      style = MiuixTheme.textStyles.title2,
-      color = if (count != null && count >= 0) MiuixTheme.colorScheme.primary
-        else MiuixTheme.colorScheme.onSurfaceSecondary,
-    )
-    DashboardFootnote(label)
-  }
+private fun CapabilityCount(count: Int?, label: String, color: Color) {
+  val value = count?.takeIf { it >= 0 }?.let { stringResource(R.string.polish_apps_count, it) }
+    ?: stringResource(R.string.polish_value_pending)
+  MetadataPill("$label $value", if (count != null && count >= 0) color else MiuixTheme.colorScheme.onSurfaceSecondary)
 }
 
 @Composable

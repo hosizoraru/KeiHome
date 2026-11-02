@@ -148,7 +148,7 @@
     <string name="system_fallback_default">Default</string>
     <string name="system_fallback_classic">Classic</string>
     <string name="system_fallback_boundless">Boundless</string>
-    <string name="system_fallback_update_note">Regenerate and apply to take effect. Pack artwork and live clocks/calendars stay first. Missing resources retain the system fallback.</string>
+    <string name="system_fallback_update_note">Update and apply to take effect. Pack artwork takes priority; clocks and calendars stay live. Missing resources use the system fallback.</string>
     <string name="system_fallback_update">Update current icon pack</string>
     <string name="system_fallback_applied">Current fallback: %1$s · %2$d items</string>
     <string name="system_fallback_source_needed">Choose the original source in the icon library, then regenerate and apply.</string>

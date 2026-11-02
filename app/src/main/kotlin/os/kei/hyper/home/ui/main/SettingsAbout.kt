@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -79,7 +80,13 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val environmentRequester = remember { BringIntoViewRequester() }
   LaunchedEffect(focusEnvironment) {
-    if (focusEnvironment) environmentRequester.bringIntoView()
+    if (focusEnvironment) {
+      // Navigation and the asynchronous device-info lookup can both change the card bounds.
+      delay(500)
+      environmentRequester.bringIntoView()
+      delay(250)
+      environmentRequester.bringIntoView()
+    }
   }
   LaunchedEffect(model, lifecycle) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeAboutIcon() }

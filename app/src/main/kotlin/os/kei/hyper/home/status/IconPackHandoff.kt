@@ -27,6 +27,7 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
+import os.kei.hyper.home.iconpack.IconBuildInventory
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -148,7 +149,27 @@ internal object IconPackHandoffs {
             "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
           output.closeEntry()
           output.putNextEntry(ZipEntry("icons").apply { time = 0 })
-          icons.inputStream().use { it.copyTo(output) }
+          // Keep provenance inside the icons module so a badge compares the applied
+          // bytes with the current source, rather than an un-applied library import.
+          val nested = ZipOutputStream(object : java.io.FilterOutputStream(output) {
+            override fun write(bytes: ByteArray, offset: Int, length: Int) { output.write(bytes, offset, length) }
+            override fun close() { flush() }
+          })
+          nested.use { stamped ->
+            ZipFile(icons).use { archive ->
+              archive.entries().asSequence().filterNot {
+                it.isDirectory || it.name == IconBuildInventory.SOURCE_PATH ||
+                  it.name == IconBuildInventory.NAMES_PATH
+              }.forEach { entry ->
+                stamped.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
+                archive.getInputStream(entry).use { it.copyTo(stamped) }
+                stamped.closeEntry()
+              }
+            }
+            stamped.putNextEntry(ZipEntry(IconBuildInventory.SOURCE_PATH).apply { time = 0 })
+            stamped.write(IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8))
+            stamped.closeEntry()
+          }
           output.closeEntry()
           // Themes crops previews to a portrait phone frame, including icons-only components.
           val cover = Bitmap.createBitmap(400, 860, Bitmap.Config.ARGB_8888)

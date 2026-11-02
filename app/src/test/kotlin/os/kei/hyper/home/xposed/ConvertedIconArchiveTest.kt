@@ -20,6 +20,18 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 
 class ConvertedIconArchiveTest {
+  @Test fun acceptsBoundedBuildProvenanceAlongsideValidatedArtwork() {
+    val content = zip(generatedPair() + ("keihome-build-source.txt" to
+      "apk:com.example.icons:system-fallback-v1:DEFAULT\ncom.example.icons:1:100".toByteArray()))
+    withArchive(content) { ConvertedIconArchive.inspect(it, "CONVERTED_APK") }
+  }
+
+  @Test fun buildProvenanceDoesNotAdmitXmlPathsOrOversizedPayloads() {
+    for (value in listOf("<script/>\ncom.example", "file:///data/theme\ncom.example",
+        "valid\ninvalid\nextra", "a".repeat(4097))) {
+      rejects(zip(generatedPair() + ("keihome-build-source.txt" to value.toByteArray())))
+    }
+  }
   @Test fun fallbackProvenanceCannotClaimMissingIconsOrUnrelatedMonochromeLayers() {
     val path = os.kei.hyper.home.iconpack.SystemIconFallbackManifest.PATH
     fun metadata(name: String) = os.kei.hyper.home.iconpack.SystemIconFallbackManifest(

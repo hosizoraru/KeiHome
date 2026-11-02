@@ -29,6 +29,44 @@ internal data class IconPackExportResult(
 )
 
 internal class IconPackExporter(private val context: Context, private val limits: IconPackLimits) {
+  /** Probe only missing candidates; use the same guarded renderers and live-source policy. */
+  fun canComplete(pack: IconPackDescriptor, target: IconPackComponent,
+    systemFallback: SystemIconFallback, check: () -> Unit): Boolean {
+    val entry = pack.entries.firstOrNull { it.component == target }
+      ?: pack.entries.firstOrNull { it.component == IconPackComponent(target.packageName) }
+    if (pack.colorOsProfile?.source(target)?.requiresLiveIcon == true || livePolicy(pack)(target, entry)) return false
+    return try {
+      val system = SystemIconFallbackRenderer(context, systemFallback)
+      val colorOs = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style) }
+      IconPackRenderer(context).open(pack, false).use { renderer ->
+        val missingMode = entry == null || (colorOs != null && entry.artwork(false) == null)
+        val bitmap = entry?.let { renderer.render(it, 48, check) }
+          ?: if (missingMode && system.isSystem(target)) system.render(target, 48, check)
+          else if (missingMode) colorOs?.render(target, false, 48, check = check) else null
+        (bitmap != null).also { bitmap?.recycle() }
+      }
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: Exception) { false }
+  }
+
+  private fun livePolicy(pack: IconPackDescriptor): (IconPackComponent, IconPackEntry?) -> Boolean {
+    val directives = pack.directives.filter { it.tag == "calendar" || it.tag == "dynamic-clock" }
+    val components = directives.mapNotNull { it.attributes["component"]?.let(IconPackComponent::parse) }.toSet()
+    val drawables = directives.mapNotNull { it.attributes["drawable"]?.let(IconDrawableName::parse) }.toSet()
+    val names = drawables.mapTo(HashSet()) { it.name }
+    return { target, entry ->
+      target in components || IconPackComponent(target.packageName) in components ||
+        listOfNotNull(entry?.light, entry?.dark).any { artwork ->
+          when (artwork) {
+            is IconPackArtwork.Resource -> artwork.drawable in drawables
+            is IconPackArtwork.Archive -> artwork.variants.any {
+              it.path.substringAfterLast('/').substringBeforeLast('.') in names
+            }
+          }
+        }
+    }
+  }
+
   fun export(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
     sizePx: Int, systemFallback: SystemIconFallback? = null, check: () -> Unit,
@@ -52,20 +90,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     }
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
-    val liveDirectives = pack.directives.filter { it.tag == "calendar" || it.tag == "dynamic-clock" }
-    val liveComponents = liveDirectives.mapNotNull { it.attributes["component"]?.let(IconPackComponent::parse) }.toSet()
-    val liveDrawables = liveDirectives.mapNotNull { it.attributes["drawable"]?.let(IconDrawableName::parse) }.toSet()
-    val liveNames = liveDrawables.mapTo(HashSet()) { it.name }
-    fun requiresLive(target: IconPackComponent, entry: IconPackEntry?): Boolean =
-      target in liveComponents || IconPackComponent(target.packageName) in liveComponents ||
-        listOfNotNull(entry?.light, entry?.dark).any { artwork ->
-          when (artwork) {
-            is IconPackArtwork.Resource -> artwork.drawable in liveDrawables
-            is IconPackArtwork.Archive -> artwork.variants.any {
-              it.path.substringAfterLast('/').substringBeforeLast('.') in liveNames
-            }
-          }
-        }
+    val requiresLive = livePolicy(pack)
     fun match(target: IconPackComponent) = componentEntries[target]
       ?: componentEntries[IconPackComponent(target.packageName)]
       ?: target.className?.let(nativeEntries::get) ?: nativeEntries[target.packageName]

@@ -1,5 +1,9 @@
 # ColorOS local icon adaptation
 
+The later [runtime-cache and package-update work](package-icon-refresh.md)
+expands the firmware-only inventory described below and verifies installation,
+replacement, preview invalidation and the missing Coolapk/Xiaomi Home night art.
+
 This work targets the user-owned ColorOS17_API37 AVD (`emulator-5574`) and
 HyperOS Phone AVD (`emulator-5580`). Source firmware resources remain in ignored
 `.artifacts/inputs/coloros/`; no ColorOS artwork or decompiled implementation is

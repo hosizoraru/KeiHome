@@ -123,6 +123,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val packageInventoryRevision = MutableStateFlow(0)
   val previews = IconPreviewRepository(application)
   val packPreviews = IconPackPreviewRepository(application)
+  val currentPreviews = CurrentIconPreviewRepository(application,
+    { pack, entry -> packPreviews.load(pack, entry) })
   private val packRepository = IconPackRepository(application)
   val iconPacks: StateFlow<IconPacksUiState>
     field = MutableStateFlow(IconPacksUiState())
@@ -297,6 +299,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         if (page == 3) {
           readThemeEffects()
           packPreviews.clear()
+          currentPreviews.clear()
           packRepository.invalidateInstalled()
           readIconPacks()
         }
@@ -324,6 +327,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun clearPreviewCache() {
     previews.clear()
+    packPreviews.clear()
+    currentPreviews.clear()
     apps.update { it.copy(previewGeneration = it.previewGeneration + 1) }
   }
 
@@ -354,7 +359,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     packageChangeJob = viewModelScope.launch {
       delay(350)
       clearPreviewCache()
-      packPreviews.clear()
       packRepository.invalidateInstalled()
       if (visiblePage in 0..1) scanApps()
       if (visiblePage == 3 || iconPacks.value.scanned) readIconPacks()

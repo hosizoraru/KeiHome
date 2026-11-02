@@ -4,6 +4,8 @@ plugins {
 
 // Local firmware-derived profiles are optional build inputs, never checked into source control.
 android.sourceSets.getByName("main").assets.srcDir(rootProject.file(".artifacts/generated/assets"))
+// MMKV is used through JNI. This payload imports no C++ Prefab packages.
+android.buildFeatures.prefab = false
 
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
@@ -15,6 +17,7 @@ dependencies {
   implementation(libs.dexkit)
   // Same pure color engine already used by MIUIX; also needed on our compile classpath.
   implementation(libs.material.color.utilities)
+  implementation(libs.mmkv)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

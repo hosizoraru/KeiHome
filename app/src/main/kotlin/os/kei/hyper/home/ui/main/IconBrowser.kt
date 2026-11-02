@@ -1,7 +1,6 @@
 package os.kei.hyper.home.ui.main
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -135,33 +134,5 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
 internal suspend fun browserPreview(model: HomeViewModel, row: IconBrowserRow,
   source: IconBrowserSource?): AppIconPreviews {
   if (source == null || row.entry == null) return if (row.installed) model.previews.load(row.app) else AppIconPreviews()
-  val pair = model.packPreviews.load(source.pack, row.entry)
-  return withContext(Dispatchers.IO) {
-    val caller = currentCoroutineContext()
-    val name = row.entry.nativeName
-    var mono: android.graphics.Bitmap? = null
-    var background: android.graphics.Bitmap? = null
-    var day = pair.light; var night = pair.dark
-    ZipFile((source.pack.source as IconPackSource.Imported).record.originalFile).use { zip ->
-      fun png(path: String): android.graphics.Bitmap? {
-        caller.ensureActive()
-        val entry = zip.getEntry(path) ?: return null
-        if (entry.size !in 1..4 * 1024 * 1024) return null
-        val bytes = zip.getInputStream(entry).use { it.readNBytes(4 * 1024 * 1024 + 1) }
-        val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, size)
-        if (size.outWidth !in 1..512 || size.outHeight !in 1..512) return null
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-      }
-      if (name in source.paletteNames) {
-        mono = png("fancy_icons/$name/mask.png")
-        background = png("fancy_icons/$name/bg.png")
-      }
-      if (name !in source.dynamicNames) {
-        day = png("fancy_icons/$name/day.png") ?: day
-        night = png("fancy_icons/$name/night.png") ?: night
-      }
-    }
-    AppIconPreviews(day, night, mono, mono, backgroundMask = background)
-  }
+  return model.currentPreviews.load(source, row.entry)
 }

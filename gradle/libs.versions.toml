@@ -15,6 +15,7 @@ kotlin = "2.4.21"
 libxposed = "102.0.0"
 miuix = "0.9.4-fc455d9a-SNAPSHOT"
 materialColorUtilities = "5.0.1"
+mmkv = "2.4.3"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -38,6 +39,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed" }
 libxposed-service = { module = "io.github.libxposed:service", version.ref = "libxposed" }
 material-color-utilities = { module = "com.materialkolor:material-color-utilities", version.ref = "materialColorUtilities" }
+mmkv = { module = "com.tencent:mmkv", version.ref = "mmkv" }
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }

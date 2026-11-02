@@ -56,7 +56,7 @@ internal data class AppPreferencesState(
 )
 
 internal class AppPreferences private constructor(context: Context) {
-  private val preferences = context.getSharedPreferences("app_display", Context.MODE_PRIVATE)
+  private val preferences = AppDisplayStorage.open(context)
   val systemIconFallbackChoices = context.assets.list("system-icon-fallback").orEmpty().toSet().let { assets ->
     SystemIconFallback.entries.filter { it == SystemIconFallback.DEFAULT || "${it.name.lowercase()}.zip" in assets }
   }
@@ -86,8 +86,8 @@ internal class AppPreferences private constructor(context: Context) {
       it.name == preferences.getString("color_os_style", null)
     } ?: ColorOsStyle.CLASSIC,
     colorOsArtPlus = preferences.getBoolean("color_os_art", true),
-    colorOsComponents = preferences.all.filterKeys { it.startsWith("coloros_component_") }
-      .mapNotNull { (key, value) -> (value as? Boolean)?.let { key.removePrefix("coloros_component_") to it } }.toMap(),
+    colorOsComponents = preferences.allKeys().orEmpty().filter { it.startsWith("coloros_component_") }
+      .associate { it.removePrefix("coloros_component_") to preferences.getBoolean(it, false) },
     monetInspiration = if (preferences.contains("monet_inspiration"))
       preferences.getBoolean("monet_inspiration", false) else null,
   )
@@ -115,14 +115,19 @@ internal class AppPreferences private constructor(context: Context) {
   fun setRememberMenuSelections(value: Boolean) {
     preferences.edit().apply {
       putBoolean("remember_menus", value)
-      if (!value) preferences.all.keys.filter { it.startsWith("browser_") }.forEach(::remove)
+      if (!value) preferences.allKeys().orEmpty().filter { it.startsWith("browser_") }.forEach(::remove)
     }.apply()
     state.update { it.copy(rememberMenuSelections = value) }
   }
 
   fun readBrowserOptions(): IconBrowserOptions = if (!state.value.rememberMenuSelections) IconBrowserOptions()
-    else IconBrowserOptions.restore(preferences.all.filterKeys { it.startsWith("browser_") }
-      .mapKeys { it.key.removePrefix("browser_") })
+    else IconBrowserOptions.restore(IconBrowserOptions().stored().mapValues { (key, default) ->
+      when (default) {
+        is Int -> preferences.getInt("browser_$key", default)
+        is Boolean -> preferences.getBoolean("browser_$key", default)
+        else -> error("Unsupported menu value")
+      }
+    })
 
   fun saveBrowserOptions(value: IconBrowserOptions) {
     if (!state.value.rememberMenuSelections) return

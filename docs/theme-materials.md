@@ -125,3 +125,29 @@ cause of the delayed frame.
 Evidence: `/tmp/keihome-theme-research/material-fixture/` and the versioned
 deployment folders. Synthetic component fixtures establish specific contracts;
 they are not acceptance of arbitrary full community themes.
+
+## Xiaomi 17 Pro, November 3
+
+Release `1.1.0+g376b3bc.b0123` / `101000123` was installed on the physical
+`pandora` device running `OS4.0.5.0.XBLCNXM`, Home
+`RELEASE-8.01.02.8593-260918-10241550-R`, and LSPosed `2.2.1-log (7939)`.
+The rebooted launcher reported installed native selection, Monet and highlight
+capabilities. Matching native ELF build IDs and bounded reads of the capability
+flags confirmed this in launcher 6594/start 2584. The SystemUI material resolver
+found its shared predicate and 24 callers; splash and native Themes import
+hooks also loaded.
+
+The update retained the native payload byte for byte. API 102 replaced Java
+hooks while launcher 6594, SystemUI 6553 and system_server 4178 kept their start
+identities. Manual off/on reached SystemUI and the native material flag changed
+`1 → 0 → 1`, with matching acknowledgements from the system worker. Control
+Center and volume were reopened and visually inspected. The physical device
+kept its default icon component and its original enabled material choice; this
+does not establish a full-theme visual comparison on the phone.
+
+On the HyperOS AVD, the already applied non-default ColorOS component caused a
+single automatic enablement. After manual off, an icon-library refresh and
+settings re-entry preserved off. Seven focused preference tests also cover
+persistence, explicit off before a suggestion, concurrent requests and failed
+automatic/manual commits. Local evidence is under
+`.artifacts/research/physical-20261103/`.

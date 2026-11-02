@@ -39,8 +39,10 @@ withdraws guessed source decisions until it can be indexed.
   It does not run on a configuration hook, UI thread or color worker.
 - Native import is currently validated structurally for Themes 11.5.4.0/11540.
   Other versions report unsupported instead of guessing a Binder contract.
-- The system Themes detail screen owns application. KeiHome never overwrites
-  the active icons archive or bypasses the theme manager's native apply operation.
+- The system Themes apply task owns application. The optional
+  [automatic application flow](icon-pack-actions.md) authorizes one imported
+  component, runs that native task and returns to KeiHome. KeiHome never
+  overwrites the active icons archive directly.
 
 The original transaction can take up to ten minutes. Operation receipts persist
 before/after submission, across API 102 owner replacement. Uncertain completion

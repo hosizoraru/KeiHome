@@ -39,8 +39,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBack: () -> Unit,
   onNavigate: (String) -> Unit) {
-  if (route == SettingsSection.ABOUT.route) {
-    AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") })
+  if (route == SettingsSection.ABOUT.route || route == "about/environment") {
+    AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
+      focusEnvironment = route == "about/environment")
     return
   }
   val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP

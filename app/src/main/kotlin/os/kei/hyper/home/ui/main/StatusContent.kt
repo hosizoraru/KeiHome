@@ -120,7 +120,7 @@ internal fun StatusBody(
   onOpenApps: () -> Unit = {},
   runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
-  coveredApps: Int? = null, onOpenPacks: () -> Unit = {},
+  coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: () -> Unit = {},
 ) {
   // The containing page's SaveableStateProvider retains these across tab switches.
   var runtimeExpanded by rememberSaveable { mutableStateOf(false) }
@@ -149,6 +149,13 @@ internal fun StatusBody(
       }
     }
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      BasicComponent(title = stringResource(R.string.status_device_environment),
+        summary = stringResource(R.string.status_device_environment_summary),
+        onClick = onOpenEnvironment, endActions = {
+          Icon(MiuixIcons.Basic.ArrowRight, contentDescription = null)
+        })
+    }
   }
 }
 

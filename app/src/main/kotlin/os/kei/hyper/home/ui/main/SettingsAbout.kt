@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -72,8 +74,13 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit) {
+internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit,
+  focusEnvironment: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
+  val environmentRequester = remember { BringIntoViewRequester() }
+  LaunchedEffect(focusEnvironment) {
+    if (focusEnvironment) environmentRequester.bringIntoView()
+  }
   LaunchedEffect(model, lifecycle) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeAboutIcon() }
   }
@@ -86,7 +93,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
         Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
         AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices, onBackground = true)
         Spacer(Modifier.height(12.dp))
-        AboutDetails()
+        Box(Modifier.bringIntoViewRequester(environmentRequester)) { AboutDetails() }
         Spacer(Modifier.height(32.dp))
       }
       IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(start = 8.dp)) {

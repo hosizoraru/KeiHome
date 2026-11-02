@@ -162,7 +162,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
             when (page) {
               0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = { selectTab(3) }, onOpenPacks = { selectTab(2) })
+                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = { selectTab(3) },
+                    onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") })
                   RefreshFeedback(model, 0)
                 }
               }
@@ -183,7 +184,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
 }
 
 @Composable
-private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit, onOpenPacks: () -> Unit) {
+private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit,
+  onOpenPacks: () -> Unit, onOpenEnvironment: () -> Unit) {
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
@@ -199,7 +201,8 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     onOpenMonet = onOpenMonet, onOpenApps = onOpenApps,
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
     runtime = runtime,
-    iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered }, onOpenPacks = onOpenPacks)
+    iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered },
+    onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment)
 }
 
 @Composable

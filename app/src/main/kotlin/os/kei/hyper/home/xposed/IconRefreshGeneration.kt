@@ -12,6 +12,7 @@ internal fun isNightModeTransition(previous: Int, current: Int): Boolean {
 internal enum class IconRefreshCause(val initialDelayMs: Long, val packageIntervalMs: Long) {
   RESOURCE_CHANGE(1500L, 220L),
   PALETTE_ACK(100L, 60L),
+  PACKAGE_CHANGE(500L, 60L),
 }
 
 internal class IconRefreshGeneration {
@@ -21,6 +22,20 @@ internal class IconRefreshGeneration {
   // A newer palette ACK can replace a queued/running resource refresh, but
   // cannot turn its unfinished work into a fast palette-only sweep.
   private var resourceChangePending = false
+  private val changedPackages = linkedSetOf<String>()
+
+  @Synchronized
+  fun nextPackageRefresh(packageName: String): Long? {
+    if (retired) return null
+    changedPackages += packageName
+    value += 1
+    return value
+  }
+
+  @Synchronized
+  fun packages(generation: Long): Set<String>? =
+    if (!retired && generation == value && !fullRefreshRequired && !resourceChangePending &&
+      changedPackages.isNotEmpty()) changedPackages.toSet() else null
 
   @Synchronized
   fun nextFullRefresh(cause: IconRefreshCause = IconRefreshCause.RESOURCE_CHANGE): Long? {
@@ -33,7 +48,8 @@ internal class IconRefreshGeneration {
 
   @Synchronized
   fun cause(generation: Long): IconRefreshCause =
-    if (!retired && generation == value && fullRefreshRequired && !resourceChangePending) {
+    if (packages(generation) != null) IconRefreshCause.PACKAGE_CHANGE
+    else if (!retired && generation == value && fullRefreshRequired && !resourceChangePending) {
       IconRefreshCause.PALETTE_ACK
     } else {
       IconRefreshCause.RESOURCE_CHANGE
@@ -48,6 +64,7 @@ internal class IconRefreshGeneration {
     if (!retired && generation == value) {
       fullRefreshRequired = false
       resourceChangePending = false
+      changedPackages.clear()
     }
   }
 
@@ -67,6 +84,7 @@ internal class IconRefreshGeneration {
     retired = true
     fullRefreshRequired = false
     resourceChangePending = false
+    changedPackages.clear()
     value += 1
   }
 }

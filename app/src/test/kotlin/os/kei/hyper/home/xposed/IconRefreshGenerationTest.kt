@@ -8,6 +8,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconRefreshGenerationTest {
+  @Test fun packageChangesCoalesceWithoutDiscardingAnUnfinishedNightOrSourceRefresh() {
+    val scoped = IconRefreshGeneration()
+    val old = scoped.nextPackageRefresh("com.test.first")!!
+    val latest = scoped.nextPackageRefresh("com.test.second")!!
+    scoped.complete(old)
+    assertEquals(setOf("com.test.first", "com.test.second"), scoped.packages(latest))
+    assertEquals(IconRefreshCause.PACKAGE_CHANGE, scoped.cause(latest))
+    val night = scoped.next(light, dark)!!
+    assertNull(scoped.packages(night))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, scoped.cause(night))
+    val duringNight = scoped.nextPackageRefresh("com.test.third")!!
+    assertNull(scoped.packages(duringNight))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, scoped.cause(duringNight))
+    scoped.complete(duringNight)
+    val fresh = scoped.nextPackageRefresh("com.test.fourth")!!
+    assertEquals(setOf("com.test.fourth"), scoped.packages(fresh))
+    val source = scoped.nextFullRefresh()!!
+    assertNull(scoped.packages(source))
+    assertTrue(scoped.needsFullRefresh(source))
+    scoped.retire()
+    assertNull(scoped.nextPackageRefresh("com.test.late"))
+  }
   private val light = Configuration.UI_MODE_NIGHT_NO
   private val dark = Configuration.UI_MODE_NIGHT_YES
 

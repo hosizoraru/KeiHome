@@ -134,10 +134,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private var appsDirty = true
   private var scanJob: Job? = null
   private var applyJob: Job? = null
+  private var packageChangeJob: Job? = null
+  private val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(
+    application, Handler(Looper.getMainLooper()),
+  ) { packagesChanged() }
   private val packageCallback = object : LauncherApps.Callback() {
     override fun onPackageAdded(packageName: String, user: UserHandle) = packagesChanged()
     override fun onPackageRemoved(packageName: String, user: UserHandle) = packagesChanged()
-    override fun onPackageChanged(packageName: String, user: UserHandle) = packagesChanged()
+    // Real resource/component changes are observed through PackageManager broadcasts.
+    override fun onPackageChanged(packageName: String, user: UserHandle) = Unit
     override fun onPackagesAvailable(names: Array<out String>, user: UserHandle, replacing: Boolean) = packagesChanged()
     override fun onPackagesUnavailable(names: Array<out String>, user: UserHandle, replacing: Boolean) = packagesChanged()
   }
@@ -270,9 +275,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private fun packagesChanged() {
     appsDirty = true
     iconPacksDirty = true
-    clearPreviewCache()
-    if (visiblePage == 1) scanApps()
-    if (visiblePage == 3) viewModelScope.launch { readIconPacks() }
+    packageChangeJob?.cancel()
+    packageChangeJob = viewModelScope.launch {
+      delay(350)
+      clearPreviewCache()
+      packPreviews.clear()
+      packRepository.invalidateInstalled()
+      if (visiblePage in 0..1) scanApps()
+      if (visiblePage == 3) readIconPacks()
+    }
   }
 
   fun importIconPack(uri: Uri) {
@@ -401,7 +412,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         apps.update { it.copy(loading = false, error = failure.message.orEmpty()) }
       } finally {
         scanJob = null
-        if ((appsDirty || requestedLocale != locale) && visiblePage == 1) scanApps()
+        if ((appsDirty || requestedLocale != locale) && visiblePage in 0..1) scanApps()
       }
     }
   }
@@ -612,6 +623,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   override fun onCleared() {
+    packageObserver.close()
     launcherApps?.unregisterCallback(packageCallback)
     previews.clear()
   }

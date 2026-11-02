@@ -95,6 +95,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       xposed.log(Log.INFO, TAG, "Theme material change acknowledged; reconciling mounted icons")
       schedulePaletteRefresh()
     },
+    onPackageResourcesChanged = { name ->
+      synchronized(lock) {
+        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
+          generations.nextPackageRefresh(name)?.let { pending.replace(IconRefreshRequest(it, 0)) }
+          postPendingLocked()
+        }
+      }
+    },
   )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
@@ -482,10 +490,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             ) != true
           ) continue
           try {
-            val activities = launcherApps.getActivityList(null, user)
+            val requestedPackages = generations.packages(generation)
+            val activities = launcherApps.getActivityList(null, user).filter {
+              requestedPackages == null || it.componentName.packageName in requestedPackages
+            }
             val fullRefresh = generations.needsFullRefresh(generation)
             // A palette refresh already includes every entry; probing first only adds AMS work.
-            val probedPackages = if (fullRefresh) activities.map { it.componentName.packageName }.toSet()
+            val probedPackages = if (fullRefresh || requestedPackages != null)
+              activities.map { it.componentName.packageName }.toSet()
             else probe.packagesToRefresh(activities) { refreshCurrent(generation) }
             if (!refreshCurrent(generation)) return
             val theme = iconTheme.snapshot(
@@ -494,7 +506,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                 .mapValues { (_, entries) -> entries.map { it.componentName.className }.toSet() },
               modEnabled = true,
             )
-            val shortcutsByPackage = shortcutsByPackage(launcherApps, user) ?: emptyMap()
+            val shortcutsByPackage = (shortcutsByPackage(launcherApps, user) ?: emptyMap()).filterKeys {
+              requestedPackages == null || it in requestedPackages
+            }
             val shortcutPackages = shortcutsByPackage.keys
             val themePackages = if (theme.complete) theme.coveredPackages
             else activities.map { it.componentName.packageName }.toSet()

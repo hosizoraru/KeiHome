@@ -29,6 +29,7 @@ internal class MonetColorMonitor(
   private val refreshReceipt: () -> IconRefreshReceipt? = { null },
   private val themePreferences: () -> SharedPreferences? = { null },
   private val onThemeMaterialsChanged: () -> Unit = {},
+  private val onPackageResourcesChanged: (String) -> Unit = {},
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -56,6 +57,7 @@ internal class MonetColorMonitor(
       private set
     private var registered = false
     private var wallpaperRegistered = false
+    private var packageObserver: os.kei.hyper.home.data.PackageChangeObserver? = null
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
     private var runtimePreferences: SharedPreferences? = null
@@ -229,6 +231,14 @@ internal class MonetColorMonitor(
       handler.post {
         if (closed) return@post
         connectActionPreferences()
+        try {
+          packageObserver = os.kei.hyper.home.data.PackageChangeObserver(context, handler) { name ->
+            if (!closed) {
+              onPackageResourcesChanged(name)
+              request()
+            }
+          }
+        } catch (failure: Exception) { onFailure(failure) }
         connectMaterialPreferences()
         requestMaterials()
         try {
@@ -268,6 +278,8 @@ internal class MonetColorMonitor(
       closed = true
       handler.removeCallbacksAndMessages(null)
       handler.post {
+        try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+        packageObserver = null
         try {
           actionPreferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         } catch (failure: Exception) {

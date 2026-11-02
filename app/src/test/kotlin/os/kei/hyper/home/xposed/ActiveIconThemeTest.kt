@@ -21,6 +21,22 @@ class ActiveIconThemeTest {
   private val mod get() = File(temporary.root, "mod-icons")
   private fun reader(maxEntries: Int = 16_384) = ActiveIconTheme(active, stock, mod, maxEntries)
 
+  @Test fun timeRefreshTargetsOnlyCanonicalTemplatesAndExactComponentOwners() {
+    val dynamic = os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
+    val kind = os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind.CALENDAR
+    val entries = dynamic.entries("sample.calendar.Main", kind,
+      mapOf("day.png" to png().copyOf(33), "night.png" to png().copyOf(33)))
+    archive(active, entries + mapOf("fancy_icons/sample.foreign/manifest.xml" to descriptor()))
+    val index = reader()
+    val packages = setOf("sample.calendar", "sample.calendar.extra", "sample.foreign")
+    assertEquals(mapOf("sample.calendar" to kind), index.timeIconPackages(packages,
+      mapOf("sample.calendar" to setOf(".Main"))))
+    assertTrue(index.timeIconPackages(packages, emptyMap()).isEmpty())
+    archive(active, mapOf("fancy_icons/sample.calendar.Main/manifest.xml" to descriptor()))
+    index.invalidate()
+    assertTrue(index.timeIconPackages(packages, mapOf("sample.calendar" to setOf(".Main"))).isEmpty())
+  }
+
   @Test fun reportsNightResourcesFromTheSystemModDirectory() {
     val day = File(mod, "res/drawable/com.sample.mod.png")
     val night = File(mod, "nightmode/res/drawable/com.sample.mod.png")

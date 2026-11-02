@@ -1,6 +1,13 @@
 package os.kei.hyper.home.xposed
 
 import android.content.res.Configuration
+import android.content.pm.ActivityInfo
+
+/** Resource qualifiers can change artwork without changing a package or night mode. */
+internal fun iconResourceConfigurationChanged(changes: Int): Boolean = changes and (
+  ActivityInfo.CONFIG_LOCALE or ActivityInfo.CONFIG_LAYOUT_DIRECTION or
+    ActivityInfo.CONFIG_DENSITY or ActivityInfo.CONFIG_COLOR_MODE or ActivityInfo.CONFIG_ASSETS_PATHS
+  ) != 0
 
 internal fun isNightModeTransition(previous: Int, current: Int): Boolean {
   val before = previous and Configuration.UI_MODE_NIGHT_MASK

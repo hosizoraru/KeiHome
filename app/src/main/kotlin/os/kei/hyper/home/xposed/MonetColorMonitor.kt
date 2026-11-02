@@ -30,6 +30,8 @@ internal class MonetColorMonitor(
   private val themePreferences: () -> SharedPreferences? = { null },
   private val onThemeMaterialsChanged: () -> Unit = {},
   private val onPackageResourcesChanged: (String) -> Unit = {},
+  private val onOverlayResourcesChanged: (String) -> Unit = {},
+  private val onTimeResourcesChanged: (Boolean) -> Unit = {},
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -58,6 +60,8 @@ internal class MonetColorMonitor(
     private var registered = false
     private var wallpaperRegistered = false
     private var packageObserver: os.kei.hyper.home.data.PackageChangeObserver? = null
+    private var overlayObserver: os.kei.hyper.home.data.IconOverlayObserver? = null
+    private var timeObserver: os.kei.hyper.home.data.IconTimeObserver? = null
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
     private var runtimePreferences: SharedPreferences? = null
@@ -234,9 +238,24 @@ internal class MonetColorMonitor(
         try {
           packageObserver = os.kei.hyper.home.data.PackageChangeObserver(context, handler) { name ->
             if (!closed) {
+              synchronizer.invalidateIconResources(name)
               onPackageResourcesChanged(name)
               request()
             }
+          }
+        } catch (failure: Exception) { onFailure(failure) }
+        try {
+          overlayObserver = os.kei.hyper.home.data.IconOverlayObserver(context, handler) { target ->
+            if (!closed) {
+              synchronizer.invalidateIconResources(target.takeUnless { it == "android" })
+              onOverlayResourcesChanged(target)
+              request()
+            }
+          }
+        } catch (failure: Exception) { onFailure(failure) }
+        try {
+          timeObserver = os.kei.hyper.home.data.IconTimeObserver(context, handler) { calendarOnly ->
+            if (!closed) onTimeResourcesChanged(calendarOnly)
           }
         } catch (failure: Exception) { onFailure(failure) }
         connectMaterialPreferences()
@@ -280,6 +299,10 @@ internal class MonetColorMonitor(
       handler.post {
         try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
         packageObserver = null
+        try { overlayObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+        overlayObserver = null
+        try { timeObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+        timeObserver = null
         try {
           actionPreferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         } catch (failure: Exception) {

@@ -11,6 +11,14 @@ import java.nio.ByteOrder
  */
 internal object NativeColorOsDynamicIcon {
   enum class Kind { CALENDAR, CLOCK }
+  private val manifests by lazy {
+    Kind.entries.flatMap { kind -> listOf<Boolean?>(null, false, true).flatMap { fixed ->
+      listOf(false, true).map { dim -> manifest(kind, fixed, dim) to kind }
+    } }.toMap()
+  }
+
+  /** Classification only, not approval or an interpreter for foreign MAML. */
+  fun kindOfManifest(bytes: ByteArray): Kind? = manifests[bytes.toString(Charsets.UTF_8)]
 
   /**
    * [fixedDark] selects artwork independently of the live date/time updater.

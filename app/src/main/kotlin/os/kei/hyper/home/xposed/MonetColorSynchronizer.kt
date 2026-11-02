@@ -60,6 +60,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val paletteQuery = AtomicReference<CancellationSignal?>()
 
   fun start(): Boolean = native.start()
+  fun invalidateIconResources(packageName: String? = null) = resources.invalidate(packageName)
   fun stop() {
     paletteQuery.getAndSet(null)?.cancel()
     native.stop()

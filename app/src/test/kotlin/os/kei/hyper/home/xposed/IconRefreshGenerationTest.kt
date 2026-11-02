@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.res.Configuration
+import android.content.pm.ActivityInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,6 +9,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconRefreshGenerationTest {
+  @Test fun resourceQualifierChangesRefreshIconsWithoutTreatingEveryUiChangeAsAnIconChange() {
+    for (change in listOf(ActivityInfo.CONFIG_LOCALE, ActivityInfo.CONFIG_LAYOUT_DIRECTION,
+      ActivityInfo.CONFIG_DENSITY, ActivityInfo.CONFIG_COLOR_MODE, ActivityInfo.CONFIG_ASSETS_PATHS))
+      assertTrue(iconResourceConfigurationChanged(change))
+    assertFalse(iconResourceConfigurationChanged(ActivityInfo.CONFIG_FONT_SCALE or
+      ActivityInfo.CONFIG_KEYBOARD or ActivityInfo.CONFIG_ORIENTATION))
+    assertFalse(iconResourceConfigurationChanged(ActivityInfo.CONFIG_UI_MODE))
+  }
   @Test fun packageChangesCoalesceWithoutDiscardingAnUnfinishedNightOrSourceRefresh() {
     val scoped = IconRefreshGeneration()
     val old = scoped.nextPackageRefresh("com.test.first")!!

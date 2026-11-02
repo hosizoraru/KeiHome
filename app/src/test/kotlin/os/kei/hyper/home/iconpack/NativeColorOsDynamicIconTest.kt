@@ -30,6 +30,19 @@ class NativeColorOsDynamicIconTest {
     "night_clock_day_minute_rectangle.png" to night.copyOf(),
   )
 
+  @Test fun identifiesAllLocalTimeTemplatesWithoutAcceptingForeignExpressions() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries)
+      for (fixed in listOf<Boolean?>(null, false, true))
+        for (dim in listOf(false, true)) {
+          val manifest = NativeColorOsDynamicIcon.entries(name, kind,
+            if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) clock else backgrounds,
+            fixed, dim).getValue("$root/manifest.xml")
+          assertEquals(kind, NativeColorOsDynamicIcon.kindOfManifest(manifest))
+          assertEquals(null, NativeColorOsDynamicIcon.kindOfManifest(
+            manifest.toString(Charsets.UTF_8).replace("frameRate=\"0\"", "frameRate=\"1\"").toByteArray()))
+        }
+  }
+
   @Test fun calendarUsesOnlyLiveWeekdayAndDateFieldsOverUnchangedBackgrounds() {
     val entries = NativeColorOsDynamicIcon.entries(name, NativeColorOsDynamicIcon.Kind.CALENDAR, backgrounds)
     assertEquals(setOf("res/drawable-xxhdpi/$name.png", "nightmode/res/drawable-xxhdpi/$name.png",

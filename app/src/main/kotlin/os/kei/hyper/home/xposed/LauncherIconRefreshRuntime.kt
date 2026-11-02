@@ -103,6 +103,17 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         }
       }
     },
+    onOverlayResourcesChanged = { target ->
+      synchronized(lock) {
+        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
+          val next = if (target == "android") generations.nextFullRefresh()
+            else generations.nextPackageRefresh(target)
+          next?.let { pending.replace(IconRefreshRequest(it, 0)) }
+          postPendingLocked()
+        }
+      }
+    },
+    onTimeResourcesChanged = { calendarOnly -> scheduleTimeRefresh(calendarOnly) },
   )
   private var worker: HandlerThread? = null
   private var handler: Handler? = null
@@ -113,6 +124,35 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   @Volatile
   var service: Any? = null
     private set
+
+  private fun scheduleTimeRefresh(calendarOnly: Boolean) {
+    synchronized(lock) {
+      if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
+      handler?.post {
+        try {
+          if (lifecycle.retiring || lifecycle.retired) return@post
+          val context = service?.let { profile.context.get(it) } as? Context ?: return@post
+          val launcher = context.getSystemService(LauncherApps::class.java) ?: return@post
+          val activities = launcher.profiles.flatMap { launcher.getActivityList(null, it) }
+          val packages = context.packageManager.getInstalledApplications(0).mapTo(hashSetOf()) { it.packageName }
+          packages += activities.map { it.componentName.packageName }
+          val components = activities.groupBy { it.componentName.packageName }
+            .mapValues { (_, entries) -> entries.mapTo(hashSetOf()) { it.componentName.className } }
+          val targets = iconTheme.timeIconPackages(packages, components).filterValues {
+            !calendarOnly || it == os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind.CALENDAR
+          }.keys
+          synchronized(lock) {
+            if (!lifecycle.retiring && !lifecycle.retired) {
+              for (name in targets) generations.nextPackageRefresh(name)?.let {
+                pending.replace(IconRefreshRequest(it, 0))
+              }
+              if (targets.isNotEmpty()) postPendingLocked()
+            }
+          }
+        } catch (failure: Exception) { logFailure("could not refresh time-dependent icons", failure) }
+      }
+    }
+  }
 
   fun install(
     loader: ClassLoader,
@@ -230,9 +270,12 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           val result = try { chain.proceed() } finally { android.os.Trace.endSection() }
           try {
             val changes = result as? Int ?: 0
-            if (changes and CONFIG_THEME != 0 && iconThemeChanged(chain.thisObject)) {
+            val themeChanged = changes and CONFIG_THEME != 0 && iconThemeChanged(chain.thisObject)
+            val resourcesChanged = iconResourceConfigurationChanged(changes)
+            if (themeChanged || resourcesChanged) {
               // Only revision/queue work belongs in the WM transaction; inspect files on workers.
-              iconTheme.invalidate()
+              if (themeChanged) iconTheme.invalidate()
+              monetColorSynchronizer.invalidateIconResources()
               synchronized(lock) {
                 if (!lifecycle.retired) {
                   generations.nextFullRefresh()?.let { pending.replace(IconRefreshRequest(it, 0)) }
@@ -241,7 +284,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               }
               monetColorMonitor.request()
             }
-            if (changes and ActivityInfo.CONFIG_UI_MODE != 0) {
+            if (!themeChanged && !resourcesChanged && changes and ActivityInfo.CONFIG_UI_MODE != 0) {
               val current = readUiMode(chain.thisObject)
               if (previous != null && current != null) {
                 android.os.Trace.beginSection("KeiHome:night-observer")
@@ -512,7 +555,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             val shortcutPackages = shortcutsByPackage.keys
             val themePackages = if (theme.complete) theme.coveredPackages
             else activities.map { it.componentName.packageName }.toSet()
-            val packages = (probedPackages + themePackages + shortcutPackages).toSortedSet()
+            // Native HyperOS frontends can own icon resources without an Android
+            // MAIN/LAUNCHER activity. A targeted update must still reach their owner.
+            val installedOwners = requestedPackages.orEmpty().filterTo(hashSetOf()) { name ->
+              try { launcherApps.getApplicationInfo(name, 0, user) != null }
+              catch (_: android.content.pm.PackageManager.NameNotFoundException) { false }
+              catch (_: SecurityException) { false }
+            }
+            val packages = (probedPackages + themePackages + shortcutPackages + installedOwners).toSortedSet()
             xposed.log(
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +

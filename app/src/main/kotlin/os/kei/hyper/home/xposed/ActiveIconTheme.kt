@@ -56,7 +56,8 @@ internal class ActiveIconTheme(
 
   enum class Kind { MISSING, FILE, DIRECTORY, UNKNOWN }
 
-  private data class Inventory(val names: Set<String>, val nightNames: Set<String> = emptySet(), val title: String? = null)
+  private data class Inventory(val names: Set<String>, val nightNames: Set<String> = emptySet(),
+    val title: String? = null, val timeNames: Map<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind> = emptyMap())
   private data class Index(val stamp: SourceStamp, val revision: Long, val inventory: Inventory?) {
     val names get() = inventory?.names
   }
@@ -66,6 +67,21 @@ internal class ActiveIconTheme(
   init { require(maxEntries > 0) }
 
   fun invalidate() { revision.incrementAndGet() }
+
+  @Synchronized
+  fun timeIconPackages(packages: Set<String>, components: Map<String, Set<String>>):
+    Map<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind> {
+    val generation = revision.get()
+    val active = index(activeIcons, directory = false, generation)
+    val primary = if (active.stamp.kind == Kind.MISSING) index(stockIcons, directory = false, generation) else active
+    val names = primary.inventory?.timeNames ?: return emptyMap()
+    return packages.mapNotNull { pkg ->
+      val kind = names[pkg] ?: components[pkg].orEmpty().mapNotNull { component ->
+        names[if (component.startsWith('.')) pkg + component else component]
+      }.distinct().singleOrNull()
+      kind?.let { pkg to it }
+    }.toMap().takeIf { generation == revision.get() }.orEmpty()
+  }
 
   /** Uses the same cached source inventory as the native-selection policy. */
   @Synchronized
@@ -170,6 +186,7 @@ internal class ActiveIconTheme(
     if (zip.size() > maxEntries) throw IOException("Icon pack entry limit")
     val result = linkedSetOf<String>()
     val night = linkedSetOf<String>()
+    val time = linkedMapOf<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind>()
     val entries = zip.entries()
     var descriptorBytes = 0L
     while (entries.hasMoreElements()) {
@@ -193,7 +210,11 @@ internal class ActiveIconTheme(
         if (!declared) continue
       }
       val valid = zip.getInputStream(entry).use { input ->
-        if (resource.descriptor) descriptor(input.readNBytes(MAX_DESCRIPTOR_BYTES + 1))
+        if (resource.descriptor) {
+          val bytes = input.readNBytes(MAX_DESCRIPTOR_BYTES + 1)
+          os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.kindOfManifest(bytes)?.let { time[resource.name] = it }
+          descriptor(bytes)
+        }
         else png(input.readNBytes(24))
       }
       if (valid) {
@@ -207,7 +228,7 @@ internal class ActiveIconTheme(
           ?.item(0)?.textContent?.trim()?.takeIf { it.isNotEmpty() }?.take(120)
       }
     }
-    Inventory(result, night, title)
+    Inventory(result, night, title, time)
   }
 
   private fun readDirectory(file: File): Inventory {

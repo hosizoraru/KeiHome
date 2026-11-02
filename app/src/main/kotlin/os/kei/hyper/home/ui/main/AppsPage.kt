@@ -107,7 +107,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
           MetadataPill(if (scan.capabilities == null) stringResource(R.string.browser_loading)
             else stringResource(R.string.browser_count_compact, visible.size, matches.second),
             MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (scan.loading) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+          if (scan.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
@@ -160,8 +160,10 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
   generation: Int, configuration: String, colors: IconPreviewColors?, showPreviews: Boolean,
   browser: IconBrowserRow? = null, source: IconBrowserSource? = null, model: HomeViewModel? = null,
 ) {
-  val previews by produceState<AppIconPreviews?>(null, app, generation, configuration, source?.revision) {
-    value = if (model != null && browser != null) browserPreview(model, browser, source) else repository.load(app)
+  val previews by androidx.compose.runtime.key(app, generation, configuration, source?.revision) {
+    produceState<AppIconPreviews?>(null) {
+      value = if (model != null && browser != null) browserPreview(model, browser, source) else repository.load(app)
+    }
   }
   Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

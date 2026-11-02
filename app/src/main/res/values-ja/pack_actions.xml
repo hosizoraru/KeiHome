@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="top_bar_blur">トップバーのぼかし</string>
+  <string name="top_bar_blur_summary">すべてのページのトップバーにすぐに反映されます。</string>
+  <string name="top_bar_gaussian">ガウスぼかし · Gaussian</string>
+  <string name="top_bar_progressive">段階的ぼかし · Progressive</string>
+  <string name="pack_update_available">補完または更新できるアイコンがあります。アイコンパックを更新してください。</string>
+  <string name="pack_action_settings">アイコンパックと操作</string>
+  <string name="pack_auto_apply">生成後に自動適用</string>
+  <string name="pack_auto_apply_summary">インストールや更新後、システムテーマで自動適用して戻ります。</string>
+  <string name="pack_remember_menus">メニューの選択を記憶</string>
+  <string name="pack_remember_menus_summary">次回起動時にアプリ一覧の範囲、フィルター、並び順を復元します。</string>
+  <string name="pack_action_update">アイコンを更新</string>
+  <string name="pack_action_install">アイコンをインストール</string>
+  <string name="pack_action_inspiration">インスピレーションを導入</string>
+  <string name="pack_action_view">システムテーマで表示</string>
+  <string name="pack_action_hint_auto">フローティングボタンで生成・適用します。自動適用はオンです。</string>
+  <string name="pack_action_hint_manual">フローティングボタンで生成し、システムテーマで適用してください。</string>
+  <string name="pack_action_preparing">アイコンを準備中…</string>
+</resources>

@@ -2,8 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.os.Process
-import android.os.UserManager
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -16,12 +14,11 @@ import os.kei.hyper.home.iconpack.*
 import os.kei.hyper.home.status.CurrentIconSnapshot
 import os.kei.hyper.home.status.SystemIconThemeReport
 
-internal data class IconBrowserOptions(val scope: Int = 0, val origin: Int = 0,
-  val coverage: Int = 0, val support: Int = 0, val sort: Int = 0, val showOverlays: Boolean = false,
-  val reverse: Boolean = false)
+internal typealias IconBrowserOptions = os.kei.hyper.home.data.IconBrowserOptions
 internal data class IconBrowserSource(val revision: String, val pack: IconPackDescriptor,
   val entries: Map<String, IconPackEntry>, val paletteNames: Set<String>, val dynamicNames: Set<String>,
-  val nightNames: Set<String> = emptySet(), val systemFallback: SystemIconFallbackManifest? = null)
+  val nightNames: Set<String> = emptySet(), val systemFallback: SystemIconFallbackManifest? = null,
+  val nativeNames: Set<String>? = null, val buildSource: String? = null)
 internal data class IconBrowserRow(val app: InstalledIconCapability, val entry: IconPackEntry?,
   val installed: Boolean = true, val dynamic: Boolean = false,
   val systemFallback: os.kei.hyper.home.data.SystemIconFallback? = null) {
@@ -43,7 +40,19 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
       IconPackSource.Imported(record), index.entries, index.description, notices = index.notices)
     val palettes = hashSetOf<String>(); val dynamic = hashSetOf<String>(); val nights = hashSetOf<String>()
     var fallback: SystemIconFallbackManifest? = null
+    var nativeNames: Set<String>? = null
+    var buildSource: String? = null
     ZipFile(file).use { zip ->
+      zip.getEntry(IconBuildInventory.NAMES_PATH)?.takeIf { it.size in 0..IconBuildInventory.MAX_BYTES }?.let {
+        nativeNames = runCatching { IconBuildInventory.decodeNames(zip.getInputStream(it).use { stream ->
+          stream.readNBytes(IconBuildInventory.MAX_BYTES + 1)
+        }) }.getOrNull()
+      }
+      zip.getEntry(IconBuildInventory.SOURCE_PATH)?.takeIf { it.size in 1..4096 }?.let {
+        buildSource = runCatching { IconBuildInventory.decodeSource(zip.getInputStream(it).use { stream ->
+          stream.readNBytes(4097)
+        }) }.getOrNull()
+      }
       zip.getEntry(SystemIconFallbackManifest.PATH)?.takeIf { it.size in 1..SystemIconFallbackManifest.MAX_BYTES }?.let {
         fallback = runCatching {
           SystemIconFallbackManifest.decode(zip.getInputStream(it).use { stream ->
@@ -73,7 +82,7 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
       }
     }
     IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(),
-      palettes, dynamic, nights, fallback)
+      palettes, dynamic, nights, fallback, nativeNames, buildSource)
   }
 
 internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowserSource?,

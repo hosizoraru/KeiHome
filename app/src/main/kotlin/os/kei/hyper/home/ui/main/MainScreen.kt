@@ -25,10 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -44,7 +41,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.BuildConfig
@@ -63,7 +59,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
@@ -76,8 +71,7 @@ import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
-  val model: HomeViewModel = viewModel()
+internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit, modifier: Modifier = Modifier) {
   val interaction by remember(model) {
     model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged()
   }.collectAsStateWithLifecycle(initialValue = model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture })
@@ -91,13 +85,6 @@ fun MainScreen(modifier: Modifier = Modifier) {
   val selectedTab = pager.currentPage
   fun selectTab(index: Int) { navigationScope.launch { pager.springAnimateToPage(index) } }
   val page = listOf(0, 1, 3, 2, 4)[selectedTab]
-  var packSection by rememberSaveable { mutableStateOf("home") }
-  val backState = androidx.navigationevent.compose.rememberNavigationEventState(
-    currentInfo = androidx.navigationevent.NavigationEventInfo.None)
-  androidx.navigationevent.compose.NavigationBackHandler(backState,
-    isBackEnabled = page == 3 && packSection != "home", onBackCompleted = {
-      packSection = when (packSection) { "coloros" -> "builtin"; "builtin", "installed", "imported" -> "library"; else -> "home" }
-    })
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, selectedTab, locales) {
@@ -112,25 +99,16 @@ fun MainScreen(modifier: Modifier = Modifier) {
     NavigationItem(labels[4], MiuixIcons.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
-  val behaviors = List(5) { MiuixScrollBehavior() }
+  val behaviors = List(5) { tab -> androidx.compose.runtime.key("bar-$tab") { MiuixScrollBehavior() } }
   val appList = rememberLazyListState()
-  val pageScrolls = List(5) { rememberScrollState() }
+  val pageScrolls = List(5) { tab -> androidx.compose.runtime.key("scroll-$tab") { rememberScrollState() } }
   val savedPages = rememberSaveableStateHolder()
   Scaffold(
     modifier = modifier,
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(
-          title = if (page == 3 && packSection != "home") stringResource(when (packSection) {
-            "library" -> R.string.icon_pack_library; "builtin" -> R.string.pack_builtin
-            "installed" -> R.string.pack_installed; "imported" -> R.string.pack_imported
-            else -> R.string.pack_coloros_title
-          }) else if (page == 0) stringResource(R.string.app_name) else labels[selectedTab],
-          navigationIcon = {
-            if (page == 3 && packSection != "home") IconButton(onClick = {
-              packSection = when (packSection) { "coloros" -> "builtin"; "builtin", "installed", "imported" -> "library"; else -> "home" }
-            }) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) }
-          },
+          title = if (page == 0) stringResource(R.string.app_name) else labels[selectedTab],
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behaviors[selectedTab],
           actions = {
@@ -144,12 +122,19 @@ fun MainScreen(modifier: Modifier = Modifier) {
       }
     },
     bottomBar = {
+      val packUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+      val updateLabel = stringResource(R.string.pack_update_available)
       IosLiquidGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
-        onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null)
+        onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null,
+        badge = { index -> if (index == 2 && packUpdate) ({
+          top.yukonga.miuix.kmp.basic.Badge(modifier = Modifier.semantics { contentDescription = updateLabel })
+        }) else null })
     },
+    floatingActionButton = { PackActionFab(model, page, "home") },
   ) { insets ->
     val padding = PaddingValues(start = 16.dp, end = 16.dp,
-      top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)
+      top = insets.calculateTopPadding() + 4.dp,
+      bottom = insets.calculateBottomPadding() + if (page == 2 || page == 3) 100.dp else 24.dp)
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
       HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
@@ -165,10 +150,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
         if (tab == 1) {
           AppsPage(model, appList, padding, pageModifier)
         } else if (page == 3) {
-          androidx.compose.runtime.key(packSection) {
-            val sectionList = rememberLazyListState()
-            IconPacksPage(model, sectionList, padding, pageModifier, packSection, { packSection = it })
-          }
+          val sectionList = rememberLazyListState()
+          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
@@ -259,7 +242,8 @@ private fun MonetPage(model: HomeViewModel) {
 private fun SettingsPage(model: HomeViewModel) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode, model.preferences::setShowIconPreviews,
-    model::clearPreviewCache, model.preferences::setPageUserScroll, model.preferences::setPagerGesture)
+    model::clearPreviewCache, model.preferences::setPageUserScroll, model.preferences::setPagerGesture,
+    model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections, model.preferences::setTopBarBlur)
 }
 
 @Composable
@@ -271,19 +255,19 @@ private fun AppsFilterMenu(model: HomeViewModel) {
       children = labels.mapIndexed { index, label -> DropdownItem(text = stringResource(label),
         selected = selected == index, onClick = { update(index) }) })
   val filters = DropdownEntry(items = listOf(
-    group(R.string.browser_scope, browserScopeLabels(), options.scope) { model.browserOptions.value = options.copy(scope = it) },
+    group(R.string.browser_scope, browserScopeLabels(), options.scope) { model.updateBrowserOptions(options.copy(scope = it)) },
     group(R.string.browser_origin, listOf(R.string.browser_origin_all, R.string.browser_origin_user, R.string.browser_origin_system),
-      options.origin) { model.browserOptions.value = options.copy(origin = it) },
+      options.origin) { model.updateBrowserOptions(options.copy(origin = it)) },
     group(R.string.browser_coverage, listOf(R.string.browser_all, R.string.browser_covered, R.string.browser_original),
-      options.coverage) { model.browserOptions.value = options.copy(coverage = it) },
+      options.coverage) { model.updateBrowserOptions(options.copy(coverage = it)) },
     group(R.string.browser_support, listOf(R.string.browser_all, R.string.filter_night, R.string.filter_monochrome,
-      R.string.browser_both, R.string.filter_unknown), options.support) { model.browserOptions.value = options.copy(support = it) },
+      R.string.browser_both, R.string.filter_unknown), options.support) { model.updateBrowserOptions(options.copy(support = it)) },
   ))
   val controls = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_show_overlays), selected = options.showOverlays,
-      onClick = { model.browserOptions.value = options.copy(showOverlays = !options.showOverlays) }),
+      onClick = { model.updateBrowserOptions(options.copy(showOverlays = !options.showOverlays)) }),
     DropdownItem(text = stringResource(R.string.browser_reset), onClick = {
-      model.browserOptions.value = IconBrowserOptions(sort = options.sort, reverse = options.reverse)
+      model.updateBrowserOptions(IconBrowserOptions(sort = options.sort, reverse = options.reverse))
     }),
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(filters, controls)) {
@@ -300,14 +284,14 @@ private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
   val entry = DropdownEntry(items = labels.mapIndexed { index, label ->
     DropdownItem(text = stringResource(label), selected = options.sort == index,
       onClick = {
-        model.browserOptions.value = model.browserOptions.value.copy(sort = index)
+        model.updateBrowserOptions(model.browserOptions.value.copy(sort = index))
         onOrderChange()
       })
   })
   val direction = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = options.reverse,
       onClick = {
-        model.browserOptions.value = model.browserOptions.value.copy(reverse = !options.reverse)
+        model.updateBrowserOptions(model.browserOptions.value.copy(reverse = !options.reverse))
         onOrderChange()
       }),
   ))
@@ -318,7 +302,7 @@ private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
 }
 
 @Composable
-private fun RefreshAction(model: HomeViewModel, page: Int) {
+internal fun RefreshAction(model: HomeViewModel, page: Int) {
   val scanning by remember(model) { model.apps.map { it.loading }.distinctUntilChanged() }
     .collectAsStateWithLifecycle(initialValue = false)
   val refreshing by remember(model, page) { model.refreshing.map { page in it }.distinctUntilChanged() }
@@ -332,7 +316,7 @@ private fun RefreshAction(model: HomeViewModel, page: Int) {
       if (busy) stateDescription = progress
     }) {
     if (busy) {
-      top.yukonga.miuix.kmp.basic.CircularProgressIndicator(modifier = Modifier.size(24.dp))
+      top.yukonga.miuix.kmp.basic.CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
     } else Icon(MiuixIcons.Refresh, null, tint = MiuixTheme.colorScheme.onBackground)
   }
 }

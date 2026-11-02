@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="top_bar_blur">顶部模糊效果</string>
+  <string name="top_bar_blur_summary">应用于所有页面顶部，立即生效。</string>
+  <string name="top_bar_gaussian">高斯模糊 · Gaussian</string>
+  <string name="top_bar_progressive">渐进模糊 · Progressive</string>
+  <string name="pack_update_available">有图标可补全或源包已更新，请更新图标包。</string>
+  <string name="pack_action_settings">图标包与操作</string>
+  <string name="pack_auto_apply">生成后自动应用</string>
+  <string name="pack_auto_apply_summary">安装或更新图标包后，通过系统主题自动应用并返回。</string>
+  <string name="pack_remember_menus">记住菜单选择</string>
+  <string name="pack_remember_menus_summary">下次启动恢复应用列表的查看范围、筛选和排序。</string>
+  <string name="pack_action_update">更新图标包</string>
+  <string name="pack_action_install">安装图标包</string>
+  <string name="pack_action_inspiration">安装灵感图标</string>
+  <string name="pack_action_view">在系统主题中查看</string>
+  <string name="pack_action_hint_auto">点击悬浮按钮生成并应用；已开启自动应用。</string>
+  <string name="pack_action_hint_manual">点击悬浮按钮生成，再进入系统主题应用。</string>
+  <string name="pack_action_preparing">准备图标…</string>
+</resources>

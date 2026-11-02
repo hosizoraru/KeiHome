@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="top_bar_blur">Top bar blur</string>
+  <string name="top_bar_blur_summary">Applies immediately to the top bar on all pages.</string>
+  <string name="top_bar_gaussian">Gaussian</string>
+  <string name="top_bar_progressive">Progressive</string>
+  <string name="pack_update_available">Icons can be completed or updated. Use Update icon pack.</string>
+  <string name="pack_action_settings">Icon pack actions</string>
+  <string name="pack_auto_apply">Apply after generation</string>
+  <string name="pack_auto_apply_summary">Automatically apply installed or updated icons through system Themes, then return.</string>
+  <string name="pack_remember_menus">Remember menu choices</string>
+  <string name="pack_remember_menus_summary">Restore the Apps scope, filters and sort order on the next launch.</string>
+  <string name="pack_action_update">Update icons</string>
+  <string name="pack_action_install">Install icons</string>
+  <string name="pack_action_inspiration">Install Inspiration</string>
+  <string name="pack_action_view">View in system Themes</string>
+  <string name="pack_action_hint_auto">Use the floating button to generate and apply. Automatic application is enabled.</string>
+  <string name="pack_action_hint_manual">Use the floating button to generate, then open system Themes to apply.</string>
+  <string name="pack_action_preparing">Preparing icons…</string>
+</resources>

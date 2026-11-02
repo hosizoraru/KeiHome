@@ -45,6 +45,9 @@ internal fun SettingsContent(
   onClearIconCache: () -> Unit,
   onPageUserScrollChange: (Boolean) -> Unit,
   onPagerGestureChange: (os.kei.hyper.home.data.AppPagerGesture) -> Unit,
+  onAutoApplyChange: (Boolean) -> Unit,
+  onRememberMenusChange: (Boolean) -> Unit,
+  onTopBarBlurChange: (os.kei.hyper.home.data.AppTopBarBlur) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     SmallTitle(
@@ -73,6 +76,20 @@ internal fun SettingsContent(
       if (preferences.colorMode == os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS)
         AppearancePreference(preferences.appearance, onAppearanceChange)
       LanguagePreference()
+      OverlaySpinnerPreference(title = stringResource(R.string.top_bar_blur),
+        summary = stringResource(R.string.top_bar_blur_summary),
+        items = listOf(R.string.top_bar_gaussian, R.string.top_bar_progressive)
+          .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.topBarBlur.ordinal,
+        onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
+    }
+    SmallTitle(stringResource(R.string.pack_action_settings))
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      SwitchPreference(title = stringResource(R.string.pack_auto_apply),
+        summary = stringResource(R.string.pack_auto_apply_summary), checked = preferences.autoApplyIconPack,
+        onCheckedChange = onAutoApplyChange)
+      SwitchPreference(title = stringResource(R.string.pack_remember_menus),
+        summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
+        onCheckedChange = onRememberMenusChange)
     }
     SmallTitle(stringResource(R.string.browser_pager_title))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

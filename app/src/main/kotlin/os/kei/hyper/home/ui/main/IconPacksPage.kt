@@ -132,7 +132,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
     }
     item("feedback") {
-      if (state.loading) CircularProgressIndicator(Modifier.size(20.dp))
+      if (state.loading) CircularProgressIndicator(size = 20.dp, strokeWidth = 2.dp)
       state.error?.let { Text(stringResource(R.string.icon_pack_read_failed, it), color = MiuixTheme.colorScheme.error) }
       if (state.failedSources > 0) Text(stringResource(R.string.icon_pack_partial, state.failedSources))
       RefreshFeedback(model, 3)
@@ -290,7 +290,7 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
           }
         }
       }
-      TextButton(stringResource(when {
+      PackInlineAction(stringResource(when {
         importing -> R.string.icon_pack_importing
         nativeId != null -> R.string.icon_pack_native_open
         else -> R.string.icon_pack_native_import
@@ -318,7 +318,7 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
       TextButton(stringResource(if (expanded) R.string.icon_pack_hide_details else R.string.icon_pack_details),
         onClick = { expanded = !expanded })
       if (expanded) {
-        if (nativeId != null) TextButton(stringResource(R.string.icon_pack_native_update),
+        if (nativeId != null) PackInlineAction(stringResource(R.string.icon_pack_native_update),
           onClick = onImport, enabled = enabled)
         Text(stringResource(if (native) R.string.icon_pack_preview_note else R.string.icon_pack_appearance_preview_note),
           style = MiuixTheme.textStyles.footnote2,
@@ -348,8 +348,8 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
 internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, repository: IconPackPreviewRepository,
   appearance: IconPackAppearance, modifier: Modifier) {
   val configuration = LocalConfiguration.current.toString()
-  val preview by produceState<IconPackPreviews?>(null, pack.source, entry, configuration) {
-    value = repository.load(pack, entry, 144)
+  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration) {
+    produceState<IconPackPreviews?>(null) { value = repository.load(pack, entry, 144) }
   }
   val lightArtwork = if (appearance.sourceDarkMode(false)) preview?.dark else preview?.light
   val darkArtwork = if (appearance.sourceDarkMode(true)) preview?.dark else preview?.light
@@ -366,6 +366,7 @@ internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, reposi
         .background(if (isDark) Color(0xff232428) else Color(0xfff0f1f4)), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),
           Modifier.size(40.dp), colorFilter = if (isDark) nightFilter else null)
+        else if (preview == null) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
         else Text("—", color = if (isDark) Color.White else Color.DarkGray)
       }
     }
@@ -378,12 +379,13 @@ internal fun PackStyleThumbnail(pack: IconPackDescriptor, entry: IconPackEntry,
   val configuration = LocalConfiguration.current
   val dark = appearance.sourceDarkMode(configuration.uiMode and
     android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES)
-  val preview by produceState<IconPackPreviews?>(null, pack.source, entry, configuration.toString()) {
-    value = repository.load(pack, entry, 144)
+  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration.toString()) {
+    produceState<IconPackPreviews?>(null) { value = repository.load(pack, entry, 144) }
   }
   val artwork = if (dark) preview?.dark else preview?.light
   val bitmap = remember(artwork) { artwork?.asImageBitmap() }
   Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
     if (bitmap != null) Image(bitmap, null, Modifier.size(50.dp))
+    else if (preview == null) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
   }
 }

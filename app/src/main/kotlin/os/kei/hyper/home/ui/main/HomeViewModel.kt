@@ -23,6 +23,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -95,9 +100,23 @@ internal data class AppsUiState(
 internal data class PageRefreshResult(val completedAt: Long, val failed: Boolean)
 
 internal class HomeViewModel(application: Application) : AndroidViewModel(application) {
-  val browserOptions = MutableStateFlow(IconBrowserOptions())
-  val browserSource = MutableStateFlow<IconBrowserSource?>(null)
   val preferences = AppPreferences.get(application)
+  val browserOptions: StateFlow<IconBrowserOptions>
+    field = MutableStateFlow(preferences.readBrowserOptions())
+
+  fun updateBrowserOptions(value: IconBrowserOptions) {
+    browserOptions.value = value
+    preferences.saveBrowserOptions(value)
+  }
+
+  fun setRememberMenuSelections(value: Boolean) {
+    preferences.setRememberMenuSelections(value)
+    if (value) preferences.saveBrowserOptions(browserOptions.value)
+  }
+  val browserSource = MutableStateFlow<IconBrowserSource?>(null)
+  val iconPackUpdateNeeded: StateFlow<Boolean>
+    field = MutableStateFlow(false)
+  private val packageInventoryRevision = MutableStateFlow(0)
   val previews = IconPreviewRepository(application)
   val packPreviews = IconPackPreviewRepository(application)
   private val packRepository = IconPackRepository(application)
@@ -129,6 +148,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
   private var visiblePage: Int? = null
+  private var pageObservation = 0L
   private var locale = ""
   private var scannedLocale: String? = null
   private var appsDirty = true
@@ -148,6 +168,41 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   init {
+    viewModelScope.launch {
+      browserSource.filterNotNull().first()
+      val active = runtime.value.report?.iconTheme?.localId ?: return@launch
+      val managed = withContext(Dispatchers.IO) { active in IconPackImportProtocol.sources(application) }
+      if (managed && !iconPacks.value.scanned) readIconPacks()
+    }
+    viewModelScope.launch {
+      combine(browserSource,
+        iconPacks.map { it.packs to it.nativeSources }.distinctUntilChanged(),
+        preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
+        packageInventoryRevision) { _, _, _, _ -> Unit }.collectLatest {
+        val needed = try { withContext(Dispatchers.IO) {
+          val source = browserSource.value ?: return@withContext false
+          val pack = currentFallbackSource() ?: return@withContext false
+          val targets = launcherIconTargets()
+          val system = application.packageManager.getInstalledApplications(
+            android.content.pm.PackageManager.ApplicationInfoFlags.of(0)).filter {
+            it.flags and (android.content.pm.ApplicationInfo.FLAG_SYSTEM or
+              android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+          }.mapTo(hashSetOf()) { it.packageName }
+          val fallback = preferences.state.value.systemIconFallback
+          val caller = currentCoroutineContext()
+          val exporter = os.kei.hyper.home.iconpack.IconPackExporter(application,
+            os.kei.hyper.home.iconpack.IconPackLimits())
+          iconPackNeedsUpdate(pack, source, targets, fallback, system) {
+            exporter.canComplete(pack, it, fallback) { caller.ensureActive() }
+          }
+        } } catch (cancelled: CancellationException) { throw cancelled
+        } catch (failure: Exception) {
+          android.util.Log.w("KeiHomePackUpdate", "Icon update inventory unavailable", failure)
+          false
+        }
+        iconPackUpdateNeeded.value = needed
+      }
+    }
     viewModelScope.launch {
       val restored = withContext(Dispatchers.IO) {
         IconPackImportProtocol.pendingSource(application) to IconPackImportProtocol.lastResult(application)
@@ -188,6 +243,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   /** Called only while the activity is STARTED; switching pages cancels its old polling jobs. */
   suspend fun observePage(page: Int, localeTags: String): Unit = coroutineScope {
+    val observation = ++pageObservation
     visiblePage = page
     locale = localeTags
     if (page in 0..1 && (appsDirty || scannedLocale != locale)) scanApps()
@@ -207,7 +263,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         while (true) { readPalette(); delay(5_000) }
       }
       awaitCancellation()
-    } finally { visiblePage = null }
+    } finally {
+      if (pageObservation == observation) visiblePage = null
+    }
   }
 
   fun setFilter(value: Int) { filter.value = value }
@@ -282,7 +340,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       packPreviews.clear()
       packRepository.invalidateInstalled()
       if (visiblePage in 0..1) scanApps()
-      if (visiblePage == 3) readIconPacks()
+      if (visiblePage == 3 || iconPacks.value.scanned) readIconPacks()
+      packageInventoryRevision.value++
     }
   }
 
@@ -310,13 +369,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val appearance = appearanceOverride ?: selected.iconPackAppearance
     val pack = original.copy(id = selected.systemIconFallback.sourceId(original.id))
     if (pack.builtinKey != null) preferences.prepareColorOsComponent(pack.id, includePalette)
-    iconPacks.update { it.copy(nativeImporting = pack.id, nativeResult = null) }
+    // Retain the previous receipt while replacing it so detail rows keep their height.
+    iconPacks.update { it.copy(nativeImporting = pack.id, preparing = true) }
     viewModelScope.launch {
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback)
-        val result = IconPackImportProtocol.submit(getApplication(), service, handoff)
+        iconPacks.update { it.copy(preparing = false) }
+        val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
         iconPacks.update { it.copy(nativeResult = result) }
@@ -330,7 +391,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           IconPackImportProtocol.pendingSource(getApplication())
         }
         if (pending != pack.id) handoff?.file?.delete()
-        iconPacks.update { it.copy(nativeImporting = pending) }
+        iconPacks.update { it.copy(nativeImporting = pending, preparing = false) }
       }
     }
   }
@@ -572,6 +633,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   fun applyColorOs(inspiration: Boolean = false) {
     val selected = preferences.state.value
     val style = if (inspiration) ColorOsStyle.INSPIRATION else selected.colorOsStyle
+      .takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
     preferences.setColorOsStyle(style)
     if (style.usesMonet) preferences.setMonetInspiration(true)
     val key = "coloros-${style.artworkKey}-art-${if (style.usesMonet || selected.colorOsArtPlus) "on" else "off"}"

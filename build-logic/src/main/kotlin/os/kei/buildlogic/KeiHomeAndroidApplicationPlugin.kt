@@ -69,8 +69,8 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
       }
 
       compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
       }
 
       buildFeatures {
@@ -129,7 +129,7 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
     }
 
     project.tasks.withType(KotlinJvmCompile::class.java).configureEach { task ->
-      task.compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
+      task.compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
     }
   }
 }

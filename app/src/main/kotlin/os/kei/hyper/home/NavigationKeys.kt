@@ -1,6 +1,8 @@
 package os.kei.hyper.home
 
-import androidx.navigation3.runtime.NavKey
+import top.yukonga.miuix.kmp.nav.core.NavKey
 import kotlinx.serialization.Serializable
 
-@Serializable data object Main : NavKey
+@Serializable sealed interface HomeRoute : NavKey
+@Serializable data object Main : HomeRoute
+@Serializable data class PackRoute(val section: String) : HomeRoute

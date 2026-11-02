@@ -23,6 +23,7 @@ internal data class IconPacksUiState(
   val importName: String? = null,
   val failedSources: Int = 0,
   val nativeImporting: String? = null,
+  val preparing: Boolean = false,
   val nativeAssociations: Map<String, String> = emptyMap(),
   val nativeSources: Map<String, String> = emptyMap(),
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,

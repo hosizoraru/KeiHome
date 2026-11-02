@@ -12,6 +12,7 @@ import android.net.Uri
 import android.provider.Settings
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemes
@@ -24,6 +25,7 @@ import os.kei.hyper.home.status.RuntimeStatusInbox
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusRequest
 import os.kei.hyper.home.status.SystemIconThemeReport
+import os.kei.hyper.home.status.ThemeMaterialAutoEnable
 
 /**
  * Keeps HyperOS's selected monochrome icon color aligned with its live
@@ -39,6 +41,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private val themeMaterials = ThemeMaterialLease()
+  private val materialIdentityGeneration = AtomicLong()
+  private var defaultMaterialIdentityGeneration = -1L
+  private var defaultMaterialIdentityUser = -1
   private var lastPaletteRefresh: Long? = null
   internal data class Publication(
     val colors: IconColors,
@@ -60,7 +65,10 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val paletteQuery = AtomicReference<CancellationSignal?>()
 
   fun start(): Boolean = native.start()
-  fun invalidateIconResources(packageName: String? = null) = resources.invalidate(packageName)
+  fun invalidateIconResources(packageName: String? = null) {
+    resources.invalidate(packageName)
+    if (packageName == null) materialIdentityGeneration.incrementAndGet()
+  }
   fun stop() {
     paletteQuery.getAndSet(null)?.cancel()
     native.stop()
@@ -76,6 +84,20 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     if (!mayWrite() || Thread.currentThread().isInterrupted) return false
     val userId = currentUserId() ?: return false
     val context = contextForUser(baseContext, userId) ?: return false
+    val identityGeneration = materialIdentityGeneration.get()
+    if (preferences != null && !preferences.getBoolean(ThemeEffectsPreferences.AUTO_ENABLE_HANDLED, false) &&
+      (defaultMaterialIdentityGeneration != identityGeneration || defaultMaterialIdentityUser != userId)) {
+      when (NativeIconPackManager.identity(context)?.default) {
+        true -> {
+          defaultMaterialIdentityGeneration = identityGeneration
+          defaultMaterialIdentityUser = userId
+        }
+        false -> if (mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == userId) {
+          context.contentResolver.call(RuntimeStatusInbox.AUTHORITY, ThemeMaterialAutoEnable.METHOD, null, null)
+        }
+        null -> Unit
+      }
+    }
     val enabled = preferences?.getBoolean(ThemeEffectsPreferences.KEY, false) ?: false
     val isCurrent = {
       mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == userId &&

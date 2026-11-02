@@ -32,6 +32,7 @@ class RuntimeStatusProvider : ContentProvider() {
     check(Binder.getCallingUid() == Process.SYSTEM_UID) { "Runtime status requires the system owner" }
     return Bundle().apply {
       putBoolean("accepted", when (method) {
+        ThemeMaterialAutoEnable.METHOD -> ThemeMaterialAutoEnable.request()
         "preview_exists" -> CurrentIconSnapshot.file(requireNotNull(context), requireNotNull(arg)).isFile
           && java.io.File(CurrentIconSnapshot.file(requireNotNull(context), arg).parentFile, "$arg.ready").exists()
         "preview_ready" -> {

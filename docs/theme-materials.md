@@ -4,10 +4,20 @@ Historical `/tmp/keihome-*` evidence below was consolidated on November 1.
 See the [research archive index](research/README.md) for retained inputs and
 archive-member lookup.
 
-The Icon packs page has an opt-in **Preserve system materials** switch. Its
-API 102 remote preference is independent of the selected theme, icon source and
-Monet palette. The default is off. Saving a preference or seeing an LSPosed
-loaded target is not an acknowledgement that every visual surface is supported.
+Settings → Hook behavior contains **Preserve system materials**. The default is
+off. After the system worker verifies a non-default applied icon component with
+Themes' native `isDefaultIcon` contract, it asks the private App provider to enable
+the preference once. The App commits the value and consumed marker together via
+API 102. Injected remote preferences remain read-only. The request also works
+with Monet disabled and without an open Activity; it uses the existing material
+worker rather than a new polling loop.
+
+Any explicit user choice consumes that one-time suggestion, including choosing
+off before the first non-default pack. Later refreshes, pack switches, process
+starts and API 102 reloads preserve manual off. Unknown/default theme identity
+does not trigger a write. A failed automatic commit may retry, but cannot
+overwrite an unconfirmed manual choice. Saving a preference or seeing an LSPosed
+loaded target does not acknowledge that every visual surface is supported.
 
 ## SystemUI
 

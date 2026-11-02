@@ -3,6 +3,9 @@ package os.kei.hyper.home.data
 import android.content.SharedPreferences
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -11,7 +14,7 @@ import org.junit.Test
 
 class ThemeEffectsPreferencesTest {
   @Test
-  fun defaultsFalseAndStoresOnlyTheProtocolKey() = runBlocking {
+  fun defaultsFalseAndManualChoiceConsumesAutomaticEnablement() = runBlocking {
     val remote = Preferences()
 
     assertEquals("theme_effects", ThemeEffectsPreferences.GROUP)
@@ -20,7 +23,7 @@ class ThemeEffectsPreferencesTest {
     ThemeEffectsPreferences.save(remote.preferences, true)
 
     assertTrue(ThemeEffectsPreferences.read(remote.preferences))
-    assertEquals(mapOf(ThemeEffectsPreferences.KEY to true), remote.values)
+    assertEquals(mapOf(ThemeEffectsPreferences.KEY to true, ThemeEffectsPreferences.AUTO_ENABLE_HANDLED to true), remote.values)
     assertEquals(1, remote.commits)
     remote.values[ThemeEffectsPreferences.KEY] = false
     assertFalse(ThemeEffectsPreferences.read(remote.preferences))
@@ -33,7 +36,7 @@ class ThemeEffectsPreferencesTest {
     assertThrows(IllegalStateException::class.java) {
       ThemeEffectsPreferences.saveBlocking(remote.preferences, true)
     }
-    assertEquals(mapOf(ThemeEffectsPreferences.KEY to true), remote.values)
+    assertEquals(mapOf(ThemeEffectsPreferences.KEY to true, ThemeEffectsPreferences.AUTO_ENABLE_HANDLED to true), remote.values)
     assertThrows(IllegalStateException::class.java) {
       ThemeEffectsPreferences.readBlocking(remote.preferences)
     }
@@ -64,6 +67,61 @@ class ThemeEffectsPreferencesTest {
     ThemeEffectsPreferences.saveBlocking(remote.preferences, false)
     assertEquals(3, remote.commits)
     assertFalse(ThemeEffectsPreferences.readBlocking(remote.preferences))
+  }
+
+  @Test
+  fun automaticEnablementIsConsumedOnceAndManualOffSurvivesANewPreferenceInstance() = runBlocking {
+    val remote = Preferences()
+    assertTrue(ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences))
+    assertTrue(ThemeEffectsPreferences.read(remote.preferences))
+    assertFalse(ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences))
+    assertEquals(1, remote.commits)
+
+    ThemeEffectsPreferences.save(remote.preferences, false)
+    val reopened = Preferences().also { it.values.putAll(remote.values) }
+    assertFalse(ThemeEffectsPreferences.enableForNonDefaultOnce(reopened.preferences))
+    assertFalse(ThemeEffectsPreferences.read(reopened.preferences))
+    assertEquals(0, reopened.commits)
+  }
+
+  @Test
+  fun explicitOffBeforeTheFirstSuggestionTakesPriority() = runBlocking {
+    val remote = Preferences()
+    ThemeEffectsPreferences.save(remote.preferences, false)
+    assertFalse(ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences))
+    assertFalse(ThemeEffectsPreferences.read(remote.preferences))
+    assertEquals(1, remote.commits)
+  }
+
+  @Test
+  fun failedAutomaticCommitCanRetryButCannotReplaceAnUnconfirmedManualChoice() {
+    val remote = Preferences(commitSucceeds = false)
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences) }
+    }
+    assertThrows(IllegalStateException::class.java) { ThemeEffectsPreferences.readBlocking(remote.preferences) }
+    remote.commitSucceeds = true
+    runBlocking { assertTrue(ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences)) }
+    assertTrue(ThemeEffectsPreferences.readBlocking(remote.preferences))
+
+    remote.commitSucceeds = false
+    assertThrows(IllegalStateException::class.java) { ThemeEffectsPreferences.saveBlocking(remote.preferences, false) }
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences) }
+    }
+    remote.commitSucceeds = true
+    ThemeEffectsPreferences.saveBlocking(remote.preferences, false)
+    assertFalse(ThemeEffectsPreferences.readBlocking(remote.preferences))
+  }
+
+  @Test
+  fun concurrentNonDefaultReportsOnlyCommitOnce() = runBlocking {
+    val remote = Preferences()
+    val results = (1..24).map {
+      async(Dispatchers.Default) { ThemeEffectsPreferences.enableForNonDefaultOnce(remote.preferences) }
+    }.awaitAll()
+    assertEquals(1, results.count { it })
+    assertEquals(1, remote.commits)
   }
 
   private fun ThemeEffectsPreferences.saveBlocking(

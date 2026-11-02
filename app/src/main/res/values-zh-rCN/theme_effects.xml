@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="theme_effects_title">保留系统材质效果</string>
-    <string name="theme_effects_summary">恢复已适配的控制中心、音量面板材质与图标高光，遵循系统省电和模糊设置。更改后重新打开面板。</string>
+    <string name="theme_effects_summary">首次使用非默认图标包时自动开启一次，可手动关闭。恢复已适配的材质与图标高光，遵循省电和模糊设置；面板重新打开后更新。</string>
     <string name="theme_effects_disconnected">框架未连接。</string>
     <string name="theme_effects_framework_failed">无法读取作用域，请刷新。</string>
     <string name="theme_effects_scope_needed">请将系统框架或系统界面加入作用域。</string>

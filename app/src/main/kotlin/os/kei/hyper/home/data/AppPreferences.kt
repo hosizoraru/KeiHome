@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
 internal enum class AppPagerGesture { NATIVE, CROSS_AXIS, IOS_LIKE }
+internal enum class AppTopBarBlur { GAUSSIAN, PROGRESSIVE }
 internal enum class ColorOsStyle(val key: String) {
   CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
@@ -42,6 +43,9 @@ internal data class AppPreferencesState(
   val colorMode: AppColorMode = AppColorMode.FOLLOW_ICONS,
   val pageUserScroll: Boolean = true,
   val pagerGesture: AppPagerGesture = AppPagerGesture.IOS_LIKE,
+  val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
+  val autoApplyIconPack: Boolean = true,
+  val rememberMenuSelections: Boolean = true,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
@@ -65,8 +69,12 @@ internal class AppPreferences private constructor(context: Context) {
     colorMode = AppColorMode.entries.firstOrNull { it.name == preferences.getString("ui_color_mode", null) }
       ?: AppColorMode.FOLLOW_ICONS,
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
+    autoApplyIconPack = preferences.getBoolean("auto_apply_icons", true),
+    rememberMenuSelections = preferences.getBoolean("remember_menus", true),
     pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
       ?: AppPagerGesture.IOS_LIKE,
+    topBarBlur = AppTopBarBlur.entries.firstOrNull { it.name == preferences.getString("top_bar_blur", null) }
+      ?: AppTopBarBlur.PROGRESSIVE,
     showIconPreviews = preferences.getBoolean("icon_previews", true),
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
@@ -89,9 +97,43 @@ internal class AppPreferences private constructor(context: Context) {
     state.update { it.copy(appearance = value) }
   }
 
+  fun setTopBarBlur(value: AppTopBarBlur) {
+    preferences.edit().putString("top_bar_blur", value.name).apply()
+    state.update { it.copy(topBarBlur = value) }
+  }
+
   fun setPageUserScroll(value: Boolean) {
     preferences.edit().putBoolean("page_user_scroll", value).apply()
     state.update { it.copy(pageUserScroll = value) }
+  }
+
+  fun setAutoApplyIconPack(value: Boolean) {
+    preferences.edit().putBoolean("auto_apply_icons", value).apply()
+    state.update { it.copy(autoApplyIconPack = value) }
+  }
+
+  fun setRememberMenuSelections(value: Boolean) {
+    preferences.edit().apply {
+      putBoolean("remember_menus", value)
+      if (!value) preferences.all.keys.filter { it.startsWith("browser_") }.forEach(::remove)
+    }.apply()
+    state.update { it.copy(rememberMenuSelections = value) }
+  }
+
+  fun readBrowserOptions(): IconBrowserOptions = if (!state.value.rememberMenuSelections) IconBrowserOptions()
+    else IconBrowserOptions.restore(preferences.all.filterKeys { it.startsWith("browser_") }
+      .mapKeys { it.key.removePrefix("browser_") })
+
+  fun saveBrowserOptions(value: IconBrowserOptions) {
+    if (!state.value.rememberMenuSelections) return
+    preferences.edit().apply {
+      value.stored().forEach { (key, item) ->
+        when (item) {
+          is Int -> putInt("browser_$key", item)
+          is Boolean -> putBoolean("browser_$key", item)
+        }
+      }
+    }.apply()
   }
 
   fun setPagerGesture(value: AppPagerGesture) {

@@ -11,6 +11,7 @@ import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Node
 import os.kei.hyper.home.iconpack.GeneratedIconPng
+import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
 /** Approves converted static PNG pairs with optional canonical local MAML, never opaque MTZs. */
 internal object ConvertedIconArchive {
@@ -106,12 +107,14 @@ internal object ConvertedIconArchive {
     val names = HashSet<String>()
     val fancyNames = HashSet<String>()
     var total = 0L
+    var fallback: SystemIconFallbackManifest? = null
     ZipFile(file).use { zip ->
       require(zip.size() in 2..20000) { "Converted icon count limit" }
       zip.entries().asSequence().forEach { entry ->
         checkInterrupted()
         val fancy = fancyIconName.matchEntire(entry.name)
-        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null) &&
+        val provenance = entry.name == SystemIconFallbackManifest.PATH
+        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance) &&
           entry.name.length <= 300 && names.add(entry.name) && names.size <= 20000) {
           "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
         }
@@ -119,7 +122,8 @@ internal object ConvertedIconArchive {
         val limit = minOf(if (manifest) 64L * 1024 else 8L * 1024 * 1024, MAX_BYTES - total)
         val bytes = readIconEntry(zip, entry, limit)
         total += bytes.size
-        if (!manifest) validatePng(bytes, 512)
+        if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)
+        else if (!manifest) validatePng(bytes, 512)
         fancy?.let { fancyNames.add(it.groupValues[1]) }
       }
       // Regenerate the fixed selector, palette, calendar and clock templates without interpreting XML.
@@ -129,6 +133,10 @@ internal object ConvertedIconArchive {
           readIconEntry(zip, requireNotNull(zip.getEntry(path)) { "Missing generated icon resource: $path" }, limit)
         }
       }
+      require(fallback?.names.orEmpty().all { name ->
+        "res/drawable-xxhdpi/$name.png" in names && "nightmode/res/drawable-xxhdpi/$name.png" in names &&
+          "fancy_icons/$name/mask.png" !in names
+      }) { "Fallback provenance must reference existing ordinary icon pairs" }
     }
     require(names.any { it.startsWith("res/drawable-xxhdpi/") } &&
       names.any { it.startsWith("nightmode/res/drawable-xxhdpi/") }) {

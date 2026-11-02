@@ -98,21 +98,8 @@ class InstalledIconScanner(private val context: Context) {
     }
   }
 
-  private fun isOverlay(info: android.content.pm.ApplicationInfo): Boolean = try {
-    packageManager.getResourcesForApplication(info).assets.openXmlResourceParser("AndroidManifest.xml").use { xml ->
-      var matchesPackage = false
-      var overlay = false
-      while (xml.eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
-        if (xml.eventType == org.xmlpull.v1.XmlPullParser.START_TAG) {
-          if (xml.depth == 1 && xml.name == "manifest")
-            matchesPackage = xml.getAttributeValue(null, "package") == info.packageName
-          if (xml.depth == 2 && xml.name == "overlay") overlay = true
-        }
-        xml.next()
-      }
-      matchesPackage && overlay
-    }
-  } catch (_: Exception) { false }
+  private fun isOverlay(info: android.content.pm.ApplicationInfo): Boolean =
+    isResourceOverlay(packageManager, info)
 }
 
 private fun IconSupportStatus.toCapabilityStatus(): IconCapabilityStatus =

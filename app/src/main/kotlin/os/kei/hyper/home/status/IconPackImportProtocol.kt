@@ -79,8 +79,18 @@ internal object IconPackImportProtocol {
   fun accept(context: Context, extras: Bundle?): Boolean {
     val report = NativeIconImportReport.read(extras) ?: return false
     if (report.userId != Process.myUid() / 100_000) return false
-    if (report.imported) context.getSharedPreferences(ASSOCIATIONS, Context.MODE_PRIVATE).edit()
-      .putString(report.sourceId, report.localId).commit()
+    if (report.imported) {
+      // An updated conversion replaces the forward mapping while an older component can
+      // still be applied. Retain reverse ownership before changing that forward mapping.
+      val sources = context.getSharedPreferences("native_icon_sources", Context.MODE_PRIVATE)
+      val old = associations(context)
+      sources.edit().apply {
+        old.forEach { (source, component) -> if (!sources.contains(component)) putString(component, source) }
+        putString(report.localId, report.sourceId)
+      }.commit()
+      context.getSharedPreferences(ASSOCIATIONS, Context.MODE_PRIVATE).edit()
+        .putString(report.sourceId, report.localId).commit()
+    }
     val storage = context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE)
     val current = storage.getString(TOKEN, null)
     if (current == report.token) {
@@ -97,6 +107,13 @@ internal object IconPackImportProtocol {
     context.getSharedPreferences(ASSOCIATIONS, Context.MODE_PRIVATE).all.mapNotNull { (k, v) ->
       (v as? String)?.let { k to it }
     }.toMap()
+
+  fun sources(context: Context): Map<String, String> {
+    val current = associations(context).entries.associate { it.value to it.key }
+    val history = context.getSharedPreferences("native_icon_sources", Context.MODE_PRIVATE)
+      .all.mapNotNull { (component, source) -> (source as? String)?.let { component to it } }.toMap()
+    return current + history
+  }
 
   fun pendingSource(context: Context): String? = context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE)
     .getString(SOURCE, null)

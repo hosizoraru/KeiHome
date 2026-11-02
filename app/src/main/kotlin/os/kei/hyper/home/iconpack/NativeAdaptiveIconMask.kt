@@ -29,7 +29,10 @@ internal class NativeAdaptiveIconMask private constructor(
 ) {
   fun pathFor(drawable: Drawable): Path? {
     if (drawable !is AdaptiveIconDrawable || !isRectangle(drawable.iconMask, drawable.bounds)) return null
-    val bounds = drawable.bounds
+    return pathForBounds(drawable.bounds)
+  }
+
+  fun pathForBounds(bounds: Rect): Path {
     val matrix = Matrix().apply {
       setScale(bounds.width() / VIEWPORT, bounds.height() / VIEWPORT)
       postTranslate(bounds.left.toFloat(), bounds.top.toFloat())
@@ -54,13 +57,18 @@ internal class NativeAdaptiveIconMask private constructor(
           }
         })
       val pathData = requireNotNull(data)
+      fromPathData(source.path, pathData)
+    } catch (_: Exception) { null }
+
+    fun fromPathData(sourcePath: String, pathData: String): NativeAdaptiveIconMask {
+      require(pathData.length in 1..4096)
       val path = PathParser().parsePathString(pathData).toPath().asAndroidPath()
       val bounds = RectF().also(path::computeBounds)
       require(!path.isEmpty && !path.isInverseFillType && !bounds.isEmpty &&
         listOf(bounds.left, bounds.top, bounds.right, bounds.bottom).all { it.isFinite() } &&
         RectF(0f, 0f, VIEWPORT, VIEWPORT).contains(bounds))
-      NativeAdaptiveIconMask(source.path, pathData, Path(path))
-    } catch (_: Exception) { null }
+      return NativeAdaptiveIconMask(sourcePath, pathData, Path(path))
+    }
 
     /** isRect proves the contour itself; equal bounding boxes or sparse samples are insufficient. */
     fun isRectangle(path: Path, bounds: Rect): Boolean {

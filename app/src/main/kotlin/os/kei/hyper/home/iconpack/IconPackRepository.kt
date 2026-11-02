@@ -151,9 +151,10 @@ internal class IconPackRepository(
     targets: List<IconPackComponent>,
     darkMode: Boolean,
     sizePx: Int = 192,
+    systemFallback: os.kei.hyper.home.data.SystemIconFallback? = null,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
-    IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx) { caller.ensureActive() }
+    IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback) { caller.ensureActive() }
   }
 
   private fun load(record: StoredIconPack, check: () -> Unit): IconPackDescriptor {

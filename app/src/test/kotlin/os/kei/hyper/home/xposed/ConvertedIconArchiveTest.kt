@@ -20,6 +20,17 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 
 class ConvertedIconArchiveTest {
+  @Test fun fallbackProvenanceCannotClaimMissingIconsOrUnrelatedMonochromeLayers() {
+    val path = os.kei.hyper.home.iconpack.SystemIconFallbackManifest.PATH
+    fun metadata(name: String) = os.kei.hyper.home.iconpack.SystemIconFallbackManifest(
+      os.kei.hyper.home.data.SystemIconFallback.DEFAULT, setOf(name)).encode()
+    val pair = mapOf(day to png(), night to png())
+    withArchive(zip(pair + (path to metadata("com.example")))) {
+      ConvertedIconArchive.inspect(it, "CONVERTED_CLASSIC_ZIP")
+    }
+    rejects(zip(pair + (path to metadata("com.missing"))))
+    rejects(zip(generatedPalette() + (path to metadata("com.example"))))
+  }
   @Test fun acceptsBothAuthenticatedConversionOriginsAndPreservesNativeDigests() {
     val icons = icons()
     withArchive(icons) { file ->

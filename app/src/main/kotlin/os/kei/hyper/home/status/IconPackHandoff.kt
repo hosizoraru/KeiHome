@@ -25,6 +25,8 @@ import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
+import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -42,12 +44,13 @@ internal object IconPackHandoffs {
 
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
-    includePalette: Boolean = true): IconPackHandoff {
+    includePalette: Boolean = true, systemFallback: SystemIconFallback? = null): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
-    val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false))
+    val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
+      systemFallback = systemFallback)
     var darkFile: File? = null
     var merged: File? = null
     val token = UUID.randomUUID().toString()
@@ -56,7 +59,8 @@ internal object IconPackHandoffs {
       val icons = if (light.preservesNativeResources) light.archive else {
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
-            repository.exportNativeIcons(pack, targets, darkMode = true).archive.also { darkFile = it }
+            repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback)
+              .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
             dimmedIcons(context, light.archive).also { darkFile = it }
           else -> light.archive
@@ -71,6 +75,7 @@ internal object IconPackHandoffs {
                 ZipFile(source).use { zip ->
                   zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
                     current.ensureActive()
+                    if (night && entry.name == SystemIconFallbackManifest.PATH) return@forEach
                     val name = if (night) "nightmode/${entry.name}" else entry.name
                     if (name in dynamic) return@forEach
                     output.putNextEntry(ZipEntry(name).apply { time = 0 })
@@ -82,8 +87,13 @@ internal object IconPackHandoffs {
               // The current Flutter icon chain does not select nightmode PNGs. The native
               // MAML loader has its own configuration observer and can select this fixed pair.
               // Keep both ordinary trees for native readers that do not allow fancy icons.
-              if (includePalette || sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
+              if (systemFallback != null || includePalette || sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
                 ZipFile(light.archive).use { dayZip ->
+                  val systemNames = dayZip.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
+                    SystemIconFallbackManifest.decode(dayZip.getInputStream(entry).use {
+                      it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
+                    }).names
+                  }.orEmpty()
                   ZipFile(dark).use { nightZip ->
                     dayZip.entries().asSequence()
                       .filterNot { it.isDirectory }
@@ -97,7 +107,9 @@ internal object IconPackHandoffs {
                         if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
                         val mask = light.monochrome[name].takeIf { includePalette }
                         val background = light.paletteBackground
-                        if (mask == null && dayBytes.contentEquals(nightBytes)) return@forEach
+                        // HYOS system frontends can ignore a flat PNG override. Their fallback
+                        // needs an explicit descriptor even when day and night artwork is equal.
+                        if (mask == null && name !in systemNames && dayBytes.contentEquals(nightBytes)) return@forEach
                         val generated = if (mask != null && background != null)
                           NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
                         else NativeDayNightIcon.entries(name, dayBytes, nightBytes)

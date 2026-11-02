@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CancellationException
+import os.kei.hyper.home.data.SystemIconFallback
 
 internal data class IconPackExportSkip(val component: IconPackComponent, val reason: String)
 
@@ -30,7 +31,7 @@ internal data class IconPackExportResult(
 internal class IconPackExporter(private val context: Context, private val limits: IconPackLimits) {
   fun export(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
-    sizePx: Int, check: () -> Unit,
+    sizePx: Int, systemFallback: SystemIconFallback? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     if (targets.size > minOf(5000, limits.maxEntries / 2)) throw IconPackException("Export target limit exceeded")
@@ -42,7 +43,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val sharedActivities = normalized.filter { it.className != null }.groupBy { it.className }
       .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
     if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
-      return exportNativeModule(pack, normalized, darkMode, check)
+      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, check)
     }
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
@@ -75,6 +76,8 @@ internal class IconPackExporter(private val context: Context, private val limits
       val monochrome = linkedMapOf<String, ByteArray>()
       val colorOs = pack.colorOsProfile
       val fallback = colorOs?.let { ColorOsFallbackRenderer(context, style = it.style) }
+      val systemRenderer = systemFallback?.let { SystemIconFallbackRenderer(context, it) }
+      val systemNames = linkedSetOf<String>()
       val mask = colorOs?.read(colorOs.maskPath, check)?.let { bytes ->
         GeneratedIconPng.squareSize(bytes)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IconPackException("Invalid ColorOS shape mask")
@@ -112,7 +115,8 @@ internal class IconPackExporter(private val context: Context, private val limits
             // resolve to the same entry. Different activity artwork gets activity aliases only.
             val common = matches.values.takeIf { values -> values.all { it != null } }
               ?.map { it!!.key }?.distinct()?.singleOrNull()
-              ?: if (fallback != null && group.size == 1) group.single().flattened else null
+              ?: if ((fallback != null || systemRenderer?.isSystem(group.first()) == true) && group.size == 1)
+                group.single().flattened else null
             var packageWritten = false
             for ((target, entry) in matches) {
               check()
@@ -124,13 +128,16 @@ internal class IconPackExporter(private val context: Context, private val limits
                 skipped += IconPackExportSkip(target, "Activity filename is shared by other packages")
                 continue
               }
-              if (entry == null && fallback == null) {
+              if (entry == null && fallback == null && systemRenderer?.isSystem(target) != true) {
                 skipped += IconPackExportSkip(target, "No component mapping")
                 continue
               }
+              var usedSystemFallback = false
               val png = try {
                 val bitmap = entry?.let { renderer.render(it, sizePx, check) }
-                  ?: fallback?.render(target, darkMode, sizePx, mask, check)
+                  ?: if (entry == null && systemRenderer?.isSystem(target) == true) {
+                    systemRenderer.render(target, sizePx, check)?.also { usedSystemFallback = true }
+                  } else if (entry == null) fallback?.render(target, darkMode, sizePx, mask, check) else null
                 bitmap?.let(::encodePng)
               } catch (cancelled: CancellationException) { throw cancelled
               } catch (failure: Exception) {
@@ -144,7 +151,11 @@ internal class IconPackExporter(private val context: Context, private val limits
               target.className?.takeUnless { it in sharedActivities }?.let { write(it, png) }
               if (common != null && !packageWritten) { write(pkg, png); packageWritten = true }
               if (target.className == null && !packageWritten) write(pkg, png)
-              if (colorOs != null || entry != null) {
+              if (usedSystemFallback) {
+                target.className?.takeUnless { it in sharedActivities }?.let(systemNames::add)
+                if (common != null || target.className == null) systemNames += pkg
+              }
+              if (!usedSystemFallback && (colorOs != null || entry != null)) {
                 val sourceMask = colorOs?.source(target)?.monochromePath?.let { colorOs.read(it, check) }
                 sourceMask?.let(GeneratedIconPng::squareSize)
                 val declaredLayers = if (colorOs == null && entry != null) try {
@@ -176,6 +187,11 @@ internal class IconPackExporter(private val context: Context, private val limits
               exported += target
             }
           }
+          if (systemFallback != null) {
+            zip.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
+            zip.write(SystemIconFallbackManifest(systemFallback, systemNames).encode())
+            zip.closeEntry()
+          }
         }
         } finally { mask?.recycle() }
       }
@@ -198,7 +214,8 @@ internal class IconPackExporter(private val context: Context, private val limits
   /** Native modules already carry their own rendering, masking, animation and mode contracts.
    * Keep every byte and resource qualifier; targets report known exact names, not an allowlist. */
   private fun exportNativeModule(
-    pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, check: () -> Unit,
+    pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
+    systemFallback: SystemIconFallback?, check: () -> Unit,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -209,16 +226,86 @@ internal class IconPackExporter(private val context: Context, private val limits
     try {
       val index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check)
       val names = index.entries.mapNotNull { it.nativeName }.toSet()
+      if (systemFallback != null) appendNativeFallbacks(archive, targets, names, systemFallback, size, check)
+      val verified = if (systemFallback == null) index else IconPackArchive(limits).inspect(archive, nested,
+        checkCancelled = check)
       val covered = targets.filter { it.packageName in names || it.className in names }
       val skipped = (targets - covered.toSet()).map { IconPackExportSkip(it, "No exact native filename; native aliases are not inferred") }
       check()
       success = true
-      return IconPackExportResult(archive, index.nativeIconsSha256!!, covered, skipped, names.size, darkMode,
+      return IconPackExportResult(archive, verified.nativeIconsSha256!!, covered, skipped, names.size, darkMode,
         preservesNativeResources = true)
     } finally {
       nested.delete()
       if (!success) archive.delete()
     }
+  }
+
+  private fun appendNativeFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
+    style: SystemIconFallback, size: Int, check: () -> Unit) {
+    val renderer = SystemIconFallbackRenderer(context, style)
+    val previous = java.util.zip.ZipFile(archive).use { source ->
+      source.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
+        require(entry.size in 1..SystemIconFallbackManifest.MAX_BYTES)
+        SystemIconFallbackManifest.decode(source.getInputStream(entry).use {
+          it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
+        })
+      }
+    }
+    if (previous != null) {
+      require(previous.style == style) { "Use the original pack source to change an already-generated fallback" }
+      return
+    }
+    val protected = java.util.zip.ZipFile(archive).use { zip ->
+      covered + nativeFallbackProtectedNames(zip.entries().asSequence().map { it.name })
+    }
+    val additions = linkedMapOf<String, ByteArray>()
+    val shared = targets.mapNotNull { it.className }.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+    for ((pkg, group) in targets.groupBy { it.packageName }) {
+      for (target in group) {
+        check()
+        if (pkg in protected || target.className in protected || target.className in shared) continue
+        val bitmap = renderer.render(target, size, check) ?: continue
+        val bytes = try { ByteArrayOutputStream().also {
+          check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }.toByteArray() } finally { bitmap.recycle() }
+        target.className?.let { additions[it] = bytes }
+        if (group.size == 1 || target.className == null) additions[pkg] = bytes
+      }
+    }
+    if (additions.isEmpty()) return
+    val copy = File.createTempFile("native-fallback-", ".zip", archive.parentFile)
+    try {
+      java.util.zip.ZipFile(archive).use { source ->
+        ZipOutputStream(LimitedOutput(copy.outputStream(), limits.maxInputBytes)).use { output ->
+          source.entries().asSequence().forEach { entry ->
+            check()
+            if (entry.name == SystemIconFallbackManifest.PATH) return@forEach
+            output.putNextEntry(ZipEntry(entry.name).apply { time = entry.time })
+            if (!entry.isDirectory) source.getInputStream(entry).use { it.copyTo(output) }
+            output.closeEntry()
+          }
+          for ((name, bytes) in additions) {
+            for (prefix in listOf("", "nightmode/")) {
+              val path = "${prefix}res/drawable-xxhdpi/$name.png"
+              require(source.getEntry(path) == null)
+              output.putNextEntry(ZipEntry(path).apply { time = 0 })
+              output.write(bytes); output.closeEntry()
+            }
+            for ((path, data) in NativeDayNightIcon.entries(name, bytes, bytes)) {
+              if (!path.startsWith("fancy_icons/")) continue
+              require(source.getEntry(path) == null)
+              output.putNextEntry(ZipEntry(path).apply { time = 0 })
+              output.write(data); output.closeEntry()
+            }
+          }
+          output.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
+          output.write(SystemIconFallbackManifest(style, additions.keys).encode())
+          output.closeEntry()
+        }
+      }
+      check(copy.renameTo(archive)) { "Cannot publish native fallback copy" }
+    } finally { copy.delete() }
   }
 
   private class LimitedOutput(output: OutputStream, private val limit: Long) : FilterOutputStream(output) {

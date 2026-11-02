@@ -20,6 +20,16 @@ nonmatching active pack into the results.
 
 ## UI
 
+The built-in HyperOS card uses native MIUIX text buttons with a tinted pill
+surface, 48 dp touch targets and 8 dp horizontal/vertical separation. Actions
+wrap when their localized labels do not fit on one row. Icon-library refresh
+feedback is grouped into a small card with an aligned MIUIX progress ring,
+completion/error icon and a separate time pill. The toolbar and feedback card
+both follow catalogue loading, including automatic reads. Their icon slots keep
+fixed bounds while crossfading, and error details expand within the card.
+Feedback observes only refresh and catalogue result fields; existing page
+observers and automatic resource updates retain their original lifecycle.
+
 The current-pack page, ColorOS configuration and ColorOS Inspiration use the
 MIUIX FloatingActionButton content slot for a primary icon and a text label.
 The button sits above navigation, has a stable minimum width and icon slot,

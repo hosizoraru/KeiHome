@@ -36,6 +36,10 @@
     <string name="icon_pack_dark_preview">深色图标预览</string>
     <string name="icon_pack_light_preview">浅色图标预览</string>
     <string name="refresh_icon_packs_completed">图标来源与图标包已更新 · %1$s</string>
+    <string name="icon_pack_refresh_loading">正在读取图标信息…</string>
+    <string name="icon_pack_refresh_complete">图标信息已更新</string>
+    <string name="icon_pack_refresh_failed">部分图标信息未更新</string>
+    <string name="icon_pack_refresh_retry">可使用右上角的刷新按钮重试。</string>
     <string name="icon_pack_current">当前使用</string>
     <string name="icon_pack_native_open">在系统主题中应用</string>
     <string name="icon_pack_native_import">导入到系统主题</string>

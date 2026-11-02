@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.ColorOsStyle
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -119,17 +121,27 @@ internal fun HyperOsPackCard() {
     try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     catch (_: android.content.ActivityNotFoundException) { }
   }
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    Column {
-      Text(stringResource(R.string.pack_hyperos), modifier = Modifier.padding(16.dp),
-        style = MiuixTheme.textStyles.body1)
-      Text(stringResource(R.string.pack_hyperos_summary), modifier = Modifier.padding(horizontal = 16.dp),
-        style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      TextButton(stringResource(R.string.pack_hyperos_theme_open), modifier = Modifier.padding(horizontal = 16.dp),
-        onClick = { open(Intent().setComponent(ComponentName("com.android.thememanager",
-          "com.android.thememanager.activity.ThemeTabActivity")).putExtra("REQUEST_RESOURCE_CODE", "icons")) })
-      TextButton(stringResource(R.string.pack_hyperos_icons_open), modifier = Modifier.padding(horizontal = 16.dp),
-        onClick = { open(Intent("com.miui.home.action.ICON_CUSTOMIZE").setPackage("com.miui.home")) })
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.pack_hyperos), style = MiuixTheme.textStyles.body1)
+        Text(stringResource(R.string.pack_hyperos_summary),
+          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
+      val colors = ButtonDefaults.textButtonColors(
+        color = MiuixTheme.colorScheme.primary.copy(alpha = 0.12f),
+        textColor = MiuixTheme.colorScheme.primary)
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(stringResource(R.string.pack_hyperos_theme_open),
+          minHeight = 48.dp, cornerRadius = 24.dp, colors = colors,
+          insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp), textStyle = MiuixTheme.textStyles.footnote1,
+          onClick = { open(Intent().setComponent(ComponentName("com.android.thememanager",
+            "com.android.thememanager.activity.ThemeTabActivity")).putExtra("REQUEST_RESOURCE_CODE", "icons")) })
+        TextButton(stringResource(R.string.pack_hyperos_icons_open),
+          minHeight = 48.dp, cornerRadius = 24.dp, colors = colors,
+          insideMargin = PaddingValues(horizontal = 12.dp, vertical = 8.dp), textStyle = MiuixTheme.textStyles.footnote1,
+          onClick = { open(Intent("com.miui.home.action.ICON_CUSTOMIZE").setPackage("com.miui.home")) })
+      }
     }
   }
 }

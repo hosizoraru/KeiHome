@@ -37,6 +37,10 @@
     <string name="icon_pack_dark_preview">ダークアイコンのプレビュー</string>
     <string name="icon_pack_light_preview">ライトアイコンのプレビュー</string>
     <string name="refresh_icon_packs_completed">アイコン情報を更新しました · %1$s</string>
+    <string name="icon_pack_refresh_loading">アイコン情報を読み込み中…</string>
+    <string name="icon_pack_refresh_complete">アイコン情報を更新しました</string>
+    <string name="icon_pack_refresh_failed">一部のアイコン情報を更新できませんでした</string>
+    <string name="icon_pack_refresh_retry">右上の更新ボタンで再試行できます。</string>
     <string name="icon_pack_current">現在使用中</string>
     <string name="icon_pack_native_open">システムテーマで開く</string>
     <string name="icon_pack_native_import">システムテーマに追加</string>

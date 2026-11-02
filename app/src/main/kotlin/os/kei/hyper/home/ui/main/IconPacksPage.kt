@@ -144,10 +144,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
     }
     item("feedback") {
-      if (state.loading) CircularProgressIndicator(size = 20.dp, strokeWidth = 2.dp)
-      state.error?.let { Text(stringResource(R.string.icon_pack_read_failed, it), color = MiuixTheme.colorScheme.error) }
-      if (state.failedSources > 0) Text(stringResource(R.string.icon_pack_partial, state.failedSources))
-      RefreshFeedback(model, 3)
+      IconPackRefreshFeedback(model)
     }
   }
 }

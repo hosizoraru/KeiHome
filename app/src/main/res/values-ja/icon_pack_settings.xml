@@ -31,6 +31,8 @@
   <string name="pack_hyperos">HyperOS · デフォルト / クラシック / バウンドレス</string>
   <string name="pack_hyperos_summary">明暗は標準の動作を維持。Monet は個別に切り替え可能</string>
   <string name="pack_hyperos_open">ホーム設定を開く</string>
+  <string name="pack_hyperos_theme_open">テーマ・壁紙のアイコン</string>
+  <string name="pack_hyperos_icons_open">アイコンスタイルを開く</string>
   <string name="pack_monet_toggle">Monet アイコン</string>
   <string name="pack_monet_toggle_summary">オフにすると元のアイコンと明暗の素材を使用</string>
   <string name="pack_monet_design">アイコンの配色スタイル</string>

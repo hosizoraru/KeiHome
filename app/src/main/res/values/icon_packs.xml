@@ -37,6 +37,10 @@
     <string name="icon_pack_dark_preview">Dark icon preview</string>
     <string name="icon_pack_light_preview">Light icon preview</string>
     <string name="refresh_icon_packs_completed">Icon sources and library updated · %1$s</string>
+    <string name="icon_pack_refresh_loading">Reading icon information…</string>
+    <string name="icon_pack_refresh_complete">Icon information updated</string>
+    <string name="icon_pack_refresh_failed">Some information could not be updated</string>
+    <string name="icon_pack_refresh_retry">Use the refresh button above to try again.</string>
     <string name="icon_pack_current">Currently applied</string>
     <string name="icon_pack_native_open">Open in system Themes</string>
     <string name="icon_pack_native_import">Import into system Themes</string>

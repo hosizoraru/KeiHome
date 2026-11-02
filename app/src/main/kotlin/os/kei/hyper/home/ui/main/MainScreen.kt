@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.pager.PagerDefaults
@@ -309,7 +311,12 @@ internal fun RefreshAction(model: HomeViewModel, page: Int) {
     .collectAsStateWithLifecycle(initialValue = false)
   val refreshing by remember(model, page) { model.refreshing.map { page in it }.distinctUntilChanged() }
     .collectAsStateWithLifecycle(initialValue = false)
-  val busy = refreshing || (page == 1 && scanning)
+  val catalogLoading = if (page == 3) {
+    val loading by remember(model) { model.iconPacks.map { it.loading }.distinctUntilChanged() }
+      .collectAsStateWithLifecycle(initialValue = false)
+    loading
+  } else false
+  val busy = refreshing || (page == 1 && scanning) || catalogLoading
   val label = stringResource(R.string.refresh)
   val progress = stringResource(R.string.refresh_in_progress)
   IconButton(onClick = { model.refresh(page) }, enabled = !busy,
@@ -317,9 +324,13 @@ internal fun RefreshAction(model: HomeViewModel, page: Int) {
       contentDescription = label
       if (busy) stateDescription = progress
     }) {
-    if (busy) {
-      top.yukonga.miuix.kmp.basic.CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
-    } else Icon(MiuixIcons.Refresh, null, tint = MiuixTheme.colorScheme.onBackground)
+    Crossfade(targetState = busy, modifier = Modifier.size(28.dp),
+      animationSpec = tween(160), label = "refresh-action") { loading ->
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (loading) top.yukonga.miuix.kmp.basic.CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+        else Icon(MiuixIcons.Refresh, null, Modifier.size(26.dp), tint = MiuixTheme.colorScheme.onBackground)
+      }
+    }
   }
 }
 

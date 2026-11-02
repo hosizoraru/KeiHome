@@ -36,7 +36,7 @@ internal object KeiHomeVersioning {
   fun resolve(project: Project): KeiHomeVersion {
     val root = project.rootProject.projectDir.toPath()
     val series = VersionSeries.parse(project.providers.gradleProperty("keihome.versionName").orElse("1.0.0").get())
-    val revision = git(project, "rev-parse", "--short=12", "HEAD") ?: "unknown"
+    val revision = git(project, "rev-parse", "--short=7", "HEAD") ?: "unknown"
     val commitCount = git(project, "rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
     val status = git(project, "status", "--porcelain", "--untracked-files=normal")
     val dirty = status != null && status.isNotEmpty()

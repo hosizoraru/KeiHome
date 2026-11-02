@@ -4,14 +4,15 @@ KeiHome derives its version from `keihome.versionName` in `gradle.properties`,
 the current Git revision, and a build iteration. For example:
 
 ```
-versionName = 1.2.3+g0123456789ab.b0106.dirty
+versionName = 1.2.3+g0123456.b0106.dirty
 versionCode = 102030106
 ```
 
 The integer is `major * 100000000 + minor * 1000000 + patch * 10000 + iteration`.
 Major is 0–20, minor and patch are each 0–99, and the iteration is 1–9999.
 This leaves the code within Android/Play's 2,100,000,000 limit. The suffix
-`b0106` is the iteration, while `g0123456789ab` identifies the Git commit.
+`b0106` is the iteration, while `g0123456` identifies the Git commit using Git's
+seven-character abbreviation (automatically extended if needed to remain unique).
 `.dirty` means the tracked or untracked worktree differed at configuration time;
 it does not identify the content of those changes. A source archive without Git
 metadata reports `gunknown` rather than inventing a commit.

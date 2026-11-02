@@ -25,6 +25,16 @@
   <string name="pack_hyperos">HyperOS · 默认 / 经典 / 无界</string>
   <string name="pack_hyperos_summary">亮暗色保持原生逻辑；Monet 可独立开关</string>
   <string name="pack_hyperos_open">打开系统桌面设置</string>
+  <string name="pack_hyperos_theme_open">主题壁纸中的图标</string>
+  <string name="pack_hyperos_icons_open">打开图标样式</string>
+  <string name="system_name_matching_title">按应用名称匹配系统图标</string>
+  <string name="system_name_matching_summary">APK / ColorOS 图标包未覆盖系统应用时，先按名称查找，再使用所选内置图标。调整后需重新应用。</string>
+  <string name="polish_about_device">手机机型</string>
+  <string name="polish_about_system">系统版本</string>
+  <string name="polish_about_launcher">系统桌面</string>
+  <string name="polish_about_rust">Rust 运行时</string>
+  <string name="polish_about_flutter">桌面 Flutter</string>
+  <string name="polish_about_unavailable">无法读取</string>
   <string name="pack_monet_toggle">Monet 图标</string>
   <string name="pack_monet_toggle_summary">关闭后显示原图标与原版亮暗色</string>
   <string name="pack_monet_design">图标取色风格</string>

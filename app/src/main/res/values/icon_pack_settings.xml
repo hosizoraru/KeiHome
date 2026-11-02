@@ -25,6 +25,16 @@
   <string name="pack_hyperos">HyperOS · Default / Classic / Boundless</string>
   <string name="pack_hyperos_summary">Keep native light/dark behavior; Monet is optional</string>
   <string name="pack_hyperos_open">Open launcher settings</string>
+  <string name="pack_hyperos_theme_open">Icons in Themes and wallpapers</string>
+  <string name="pack_hyperos_icons_open">Open icon styles</string>
+  <string name="system_name_matching_title">Match system apps by name</string>
+  <string name="system_name_matching_summary">For APK and ColorOS packs: try matching an unmapped system app by its name before using the selected built-in icons. Reapply the pack after changing.</string>
+  <string name="polish_about_device">Device</string>
+  <string name="polish_about_system">System version</string>
+  <string name="polish_about_launcher">System launcher</string>
+  <string name="polish_about_rust">Rust runtime</string>
+  <string name="polish_about_flutter">Launcher Flutter</string>
+  <string name="polish_about_unavailable">Unavailable</string>
   <string name="pack_monet_toggle">Monet icons</string>
   <string name="pack_monet_toggle_summary">Turn off to use original artwork and light/dark resources</string>
   <string name="pack_monet_design">Icon color style</string>

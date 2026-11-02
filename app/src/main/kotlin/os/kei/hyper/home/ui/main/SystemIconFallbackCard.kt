@@ -29,6 +29,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Refresh
@@ -64,6 +65,11 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
         selectedIndex = choices.indexOf(preferences.systemIconFallback).coerceAtLeast(0),
         onSelectedIndexChange = { model.setSystemIconFallback(choices[it]) },
         enabled = !busy, modifier = Modifier.testTag("icon-packs.system-fallback"))
+      SwitchPreference(title = stringResource(R.string.system_name_matching_title),
+        summary = stringResource(R.string.system_name_matching_summary),
+        checked = preferences.systemAppNameMatching, enabled = !busy,
+        onCheckedChange = model.preferences::setSystemAppNameMatching,
+        modifier = Modifier.testTag("icon-packs.system-name-matching"))
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val applied = source?.systemFallback

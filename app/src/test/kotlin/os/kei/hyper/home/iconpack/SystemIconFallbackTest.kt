@@ -19,10 +19,20 @@ class SystemIconFallbackTest {
   @Test fun provenanceIsBoundedCanonicalAndRejectsTraversalDuplicatesAndUnknownModes() {
     val manifest = SystemIconFallbackManifest(SystemIconFallback.CLASSIC, setOf("com.miui.notes", "com.android.settings"))
     assertEquals(manifest, SystemIconFallbackManifest.decode(manifest.encode()))
+    val names = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, setOf("com.miui.securitycenter"), true)
+    assertEquals(names, SystemIconFallbackManifest.decode(names.encode()))
+    assertTrue(AppPreferencesState().systemAppNameMatching)
     for (text in listOf("KeiHomeSystemFallback1\nUNKNOWN\n", "KeiHomeSystemFallback1\nDEFAULT\n../foo\n",
       "KeiHomeSystemFallback1\nDEFAULT\ncom.a\ncom.a\n", "KeiHomeSystemFallback1\nDEFAULT\ncom.z\ncom.a\n")) {
       assertThrows(IllegalArgumentException::class.java) { SystemIconFallbackManifest.decode(text.toByteArray()) }
     }
+  }
+
+  @Test fun systemAppNameKeysKeepStoreAndManagerRolesDistinct() {
+    assertEquals(listOf("phonemanager", "手机管家"), SystemAppNameMatcher.keys("手机管家"))
+    assertEquals(listOf("themestore", "主题商店"), SystemAppNameMatcher.keys("主题商店"))
+    assertEquals("appmarket", SystemAppNameMatcher.keys("软件应用商店").first())
+    assertEquals(listOf("淘宝"), SystemAppNameMatcher.keys("淘宝"))
   }
 
   @Test fun everyDeclaredNativeVariantProtectsArtworkEvenIfThePreviewCannotRenderIt() {

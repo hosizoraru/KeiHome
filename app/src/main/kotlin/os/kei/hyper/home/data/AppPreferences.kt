@@ -49,6 +49,7 @@ internal data class AppPreferencesState(
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
+  val systemAppNameMatching: Boolean = true,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
   val colorOsArtPlus: Boolean = true,
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
@@ -82,6 +83,7 @@ internal class AppPreferences private constructor(context: Context) {
     systemIconFallback = SystemIconFallback.entries.firstOrNull {
       it.name == preferences.getString("system_icon_fallback", null) && it in systemIconFallbackChoices
     } ?: SystemIconFallback.DEFAULT,
+    systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
       it.name == preferences.getString("color_os_style", null)
     } ?: ColorOsStyle.CLASSIC,
@@ -174,6 +176,11 @@ internal class AppPreferences private constructor(context: Context) {
     require(value in systemIconFallbackChoices)
     preferences.edit().putString("system_icon_fallback", value.name).apply()
     state.update { it.copy(systemIconFallback = value) }
+  }
+
+  fun setSystemAppNameMatching(value: Boolean) {
+    preferences.edit().putBoolean("system_app_name_matching", value).apply()
+    state.update { it.copy(systemAppNameMatching = value) }
   }
 
   fun setColorOsStyle(value: ColorOsStyle) {

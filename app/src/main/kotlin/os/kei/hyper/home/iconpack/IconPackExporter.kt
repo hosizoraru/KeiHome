@@ -31,9 +31,11 @@ internal data class IconPackExportResult(
 internal class IconPackExporter(private val context: Context, private val limits: IconPackLimits) {
   /** Probe only missing candidates; use the same guarded renderers and live-source policy. */
   fun canComplete(pack: IconPackDescriptor, target: IconPackComponent,
-    systemFallback: SystemIconFallback, check: () -> Unit): Boolean {
+    systemFallback: SystemIconFallback, systemAppNameMatching: Boolean = false,
+    nameMatcher: SystemAppNameMatcher? = null, check: () -> Unit): Boolean {
     val entry = pack.entries.firstOrNull { it.component == target }
       ?: pack.entries.firstOrNull { it.component == IconPackComponent(target.packageName) }
+      ?: (nameMatcher ?: SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)).match(target)
     if (pack.colorOsProfile?.source(target)?.requiresLiveIcon == true || livePolicy(pack)(target, entry)) return false
     return try {
       val system = SystemIconFallbackRenderer(context, systemFallback)
@@ -69,7 +71,8 @@ internal class IconPackExporter(private val context: Context, private val limits
 
   fun export(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
-    sizePx: Int, systemFallback: SystemIconFallback? = null, check: () -> Unit,
+    sizePx: Int, systemFallback: SystemIconFallback? = null,
+    systemAppNameMatching: Boolean = false, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     // ColorOS provides an offline mapping independent of installed APKs. Carry it
@@ -91,9 +94,11 @@ internal class IconPackExporter(private val context: Context, private val limits
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
     val requiresLive = livePolicy(pack)
+    val nameMatcher = SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)
     fun match(target: IconPackComponent) = componentEntries[target]
       ?: componentEntries[IconPackComponent(target.packageName)]
       ?: target.className?.let(nativeEntries::get) ?: nativeEntries[target.packageName]
+      ?: nameMatcher.match(target)
     val directory = File(context.cacheDir, "icon-pack-exports")
     if (!directory.isDirectory && !directory.mkdirs()) throw IconPackException("Cannot create export staging directory")
     val archive = File.createTempFile("icons-", ".zip", directory)
@@ -220,7 +225,7 @@ internal class IconPackExporter(private val context: Context, private val limits
           }
           if (systemFallback != null) {
             zip.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
-            zip.write(SystemIconFallbackManifest(systemFallback, systemNames).encode())
+            zip.write(SystemIconFallbackManifest(systemFallback, systemNames, systemAppNameMatching).encode())
             zip.closeEntry()
           }
         }

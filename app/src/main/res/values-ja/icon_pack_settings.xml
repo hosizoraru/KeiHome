@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="polish_about_device">端末</string>
+  <string name="polish_about_system">システム</string>
+  <string name="polish_about_launcher">システムランチャー</string>
+  <string name="polish_about_rust">Rust ランタイム</string>
+  <string name="polish_about_flutter">ランチャー Flutter</string>
+  <string name="polish_about_unavailable">取得できません</string>
   <string name="pack_library_summary">内蔵スタイル・インストール済み APK・読み込んだファイル</string>
   <string name="pack_builtin">内蔵スタイル</string>
   <string name="pack_builtin_summary">HyperOS と ColorOS</string>

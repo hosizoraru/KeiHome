@@ -58,6 +58,7 @@ import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackImportResult
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.status.IconPackHandoffs
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
@@ -200,7 +201,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       combine(browserSource,
         iconPacks.map { it.packs to it.nativeSources }.distinctUntilChanged(),
         preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
-        packageInventoryRevision) { _, _, _, _ -> Unit }.collectLatest {
+        preferences.state.map { it.systemAppNameMatching }.distinctUntilChanged(),
+        packageInventoryRevision) { _, _, _, _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
           val pack = currentFallbackSource() ?: return@withContext false
@@ -211,11 +213,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
               android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
           }.mapTo(hashSetOf()) { it.packageName }
           val fallback = preferences.state.value.systemIconFallback
+          val nameMatching = preferences.state.value.systemAppNameMatching &&
+            pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
           val caller = currentCoroutineContext()
           val exporter = os.kei.hyper.home.iconpack.IconPackExporter(application,
             os.kei.hyper.home.iconpack.IconPackLimits())
-          iconPackNeedsUpdate(pack, source, targets, fallback, system) {
-            exporter.canComplete(pack, it, fallback) { caller.ensureActive() }
+          val nameMatcher = os.kei.hyper.home.iconpack.SystemAppNameMatcher(application,
+            pack.entries, nameMatching)
+          iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching) {
+            exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
@@ -424,7 +430,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
-          launcherIconTargets(), appearance, includePalette, selected.systemIconFallback)
+          launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
+          selected.systemAppNameMatching)
         iconPacks.update { it.copy(preparing = false) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")

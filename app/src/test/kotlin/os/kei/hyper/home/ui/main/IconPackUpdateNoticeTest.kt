@@ -40,6 +40,17 @@ class IconPackUpdateNoticeTest {
     assertTrue(needed(source.copy(nativeNames = setOf(target.packageName),
       systemFallback = SystemIconFallbackManifest(SystemIconFallback.CLASSIC, setOf(target.packageName)))))
   }
+  @Test fun nameMatchingToggleNeedsRegenerationOnlyForConvertedPacks() {
+    val covered = source.copy(nativeNames = setOf(target.packageName),
+      systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, emptySet()))
+    assertTrue(iconPackNeedsUpdate(pack, covered, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), nameMatching = true))
+    val nameMatched = covered.copy(systemFallback = covered.systemFallback!!.copy(nameMatching = true))
+    assertTrue(iconPackNeedsUpdate(pack, nameMatched, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), nameMatching = false))
+    assertFalse(iconPackNeedsUpdate(pack.copy(format = IconPackFormat.MIUI_ICONS), covered,
+      listOf(target), SystemIconFallback.DEFAULT, emptySet(), nameMatching = true))
+  }
   @Test fun inventoryIsCanonicalIncludingEmptyModules() {
     listOf(emptySet(), setOf("os.test.app", "os.test.other.Main")).forEach {
       assertEquals(it, IconBuildInventory.decodeNames(IconBuildInventory.encodeNames(it)))

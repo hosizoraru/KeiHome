@@ -45,13 +45,14 @@ internal object IconPackHandoffs {
 
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
-    includePalette: Boolean = true, systemFallback: SystemIconFallback? = null): IconPackHandoff {
+    includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
+    systemAppNameMatching: Boolean = false): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
     val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
-      systemFallback = systemFallback)
+      systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching)
     var darkFile: File? = null
     var merged: File? = null
     val token = UUID.randomUUID().toString()
@@ -60,7 +61,8 @@ internal object IconPackHandoffs {
       val icons = if (light.preservesNativeResources) light.archive else {
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
-            repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback)
+            repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback,
+              systemAppNameMatching = systemAppNameMatching)
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
             dimmedIcons(context, light.archive).also { darkFile = it }

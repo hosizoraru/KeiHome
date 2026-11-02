@@ -23,6 +23,43 @@ SPEC.loader.exec_module(IMPORTER)
 
 
 class ImportColorOSIconsTest(unittest.TestCase):
+    def test_monochrome_metadata_is_removed_and_oem_rectangles_use_square_bounds(self):
+        from PIL.PngImagePlugin import PngInfo
+        mono = self.source / "com.vendor.preset/monochrome.png"
+        metadata = PngInfo()
+        metadata.add_text("vendor", "source metadata")
+        image = Image.new("RGBA", (17, 16), (255, 255, 255, 0))
+        image.putpixel((8, 8), (255, 255, 255, 255))
+        image.save(mono, pnginfo=metadata)
+        original = IMPORTER.sha256(mono.read_bytes())
+        path, manifest = self.export()
+        record = self.record(manifest)["monochrome"]
+        self.assertEqual(record["source_sha256"], original)
+        self.assertTrue(record["square_viewport_normalized"])
+        self.assertEqual(record["size"], [16, 16])
+        with zipfile.ZipFile(path) as archive:
+            data = archive.read(record["path"])
+            self.assertNotIn(b"tEXt", data)
+            with Image.open(io.BytesIO(data)) as result:
+                self.assertEqual(result.size, (16, 16))
+
+    def test_runtime_cache_uses_native_precedence_and_adds_uninstalled_mappings(self):
+        runtime = self.root / "runtime"
+        for pkg, color in [("com.vendor.preset", (1, 2, 3, 255)),
+                           ("com.third.party", (4, 5, 6, 255)),
+                           ("com.future.application", (7, 8, 9, 255))]:
+            directory = runtime / pkg
+            directory.mkdir(parents=True)
+            Image.new("RGBA", (4, 4), color).save(directory / "recfg.png")
+        (runtime / "com.future.application/.png").write_bytes(b"not an icon")
+        tree = IMPORTER.SourceTree(self.source, self.root / "allApps.xml",
+                                   self.root / "oplus-framework.jar", runtime)
+        tree.select_runtime({"com.vendor.preset"})
+        self.assertEqual(tree.image("com.vendor.preset/recfg.png").getpixel((0, 0)), (220, 40, 60, 128))
+        self.assertEqual(tree.image("com.third.party/recfg.png").getpixel((0, 0)), (4, 5, 6, 255))
+        self.assertIn(("com.future.application", "com.future.application", ""), tree.candidates())
+        self.assertEqual(tree.files["com.third.party/recfg.png"]["origin"], "runtime")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="keihome-coloros-test-")
         self.addCleanup(self.temp.cleanup)

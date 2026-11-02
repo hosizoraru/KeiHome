@@ -34,8 +34,13 @@ internal class IconPackExporter(private val context: Context, private val limits
     sizePx: Int, systemFallback: SystemIconFallback? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
-    if (targets.size > minOf(5000, limits.maxEntries / 2)) throw IconPackException("Export target limit exceeded")
-    val normalized = targets.map { target ->
+    // ColorOS provides an offline mapping independent of installed APKs. Carry it
+    // into the native pack so a later installation can resolve its artwork immediately.
+    val candidates = targets + if (pack.colorOsProfile != null)
+      pack.entries.mapNotNull { it.component } else emptyList()
+    if (candidates.distinct().size > minOf(5000, limits.maxEntries / 2))
+      throw IconPackException("Export target limit exceeded")
+    val normalized = candidates.map { target ->
       IconPackComponent.parse(target.flattened) ?: throw IconPackException("Invalid launcher component")
     }.distinct()
     // Forks can retain an identical activity name under different application IDs.
@@ -134,10 +139,11 @@ internal class IconPackExporter(private val context: Context, private val limits
               }
               var usedSystemFallback = false
               val png = try {
+                val missingMode = entry == null || (colorOs != null && entry.artwork(darkMode) == null)
                 val bitmap = entry?.let { renderer.render(it, sizePx, check) }
-                  ?: if (entry == null && systemRenderer?.isSystem(target) == true) {
+                  ?: if (missingMode && systemRenderer?.isSystem(target) == true) {
                     systemRenderer.render(target, sizePx, check)?.also { usedSystemFallback = true }
-                  } else if (entry == null) fallback?.render(target, darkMode, sizePx, mask, check) else null
+                  } else if (missingMode) fallback?.render(target, darkMode, sizePx, mask, check) else null
                 bitmap?.let(::encodePng)
               } catch (cancelled: CancellationException) { throw cancelled
               } catch (failure: Exception) {

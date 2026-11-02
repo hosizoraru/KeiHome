@@ -37,8 +37,21 @@ internal fun currentIconPackSource(
   fun resolve(source: String): IconPackDescriptor? {
     val base = SystemIconFallback.baseSourceId(source)
     val id = if (base.startsWith("coloros:")) base.split(':', limit = 4).getOrNull(3) ?: return null else base
-    return state.packs.firstOrNull { it.pack.id == id }?.pack?.copy(id = base,
-      displayName = title ?: state.packs.first { it.pack.id == id }.pack.displayName)
+    val direct = state.packs.firstOrNull { it.pack.id == id }?.pack
+    if (direct != null) return direct.copy(id = base, displayName = title ?: direct.displayName)
+    // Built-in bytes (and thus their store hash) change when new OEM mappings ship.
+    // Recover only the exact known style/appearance/ART title; never substitute an APK.
+    val fields = base.split(':', limit = 4)
+    if (fields.size != 4 || fields[0] != "coloros" || title == null ||
+      os.kei.hyper.home.data.IconPackAppearance.entries.none { it.name == fields[2] }) return null
+    val style = ColorOsStyle.entries.firstOrNull { it.key == fields[1] } ?: return null
+    val updated = state.packs.map { it.pack }.singleOrNull { pack ->
+      listOf(false, true).any { art ->
+        pack.builtinKey == "coloros-${style.artworkKey}-art-${if (art) "on" else "off"}" &&
+          colorOsTitle(style, art) == title
+      }
+    } ?: return null
+    return updated.copy(id = "coloros:${fields[1]}:${fields[2]}:${updated.id}", displayName = title)
   }
   state.nativeSources[active]?.let { return resolve(it) }
   if (active !in ownedColorOs || title == null) return null

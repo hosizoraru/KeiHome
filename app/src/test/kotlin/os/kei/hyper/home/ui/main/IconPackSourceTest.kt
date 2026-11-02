@@ -36,4 +36,13 @@ class IconPackSourceTest {
     assertEquals(original, currentIconPackSource("old", "Renamed", state(mapOf(variant to "new"),
       mapOf("old" to variant)), emptyMap()) { _, _ -> "Classic ART+" }?.id)
   }
+
+  @Test fun refreshedBuiltinAssetsRetainTheAppliedStyleAppearanceAndArtChoice() {
+    assertEquals(original, currentIconPackSource("old", "Classic ART+",
+      state(emptyMap(), mapOf("old" to "coloros:classic:SYSTEM:old-asset-hash:system-fallback-v1:DEFAULT")),
+      emptyMap()) { _, art -> if (art) "Classic ART+" else "Classic" }?.id)
+    assertNull(currentIconPackSource("old", "Renamed",
+      state(emptyMap(), mapOf("old" to "coloros:classic:SYSTEM:old-asset-hash")),
+      emptyMap()) { _, _ -> "Classic ART+" })
+  }
 }

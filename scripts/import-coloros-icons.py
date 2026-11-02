@@ -154,7 +154,7 @@ def resize_rgba(image: Image.Image, size: tuple[int, int]) -> Image.Image:
 
 
 class SourceTree:
-    def __init__(self, source: Path, mapping: Path, framework: Path):
+    def __init__(self, source: Path, mapping: Path, framework: Path, runtime: Path | None = None):
         self.source = source
         self.files: dict[str, dict] = {}
         self.images: dict[str, Path] = {}
@@ -194,6 +194,33 @@ class SourceTree:
                 except (OSError, UnidentifiedImageError) as failure:
                     record["decode_error"] = str(failure)
             self.files[key] = record
+        self.firmware_files, self.firmware_images = dict(self.files), dict(self.images)
+        self.runtime_files, self.runtime_images = {}, {}
+        if runtime is not None:
+            for directory in sorted(runtime.iterdir()):
+                # Cache staging directories and macOS metadata are not icon packages.
+                if not directory.is_dir() or not DOTTED_NAME.fullmatch(directory.name):
+                    continue
+                if directory.is_symlink():
+                    raise ValueError("Symlink runtime package")
+                self.packages = sorted(set(self.packages) | {directory.name})
+                for path in sorted(directory.glob("*.png")):
+                    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.]*", path.stem):
+                        continue
+                    if path.is_symlink() or not 24 <= path.stat().st_size <= 4 * 1024 * 1024:
+                        raise ValueError("Unsupported runtime icon file")
+                    key = f"{directory.name}/{path.name}"
+                    data = path.read_bytes()
+                    with Image.open(io.BytesIO(data)) as image:
+                        if image.format != "PNG" or max(image.size) > 4096:
+                            raise ValueError("Unsupported runtime icon image")
+                        self.runtime_files[key] = {"sha256": sha256(data), "bytes": len(data),
+                                                   "format": image.format, "size": list(image.size),
+                                                   "mode": image.mode, "origin": "runtime"}
+                    self.runtime_images[key] = path
+                    if len(self.runtime_files) > 10000:
+                        raise ValueError("Runtime icon count limit")
+            self.inputs["runtime"] = {"directory": runtime.name, "files": self.runtime_files}
         self.fancy_manifests: dict[str, list[dict]] = {}
         for archive_path in sorted(source.glob("icons-*")):
             if not archive_path.is_file():
@@ -219,6 +246,14 @@ class SourceTree:
                                   if name.removesuffix(".png") in self.fancy_manifests})
             if fancy_names:
                 self.dynamic_packages[package] = fancy_names
+
+    def select_runtime(self, presets: set[str] | None):
+        self.files, self.images = dict(self.firmware_files), dict(self.firmware_images)
+        for key, record in self.runtime_files.items():
+            # findAppDrawable uses product resources first for preset apps, but
+            # the downloaded cache first for third-party apps. Missing files fall through.
+            if key not in self.files or key.split("/", 1)[0] not in (presets or set()):
+                self.files[key], self.images[key] = record, self.runtime_images[key]
 
     def image(self, key: str) -> Image.Image | None:
         path = self.images.get(key)
@@ -633,6 +668,7 @@ def export_pack(tree: SourceTree, args: argparse.Namespace, style_id: str, art: 
         presets = set(arrays["ux_preset_app_package"]) | {"com.oplus.member"}
         preset_proof = {"resource": "array/ux_preset_app_package", "dump": resource_proof,
                         "authority": "framework_resource_fallback_service_may_override"}
+    tree.select_runtime(presets)
     aliases, alias_proof = read_aliases(args.aliases, tree)
     mask, mask_proof = load_mask(args.mask, args.size)
     if args.mask_provenance:
@@ -675,14 +711,24 @@ def export_pack(tree: SourceTree, args: argparse.Namespace, style_id: str, art: 
         monochrome_key = f"{package}/{prefix}monochrome.png"
         if not dynamic_names and monochrome_key in tree.images:
             source = tree.files[monochrome_key]
-            data = tree.images[monochrome_key].read_bytes()
-            if source["format"] != "PNG":
-                data = png_bytes(tree.image(monochrome_key))
+            mono_size = source["size"]
+            normalized_mono = mono_size[0] != mono_size[1] or max(mono_size) > 512
+            mono_image = tree.image(monochrome_key)
+            if normalized_mono:
+                # OEM BitmapDrawable layers are drawn into square adaptive bounds.
+                # Some downloaded masks are 241x240 rather than a square source file.
+                mono_image = resize_rgba(mono_image, (args.size, args.size))
+                mono_size = [args.size, args.size]
+            # Source metadata chunks are not part of an alpha mask or our canonical
+            # generated format. Decode/re-encode pixels, retaining the original hash below.
+            mono_image.info.clear()
+            data = png_bytes(mono_image)
             path = f"coloros-monochrome/{drawable}.png"
             files[path] = data
             record["monochrome"] = {
-                "path": path, "sha256": sha256(data), "size": source["size"],
+                "path": path, "sha256": sha256(data), "size": mono_size,
                 "source_key": monochrome_key, "source_sha256": source["sha256"],
+                "square_viewport_normalized": normalized_mono,
             }
         for mode, directory in (("light", "drawable"), ("dark", "drawable-night")):
             if dynamic_names and not args.include_static_dynamic:
@@ -783,6 +829,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", type=Path, default=ROOT / ".artifacts/inputs/coloros")
     parser.add_argument("--source", type=Path, help="Package tree (default: INPUT/uxicons/hdpi)")
+    parser.add_argument("--runtime-source", type=Path, help="Inspected /data/oplus/uxicons cache; PNG resources only")
     parser.add_argument("--all-apps", type=Path, help="Mapping XML (default: INPUT/allApps.xml)")
     parser.add_argument("--framework", type=Path, help="Inspected JAR (default: INPUT/oplus-framework.jar)")
     parser.add_argument("--output", type=Path, default=ROOT / ".artifacts/exports/coloros")
@@ -820,7 +867,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--mask requires exactly one style; each style needs its own verified shape")
     try:
         tree = SourceTree(args.source or args.input / "uxicons/hdpi", args.all_apps or args.input / "allApps.xml",
-                          args.framework or args.input / "oplus-framework.jar")
+                          args.framework or args.input / "oplus-framework.jar", args.runtime_source)
         arts = ("on", "off") if args.art == "both" else (args.art,)
         for style_id in styles:
             for art in arts:

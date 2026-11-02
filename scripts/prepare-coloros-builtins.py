@@ -28,7 +28,9 @@ def main():
     scratch = ROOT / ".artifacts/generated/coloros-masks"
     scratch.mkdir(parents=True, exist_ok=True)
     generated.mkdir(parents=True, exist_ok=True)
-    tree = module.SourceTree(inputs / "uxicons/hdpi", inputs / "allApps.xml", inputs / "oplus-framework.jar")
+    runtime = inputs / "runtime-uxicons"
+    tree = module.SourceTree(inputs / "uxicons/hdpi", inputs / "allApps.xml", inputs / "oplus-framework.jar",
+                             runtime if runtime.is_dir() else None)
     text = dump.read_text()
     for style in module.STYLES:
         resource = "icon_mask_theme_pebble" if style == "pebble" else "icon_mask_theme_rectangle"

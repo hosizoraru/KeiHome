@@ -13,14 +13,32 @@ from the library. Native HyperOS themes retain their own behavior.
 ## Resource precedence
 
 1. Exact component or package artwork supplied by the pack wins.
-2. For an uncovered installed system app, use the selected native fallback.
-3. If that preset has no supported resource, use native Default resources.
-4. If no safe resource can be rendered, retain the existing launcher fallback.
+2. For an uncovered installed system app in an APK or converted ColorOS pack,
+   optionally try the pack's artwork by application name. This is enabled by
+   default under Settings > System and Hook. The app or launcher activity label
+   is compared with resource names and a small set of equivalent OEM roles
+   (phone manager, theme store, app/software store). Ambiguous artwork is rejected.
+3. Use the selected native fallback when the pack has no safe match.
+4. If that preset has no supported resource, use native Default resources.
+5. If no safe resource can be rendered, retain the existing launcher fallback.
 
 System eligibility uses `ApplicationInfo` system/updated-system flags. It does
 not use package-name prefixes. Ordinary user apps retain the previous handling.
+Known OEM package identities only help index equivalent artwork and disambiguate
+the HyperOS Security Center label `安全服务`; they do not make an app eligible for
+name matching. Native MTZ/MIUI_ICONS sources keep their original resource logic.
+Changing the switch requires regenerating and applying the converted pack.
 Live clocks and calendars are excluded from static system fallback rendering;
 existing native programs and ColorOS live templates remain responsible for them.
+
+The built-in pack page offers direct entries to the Themes icon catalog and
+Launcher icon-style settings. About shows the marketed device name (falling
+back to `Build.MODEL`), device codename, model number, HyperOS build, Android
+version and installed launcher version for support reports.
+When available, it also shows `rust.runtime_version` from the running system
+and the installed launcher's `flutter-version.txt` build asset. The latter is
+the launcher's bundled Flutter version, not an Android-wide runtime. Missing
+metadata is omitted rather than guessed.
 
 The export target inventory includes installed system APKs without an Android
 MAIN/LAUNCHER activity. On this HyperOS image that includes native frontends such

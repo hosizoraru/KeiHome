@@ -3,7 +3,10 @@ package os.kei.hyper.home.ui.main
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Process
+import android.os.Build
 import android.os.UserManager
+import java.io.File
+import java.util.zip.ZipFile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +42,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -46,6 +50,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import os.kei.hyper.home.MainActivity
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
@@ -157,7 +163,7 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
   val colors = if (onBackground) aboutCardColors() else CardDefaults.defaultColors()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = colors) {
     if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
-      summary = stringResource(R.string.settings_source_private))
+      endActions = { AboutDetailValue(stringResource(R.string.settings_source_private)) })
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
       endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
   }
@@ -166,9 +172,75 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
 @Composable
 private fun AboutDetails() {
   val context = LocalContext.current
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = aboutCardColors()) {
-    BasicComponent(title = stringResource(R.string.polish_about_package), summary = BuildConfig.APPLICATION_ID)
-    BasicComponent(title = stringResource(R.string.polish_about_api), summary = stringResource(
-      R.string.polish_about_api_value, context.applicationInfo.minSdkVersion, context.applicationInfo.targetSdkVersion))
+  val details by produceState(AboutDeviceDetails(Build.MODEL, null, null, null), context) {
+    value = withContext(Dispatchers.IO) {
+      val launcher = runCatching { context.packageManager.getPackageInfo("com.miui.home", 0) }.getOrNull()
+      AboutDeviceDetails(systemProperty("ro.product.marketname").ifBlank { Build.MODEL },
+        launcher?.versionName, systemProperty("rust.runtime_version"),
+        launcher?.applicationInfo?.sourceDir?.let(::launcherFlutterVersion))
+    }
   }
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = aboutCardColors()) {
+    BasicComponent(title = stringResource(R.string.polish_about_device), endActions = {
+      Column(horizontalAlignment = Alignment.End) {
+        AboutDetailValue(details.marketName)
+        Text(listOf(Build.DEVICE, Build.MODEL).distinct().joinToString(" · "),
+          style = MiuixTheme.textStyles.footnote2,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary,
+          maxLines = 1, overflow = TextOverflow.Ellipsis)
+      }
+    })
+    BasicComponent(title = stringResource(R.string.polish_about_system),
+      endActions = {
+        Column(horizontalAlignment = Alignment.End) {
+          AboutDetailValue(Build.VERSION.INCREMENTAL)
+          Text("Android ${Build.VERSION.RELEASE}", style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+      })
+    BasicComponent(title = stringResource(R.string.polish_about_launcher),
+      endActions = {
+        val version = details.launcherVersion ?: stringResource(R.string.polish_about_unavailable)
+        val split = version.indexOf('-', (version.length / 2).coerceAtLeast(0))
+        Column(horizontalAlignment = Alignment.End) {
+          AboutDetailValue(if (split > 0) version.substring(0, split) else version)
+          if (split > 0) Text(version.substring(split + 1), style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+      })
+    details.rustVersion?.takeIf(String::isNotBlank)?.let { version -> BasicComponent(
+      title = stringResource(R.string.polish_about_rust),
+      endActions = { AboutDetailValue(version) }) }
+    details.flutterVersion?.takeIf(String::isNotBlank)?.let { version -> BasicComponent(
+      title = stringResource(R.string.polish_about_flutter),
+      endActions = { AboutDetailValue(version) }) }
+  }
+}
+
+private data class AboutDeviceDetails(val marketName: String, val launcherVersion: String?,
+  val rustVersion: String?, val flutterVersion: String?)
+
+private fun systemProperty(key: String): String = runCatching {
+  val property = Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+  (property.invoke(null, key) as? String)?.trim().orEmpty()
+}.getOrDefault("")
+
+/** The installed launcher's own build asset, read as data without loading its code. */
+private fun launcherFlutterVersion(path: String): String? = runCatching {
+  ZipFile(File(path)).use { zip ->
+    val entry = zip.getEntry("assets/flutter_assets/assets/debug/flutter-version.txt")
+      ?: return@use null
+    if (entry.size !in 1..128) return@use null
+    val value = zip.getInputStream(entry).use { it.readNBytes(129) }.decodeToString().trim()
+    value.takeIf { it.length in 1..80 && it.matches(Regex("[A-Za-z0-9][A-Za-z0-9.+_-]*")) }
+  }
+}.getOrNull()
+
+@Composable
+private fun AboutDetailValue(value: String) {
+  Text(value, style = MiuixTheme.textStyles.body2,
+    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+    maxLines = 1, overflow = TextOverflow.Ellipsis)
 }

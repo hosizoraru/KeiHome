@@ -45,6 +45,8 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -358,6 +360,8 @@ private fun RuntimeStatusCard(
     stringResource(R.string.runtime_ready_summary, targetLabel(state.systemState, state.reported))
   } else stringResource(runtime.kind.label)
   val report = runtime.report
+  val loadedAccent = colorResource(if (LocalKeiHomeDarkTheme.current)
+    R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent)
   DashboardExpandableCard(
     title = stringResource(R.string.dashboard_runtime),
     summary = summary,
@@ -369,15 +373,17 @@ private fun RuntimeStatusCard(
       DashboardDetail(
         title = stringResource(R.string.runtime_launcher_process),
         value = stringResource(R.string.runtime_launcher_pid, pid),
+        pillColor = MiuixTheme.colorScheme.primary,
       )
     }
     report?.detail?.takeIf { it.isNotBlank() }?.let { detail ->
-      DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail)
+      DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail, stacked = true)
     }
     report?.let {
       DashboardDetail(
         title = stringResource(R.string.runtime_reporting_generation),
         value = stringResource(R.string.dashboard_version_code, it.moduleVersion),
+        pillColor = MiuixTheme.colorScheme.primary,
       )
     }
     DashboardDetail(
@@ -387,6 +393,7 @@ private fun RuntimeStatusCard(
         false -> R.string.status_scope_missing
         null -> R.string.status_unknown
       }),
+      pillColor = if (state.systemInScope == true) loadedAccent else MiuixTheme.colorScheme.onSurfaceSecondary,
     )
     TargetDetail("system_server", state.systemState, state.systemVersion, state.reported)
     if (state.reported && state.launcherState == null && runtime.kind == NativeStatusKind.READY) {
@@ -407,7 +414,8 @@ private fun RuntimeStatusCard(
     }
     DashboardDetail(
       title = stringResource(R.string.polish_installed_version),
-      value = stringResource(R.string.polish_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+      value = BuildConfig.VERSION_CODE.toString(),
+      pillColor = MiuixTheme.colorScheme.primary,
     )
     DashboardFootnote(
       text = stringResource(R.string.runtime_native_note),
@@ -424,6 +432,9 @@ private fun TargetDetail(name: String, state: HookedTarget.State?, version: Long
     value = version?.takeIf { it > 0 }?.let {
       stringResource(R.string.polish_target_version, status, it)
     } ?: status,
+    pillColor = if (state == HookedTarget.State.UP_TO_DATE) colorResource(
+      if (LocalKeiHomeDarkTheme.current) R.color.status_hero_loaded_accent_dark
+      else R.color.status_hero_loaded_accent) else null,
   )
 }
 
@@ -483,6 +494,8 @@ private fun DashboardMonetCard(
         "SYSTEM_COLOR" -> R.string.pack_source_system
         else -> R.string.status_unknown
       }),
+      pillColor = if (current?.source != null) MiuixTheme.colorScheme.primary
+        else MiuixTheme.colorScheme.onSurfaceSecondary,
     )
     DashboardDetail(
       title = stringResource(R.string.dashboard_style),
@@ -493,6 +506,8 @@ private fun DashboardMonetCard(
       value = if (palette?.state == MonetReadState.AVAILABLE && palette.generatedColorCount > 0) {
         stringResource(R.string.monet_palette_value, palette.families.size, palette.generatedColorCount)
       } else paletteLabel,
+      pillColor = if (palette?.state == MonetReadState.AVAILABLE && palette.generatedColorCount > 0)
+        MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary,
     )
     DashboardFootnote(
       text = stringResource(R.string.dashboard_monet_report_note),
@@ -685,11 +700,17 @@ private fun DashboardExpandIcon(rotation: Float, description: String? = null) {
 }
 
 @Composable
-private fun DashboardDetail(title: String, value: String) {
+private fun DashboardDetail(title: String, value: String, stacked: Boolean = false, pillColor: Color? = null) {
   BasicComponent(
     title = title,
-    summary = value,
+    summary = value.takeIf { stacked },
     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    endActions = if (stacked) null else ({
+      if (pillColor != null) MetadataPill(value, pillColor)
+      else Text(value, style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }),
   )
 }
 

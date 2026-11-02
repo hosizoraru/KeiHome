@@ -115,17 +115,21 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
 @Composable
 internal fun HyperOsPackCard() {
   val context = LocalContext.current
+  fun open(intent: Intent) {
+    try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    catch (_: android.content.ActivityNotFoundException) { }
+  }
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     Column {
       Text(stringResource(R.string.pack_hyperos), modifier = Modifier.padding(16.dp),
         style = MiuixTheme.textStyles.body1)
       Text(stringResource(R.string.pack_hyperos_summary), modifier = Modifier.padding(horizontal = 16.dp),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      TextButton(stringResource(R.string.pack_hyperos_open), modifier = Modifier.padding(16.dp),
-        onClick = {
-          context.startActivity(Intent().setComponent(ComponentName("com.miui.home",
-            "com.miui.home.settings.MiuiHomeSettingActivity")))
-        })
+      TextButton(stringResource(R.string.pack_hyperos_theme_open), modifier = Modifier.padding(horizontal = 16.dp),
+        onClick = { open(Intent().setComponent(ComponentName("com.android.thememanager",
+          "com.android.thememanager.activity.ThemeTabActivity")).putExtra("REQUEST_RESOURCE_CODE", "icons")) })
+      TextButton(stringResource(R.string.pack_hyperos_icons_open), modifier = Modifier.padding(horizontal = 16.dp),
+        onClick = { open(Intent("com.miui.home.action.ICON_CUSTOMIZE").setPackage("com.miui.home")) })
     }
   }
 }

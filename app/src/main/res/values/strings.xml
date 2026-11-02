@@ -143,4 +143,14 @@
     <string name="monet_show_details">View palette details</string>
     <string name="monet_hide_details">Hide palette details</string>
     <string name="monet_selected_palette">Selected icon palette</string>
+    <string name="system_fallback_title">Uncovered system app icons</string>
+    <string name="system_fallback_summary">Use these HyperOS icons when a custom pack does not supply artwork.</string>
+    <string name="system_fallback_default">Default</string>
+    <string name="system_fallback_classic">Classic</string>
+    <string name="system_fallback_boundless">Boundless</string>
+    <string name="system_fallback_update_note">Regenerate and apply to take effect. Pack artwork and live clocks/calendars stay first. Missing resources retain the system fallback.</string>
+    <string name="system_fallback_update">Update current icon pack</string>
+    <string name="system_fallback_applied">Current fallback: %1$s · %2$d items</string>
+    <string name="system_fallback_source_needed">Choose the original source in the icon library, then regenerate and apply.</string>
+    <string name="system_fallback_badge">System fallback · %1$s</string>
 </resources>

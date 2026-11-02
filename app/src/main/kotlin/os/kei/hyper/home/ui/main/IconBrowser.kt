@@ -21,10 +21,11 @@ internal data class IconBrowserOptions(val scope: Int = 0, val origin: Int = 0,
   val reverse: Boolean = false)
 internal data class IconBrowserSource(val revision: String, val pack: IconPackDescriptor,
   val entries: Map<String, IconPackEntry>, val paletteNames: Set<String>, val dynamicNames: Set<String>,
-  val nightNames: Set<String> = emptySet())
+  val nightNames: Set<String> = emptySet(), val systemFallback: SystemIconFallbackManifest? = null)
 internal data class IconBrowserRow(val app: InstalledIconCapability, val entry: IconPackEntry?,
-  val installed: Boolean = true, val dynamic: Boolean = false) {
-  val covered get() = entry != null
+  val installed: Boolean = true, val dynamic: Boolean = false,
+  val systemFallback: os.kei.hyper.home.data.SystemIconFallback? = null) {
+  val covered get() = entry != null && systemFallback == null
   val key get() = if (installed) "${app.userId}:${app.packageName}" else "resource:${entry?.key}"
 }
 
@@ -41,7 +42,15 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
     val pack = IconPackDescriptor("current:$key", report.title ?: "System icons", index.format,
       IconPackSource.Imported(record), index.entries, index.description, notices = index.notices)
     val palettes = hashSetOf<String>(); val dynamic = hashSetOf<String>(); val nights = hashSetOf<String>()
+    var fallback: SystemIconFallbackManifest? = null
     ZipFile(file).use { zip ->
+      zip.getEntry(SystemIconFallbackManifest.PATH)?.takeIf { it.size in 1..SystemIconFallbackManifest.MAX_BYTES }?.let {
+        fallback = runCatching {
+          SystemIconFallbackManifest.decode(zip.getInputStream(it).use { stream ->
+            stream.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
+          })
+        }.getOrNull()
+      }
       fun differs(first: String?, second: String?): Boolean {
         val a = first?.let { zip.getEntry(it) } ?: return false
         val b = second?.let { zip.getEntry(it) } ?: return false
@@ -63,7 +72,8 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
         if (!xml.contains("src=\"day.png\"") || !xml.contains("src=\"night.png\"")) dynamic += name
       }
     }
-    IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(), palettes, dynamic, nights)
+    IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(),
+      palettes, dynamic, nights, fallback)
   }
 
 internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowserSource?,
@@ -78,13 +88,14 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
       monochrome = when { name in source?.paletteNames.orEmpty() -> IconCapabilityStatus.DETECTED
         dynamic -> IconCapabilityStatus.UNKNOWN; else -> IconCapabilityStatus.NOT_DETECTED },
       monochromeFallbackRecommended = false)
-    return IconBrowserRow(resolved, entry, installed, dynamic)
+    return IconBrowserRow(resolved, entry, installed, dynamic,
+      source?.systemFallback?.takeIf { name in it.names }?.style)
   }
   val installed = apps.map { app -> row(app, app.componentName?.let { source?.entries?.get(it) }
     ?: source?.entries?.get(app.packageName)) }
   val rows = if (options.scope == 2) {
     val used = installed.mapNotNull { it.entry?.key }.toSet()
-    installed.filter { it.covered } + source?.pack?.entries.orEmpty().filter { it.key !in used }.map { entry ->
+    installed.filter { it.entry != null } + source?.pack?.entries.orEmpty().filter { it.key !in used }.map { entry ->
       val name = entry.component?.packageName ?: entry.nativeName ?: entry.key
       row(InstalledIconCapability(name, name, -1, true, IconCapabilityStatus.UNKNOWN,
         IconCapabilityStatus.UNKNOWN, hasLauncher = false), entry, false)

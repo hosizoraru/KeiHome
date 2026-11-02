@@ -104,7 +104,9 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
             model.applyColorOs(inspiration)
           }, enabled = ready && card != null && !busy)
         val result = state.nativeResult?.takeIf {
-          it.sourceId == card?.pack?.id?.let { id -> style.importSourceId(id, preferences.iconPackAppearance) }
+          it.sourceId == card?.pack?.id?.let { id ->
+            preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
+          }
         }
         if (result?.imported == true) {
           result.localId?.let { nativeId ->

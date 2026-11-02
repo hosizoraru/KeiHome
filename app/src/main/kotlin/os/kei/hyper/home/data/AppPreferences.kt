@@ -44,6 +44,7 @@ internal data class AppPreferencesState(
   val pagerGesture: AppPagerGesture = AppPagerGesture.IOS_LIKE,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
+  val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
   val colorOsArtPlus: Boolean = true,
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
@@ -52,6 +53,9 @@ internal data class AppPreferencesState(
 
 internal class AppPreferences private constructor(context: Context) {
   private val preferences = context.getSharedPreferences("app_display", Context.MODE_PRIVATE)
+  val systemIconFallbackChoices = context.assets.list("system-icon-fallback").orEmpty().toSet().let { assets ->
+    SystemIconFallback.entries.filter { it == SystemIconFallback.DEFAULT || "${it.name.lowercase()}.zip" in assets }
+  }
   val state: StateFlow<AppPreferencesState>
     field = MutableStateFlow(read())
   private fun read() = AppPreferencesState(
@@ -67,6 +71,9 @@ internal class AppPreferences private constructor(context: Context) {
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
     } ?: IconPackAppearance.SYSTEM,
+    systemIconFallback = SystemIconFallback.entries.firstOrNull {
+      it.name == preferences.getString("system_icon_fallback", null) && it in systemIconFallbackChoices
+    } ?: SystemIconFallback.DEFAULT,
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
       it.name == preferences.getString("color_os_style", null)
     } ?: ColorOsStyle.CLASSIC,
@@ -105,6 +112,12 @@ internal class AppPreferences private constructor(context: Context) {
   fun setIconPackAppearance(value: IconPackAppearance) {
     preferences.edit().putString("icon_pack_appearance", value.name).apply()
     state.update { it.copy(iconPackAppearance = value) }
+  }
+
+  fun setSystemIconFallback(value: SystemIconFallback) {
+    require(value in systemIconFallbackChoices)
+    preferences.edit().putString("system_icon_fallback", value.name).apply()
+    state.update { it.copy(systemIconFallback = value) }
   }
 
   fun setColorOsStyle(value: ColorOsStyle) {

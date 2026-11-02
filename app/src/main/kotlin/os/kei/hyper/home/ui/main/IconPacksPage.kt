@@ -87,6 +87,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("native") { SystemIconThemeCard(runtime) }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
+        item("system-fallback") { SystemIconFallbackCard(model, importReady) }
         item("effects") { ThemeEffectsCard(themeEffects, framework, model::setPreserveSystemMaterials) }
       }
       "library" -> {
@@ -120,9 +121,11 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           }
         }
         items(cards, key = { it.pack.id }, contentType = { "pack" }) { card ->
-          IconPackCard(card, model.packPreviews, preferences.iconPackAppearance, state.nativeAssociations[card.pack.id],
-            activeId, state.nativeImporting == card.pack.id, importReady && state.nativeImporting == null,
-            state.nativeResult?.takeIf { it.sourceId == card.pack.id },
+          IconPackCard(card, model.packPreviews, preferences.iconPackAppearance,
+            state.nativeAssociations[preferences.systemIconFallback.sourceId(card.pack.id)],
+            activeId, state.nativeImporting == preferences.systemIconFallback.sourceId(card.pack.id),
+            importReady && state.nativeImporting == null,
+            state.nativeResult?.takeIf { it.sourceId == preferences.systemIconFallback.sourceId(card.pack.id) },
             onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
         }
         if (state.scanned && cards.isEmpty()) item("empty") { Text(stringResource(R.string.icon_pack_empty)) }

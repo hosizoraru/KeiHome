@@ -7,6 +7,18 @@ import os.kei.hyper.home.iconpack.*
 import java.io.File
 
 class IconBrowserTest {
+  @Test fun selectedSystemFallbackIsPreviewedButDoesNotClaimPackRedrawOrApkMonochrome() {
+    val source = source().copy(systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT,
+      setOf("os.test.covered")))
+    val apps = listOf(app("os.test.covered", system = true))
+    val row = browserRows(apps, source, IconBrowserOptions(), "").single()
+    assertNotNull(row.entry)
+    assertFalse(row.covered)
+    assertEquals(SystemIconFallback.DEFAULT, row.systemFallback)
+    assertEquals(IconCapabilityStatus.NOT_DETECTED, row.app.monochrome)
+    assertTrue(browserRows(apps, source, IconBrowserOptions(coverage = 1), "").isEmpty())
+    assertEquals(1, browserRows(apps, source, IconBrowserOptions(scope = 2), "").count { it.installed })
+  }
   private fun app(pkg: String, system: Boolean = false, launcher: Boolean = true, updated: Long = 0) =
     InstalledIconCapability(pkg, pkg, 0, true, IconCapabilityStatus.DETECTED,
       IconCapabilityStatus.DETECTED, systemApp = system, hasLauncher = launcher, updatedAt = updated)

@@ -60,8 +60,18 @@ internal class IconPackImportMonitor(
           save(checkNotNull(journal), report, mayHaveImported, stage, convertedProof)
         }
       }
-      fun forDelivery(report: NativeIconImportReport) =
-        receipt.forDelivery(report, onConvertedImport) { failure -> if (!closed) onFailure(failure) }
+      fun forDelivery(report: NativeIconImportReport): NativeIconImportReport {
+        val approved = receipt.forDelivery(report, onConvertedImport) { failure -> if (!closed) onFailure(failure) }
+        if (!request.autoApply || !approved.imported || approved.convertedReady == false) return approved
+        return try {
+          if (NativeIconPackManager.authorizeAutoApply(base, request.token, requireNotNull(approved.localId)))
+            approved.copy(autoApplyToken = request.token) else approved
+        } catch (failure: Exception) {
+          if (failure is InterruptedException) Thread.currentThread().interrupt()
+          if (!closed) onFailure(failure)
+          approved.copy(message = "Imported; automatic application unavailable: ${failure.message}".take(512))
+        }
+      }
       try {
         val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
         if (user != request.userId) return@Runnable

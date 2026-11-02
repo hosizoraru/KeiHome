@@ -58,6 +58,9 @@ internal class ThemeIconImportRuntime(
         listOf(5, 7, 8, 9, 10).all { p[it] == Boolean::class.javaPrimitiveType }
     }
     require(apply.returnType == Void.TYPE && Modifier.isStatic(apply.modifiers))
+    val detailReady = native("module.detail.view.ThemeDetailActivity").getDeclaredMethod(
+      "yqrt", resource, String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+    val automatic = NativeIconAutoApply(apply)
     val validate = native("util.ApplyValidateThemeTask").getDeclaredMethod("n", Context::class.java,
       String::class.java, String::class.java)
     require(validate.returnType == Pair::class.java && !Modifier.isStatic(validate.modifiers))
@@ -116,6 +119,27 @@ internal class ThemeIconImportRuntime(
         if (approved { grants.validates(requireNotNull(chain.thisObject), chain.getArg(1) as String,
             chain.getArg(0) as Context) }) Pair(true, success)
         else chain.proceed()
+      } finally { gate.leave() }
+    }, oldHooks)
+    installHook(detailReady, AUTO_APPLY_HOOK_ID, XposedInterface.Hooker { chain ->
+      if (!gate.enter()) null else try {
+        val result = chain.proceed()
+        if (chain.getArg(2) == true) {
+          val activity = chain.thisObject as Activity
+          val readyResource = requireNotNull(chain.getArg(0))
+          val code = chain.getArg(1) as String
+          // The local resource arrives during onCreate. Let the native activity reach
+          // STARTED before applying, so lifecycle observers receive every status.
+          activity.window.decorView.post {
+            if (gate.enter()) try {
+              try { automatic.resourceReady(activity, readyResource, code) }
+              catch (failure: Exception) {
+                xposed.log(Log.WARN, TAG, "Automatic icons apply unavailable; native detail remains available", failure)
+              }
+            } finally { gate.leave() }
+          }
+        }
+        result
       } finally { gate.leave() }
     }, oldHooks)
     grantsReady = true
@@ -250,6 +274,17 @@ internal class ThemeIconImportRuntime(
           }
           return true
         }
+        if (code == AUTHORIZE_AUTO_APPLY) {
+          require(flags and IBinder.FLAG_ONEWAY == 0 && reply != null)
+          data.enforceInterface(GRANT_DESCRIPTOR)
+          val token = requireNotNull(data.readString())
+          val local = requireNotNull(data.readString())
+          require(data.dataAvail() == 0)
+          val accepted = NativeIconAutoApply.authorize(context, token, local)
+          reply.writeNoException()
+          reply.writeInt(if (accepted) 1 else 0)
+          return true
+        }
         if (code != 2 && code != 5) throw SecurityException("Unsupported Themes import bridge transaction")
         return native.transact(code, data, reply, flags)
       } finally { gate.leave() }
@@ -265,6 +300,8 @@ internal class ThemeIconImportRuntime(
     private const val ATTACH_HOOK_ID = "keihome.theme.converted_icon.attach.v1"
     const val GRANT_DESCRIPTOR = "os.kei.hyper.home.IConvertedIconGrant.v1"
     const val REGISTER_CONVERTED = 0x004b4801
+    const val AUTHORIZE_AUTO_APPLY = 0x004b4802
+    private const val AUTO_APPLY_HOOK_ID = "keihome.theme.icon.auto_apply.v1"
     private const val RIGHTS_HOOK_ID = "keihome.theme.converted_icon.rights.v1"
     private const val APPLY_HOOK_ID = "keihome.theme.converted_icon.apply.v1"
     private const val VALIDATE_HOOK_ID = "keihome.theme.converted_icon.validate.v1"

@@ -237,6 +237,21 @@ internal object NativeIconPackManager {
     cleanupReconciledStage(original, inspectArchive(original), retainedStagePath)
   }
 
+  fun authorizeAutoApply(context: Context, token: String, localId: String): Boolean = asSystemWorker {
+    verifyInstalledContract(context)
+    withNativeImporter(context) { pc ->
+      val data = Parcel.obtain()
+      val reply = Parcel.obtain()
+      try {
+        data.writeInterfaceToken(ThemeIconImportRuntime.GRANT_DESCRIPTOR)
+        data.writeString(token); data.writeString(localId)
+        check(pc.transact(ThemeIconImportRuntime.AUTHORIZE_AUTO_APPLY, data, reply, 0))
+        reply.readException()
+        reply.readInt() == 1
+      } finally { data.recycle(); reply.recycle() }
+    }
+  }
+
   private fun approveConverted(pc: IBinder, stage: File, archive: Archive, origin: String?,
     result: ImportResult): ImportResult {
     if (origin == null) return result

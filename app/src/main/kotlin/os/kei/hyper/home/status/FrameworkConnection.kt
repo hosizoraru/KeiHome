@@ -81,17 +81,20 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
   )
 }
 
-/** Retry Java targets on app connection if an in-flight operation refused install-time reload. */
-internal fun XposedService.upgradeOlderSystemTarget() {
+/** Retry Java targets when the installed generation differs, including a version-code downgrade. */
+internal fun XposedService.reloadMismatchedSystemTargets() {
   if (apiVersion < 102) return
   val user = android.os.Process.myUid() / 100_000
   val targets = runningTargets.filter {
     ((it.uid == android.os.Process.SYSTEM_UID && it.processName in setOf("system_server", "system")) ||
       (it.processName in setOf("com.android.thememanager", "com.android.systemui") &&
         it.uid / 100_000 == user)) &&
-      it.loadedVersionCode < BuildConfig.VERSION_CODE
+      needsJavaReload(it.loadedVersionCode, BuildConfig.VERSION_CODE.toLong())
   }
   for (target in targets) hotReloadModule(target, null) { _, result ->
     Log.i("KeiHomeReload", "API 102 upgrade ${target.processName}: ${result.status}, ${result.message}")
   }
 }
+
+internal fun needsJavaReload(loadedVersion: Long, installedVersion: Long): Boolean =
+  loadedVersion != installedVersion

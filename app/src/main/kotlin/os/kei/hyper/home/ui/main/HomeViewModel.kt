@@ -49,7 +49,7 @@ import os.kei.hyper.home.data.SplashAppearancePreferences
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
-import os.kei.hyper.home.status.upgradeOlderSystemTarget
+import os.kei.hyper.home.status.reloadMismatchedSystemTargets
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusUiState
@@ -247,7 +247,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           readSplashAppearance()
           delay(1_500)
           withContext(Dispatchers.IO) {
-            try { service.upgradeOlderSystemTarget() }
+            try { service.reloadMismatchedSystemTargets() }
             catch (failure: Exception) { android.util.Log.w("KeiHomeReload", "Runtime upgrade unavailable", failure) }
           }
         }

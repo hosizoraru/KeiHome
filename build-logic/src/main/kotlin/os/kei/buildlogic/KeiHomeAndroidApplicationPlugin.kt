@@ -3,7 +3,6 @@ package os.kei.buildlogic
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
-import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -28,25 +27,17 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
     with(android) {
       namespace = "os.kei.hyper.home"
       compileSdk = 37
+      // Resolve the pinned NDK from the configured Android SDK on each machine.
       ndkVersion = "30.0.16248370"
 
-      // Each AVD installation must identify a distinct LSPosed module generation.
-      // Pass -Pkeihome.versionCode when a rebuild happens within the same
-      // second or when a caller needs an explicitly audited monotonic value.
-      val generatedVersionCode = project.providers
-        .gradleProperty("keihome.versionCode")
-        .orNull?.let { raw ->
-          raw.toIntOrNull()?.takeIf { it > 0 }
-            ?: throw GradleException("keihome.versionCode must be a positive 32-bit integer")
-        }
-        ?: (System.currentTimeMillis() / 1000L).toInt()
+      val generatedVersion = KeiHomeVersioning.resolve(project)
 
       defaultConfig {
         applicationId = "os.kei.hyper.home"
         minSdk = 37
         targetSdk = 37
-        versionCode = generatedVersionCode
-        versionName = "1.0"
+        versionCode = generatedVersion.code
+        versionName = generatedVersion.name
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
           abiFilters += "arm64-v8a"

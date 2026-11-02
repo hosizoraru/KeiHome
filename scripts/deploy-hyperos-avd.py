@@ -68,6 +68,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", required=True, type=Path)
     parser.add_argument("--reload-native", action="store_true")
+    parser.add_argument("--allow-downgrade", action="store_true",
+                        help="Allow a lower code on the core-patched HyperOS test AVD")
     parser.add_argument("--evidence", required=True, type=Path)
     args = parser.parse_args()
     args.evidence.mkdir(parents=True, exist_ok=True)
@@ -92,14 +94,17 @@ def main():
     if not version_match:
         raise RuntimeError(f"Cannot read installed version for {PACKAGE}: {listed!r}")
     old_version = int(version_match[1])
-    if new_version <= old_version:
+    if new_version == old_version or (new_version < old_version and not args.allow_downgrade):
         raise RuntimeError(f"versionCode must increase: installed={old_version}, APK={new_version}")
     before = {name: process(name) for name in ("com.miui.home", "system_server", "com.android.systemui")}
     log = root("ls -1t /data/adb/lspd/log/modules_*.log | head -n 1")
     if not re.fullmatch(r"/data/adb/lspd/log/modules_[^/]+\.log", log):
         raise RuntimeError("Missing framework module log")
     size = int(root(f"stat -c %s {shlex.quote(log)}"))
-    result = adb("install", "-r", "--no-streaming", str(args.apk.resolve()), timeout=120)
+    install_args = ["install", "-r"]
+    if new_version < old_version:
+        install_args.append("-d")
+    result = adb(*install_args, "--no-streaming", str(args.apk.resolve()), timeout=120)
     if "Success" not in result:
         raise RuntimeError(result)
     print(f"Installed {old_version} -> {new_version}", flush=True)
@@ -161,7 +166,7 @@ def main():
         if before[name] != after[name]:
             raise RuntimeError(f"Unexpected {name} replacement")
     (args.evidence / "deployment.json").write_text(json.dumps({
-        "serial": SERIAL, "versionCode": new_version, "before": before, "after": after,
+        "serial": SERIAL, "previousVersionCode": old_version, "versionCode": new_version, "before": before, "after": after,
         "nativeReloadRequested": args.reload_native,
     }, indent=2))
     print("Deployment identity checks passed", flush=True)

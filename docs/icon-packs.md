@@ -201,9 +201,10 @@ enabled**: resource/archive replacement can occur in place, and the candidate
 has no proven way to bind asynchronous archive admission to the live Dart
 archive. See that directory's README.
 
-Lawnicons currently exports its appfilter's static color artwork. This does not
-implement Lawnchair's separate themed-icon-source protocol or dynamic Monet
-recoloring. Its applied output also needs further shape/renderer acceptance.
+Subsequent AVD tests verified day/night and KeiHome Monet recoloring for
+Lawnicons icons with declared monochrome layers. This does not implement every
+part of Lawnchair's separate themed-icon-source protocol. See the dated
+[community icon-pack matrix](community-icon-packs.md) for versions and limits.
 Neither these limitations nor prior disposed-image/SystemUI stalls are marked
 fixed by the successful native import and validation checks.
 

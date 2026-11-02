@@ -1,5 +1,23 @@
 # Icon-pack actions, remembered menus and native return
 
+## Browsing the library
+
+The APK and MTZ/ZIP lists use compact light/dark previews and colored source
+and active-state pills. Installed APKs show their reported version name. File
+import remains available after the list, with a recommendation to install APK
+packs for easier version and update tracking; replacing a local file requires
+selecting the updated file again. ColorOS style previews use the same compact
+pair layout.
+
+Both lists can search the pack name and installed package name or imported file
+name. The sorting menu offers name, package/file name, most recently updated or
+added, matched-app count, and reverse order. The actually applied pack remains
+first for every order, including reverse, when it matches the query. Ownership
+uses the applied native component's recorded source, including its original
+system-fallback choice. The existing menu-memory setting also controls sort
+persistence; disabling memory clears the saved order. Filtering never forces a
+nonmatching active pack into the results.
+
 ## UI
 
 The current-pack page, ColorOS configuration and ColorOS Inspiration use the

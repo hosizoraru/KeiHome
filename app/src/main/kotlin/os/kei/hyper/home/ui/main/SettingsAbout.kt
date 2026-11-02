@@ -25,9 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -78,14 +78,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit,
   focusEnvironment: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
-  val environmentRequester = remember { BringIntoViewRequester() }
+  val aboutScroll = rememberScrollState()
   LaunchedEffect(focusEnvironment) {
     if (focusEnvironment) {
-      // Navigation and the asynchronous device-info lookup can both change the card bounds.
-      delay(500)
-      environmentRequester.bringIntoView()
+      snapshotFlow { aboutScroll.maxValue }.first { it != Int.MAX_VALUE }
+      // The detail card is the final content; scrolling to the bottom keeps every row visible.
+      delay(400)
+      aboutScroll.animateScrollTo(aboutScroll.maxValue)
       delay(250)
-      environmentRequester.bringIntoView()
+      aboutScroll.animateScrollTo(aboutScroll.maxValue)
     }
   }
   LaunchedEffect(model, lifecycle) {
@@ -94,14 +95,14 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   AboutBackground {
     BoxWithConstraints(Modifier.fillMaxSize()) {
       val heroHeight = (maxHeight * 0.47f).coerceAtLeast(260.dp)
-      Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
+      Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).statusBarsPadding()
         .navigationBarsPadding().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(48.dp))
         Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
         AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices, onBackground = true)
         Spacer(Modifier.height(12.dp))
-        Box(Modifier.bringIntoViewRequester(environmentRequester)) { AboutDetails() }
-        Spacer(Modifier.height(32.dp))
+        AboutDetails()
+        Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
       }
       IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(start = 8.dp)) {
         Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
@@ -187,12 +188,7 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
 private fun AboutDetails() {
   val context = LocalContext.current
   val details by produceState(AboutDeviceDetails(Build.MODEL, null, null, null), context) {
-    value = withContext(Dispatchers.IO) {
-      val launcher = runCatching { context.packageManager.getPackageInfo("com.miui.home", 0) }.getOrNull()
-      AboutDeviceDetails(systemProperty("ro.product.marketname").ifBlank { Build.MODEL },
-        launcher?.versionName, systemProperty("rust.runtime_version"),
-        launcher?.applicationInfo?.sourceDir?.let(::launcherFlutterVersion))
-    }
+    value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
   }
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = aboutCardColors()) {
     BasicComponent(title = stringResource(R.string.polish_about_device), endActions = {
@@ -233,8 +229,15 @@ private fun AboutDetails() {
   }
 }
 
-private data class AboutDeviceDetails(val marketName: String, val launcherVersion: String?,
+internal data class AboutDeviceDetails(val marketName: String, val launcherVersion: String?,
   val rustVersion: String?, val flutterVersion: String?)
+
+internal fun loadAboutDeviceDetails(context: android.content.Context): AboutDeviceDetails {
+  val launcher = runCatching { context.packageManager.getPackageInfo("com.miui.home", 0) }.getOrNull()
+  return AboutDeviceDetails(systemProperty("ro.product.marketname").ifBlank { Build.MODEL },
+    launcher?.versionName, systemProperty("rust.runtime_version"),
+    launcher?.applicationInfo?.sourceDir?.let(::launcherFlutterVersion))
+}
 
 private fun systemProperty(key: String): String = runCatching {
   val property = Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)

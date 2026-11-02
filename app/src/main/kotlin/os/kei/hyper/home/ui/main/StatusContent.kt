@@ -40,6 +40,10 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
@@ -128,7 +132,7 @@ internal fun StatusBody(
   val framework = frameworkCardState(connected, readFailed, snapshot)
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     RuntimeStatusSection(framework, runtime, runtimeExpanded,
-      { runtimeExpanded = !runtimeExpanded }, onRefresh)
+      { runtimeExpanded = !runtimeExpanded }, onRefresh, onOpenEnvironment)
     DashboardMonetCard(
       snapshot = monetSnapshot,
       readFailed = monetReadFailed,
@@ -149,13 +153,6 @@ internal fun StatusBody(
       }
     }
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      BasicComponent(title = stringResource(R.string.status_device_environment),
-        summary = stringResource(R.string.status_device_environment_summary),
-        onClick = onOpenEnvironment, endActions = {
-          Icon(MiuixIcons.Basic.ArrowRight, contentDescription = null)
-        })
-    }
   }
 }
 
@@ -290,6 +287,7 @@ private fun RuntimeStatusSection(
   expanded: Boolean,
   onToggle: () -> Unit,
   onRefresh: () -> Unit,
+  onOpenEnvironment: () -> Unit,
 ) {
   val current = if (framework.connected && !framework.readFailed) runtime else RuntimeStatusUiState()
   val checkedAt = current.report?.checkedAtElapsed
@@ -308,12 +306,27 @@ private fun RuntimeStatusSection(
     }
   }
   val native = runtimeCardState(current, maxOf(elapsed, SystemClock.elapsedRealtime()))
-  FrameworkHero(framework, native, onRefresh)
+  FrameworkHero(framework, native, onRefresh, onOpenEnvironment)
   RuntimeStatusCard(framework, native, expanded, onToggle)
 }
 
 @Composable
-private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, onRefresh: () -> Unit) {
+private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, onRefresh: () -> Unit,
+  onOpenEnvironment: () -> Unit) {
+  val context = LocalContext.current
+  val environment by produceState<AboutDeviceDetails?>(null, context) {
+    value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
+  }
+  val device = environment
+  val environmentSummary = if (device == null) null else listOfNotNull(
+    "${device.marketName} · ${android.os.Build.VERSION.INCREMENTAL.substringBeforeLast('.', android.os.Build.VERSION.INCREMENTAL)}",
+    listOfNotNull(device.launcherVersion?.let { version ->
+      "Home ${Regex("(?<![0-9])[0-9]{3,5}(?![0-9])").findAll(version).lastOrNull()?.value ?: version}"
+    },
+      device.rustVersion?.takeIf(String::isNotBlank)?.let { "Rust $it" },
+      device.flutterVersion?.takeIf(String::isNotBlank)?.let { "Flutter ${it.substringBefore("-mi-")}" })
+      .takeIf { it.isNotEmpty() }?.joinToString(" · "),
+  ).joinToString("\n")
   val presentation = moduleStatusPresentation(state, runtime)
   val summary = when {
     !state.connected -> stringResource(R.string.status_framework_disconnected)
@@ -331,6 +344,8 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     details = emptyList(),
     tone = presentation.tone,
     onRefresh = onRefresh,
+    onOpen = onOpenEnvironment,
+    environmentSummary = environmentSummary,
     footer = when {
       // Java hot reload is a separate observation from the resident native endpoint.
       state.launcherState == HookedTarget.State.STALE ||
@@ -741,6 +756,8 @@ internal fun StatusOverviewCard(
   tone: StatusTone,
   onRefresh: () -> Unit,
   footer: String? = null,
+  onOpen: (() -> Unit)? = null,
+  environmentSummary: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
   val dark = LocalKeiHomeDarkTheme.current
@@ -778,7 +795,7 @@ internal fun StatusOverviewCard(
       .semantics { this.onClick(label = refreshLabel, action = null) },
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
-    onClick = onRefresh,
+    onClick = onOpen ?: onRefresh,
     showIndication = true,
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
@@ -830,6 +847,10 @@ internal fun StatusOverviewCard(
         }
       }
     }
+    if (environmentSummary != null) Text(environmentSummary,
+      modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
+      style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
+      maxLines = 2, overflow = TextOverflow.Ellipsis)
     if (details.isNotEmpty()) {
       Column(
         modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp),

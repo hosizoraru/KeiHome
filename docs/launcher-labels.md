@@ -62,6 +62,11 @@ The developer AVD deployment script exposes that separate action explicitly as
 
 ## Validation checkpoint
 
+Default device acceptance uses only HyperOS AVD `emulator-5580`. Physical-device
+acceptance is a separate milestone or release check and runs only when the user
+explicitly requests it; a previous physical-device check does not authorize
+testing later features on that device.
+
 Host resolution and rejection checks pass on the actual 7722/8593 ELF fixtures.
 The linked production bridges pass 132 ARM64 cases covering both heap-base forms,
 all modes, native line counts, exact width boundaries, invalid measurements,
@@ -73,5 +78,13 @@ The focused JVM suite passes 56 tests; the exact-patch transactions pass 945
 assertions across all three patch kinds and 4/16/64 KiB page sizes. Independent
 native-command admission and expiry pass the existing ASan/UBSan harness.
 
-Actual launcher rendering, live switching, grid geometry, animation lifecycle
-and physical-device behavior remain pending a fresh native load at this checkpoint.
+The Release settings UI was installed on the AVD with API 102 Java reconciliation
+and unchanged launcher, SystemUI and system-server identities. Chinese, English
+and Japanese layouts and all three choices were inspected. Settings search finds
+the new control, and a choice without the new resident native capability displays
+the waiting status rather than claiming success. The saved choice and app locale
+were restored to their defaults after these checks.
+
+Actual launcher rendering, live switching, grid geometry and animation lifecycle
+remain pending the separately confirmed fresh native load at this checkpoint.
+Physical-device acceptance was not performed or requested for this feature.

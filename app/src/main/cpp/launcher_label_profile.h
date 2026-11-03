@@ -5,6 +5,7 @@
 struct LauncherLabelProfile {
     size_t builder, lines, config, value, measure, marquee_constructor;
     size_t allocation_call, text_allocator, marquee_allocator, lines_tail, after_text_init;
+    size_t change_event, refresh_call, refresh_logger, font_refresh;
     uint32_t text_cid, size_cid, marquee_tag;
     uint32_t grid_slot, config_rx_field, rx_value_field, width_field, source_width_field;
     uint32_t ltr_slot;

@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 extern "C" const uint8_t kh_label_template[], kh_label_pre[], kh_label_post[], kh_label_lines[],
-        kh_label_config[], kh_label_end[];
+        kh_label_config[], kh_label_end[], kh_label_refresh[];
 namespace {
 uint32_t installed = 0;
 struct Loaded { uintptr_t base; IconHighlightRange ranges[16]; size_t count, span; bool valid; };
@@ -48,7 +48,7 @@ bool Reject(const char* why) {
     __android_log_print(ANDROID_LOG_WARN, "KeiHomeLabels", "Labels inactive: %s", why);
     return false;
 }
-void* AllocateNear(uintptr_t call, size_t size) {
+void* AllocateNear(uintptr_t call, uintptr_t refresh_call, size_t size) {
     const uintptr_t aligned = call & ~(uintptr_t(size) - 1);
     for (uintptr_t distance = 0x1000000; distance < 0x7000000; distance += 0x1000000) {
         for (int sign = -1; sign <= 1; sign += 2) {
@@ -57,7 +57,9 @@ void* AllocateNear(uintptr_t call, size_t size) {
                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
             if (p == MAP_FAILED) continue;
             const int64_t delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(call);
-            if (delta >= -0x8000000 && delta < 0x8000000) return p;
+            const int64_t refresh_delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(refresh_call);
+            if (delta >= -0x8000000 && delta < 0x8000000 &&
+                    refresh_delta >= -0x8000000 && refresh_delta < 0x8000000) return p;
             munmap(p, size);
         }
     }
@@ -86,8 +88,9 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     const size_t bytes = size_t(kh_label_end - kh_label_template);
     const size_t config = size_t(kh_label_config - kh_label_template);
     if (queried < 4096 || queried > 65536 || (queried & (queried-1)) || bytes > size_t(queried) ||
-            config + 160 != bytes) return Reject("bridge ABI");
-    auto* bridge = static_cast<uint8_t*>(AllocateNear(loaded.base + p.allocation_call, size_t(queried)));
+            config + 192 != bytes) return Reject("bridge ABI");
+    auto* bridge = static_cast<uint8_t*>(AllocateNear(loaded.base + p.allocation_call,
+            loaded.base + p.refresh_call, size_t(queried)));
     if (!bridge) return Reject("near bridge unavailable");
     memcpy(bridge, kh_label_template, bytes);
     const uint64_t data[] = {
@@ -98,8 +101,11 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
         p.rx_value_field, p.width_field, p.source_width_field, p.ltr_slot,
         uint64_t(int64_t(p.source_slot)), uint64_t(int64_t(p.text_slot)), uint64_t(int64_t(p.style_slot)),
         uint64_t(int64_t(p.widget_slot)), uint64_t(int64_t(p.lines_slot)),
+        loaded.base + p.refresh_logger, loaded.base + p.font_refresh,
+        reinterpret_cast<uintptr_t>(&kh_launcher_label_revision),
+        reinterpret_cast<uintptr_t>(&kh_launcher_label_notified),
     };
-    static_assert(sizeof(data) == 160);
+    static_assert(sizeof(data) == 192);
     memcpy(bridge + config, data, sizeof(data));
     __builtin___clear_cache(reinterpret_cast<char*>(bridge), reinterpret_cast<char*>(bridge) + bytes);
     if (mprotect(bridge, size_t(queried), PROT_READ | PROT_EXEC)) {
@@ -123,10 +129,17 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     uint32_t original; memcpy(&original, image.base + p.allocation_call, 4);
     if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.allocation_call), original, call) != kHookSuccess)
         return Reject("allocation call transaction");
+    const uintptr_t refresh_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_refresh - kh_label_template));
+    const int64_t refresh_delta = int64_t(refresh_bridge) - int64_t(loaded.base + p.refresh_call);
+    if (refresh_delta < -0x8000000 || refresh_delta >= 0x8000000) return Reject("refresh branch range");
+    const uint32_t refresh_call = 0x94000000u | (uint32_t(refresh_delta / 4) & 0x3ffffffu);
+    memcpy(&original, image.base + p.refresh_call, 4);
+    if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.refresh_call), original, refresh_call) != kHookSuccess)
+        return Reject("refresh call transaction");
     __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&installed, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeLabels",
-            "Dynamic labels ready: builder=0x%zx lines=0x%zx textCID=%u marqueeCID=%u; mode=native",
-            p.builder, p.lines, p.text_cid, p.marquee_tag >> 12);
+            "Dynamic labels ready: builder=0x%zx lines=0x%zx refresh=0x%zx textCID=%u marqueeCID=%u; mode=native",
+            p.builder, p.lines, p.refresh_call, p.text_cid, p.marquee_tag >> 12);
     return true;
 }

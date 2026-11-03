@@ -572,14 +572,20 @@ void TestLauncherLabelCommands() {
         assert(InstalledCapabilities() == caps);
         for (uint32_t mode = 0; mode < 3; ++mode) {
             kh_launcher_label_mode = 0;
+            const uint64_t revision = kh_launcher_label_revision;
             const auto* policy = kh_monet_policy;
             assert(ApplyRequest(&state, Request(3u, mode, 0, {}), 1u) == bool(caps & 4));
             assert(kh_launcher_label_mode == ((caps & 4) ? mode : 0));
+            const uint64_t changed = bool(caps & 4) && mode != 0;
+            assert(kh_launcher_label_revision == revision + changed);
+            assert(ApplyRequest(&state, Request(3u, mode, 0, {}), 1u) == bool(caps & 4));
+            assert(kh_launcher_label_revision == revision + changed); // heartbeat
             assert(kh_monet_policy == policy);
             assert(!ApplyRequest(&state, Request(3u, 3u, 0, {}), 2u));
             assert(!ApplyRequest(&state, Request(3u, mode, 1u, {}), 2u));
             MaintainPolicy(&state, uint64_t(kNativeMonetExpiryMs)*1000000u + 1);
             assert(kh_launcher_label_mode == 0);
+            assert(kh_launcher_label_revision == revision + 2*changed); // expiry
         }
     }
     kh_launcher_labels_installed = 0;

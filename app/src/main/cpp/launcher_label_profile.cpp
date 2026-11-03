@@ -80,9 +80,26 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
     p.builder = Find(im, kLabelBuilder); p.lines = Find(im, kLabelLines);
     p.config = Find(im, kLabelConfig); p.value = Find(im, kLabelValue);
     p.measure = Find(im, kLabelMeasure); p.marquee_constructor = Find(im, kLabelMarqueeCtor);
+    p.change_event = Find(im, kLabelChangeEvent); p.font_refresh = Find(im, kLabelFontRefresh);
     const size_t type = Find(im, kLabelMarqueeType);
-    if (!p.builder || !p.lines || !p.config || !p.value || !p.measure || !p.marquee_constructor || !type)
+    if (!p.builder || !p.lines || !p.config || !p.value || !p.measure || !p.marquee_constructor || !type ||
+            !p.change_event || !p.font_refresh)
         return Reject(why, "ambiguous label instruction roles");
+    // The UI item-change handler has two adjacent info calls before it consumes
+    // the change set. Both discard their result. Reuse the first original call
+    // PC for the resident title-cache refresh; no extra Dart frame is invented.
+    size_t log_calls = 0;
+    for (size_t at = p.change_event + 0x30; at < p.change_event + 0x120; at += 4) {
+        const size_t target = Call(im, at);
+        if (!target || !Matches(im, target, kLabelRefreshLog)) continue;
+        if (p.refresh_logger && p.refresh_logger != target)
+            return Reject(why, "item-change log targets differ");
+        if ((Word(im, at + 4) & 0xffe0001fu) != 0x92800011u ||
+                Word(im, at + 8) != 0xf8716ba2u)
+            return Reject(why, "item-change return value became live");
+        if (!log_calls++) { p.refresh_call = at; p.refresh_logger = target; }
+    }
+    if (log_calls != 2) return Reject(why, "item-change refresh call graph changed");
     if (Call(im, p.lines + 12) != p.config || Call(im, p.config + 0x54) != p.value)
         return Reject(why, "label configuration graph changed");
     p.grid_slot = Slot(Word(im, p.config + 16));

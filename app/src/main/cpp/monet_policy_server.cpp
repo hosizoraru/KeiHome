@@ -36,6 +36,8 @@ uint32_t kh_theme_materials_installed = 0u;
 uint32_t kh_theme_materials_enabled = 0u;
 uint32_t kh_launcher_labels_installed = 0u;
 uint32_t kh_launcher_label_mode = 0u;
+uint64_t kh_launcher_label_revision = 0u;
+uint64_t kh_launcher_label_notified = 0u;
 }
 
 namespace {
@@ -217,6 +219,11 @@ void PublishPolicy(PolicyState* state, PolicyAllocation* next) {
     ReclaimDrainedPolicies(state);
 }
 
+void SetLauncherLabelMode(uint32_t mode) {
+    if (__atomic_exchange_n(&kh_launcher_label_mode, mode, __ATOMIC_ACQ_REL) != mode)
+        __atomic_fetch_add(&kh_launcher_label_revision, uint64_t{1}, __ATOMIC_ACQ_REL);
+}
+
 void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
@@ -224,7 +231,7 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
     if (state->labels_expires_at != 0u &&
             (now >= state->labels_expires_at ||
              __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        __atomic_store_n(&kh_launcher_label_mode, 0u, __ATOMIC_RELEASE);
+        SetLauncherLabelMode(0u);
         state->labels_expires_at = 0u;
     }
     if (state->materials_expires_at != 0u &&
@@ -288,7 +295,7 @@ bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_bef
         MaintainPolicy(state, now);
         state->labels_expires_at = header.foreground
                 ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0;
-        __atomic_store_n(&kh_launcher_label_mode, header.foreground, __ATOMIC_RELEASE);
+        SetLauncherLabelMode(header.foreground);
         return true;
     }
     if (header.flags == kNativeThemeMaterialsCommand) {

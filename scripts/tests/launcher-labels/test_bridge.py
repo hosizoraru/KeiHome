@@ -28,7 +28,7 @@ def linked_template(path):
         for segment in elf.iter_segments():
             if segment["p_type"] == "PT_LOAD" and segment["p_vaddr"] <= begin < end <= segment["p_vaddr"] + segment["p_filesz"]:
                 stream.seek(segment["p_offset"] + begin - segment["p_vaddr"])
-                return stream.read(end-begin), {n: syms["kh_label_"+n]-begin for n in ("pre", "post", "lines", "config")}
+                return stream.read(end-begin), {n: syms["kh_label_"+n]-begin for n in ("pre", "post", "lines", "refresh", "config")}
     raise AssertionError("bridge not in one file-backed ELF range")
 
 
@@ -139,6 +139,60 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
         assert uc.reg_read(X[15]) == STACK+16 and uc.reg_read(X[29]) == STACK+0x100
 
 
+def execute_refresh(template, entries, p, high, revision, notified, grid_state, race=False):
+    """A real UI event may refresh once; keep its original Dart caller frame."""
+    uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
+    for at, size in ((BRIDGE, 4096), (THREAD, 4096), (FIELDS, 0x10000),
+                     (POOL, 4096), (POLICY, 4096), (STACK-4096, 8192)):
+        uc.mem_map(at, size)
+    def put(at, value): uc.mem_write(at, struct.pack('<Q', value))
+    def get(at): return struct.unpack('<Q', uc.mem_read(at, 8))[0]
+    null, sentinel, grid = (high << 32) + 0x100001, (high << 32) + 0x110001, (high << 32) + 0x120001
+    put(THREAD+0x78, FIELDS); put(POOL+0x40, sentinel)
+    put(FIELDS+p['grid'], {'ready': grid, 'null': null, 'sentinel': sentinel}[grid_state])
+    put(POLICY+0x100, revision); put(POLICY+0x108, notified)
+    blob = bytearray(template)
+    struct.pack_into('<Q', blob, entries['config']+72, p['grid'])
+    struct.pack_into('<4Q', blob, entries['config']+160,
+                     CODE+p['logger'], CODE+p['font'], POLICY+0x100, POLICY+0x108)
+    uc.mem_write(BRIDGE, bytes(blob))
+    return_pc = CODE+p['event']+4
+    for page in {return_pc & ~4095, (CODE+p['logger']) & ~4095, (CODE+p['font']) & ~4095}:
+        uc.mem_map(page, 4096)
+    for i, reg in enumerate(X): uc.reg_write(reg, 0xb000+i)
+    for i, value in ((15, STACK-0x298), (22, null), (26, THREAD), (27, POOL),
+                     (28, high), (29, STACK), (30, return_pc)):
+        uc.reg_write(X[i], value)
+    uc.reg_write(ar.UC_ARM64_REG_SP, STACK+0x1000)
+    saved = [uc.reg_read(r) for r in X]
+    calls = []
+    root = STACK-0x148
+    put(root, (high << 32)+0x150001)
+    def hook(cpu, pc, count, unused):
+        if pc in (CODE+p['logger'], CODE+p['font']):
+            calls.append('font' if pc == CODE+p['font'] else 'log')
+            assert all(cpu.reg_read(r) == saved[i] for i,r in enumerate(X) if i not in (16,17))
+            assert cpu.reg_read(ar.UC_ARM64_REG_SP) == STACK+0x1000
+            # A relocating collection still sees the ORIGINAL caller roots/PC.
+            put(root, get(root)+0x1000)
+            if race and calls == ['font']: put(POLICY+0x100, revision+1)
+            cpu.reg_write(X[0], null); cpu.reg_write(ar.UC_ARM64_REG_PC, return_pc)
+        elif pc == return_pc: cpu.emu_stop()
+    uc.hook_add(UC_HOOK_CODE, hook)
+    def invoke():
+        for i,r in enumerate(X): uc.reg_write(r,saved[i])
+        uc.emu_start(BRIDGE+entries['refresh'], return_pc+4, count=150)
+    expected = revision != notified and grid_state == 'ready'
+    invoke()
+    assert calls == [('font' if expected else 'log')]
+    assert get(POLICY+0x108) == (revision if expected else notified)
+    invoke()
+    assert calls[-1] == ('font' if race and expected else 'log')
+    invoke()
+    assert calls[-1] == 'log'  # Repeated callbacks/heartbeats cannot rebuild again.
+    assert get(root) == (high << 32)+0x153001
+
+
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("--payload", required=True)
     parser.add_argument("--resolver", required=True); parser.add_argument("launchers", nargs="+")
@@ -149,6 +203,10 @@ def main():
         decimal = {"textCid", "sizeCid", "source", "text", "style", "widget", "line"}
         p = {k: int(v, 10 if k in decimal else 16) for k, v in (pair.split("=") for pair in row.split())}
         for high in (0, 0x74):
+            for revision, notified in ((0,0), (1,0), (1,1), (2,1)):
+                for grid_state in ('ready','null','sentinel'):
+                    execute_refresh(template, entries, p, high, revision, notified, grid_state); total += 1
+            execute_refresh(template, entries, p, high, 1, 0, 'ready', race=True); total += 1
             for mode in (0, 1, 2):
                 for width in (60.0, 80.0, 80.01, 150.0, float("nan"), float("inf")):
                     execute(template, entries, p, high, mode, width=width); total += 1

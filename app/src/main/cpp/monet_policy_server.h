@@ -64,6 +64,8 @@ extern uint64_t kh_monet_selection_notified;
 extern uint32_t kh_monet_installed;
 extern uint32_t kh_launcher_labels_installed;
 extern uint32_t kh_launcher_label_mode;
+extern uint64_t kh_launcher_label_revision;
+extern uint64_t kh_launcher_label_notified;
 // Independent of NativeMonetPolicy and its Dart ABI. The highlight installer
 // release-stores installed=1 ONLY after its validated bridge is active. The
 // server release-stores enabled; the bridge acquire-loads it on use. Both start

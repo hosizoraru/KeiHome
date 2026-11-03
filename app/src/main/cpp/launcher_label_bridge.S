@@ -7,9 +7,9 @@
     .section .rodata.launcher_label_bridge,"a",%progbits
     .balign 8
     .global kh_label_template, kh_label_pre, kh_label_post, kh_label_lines
-    .global kh_label_config, kh_label_end
+    .global kh_label_config, kh_label_end, kh_label_refresh
     .hidden kh_label_template, kh_label_pre, kh_label_post, kh_label_lines
-    .hidden kh_label_config, kh_label_end
+    .hidden kh_label_config, kh_label_end, kh_label_refresh
 kh_label_template:
 kh_label_pre:
     hint #38
@@ -139,6 +139,41 @@ kh_label_post:
     ldr x16, [x17, #32]
     br x16
 
+// Enter through an existing UI item-change log call. The native synchronous
+// font refresh ignores incoming arguments, clears the widget cache and notifies
+// the existing title IDs. Its own frame/GC metadata and original caller PC stay
+// intact. Other isolates, unchanged heartbeats and ordinary events keep logging.
+kh_label_refresh:
+    hint #38
+    adr x17, kh_label_config
+    ldr x16, [x17, #176]
+    ldar x16, [x16]
+    ldr x17, [x17, #184]
+    ldar x17, [x17]
+    cmp x16, x17
+    b.eq .Lrefresh_original
+    adr x17, kh_label_config
+    ldr x16, [x17, #72]
+    ldr x17, [x26, #0x78]
+    ldr x16, [x17, x16]
+    cmp w16, w22
+    b.eq .Lrefresh_original
+    ldr x17, [x27, #0x40]
+    cmp w16, w17
+    b.eq .Lrefresh_original
+    adr x17, kh_label_config
+    ldr x16, [x17, #176]
+    ldar x16, [x16]
+    ldr x17, [x17, #184]
+    stlr x16, [x17]
+    adr x17, kh_label_config
+    ldr x16, [x17, #168]
+    br x16
+.Lrefresh_original:
+    adr x17, kh_label_config
+    ldr x16, [x17, #160]
+    br x16
+
 kh_label_lines:
     hint #38
     adr x0, kh_label_config
@@ -161,6 +196,6 @@ kh_label_lines:
 
     .balign 8
 kh_label_config:
-    .zero 160
+    .zero 192
 kh_label_end:
     .section .note.GNU-stack,"",%progbits

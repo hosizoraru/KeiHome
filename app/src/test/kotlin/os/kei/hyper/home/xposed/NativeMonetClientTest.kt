@@ -26,6 +26,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeMonetClientTest {
+  @Test fun labelCommandsRequireTheirOwnCapabilityAndKeepModesDistinct() {
+    for (mode in 0..2) {
+      val command = NativeMonetProtocol.launcherLabelsRequest(mode)
+      assertArrayEquals(words(magic, 1, 3, mode, 0, 0), command)
+      for (capabilities in 1..7) {
+        val output = ByteArrayOutputStream()
+        val accepted = NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(capabilities) + ack()),
+          output, targetUid, targetUid, command)
+        assertEquals(capabilities and 4 != 0, accepted)
+        assertEquals(if (accepted) command.size else 0, output.size())
+      }
+    }
+    assertThrows(IllegalArgumentException::class.java) { NativeMonetProtocol.launcherLabelsRequest(3) }
+  }
+
   @Test
   fun publishUsesLittleEndianArgbAndVariableLengthAsciiWithoutPadding() {
     val request = NativeMonetProtocol.publishRequest(
@@ -109,8 +124,9 @@ class NativeMonetClientTest {
   @Test
   fun emptyAndUnknownCapabilityBitsRejectEveryCommandBeforeWriting() {
     val requests = listOf(null, request(), NativeMonetProtocol.disableRequest(),
-      NativeMonetProtocol.themeMaterialsRequest(false), NativeMonetProtocol.themeMaterialsRequest(true))
-    for (capabilities in listOf(0, 4, 5, 6, 7, Int.MIN_VALUE, -1)) {
+      NativeMonetProtocol.themeMaterialsRequest(false), NativeMonetProtocol.themeMaterialsRequest(true),
+      NativeMonetProtocol.launcherLabelsRequest(0), NativeMonetProtocol.launcherLabelsRequest(1))
+    for (capabilities in listOf(0, 8, 9, 15, Int.MIN_VALUE, -1)) {
       for (request in requests) {
         val output = ByteArrayOutputStream()
         var failure: String? = null

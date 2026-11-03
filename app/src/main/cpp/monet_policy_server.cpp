@@ -34,6 +34,8 @@ uint64_t kh_monet_selection_notified = 0u;
 uint32_t kh_monet_installed = 0u;
 uint32_t kh_theme_materials_installed = 0u;
 uint32_t kh_theme_materials_enabled = 0u;
+uint32_t kh_launcher_labels_installed = 0u;
+uint32_t kh_launcher_label_mode = 0u;
 }
 
 namespace {
@@ -57,6 +59,7 @@ struct PolicyState {
     PolicyAllocation* expiration;
     uint64_t expires_at;
     uint64_t materials_expires_at;
+    uint64_t labels_expires_at;
 };
 
 struct RequestHeader {
@@ -71,7 +74,9 @@ uint32_t InstalledCapabilities() {
             ? kNativeMonetCapability : 0u;
     const uint32_t materials = __atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeThemeMaterialsCapability : 0u;
-    return monet | materials;
+    const uint32_t labels = __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeLauncherLabelsCapability : 0u;
+    return monet | materials | labels;
 }
 
 uint32_t ReadLe32(const uint8_t* bytes) {
@@ -124,12 +129,14 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
     const uint32_t count = ReadLe32(header + 20u);
     if (ReadLe32(header) != kNativeMonetMagic ||
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
-            flags > kNativeThemeMaterialsCommand || count > kNativeMonetMaxPackages ||
+            flags > kNativeLauncherLabelsCommand || count > kNativeMonetMaxPackages ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
                             (background >> 24u) != 0xffu)) ||
             (flags == kNativeThemeMaterialsCommand &&
-             (foreground > 1u || background != 0u || count != 0u))) {
+             (foreground > 1u || background != 0u || count != 0u)) ||
+            (flags == kNativeLauncherLabelsCommand &&
+             (foreground > 2u || background != 0u || count != 0u))) {
         return false;
     }
     *output = {flags, foreground, background, count};
@@ -214,6 +221,12 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
 #endif
+    if (state->labels_expires_at != 0u &&
+            (now >= state->labels_expires_at ||
+             __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) != 1u)) {
+        __atomic_store_n(&kh_launcher_label_mode, 0u, __ATOMIC_RELEASE);
+        state->labels_expires_at = 0u;
+    }
     if (state->materials_expires_at != 0u &&
             (now >= state->materials_expires_at ||
              __atomic_load_n(&kh_theme_materials_installed, __ATOMIC_ACQUIRE) != 1u)) {
@@ -269,6 +282,15 @@ template <typename Reader, typename Clock>
 bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_before_deadline) {
     RequestHeader header{};
     if (!ReadRequestHeader(read_exactly, &header)) return false;
+    if (header.flags == kNativeLauncherLabelsCommand) {
+        const uint64_t now = now_before_deadline();
+        if (!now || (InstalledCapabilities() & kNativeLauncherLabelsCapability) == 0u) return false;
+        MaintainPolicy(state, now);
+        state->labels_expires_at = header.foreground
+                ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0;
+        __atomic_store_n(&kh_launcher_label_mode, header.foreground, __ATOMIC_RELEASE);
+        return true;
+    }
     if (header.flags == kNativeThemeMaterialsCommand) {
         const uint64_t now = now_before_deadline();
         return now != 0u && CommitThemeMaterials(state, header.foreground == 1u, now);
@@ -290,6 +312,8 @@ uint64_t NextMaintenanceWake(const PolicyState* state, uint64_t deadline) {
     if (state->materials_expires_at != 0u && state->materials_expires_at < deadline) {
         deadline = state->materials_expires_at;
     }
+    if (state->labels_expires_at != 0u && state->labels_expires_at < deadline)
+        deadline = state->labels_expires_at;
     return deadline;
 }
 
@@ -537,6 +561,7 @@ void* PolicyWorker(void* data) {
     server->policies.expiration = nullptr;
     __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
     server->policies.materials_expires_at = 0u;
+    server->policies.labels_expires_at = 0u;
     PublishPolicy(&server->policies, nullptr);
     __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
     // With the public pointer null, new readers cannot prolong access to an old

@@ -562,6 +562,30 @@ void TestConcurrentReaders() {
 
 }  // namespace
 
+void TestLauncherLabelCommands() {
+    PolicyState state{};
+    const uint32_t old_monet = kh_monet_installed, old_materials = kh_theme_materials_installed;
+    for (uint32_t caps = 0; caps < 8; ++caps) {
+        kh_monet_installed = (caps & 1) != 0;
+        kh_theme_materials_installed = (caps & 2) != 0;
+        kh_launcher_labels_installed = (caps & 4) != 0;
+        assert(InstalledCapabilities() == caps);
+        for (uint32_t mode = 0; mode < 3; ++mode) {
+            kh_launcher_label_mode = 0;
+            const auto* policy = kh_monet_policy;
+            assert(ApplyRequest(&state, Request(3u, mode, 0, {}), 1u) == bool(caps & 4));
+            assert(kh_launcher_label_mode == ((caps & 4) ? mode : 0));
+            assert(kh_monet_policy == policy);
+            assert(!ApplyRequest(&state, Request(3u, 3u, 0, {}), 2u));
+            assert(!ApplyRequest(&state, Request(3u, mode, 1u, {}), 2u));
+            MaintainPolicy(&state, uint64_t(kNativeMonetExpiryMs)*1000000u + 1);
+            assert(kh_launcher_label_mode == 0);
+        }
+    }
+    kh_launcher_labels_installed = 0;
+    kh_monet_installed = old_monet; kh_theme_materials_installed = old_materials;
+}
+
 int main() {
     assert(!StartNativeMonetPolicyServer());  // This host is not com.miui.home.
     assert(__atomic_load_n(&kh_monet_policy, __ATOMIC_ACQUIRE) == nullptr);
@@ -578,6 +602,7 @@ int main() {
     TestMaterialLeaseRenewalAndMonetOff();
     TestMaterialCommandDoesNotConsumePolicyRetirementCapacity();
     TestInstalledCapabilitiesAndCommandAdmission();
+    TestLauncherLabelCommands();
     TestConcurrentReaders();
     puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");
 }

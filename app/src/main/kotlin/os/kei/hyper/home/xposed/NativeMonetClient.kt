@@ -41,6 +41,8 @@ internal class NativeMonetClient {
     private set
   @Volatile var acknowledgedMaterialProcess: NativeMonetProcessIdentity? = null
     private set
+  @Volatile var acknowledgedLabelProcess: NativeMonetProcessIdentity? = null
+    private set
   @Volatile var lastMaterialFailure: String? = null
     private set
 
@@ -85,6 +87,10 @@ internal class NativeMonetClient {
     communicate(context, NativeMonetProtocol.themeMaterialsRequest(enabled),
       materialCommand = true, onWriteAttempted = onWriteAttempted)
 
+  fun setLauncherLabels(context: Context, mode: Int, onWriteAttempted: () -> Unit): Boolean =
+    communicate(context, NativeMonetProtocol.launcherLabelsRequest(mode),
+      materialCommand = true, labelCommand = true, onWriteAttempted = onWriteAttempted)
+
   /** Authenticate and read the greeting, then close without sending a request. */
   fun isAvailable(context: Context): Boolean = communicate(context, request = null)
 
@@ -92,6 +98,7 @@ internal class NativeMonetClient {
     context: Context,
     request: ByteArray?,
     materialCommand: Boolean = false,
+    labelCommand: Boolean = false,
     onWriteAttempted: () -> Unit = {},
   ): Boolean {
     if (Process.myUid() != Process.SYSTEM_UID || Thread.currentThread().isInterrupted) {
@@ -115,7 +122,8 @@ internal class NativeMonetClient {
       task.get(attempt.remainingNanos(), TimeUnit.NANOSECONDS).also {
         succeeded = it
         if (it) {
-          if (materialCommand) acknowledgedMaterialProcess = attempt.process
+          if (labelCommand) acknowledgedLabelProcess = attempt.process
+          else if (materialCommand) acknowledgedMaterialProcess = attempt.process
           else acknowledgedProcess = attempt.process
         }
       }
@@ -370,9 +378,11 @@ internal object NativeMonetProtocol {
   private const val VERSION = 1
   private const val MONET_CAPABILITY = 1
   private const val THEME_MATERIALS_CAPABILITY = 2
-  private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY
+  private const val LAUNCHER_LABELS_CAPABILITY = 4
+  private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY or LAUNCHER_LABELS_CAPABILITY
   private const val ENABLED = 1
   private const val THEME_MATERIALS = 2
+  private const val LAUNCHER_LABELS = 3
   private const val MAX_ENTRIES = 512
   private const val MAX_ENTRY_BYTES = 255
 
@@ -399,6 +409,11 @@ internal object NativeMonetProtocol {
 
   fun themeMaterialsRequest(enabled: Boolean): ByteArray =
     header(flags = THEME_MATERIALS, foreground = if (enabled) 1 else 0, background = 0, count = 0).array()
+
+  fun launcherLabelsRequest(mode: Int): ByteArray {
+    require(mode in 0..2)
+    return header(flags = LAUNCHER_LABELS, foreground = mode, background = 0, count = 0).array()
+  }
 
   private fun isPackageName(name: String): Boolean {
     if (name.length !in 1..MAX_ENTRY_BYTES) return false
@@ -441,11 +456,13 @@ internal object NativeMonetProtocol {
       when (ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN).getInt(2 * Int.SIZE_BYTES)) {
         0, ENABLED -> MONET_CAPABILITY
         THEME_MATERIALS -> THEME_MATERIALS_CAPABILITY
+        LAUNCHER_LABELS -> LAUNCHER_LABELS_CAPABILITY
         else -> return reject("native request opcode unsupported")
       }
     }
     if (capabilities and requiredCapability == 0) {
       return reject(if (requiredCapability == MONET_CAPABILITY) "native Monet capability unavailable"
+      else if (requiredCapability == LAUNCHER_LABELS_CAPABILITY) "native launcher labels capability unavailable"
       else "native theme materials capability unavailable")
     }
     if (!isCurrentTarget()) return reject("launcher changed before policy publication")

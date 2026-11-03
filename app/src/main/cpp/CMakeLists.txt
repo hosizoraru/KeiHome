@@ -16,6 +16,9 @@ add_library(keihome_hyos_lsp SHARED
     icon_highlight_profile.cpp
     icon_highlight_hooks.cpp
     icon_highlight_bridge.S
+    launcher_label_profile.cpp
+    launcher_label_hooks.cpp
+    launcher_label_bridge.S
     monet_hooks.cpp
     monet_image_identity.cpp
     monet_image_recovery.cpp

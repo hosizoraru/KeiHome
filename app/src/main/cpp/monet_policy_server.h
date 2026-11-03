@@ -12,12 +12,14 @@ constexpr uint32_t kNativeMonetProtocolVersion = 1u;
 constexpr uint32_t kNativeMonetProfileVersion = 1u;
 constexpr uint32_t kNativeMonetCapability = 1u;
 constexpr uint32_t kNativeThemeMaterialsCapability = 2u;
+constexpr uint32_t kNativeLauncherLabelsCapability = 4u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
 constexpr uint32_t kNativeMonetKeepaliveMs = 15000u;
 constexpr uint32_t kNativeMonetExpiryMs = 45000u;
 constexpr uint32_t kNativeThemeMaterialsCommand = 2u;
+constexpr uint32_t kNativeLauncherLabelsCommand = 3u;
 
 struct NativeMonetPolicyEntry {
     uint32_t len;
@@ -60,6 +62,8 @@ extern uint64_t kh_monet_selection_notified;
 // required Monet hooks succeed and BEFORE starting the policy server. A failed
 // or partial install leaves this zero even when highlight starts the transport.
 extern uint32_t kh_monet_installed;
+extern uint32_t kh_launcher_labels_installed;
+extern uint32_t kh_launcher_label_mode;
 // Independent of NativeMonetPolicy and its Dart ABI. The highlight installer
 // release-stores installed=1 ONLY after its validated bridge is active. The
 // server release-stores enabled; the bridge acquire-loads it on use. Both start

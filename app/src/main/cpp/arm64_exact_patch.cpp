@@ -5,17 +5,27 @@
 
 bool PatchArm64Tail16(void* target, const uint32_t expected[4],
                      const uint32_t replacement[4], bool fresh_image,
-                     const Arm64ExactPatchOps& ops) {
+                     const Arm64ExactPatchOps& ops, Arm64ExactPatchKind kind) {
     const uintptr_t at = reinterpret_cast<uintptr_t>(target);
     const size_t page_size = ops.page_size;
     if (!fresh_image || !target || !expected || !replacement || (at & 3u) ||
             at > UINTPTR_MAX - 15 || page_size < 4096 || page_size > 65536 ||
             (page_size & (page_size - 1)) || !ops.protection || !ops.guard ||
-            !ops.protect || !ops.flush ||
-            (expected[0] & 0xffe00fffu) != 0xb8400022u ||
-            expected[1] != 0x8b1c8042 || expected[2] != 0xaa0203e0 ||
-            expected[3] != 0x14000002 || replacement[0] != 0x58000040 ||
-            replacement[1] != 0xd61f0000 ||
+            !ops.protect || !ops.flush) return false;
+    const bool highlight = kind == Arm64ExactPatchKind::Highlight &&
+            (expected[0] & 0xffe00fffu) == 0xb8400022u &&
+            expected[1] == 0x8b1c8042 && expected[2] == 0xaa0203e0 &&
+            expected[3] == 0x14000002;
+    const bool text = kind == Arm64ExactPatchKind::LabelText &&
+            (expected[0] & 0xffe00fffu) == 0xf84003a2 &&
+            (expected[1] & 0xffe00fffu) == 0xf80003a0 && expected[2] == 0xb800b002 &&
+            (expected[3] & 0xffe00fffu) == 0xf84003a3;
+    const bool lines = kind == Arm64ExactPatchKind::LabelLines &&
+            expected[0] == 0xaa0103e0 && expected[1] == 0xaa1d03ef &&
+            expected[2] == 0xa8c179fd && expected[3] == 0xd65f03c0;
+    const uint32_t load = highlight ? 0x58000040 : 0x58000050;
+    const uint32_t branch = highlight ? 0xd61f0000 : 0xd61f0200;
+    if ((!highlight && !text && !lines) || replacement[0] != load || replacement[1] != branch ||
             (!replacement[2] && !replacement[3]) || (replacement[2] & 3u)) return false;
     const uintptr_t pages[2] = {at & ~(uintptr_t(page_size) - 1),
                                 (at + 15) & ~(uintptr_t(page_size) - 1)};

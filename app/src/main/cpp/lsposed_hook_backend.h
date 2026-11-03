@@ -26,6 +26,8 @@ int PatchArm64Instruction(void* target, uint32_t expected, uint32_t replacement)
 // must remain alive for process lifetime even when the return is failure.
 int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
                              const uint32_t replacement[4], bool fresh_image);
+int PatchArm64Label16(void* target, const uint32_t expected[4],
+                     const uint32_t replacement[4], bool lines, bool fresh_image);
 NativeSymbolResolver* NewNativeSymbolResolver(const char* path,
                                               void* base_addr);
 void FreeNativeSymbolResolver(NativeSymbolResolver* resolver);

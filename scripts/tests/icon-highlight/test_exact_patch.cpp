@@ -41,65 +41,79 @@ Arm64ExactPatchOps Ops(State& s, size_t page) {
 }
 int main() {
     alignas(65536) std::array<uint8_t, 131072> memory{};
-    const uint32_t original[] = {0xb84ef022, 0x8b1c8042, 0xaa0203e0, 0x14000002};
-    const uint32_t detour[] = {0x58000040, 0xd61f0000, 0, 0x78};
-    for (size_t page : {4096u, 16384u, 65536u}) {
-        for (bool cross : {false, true}) {
-            uint8_t* target = memory.data() + (cross ? page - 8 : 128);
-            const unsigned count = cross ? 2 : 1;
-            auto reset = [&] {
-                memory.fill(0x5a);
-                std::memcpy(target, original, 16);
-            };
-            auto unchanged = [&] {
-                Check(!std::memcmp(target, original, 16), "original restored/intact");
-                Check(target[-1] == 0x5a && target[16] == 0x5a,
-                      "neighbor false/epilogue bytes untouched");
-            };
-            reset(); State s{};
-            Check(PatchArm64Tail16(target, original, detour, true, Ops(s, page)),
-                  "exact16 transaction");
-            Check(!std::memcmp(target, detour, 16), "actual x0 absolute detour bytes");
-            Check(target[-1] == 0x5a && target[16] == 0x5a, "no overwrite outside window");
-            Check(s.guards == count && s.protections == count * 2 && s.flushes == 1,
-                  "all pages guarded/protected/cache-flushed");
-            for (int p : s.requested) Check((p & 5) == 5, "target remains readable/executable on OS failure");
-            reset(); s = {};
-            Check(!PatchArm64Tail16(target, original, detour, false, Ops(s, page)) &&
-                  !s.guards && !s.protections, "live image rejected without side effects");
-            unchanged();
-            reset(); s = {}; s.protection = 1;
-            Check(!PatchArm64Tail16(target, original, detour, true, Ops(s, page)),
-                  "non-executable target rejected");
-            unchanged();
-            for (unsigned fail = 1; fail <= count; ++fail) {
-                reset(); s = {}; s.fail_guard = fail;
-                Check(!PatchArm64Tail16(target, original, detour, true, Ops(s, page)),
-                      "guard failure rejected");
+    const uint32_t originals[][4] = {
+        {0xb84ef022, 0x8b1c8042, 0xaa0203e0, 0x14000002},
+        {0xf85c03a2, 0xf81b03a0, 0xb800b002, 0xf85b83a3},
+        {0xaa0103e0, 0xaa1d03ef, 0xa8c179fd, 0xd65f03c0},
+    };
+    const Arm64ExactPatchKind kinds[] = {Arm64ExactPatchKind::Highlight,
+        Arm64ExactPatchKind::LabelText, Arm64ExactPatchKind::LabelLines};
+    for (unsigned kind = 0; kind < 3; ++kind) {
+        const auto& original = originals[kind];
+        const uint32_t detour[] = {kind ? 0x58000050u : 0x58000040u,
+                                  kind ? 0xd61f0200u : 0xd61f0000u, 0, 0x78};
+        const auto patch = [&](void* at, const uint32_t* expected, const uint32_t* replacement,
+                               bool fresh, const Arm64ExactPatchOps& ops) {
+            return PatchArm64Tail16(at, expected, replacement, fresh, ops, kinds[kind]);
+        };
+        for (size_t page : {4096u, 16384u, 65536u}) {
+            for (bool cross : {false, true}) {
+                uint8_t* target = memory.data() + (cross ? page - 8 : 128);
+                const unsigned count = cross ? 2 : 1;
+                auto reset = [&] {
+                    memory.fill(0x5a);
+                    std::memcpy(target, original, 16);
+                };
+                auto unchanged = [&] {
+                    Check(!std::memcmp(target, original, 16), "original restored/intact");
+                    Check(target[-1] == 0x5a && target[16] == 0x5a,
+                          "neighbor false/epilogue bytes untouched");
+                };
+                reset(); State s{};
+                Check(patch(target, original, detour, true, Ops(s, page)),
+                      "exact16 transaction");
+                Check(!std::memcmp(target, detour, 16), "explicit absolute detour bytes");
+                Check(target[-1] == 0x5a && target[16] == 0x5a, "no overwrite outside window");
+                Check(s.guards == count && s.protections == count * 2 && s.flushes == 1,
+                      "all pages guarded/protected/cache-flushed");
+                for (int p : s.requested) Check((p & 5) == 5, "target remains readable/executable on OS failure");
+                reset(); s = {};
+                Check(!patch(target, original, detour, false, Ops(s, page)) &&
+                      !s.guards && !s.protections, "live image rejected without side effects");
                 unchanged();
-            }
-            for (unsigned fail = 1; fail <= count * 2; ++fail) {
-                reset(); s = {}; s.fail_protect.insert(fail);
-                Check(!PatchArm64Tail16(target, original, detour, true, Ops(s, page)),
-                      "write/protection failure rejected");
+                reset(); s = {}; s.protection = 1;
+                Check(!patch(target, original, detour, true, Ops(s, page)),
+                      "non-executable target rejected");
                 unchanged();
-            }
-            reset(); s = {}; s.fail_protect = {count + 1, count * 2 + 1};
-            Check(!PatchArm64Tail16(target, original, detour, true, Ops(s, page)),
-                  "restore plus rollback-reopen failure is not installed");
-            Check(!std::memcmp(target, detour, 16) && target[16] == 0x5a,
-                  "failed rollback retains complete disabled resident detour, not partial bytes");
-            for (int p : s.requested) Check((p & 5) == 5, "failed rollback never removes execution");
-            reset(); s = {}; target[0] ^= 1;
-            Check(!PatchArm64Tail16(target, original, detour, true, Ops(s, page)) &&
-                    !s.protections && target[0] != uint8_t(original[0]),
-                    "foreign bytes preserved without write");
-            for (size_t index = 0; index < 4; ++index) {
-                reset(); s = {}; uint32_t bad[4]; std::memcpy(bad, original, 16);
-                bad[index] ^= 1;
-                Check(!PatchArm64Tail16(target, bad, detour, true, Ops(s, page)),
-                      "unrecognized displaced instruction rejected");
-                unchanged();
+                for (unsigned fail = 1; fail <= count; ++fail) {
+                    reset(); s = {}; s.fail_guard = fail;
+                    Check(!patch(target, original, detour, true, Ops(s, page)),
+                          "guard failure rejected");
+                    unchanged();
+                }
+                for (unsigned fail = 1; fail <= count * 2; ++fail) {
+                    reset(); s = {}; s.fail_protect.insert(fail);
+                    Check(!patch(target, original, detour, true, Ops(s, page)),
+                          "write/protection failure rejected");
+                    unchanged();
+                }
+                reset(); s = {}; s.fail_protect = {count + 1, count * 2 + 1};
+                Check(!patch(target, original, detour, true, Ops(s, page)),
+                      "restore plus rollback-reopen failure is not installed");
+                Check(!std::memcmp(target, detour, 16) && target[16] == 0x5a,
+                      "failed rollback retains complete disabled resident detour, not partial bytes");
+                for (int p : s.requested) Check((p & 5) == 5, "failed rollback never removes execution");
+                reset(); s = {}; target[0] ^= 1;
+                Check(!patch(target, original, detour, true, Ops(s, page)) &&
+                        !s.protections && target[0] != uint8_t(original[0]),
+                        "foreign bytes preserved without write");
+                for (size_t index = 0; index < 4; ++index) {
+                    reset(); s = {}; uint32_t bad[4]; std::memcpy(bad, original, 16);
+                    bad[index] ^= 1;
+                    Check(!patch(target, bad, detour, true, Ops(s, page)),
+                          "unrecognized displaced instruction rejected");
+                    unchanged();
+                }
             }
         }
     }

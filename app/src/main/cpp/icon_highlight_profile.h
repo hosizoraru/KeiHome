@@ -19,6 +19,9 @@ struct IconHighlightImage {
     size_t range_count;
 };
 
+// Shared validation for resolvers reading the same mapped Dart image.
+bool ValidateArm64DartImage(const IconHighlightImage& image);
+
 struct IconHighlightProfile {
     uintptr_t entry;
     uintptr_t material_disabled;

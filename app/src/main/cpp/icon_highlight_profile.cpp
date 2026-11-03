@@ -156,6 +156,10 @@ bool NoUnexpectedIngress(const IconHighlightImage& image, size_t entry) {
 }
 } // namespace
 
+bool ValidateArm64DartImage(const IconHighlightImage& image) {
+    return ValidateImage(image);
+}
+
 bool ResolveIconHighlight(const IconHighlightImage& image, IconHighlightProfile* out,
                           const char** rejection) {
     if (rejection) *rejection = nullptr;

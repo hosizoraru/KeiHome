@@ -663,8 +663,8 @@ int RemoveInlineHook(void* target) {
     return g_lsposed_api->unhookFunc(target) == 0 ? kHookSuccess : kHookFailed;
 }
 
-int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
-                             const uint32_t replacement[4], bool fresh_image) {
+static int PatchExactSequence16(void* target, const uint32_t expected[4],
+        const uint32_t replacement[4], bool fresh_image, Arm64ExactPatchKind kind) {
     if (!fresh_image || !EnsureLsposedMadviseGuard()) return kHookFailed;
     const Arm64ExactPatchOps ops{
         nullptr, PageSize(),
@@ -677,8 +677,18 @@ int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
             auto* start = static_cast<char*>(address);
             __builtin___clear_cache(start, start + size);
         }};
-    return PatchArm64Tail16(target, expected, replacement, fresh_image, ops)
+    return PatchArm64Tail16(target, expected, replacement, fresh_image, ops, kind)
             ? kHookSuccess : kHookFailed;
+}
+
+int PatchArm64HighlightTail16(void* target, const uint32_t expected[4],
+                             const uint32_t replacement[4], bool fresh_image) {
+    return PatchExactSequence16(target, expected, replacement, fresh_image, Arm64ExactPatchKind::Highlight);
+}
+int PatchArm64Label16(void* target, const uint32_t expected[4],
+                     const uint32_t replacement[4], bool lines, bool fresh_image) {
+    return PatchExactSequence16(target, expected, replacement, fresh_image,
+            lines ? Arm64ExactPatchKind::LabelLines : Arm64ExactPatchKind::LabelText);
 }
 
 NativeSymbolResolver* NewNativeSymbolResolver(const char* path, void* base) {

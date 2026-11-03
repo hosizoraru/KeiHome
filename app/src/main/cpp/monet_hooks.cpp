@@ -7,6 +7,7 @@
 #include "monet_tint_profile.h"
 #include "selection_profile.h"
 #include "icon_highlight_hooks.h"
+#include "launcher_label_hooks.h"
 #if defined(KH_MONET_IMAGE_TRACE)
 #include "monet_image_trace.h"
 #endif
@@ -140,12 +141,13 @@ static bool InstallMonetFeatureAtLibraryLoad(void* handle) {
 }
 
 bool InstallMonetHooksAtLibraryLoad(void* handle) {
+    const bool labels = InstallLauncherLabelsAtLibraryLoad(handle);
     const bool highlight = InstallIconHighlightAtLibraryLoad(handle);
     const bool monet = InstallMonetFeatureAtLibraryLoad(handle);
     // Both attempts and their capability stores finish before any greeting.
     // Request admission uses the server's matching capability bit, so partial
     // Monet hooks cannot receive policy through a highlight-only endpoint.
-    if ((monet || highlight) && !StartNativeMonetPolicyServer()) {
+    if ((monet || highlight || labels) && !StartNativeMonetPolicyServer()) {
         __android_log_print(ANDROID_LOG_WARN, "KeiHomeMonet",
                 "Native features installed (Monet=%u highlight=%u), "
                 "authenticated policy transport unavailable",

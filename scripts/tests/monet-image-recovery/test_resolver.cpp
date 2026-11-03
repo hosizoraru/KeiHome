@@ -56,7 +56,9 @@ int main(int argc, char** argv) {
         ++rejects;
     };
     auto positive = [&] {
-        assert(ResolveMonetImageRecovery(view, &profile, &reason)); ++positives;
+        const bool accepted = ResolveMonetImageRecovery(view, &profile, &reason);
+        if (!accepted) fprintf(stderr, "Positive %u rejected: %s\n", positives, reason);
+        assert(accepted); ++positives;
     };
     auto word = [](uintptr_t pc) -> uint32_t& { return *reinterpret_cast<uint32_t*>(pc); };
     auto mutate = [&](uintptr_t pc, uint32_t mask) {
@@ -70,7 +72,7 @@ int main(int argc, char** argv) {
     // Body mutations include the original frame spill/reload, bool check,
     // compressed heap reconstruction, backing identity and setter disposal.
     for (uintptr_t entry : {good.clone, good.dispose, good.raw_update, good.raw_create,
-                           good.render_set, good.render_dispose}) mutate(entry+4, 0x40);
+                           good.render_set, good.render_dispose, good.guarded_clone}) mutate(entry+4, 0x40);
     for (uintptr_t pc : {good.raw_update+8, good.raw_update+0x20, good.raw_update+0x84,
                         good.raw_update+0x64, good.clone+0xc, good.clone+0x14,
                         good.clone+0x18, good.clone+0x3c, good.dispose+0xc,
@@ -88,7 +90,11 @@ int main(int argc, char** argv) {
         word(allocator+8) = branch(allocator+8, base, 0x14000000u); // non-executable target
         reject(view); word(allocator+8) = saved;
     }
-    mutate(good.image_allocator+24, 0x20);
+    mutate(good.image_cast+12, 0x20);
+    mutate(good.image_cast+28, 0x20);
+    mutate(good.guarded_clone+0xb8, 0x20);
+    mutate(good.guarded_clone+0xd4, 1);
+    mutate(good.guarded_clone+0xf4, 1);
     mutate(good.raw_update+0x3c, 0x20);
     const uint32_t w = word(good.image_allocator+8);
     const uintptr_t generic = good.image_allocator+8+(((int64_t(w&0x3ffffff)^0x2000000)-0x2000000)*4);
@@ -112,14 +118,20 @@ int main(int argc, char** argv) {
     reject(view); ranges.pop_back(); view.readable_range_count = ranges.size();
 
     // Positive metadata movement proves there is no numeric CID allowlist.
-    for (auto pair : {std::pair{good.image_allocator, good.image_allocator+24},
+    for (auto pair : {std::pair{good.image_allocator, good.image_cast+12},
                       std::pair{good.render_allocator, good.raw_update+0x3c}}) {
-        const uint32_t low = word(pair.first), check = word(pair.second);
-        word(pair.first) += 1u << 17; word(pair.second) += 1u << 5;
+        const uint32_t low = word(pair.first), high = word(pair.first+4), check = word(pair.second);
+        const uint32_t tag = ((low >> 5) & 65535u) | (((high >> 5) & 65535u) << 16);
+        const uint32_t moved_tag = tag + 0x1000u;
+        word(pair.first) = (low & ~(65535u << 5)) | ((moved_tag & 65535u) << 5);
+        word(pair.first+4) = (high & ~(65535u << 5)) | ((moved_tag >> 16) << 5);
+        word(pair.second) += 1u << 5;
+        if (pair.first == good.image_allocator) word(good.guarded_clone+0xb8) += 1u << 5;
         positive();
         if (pair.first == good.image_allocator) assert(profile.config.image_cid == good.config.image_cid+1);
         else assert(profile.config.render_cid == good.config.render_cid+1);
-        word(pair.first) = low; word(pair.second) = check;
+        word(pair.first) = low; word(pair.first+4) = high; word(pair.second) = check;
+        if (pair.first == good.image_allocator) word(good.guarded_clone+0xb8) -= 1u << 5;
     }
     mapped[9] ^= 1; positive(); mapped[9] ^= 1;
 
@@ -180,12 +192,14 @@ int main(int argc, char** argv) {
     printf("{\"rejects\":%u,\"positives\":%u,\"clone\":%zu,\"dispose\":%zu,"
            "\"raw_update\":%zu,\"raw_create\":%zu,\"render_set\":%zu,\"render_dispose\":%zu,"
            "\"image_allocator\":%zu,\"render_allocator\":%zu,\"image_cid\":%u,\"render_cid\":%u,"
+           "\"guarded_clone\":%zu,\"image_cast\":%zu,"
            "\"update_return\":%zu,\"receiver_spill\":%d,\"render_image\":%u,\"disposed\":%u,"
            "\"backing\":%u,\"frame_size\":%u}\n",
            rejects, positives, size_t(good.clone-base), size_t(good.dispose-base),
            size_t(good.raw_update-base), size_t(good.raw_create-base), size_t(good.render_set-base),
            size_t(good.render_dispose-base), size_t(good.image_allocator-base), size_t(good.render_allocator-base),
-           good.config.image_cid, good.config.render_cid, size_t(good.config.update_return-base),
+           good.config.image_cid, good.config.render_cid, size_t(good.guarded_clone-base),
+           size_t(good.image_cast-base), size_t(good.config.update_return-base),
            good.config.receiver_spill, good.config.render_image, good.config.disposed, good.config.backing,
            good.config.frame_size);
 }

@@ -50,7 +50,7 @@ def main():
     command = [sys.executable, HERE/'generate_contracts.py', '--output', output/'patterns.h', '--evidence', output/'contracts.json']
     for path in fixtures: command += ['--library', path]
     run(command)
-    if len(fixtures) == 2: assert (output/'patterns.h').read_bytes() == (CPP/'monet_image_recovery_patterns.h').read_bytes()
+    if len(fixtures) == 5: assert (output/'patterns.h').read_bytes() == (CPP/'monet_image_recovery_patterns.h').read_bytes()
     flags = ['-std=c++17', '-O2', '-UNDEBUG', '-Wall', '-Wextra', '-Werror', '-I'+str(CPP)]
     run([cxx, *flags, HERE/'test_resolver.cpp', CPP/'monet_image_recovery_resolver.cpp',
          CPP/'monet_image_identity.cpp', '-o', output/'resolver'])
@@ -60,7 +60,7 @@ def main():
         f = Fixture(path)
         for role, name in ROLES:
             key = {'RawUpdate': 'raw_update', 'RawCreate': 'raw_create', 'RenderSet': 'render_set',
-                   'RenderDispose': 'render_dispose'}.get(role, role.lower())
+                   'RenderDispose': 'render_dispose', 'GuardedClone': 'guarded_clone'}.get(role, role.lower())
             assert row[key] == f.role(name)[0], (path, key)
         row['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
         row['library'] = str(path)

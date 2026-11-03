@@ -16,7 +16,8 @@ spec.loader.exec_module(trace)
 Fixture = trace.Fixture
 ROLES = [('Clone', 'Image.clone'), ('Dispose', 'Image.dispose'),
          ('RawUpdate', 'RawImage.updateRenderObject'), ('RawCreate', 'RawImage.createRenderObject'),
-         ('RenderSet', 'RenderImage.image='), ('RenderDispose', 'RenderImage.dispose')]
+         ('RenderSet', 'RenderImage.image='), ('RenderDispose', 'RenderImage.dispose'),
+         ('GuardedClone', 'UninstallAppHelper._buildShortCutDoBoomAnim')]
 
 
 def normalize(words, role):
@@ -24,6 +25,9 @@ def normalize(words, role):
     if role == 'RawUpdate':
         assert words[15] & 0xffe0001f == 0xd2800011
         out[15] &= 0xffe0001f  # RenderImage CID independently tied to allocator
+    if role == 'GuardedClone':
+        assert words[0xb8//4] & 0xffe0001f == 0xd2800011
+        out[0xb8//4] &= 0xffe0001f  # Image CID tied to clone allocator and cast
     return out
 
 
@@ -39,6 +43,7 @@ def main():
         row = {'library': str(f.path), 'sha256': hashlib.sha256(f.data).hexdigest(), 'roles': {}}
         for role, name in ROLES:
             pc, size = f.role(name)
+            if role == 'GuardedClone': size = 0x100
             assert 16 <= size <= 2048 and size % 4 == 0
             words = struct.unpack('<'+'I'*(size//4), f.read(pc, size))
             normalized = normalize(words, role)

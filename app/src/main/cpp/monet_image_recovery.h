@@ -39,6 +39,7 @@ static_assert(offsetof(MonetImageRecoveryConfig, enabled) == KH_IR_ENABLED);
 struct MonetImageRecoveryProfile {
     uintptr_t clone, dispose, raw_update, raw_create, render_set, render_dispose;
     uintptr_t image_allocator, render_allocator;
+    uintptr_t guarded_clone, image_cast;
     MonetImageRecoveryConfig config;
 };
 bool ResolveMonetImageRecovery(const MonetSelectionImageView& image,

@@ -55,19 +55,9 @@ kh_label_post:
     fcmp d0, #0.0
     b.le .Lallocate_text
     b.vs .Lallocate_text
-    ldr x9, [x26, #0x78]
-    ldr x10, [x17, #72]
-    ldr x9, [x9, x10]
-    cmp w9, w22
-    b.eq .Lallocate_text
-    ldr x10, [x17, #80]
-    ldr w9, [x9, x10]
-    add x9, x9, x28, lsl #32
-    ldr x10, [x17, #88]
-    ldr w9, [x9, x10]
-    add x9, x9, x28, lsl #32
-    ldr x10, [x17, #96]
-    ldr d1, [x9, x10]
+    // The source's title width is the native label container's available space.
+    // GridConfig's smaller icon width is also used to size short text shadows;
+    // taking their minimum animates names that already fit (e.g. LibChecker).
     ldr x10, [x17, #120]
     ldr x9, [x29, x10]
     ldr x10, [x17, #104]
@@ -77,8 +67,7 @@ kh_label_post:
     ubfx x10, x10, #12, #20
     cmp x10, #62                   // same Double ABI as the native builder's inline allocations
     b.ne .Lallocate_text
-    ldur d2, [x9, #7]
-    fmin d1, d1, d2
+    ldur d1, [x9, #7]
     fcmp d1, #0.0
     b.le .Lallocate_text
     b.vs .Lallocate_text

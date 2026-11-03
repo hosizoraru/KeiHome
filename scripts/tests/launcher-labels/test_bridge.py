@@ -118,7 +118,7 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     uc.hook_add(UC_HOOK_CODE, hook)
     uc.emu_start(BRIDGE+entries["pre"], END, count=1000)
     assert len(finished) == 1, calls
-    marquee = mode == 1 and change is None and math.isfinite(width) and not math.isnan(maximum) and width > min(92, maximum) > 0 and not pressure
+    marquee = mode == 1 and change is None and math.isfinite(width) and not math.isnan(maximum) and width > maximum > 0 and not pressure
     assert ("Marquee" in calls) == marquee, (mode, width, maximum, pressure, change, calls)
     assert get(STACK+p["text"]) == expected_text
     assert get(STACK+p["style"]) == expected_style
@@ -210,7 +210,10 @@ def main():
             for mode in (0, 1, 2):
                 for width in (60.0, 80.0, 80.01, 150.0, float("nan"), float("inf")):
                     execute(template, entries, p, high, mode, width=width); total += 1
-                for kwargs in ({"pressure": True}, {"relocate": True}, {"change": 0}, {"change": 2}, {"maximum": float("nan")}):
+                for kwargs in ({"pressure": True}, {"relocate": True}, {"change": 0}, {"change": 2}, {"maximum": float("nan")},
+                               {"width": 110.0, "maximum": 120.0}, {"width": 120.0, "maximum": 120.0},
+                               {"width": 120.01, "maximum": 120.0}, {"maximum": 0.0},
+                               {"maximum": -1.0}, {"maximum": float("inf")}):
                     execute(template, entries, p, high, mode, **kwargs); total += 1
         print(Path(path).parent.name, "bridge/root/return-PC cases passed")
     print(total, "ARM64 cases passed; actual Flutter/GC acceptance remains a device check")

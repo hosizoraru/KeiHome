@@ -76,9 +76,18 @@ internal class ColorOsFallbackRenderer(
     check: () -> Unit = {},
   ): Bitmap? = load(target, dark, sizePx, mask, true, check)
 
+  /** Compare guarded original resources before OEM dimming; a dark filter is not night artwork. */
+  fun hasNativeDayNight(target: IconPackComponent, check: () -> Unit = {}): Boolean {
+    val light = load(target, false, 64, null, false, check, dimAtNight = false) ?: return false
+    return try {
+      val dark = load(target, true, 64, null, false, check, dimAtNight = false) ?: return false
+      try { check(); !light.sameAs(dark) } finally { dark.recycle() }
+    } finally { light.recycle() }
+  }
+
   private fun load(
     target: IconPackComponent, dark: Boolean, sizePx: Int, mask: Bitmap?,
-    monochrome: Boolean, check: () -> Unit,
+    monochrome: Boolean, check: () -> Unit, dimAtNight: Boolean = true,
   ): Bitmap? {
     require(sizePx in 1..512)
     check()
@@ -103,7 +112,7 @@ internal class ColorOsFallbackRenderer(
       val drawable = resources.getDrawable(id, null).mutate().apply {
         layoutDirection = configuration.layoutDirection
       }
-      return rasterize(drawable, dark && style == "classic", sizePx, mask,
+      return rasterize(drawable, dimAtNight && dark && style == "classic", sizePx, mask,
         resources.displayMetrics.density, monochrome, check)
     } catch (cancelled: CancellationException) {
       throw cancelled

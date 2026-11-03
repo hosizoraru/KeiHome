@@ -1,57 +1,134 @@
-# Via night artwork and ColorOS cache freshness
+# ColorOS downloaded artwork, native adaptations and update decisions
 
-## Source evidence, 2026-11-03
+## Source and root cause
 
-Only HyperOS `emulator-5580` and the read-only ColorOS `emulator-5574` source
-were used. No physical device is included in this investigation.
+Investigation date: 2026-11-03. Target acceptance is HyperOS `emulator-5580`.
+ColorOS `emulator-5574` supplied artwork and ran its native downloader; no physical
+phone was used.
 
-Both devices have package `mark.via`. HyperOS has Via 7.3.3 and ColorOS has
-7.3.4; their `res/` entries and `resources.arsc` are byte-identical. The icon
-resource difference therefore does not come from those APK versions.
+Both installed Via packages are `mark.via`. HyperOS has 7.3.3 and ColorOS has
+7.3.4, but their icon `res/` files and `resources.arsc` are byte-identical.
+The discrepancy was a missing downloaded ColorOS redraw in the old bundled
+snapshot. The old applied theme dimmed the original white icon to `#D6D6D6`;
+this was not an independently drawn night icon.
 
-The source framework and launcher match the previously inspected SHA-256:
+Actual framework inspection found that `OplusUXIconLoaderImpl.findAppDrawable`
+reads `/data/oplus/uxicons/<package>` for third-party artwork.
+`RectangleStyle.tryLoadThemeContent` chooses `rec_night` over a vertical
+`#383838` to `#151515` background and then applies native dimming.
+Framework SHA-256:
+`52c4783bc6027756b56dcb7780d838dd4b36b9726b28f4db2f0a03d49237a0ae`.
+Launcher SHA-256:
+`b67118677ed9f6bc23ecbd22a2f7f4826b4f31c08641347cc58648fa986196fc`.
 
-- `oplus-framework.jar`: `52c4783bc6027756b56dcb7780d838dd4b36b9726b28f4db2f0a03d49237a0ae`
-- `OplusLauncher.apk`: `b67118677ed9f6bc23ecbd22a2f7f4826b4f31c08641347cc58648fa986196fc`
+## Complete available native catalog
 
-DexSQL decoded the actual framework methods:
+The whitelist has 672 rows, with 619 nonempty unique package strings. It is
+not the complete artwork catalog: Via and Apple Music are absent. The native
+`com.oplus.uxdesign` icon database supplies additional package names.
+Their union contains 1,006 valid application package names, excluding internal
+`android` and `oplus` identifiers.
 
-- `OplusUXIconLoaderImpl.findAppDrawable` (DEX file 0, method 4903) reads
-  `/data/oplus/uxicons/<package>/` first for third-party applications whenever
-  ART+ or native dark mode is enabled, then falls through to firmware artwork.
-- `RectangleStyle.tryLoadThemeContent` (file 0, method 6013) selects
-  `rec_night` in dark mode and composes it over the native top-to-bottom
-  `#383838` to `#151515` gradient. The regular night dim filter follows.
+The inspected native downloader accepts batches through
+`com.oplus.uxdesign/.icon.service.LaunchIconService`, with **String ArrayList**
+extra `android.intent.extra.PACKAGES` and `icon_theme=2`. The shell equivalent
+is `am --esal`, rather than `--esa`. No corresponding application APKs need
+installation. Native code owns requests, integrity checks and extraction.
 
-The live ColorOS cache contains 16 Via PNGs, including `recfg`, `recbg`,
-`rec_night`, monochrome and size variants. The previous local runtime snapshot
-and built-in Classic ART+ manifest contain no `mark.via` source mapping.
-The previously generated HyperOS theme nevertheless has Via day/night MAML
-pairs because original-icon fallback generated them: the sampled white
-background becomes `#D6D6D6`, matching the 0.84 night dim, instead of selecting
-the ColorOS redraw. A night filename alone does not prove night redraw coverage.
+All 575 packages with native `published` state were captured. The remaining
+431 names have native `default` state and no returned usable cached artwork.
+The snapshot contains 9,842 static images: 9,817 PNG, 2 JPEG and 23 WebP. Some
+JPEG/WebP files have `.png` names; admission checks the decoded format and
+rejects animated or unbounded inputs. Raw bytes and per-file hashes remain
+in the ignored source snapshot. Existing usable images were not replaced by
+different artwork during this acquisition.
 
-## Correction and scope
+[The complete package inventory](coloros-runtime-coverage.md) lists all 575
+packages and their day, night, monochrome, style and size resources. Resource
+presence does not imply that every style or every monochrome mask is usable.
+Shortcut-only resources are retained as source evidence and do not become
+ordinary launcher icons. The current converter uses the standard 1x1 viewport.
 
-`capture-coloros-runtime-icons.py` refreshes the complete inspected runtime
-snapshot, with explicit source selection, framework authentication, bounded
-PNG admission, provenance and preservation of the previous local snapshot.
-The refreshed source contains 905 usable PNGs for 53 packages, adding Via and
-Apple Music. No existing usable icon changed. Seven old local files excluded
-by the importer's existing filename rules are omitted from the new snapshot.
+The 10 visible built-ins plus the hidden downloaded-only fallback contain
+119.4 MiB of generated source archives. Classic ART+ has 602 day and 596 night
+mappings; the hidden fallback has 572/564. These are source mappings, including
+aliases, rather than installed application counts.
 
-The existing importer already selects runtime night art independently of ART+
-and exports mappings for applications absent from the target install inventory.
-The new regression case verifies that newly captured third-party art reaches
-the night appfilter and pixels with ART+ both on and off. No Via package special
-case, new per-frame work or launcher-native patch is required.
+## Independent capability priority
 
-After rebuilding, an already applied static theme still needs the normal
-"Update current icon pack" generation and native Themes application. This
-updates the resource bytes; package-change callbacks alone cannot replace an
-old user-applied theme. The port includes the captured local resources, not
-ColorOS's online artwork download service. Future resources newly appearing
-on the source device require a fresh source snapshot and regenerated pack.
+For each capability, choose usable resources in this order:
 
-Device acceptance and its exact release identity are recorded below once
-completed. Source evidence is under `.artifacts/research/via-night-20261103/`.
+1. Explicit ART+ / selected pack artwork or monochrome layer.
+2. The installed application's genuine day/night pair or official monochrome layer.
+3. Downloaded ColorOS artwork or monochrome mask.
+4. The chosen HyperOS system fallback, where applicable.
+5. Original application artwork.
+
+Night support is measured before OEM dimming, so a brightness filter does not
+qualify an application as having native night artwork. Monochrome is checked
+independently. Apple Music 7.0.0 on the target supplies real night-qualified
+layers and an official monochrome drawable; both precede downloaded fallback.
+There is no Apple Music version or package exception in the selection policy.
+
+ColorOS profiles always use the downloaded fallback. Other packs require the
+**default-off** option in System & Hook settings. Explicit APK artwork and
+existing native MTZ/icon-module resources, animations and night trees remain
+authoritative. Supplemental resources fill uncovered entries only. Ordinary
+ColorOS styles can carry fallback Monet selectors without forcing Monet on or
+replacing explicit colored pack artwork. The user's global Monet setting
+controls these selectors.
+
+## Applied state and updates
+
+`keihome-icon-generation.txt` records actual downloaded-fallback package IDs,
+considered targets and fingerprints of the official adaptations consulted by
+that generation. The ColorOS pill counts unique package IDs that contributed
+usable fallback resources to the generated module, including mappings for
+applications not currently installed. Component aliases and both modes do not
+double count a package. The count comes from the applied snapshot.
+
+Known unrenderable targets do not repeatedly request the same regeneration.
+New targets still receive a completion check. A package replacement invalidates
+native fingerprint cache identities; unchanged day/night/monochrome pixels do
+not demand regeneration, while a newly available official adaptation does.
+Checks run on the existing worker flow, with bounded caches and cancellation;
+no per-frame probing, polling loop or launcher-native patch is added.
+
+Importing is distinct from applying. Only the native applied module determines
+coverage and source identity. In-flight imports suppress stale update prompts;
+failed operations retain the old applied state and an error receipt.
+Already-generated theme PNGs remain static: use Update icon pack and native
+Themes application to adopt newly selected artwork after an app upgrade.
+Package callbacks invalidate inventory and previews but do not silently rewrite
+an active user theme.
+
+## Themes adaptation
+
+The installed Themes application changed from 11.5.4.0 to 11.5.4.1 during this
+work. Its old version gate rejected imports. Both actual APKs were inspected;
+the relevant native methods retained their signatures and instruction sequences.
+Production now resolves 11 method roles with DexKit using signatures, strings
+and call relationships, including the local-ID lookup relationship. Obfuscated
+member names and OEM version numbers do not select the production contract.
+Resolution refuses ambiguous candidates. A cache is tied to the installed APK
+path and DEX/Manifest entry identities; host updates invalidate it. Native
+service ownership, Binder ABI, conversion proofs and exact local-resource
+associations remain checked.
+
+## Reproduction and evidence
+
+```bash
+python3 scripts/fetch-coloros-runtime-icons.py --serial emulator-5574
+uv run --with pillow python scripts/capture-coloros-runtime-icons.py --serial emulator-5574
+uv run --with pillow --with resvg-py python scripts/prepare-coloros-builtins.py
+```
+
+`--audit-only` on the fetch tool reads current state without requesting new
+downloads. The fetch tool authenticates the inspected source downloader and
+framework; those source-script fingerprints are provenance checks, not a
+production system-App version table.
+
+Evidence is under `.artifacts/research/via-night-20261103/`, including resource
+comparisons, native catalog receipts, device tests, deployment identities,
+applied archive captures and screenshots. Final visual acceptance and Release
+identity are recorded in the acceptance receipt after the complete workflow.

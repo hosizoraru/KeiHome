@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -46,17 +47,21 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String) {
   val busy = state.nativeImporting != null
   // Read the observed report before the early return so a later source discovery shows the FAB.
   val activeSource = runtime.report?.iconTheme?.localId
+  val pending = if (update) pendingNativeApplication(state, activeSource) else null
+  val context = LocalContext.current
   if ((!update && !generate && !(page == 2 && inspiration)) ||
     (update && (activeSource == null || model.currentFallbackSource() == null))) return
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
   val label = stringResource(if (busy && state.preparing) R.string.pack_action_preparing
-    else if (busy) R.string.icon_pack_importing else if (update)
+    else if (busy) R.string.icon_pack_importing else if (pending != null) R.string.pack_apply_native else if (update)
     R.string.pack_action_update else if (generate) R.string.pack_action_install else R.string.pack_action_inspiration)
   FloatingActionButton(modifier = Modifier.widthIn(min = 164.dp)
     .semantics { if (!ready || busy) disabled() }, onClick = {
     if (ready && !busy) {
-      if (update) model.updateCurrentSystemFallback() else model.applyColorOs(page == 2)
+      if (pending != null) runCatching {
+        context.startActivity(os.kei.hyper.home.status.IconPackImportProtocol.nativeDetail(requireNotNull(pending.localId)))
+      } else if (update) model.updateCurrentSystemFallback() else model.applyColorOs(page == 2)
     }
   }, shape = RoundedCornerShape(28.dp),
     containerColor = if (ready || busy) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceVariant) {

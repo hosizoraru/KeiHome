@@ -22,13 +22,16 @@ internal data class ColorOsPackProfile(
       if (record.format != IconPackFormat.CLASSIC_ZIP) return null
       if (ZipFile(record.originalFile).use { it.getEntry("coloros-source-manifest.json") == null }) return null
       val root = JSONObject(String(IconPackArchive.readEntry(record.originalFile,
-        "coloros-source-manifest.json", 4 * 1024 * 1024, check), Charsets.UTF_8))
+        "coloros-source-manifest.json", 8 * 1024 * 1024, check), Charsets.UTF_8))
       val fallback = root.optJSONObject("fallback") ?: return null
       val style = root.optString("style")
       if (root.optInt("schema_version") != 1 || style !in setOf("classic", "daylight", "nightshadow", "material", "pebble") ||
         fallback.optString("kind") !in setOf("coloros-classic-v1", "coloros-style-v1") ||
         fallback.optString("mask") != "coloros-mask.png") return null
       val icons = linkedMapOf<IconPackComponent, ColorOsIconSource>()
+      val sourceFiles = root.optJSONObject("source_files")
+      fun fromRuntime(key: String?) = key != null &&
+        sourceFiles?.optJSONObject(key)?.optString("origin") == "runtime"
       val rows = root.getJSONArray("entries")
       require(rows.length() <= 10000)
       repeat(rows.length()) { index ->
@@ -42,7 +45,12 @@ internal data class ColorOsPackProfile(
         val dynamic = dynamicNames?.let { names ->
           (0 until names.length()).map { names.getString(it) }.singleOrNull()
         }
-        icons[component] = ColorOsIconSource(mono, dynamic, dynamicNames != null && dynamicNames.length() > 0)
+        fun runtimeMode(mode: String): Boolean {
+          val keys = row.optJSONObject("modes")?.optJSONObject(mode)?.optJSONArray("source_keys") ?: return false
+          return (0 until keys.length()).any { fromRuntime(keys.optString(it)) }
+        }
+        icons[component] = ColorOsIconSource(mono, dynamic, dynamicNames != null && dynamicNames.length() > 0,
+          runtimeMode("light"), runtimeMode("dark"), fromRuntime(row.optJSONObject("monochrome")?.optString("source_key")))
       }
       return ColorOsPackProfile(record.originalFile, "coloros-mask.png", icons, style)
     }
@@ -53,4 +61,9 @@ internal data class ColorOsIconSource(
   val monochromePath: String?,
   val dynamicName: String?,
   val requiresLiveIcon: Boolean,
-)
+  val runtimeLight: Boolean = false,
+  val runtimeDark: Boolean = false,
+  val runtimeMonochrome: Boolean = false,
+) {
+  fun runtimeArtwork(dark: Boolean): Boolean = if (dark) runtimeDark else runtimeLight
+}

@@ -14,10 +14,12 @@ import os.kei.hyper.home.status.CurrentIconSnapshot
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 internal typealias IconBrowserOptions = os.kei.hyper.home.data.IconBrowserOptions
+internal fun colorOsPaletteLocked(ordinary: Boolean, paletteNames: Set<String>?) = ordinary && paletteNames.isNullOrEmpty()
 internal data class IconBrowserSource(val revision: String, val pack: IconPackDescriptor,
   val entries: Map<String, IconPackEntry>, val paletteNames: Set<String>, val dynamicNames: Set<String>,
   val nightNames: Set<String> = emptySet(), val systemFallback: SystemIconFallbackManifest? = null,
-  val nativeNames: Set<String>? = null, val buildSource: String? = null)
+  val nativeNames: Set<String>? = null, val buildSource: String? = null,
+  val generation: IconGenerationManifest? = null)
 internal data class IconBrowserRow(val app: InstalledIconCapability, val entry: IconPackEntry?,
   val installed: Boolean = true, val dynamic: Boolean = false,
   val systemFallback: os.kei.hyper.home.data.SystemIconFallback? = null) {
@@ -41,7 +43,13 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
     var fallback: SystemIconFallbackManifest? = null
     var nativeNames: Set<String>? = null
     var buildSource: String? = null
+    var generation: IconGenerationManifest? = null
     ZipFile(file).use { zip ->
+      zip.getEntry(IconGenerationManifest.PATH)?.takeIf { it.size in 1..IconGenerationManifest.MAX_BYTES }?.let {
+        generation = runCatching { IconGenerationManifest.decode(zip.getInputStream(it).use { stream ->
+          stream.readNBytes(IconGenerationManifest.MAX_BYTES + 1)
+        }) }.getOrNull()
+      }
       zip.getEntry(IconBuildInventory.NAMES_PATH)?.takeIf { it.size in 0..IconBuildInventory.MAX_BYTES }?.let {
         nativeNames = runCatching { IconBuildInventory.decodeNames(zip.getInputStream(it).use { stream ->
           stream.readNBytes(IconBuildInventory.MAX_BYTES + 1)
@@ -81,7 +89,7 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
       }
     }
     IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(),
-      palettes, dynamic, nights, fallback, nativeNames, buildSource)
+      palettes, dynamic, nights, fallback, nativeNames, buildSource, generation)
   }
 
 internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowserSource?,

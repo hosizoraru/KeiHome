@@ -28,6 +28,9 @@ import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
+import os.kei.hyper.home.iconpack.IconGenerationManifest
+import os.kei.hyper.home.iconpack.IconPackExportResult
+import os.kei.hyper.home.iconpack.NativeIconAdaptations
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -46,14 +49,16 @@ internal object IconPackHandoffs {
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
-    systemAppNameMatching: Boolean = false): IconPackHandoff {
+    systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
     val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
-      systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching)
+      systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
+      colorOsForOtherPacks = colorOsForOtherPacks)
     var darkFile: File? = null
+    var darkResult: IconPackExportResult? = null
     var merged: File? = null
     val token = UUID.randomUUID().toString()
     val target = file(context, token)
@@ -62,7 +67,8 @@ internal object IconPackHandoffs {
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
             repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback,
-              systemAppNameMatching = systemAppNameMatching)
+              systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks)
+              .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
             dimmedIcons(context, light.archive).also { darkFile = it }
@@ -108,8 +114,8 @@ internal object IconPackHandoffs {
                         val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
                         val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
                         if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
-                        val mask = light.monochrome[name].takeIf { includePalette }
-                        val background = light.paletteBackground
+                        val mask = light.monochrome[name].takeIf { includePalette || name in light.fallbackPaletteNames }
+                        val background = light.monochromeBackgrounds[name] ?: light.paletteBackground
                         // HYOS system frontends can ignore a flat PNG override. Their fallback
                         // needs an explicit descriptor even when day and night artwork is equal.
                         if (mask == null && name !in systemNames && dayBytes.contentEquals(nightBytes)) return@forEach
@@ -139,6 +145,15 @@ internal object IconPackHandoffs {
       val first = iconPackPreviewEntry(pack, targets)
       val artwork = first?.let { previews.load(pack, it, 144) }
       return withContext(Dispatchers.IO) {
+        val caller = currentCoroutineContext()
+        val exports = listOfNotNull(light, darkResult)
+        val nativeTargets = exports.flatMap { it.nativeAdaptationTargets }.mapTo(linkedSetOf()) { it.flattened }
+        val generation = IconGenerationManifest(
+          exports.flatMapTo(linkedSetOf()) { it.colorOsPackages },
+          (targets + exports.flatMap { it.exportedTargets } + exports.flatMap { it.skippedTargets.map { skip -> skip.component } })
+            .mapTo(linkedSetOf()) { it.flattened },
+          NativeIconAdaptations(context).read(nativeTargets) { caller.ensureActive() },
+        )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
         ZipOutputStream(target.outputStream()).use { output ->
@@ -161,7 +176,7 @@ internal object IconPackHandoffs {
             ZipFile(icons).use { archive ->
               archive.entries().asSequence().filterNot {
                 it.isDirectory || it.name == IconBuildInventory.SOURCE_PATH ||
-                  it.name == IconBuildInventory.NAMES_PATH
+                  it.name == IconBuildInventory.NAMES_PATH || it.name == IconGenerationManifest.PATH
               }.forEach { entry ->
                 stamped.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
                 archive.getInputStream(entry).use { it.copyTo(stamped) }
@@ -171,6 +186,8 @@ internal object IconPackHandoffs {
             stamped.putNextEntry(ZipEntry(IconBuildInventory.SOURCE_PATH).apply { time = 0 })
             stamped.write(IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8))
             stamped.closeEntry()
+            stamped.putNextEntry(ZipEntry(IconGenerationManifest.PATH).apply { time = 0 })
+            stamped.write(generation.encode()); stamped.closeEntry()
           }
           output.closeEntry()
           // Themes crops previews to a portrait phone frame, including icons-only components.

@@ -44,4 +44,15 @@ class IconPackCatalogSortTest {
       catalogPackRows(state, "installed", null, "", 3, false).map { it.pack.id })
     assertEquals("alpha", activeCatalogPackId("old", state.copy(nativeSources = emptyMap())))
   }
+
+  @Test fun importedAndAppliedAreSeparateStagesWithoutOfferingASecondConversion() {
+    val receipt = os.kei.hyper.home.status.NativeIconImportReport("token", 0, "source", "IMPORTED", "new")
+    val ready = state.copy(nativeResult = receipt)
+    assertEquals(receipt, pendingNativeApplication(ready, "old"))
+    assertEquals(null, pendingNativeApplication(ready, "new"))
+    assertEquals(null, pendingNativeApplication(ready, null))
+    listOf("FAILED", "UNSUPPORTED", "UNCERTAIN", "IMPORTING").forEach {
+      assertEquals(null, pendingNativeApplication(ready.copy(nativeResult = receipt.copy(status = it)), "old"))
+    }
+  }
 }

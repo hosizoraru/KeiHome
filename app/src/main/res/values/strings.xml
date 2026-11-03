@@ -1,4 +1,10 @@
 <resources>
+    <string name="pack_monet_fallback_summary">Color supported fallback icons while preserving pack artwork.</string>
+    <string name="pack_pending_apply">Ready to apply</string>
+    <string name="pack_pending_apply_hint">Your new icon pack is ready. Apply it in Themes to update the desktop.</string>
+    <string name="coloros_fallback_applied">ColorOS fallback · %1$d apps</string>
+    <string name="coloros_other_packs_title">ColorOS fallback for other packs</string>
+    <string name="coloros_other_packs_summary">Fill gaps after the app’s own adaptations. Always enabled for ColorOS packs. Reapply after changing.</string>
     <string name="settings_log_section">Logs</string>
     <string name="settings_log_summary">Level, size, export and cleanup</string>
     <string name="logs_source">Hook logs · LSPosed</string>

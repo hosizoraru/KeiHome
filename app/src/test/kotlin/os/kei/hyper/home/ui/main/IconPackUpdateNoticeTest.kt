@@ -51,6 +51,17 @@ class IconPackUpdateNoticeTest {
     assertFalse(iconPackNeedsUpdate(pack.copy(format = IconPackFormat.MIUI_ICONS), covered,
       listOf(target), SystemIconFallback.DEFAULT, emptySet(), nameMatching = true))
   }
+  @Test fun changingExternalColorOsFallbackRequiresAnUpdatedAppliedCopy() {
+    val current = source.copy(nativeNames = setOf(target.packageName), systemFallback =
+      SystemIconFallbackManifest(SystemIconFallback.DEFAULT, emptySet()))
+    assertTrue(iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), colorOsForOtherPacks = true))
+    val enabled = current.copy(systemFallback = current.systemFallback!!.copy(colorOsFallback = true))
+    assertFalse(iconPackNeedsUpdate(pack, enabled, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), colorOsForOtherPacks = true))
+    assertTrue(iconPackNeedsUpdate(pack, enabled, listOf(target), SystemIconFallback.DEFAULT, emptySet()))
+  }
+
   @Test fun inventoryIsCanonicalIncludingEmptyModules() {
     listOf(emptySet(), setOf("os.test.app", "os.test.other.Main")).forEach {
       assertEquals(it, IconBuildInventory.decodeNames(IconBuildInventory.encodeNames(it)))
@@ -60,5 +71,31 @@ class IconPackUpdateNoticeTest {
     listOf("os.test.app\nos.test.app\n", "../icon\n", "os.test.app").forEach {
       assertTrue(runCatching { IconBuildInventory.decodeNames(it.toByteArray()) }.isFailure)
     }
+  }
+
+  @Test fun alreadyConsideredUnrenderableTargetsDoNotCauseAnEndlessUpdateNotice() {
+    val applied = source.copy(generation = IconGenerationManifest(considered = setOf(target.flattened)))
+    assertFalse(needed(applied))
+    val newTarget = IconPackComponent("os.test.new", "os.test.new.Main")
+    val updatedPack = pack.copy(entries = pack.entries + entry.copy(key = "new", component = newTarget))
+    assertTrue(iconPackNeedsUpdate(updatedPack, applied, listOf(newTarget), SystemIconFallback.DEFAULT, emptySet()))
+  }
+
+  @Test fun officialAdaptationChangesReopenTheAppliedGenerationWithoutReactingToUnchangedPixels() {
+    val applied = source.copy(nativeNames = setOf(target.packageName), generation = IconGenerationManifest(
+      nativeAdaptations = mapOf(target.flattened to "none")))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+      nativeAdaptations = mapOf(target.flattened to "none")))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+      nativeAdaptations = mapOf(target.flattened to "a".repeat(64))))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+      nativeAdaptations = mapOf("os.other.app" to "a".repeat(64))))
+  }
+
+  @Test fun ordinaryColorOsCanUseItsActualFallbackPaletteWithoutEnablingInspiration() {
+    assertTrue(colorOsPaletteLocked(true, null))
+    assertTrue(colorOsPaletteLocked(true, emptySet()))
+    assertFalse(colorOsPaletteLocked(true, setOf("com.apple.android.music")))
+    assertFalse(colorOsPaletteLocked(false, emptySet()))
   }
 }

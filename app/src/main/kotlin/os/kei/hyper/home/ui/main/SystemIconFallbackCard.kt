@@ -70,6 +70,11 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
         checked = preferences.systemAppNameMatching, enabled = !busy,
         onCheckedChange = model.preferences::setSystemAppNameMatching,
         modifier = Modifier.testTag("icon-packs.system-name-matching"))
+      SwitchPreference(title = stringResource(R.string.coloros_other_packs_title),
+        summary = stringResource(R.string.coloros_other_packs_summary),
+        checked = preferences.colorOsForOtherPacks, enabled = !busy,
+        onCheckedChange = model.preferences::setColorOsForOtherPacks,
+        modifier = Modifier.testTag("icon-packs.coloros-fallback"))
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val applied = source?.systemFallback
@@ -79,7 +84,12 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
               if (applied != null) MetadataPill(stringResource(R.string.system_fallback_applied,
                 stringResource(systemFallbackLabel(applied.style)), applied.names.size), MiuixTheme.colorScheme.primary)
-              if (updateNeeded) {
+              source?.generation?.colorOsPackages?.size?.let { count ->
+                if (count > 0) MetadataPill(stringResource(R.string.coloros_fallback_applied, count), MiuixTheme.colorScheme.primary)
+              }
+              if (pendingNativeApplication(state, runtime.report?.iconTheme?.localId) != null) {
+                MetadataPill(stringResource(R.string.pack_pending_apply), MiuixTheme.colorScheme.primary)
+              } else if (updateNeeded) {
                 val description = stringResource(R.string.pack_update_available)
                 MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary,
                   Modifier.semantics { contentDescription = description })

@@ -32,6 +32,10 @@ internal data class IconPacksUiState(
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,
 )
 
+/** An imported component still needs native application; another conversion cannot finish that step. */
+internal fun pendingNativeApplication(state: IconPacksUiState, activeId: String?) =
+  state.nativeResult?.takeIf { activeId != null && it.imported && it.localId != activeId }
+
 internal fun activeCatalogPackId(activeId: String?, state: IconPacksUiState): String? {
   if (activeId == null) return null
   val source = state.nativeSources[activeId] ?: state.nativeAssociations.entries

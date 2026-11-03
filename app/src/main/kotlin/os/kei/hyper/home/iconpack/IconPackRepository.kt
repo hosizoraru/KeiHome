@@ -42,7 +42,8 @@ internal class IconPackRepository(
     val caller = currentCoroutineContext()
     val packs = mutableListOf<IconPackDescriptor>()
     val failures = mutableListOf<IconPackFailure>()
-    val names = application.assets.list("builtin-icon-packs").orEmpty().filter { it.endsWith(".zip") }
+    val names = application.assets.list("builtin-icon-packs").orEmpty()
+      .filter { it.endsWith(".zip") && it != "coloros-runtime-fallback.zip" }
     for (name in names) {
       caller.ensureActive()
       try {
@@ -153,10 +154,24 @@ internal class IconPackRepository(
     sizePx: Int = 192,
     systemFallback: os.kei.hyper.home.data.SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false,
+    colorOsForOtherPacks: Boolean = false,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
+    val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
-      systemAppNameMatching) { caller.ensureActive() }
+      systemAppNameMatching, fallback) { caller.ensureActive() }
+  }
+
+  private var runtimeFallbackCache: IconPackDescriptor? = null
+  suspend fun runtimeFallback(): IconPackDescriptor? = withContext(worker) {
+    runtimeFallbackCache?.let { return@withContext it }
+    val name = "coloros-runtime-fallback.zip"
+    if (name !in application.assets.list("builtin-icon-packs").orEmpty()) return@withContext null
+    val caller = currentCoroutineContext()
+    val record = application.assets.open("builtin-icon-packs/$name").use {
+      builtinStore.import(it, name, Build.VERSION.SDK_INT, checkCancelled = { caller.ensureActive() }).record
+    }
+    load(record) { caller.ensureActive() }.also { runtimeFallbackCache = it }
   }
 
   private fun load(record: StoredIconPack, check: () -> Unit): IconPackDescriptor {

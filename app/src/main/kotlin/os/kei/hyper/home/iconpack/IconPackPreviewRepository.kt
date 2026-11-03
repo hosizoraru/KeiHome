@@ -86,7 +86,7 @@ internal class IconPackPreviewRepository(
 internal class IconPackRenderer(private val context: Context) {
   private val android = AndroidIconPackResources(context)
 
-  fun open(pack: IconPackDescriptor, dark: Boolean): Session {
+  fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null): Session {
     val resources = when (val source = pack.source) {
       is IconPackSource.Installed -> {
         val info = context.packageManager.getPackageInfo(source.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -97,15 +97,86 @@ internal class IconPackRenderer(private val context: Context) {
       }
       is IconPackSource.Imported -> if (pack.format == IconPackFormat.APK) android.archive(source.record.originalFile, dark) else null
     }
-    return Session(pack, dark, resources)
+    return Session(pack, dark, resources, colorOsFallback)
   }
 
   inner class Session(
     private val pack: IconPackDescriptor,
     private val dark: Boolean,
     private val android: AndroidIconPackResources.Session?,
+    private val supplementary: IconPackDescriptor?,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
+    private val originals = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style) }
+    private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
+    private val supplementState = lazy(LazyThreadSafetyMode.NONE) { supplementary?.let { open(it, dark) } }
+    private val supplement by supplementState
+    private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
+      pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
+    }
+    private var shape: Bitmap? = null
+    private val nativeConsulted = linkedSetOf<IconPackComponent>()
+    private val runtimeArtwork = linkedSetOf<IconPackComponent>()
+    private val runtimeMonochrome = linkedSetOf<IconPackComponent>()
+    val nativeAdaptationTargets: Set<IconPackComponent> get() = nativeConsulted +
+      if (supplementState.isInitialized()) supplement?.nativeAdaptationTargets.orEmpty() else emptySet()
+    fun usedRuntimeArtwork(target: IconPackComponent): Boolean = target in runtimeArtwork ||
+      supplementState.isInitialized() && supplement?.usedRuntimeArtwork(target) == true
+    fun usedRuntimeMonochrome(target: IconPackComponent): Boolean = target in runtimeMonochrome ||
+      supplementState.isInitialized() && supplement?.usedRuntimeMonochrome(target) == true
+
+    private fun shape(check: () -> Unit): Bitmap? {
+      val profile = pack.colorOsProfile ?: return null
+      return shape ?: profile.read(profile.maskPath, check).let { data ->
+        GeneratedIconPng.squareSize(data)
+        requireNotNull(BitmapFactory.decodeByteArray(data, 0, data.size)).also { shape = it }
+      }
+    }
+
+    private fun matching(target: IconPackComponent): IconPackEntry? =
+      componentEntries[target] ?: componentEntries[IconPackComponent(target.packageName)]
+
+    fun prefersAppIcon(target: IconPackComponent, entry: IconPackEntry?, check: () -> Unit): Boolean {
+      val source = pack.colorOsProfile?.source(target)
+      if (originals == null || entry?.artwork(dark) != null && source?.runtimeArtwork(dark) != true) return false
+      nativeConsulted += target
+      return nativePairs.getOrPut(target) { originals.hasNativeDayNight(target, check) }
+    }
+
+    /** Explicit artwork precedes official app adaptations; downloaded OEM art is fallback. */
+    fun renderTarget(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int, check: () -> Unit): Bitmap? {
+      if (target != null && prefersAppIcon(target, entry, check))
+        return originals!!.render(target, dark, sizePx, shape(check), check)
+      if (entry?.artwork(dark) != null) return renderArtwork(entry, sizePx, check)?.also {
+        if (target != null && pack.colorOsProfile?.source(target)?.runtimeArtwork(dark) == true) runtimeArtwork += target
+      }
+      if (target != null && supplementary != null)
+        return supplement?.renderTarget(supplement?.matching(target), target, sizePx, check)
+      return null
+    }
+
+    /** Monochrome is an independent capability; never infer it from colored night artwork. */
+    fun colorOsMonochromeIsFallback(target: IconPackComponent): Boolean {
+      val profile = pack.colorOsProfile ?: return supplement?.colorOsMonochromeIsFallback(target) == true
+      val source = profile.source(target)
+      return source?.monochromePath == null || source.runtimeMonochrome
+    }
+
+    fun colorOsMonochrome(target: IconPackComponent, sizePx: Int, check: () -> Unit): Bitmap? {
+      val profile = pack.colorOsProfile
+        ?: return supplement?.colorOsMonochrome(target, sizePx, check)
+      val source = profile.source(target)
+      fun supplied(): Bitmap? = source?.monochromePath?.let { path ->
+        val bytes = profile.read(path, check)
+        GeneratedIconPng.squareSize(bytes)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+      }
+      if (source?.monochromePath != null && !source.runtimeMonochrome) return supplied()
+      nativeConsulted += target
+      return originals?.monochrome(target, false, sizePx, shape(check), check) ?: supplied()?.also {
+        if (source?.runtimeMonochrome == true) runtimeMonochrome += target
+      }
+    }
 
     /** Android's declared monochrome layer is independent of the pack's colored artwork. */
     fun themedLayers(entry: IconPackEntry, sizePx: Int, check: () -> Unit): Pair<Bitmap, Bitmap>? {
@@ -131,6 +202,10 @@ internal class IconPackRenderer(private val context: Context) {
     }
 
     fun render(entry: IconPackEntry, sizePx: Int, check: () -> Unit = {}): Bitmap? {
+      return renderTarget(entry, entry.component, sizePx, check)
+    }
+
+    private fun renderArtwork(entry: IconPackEntry, sizePx: Int, check: () -> Unit): Bitmap? {
       require(sizePx in 1..512)
       check()
       return when (val artwork = entry.artwork(dark)) {
@@ -163,7 +238,7 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
-    override fun close() { android?.close() }
+    override fun close() { android?.close(); shape?.recycle(); if (supplementState.isInitialized()) supplement?.close() }
   }
 
   private fun rasterPath(path: String?) = path?.substringAfterLast('.')?.lowercase() in setOf("png", "webp", "jpg", "jpeg")

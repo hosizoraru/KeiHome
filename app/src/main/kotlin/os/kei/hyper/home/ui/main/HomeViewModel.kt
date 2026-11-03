@@ -174,6 +174,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val themeEffectsMutex = Mutex()
   private val splashAppearanceMutex = Mutex()
   private var iconPacksDirty = true
+  private val nativeIconAdaptations = os.kei.hyper.home.iconpack.NativeIconAdaptations(application)
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
   private var visiblePage: Int? = null
@@ -208,12 +209,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
     viewModelScope.launch {
       combine(browserSource,
-        iconPacks.map { it.packs to it.nativeSources }.distinctUntilChanged(),
+        iconPacks.map { Triple(it.packs, it.nativeSources, it.nativeImporting) }.distinctUntilChanged(),
         preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
-        preferences.state.map { it.systemAppNameMatching }.distinctUntilChanged(),
+        preferences.state.map { it.systemAppNameMatching to it.colorOsForOtherPacks }.distinctUntilChanged(),
         packageInventoryRevision) { _, _, _, _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
+          if (iconPacks.value.nativeImporting != null) return@withContext false
           val pack = currentFallbackSource() ?: return@withContext false
           val targets = launcherIconTargets()
           val system = application.packageManager.getInstalledApplications(
@@ -225,12 +227,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           val nameMatching = preferences.state.value.systemAppNameMatching &&
             pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
           val caller = currentCoroutineContext()
+          val colorOsExtra = preferences.state.value.colorOsForOtherPacks
+          val colorOsFallback = if (colorOsExtra && pack.colorOsProfile == null) packRepository.runtimeFallback() else null
           val exporter = os.kei.hyper.home.iconpack.IconPackExporter(application,
             os.kei.hyper.home.iconpack.IconPackLimits())
           val nameMatcher = os.kei.hyper.home.iconpack.SystemAppNameMatcher(application,
             pack.entries, nameMatching)
-          iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching) {
-            exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher) { caller.ensureActive() }
+          val fingerprints = nativeIconAdaptations.read(source.generation?.nativeAdaptations?.keys.orEmpty()) {
+            caller.ensureActive()
+          }
+          iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints) {
+            exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
@@ -443,15 +450,18 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       try {
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
-          selected.systemAppNameMatching)
+          selected.systemAppNameMatching, selected.colorOsForOtherPacks)
         iconPacks.update { it.copy(preparing = false) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
+        if (!result.imported && !result.pending) android.util.Log.e("KeiHomePackImport",
+          "Native icon import ${result.status}: ${result.message}")
         if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
         iconPacks.update { it.copy(nativeResult = result) }
         readIconPacks()
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) {
+        android.util.Log.e("KeiHomePackImport", "Icon pack preparation or import failed: ${pack.id}", failure)
         iconPacks.update { it.copy(nativeResult = NativeIconImportReport(handoff?.token.orEmpty(),
           Process.myUid() / 100_000, pack.id, "FAILED", message = failure.message)) }
       } finally {
@@ -740,7 +750,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun setMonetEnabled(enabled: Boolean) {
-    if (enabled && ordinaryColorOsActive()) return
+    if (enabled && colorOsPaletteUnavailable()) return
     val choice = monet.value.snapshot?.customization ?: MonetCustomization()
     val active = runtime.value.report?.iconTheme?.localId
     val inspiration = preferences.state.value.monetInspiration ?:
@@ -750,9 +760,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         ?: os.kei.hyper.home.data.MonetSchemeStyle.TONAL_SPOT), enabled)
   }
 
-  fun ordinaryColorOsActive(): Boolean {
+  private fun colorOsPaletteUnavailable(): Boolean {
     val active = runtime.value.report?.iconTheme?.localId ?: return false
-    return preferences.state.value.colorOsComponents[active] == false
+    val current = browserSource.value.takeIf { it?.revision == runtime.value.report?.iconTheme?.previewKey }
+    return colorOsPaletteLocked(preferences.state.value.colorOsComponents[active] == false, current?.paletteNames)
   }
 
   fun applyColorOs(inspiration: Boolean = false) {
@@ -775,7 +786,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     else "ColorOS · ${getApplication<Application>().getString(colorOsStyleLabel(style))} · ART${if (art) "+" else "-"}"
 
   private fun submitMonet(choice: MonetCustomization, enabled: Boolean = true) {
-    if (enabled && ordinaryColorOsActive()) return
+    if (enabled && colorOsPaletteUnavailable()) return
     val service = FrameworkConnection.service.value ?: return
     applyJob?.cancel()
     monet.update { it.copy(action = MonetActionStatus.APPLYING) }

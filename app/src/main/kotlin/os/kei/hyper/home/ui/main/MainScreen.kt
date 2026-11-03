@@ -128,10 +128,15 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     },
     bottomBar = {
       val packUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+      val packState by model.iconPacks.collectAsStateWithLifecycle()
+      val activeComponent by remember(model) {
+        model.runtime.map { it.report?.iconTheme?.localId }.distinctUntilChanged()
+      }.collectAsStateWithLifecycle(initialValue = null)
+      val pendingApply = pendingNativeApplication(packState, activeComponent) != null
       val updateLabel = stringResource(R.string.pack_update_available)
       IosLiquidGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
         onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null,
-        badge = { index -> if (index == 2 && packUpdate) ({
+        badge = { index -> if (index == 2 && packUpdate && !pendingApply) ({
           top.yukonga.miuix.kmp.basic.Badge(modifier = Modifier.semantics { contentDescription = updateLabel })
         }) else null })
     },
@@ -216,15 +221,19 @@ private fun MonetPage(model: HomeViewModel) {
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val packs by model.iconPacks.collectAsStateWithLifecycle()
+  val browser by model.browserSource.collectAsStateWithLifecycle()
   val ordinary = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == false
+  val paletteNames = browser.takeIf { it?.revision == runtime.report?.iconTheme?.previewKey }?.paletteNames
+  val locked = colorOsPaletteLocked(ordinary, paletteNames)
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
   top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     top.yukonga.miuix.kmp.preference.SwitchPreference(
       title = stringResource(R.string.pack_monet_toggle),
-      summary = stringResource(if (ordinary) R.string.pack_monet_ordinary_locked else R.string.pack_monet_toggle_summary),
+      summary = stringResource(if (locked) R.string.pack_monet_ordinary_locked
+        else if (ordinary) R.string.pack_monet_fallback_summary else R.string.pack_monet_toggle_summary),
       checked = monet.snapshot?.monochrome?.enabled == true,
-      enabled = !ordinary && framework.connected && monet.snapshot != null &&
+      enabled = !locked && framework.connected && monet.snapshot != null &&
         framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong() &&
         monet.action != os.kei.hyper.home.data.MonetActionStatus.APPLYING,
       onCheckedChange = model::setMonetEnabled)
@@ -245,7 +254,7 @@ private fun MonetPage(model: HomeViewModel) {
   MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
     preferredStyle = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION else null,
     preferredAppearance = preferences.iconPackAppearance,
-    actionAvailable = !ordinary && framework.connected && !framework.readFailed &&
+    actionAvailable = !locked && framework.connected && !framework.readFailed &&
       framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
     actionStatus = monet.action, onApply = model::applyMonet)
 }

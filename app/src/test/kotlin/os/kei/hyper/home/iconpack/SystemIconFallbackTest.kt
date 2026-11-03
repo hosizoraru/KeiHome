@@ -8,6 +8,7 @@ import os.kei.hyper.home.data.SystemIconFallback
 class SystemIconFallbackTest {
   @Test fun defaultIsModernNativeAndImportIdentitiesDoNotReuseOldVariants() {
     assertEquals(SystemIconFallback.DEFAULT, AppPreferencesState().systemIconFallback)
+    assertFalse(AppPreferencesState().colorOsForOtherPacks)
     val old = "coloros:classic:SYSTEM:abcdef"
     val first = SystemIconFallback.DEFAULT.sourceId(old)
     assertNotEquals(old, first)
@@ -26,6 +27,15 @@ class SystemIconFallbackTest {
       "KeiHomeSystemFallback1\nDEFAULT\ncom.a\ncom.a\n", "KeiHomeSystemFallback1\nDEFAULT\ncom.z\ncom.a\n")) {
       assertThrows(IllegalArgumentException::class.java) { SystemIconFallbackManifest.decode(text.toByteArray()) }
     }
+  }
+
+  @Test fun fallbackOptionsRoundTripIndependentlyWithoutChangingLegacyBytes() {
+    for (names in listOf(false, true)) for (colorOs in listOf(false, true)) {
+      val manifest = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, setOf("com.example.app"), names, colorOs)
+      assertEquals(manifest, SystemIconFallbackManifest.decode(manifest.encode()))
+    }
+    assertEquals("KeiHomeSystemFallback1\nDEFAULT\ncom.example.app\n",
+      SystemIconFallbackManifest(SystemIconFallback.DEFAULT, setOf("com.example.app")).encode().toString(Charsets.UTF_8))
   }
 
   @Test fun systemAppNameKeysKeepStoreAndManagerRolesDistinct() {

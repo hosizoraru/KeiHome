@@ -27,21 +27,30 @@ internal fun PackCompletionCard(model: HomeViewModel, onOpenSettings: () -> Unit
   val needsUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val state by model.iconPacks.collectAsStateWithLifecycle()
+  val runtime by model.runtime.collectAsStateWithLifecycle()
+  val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId)
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp),
     onClick = onOpenSettings, showIndication = true) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.pack_completion_title), style = MiuixTheme.textStyles.body1)
-        Text(stringResource(if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
+        Text(stringResource(if (pending != null) R.string.pack_pending_apply_hint
+          else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
           style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          if (needsUpdate) MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary)
+          if (pending != null) MetadataPill(stringResource(R.string.pack_pending_apply), MiuixTheme.colorScheme.primary)
+          else if (needsUpdate) MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary)
           val applied = source?.systemFallback
+          source?.generation?.colorOsPackages?.size?.let { count ->
+            if (count > 0) MetadataPill(stringResource(R.string.coloros_fallback_applied, count), MiuixTheme.colorScheme.primary)
+          }
           if (applied != null) MetadataPill(stringResource(R.string.system_fallback_applied,
             stringResource(systemFallbackLabel(applied.style)), applied.names.size), MiuixTheme.colorScheme.primary)
           else MetadataPill(stringResource(R.string.pack_completion_selected,
             stringResource(systemFallbackLabel(preferences.systemIconFallback))), MiuixTheme.colorScheme.onSurfaceSecondary)
         }
+        if (pending != null) NativeThemeLink(pending, autoApply = false, enabled = state.nativeImporting == null)
       }
       Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
     }

@@ -1,4 +1,10 @@
 <resources>
+    <string name="pack_monet_fallback_summary">対応する補完アイコンに配色し、パックの絵柄を保持します。</string>
+    <string name="pack_pending_apply">適用待ち</string>
+    <string name="pack_pending_apply_hint">アイコンパックを生成しました。テーマで適用するとホーム画面に反映されます。</string>
+    <string name="coloros_fallback_applied">ColorOS 補完 · %1$d 件</string>
+    <string name="coloros_other_packs_title">他のパックの ColorOS 補完</string>
+    <string name="coloros_other_packs_summary">アプリ本来の対応を優先し、未対応分を補完します。ColorOS では常に有効。変更後は再適用してください。</string>
     <string name="settings_log_section">ログ</string>
     <string name="settings_log_summary">レベル、容量、共有、削除</string>
     <string name="logs_source">フックログ · LSPosed</string>

@@ -80,7 +80,8 @@ internal fun SettingsContent(
     R.string.top_bar_gaussian, R.string.top_bar_progressive)
   val fallback = matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
-    R.string.system_fallback_classic, R.string.system_fallback_boundless)
+    R.string.system_fallback_classic, R.string.system_fallback_boundless,
+    R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
   val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
   val labels = matches(SettingsSection.HOOK, R.string.launcher_labels_section, R.string.launcher_labels_title,
     R.string.launcher_labels_summary, R.string.launcher_labels_native, R.string.launcher_labels_marquee,

@@ -115,7 +115,8 @@ internal object ConvertedIconArchive {
         val fancy = fancyIconName.matchEntire(entry.name)
         val buildSource = entry.name == os.kei.hyper.home.iconpack.IconBuildInventory.SOURCE_PATH
         val provenance = entry.name == SystemIconFallbackManifest.PATH
-        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource) &&
+        val generation = entry.name == os.kei.hyper.home.iconpack.IconGenerationManifest.PATH
+        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource || generation) &&
           entry.name.length <= 300 && names.add(entry.name) && names.size <= 20000) {
           "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
         }
@@ -124,6 +125,7 @@ internal object ConvertedIconArchive {
         val bytes = readIconEntry(zip, entry, limit)
         total += bytes.size
         if (buildSource) os.kei.hyper.home.iconpack.IconBuildInventory.decodeSource(bytes)
+        else if (generation) os.kei.hyper.home.iconpack.IconGenerationManifest.decode(bytes)
         else if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)
         else if (!manifest) validatePng(bytes, 512)
         fancy?.let { fancyNames.add(it.groupValues[1]) }

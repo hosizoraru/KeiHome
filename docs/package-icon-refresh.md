@@ -10,23 +10,25 @@ for third-party applications, and falls through per missing file.
 
 The runtime cache on the source AVD contained the missing Coolapk and Xiaomi
 Home night artwork, plus other style images and actual monochrome masks.
-`import-coloros-icons.py --runtime-source PATH` accepts these inspected PNGs;
+`import-coloros-icons.py --runtime-source PATH` accepts validated static source images;
 `prepare-coloros-builtins.py` includes the optional
 `.artifacts/inputs/coloros/runtime-uxicons` directory. Staging directories,
 symlinks, invalid names, excessive counts and oversized images are rejected.
 The source manifest retains per-file hashes and runtime provenance.
 
 The source cache is a snapshot, not a complete catalog: ColorOS can add artwork
-after an application is installed. Refresh it from the explicitly selected
-source AVD before regenerating the built-ins:
+after installation or a native download request. Fetch the union of the whitelist
+and native resource catalog without installing their apps, then capture the
+explicitly selected source AVD before regenerating the built-ins:
 
 ```bash
+python3 scripts/fetch-coloros-runtime-icons.py --serial emulator-5574
 uv run --with pillow python scripts/capture-coloros-runtime-icons.py --serial emulator-5574
 uv run --with pillow --with resvg-py python scripts/prepare-coloros-builtins.py
 ```
 
 The capture checks the exact inspected framework hash and reads the source
-device without writing to it. It admits only bounded package/PNG pairs,
+device without writing to it. It admits only bounded package/static PNG, JPEG or WebP pairs,
 excludes staging files, records per-file hashes and added/changed/removed
 resources, and retains the previous local snapshot. Invalid or incomplete
 artwork cannot replace that snapshot. All captured artwork, provenance and
@@ -40,8 +42,10 @@ downloaded masks, including a real 241x240 source, are drawn into a square
 drawable viewport. Original source hashes remain in the manifest. Generated
 archive admission still enforces its existing PNG and alpha-mask rules.
 
-The updated Classic ART+ source has 112 light and 100 night mappings, compared
-with the previous firmware-only 96/86. These are source mapping counts, not
+The 2026-11-03 bulk acquisition contains 575 published package resources and
+9,842 static images. Classic ART+ now has 602 light and 596 night mappings.
+See the [complete inventory](coloros-runtime-coverage.md) and
+[priority and generation policy](coloros-via-night.md). These are source mapping counts, not
 installed-app coverage or native filename counts.
 
 ## Export and upgrade behavior
@@ -115,8 +119,9 @@ before using these identities and remove only fixtures owned by the test.
 
 ## Limits
 
-This ports the inspected local assets, not ColorOS's online icon download
-service. Unknown applications still require available artwork or original
+The shipped App ports the inspected assets. The source acquisition tool can
+request all currently known native cloud resources without installing their apps;
+it does not add ColorOS's online downloader to the HyperOS runtime. Unknown applications still require available artwork or original
 fallback. A day fallback that requires an APK cannot be captured while that
 APK is absent; regenerate after installation to fill such incomplete pairs.
 

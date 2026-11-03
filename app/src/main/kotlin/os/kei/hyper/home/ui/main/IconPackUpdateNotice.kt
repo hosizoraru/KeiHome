@@ -10,22 +10,28 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 /** Unknown/unrenderable resources and deliberately uncovered user apps are not update tasks. */
 internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSource,
   targets: List<IconPackComponent>, fallback: SystemIconFallback,
-  systemPackages: Set<String>, nameMatching: Boolean = false,
+  systemPackages: Set<String>, nameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
+  nativeAdaptations: Map<String, String> = emptyMap(),
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   val effectiveNameMatching = nameMatching &&
     pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
   if (source.buildSource != null && source.buildSource != IconBuildInventory.sourceIdentity(
       pack.copy(id = fallback.sourceId(pack.id)))) return true
   if (source.systemFallback != null && source.systemFallback.style != fallback) return true
+  if ((source.systemFallback?.colorOsFallback == true) !=
+    (colorOsForOtherPacks && pack.colorOsProfile == null)) return true
   if (pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS &&
     source.systemFallback != null && source.systemFallback.nameMatching != effectiveNameMatching) return true
   val names = source.nativeNames ?: return false
+  if (source.generation?.nativeAdaptations?.any { (target, fingerprint) ->
+      nativeAdaptations[target]?.let { it != fingerprint } == true } == true) return true
   val components = pack.entries.mapNotNull { it.component }.toSet()
   return targets.any { target ->
     val aliases = listOfNotNull(target.className, target.packageName)
-    if (aliases.any { it in names } || pack.colorOsProfile?.source(target)?.requiresLiveIcon == true) false else {
+    if (aliases.any { it in names } || target.flattened in source.generation?.considered.orEmpty() ||
+      pack.colorOsProfile?.source(target)?.requiresLiveIcon == true) false else {
       val mapped = target in components || IconPackComponent(target.packageName) in components
-      val colorOs = pack.colorOsProfile != null &&
+      val colorOs = (pack.colorOsProfile != null || colorOsForOtherPacks) &&
         ColorOsFallbackRenderer.dynamicReason(target.packageName, null) == null &&
         target.packageName != "com.xiaomi.calendar"
       val nativeFallback = target.packageName in systemPackages && aliases.any { it in source.entries }

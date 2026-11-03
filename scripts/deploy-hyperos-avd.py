@@ -26,6 +26,29 @@ def root(command):
     return adb("shell", "su", "-c", shlex.quote(command))
 
 
+def module_log_positions():
+    positions = {}
+    for line in root("stat -c '%n %i %s' /data/adb/lspd/log/modules_*.log").splitlines():
+        path, inode, size = line.split()
+        if not re.fullmatch(r"/data/adb/lspd/log/modules_[^/]+\.log", path):
+            raise RuntimeError("Unexpected framework module log path")
+        positions[path] = (int(inode), int(size))
+    if not positions:
+        raise RuntimeError("Missing framework module log")
+    return positions
+
+
+def module_log_delta(before):
+    chunks = []
+    for path, (inode, size) in module_log_positions().items():
+        old_inode, old_size = before.get(path, (None, 0))
+        # A dated new log, replaced inode, or truncated file starts a fresh stream.
+        offset = old_size if inode == old_inode and size >= old_size else 0
+        if size > offset:
+            chunks.append(root(f"tail -c +{offset + 1} {shlex.quote(path)}"))
+    return "\n".join(chunks)
+
+
 def process(name):
     for attempt in range(12):
         raw = adb("shell", "pidof", name)
@@ -97,10 +120,7 @@ def main():
     if new_version == old_version or (new_version < old_version and not args.allow_downgrade):
         raise RuntimeError(f"versionCode must increase: installed={old_version}, APK={new_version}")
     before = {name: process(name) for name in ("com.miui.home", "system_server", "com.android.systemui")}
-    log = root("ls -1t /data/adb/lspd/log/modules_*.log | head -n 1")
-    if not re.fullmatch(r"/data/adb/lspd/log/modules_[^/]+\.log", log):
-        raise RuntimeError("Missing framework module log")
-    size = int(root(f"stat -c %s {shlex.quote(log)}"))
+    logs = module_log_positions()
     install_args = ["install", "-r"]
     if new_version < old_version:
         install_args.append("-d")
@@ -109,7 +129,7 @@ def main():
         raise RuntimeError(result)
     print(f"Installed {old_version} -> {new_version}", flush=True)
     for _ in range(80):
-        delta = root(f"tail -c +{size + 1} {shlex.quote(log)}")
+        delta = module_log_delta(logs)
         if any(PACKAGE in line and "System-server icon refresh hooks installed" in line
                for line in delta.splitlines()):
             break

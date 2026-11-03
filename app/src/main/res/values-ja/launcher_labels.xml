@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launcher_labels_section">ホーム画面</string>
+    <string name="launcher_labels_title">アプリ名の表示</string>
+    <string name="launcher_labels_summary">幅に収まらない名前をスクロールするか、現在のグリッド内に2行で表示します。</string>
+    <string name="launcher_labels_native">システムに従う</string>
+    <string name="launcher_labels_marquee">長い名前をスクロール</string>
+    <string name="launcher_labels_two_lines">2行で表示</string>
+    <string name="launcher_labels_pending">ホーム画面への設定の反映を待っています…</string>
+    <string name="launcher_labels_scope">システムフレームワークをモジュールのスコープに追加してください。</string>
+    <string name="launcher_labels_retry">再試行</string>
+</resources>

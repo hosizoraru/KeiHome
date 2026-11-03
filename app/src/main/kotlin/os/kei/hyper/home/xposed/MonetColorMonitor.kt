@@ -29,6 +29,7 @@ internal class MonetColorMonitor(
   private val refreshReceipt: () -> IconRefreshReceipt? = { null },
   private val themePreferences: () -> SharedPreferences? = { null },
   private val onThemeMaterialsChanged: () -> Unit = {},
+  private val onLauncherLabelsChanged: () -> Unit = {},
   private val onPackageResourcesChanged: (String) -> Unit = {},
   private val onOverlayResourcesChanged: (String) -> Unit = {},
   private val onTimeResourcesChanged: (Boolean) -> Unit = {},
@@ -77,7 +78,8 @@ internal class MonetColorMonitor(
     }
     private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestStatus() }
     private val materialListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-      if (key == null || key == ThemeEffectsPreferences.KEY) requestMaterials()
+      if (key == null || key == ThemeEffectsPreferences.KEY ||
+        key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY) requestMaterials()
     }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
@@ -145,6 +147,8 @@ internal class MonetColorMonitor(
       }
       try {
         connectMaterialPreferences()
+        if (synchronizer.synchronizeLauncherLabels(context, materialPreferences) { !closed } && !closed)
+          onLauncherLabelsChanged()
         if (synchronizer.synchronizeThemeMaterials(context, materialPreferences) { !closed } && !closed) {
           onThemeMaterialsChanged()
         }

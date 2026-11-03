@@ -93,7 +93,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections,
     model.preferences::setTopBarBlur, splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
     themeEffects, framework, model::setPreserveSystemMaterials, query, section,
-    onOpenNotices = { onNavigate("notices") }) {
+    onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) }) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(model, lifecycle) {
       lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeFallbackResources() }

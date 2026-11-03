@@ -41,6 +41,19 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val actionBaseline = MonetAction.Baseline()
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private val themeMaterials = ThemeMaterialLease()
+  private val launcherLabels = LauncherLabelLease()
+
+  fun synchronizeLauncherLabels(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
+    if (!mayWrite()) return false
+    val user = currentUserId() ?: return false
+    val context = contextForUser(baseContext, user) ?: return false
+    val mode = os.kei.hyper.home.data.LauncherLabelPreferences.read(preferences).nativeValue
+    val current = { mayWrite() && currentUserId() == user &&
+      os.kei.hyper.home.data.LauncherLabelPreferences.read(preferences).nativeValue == mode }
+    return launcherLabels.synchronize(mode, user, SystemClock::elapsedRealtime, current) { attempted ->
+      if (native.setLauncherLabels(context, mode, attempted)) native.acknowledgedLabelProcess else null
+    }
+  }
   private val materialIdentityGeneration = AtomicLong()
   private var defaultMaterialIdentityGeneration = -1L
   private var defaultMaterialIdentityUser = -1
@@ -133,6 +146,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       moduleVersion = BuildConfig.VERSION_CODE.toLong(), checkedAtElapsed = SystemClock.elapsedRealtime(),
       nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
       refresh = refresh,
+      launcherLabelMode = launcherLabels.acknowledgedMode(process, SystemClock.elapsedRealtime()),
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)

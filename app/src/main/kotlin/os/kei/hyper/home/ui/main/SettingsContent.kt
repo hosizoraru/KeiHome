@@ -58,6 +58,7 @@ internal fun SettingsContent(
   query: String,
   section: SettingsSection?,
   onOpenNotices: () -> Unit,
+  launcherLabelsContent: @Composable () -> Unit,
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -81,6 +82,9 @@ internal fun SettingsContent(
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
     R.string.system_fallback_classic, R.string.system_fallback_boundless)
   val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
+  val labels = matches(SettingsSection.HOOK, R.string.launcher_labels_section, R.string.launcher_labels_title,
+    R.string.launcher_labels_summary, R.string.launcher_labels_native, R.string.launcher_labels_marquee,
+    R.string.launcher_labels_two_lines)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val rememberMenus = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
@@ -96,7 +100,7 @@ internal fun SettingsContent(
   val source = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_source, extra = "GitHub")
   val notices = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_notices, extra = "license")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, fallback, effects, splashVisible, autoApply, rememberMenus,
+    if (listOf(colorMode, appearance, language, blur, fallback, effects, labels, splashVisible, autoApply, rememberMenus,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -144,6 +148,10 @@ internal fun SettingsContent(
     if (effects) {
       SmallTitle(stringResource(R.string.settings_system_appearance), modifier = Modifier.semantics { heading() })
       ThemeEffectsCard(themeEffects, framework, onThemeEffectsChange)
+    }
+    if (labels) {
+      SmallTitle(stringResource(R.string.launcher_labels_section), modifier = Modifier.semantics { heading() })
+      launcherLabelsContent()
     }
     if (splashVisible) {
       SmallTitle(stringResource(R.string.splash_section))

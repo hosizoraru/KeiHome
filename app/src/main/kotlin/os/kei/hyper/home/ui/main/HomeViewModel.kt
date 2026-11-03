@@ -75,6 +75,9 @@ internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
 internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
   connected && !readFailed && snapshot?.systemUiInScope == true
 
+internal fun FrameworkUiState.launcherLabelsInScope(): Boolean =
+  connected && !readFailed && snapshot?.systemInScope == true
+
 internal data class MonetUiState(
   val snapshot: MonetPaletteSnapshot? = null,
   val readFailed: Boolean = false,
@@ -147,6 +150,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(MonetUiState())
   val themeEffects: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
+  val launcherLabels = LauncherLabelSettings(viewModelScope) { framework.value.launcherLabelsInScope() }
+
+  fun readLauncherLabelSettings() { viewModelScope.launch { launcherLabels.read() } }
+  suspend fun refreshLauncherLabelStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
@@ -255,11 +262,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
         themeEffects.value = ThemeEffectsUiState()
+        launcherLabels.reset()
         splashAppearance.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
           readFramework()
           readThemeEffects()
+          launcherLabels.read()
           readSplashAppearance()
           delay(1_500)
           withContext(Dispatchers.IO) {
@@ -282,7 +291,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 4) launch {
         readFramework()
         readSplashAppearance()
-        while (true) { readThemeEffects(); delay(5_000) }
+        while (true) { readThemeEffects(); launcherLabels.read(); delay(5_000) }
       }
       if (page in 0..3) launch {
         while (true) {
@@ -325,7 +334,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         readFramework()
-        if (page == 4) { readSplashAppearance(); readThemeEffects() }
+        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read() }
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()
@@ -685,13 +694,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }
         if (FrameworkConnection.service.value === service) {
           runtime.value = RuntimeStatusUiState(report = report, timedOut = report == null)
-          val theme = report?.iconTheme
-          if (theme?.previewKey == null) browserSource.value = null
-          else if (browserSource.value?.revision != theme.previewKey) {
-            browserSource.value = null
-            try { browserSource.value = readBrowserSource(getApplication(), theme) }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { android.util.Log.w("KeiHomeBrowser", "Active icon resources unavailable", failure) }
+          if (includeIconTheme) {
+            val theme = report?.iconTheme
+            if (theme?.previewKey == null) browserSource.value = null
+            else if (browserSource.value?.revision != theme.previewKey) {
+              browserSource.value = null
+              try { browserSource.value = readBrowserSource(getApplication(), theme) }
+              catch (cancelled: CancellationException) { throw cancelled }
+              catch (failure: Exception) { android.util.Log.w("KeiHomeBrowser", "Active icon resources unavailable", failure) }
+            }
           }
         }
       } catch (cancellation: CancellationException) {

@@ -7,6 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
+  @Test fun labelAcknowledgementsRoundTripAndOldReportsRemainReadable() {
+    for (mode in 0..2) {
+      val report = ready.copy(launcherLabelMode = mode)
+      assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    }
+    val legacy = ready.encode().split('|').take(12).toMutableList().apply { this[0] = "2" }.joinToString("|")
+    assertEquals(ready, RuntimeStatusReport.decode(legacy))
+    assertNull(RuntimeStatusReport.decode(ready.copy(launcherLabelMode = 3).encode()))
+  }
+
   private val request = RuntimeStatusRequest("6ad7c033-914d-4adc-b7a9-794be04328ad", 0, 100_000)
   private val ready = RuntimeStatusReport(
     request.id, request.userId, 123, 100_500, NativeRuntimeState.READY,
@@ -77,7 +87,7 @@ class RuntimeStatusReportTest {
   fun unsupportedAndMalformedReceiptsDoNotBecomeReadiness() {
     assertNull(RuntimeStatusReport.decode(null))
     assertNull(RuntimeStatusReport.decode(""))
-    assertNull(RuntimeStatusReport.decode(ready.encode().replaceFirst("2|", "999|")))
+    assertNull(RuntimeStatusReport.decode("999|" + ready.encode().substringAfter('|')))
     assertNull(RuntimeStatusReport.decode(ready.encode().replace("READY", "RUNNING")))
     assertNull(RuntimeStatusReport.decode(ready.encode() + "|extra"))
     assertNull(RuntimeStatusReport.decode(ready.encode() + "not base64!"))

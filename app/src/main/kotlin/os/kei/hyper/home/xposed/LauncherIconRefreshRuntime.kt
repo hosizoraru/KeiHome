@@ -95,6 +95,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       xposed.log(Log.INFO, TAG, "Theme material change acknowledged; reconciling mounted icons")
       schedulePaletteRefresh()
     },
+    onLauncherLabelsChanged = {
+      xposed.log(Log.INFO, TAG, "Launcher label mode acknowledged; reconciling mounted icons")
+      schedulePaletteRefresh()
+    },
     onPackageResourcesChanged = { name ->
       synchronized(lock) {
         if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {

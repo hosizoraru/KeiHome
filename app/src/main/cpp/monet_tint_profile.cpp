@@ -30,6 +30,8 @@ struct Pattern {
     uint8_t digest[32];
 };
 #include "monet_tint_patterns.h"
+struct Variant { Role role; Pattern pattern; };
+#include "monet_tint_variants.h"
 constexpr size_t kMaxContractWords = 320;
 
 bool Reject(const char** reason, const char* message) {
@@ -81,8 +83,7 @@ uint32_t Normalized(uintptr_t start, size_t count, size_t i, Role role) {
     if (role == kFilterEquals && i == 31) return w & 0xffe0001fu;
     return w;
 }
-bool Matches(const MonetTintImageView& image, uintptr_t address, Role role) {
-    const auto& p = kPatterns[role];
+bool MatchesPattern(const MonetTintImageView& image, uintptr_t address, Role role, const Pattern& p) {
     if (!address || (address & 3) || p.count > kMaxContractWords ||
         !Contains(image, address, p.count * 4)) return false;
     for (size_t i = 0; i < 4; ++i) {
@@ -94,15 +95,36 @@ bool Matches(const MonetTintImageView& image, uintptr_t address, Role role) {
     MonetSha256(normalized, p.count * 4, digest);
     return memcmp(digest, p.digest, sizeof(digest)) == 0;
 }
+bool Matches(const MonetTintImageView& image, uintptr_t address, Role role) {
+    if (MatchesPattern(image, address, role, kPatterns[role])) return true;
+    for (const auto& v : kTintVariants)
+        if (v.role == role && MatchesPattern(image, address, role, v.pattern)) return true;
+    return false;
+}
+bool Prefix(Role role, uint32_t word) {
+    if (word == kPatterns[role].prefix[0]) return true;
+    for (const auto& v : kTintVariants)
+        if (v.role == role && word == v.pattern.prefix[0]) return true;
+    return false;
+}
+size_t MatchedSize(const MonetTintImageView& image, uintptr_t address, Role role) {
+    size_t count = MatchesPattern(image, address, role, kPatterns[role]) ? kPatterns[role].count : 0;
+    for (const auto& v : kTintVariants) {
+        if (v.role != role || !MatchesPattern(image, address, role, v.pattern)) continue;
+        if (count && count != v.pattern.count) return 0;
+        count = v.pattern.count;
+    }
+    return count * 4;
+}
 template<typename Predicate>
 uintptr_t Find(const MonetTintImageView& image, Role role, Predicate predicate) {
     uintptr_t result = 0;
     for (size_t i = 0; i < image.readable_range_count; ++i) {
         const auto& range = image.readable_ranges[i];
-        const size_t size = kPatterns[role].count * 4;
+        const size_t size = 16;
         if (!range.executable || range.size < size) continue;
         for (uintptr_t p = range.begin; p - range.begin <= range.size - size; p += 4) {
-            if (Word(p) != kPatterns[role].prefix[0] || !Matches(image, p, role) || !predicate(p)) continue;
+            if (!Prefix(role, Word(p)) || !Matches(image, p, role) || !predicate(p)) continue;
             if (result && result != p) return 0;
             result = p;
         }
@@ -183,7 +205,22 @@ bool ResolveMonetTintProfile(const MonetTintImageView& image, MonetTintProfile* 
         return Reject(rejection, "tint FFI or background getter contract changed");
     }
     uintptr_t filter_pool = 0, type_pool = 0;
-    if (!PoolPair(foreground + 0x2dc, &filter_pool) || !PoolPair(background + 0x38, &type_pool)) {
+    const size_t foreground_size = MatchedSize(image, foreground, kForegroundBuild);
+    for (size_t off = 0; off + 24 <= foreground_size; off += 4) {
+        const uintptr_t pc = foreground + off;
+        uintptr_t pool = 0;
+        if ((Word(pc) & 0xffc003ffu) != 0x91400360u || !PoolPair(pc, &pool)) continue;
+        // The native closure captures the filter in its .f field and the image
+        // in .b. Authenticate the destination register and rooted image load.
+        const uint32_t store = Word(pc + 12), reg = (store >> 5) & 31u;
+        if ((reg != 2 && reg != 3) || store != (0xb800f000u | reg << 5) ||
+            (Word(pc + 8) & 0xffe00fffu) != (0xf80003a0u | reg) ||
+            (Word(pc + 16) & 0xffe00fffu) != 0xf84003a0u ||
+            Word(pc + 20) != (0xb800b000u | reg << 5)) continue;
+        if (filter_pool) return Reject(rejection, "ambiguous native foreground filter capture");
+        filter_pool = pool;
+    }
+    if (!filter_pool || !PoolPair(background + 0x38, &type_pool)) {
         return Reject(rejection, "tint pool operands changed");
     }
     const uintptr_t field_slot = TableSlot(background + 0x54);

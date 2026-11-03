@@ -9,6 +9,32 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IconRefreshGenerationTest {
+  @Test fun labelOnlyNotificationAvoidsAnIconSweepWithoutLosingPendingResourceWork() {
+    val generations = IconRefreshGeneration()
+    val label = generations.nextLauncherLabelRefresh("module")!!
+    assertEquals(setOf("module"), generations.packages(label))
+    assertEquals(IconRefreshCause.LAUNCHER_LABEL_ACK, generations.cause(label))
+    val packageChange = generations.nextPackageRefresh("changed.app")!!
+    val merged = generations.nextLauncherLabelRefresh("module")!!
+    generations.complete(packageChange)
+    assertEquals(setOf("module", "changed.app"), generations.packages(merged))
+    assertEquals(IconRefreshCause.PACKAGE_CHANGE, generations.cause(merged))
+    generations.next(light, dark)
+    val duringNight = generations.nextLauncherLabelRefresh("module")!!
+    assertNull(generations.packages(duringNight))
+    assertEquals(IconRefreshCause.RESOURCE_CHANGE, generations.cause(duringNight))
+    generations.complete(duringNight)
+    generations.nextFullRefresh(IconRefreshCause.PALETTE_ACK)
+    val duringPalette = generations.nextLauncherLabelRefresh("module")!!
+    assertTrue(generations.needsFullRefresh(duringPalette))
+    assertEquals(IconRefreshCause.PALETTE_ACK, generations.cause(duringPalette))
+    generations.complete(duringPalette)
+    val fresh = generations.nextLauncherLabelRefresh("module")!!
+    assertEquals(IconRefreshCause.LAUNCHER_LABEL_ACK, generations.cause(fresh))
+    generations.retire()
+    assertNull(generations.nextLauncherLabelRefresh("module"))
+  }
+
   @Test fun resourceQualifierChangesRefreshIconsWithoutTreatingEveryUiChangeAsAnIconChange() {
     for (change in listOf(ActivityInfo.CONFIG_LOCALE, ActivityInfo.CONFIG_LAYOUT_DIRECTION,
       ActivityInfo.CONFIG_DENSITY, ActivityInfo.CONFIG_COLOR_MODE, ActivityInfo.CONFIG_ASSETS_PATHS))

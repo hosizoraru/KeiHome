@@ -24,6 +24,7 @@ import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.status.IconRefreshReceipt
@@ -96,8 +97,15 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       schedulePaletteRefresh()
     },
     onLauncherLabelsChanged = {
-      xposed.log(Log.INFO, TAG, "Launcher label mode acknowledged; reconciling mounted icons")
-      schedulePaletteRefresh()
+      xposed.log(Log.INFO, TAG, "Launcher label mode acknowledged; notifying mounted titles")
+      synchronized(lock) {
+        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
+          generations.nextLauncherLabelRefresh(BuildConfig.APPLICATION_ID)?.let {
+            pending.replace(IconRefreshRequest(it, 0))
+          }
+          postPendingLocked()
+        }
+      }
     },
     onPackageResourcesChanged = { name ->
       synchronized(lock) {
@@ -537,6 +545,21 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             ) != true
           ) continue
           try {
+            // One normal item-change event enters the native title-cache refresh bridge.
+            // It already notifies every mounted title, across the launcher's profiles.
+            // Do not enumerate apps, probe icons, read theme archives or load shortcuts
+            // for a label-only change. Coalesced package/resource changes keep the full
+            // path and their original pacing, so this cannot discard real icon work.
+            if (cause == IconRefreshCause.LAUNCHER_LABEL_ACK) {
+              val name = BuildConfig.APPLICATION_ID
+              val installed = try { launcherApps.getApplicationInfo(name, 0, user) != null }
+                catch (_: android.content.pm.PackageManager.NameNotFoundException) { false }
+                catch (_: SecurityException) { false }
+              if (installed && listener.callback.asBinder().isBinderAlive &&
+                dispatchIfRegistered(launcherService, listener, user, name, generation)
+              ) sent += 1
+              continue
+            }
             val requestedPackages = generations.packages(generation)
             val activities = launcherApps.getActivityList(null, user).filter {
               requestedPackages == null || it.componentName.packageName in requestedPackages

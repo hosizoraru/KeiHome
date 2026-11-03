@@ -31,13 +31,14 @@ bool Matches(const IconHighlightImage& im, size_t pc, const LabelWord (&p)[N]) {
     return true;
 }
 template<size_t N>
-size_t Find(const IconHighlightImage& im, const LabelWord (&p)[N]) {
+size_t Find(const IconHighlightImage& im, const LabelWord (&p)[N], size_t call = 0, size_t target = 0) {
     size_t found = 0;
     for (size_t i = 0; i < im.range_count; ++i) {
         const auto& r = im.ranges[i];
         if (!r.executable || r.end - r.begin < 4*N) continue;
         for (size_t pc = r.begin; pc <= r.end - 4*N; pc += 4) {
             if ((Word(im, pc) & p[0].mask) != p[0].word || !Matches(im, pc, p)) continue;
+            if (target && Call(im, pc + call) != target) continue;
             if (found) return 0;
             found = pc;
         }
@@ -85,6 +86,48 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
     if (!p.builder || !p.lines || !p.config || !p.value || !p.measure || !p.marquee_constructor || !type ||
             !p.change_event || !p.font_refresh)
         return Reject(why, "ambiguous label instruction roles");
+    const size_t cell = Find(im, kLabelCellContent);
+    const size_t grid_body = Find(im, kLabelCellGridBody);
+    const size_t ticker_effective = Find(im, kLabelTickerEffective);
+    const size_t ticker_type = Find(im, kLabelTickerType, 0x98, ticker_effective);
+    p.cell_visibility = Find(im, kLabelGridVisibility);
+    if (!cell || !grid_body || !ticker_effective || !ticker_type || !p.cell_visibility ||
+            !Matches(im, p.cell_visibility + 0x1a4, kLabelGridVisibilityTail) ||
+            !Matches(im, cell + 0xbc, kLabelCellListInit) ||
+            !Matches(im, Call(im, cell + 0x34), kLabelCellGridFactory) ||
+            grid_body != Call(im, cell + 0x34) + 0x64)
+        return Reject(why, "ambiguous page visibility graph");
+    // Wrap the complete page Stack, including the icon-list Obx. The earlier
+    // grid/background Obx alone does not contain app labels.
+    for (size_t at = cell + 0xc0; at < cell + 0x120; at += 4) {
+        if (!Matches(im, at, kLabelCellStackInit)) continue;
+        if (p.cell_call) return Reject(why, "ambiguous page Stack initialization");
+        p.cell_call = at - 4;
+        memcpy(p.cell_replay, im.base + at, sizeof(p.cell_replay));
+    }
+    if (!p.cell_call || (AllocationTag(im, Call(im, p.cell_call)) & 0xfff) != 0x21c) return Reject(why, "missing page Stack allocation");
+    p.cell_root_slot = Field(Word(im, p.cell_call + 4 + 9*4));
+    p.cell_controller_field = uint32_t(Field(Word(im, grid_body + 0x24)));
+    p.cell_screen_field = uint32_t(Field(Word(im, p.cell_visibility + 0x64)));
+    p.cell_post_expected = Word(im, p.cell_call + 4);
+    if (p.cell_root_slot != -8 || p.cell_controller_field != 0xb || !p.cell_screen_field ||
+            Word(im, p.cell_call + 48) != 0xaa1d03efu ||
+            Word(im, p.cell_call + 52) != 0xa8c179fdu ||
+            Word(im, p.cell_call + 56) != 0xd65f03c0u || !NoInteriorBranch(im, p.cell_call))
+        return Reject(why, "page visibility root ABI changed");
+    const uint32_t ticker_cid = (Word(im, ticker_type + 0x38) >> 5) & 65535;
+    for (size_t r = 0; r < im.range_count; ++r) {
+        if (!im.ranges[r].executable) continue;
+        for (size_t at = im.ranges[r].begin; at + 12 <= im.ranges[r].end; at += 4) {
+            if ((Word(im, at) & 0xffe0001fu) != 0xd2800002u) continue;
+            const uint32_t tag = AllocationTag(im, at);
+            if (!tag || tag >> 12 != ticker_cid) continue;
+            if (p.ticker_tag || (tag & 0xfff) != 0x21c)
+                return Reject(why, "TickerMode allocation ABI changed");
+            p.ticker_tag = tag;
+        }
+    }
+    if (!p.ticker_tag) return Reject(why, "missing TickerMode allocator");
     // The UI item-change handler has two adjacent info calls before it consumes
     // the change set. Both discard their result. Reuse the first original call
     // PC for the resident title-cache refresh; no extra Dart frame is invented.
@@ -201,6 +244,36 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
             !NoInteriorBranch(im, p.allocation_call + 4) || !NoInteriorBranch(im, p.lines_tail))
         return Reject(why, "unsupported label fields/patch ingress");
     p.after_text_init = max_lines;
+    for (size_t at = p.builder + 0x300; at < p.builder + 0x600; at += 4) {
+        const size_t target = Call(im, at);
+        if (!target || !Matches(im, target, kLabelPrefix)) continue;
+        if (p.prefix_helper || (Word(im, at - 4) & 0xffe00fffu) != 0xf84003a1u ||
+                Word(im, at + 0x54) != 0xb8407001u)
+            return Reject(why, "prefix title-width contract changed");
+        p.prefix_helper = target;
+        p.prefix_widget_slot = Field(Word(im, at - 4));
+    }
+    if (!p.prefix_helper || p.prefix_widget_slot != Field(Word(im, p.builder + 0x18)) ||
+            p.prefix_widget_slot >= 0 || p.prefix_widget_slot < -frame ||
+            (p.prefix_widget_slot & 7)) return Reject(why, "missing title prefix helper");
+    const size_t marquee_build = Find(im, kLabelMarqueeBuild);
+    p.fade_wrap = Find(im, kLabelFadeWrap);
+    if (!marquee_build || !p.fade_wrap) return Reject(why, "ambiguous marquee fade graph");
+    for (size_t at = marquee_build; at < marquee_build + 4 * (sizeof(kLabelMarqueeBuild) / sizeof(kLabelMarqueeBuild[0])); at += 4) {
+        if (Call(im, at) != p.fade_wrap) continue;
+        if (p.fade_call || Word(im, at + 4) != 0xaa1d03efu ||
+                Word(im, at + 8) != 0xa8c179fdu || Word(im, at + 12) != 0xd65f03c0u)
+            return Reject(why, "fade return contract changed");
+        p.fade_call = at;
+    }
+    // The authenticated constructor initializes both native fade fractions.
+    const uint32_t start = Word(im, p.marquee_constructor + 0xc4);
+    const uint32_t end = Word(im, p.marquee_constructor + 0xc8);
+    if ((start & 0xffe00fffu) != 0xf80000dfu || (end & 0xffe00fffu) != 0xf80000dfu)
+        return Reject(why, "native fade fractions changed");
+    p.fade_start_field = uint32_t(Field(start)); p.fade_end_field = uint32_t(Field(end));
+    if (!p.fade_call || p.fade_start_field != 0x43 || p.fade_end_field != p.fade_start_field + 8)
+        return Reject(why, "native fade field ABI changed");
     *out = p;
     return true;
 }

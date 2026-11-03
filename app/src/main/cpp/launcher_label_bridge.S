@@ -7,9 +7,11 @@
     .section .rodata.launcher_label_bridge,"a",%progbits
     .balign 8
     .global kh_label_template, kh_label_pre, kh_label_post, kh_label_lines
-    .global kh_label_config, kh_label_end, kh_label_refresh
+    .global kh_label_config, kh_label_end, kh_label_refresh, kh_label_page_post, kh_label_page_replay
+    .global kh_label_fade
     .hidden kh_label_template, kh_label_pre, kh_label_post, kh_label_lines
-    .hidden kh_label_config, kh_label_end, kh_label_refresh
+    .hidden kh_label_config, kh_label_end, kh_label_refresh, kh_label_page_post, kh_label_page_replay
+    .hidden kh_label_fade
 kh_label_template:
 kh_label_pre:
     hint #38
@@ -41,7 +43,7 @@ kh_label_post:
     b.eq .Lnative_text
     ldr x10, [x17, #56]
     cmp x9, x10
-    b.ne .Lallocate_text
+    b.ne .Lprefix_result
     // Measurement returns Size; native short labels keep their original Text.
     ldr x16, [x17]
     ldar w16, [x16]
@@ -55,9 +57,8 @@ kh_label_post:
     fcmp d0, #0.0
     b.le .Lallocate_text
     b.vs .Lallocate_text
-    // The source's title width is the native label container's available space.
-    // GridConfig's smaller icon width is also used to size short text shadows;
-    // taking their minimum animates names that already fit (e.g. LibChecker).
+    // Native title/shadow layout uses both widget and grid widths. Text can use
+    // the wider title envelope; the smaller icon box must not force scrolling.
     ldr x10, [x17, #120]
     ldr x9, [x29, x10]
     ldr x10, [x17, #104]
@@ -67,13 +68,44 @@ kh_label_post:
     ubfx x10, x10, #12, #20
     cmp x10, #62                   // same Double ABI as the native builder's inline allocations
     b.ne .Lallocate_text
-    ldur d1, [x9, #7]
+    ldur d2, [x9, #7]
+    fmov x10, d2
+    ubfx x10, x10, #52, #11
+    cmp x10, #0x7ff
+    b.eq .Lallocate_text
+    fcmp d2, #0.0
+    b.le .Lallocate_text
+    b.vs .Lallocate_text
+    ldr x9, [x26, #0x78]
+    ldr x10, [x17, #72]
+    ldr x9, [x9, x10]
+    cmp w9, w22
+    b.eq .Lallocate_text
+    ldr x10, [x27, #0x40]
+    cmp w9, w10
+    b.eq .Lallocate_text
+    ldr x10, [x17, #80]
+    ldr w9, [x9, x10]
+    add x9, x9, x28, lsl #32
+    ldr x10, [x17, #88]
+    ldr w9, [x9, x10]
+    add x9, x9, x28, lsl #32
+    ldr x10, [x17, #96]
+    ldr d1, [x9, x10]
+    fmov x10, d1
+    ubfx x10, x10, #52, #11
+    cmp x10, #0x7ff
+    b.eq .Lallocate_text
     fcmp d1, #0.0
     b.le .Lallocate_text
     b.vs .Lallocate_text
-    fcmp d0, d1
+    fmin d3, d1, d2
+    fcmp d0, d3
     b.le .Lallocate_text
     b.vs .Lallocate_text
+    fmax d3, d1, d2
+    fcmp d0, d3
+    cset x13, le                  // intermediate width: ask native prefix policy
     // Same young-space fast path as the authenticated native allocation stub.
     // No safepoint occurs here; insufficient space falls back to native Text.
     ldp x9, x10, [x26, #0x60]
@@ -91,9 +123,41 @@ kh_label_post:
     add x1, x9, #1
     ldr x10, [x17, #128]
     ldr x5, [x29, x10]
+    stur w5, [x1, #0xb]           // preserve String through an optional prefix call
     // This was a live String root at the original allocation call. Until the
     // constructor returns it roots Marquee instead, so relocating GC updates it.
     str x1, [x29, x10]
+    cbz x13, .Lconstruct_marquee
+    ldr x10, [x17, #248]
+    ldr x1, [x29, x10]
+    ldr x16, [x17, #256]
+    br x16                        // original native prefix getter; same return PC
+.Lprefix_result:
+    ldr x10, [x17, #128]
+    ldr x1, [x29, x10]
+    ldur x9, [x1, #-1]
+    ubfx x9, x9, #12, #20
+    ldr x10, [x17, #64]
+    lsr x10, x10, #12
+    cmp x9, x10
+    b.ne .Lallocate_text
+    ldr x16, [x17]
+    ldar w16, [x16]
+    cmp w16, #1
+    b.ne .Lprefix_static
+    ldur w9, [x0, #7]             // same String-length ABI as the native consumer
+    cbnz w9, .Lconstruct_marquee   // native badge consumes the narrower budget
+.Lprefix_static:
+    ldur w9, [x1, #0xb]
+    add x9, x9, x28, lsl #32
+    ldr x10, [x17, #128]
+    str x9, [x29, x10]
+    b .Lallocate_text
+.Lconstruct_marquee:
+    ldr x10, [x17, #128]
+    ldr x1, [x29, x10]
+    ldur w5, [x1, #0xb]
+    add x5, x5, x28, lsl #32
     ldr x10, [x17, #136]
     ldr x3, [x29, x10]
     mov x2, x22
@@ -163,6 +227,97 @@ kh_label_refresh:
     ldr x16, [x17, #160]
     br x16
 
+// CellLayout's original final Stack allocator has returned. Add the resident
+// TickerMode around the WHOLE page using native grid visibility. That predicate
+// observes native reactive page state, including overview and dual-page layouts.
+// Its return PC is the ORIGINAL allocation PC, retaining the original stack map.
+// The live child-list root temporarily owns TickerMode; its temporary key roots
+// the list and its child roots Stack. No reference leaves Dart.
+kh_label_page_post:
+    hint #38
+    adr x17, kh_label_config
+    ldr x10, [x17, #208]
+    ldr x9, [x29, x10]
+    ldur x11, [x9, #-1]
+    ubfx x11, x11, #12, #20
+    ldr x12, [x17, #192]
+    lsr x12, x12, #12
+    cmp x11, x12
+    b.eq .Lpage_visible_return
+    b kh_label_page_replay
+kh_label_page_replay:
+    .zero 44                     // original initialization, before ANY extra GC
+    // Stack's original raw reference stores assume a fresh/remembered result.
+    // Complete them before the visibility call, preserving that VM guarantee.
+    ldp x11, x12, [x26, #0x60]
+    add x13, x11, #0x20
+    cmp x12, x13
+    b.ls .Lpage_resume             // pressure: preserve the initialized Stack
+    str x13, [x26, #0x60]
+    ldr x12, [x17, #192]
+    str x12, [x11]
+    stp w22, w22, [x11, #8]
+    stp w22, w22, [x11, #16]
+    stp w22, w22, [x11, #24]
+    add x11, x11, #1
+    stur w9, [x11, #7]            // temporary key: original live child list
+    stur w0, [x11, #15]           // child: original native build result
+    str x11, [x29, x10]
+    // The authenticated original list/Obx/closure construction retains CellLayout.
+    ldur w1, [x9, #15]            // backing array
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #15]            // first child: grid/background Obx
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #11]            // builder closure
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #23]            // captured context
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #15]            // original CellLayout widget
+    add x1, x1, x28, lsl #32
+    ldr x10, [x17, #224]
+    ldr w1, [x1, x10]            // native CellLayoutGetxController
+    add x1, x1, x28, lsl #32
+    ldr x16, [x17, #200]
+    br x16
+.Lpage_visible_return:
+    stur w0, [x9, #11]            // canonical boolean: enabled
+    ldur w11, [x9, #7]
+    add x11, x11, x28, lsl #32
+    str x11, [x29, x10]           // restore original child-list root after GC
+    stur w22, [x9, #7]            // publish a normal null key
+    mov x0, x9
+.Lpage_resume:
+    ldr x16, [x17, #240]
+    br x16
+
+// The native Marquee wraps even zero-length fading in a ShaderMask plus scroll
+// listeners. Return its existing ListView only when both fractions are zero.
+// Nonzero/invalid fractions and other modes keep the original Dart callee/PC.
+kh_label_fade:
+    hint #38
+    adr x17, kh_label_config
+    ldr x16, [x17]
+    ldar w16, [x16]
+    cmp w16, #1
+    b.ne .Lfade_original
+    ldur w9, [x1, #0xb]
+    add x9, x9, x28, lsl #32
+    cmp w9, w22
+    b.eq .Lfade_original
+    ldr x10, [x17, #272]
+    ldr d0, [x9, x10]
+    fcmp d0, #0.0
+    b.ne .Lfade_original
+    ldr x10, [x17, #280]
+    ldr d1, [x9, x10]
+    fcmp d1, #0.0
+    b.ne .Lfade_original
+    mov x0, x2
+    ret
+.Lfade_original:
+    ldr x16, [x17, #264]
+    br x16
+
 kh_label_lines:
     hint #38
     adr x0, kh_label_config
@@ -185,6 +340,6 @@ kh_label_lines:
 
     .balign 8
 kh_label_config:
-    .zero 192
+    .zero 288
 kh_label_end:
     .section .note.GNU-stack,"",%progbits

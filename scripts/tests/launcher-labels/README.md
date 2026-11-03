@@ -28,11 +28,17 @@ python scripts/tests/launcher-labels/test_bridge.py \
   .artifacts/inputs/launchers/7722/libapp.so
 ```
 
-The 132 execution cases stub the original Dart measurement, allocation and
-constructor callees. They assert the original return PC, tagged root locations,
-simulated relocating roots, native fallback under pressure and unchanged VM
-registers. They do not run Dart GC or prove Flutter rendering. Device acceptance
-is a separate required check after a fresh native load.
+The 540 execution cases stub the original Dart measurement, prefix, allocation,
+constructor, fade, visibility and title-refresh callees. They assert original return
+PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
+width boundaries, preference changes, native pressure fallbacks and unchanged VM
+registers. Fade cases cover zero/nonzero/invalid fractions, all modes and a
+missing widget, checking the unchanged callee arguments and return PC. Page cases
+also execute the exact 11
+initialization instructions from each fixture and assert that the Stack is
+initialized before visibility can trigger GC. They do not run Dart GC or prove
+Flutter rendering. Device acceptance is a separate required check after a fresh
+native load.
 
 The existing `icon-highlight/test_exact_patch.cpp` now exercises all three exact
 patch kinds, including page boundaries and injected protection/rollback failures.

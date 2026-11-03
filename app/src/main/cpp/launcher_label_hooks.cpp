@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 extern "C" const uint8_t kh_label_template[], kh_label_pre[], kh_label_post[], kh_label_lines[],
-        kh_label_config[], kh_label_end[], kh_label_refresh[];
+        kh_label_config[], kh_label_end[], kh_label_refresh[], kh_label_page_post[], kh_label_page_replay[], kh_label_fade[];
 namespace {
 uint32_t installed = 0;
 struct Loaded { uintptr_t base; IconHighlightRange ranges[16]; size_t count, span; bool valid; };
@@ -48,7 +48,7 @@ bool Reject(const char* why) {
     __android_log_print(ANDROID_LOG_WARN, "KeiHomeLabels", "Labels inactive: %s", why);
     return false;
 }
-void* AllocateNear(uintptr_t call, uintptr_t refresh_call, size_t size) {
+void* AllocateNear(uintptr_t call, uintptr_t refresh_call, uintptr_t page_post, uintptr_t fade_call, size_t size) {
     const uintptr_t aligned = call & ~(uintptr_t(size) - 1);
     for (uintptr_t distance = 0x1000000; distance < 0x7000000; distance += 0x1000000) {
         for (int sign = -1; sign <= 1; sign += 2) {
@@ -58,8 +58,12 @@ void* AllocateNear(uintptr_t call, uintptr_t refresh_call, size_t size) {
             if (p == MAP_FAILED) continue;
             const int64_t delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(call);
             const int64_t refresh_delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(refresh_call);
+            const int64_t page_delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(page_post);
+            const int64_t fade_delta = int64_t(reinterpret_cast<uintptr_t>(p)) - int64_t(fade_call);
             if (delta >= -0x8000000 && delta < 0x8000000 &&
-                    refresh_delta >= -0x8000000 && refresh_delta < 0x8000000) return p;
+                    refresh_delta >= -0x8000000 && refresh_delta < 0x8000000 &&
+                    page_delta >= -0x8000000 && page_delta < 0x8000000 &&
+                    fade_delta >= -0x8000000 && fade_delta < 0x8000000) return p;
             munmap(p, size);
         }
     }
@@ -88,9 +92,9 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     const size_t bytes = size_t(kh_label_end - kh_label_template);
     const size_t config = size_t(kh_label_config - kh_label_template);
     if (queried < 4096 || queried > 65536 || (queried & (queried-1)) || bytes > size_t(queried) ||
-            config + 192 != bytes) return Reject("bridge ABI");
+            config + 288 != bytes) return Reject("bridge ABI");
     auto* bridge = static_cast<uint8_t*>(AllocateNear(loaded.base + p.allocation_call,
-            loaded.base + p.refresh_call, size_t(queried)));
+            loaded.base + p.refresh_call, loaded.base + p.cell_call + 4, loaded.base + p.fade_call, size_t(queried)));
     if (!bridge) return Reject("near bridge unavailable");
     memcpy(bridge, kh_label_template, bytes);
     const uint64_t data[] = {
@@ -104,9 +108,15 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
         loaded.base + p.refresh_logger, loaded.base + p.font_refresh,
         reinterpret_cast<uintptr_t>(&kh_launcher_label_revision),
         reinterpret_cast<uintptr_t>(&kh_launcher_label_notified),
+        p.ticker_tag, loaded.base + p.cell_visibility,
+        uint64_t(int64_t(p.cell_root_slot)), 0,
+        p.cell_controller_field, p.cell_screen_field, loaded.base + p.cell_call + 48,
+        uint64_t(int64_t(p.prefix_widget_slot)), loaded.base + p.prefix_helper,
+        loaded.base + p.fade_wrap, p.fade_start_field, p.fade_end_field,
     };
-    static_assert(sizeof(data) == 192);
+    static_assert(sizeof(data) == 288);
     memcpy(bridge + config, data, sizeof(data));
+    memcpy(bridge + (kh_label_page_replay - kh_label_template), p.cell_replay, sizeof(p.cell_replay));
     __builtin___clear_cache(reinterpret_cast<char*>(bridge), reinterpret_cast<char*>(bridge) + bytes);
     if (mprotect(bridge, size_t(queried), PROT_READ | PROT_EXEC)) {
         munmap(bridge, size_t(queried)); return Reject("bridge RX publication");
@@ -136,10 +146,23 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     memcpy(&original, image.base + p.refresh_call, 4);
     if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.refresh_call), original, refresh_call) != kHookSuccess)
         return Reject("refresh call transaction");
+    const uintptr_t page_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_page_post - kh_label_template));
+    const int64_t page_delta = int64_t(page_bridge) - int64_t(loaded.base + p.cell_call + 4);
+    if (page_delta < -0x8000000 || page_delta >= 0x8000000) return Reject("page branch range");
+    const uint32_t page_jump = 0x14000000u | (uint32_t(page_delta / 4) & 0x3ffffffu);
+    if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.cell_call + 4),
+            p.cell_post_expected, page_jump) != kHookSuccess) return Reject("page return transaction");
+    const uintptr_t fade_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_fade - kh_label_template));
+    const int64_t fade_delta = int64_t(fade_bridge) - int64_t(loaded.base + p.fade_call);
+    if (fade_delta < -0x8000000 || fade_delta >= 0x8000000) return Reject("fade branch range");
+    const uint32_t fade_call = 0x94000000u | (uint32_t(fade_delta / 4) & 0x3ffffffu);
+    memcpy(&original, image.base + p.fade_call, 4);
+    if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.fade_call), original, fade_call) != kHookSuccess)
+        return Reject("fade call transaction");
     __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&installed, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeLabels",
-            "Dynamic labels ready: builder=0x%zx lines=0x%zx refresh=0x%zx textCID=%u marqueeCID=%u; mode=native",
-            p.builder, p.lines, p.refresh_call, p.text_cid, p.marquee_tag >> 12);
+            "Dynamic labels ready: builder=0x%zx lines=0x%zx refresh=0x%zx page=0x%zx textCID=%u marqueeCID=%u; mode=native",
+            p.builder, p.lines, p.refresh_call, p.cell_call, p.text_cid, p.marquee_tag >> 12);
     return true;
 }

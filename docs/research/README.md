@@ -7,6 +7,10 @@ Cleanup does not constitute a new device validation or close an open defect.
 The exact retention and space accounting are in the
 [November 1 cleanup receipt](2026-11-01-cleanup.md).
 
+The [November 4 cleanup receipt](2026-11-04-cleanup.md) records the subsequent
+removal of regenerable builds and superseded KeiHome APKs, the compressed
+launcher-label traces, and retention of three Themes and five Home versions.
+
 ## Findings to reuse
 
 | Area | Durable conclusions and remaining limits | Main note |
@@ -32,9 +36,9 @@ ignored: proprietary APKs, device data and large binaries do not belong in Git.
 | Path | Purpose |
 | --- | --- |
 | `.artifacts/inputs/manifest.json` | Original path, size and SHA-256 for each retained input |
-| `.artifacts/inputs/launchers/{7722,8593}/` | One original launcher APK and a ready-to-use `libapp.so` per version |
+| `.artifacts/inputs/launchers/{7722,8593,8602,9209,9226}/` | Original launcher APKs, native test fixtures and provenance |
 | `.artifacts/inputs/systemui/` | Exact SystemUI host/plugin APKs used by the material investigation |
-| `.artifacts/inputs/themes/` | Native Themes importer source APK |
+| `.artifacts/inputs/themes/Themes-{11540,11541,11560}.apk` | Three retained native Themes importer source APK versions |
 | `.artifacts/inputs/framework/` | Framework resources/JAR and system-partition native readers |
 | `.artifacts/inputs/icon-packs/` | Arcticons and Lawnicons test APKs; no artwork is bundled in KeiHome |
 | `.artifacts/inputs/icon-samples/` | Original malformed-monochrome sample APKs |
@@ -42,11 +46,14 @@ ignored: proprietary APKs, device data and large binaries do not belong in Git.
 | `.artifacts/research/2026-11-01/manifest.json.gz` | Per-file retention/deletion decisions, hashes and duplicate-member mapping |
 | `.artifacts/releases/1793454007/diagnostics.tar.gz` | Exact R8 mapping, native symbols and saved build/test reports |
 | `.artifacts/releases/1793454007/manifest.json` | Release APK hash and hashes of retained diagnostic files |
+| `.artifacts/releases/101000181/` | Current accepted APK and verified compressed R8/native diagnostics |
+| `.artifacts/research/cleanup-20261104/` | Cleanup plan/receipt and lossless historical launcher-label trace/log archive |
 
-The current APK remains at `app/build/outputs/apk/release/app-release.apk`.
-Its previously delivered copy under the user's visualizations directory is
-also preserved. The working `/tmp/keihome-capstone-venv` remains available;
-its older duplicate under `keihome-tint-abi/venv` was regenerable.
+The current accepted APK is retained under `.artifacts/releases/101000181/`.
+The redundant `app/build/outputs/` copy and build intermediates were removed on
+November 4; the next build recreates them. Historical delivered copies outside
+this checkout were not part of that cleanup. The older duplicate environment
+under `keihome-tint-abi/venv` was regenerable.
 
 ## Reading an old evidence path
 

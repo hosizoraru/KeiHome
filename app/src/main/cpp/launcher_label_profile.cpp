@@ -5,6 +5,7 @@
 namespace {
 struct LabelWord { uint32_t word, mask; };
 #include "launcher_label_patterns.inc"
+#include "launcher_label_variants.inc"
 bool Reject(const char** why, const char* text) { if (why) *why = text; return false; }
 bool Contains(const IconHighlightImage& im, size_t pc, size_t n) {
     for (size_t i = 0; i < im.range_count; ++i) {
@@ -78,21 +79,32 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
     *out = {};
     if (!ValidateArm64DartImage(im)) return Reject(why, "invalid label image");
     LauncherLabelProfile p{};
-    p.builder = Find(im, kLabelBuilder); p.lines = Find(im, kLabelLines);
-    p.config = Find(im, kLabelConfig); p.value = Find(im, kLabelValue);
+    const auto either = [](size_t a, size_t b) { return a && b && a != b ? size_t{0} : a ? a : b; };
+    p.builder = Find(im, kLabelBuilder);
+    p.lines = either(Find(im, kLabelLines), Find(im, kLabelLinesInline));
+    p.config = either(Find(im, kLabelConfig), Find(im, kLabelConfigExpanded));
+    p.value = Find(im, kLabelValue);
     p.measure = Find(im, kLabelMeasure); p.marquee_constructor = Find(im, kLabelMarqueeCtor);
-    p.change_event = Find(im, kLabelChangeEvent); p.font_refresh = Find(im, kLabelFontRefresh);
+    p.change_event = either(Find(im, kLabelChangeEvent), Find(im, kLabelChangeEventExpanded));
+    p.font_refresh = Find(im, kLabelFontRefresh);
     const size_t type = Find(im, kLabelMarqueeType);
     if (!p.builder || !p.lines || !p.config || !p.value || !p.measure || !p.marquee_constructor || !type ||
             !p.change_event || !p.font_refresh)
         return Reject(why, "ambiguous label instruction roles");
     const size_t cell = Find(im, kLabelCellContent);
-    const size_t grid_body = Find(im, kLabelCellGridBody);
+    const size_t grid_body = either(Find(im, kLabelCellGridBody), Find(im, kLabelCellGridBodyExpanded));
     const size_t ticker_effective = Find(im, kLabelTickerEffective);
     const size_t ticker_type = Find(im, kLabelTickerType, 0x98, ticker_effective);
     p.cell_visibility = Find(im, kLabelGridVisibility);
-    if (!cell || !grid_body || !ticker_effective || !ticker_type || !p.cell_visibility ||
-            !Matches(im, p.cell_visibility + 0x1a4, kLabelGridVisibilityTail) ||
+    size_t visibility_tail = 0;
+    if (p.cell_visibility) {
+        for (size_t at = p.cell_visibility + 0x180; at <= p.cell_visibility + 0x220; at += 4) {
+            if (!Matches(im, at, kLabelGridVisibilityTail)) continue;
+            if (visibility_tail) return Reject(why, "ambiguous page visibility tail");
+            visibility_tail = at;
+        }
+    }
+    if (!cell || !grid_body || !ticker_effective || !ticker_type || !p.cell_visibility || !visibility_tail ||
             !Matches(im, cell + 0xbc, kLabelCellListInit) ||
             !Matches(im, Call(im, cell + 0x34), kLabelCellGridFactory) ||
             grid_body != Call(im, cell + 0x34) + 0x64)
@@ -143,7 +155,13 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
         if (!log_calls++) { p.refresh_call = at; p.refresh_logger = target; }
     }
     if (log_calls != 2) return Reject(why, "item-change refresh call graph changed");
-    if (Call(im, p.lines + 12) != p.config || Call(im, p.config + 0x54) != p.value)
+    const bool inline_lines = Matches(im, p.lines, kLabelLinesInline);
+    const bool line_config_graph = inline_lines ?
+        (Call(im, p.lines + 0x48) == Call(im, p.config + 0x48) &&
+         Slot(Word(im, p.lines + 0x10)) == Slot(Word(im, p.config + 0x10)) &&
+         Word(im, p.lines + 0x4c) == Word(im, p.config + 0x4c) &&
+         Call(im, p.lines + 0x54) == p.value) : Call(im, p.lines + 12) == p.config;
+    if (!line_config_graph || Call(im, p.config + 0x54) != p.value)
         return Reject(why, "label configuration graph changed");
     p.grid_slot = Slot(Word(im, p.config + 16));
     p.config_rx_field = uint32_t(Field(Word(im, p.config + 0x4c)));
@@ -226,7 +244,7 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
         return Reject(why, "marquee/Size class contract changed");
     // This exact native measurement constructor supplies TextDirection.ltr.
     p.ltr_slot = Slot(Word(im, p.measure + 0x114));
-    p.lines_tail = p.lines + 0x44;
+    p.lines_tail = p.lines + (inline_lines ? 0x8c : 0x44);
     const uint32_t tail[] = {0xaa0103e0u, 0xaa1d03efu, 0xa8c179fdu, 0xd65f03c0u};
     memcpy(p.lines_expected, tail, 16);
     for (size_t i = 0; i < 4; ++i) {
@@ -239,7 +257,8 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
         if (slots[i] >= 0 || slots[i] < -frame || (slots[i] & 7)) return Reject(why, "invalid label stack slot");
         for (size_t j = 0; j < i; ++j) if (slots[i] == slots[j]) return Reject(why, "aliased label roots");
     }
-    if (!p.grid_slot || p.config_rx_field != 0x2b || p.rx_value_field != 0x13 ||
+    const uint32_t config_field = inline_lines ? 0x2f : 0x2b;
+    if (!p.grid_slot || p.config_rx_field != config_field || p.rx_value_field != 0x13 ||
             !p.ltr_slot || p.width_field != 0x2b || !p.source_width_field ||
             !NoInteriorBranch(im, p.allocation_call + 4) || !NoInteriorBranch(im, p.lines_tail))
         return Reject(why, "unsupported label fields/patch ingress");

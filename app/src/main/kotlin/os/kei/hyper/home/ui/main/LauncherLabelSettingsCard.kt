@@ -24,7 +24,7 @@ import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 internal fun LauncherLabelSettingsCard(model: HomeViewModel) {
   val state by model.launcherLabels.state.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
-  val runtime by model.runtime.collectAsStateWithLifecycle()
+  val runtime by model.launcherLabelRuntime.collectAsStateWithLifecycle()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val inScope = framework.launcherLabelsInScope()
   LaunchedEffect(model, lifecycle, state.saved, inScope) {

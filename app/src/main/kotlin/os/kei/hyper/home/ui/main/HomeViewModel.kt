@@ -146,6 +146,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(FrameworkUiState())
   val runtime: StateFlow<RuntimeStatusUiState>
     field = MutableStateFlow(RuntimeStatusUiState())
+  val launcherLabelRuntime: StateFlow<RuntimeStatusUiState>
+    field = MutableStateFlow(RuntimeStatusUiState())
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
   val themeEffects: StateFlow<ThemeEffectsUiState>
@@ -261,6 +263,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       FrameworkConnection.service.collectLatest { service ->
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
+        launcherLabelRuntime.value = RuntimeStatusUiState()
         themeEffects.value = ThemeEffectsUiState()
         launcherLabels.reset()
         splashAppearance.value = ThemeEffectsUiState()
@@ -668,22 +671,25 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
       val service = FrameworkConnection.service.value ?: return
+      // A label-only receipt deliberately omits the icon inventory. Keep its
+      // lifecycle/failures separate from the complete theme report and freshness.
+      val status: MutableStateFlow<RuntimeStatusUiState> = if (includeIconTheme) runtime else launcherLabelRuntime
       // Rapid pager changes reuse a recent receipt; manual refresh still requests a new one.
-      val previous = runtime.value.report
-      if (!force && !runtime.value.readFailed && !runtime.value.timedOut && previous != null &&
+      val previous = status.value.report
+      if (!force && !status.value.readFailed && !status.value.timedOut && previous != null &&
         requestedAt - previous.checkedAtElapsed in 0..3_000 && (!includeIconTheme || previous.iconTheme != null)) return
       // Share a probe that completed while a manual refresh waited for the periodic one.
-      if ((runtime.value.report?.checkedAtElapsed ?: -1L) >= requestedAt &&
-        (!includeIconTheme || runtime.value.report?.iconTheme != null)) return
+      if ((status.value.report?.checkedAtElapsed ?: -1L) >= requestedAt &&
+        (!includeIconTheme || status.value.report?.iconTheme != null)) return
       // Binder calls cannot always be interrupted. Keep at most one outstanding I/O task,
       // while allowing the page/refresh to finish at its deadline and cancel its observation.
       if (runtimeRead?.isCompleted == false) {
-        val fresh = runtime.value.report?.takeIf { it.isFresh(requestedAt) }
-        runtime.value = RuntimeStatusUiState(report = fresh, checking = true)
-        if (fresh == null) browserSource.value = null
+        val fresh = status.value.report?.takeIf { it.isFresh(requestedAt) }
+        status.value = RuntimeStatusUiState(report = fresh, checking = true)
+        if (includeIconTheme && fresh == null) browserSource.value = null
         return
       }
-      runtime.update {
+      status.update {
         RuntimeStatusUiState(report = it.report?.takeIf { report ->
           report.isFresh(SystemClock.elapsedRealtime())
         }, checking = true)
@@ -693,7 +699,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       try {
         val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }
         if (FrameworkConnection.service.value === service) {
-          runtime.value = RuntimeStatusUiState(report = report, timedOut = report == null)
+          status.value = RuntimeStatusUiState(report = report, timedOut = report == null)
           if (includeIconTheme) {
             val theme = report?.iconTheme
             if (theme?.previewKey == null) browserSource.value = null
@@ -706,12 +712,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           }
         }
       } catch (cancellation: CancellationException) {
-        if (FrameworkConnection.service.value === service) runtime.update { it.copy(checking = false) }
+        if (FrameworkConnection.service.value === service) status.update { it.copy(checking = false) }
         throw cancellation
       } catch (_: Exception) {
         if (FrameworkConnection.service.value === service) {
-          runtime.value = RuntimeStatusUiState(readFailed = true)
-          browserSource.value = null
+          status.value = RuntimeStatusUiState(readFailed = true)
+          if (includeIconTheme) browserSource.value = null
         }
       } finally {
         operation.cancel()

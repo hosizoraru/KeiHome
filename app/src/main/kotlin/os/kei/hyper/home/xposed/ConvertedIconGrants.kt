@@ -13,20 +13,19 @@ import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Exact Themes 11540 association and private persistence; no active theme files are written. */
+/** Dynamically resolved native association and private persistence. */
 internal class ConvertedIconGrants(
   private val loader: ClassLoader,
+  private val profile: ThemeImportProfile,
   private val hashTiming: (String, Long) -> Unit = { _, _ -> },
 ) {
   private val resourceClass = type("basemodule.resource.model.Resource")
   private val contextClass = type("ResourceContext")
   private val controllerClass = type("controller.ThemeController")
   private val resolverConstructor = type("model.ResourceResolver").getConstructor(resourceClass, contextClass)
-  private val parentMethod = type("basemodule.resource.ResourceHelper").getMethod("h", resourceClass,
-    type("basemodule.resource.NewResourceContext"))
+  private val parentMethod = profile["parent"]
   private val approvals = ConvertedIconApprovals()
-  // These verified 11540 getters only read Resource/RelatedResource fields. In particular,
-  // getParentResources is not ResourceHelper.h, which parses the parent's JSON on disk.
+  // Public model getters read fields; the separately resolved parent role reads parent metadata.
   private val resourceGetters = listOf("getLocalId", "getHash", "getOnlineId", "getProductId",
     "getAssemblyId", "getMetaPath", "getContentPath", "getResourceStorageType", "getParentResources")
     .associateWith { resourceClass.getMethod(it) }
@@ -57,7 +56,7 @@ internal class ConvertedIconGrants(
 
   fun register(context: Context, stagePath: String, localId: String, expected: ConvertedIconArchive.Proof) {
     requireWorker()
-    checkVersion(context)
+    checkHost(context)
     val stage = File(stagePath)
     val directory = requireNotNull(stage.parentFile)
     require(stage.isAbsolute && stage.name == "icons.mtz" &&
@@ -157,15 +156,15 @@ internal class ConvertedIconGrants(
   }
 
   private fun iconContext(): Any {
-    val inner = type("AppInnerContext").getMethod("zy").invoke(null)
-    val registry = inner.javaClass.getMethod("n").invoke(inner)
-    return requireNotNull(registry.javaClass.getMethod("f7l8", String::class.java).invoke(registry, "icons"))
+    val inner = profile["inner"].invoke(null)
+    val registry = profile["registry"].invoke(inner)
+    return requireNotNull(profile["iconContext"].invoke(registry, "icons"))
   }
 
   private fun lookup(ctx: Any, localId: String): Any {
     val controller = controllerClass.getConstructor(contextClass).newInstance(ctx)
-    val manager = controllerClass.getMethod("k").invoke(controller)
-    return requireNotNull(manager.javaClass.getMethod("qrj", String::class.java).invoke(manager, localId)) {
+    val manager = profile["controllerManager"].invoke(controller)
+    return requireNotNull(profile["lookup"].invoke(manager, localId)) {
       "Imported Icon is no longer in the native library"
     }
   }
@@ -203,17 +202,16 @@ internal class ConvertedIconGrants(
     check(Looper.myLooper() != Looper.getMainLooper()) { "Converted approval requires a worker thread" }
   }
 
-  private fun appContext(): Context = type("basemodule.context.AppContextManager").getMethod("q")
-    .invoke(null) as Context
+  private fun appContext(): Context = profile["appContext"].invoke(null) as Context
 
   private fun type(name: String): Class<*> = Class.forName("com.android.thememanager.$name", false, loader)
   private fun string(target: Any, name: String): String? = target.javaClass.getMethod(name).invoke(target) as? String
 
-  private fun checkVersion(context: Context) {
+  private fun checkHost(context: Context) {
     require(context.packageName == ThemeIconImportRuntime.PACKAGE_NAME)
     val info = context.packageManager.getPackageInfo(context.packageName, 0)
-    require(info.longVersionCode == 11540L && info.versionName == "11.5.4.0" &&
-      info.applicationInfo?.uid == Process.myUid()) { "Unverified converted Icon contract" }
+    require(info.applicationInfo?.uid == Process.myUid() && profile["parent"].declaringClass.classLoader ===
+      resourceClass.classLoader) { "Themes host identity or resolved loader changed" }
   }
 
   private fun storage(context: Context): AtomicFile = AtomicFile(File(
@@ -221,7 +219,7 @@ internal class ConvertedIconGrants(
 
   // Called only by workers under the publication state's writer lock.
   private fun read(context: Context): Map<String, ConvertedIconGrant> {
-    checkVersion(context)
+    checkHost(context)
     val file = storage(context)
     val grants = LinkedHashMap<String, ConvertedIconGrant>()
     if (file.baseFile.exists() || File(file.baseFile.path + ".bak").exists()) {

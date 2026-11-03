@@ -21,7 +21,7 @@ class KeiHomeModule : XposedModule() {
     if (!param.isFirstPackage) return
     when (param.packageName) {
       ThemeIconImportRuntime.PACKAGE_NAME ->
-        if (themeIconImport == null) installThemeImportHooks(param.defaultClassLoader)
+        if (themeIconImport == null) installThemeImportHooks(param.defaultClassLoader, info = param.applicationInfo)
       SystemUiThemeCompatibilityRuntime.PACKAGE_NAME -> {
         if (systemUiTheme == null) installSystemUiThemeHooks(param.defaultClassLoader)
       }
@@ -31,7 +31,7 @@ class KeiHomeModule : XposedModule() {
   override fun onPackageReady(param: PackageReadyParam) {
     when (param.packageName) {
       ThemeIconImportRuntime.PACKAGE_NAME ->
-        if (themeIconImport == null) installThemeImportHooks(param.classLoader)
+        if (themeIconImport == null) installThemeImportHooks(param.classLoader, info = param.applicationInfo)
       SystemUiThemeCompatibilityRuntime.PACKAGE_NAME ->
         if (systemUiTheme == null) installSystemUiThemeHooks(param.classLoader)
     }
@@ -113,8 +113,12 @@ class KeiHomeModule : XposedModule() {
     }
   }
 
-  private fun installThemeImportHooks(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
-    val runtime = ThemeIconImportRuntime(this, loader)
+  private fun installThemeImportHooks(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList(),
+    info: android.content.pm.ApplicationInfo? = null) {
+    val hostInfo = info ?: (Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+      .invoke(null) as android.app.Application).applicationInfo
+    val profile = ThemeImportProfile.resolve(loader, hostInfo)
+    val runtime = ThemeIconImportRuntime(this, loader, profile)
     runtime.install(oldHooks)
     themeIconImport = runtime
   }

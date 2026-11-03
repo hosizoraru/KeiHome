@@ -21,11 +21,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class ThemeIconImportRuntime(
   private val xposed: XposedInterface,
   val classLoader: ClassLoader,
+  private val profile: ThemeImportProfile,
 ) {
   private val gate = ThemeIconImportGate()
   private val approvalWarningLogged = AtomicBoolean()
   private val generation = System.identityHashCode(this).toString(16)
-  private val grants = ConvertedIconGrants(classLoader) { stage, nanos ->
+  private val grants = ConvertedIconGrants(classLoader, profile) { stage, nanos ->
     xposed.log(Log.INFO, TAG,
       "Converted $stage hash generation=$generation tid=${Process.myTid()} elapsedMs=${nanos / 1_000_000}")
   }
@@ -40,8 +41,7 @@ internal class ThemeIconImportRuntime(
     require(method.returnType == IBinder::class.java) { "Unexpected Themes onBind contract" }
     fun native(name: String) = Class.forName("$PACKAGE_NAME.$name", false, classLoader)
     val resource = native("basemodule.resource.model.Resource")
-    val rights = native("module.detail.util.ResourceRightsHelper").getDeclaredMethod("k",
-      native("ResourceContext"), native("controller.ThemeController"), native("controller.online.DrmService"), resource)
+    val rights = profile["rights"]
     val drmResult = Class.forName("miui.drm.DrmManager\$DrmResult", false, classLoader)
     require(rights.returnType == drmResult && Modifier.isStatic(rights.modifiers))
     val drmResults = requireNotNull(drmResult.enumConstants)
@@ -49,22 +49,20 @@ internal class ThemeIconImportRuntime(
     val unknown = drmResults.single { (it as Enum<*>).name == "DRM_ERROR_UNKNOWN" }
     // Resolve the host's LiveData from its signature. Class.forName with a full AndroidX
     // name is rewritten by R8 to KeiHome's own obfuscated class, absent from the host loader.
-    val apply = native("module.detail.util.ResourceApplyHelper").declaredMethods.single { candidate ->
+    val apply = profile["apply"].also { candidate ->
       val p = candidate.parameterTypes
-      candidate.name == "toq" && p.size == 11 && p[0] == Activity::class.java &&
+      require(p.size == 11 && p[0] == Activity::class.java &&
         p[1] == String::class.java && p[2] == resource &&
         p[3] == Int::class.javaPrimitiveType && p[4] == Int::class.javaPrimitiveType &&
         p[6].simpleName == "MutableLiveData" &&
-        listOf(5, 7, 8, 9, 10).all { p[it] == Boolean::class.javaPrimitiveType }
+        listOf(5, 7, 8, 9, 10).all { p[it] == Boolean::class.javaPrimitiveType })
     }
     require(apply.returnType == Void.TYPE && Modifier.isStatic(apply.modifiers))
-    val detailReady = native("module.detail.view.ThemeDetailActivity").getDeclaredMethod(
-      "yqrt", resource, String::class.java, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+    val detailReady = profile["detailReady"]
     val automatic = NativeIconAutoApply(apply)
-    val validate = native("util.ApplyValidateThemeTask").getDeclaredMethod("n", Context::class.java,
-      String::class.java, String::class.java)
+    val validate = profile["validate"]
     require(validate.returnType == Pair::class.java && !Modifier.isStatic(validate.modifiers))
-    // Resolve all exact 11540 contracts before changing hooks. Registration stays unavailable
+    // Resolve the complete installed-DEX contract before changing hooks. Registration stays unavailable
     // until every approval callback is installed in this generation.
     installHook(attach, ATTACH_HOOK_ID, XposedInterface.Hooker { chain ->
       if (!gate.enter()) null else try {

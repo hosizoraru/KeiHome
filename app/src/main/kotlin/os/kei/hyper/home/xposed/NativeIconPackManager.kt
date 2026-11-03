@@ -34,8 +34,8 @@ import org.json.JSONObject
  * request authorization, the private-provider handoff, validation of the inner icons module, and
  * worker lifetime. Do not call from a configuration hook, Binder ingress, or the main thread.
  *
- * Verified against installed Themes 11.5.4.0 (11540), APK SHA-256
- * 089429477c7b33784e306a419e8684651bcad86f480e060cfb9bb8ed389a8659:
+ * The Themes process resolves its own entry points with DexKit. This client verifies
+ * system-app/service ownership and the public Binder protocol before native submission:
  * ThemeRuntimeDataProvider / ThemeProvider; ThemePCService / IThemePCService;
  * ThemeImportService; model.ResourceResolver; ResourceHelper.wvg (SHA-1).
  * The PC service imports into the native library; it does not apply the imported resource.
@@ -333,9 +333,9 @@ internal object NativeIconPackManager {
   private fun verifyInstalledContract(context: Context) {
     val info = context.packageManager.getPackageInfo(THEMES, 0)
     val app = info.applicationInfo ?: throw UnsupportedContract("Themes application info unavailable")
-    if (info.longVersionCode != 11540L || info.versionName != "11.5.4.0" || app.uid < 0 ||
+    if (app.uid < 0 ||
       app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) {
-      throw UnsupportedContract("Unverified Themes version ${info.versionName}/${info.longVersionCode}")
+      throw UnsupportedContract("Themes system application identity unavailable")
     }
     val service = context.packageManager.getServiceInfo(ComponentName(THEMES, "$THEMES.service.ThemePCService"), 0)
     if (!service.exported || service.applicationInfo.uid != app.uid) {

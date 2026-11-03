@@ -6,7 +6,7 @@ import android.os.SystemClock
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 
-/** Uses the inspected 11540 native apply task, with an import-bound, single-use authorization. */
+/** Uses the resolved native apply task, with an import-bound, single-use authorization. */
 internal class NativeIconAutoApply(private val apply: Method) {
   fun resourceReady(activity: Activity, resource: Any, code: String) {
     val token = activity.intent.getStringExtra(EXTRA) ?: return

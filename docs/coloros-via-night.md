@@ -132,3 +132,33 @@ Evidence is under `.artifacts/research/via-night-20261103/`, including resource
 comparisons, native catalog receipts, device tests, deployment identities,
 applied archive captures and screenshots. Final visual acceptance and Release
 identity are recorded in the acceptance receipt after the complete workflow.
+
+## HyperOS AVD acceptance, 2026-11-04
+
+- The complete catalog handoff and four priority/preservation cases passed on the
+  actual installed Apple Music 7.0.0 and Via APKs. The actual applied icons archive
+  contains the selected native Apple masks and downloaded Via night artwork.
+- Two DexKit diagnostics passed against both inspected Themes APKs, and reject an
+  unrelated APK. Native import, automatic apply and manual apply then worked on
+  the current Themes installation using the resolved methods.
+- Classic ART+ shows **ColorOS fallback: 531 unique packages** in the applied
+  completion card. Via becomes the downloaded dark icon and returns to the white
+  icon in light mode. The completed module has 780 native resources / 725 night
+  resources; these include activity aliases and differ from package counts.
+- Ordinary Classic ART+ now exposes Monet when its applied module has validated
+  palette selectors. Live desktop Via and Apple Music changed to the published
+  palette while explicit pack artwork stayed colored. Turning Monet off restored
+  the artwork. The relevant original Apple monochrome selection is separately
+  asserted by the device test.
+- With automatic apply disabled, generation shows Ready to apply and the primary
+  button opens the existing native component. Manual application clears pending
+  and update status, with no second conversion. Automatic apply was restored and
+  another generation/application restored name matching. Refresh does not revive
+  the update badge for the completed copy.
+- 39 Python and 25 focused JVM tests passed. Release lint passed. API 102 Java
+  replacements preserved Launcher 19539, SystemUI 9696 and system_server 8812.
+  No launcher-native payload reload or physical-device acceptance was performed.
+- Final user state: Chinese, dark mode, marquee labels, default system fallback,
+  app-name matching and automatic apply enabled; Monet and the external-pack
+  ColorOS option disabled. Final Release identity and installation verification
+  are recorded in `.artifacts/research/via-night-20261103/acceptance.json`.

@@ -69,8 +69,9 @@ int main(int argc, char** argv) {
         out.update_callback_entry-base,out.should_entry-base,eq,out.string_allocator_entry-base,
         out.factory_pool_offset,out.update_callback_pool_offset,out.controller_type_pool_offset);
     Check(out.resume==reinterpret_cast<uintptr_t>(out.entry)+16,"displaced resume");
-    Check(out.factory_pool_offset==out.update_callback_pool_offset+16 &&
-          out.update_callback_pool_offset==out.controller_type_pool_offset+8,"derived pool adjacency");
+    Check(out.factory_pool_offset!=out.update_callback_pool_offset &&
+          out.update_callback_pool_offset!=out.controller_type_pool_offset &&
+          out.factory_pool_offset!=out.controller_type_pool_offset,"independently derived pool producers");
     Check(Read(bytes,eq+28)==0xf1017a1fu && Read(bytes,eq+36)==0xf8407002u &&
           Read(bytes,eq+64)==0x91003c00u && Read(bytes,eq+96)==0x9100c2c0u,
           "independent CID 94, tagged length +7, data +15, false x22+0x30");
@@ -95,7 +96,7 @@ int main(int argc, char** argv) {
     }
     auto dep=bytes;const size_t dependency=BlTarget(dep,has+68);
     Write(dep,dependency,Read(dep,dependency)^4u);reject(dep,"actual dependency instruction drift");
-    auto pool=bytes;Write(pool,has+96,Read(pool,has+96)+0x400u);reject(pool,"factory pool slot breaks linkage");
+    auto pool=bytes;Write(pool,has+96,Read(pool,has+96)^0x00400000u);reject(pool,"factory pool producer opcode changed");
     auto wrongreg=bytes;Write(wrongreg,has+92,Read(wrongreg,has+92)^0x20u);reject(wrongreg,"PP source register is not a relocation");
     std::vector<size_t> callers;
     for(size_t pc=rx;pc+4<=rx+rxsize;pc+=4) {
@@ -105,6 +106,14 @@ int main(int argc, char** argv) {
         if(target==int64_t(has))callers.push_back(pc);
     }
     Check(callers.size()==2,"all executable bytes contain exactly two direct has callers");
+    for(size_t pc=rx;pc+4<=rx+rxsize;pc+=4) {
+        const auto w=Read(bytes,pc);
+        if((w&0xfc000000u)!=0x94000000u)continue;
+        const int64_t target=int64_t(pc)+((int64_t(w&0x3ffffffu)^(1<<25))-(1<<25))*4;
+        if(target!=int64_t(valid.should_entry-base))continue;
+        auto bad=bytes;Write(bad,pc,w^1u);
+        reject(bad,"every predicate caller remains required in its reviewed family");
+    }
     // Extend RX into the external file's zero-filled alignment gap. No original
     // instruction is overwritten and no fixture RVA is needed. This is a host
     // mutation only, not an ELF that will ever be installed or executed.
@@ -138,7 +147,9 @@ int main(int argc, char** argv) {
         const auto a=Read(shifted,pc), l=Read(shifted,pc+4), reg=a&31u;
         if((a&0xffc003e0u)!=0x91400360u||(l&0xffc003e0u)!=(0xf9400000u|(reg<<5u)))continue;
         const size_t slot=((a>>10u)&4095u)*4096u+((l>>10u)&4095u)*8u;
-        if(slot>=valid.controller_type_pool_offset && slot<=valid.factory_pool_offset) {
+        const size_t initializer=((Read(bytes,has+60)>>10)&0xfffu)*4096+((Read(bytes,has+64)>>10)&0xfffu)*8;
+        if(slot==valid.controller_type_pool_offset || slot==valid.factory_pool_offset ||
+           slot==valid.update_callback_pool_offset || slot==initializer) {
             Write(shifted,pc,a+0x400u);++shifts;
         }
     }

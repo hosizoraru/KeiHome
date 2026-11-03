@@ -20,7 +20,8 @@ constexpr size_t kMaxRanges = 64;
 constexpr size_t kMaxLoads = 16;
 // Relocating PP makes otherwise identical enum wrappers share a body shape.
 // They remain bounded and must be disambiguated by actual incoming call edges.
-constexpr size_t kMaxCandidates = 128;
+constexpr size_t kMaxCandidateAddresses = 128;
+constexpr size_t kMaxCandidates = 512;
 constexpr uintptr_t kMaxImageSpan = 0x8000000;
 struct Header {
     uint8_t ident[16];
@@ -54,8 +55,14 @@ struct Body {
 };
 struct Pattern { size_t role; uint32_t prefix[4]; uint16_t body; };
 #include "monet_selection_patterns.h"
+bool OptionalRole(size_t role) {
+    return role == kIconQueryCallback || role == kCacheQuery || role == kPreviewUpdate;
+}
 struct Candidate { uintptr_t address; const Pattern* pattern; };
-struct Choices { Candidate values[kMaxCandidates]; size_t count; };
+// Relocated bodies can have several dependency contracts at the same entry.
+// Bound addresses independently so adding a reviewed shape does not reject a
+// valid image, while preserving the original search/ambiguity budget.
+struct Choices { Candidate values[kMaxCandidates]; size_t count, addresses; };
 constexpr size_t kMaxWords = 2048;
 constexpr size_t kMaxSlots = 256;
 
@@ -286,6 +293,10 @@ bool Resolve(const View& view, uintptr_t resolved[kPatternCount],
                     !Match(view, candidate, body)) continue;
                 auto& list = choices[pattern.role];
                 if (list.count == kMaxCandidates) return false;
+                bool known_address = false;
+                for (size_t i = 0; i < list.count; ++i)
+                    known_address |= list.values[i].address == candidate;
+                if (!known_address && ++list.addresses > kMaxCandidateAddresses) return false;
                 list.values[list.count++] = {candidate, &pattern};
             }
         }
@@ -297,12 +308,13 @@ bool Resolve(const View& view, uintptr_t resolved[kPatternCount],
         bool changed = false;
         for (size_t role = 0; role < kPatternCount; ++role) {
             auto& list = choices[role]; size_t kept = 0;
+            if (!list.count && OptionalRole(role)) continue;
             for (size_t i = 0; i < list.count; ++i) {
                 const auto& candidate = list.values[i];
                 if (CallsMatch(view, candidate.address, kBodies[candidate.pattern->body], choices))
                     list.values[kept++] = candidate;
             }
-            if (kept == 0) return false;
+            if (kept == 0 && !OptionalRole(role)) return false;
             changed |= kept != list.count; list.count = kept;
         }
         for (size_t role = 0; role < kPatternCount; ++role) {
@@ -327,6 +339,7 @@ bool Resolve(const View& view, uintptr_t resolved[kPatternCount],
     if (!converged) return false;
     for (size_t role = 0; role < kPatternCount; ++role) {
         const auto& list = choices[role];
+        if (!list.count && OptionalRole(role)) continue;
         for (size_t i = 1; i < list.count; ++i)
             if (list.values[i].address != list.values[0].address) return false;
         resolved[role] = list.values[0].address;
@@ -337,7 +350,22 @@ bool Resolve(const View& view, uintptr_t resolved[kPatternCount],
 
 bool CheckIncoming(const View& view, const uintptr_t r[kPatternCount],
                    const Pattern* selected[kPatternCount]) {
+    // A partially matched optional family must not hide a damaged caller.
+    // Each reviewed graph has either the legacy query closure, or both the
+    // cache query and preview update. None/mixed is an unknown contract.
+    const bool legacy = r[kIconQueryCallback] && !r[kCacheQuery] && !r[kPreviewUpdate];
+    const bool cache = !r[kIconQueryCallback] && r[kCacheQuery] && r[kPreviewUpdate];
+    if (!legacy && !cache) return false;
     size_t seen[4]{};
+    size_t expected_count[4]{};
+    for (size_t caller = 0; caller < kPatternCount; ++caller) {
+        if (!selected[caller]) continue;
+        const auto& body = kBodies[selected[caller]->body];
+        for (size_t j = 0; j < body.edge_count; ++j) {
+            const auto& edge = kEdges[body.edge_begin + j];
+            if (edge.role >= 0 && edge.role < 4) ++expected_count[edge.role];
+        }
+    }
     for (size_t s = 0; s < view.count; ++s) {
         const auto& load = view.loads[s];
         if ((load.flags & 5u) != 5u) continue;
@@ -350,6 +378,7 @@ bool CheckIncoming(const View& view, const uintptr_t r[kPatternCount],
                 if (target != r[root]) continue;
                 bool expected = false;
                 for (size_t caller = 0; caller < kPatternCount; ++caller) {
+                    if (!selected[caller]) continue;
                     const auto& body = kBodies[selected[caller]->body];
                     for (size_t j = 0; j < body.edge_count; ++j) {
                         const auto& site = kEdges[body.edge_begin + j];
@@ -362,7 +391,12 @@ bool CheckIncoming(const View& view, const uintptr_t r[kPatternCount],
             }
         }
     }
-    return seen[0] == 2 && seen[1] == 2 && seen[2] == 2 && seen[3] == 2;
+    if (expected_count[kHas] != 2 || expected_count[kUpdate] != 2 ||
+        expected_count[kResource] != (cache ? 1u : 2u) ||
+        expected_count[kShould] != (cache ? 3u : 2u)) return false;
+    for (size_t root = 0; root < 4; ++root)
+        if (seen[root] != expected_count[root]) return false;
+    return true;
 }
 
 bool PoolPair(uintptr_t pc, uintptr_t* offset) {
@@ -388,15 +422,26 @@ bool ResolveMonetSelection(const MonetSelectionImageView& image,
     const Pattern* selected[kPatternCount]{};
     if (!Resolve(view, r, selected)) return Fail(rejection, "missing/ambiguous selection instruction/call graph");
     if (!CheckIncoming(view, r, selected)) return Fail(rejection, "selection direct callers/patch interior changed");
-    uintptr_t factory, callback, type_should, type_update, type_init, initializer;
+    uintptr_t factory, callback = 0, callback_load = 0;
+    const auto& init_body = kBodies[selected[kInit]->body];
+    for (size_t i = 2; i < init_body.count; ++i) {
+        const uintptr_t pc = r[kInit] + i*4;
+        uintptr_t target = 0; bool link = false;
+        if (!Branch(pc, Word(pc), &target, &link) || !link || target != r[kClosureAllocateFast]) continue;
+        if (callback_load || !PoolPair(pc-8, &callback))
+            return Fail(rejection, "ambiguous selection callback pool producer");
+        callback_load = pc-8;
+    }
+    uintptr_t type_should, type_update, type_init, initializer;
     if (!PoolPair(r[kHas] + 23 * 4, &factory) ||
-        !PoolPair(r[kInit] + 31 * 4, &callback) ||
+        !callback_load ||
         !PoolPair(r[kShould] + 11 * 4, &type_should) ||
         !PoolPair(r[kUpdate] + 11 * 4, &type_update) ||
         !PoolPair(r[kInit] + 19 * 4, &type_init) ||
         !PoolPair(r[kHas] + 15 * 4, &initializer) ||
         type_should != type_update || type_should != type_init ||
-        callback != type_should + 8 || initializer != callback + 8 || factory != initializer + 8)
+        factory == callback || factory == type_should || factory == initializer ||
+        callback == type_should || callback == initializer || initializer == type_should)
         return Fail(rejection, "selection pool-slot relationships changed");
     // These words are also covered by their complete templates. Keeping this
     // explicit documents why the original tail may clobber x16, including the
@@ -413,6 +458,7 @@ bool ResolveMonetSelection(const MonetSelectionImageView& image,
     p.string_allocator_entry = r[kOneByteAllocateFast];
     p.factory_pool_offset = factory; p.update_callback_pool_offset = callback;
     p.controller_type_pool_offset = type_should;
+    p.update_callback_pool_load = callback_load;
     memcpy(p.displaced, reinterpret_cast<const void*>(r[kHas]), sizeof(p.displaced));
     *out = p;
     return true;
@@ -445,13 +491,21 @@ bool PublishMonetSelectionProfile(const MonetSelectionProfile& p,
         p.factory_pool_offset == 0 || p.factory_pool_offset > 0x100000 ||
         p.update_callback_pool_offset == 0 || p.update_callback_pool_offset > 0x100000 ||
         (p.factory_pool_offset & 7u) || (p.update_callback_pool_offset & 7u) ||
-        p.controller_type_pool_offset + 8 != p.update_callback_pool_offset ||
-        p.update_callback_pool_offset + 16 != p.factory_pool_offset ||
+        p.controller_type_pool_offset == 0 || p.controller_type_pool_offset > 0x100000 ||
+        (p.controller_type_pool_offset & 7u) ||
+        p.factory_pool_offset == p.update_callback_pool_offset ||
+        p.factory_pool_offset == p.controller_type_pool_offset ||
+        p.update_callback_pool_offset == p.controller_type_pool_offset ||
         memcmp(p.displaced, displaced, sizeof(displaced)) != 0) return false;
     const uintptr_t code[] = {p.resource_entry, p.resource_probe_entry, p.update_entry,
-        p.update_callback_entry, p.should_entry, p.string_equals_entry, p.string_allocator_entry};
+        p.update_callback_entry, p.should_entry, p.string_equals_entry, p.string_allocator_entry,
+        p.update_callback_pool_load};
     for (uintptr_t address : code)
         if ((address & 3u) || address < p.load_bias || address - p.load_bias >= kMaxImageSpan) return false;
+    uintptr_t actual_factory = 0, actual_callback = 0;
+    if (!PoolPair(entry + 23*4, &actual_factory) || actual_factory != p.factory_pool_offset ||
+        !PoolPair(p.update_callback_pool_load, &actual_callback) || actual_callback != p.update_callback_pool_offset)
+        return false;
     uint32_t expected = 0;
     if (!__atomic_compare_exchange_n(&kh_selection_profile_ready, &expected, 2, false,
                                      __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
@@ -462,6 +516,7 @@ bool PublishMonetSelectionProfile(const MonetSelectionProfile& p,
             published.string_equals_entry == p.string_equals_entry &&
             published.string_allocator_entry == p.string_allocator_entry &&
             published.controller_type_pool_offset == p.controller_type_pool_offset &&
+            published.update_callback_pool_load == p.update_callback_pool_load &&
             kh_selection_factory_entry == p.resource_probe_entry &&
             kh_selection_update_callback_entry == p.update_callback_entry &&
             kh_selection_factory_pool_offset == p.factory_pool_offset &&

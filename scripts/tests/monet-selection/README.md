@@ -29,7 +29,8 @@ each fixture. These are optimized host measurements, not Android launch times.
 `app/src/main/cpp/monet_selection_patterns.h` contains generated instruction-body
 hashes, four-word scan prefixes and function-relative graph edges. It contains
 no image RVA table, complete extracted functions or image SHA allowlist. Generate
-it from the two external fixtures with:
+it from all five external fixtures (7722, 8593, 8602, 9209 and 9226) with
+repeatable `--fixture LIB DEBUG` arguments. For example:
 
 ```sh
 python3 scripts/tests/monet-selection/generate_contracts.py \
@@ -67,22 +68,27 @@ The reviewed images need distinct shapes for changed controller fields and
 added conditions in `shouldUseMonochrome`/`_updateMonochromeState`, as well as the
 changed folder-builder body. Those differences remain exact; they are not hidden
 by generic immediate masks. Candidate ambiguity fails closed. The implementation
-bounds readable ranges, LOADs, image span, body size, candidate count (128 per
-role) and dependency depth. Only primitive code addresses and offsets are
+bounds readable ranges, LOADs, image span, body size, distinct candidate addresses
+(128 per role), candidate contracts (512 per role) and dependency depth. Multiple
+relocated contracts for one entry do not consume the address budget. Only primitive code addresses and offsets are
 returned.
 
 ## ABI evidence for the unchanged bridge
 
-Both fixtures independently establish these contracts:
+All five fixtures independently establish these contracts:
 
 - `_hasMonochromeLayer` receives the live package String in x1. `shouldUseMonochrome`
   restores its incoming x1; `_updateMonochromeState` loads/decompresses the model's
   package field and moves it to x1. Each is a direct caller exactly once.
-- The two `shouldUseMonochrome` callers are the icon query closure and folder
+- The legacy `shouldUseMonochrome` callers are the icon query closure and folder
   fallback. Icon build stores the package getter result in closure context;
   the query closure reloads it. The folder argument is followed through its
   actual stack store/reload, including the changed stack slot in the newer body.
   The complete bodies and downstream String consumers are authenticated.
+  The newer graph instead has cache-query, preview-update and folder callers.
+  Cache query keeps its incoming String; preview reconstructs the model's package
+  field before calling the same predicate. A partial or mixed caller family is
+  rejected, including a mutation that removes just one optional-role match.
 - Header at tagged pointer -1, CID bits 12..31, OneByteString CID 94,
   TwoByteString CID 95, tagged length +7, one-byte payload +15, and false
   `x22 + 0x30` are confirmed by String equality and allocation code. The bridge
@@ -92,14 +98,16 @@ Both fixtures independently establish these contracts:
   overwrites x16 at +0x14 before any read or branch, including the allocation
   slow path. The Has body then overwrites it at +0x30 before its own first use.
   The original tail transfer through x16 therefore does not discard live input.
-- Decoded PP offsets identify controller type, update callback, cache initializer
-  and resource factory in that order at 8-byte spacing. ClosureAllocateFast
+- Decoded PP producers identify controller type, update callback, cache initializer
+  and resource factory independently. Callback comes from the unique authenticated
+  Init -> ClosureAllocateFast edge; it need not be adjacent to the other slots.
+  Publication rechecks the actual factory/callback load instructions. ClosureAllocateFast
   loads `[Function + 7]` and copies it to the closure entry, proving the entry
   layout used by the bridge. On every enabled invocation the bridge checks both
   live PP function entries against the resolved code addresses. It captures no
   external PP and retains no Dart reference.
 - Executable mappings are scanned for all incoming direct branches to Has,
-  Should, Update and Resource (two callers each), and branches into the displaced
+  Should, Update and Resource (legacy counts 2/2/2/2; cache graph 2/3/2/1), and branches into the displaced
   patch interior are rejected. This enumerates direct callers; it does not claim
   whole-program enumeration of arbitrary indirect calls. Runtime String and
   live-pool guards apply to every invocation.
@@ -113,10 +121,10 @@ keep the mapped image and original trampoline executable for that publication.
 ## Checks and integration
 
 The runner checks NDK compilation with warnings as errors, the actual 142
-AArch64 bridge instructions, 35 bounded instruction-path cases, both real
-fixture profiles against the symbol/Capstone oracle, and 77 profile/identity
+AArch64 bridge instructions, 35 bounded instruction-path cases, all five real
+fixture profiles against the symbol/Capstone oracle, and 79 or 80 profile/identity
 assertions per fixture. These include every Has instruction mutation, String
-layout/boolean drift, x16 deadness, dependency drift, broken pool linkage,
+layout/boolean drift, x16 deadness, dependency drift, changed pool producers,
 extra callers, patch-interior targets and malformed readable mappings.
 
 Positive mutation cases move the Has body and rewrite both callers and its

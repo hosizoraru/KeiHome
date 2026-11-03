@@ -44,8 +44,22 @@ def audit(library, debug):
     instruction('WidgetPackageGetter', 36, 'ldur', 'w2, [x1, #0xc3]')
     instruction('IconBuild', 68, 'bl', f'#{fixture.roles["PackageGetter"][0]:#x}')
     instruction('IconBuild', 76, 'stur', 'w0, [x2, #0x17]')
-    instruction('IconQueryCallback', 136, 'ldur', 'w1, [x0, #0x17]')
-    instruction('IconQueryCallback', 144, 'bl', f'#{fixture.roles["Should"][0]:#x}')
+    cache_path = 'CacheQuery' in code
+    if not cache_path:
+        instruction('IconQueryCallback', 136, 'ldur', 'w1, [x0, #0x17]')
+        instruction('IconQueryCallback', 144, 'bl', f'#{fixture.roles["Should"][0]:#x}')
+    else:
+        assert 'IconQueryCallback' not in code and 'PreviewUpdate' in code
+        # Cache passes its live String unchanged. Preview first reconstructs
+        # the model, then its package String, before the very same predicate.
+        instruction('CacheQuery', 12, 'mov', 'x0, x1')
+        instruction('CacheQuery', 16, 'stur', 'x1, [x29, #-8]')
+        instruction('CacheQuery', 28, 'bl', f'#{fixture.roles["Should"][0]:#x}')
+        instruction('PreviewUpdate', 0xc4, 'ldur', 'w1, [x0, #0x1f]')
+        instruction('PreviewUpdate', 0xcc, 'ldur', 'w2, [x1, #0xc3]')
+        instruction('PreviewUpdate', 0xd0, 'add', 'x2, x2, x28, lsl #32')
+        instruction('PreviewUpdate', 0xd4, 'mov', 'x1, x2')
+        instruction('PreviewUpdate', 0xd8, 'bl', f'#{fixture.roles["Should"][0]:#x}')
     # FolderBuild changed its stack allocation use. Follow the actual last
     # store to the argument's stack slot; do not assume the old stack offset.
     folder = code['FolderBuild']
@@ -99,14 +113,22 @@ def audit(library, debug):
     instruction('ContextAllocateFast', 20, 'ldr', 'x16, [x26, #0x68]')
     instruction('Has', 48, 'ldr', 'x16, [x27, #0x40]')
     factory = pool_pair('Has', 92)
-    callback = pool_pair('Init', 124)
+    init_allocations = [i for i, op in enumerate(code['Init'])
+                        if op.mnemonic == 'bl' and op.operands[0].imm == fixture.roles['ClosureAllocateFast'][0]]
+    assert len(init_allocations) == 1
+    callback = pool_pair('Init', (init_allocations[0]-2)*4)
     initializer = pool_pair('Has', 60)
     typ = pool_pair('Should', 44)
     assert pool_pair('Update', 44) == pool_pair('Init', 76) == typ
-    assert (callback, initializer, factory) == (typ+8, typ+16, typ+24)
+    assert len({callback, initializer, factory, typ}) == 4
     for role in ('Has', 'Should', 'Update', 'Resource'):
         incoming = fixture.incoming[fixture.roles[role][0]]
-        assert len(incoming) == 2 and all(link for _, link in incoming)
+        count = {'Has': 2, 'Should': 3 if cache_path else 2, 'Update': 2,
+                 'Resource': 1 if cache_path else 2}[role]
+        assert len(incoming) == count and all(link for _, link in incoming)
+        observed = {op.address for body in code.values() for op in body
+                    if op.mnemonic == 'bl' and op.operands[0].imm == fixture.roles[role][0]}
+        assert observed == {pc for pc, _ in incoming}
     return {
         'roles': {role: {'rva': address, 'size': size} for role, (address, size) in fixture.roles.items()},
         'direct_callers': {role: [pc for pc, link in fixture.incoming[fixture.roles[role][0]] if link]

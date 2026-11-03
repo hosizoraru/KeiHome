@@ -61,6 +61,7 @@ struct MonetSelectionProfile {
     uintptr_t factory_pool_offset;
     uintptr_t update_callback_pool_offset;
     uintptr_t controller_type_pool_offset;
+    uintptr_t update_callback_pool_load;
     uint32_t displaced[4];
 };
 

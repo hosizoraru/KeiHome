@@ -75,9 +75,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
   onOpenSettingsSection: (String) -> Unit, modifier: Modifier = Modifier) {
-  val interaction by remember(model) {
-    model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged()
-  }.collectAsStateWithLifecycle(initialValue = model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture })
+  val (interactionFlow, initialInteraction) = remember(model) {
+    model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged() to
+      model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture }
+  }
+  val interaction by interactionFlow.collectAsStateWithLifecycle(initialValue = initialInteraction)
   val gestureMode = when (interaction.second) {
     os.kei.hyper.home.data.AppPagerGesture.NATIVE -> PagerInterceptionMode.Native
     os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis

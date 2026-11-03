@@ -45,9 +45,10 @@ fun BlurredBar(
   content: @Composable () -> Unit,
 ) {
   val preferences = AppPreferences.get(LocalContext.current)
-  val style by remember(preferences) {
-    preferences.state.map { it.topBarBlur }.distinctUntilChanged()
-  }.collectAsStateWithLifecycle(initialValue = preferences.state.value.topBarBlur)
+  val (styleFlow, initialStyle) = remember(preferences) {
+    preferences.state.map { it.topBarBlur }.distinctUntilChanged() to preferences.state.value.topBarBlur
+  }
+  val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
   val blurActive = blurEnabled && backdrop != null
   Box {
     if (blurActive) {

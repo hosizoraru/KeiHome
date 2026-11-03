@@ -27,9 +27,11 @@ internal val LocalKeiHomeDarkTheme = staticCompositionLocalOf { false }
 @Composable
 fun KeiHomeTheme(content: @Composable () -> Unit) {
   val preferences = AppPreferences.get(LocalContext.current)
-  val choice by remember(preferences) {
-    preferences.state.map { it.appearance to it.colorMode }.distinctUntilChanged()
-  }.collectAsStateWithLifecycle(initialValue = preferences.state.value.let { it.appearance to it.colorMode })
+  val (choiceFlow, initialChoice) = remember(preferences) {
+    preferences.state.map { it.appearance to it.colorMode }.distinctUntilChanged() to
+      preferences.state.value.let { it.appearance to it.colorMode }
+  }
+  val choice by choiceFlow.collectAsStateWithLifecycle(initialValue = initialChoice)
   val (appearance, colorMode) = choice
   val context = LocalContext.current
   val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle

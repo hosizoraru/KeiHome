@@ -37,8 +37,9 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String) {
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
+  val monet by model.monet.collectAsStateWithLifecycle()
   val inspiration = preferences.monetInspiration ?:
-    (model.monet.value.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
+    (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
       runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
   val update = page == 3 && section == "home"
   val generate = page == 3 && section == "coloros"

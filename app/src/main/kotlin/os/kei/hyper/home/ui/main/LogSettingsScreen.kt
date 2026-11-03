@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,7 @@ import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 @Composable
 internal fun LogSettingsScreen(onBack: () -> Unit) {
   val context = LocalContext.current
+  val resources = LocalResources.current
   val scope = rememberCoroutineScope()
   var level by remember { mutableStateOf(AppLogStore.level(context)) }
   var rangeIndex by rememberSaveable { mutableIntStateOf(3) }
@@ -143,7 +145,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
                 type = "application/zip"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-              }, context.getString(R.string.logs_export)))
+              }, resources.getString(R.string.logs_export)))
             }
           }
         })
@@ -166,7 +168,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
             AppLogStore.clear(context, System.currentTimeMillis() - hours * 3_600_000)
           }
           refresh++
-          Toast.makeText(context, context.getString(R.string.logs_cleared, removed), Toast.LENGTH_SHORT).show()
+          Toast.makeText(context, resources.getString(R.string.logs_cleared, removed), Toast.LENGTH_SHORT).show()
         }
       })
     }

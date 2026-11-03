@@ -11,7 +11,8 @@
         tools:node="remove" />
 
     <!-- The browser explicitly lists installed system and user applications, including non-launcher packages. -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <queries>
         <intent><action android:name="org.adw.launcher.THEMES" /></intent>

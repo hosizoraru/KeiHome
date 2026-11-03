@@ -57,6 +57,16 @@ def main():
             ])
             path, manifest = module.export_pack(tree, args, style, art)
             print(path.name, manifest["exported_counts"], flush=True)
+            if style == "classic" and art == "on" and runtime.is_dir():
+                # A hidden, cache-only layer for opt-in fallback of external packs.
+                # Firmware redraws retain their higher priority in normal ColorOS packs.
+                args.runtime_only = True
+                args.output = scratch / "runtime-fallback"
+                args.aliases = None
+                fallback, fallback_manifest = module.export_pack(tree, args, style, art)
+                destination = generated / "coloros-runtime-fallback.zip"
+                destination.write_bytes(fallback.read_bytes())
+                print(destination.name, fallback_manifest["exported_counts"], flush=True)
 
 
 if __name__ == "__main__":

@@ -212,15 +212,16 @@ class SourceTree:
                     key = f"{directory.name}/{path.name}"
                     data = path.read_bytes()
                     with Image.open(io.BytesIO(data)) as image:
-                        if image.format != "PNG" or max(image.size) > 4096:
+                        if image.format not in {"PNG", "JPEG", "WEBP"} or getattr(image, "is_animated", False) or max(image.size) > 4096:
                             raise ValueError("Unsupported runtime icon image")
                         self.runtime_files[key] = {"sha256": sha256(data), "bytes": len(data),
                                                    "format": image.format, "size": list(image.size),
                                                    "mode": image.mode, "origin": "runtime"}
                     self.runtime_images[key] = path
-                    if len(self.runtime_files) > 10000:
+                    if len(self.runtime_files) > 50000:
                         raise ValueError("Runtime icon count limit")
-            self.inputs["runtime"] = {"directory": runtime.name, "files": self.runtime_files}
+            self.inputs["runtime"] = {"directory": runtime.name, "file_count": len(self.runtime_files),
+                                      "inventory_sha256": sha256(json_bytes(self.runtime_files))}
         self.fancy_manifests: dict[str, list[dict]] = {}
         for archive_path in sorted(source.glob("icons-*")):
             if not archive_path.is_file():
@@ -247,8 +248,8 @@ class SourceTree:
             if fancy_names:
                 self.dynamic_packages[package] = fancy_names
 
-    def select_runtime(self, presets: set[str] | None):
-        self.files, self.images = dict(self.firmware_files), dict(self.firmware_images)
+    def select_runtime(self, presets: set[str] | None, runtime_only: bool = False):
+        self.files, self.images = ({}, {}) if runtime_only else (dict(self.firmware_files), dict(self.firmware_images))
         for key, record in self.runtime_files.items():
             # findAppDrawable uses product resources first for preset apps, but
             # the downloaded cache first for third-party apps. Missing files fall through.
@@ -668,7 +669,7 @@ def export_pack(tree: SourceTree, args: argparse.Namespace, style_id: str, art: 
         presets = set(arrays["ux_preset_app_package"]) | {"com.oplus.member"}
         preset_proof = {"resource": "array/ux_preset_app_package", "dump": resource_proof,
                         "authority": "framework_resource_fallback_service_may_override"}
-    tree.select_runtime(presets)
+    tree.select_runtime(presets, getattr(args, "runtime_only", False))
     aliases, alias_proof = read_aliases(args.aliases, tree)
     mask, mask_proof = load_mask(args.mask, args.size)
     if args.mask_provenance:
@@ -744,6 +745,11 @@ def export_pack(tree: SourceTree, args: argparse.Namespace, style_id: str, art: 
             if image is not None:
                 path = f"res/{directory}/{drawable}.png"
                 data = png_bytes(image)
+                # Both appfilters explicitly select this artwork. Share identical bytes
+                # across modes instead of duplicating every unchanged style PNG.
+                shared = record["modes"].get("light", {}).get("path")
+                if mode == "dark" and shared and files.get(shared) == data:
+                    path = shared
                 files[path] = data
                 provenance.update(path=path, sha256=sha256(data), size=list(image.size))
             record["modes"][mode] = provenance

@@ -21,10 +21,10 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK_SHA256 = "52c4783bc6027756b56dcb7780d838dd4b36b9726b28f4db2f0a03d49237a0ae"
 PACKAGE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+")
-ICON = re.compile(r"[A-Za-z][A-Za-z0-9_.]*\.png")
-MAX_FILES = 10000
+ICON = re.compile(r"[^/\\\x00-\x1f\x7f]{1,200}\.png")
+MAX_FILES = 50000
 MAX_FILE_BYTES = 4 * 1024 * 1024
-MAX_TOTAL_BYTES = 128 * 1024 * 1024
+MAX_TOTAL_BYTES = 512 * 1024 * 1024
 
 
 def digest(data):
@@ -52,14 +52,14 @@ def unpack(archive, destination):
             if len(data) != member.size:
                 raise ValueError("Incomplete runtime icon: " + key)
             with Image.open(io.BytesIO(data)) as image:
-                if image.format != "PNG" or max(image.size) > 4096:
+                if image.format not in {"PNG", "JPEG", "WEBP"} or getattr(image, "is_animated", False) or max(image.size) > 4096:
                     raise ValueError("Unsupported runtime image: " + key)
-                size = list(image.size)
+                size, image_format = list(image.size), image.format
                 image.verify()
             target = destination / key
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
-            files[key] = {"sha256": digest(data), "bytes": len(data), "size": size}
+            files[key] = {"sha256": digest(data), "bytes": len(data), "size": size, "format": image_format}
     if not files:
         raise ValueError("Empty runtime snapshot; previous artwork was preserved")
     return dict(sorted(files.items()))

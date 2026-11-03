@@ -53,6 +53,19 @@ class CaptureColorOsRuntimeIconsTest(unittest.TestCase):
                 with self.assertRaises((ValueError, OSError)):
                     CAPTURE.unpack(self.archive(members), self.root / "rejected")
 
+    def test_cloud_cache_can_store_jpeg_and_webp_with_png_filenames(self):
+        for image_format in ("JPEG", "WEBP"):
+            with self.subTest(image_format=image_format):
+                output = io.BytesIO()
+                Image.new("RGB", (4, 4), (8, 16, 24)).save(output, format=image_format)
+                source = output.getvalue()
+                archive = self.archive([("./com.cloud.app/recbg.png", source, tarfile.REGTYPE),
+                                        ("./com.cloud.app/快捷方式.png", self.png, tarfile.REGTYPE)])
+                files = CAPTURE.unpack(archive, self.root / image_format)
+                self.assertEqual(files["com.cloud.app/recbg.png"]["format"], image_format)
+                self.assertEqual((self.root / image_format / "com.cloud.app/recbg.png").read_bytes(), source)
+                self.assertIn("com.cloud.app/快捷方式.png", files)
+
     def test_failed_publication_restores_previous_snapshot(self):
         previous = self.root / "runtime"
         previous.mkdir()

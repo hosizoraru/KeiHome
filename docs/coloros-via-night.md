@@ -115,6 +115,10 @@ path and DEX/Manifest entry identities; host updates invalidate it. Native
 service ownership, Binder ABI, conversion proofs and exact local-resource
 associations remain checked.
 
+The additional 11.5.6.0 fixture also resolves and reflects all 11 roles.
+[Three-version diagnostics](theme-import-compatibility.md) record APK identities,
+method comparisons and the repeatable device matrix without adding version gates.
+
 ## Reproduction and evidence
 
 ```bash

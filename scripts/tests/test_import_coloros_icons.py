@@ -60,6 +60,32 @@ class ImportColorOSIconsTest(unittest.TestCase):
         self.assertIn(("com.future.application", "com.future.application", ""), tree.candidates())
         self.assertEqual(tree.files["com.third.party/recfg.png"]["origin"], "runtime")
 
+    def test_new_runtime_package_exports_independent_night_art_even_with_art_off(self):
+        runtime = self.root / "runtime"
+        package = "com.future.application"
+        directory = runtime / package
+        directory.mkdir(parents=True)
+        for key, color in [("recfg", (240, 180, 10, 255)),
+                           ("recbg", (250, 250, 250, 255)),
+                           ("rec_night", (20, 100, 200, 255))]:
+            Image.new("RGBA", (4, 4), color).save(directory / (key + ".png"))
+        args = IMPORTER.argument_parser().parse_args(
+            ["--input", str(self.root), "--output", str(self.root / "runtime-out"), "--size", "16"])
+        _, before = self.export()
+        self.assertNotIn(package, [row["component"] for row in before["entries"]])
+        for art in ("on", "off"):
+            with self.subTest(art=art):
+                tree = IMPORTER.SourceTree(self.source, self.root / "allApps.xml",
+                                           self.root / "oplus-framework.jar", runtime)
+                path, manifest = IMPORTER.export_pack(tree, args, "classic", art)
+                record = self.record(manifest, package)
+                self.assertEqual(record["modes"]["dark"]["operation"], "rectangle_night")
+                self.assertEqual(record["modes"]["dark"]["source_keys"], [package + "/rec_night.png"])
+                self.assertEqual(manifest["source_files"][package + "/rec_night.png"]["origin"], "runtime")
+                self.assertEqual(self.image(path, record, "dark").getpixel((8, 8)), (17, 84, 168, 255))
+                with zipfile.ZipFile(path) as archive:
+                    self.assertIn(package, archive.read("res/xml-night/appfilter.xml").decode())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="keihome-coloros-test-")
         self.addCleanup(self.temp.cleanup)

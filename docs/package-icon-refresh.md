@@ -16,6 +16,25 @@ Home night artwork, plus other style images and actual monochrome masks.
 symlinks, invalid names, excessive counts and oversized images are rejected.
 The source manifest retains per-file hashes and runtime provenance.
 
+The source cache is a snapshot, not a complete catalog: ColorOS can add artwork
+after an application is installed. Refresh it from the explicitly selected
+source AVD before regenerating the built-ins:
+
+```bash
+uv run --with pillow python scripts/capture-coloros-runtime-icons.py --serial emulator-5574
+uv run --with pillow --with resvg-py python scripts/prepare-coloros-builtins.py
+```
+
+The capture checks the exact inspected framework hash and reads the source
+device without writing to it. It admits only bounded package/PNG pairs,
+excludes staging files, records per-file hashes and added/changed/removed
+resources, and retains the previous local snapshot. Invalid or incomplete
+artwork cannot replace that snapshot. All captured artwork, provenance and
+generated packs remain under ignored `.artifacts/`.
+
+See [the Via night-icon investigation](coloros-via-night.md) for a concrete
+case where newly available runtime art was absent from the bundled snapshot.
+
 Monochrome images are decoded and encoded without source metadata. Nonsquare
 downloaded masks, including a real 241x240 source, are drawn into a square
 drawable viewport. Original source hashes remain in the manifest. Generated

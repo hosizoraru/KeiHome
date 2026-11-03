@@ -25,10 +25,13 @@ python scripts/tests/launcher-labels/test_bridge.py \
   --payload /absolute/path/to/unstripped/libkeihome_hyos_lsp.so \
   --resolver /tmp/keihome-label-profile-test \
   .artifacts/inputs/launchers/8593/libapp.so \
-  .artifacts/inputs/launchers/7722/libapp.so
+  .artifacts/inputs/launchers/7722/libapp.so \
+  .artifacts/inputs/launchers/8602/libapp.so \
+  .artifacts/inputs/launchers/9209/libapp.so \
+  .artifacts/inputs/launchers/9226/libapp.so
 ```
 
-The 540 execution cases stub the original Dart measurement, prefix, allocation,
+The 1,350 execution cases across five fixtures stub the original Dart measurement, prefix, allocation,
 constructor, fade, visibility and title-refresh callees. They assert original return
 PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
 width boundaries, preference changes, native pressure fallbacks and unchanged VM
@@ -39,6 +42,15 @@ initialization instructions from each fixture and assert that the Stack is
 initialized before visibility can trigger GC. They do not run Dart GC or prove
 Flutter rendering. Device acceptance is a separate required check after a fresh
 native load.
+
+`generate_variants.py` reproduces the reviewed newer instruction shapes from
+the external 9209/9226 debug-data oracles. It covers inline title configuration,
+the expanded grid field access and changed item-event prefix. Runtime resolution
+still derives fields, live root slots and targets from mapped code. The shared
+visibility tail is located uniquely within a bounded span so the new native
+landscape condition can keep its original semantics. See
+[`docs/launcher-native-matrix.md`](../../../docs/launcher-native-matrix.md) for
+the source matrix and separate AVD acceptance boundary.
 
 The existing `icon-highlight/test_exact_patch.cpp` now exercises all three exact
 patch kinds, including page boundaries and injected protection/rollback failures.

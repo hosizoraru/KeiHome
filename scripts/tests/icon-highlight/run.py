@@ -199,7 +199,7 @@ def resolver_tests(lib, image, template):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("images", nargs=2, type=Path)
+    p.add_argument("images", nargs="+", type=Path)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--cxx", default=os.environ.get("CXX", "clang++"))
     p.add_argument("--ndk", type=Path, required=True, help="NDK LLVM bin directory")

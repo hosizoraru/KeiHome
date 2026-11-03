@@ -102,14 +102,52 @@ All suite CLIs accept repeatable fixture/library arguments or an image list;
 five-fixture inputs when regenerating the complete production headers. See each
 suite's README/help for compiler, NDK, Python and payload arguments.
 
-## Live acceptance boundary
+## Live AVD acceptance
 
-The current HyperOS AVD (`emulator-5580`) runs Home 8593. The three new launcher
-APKs are retained as host fixtures. Live regressions, the exact Release artifact,
-native activation, process identities, UI screenshots and final restored settings
-are recorded separately in
-`.artifacts/research/launcher-matrix-20261104/acceptance.json`.
+After the host checks, the user authorized launcher version changes on the
+rooted/core-patched HyperOS AVD (`emulator-5580`). Home 8602, 9209 and 9226 were
+each installed with `adb install -r -d`, keeping package data. No launcher update
+was uninstalled and no package data was cleared or restored. Each installed APK's
+SHA256 and the loaded native library identity matched its source fixture.
 
-This task's device surface is that AVD only. No physical-device acceptance is
-implied. Resolver work runs at native library activation; the render and
-selection bridges add no per-frame scanning, C callback or polling timer.
+| Home | Six native roles | Live label ACK and display | Monet and light/dark |
+| --- | --- | --- | --- |
+| 8593 | Passed before/after version changes | Native, two-line and marquee checked | Passed |
+| 8602 | Passed | Two-line and marquee passed | Passed |
+| 9209 | Passed | Two-line and marquee passed | Passed |
+| 9226 | Passed | Two-line and marquee passed | Passed |
+
+The new runs exercised existing installed icons, cached title invalidation,
+two-line wrapping, marquee, native selection/tint and image ownership during
+Monet and configuration changes. Native revisions matched their acknowledgements.
+The launcher identity remained stable during each version's interaction flow;
+package replacement itself creates a new launcher process. System-server stayed
+PID 8812/start 2684, and SystemUI PID 9696/start 3609 throughout.
+
+Home 8593 was then restored by overlaying the exact original APK, SHA256
+`a53ab31d3ca08ff16267385972d8c208176537964034256592dae132848b810c`.
+The restored process resolved all six native roles again and automatically
+received the saved marquee preference. Final settings retain Chinese, dark mode,
+Classic ART+, marquee and Monet off.
+
+Two bounded Release weather-page traces, after visiting long-title pages, verify
+that offscreen marquee does not drive continuous rendering:
+
+| Home | Approximate guest CPU, one core | Frames / about 12 seconds | App Deadline Missed |
+| --- | ---: | ---: | ---: |
+| 8593 | 3.07% | 10 | 0 |
+| 9226 | 1.70% | 8 | 0 |
+
+The native clock retains its legitimate updates. These are separate AVD samples,
+not a paired speedup claim or physical power/frame-rate measurements. Resolver
+work runs at native library activation; the render and selection bridges add no
+per-frame scanning, C callback or polling timer.
+
+Exact release/installed identities and final state live in
+`.artifacts/research/launcher-matrix-20261104/acceptance.json`. The `live/` directory
+contains each version's activation/flow receipts, native ACKs, UI trees and
+screenshots, plus `original-state.json` proving restoration. Perfetto traces,
+starting screenshots and reports are under `performance/`.
+
+All device work in this checkpoint used that AVD. Physical-device acceptance is
+separate.

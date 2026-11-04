@@ -49,6 +49,13 @@ kh_dock_mode_post:
     b.hi .Ldock_mode_replay
     ldr x16,[x17,#KH_DOCK_MODE_VALUE]
     stlr w14,[x16]
+    // Only owned Recents Glass uses native continuous-corner eligibility.
+    // Keep native material computation/reactivity for every enabled style.
+    cbnz w14,.Ldock_mode_replay
+    ldr x16,[x17,#KH_DOCK_MODE_CORNER_STYLE]
+    ldar w16,[x16]
+    cmp w16,#1
+    b.ne .Ldock_mode_replay
     // The original native caller owns this exact return PC and its stack map.
     // No object from computeMode is needed past the primitive publication.
     // Native eligibility includes its own initialization and device policy.

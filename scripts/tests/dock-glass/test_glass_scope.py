@@ -8,7 +8,7 @@ Optional: --report /path/to/glass-scope.json
 
 Requires unicorn, pyelftools and capstone. No assembler, replacement leaf,
 Gradle, device, native allocator or managed runtime is invoked. The complete
-installer-copy payload is relocated; only its 424-byte config is authored here.
+installer-copy payload is relocated; only its 432-byte config is authored here.
 Native continuations/allocators are terminal sentinels, not mocked leaf bodies.
 This verifies execution/ABI contracts, not visual material acceptance on an AVD.
 """
@@ -30,7 +30,7 @@ from unicorn import arm64_const as ar
 
 
 MASK32, MASK64 = (1 << 32) - 1, (1 << 64) - 1
-CONFIG_SIZE, KEY_SIZE, MARKER = 424, 16, 0x969088
+CONFIG_SIZE, KEY_SIZE, MARKER = 432, 16, 0x969088
 X = [getattr(ar, f"UC_ARM64_REG_X{i}") for i in range(31)]
 Q = [getattr(ar, f"UC_ARM64_REG_Q{i}") for i in range(32)]
 MD = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
@@ -38,6 +38,7 @@ THREAD, CONTROL, POOL = 0x20000000, 0x21000000, 0x22000000
 STACK, TERMINALS = 0x30008000, 0x40000000
 SCOPE_RESUME, CHILD_RESUME = TERMINALS + 0x100, TERMINALS + 0x200
 SUPER_ALLOC, STOCK_ALLOC, ORIGINAL_LR = TERMINALS + 0x300, TERMINALS + 0x400, TERMINALS + 0x500
+VISUAL_RESUME = TERMINALS + 0x600
 KEY_TAG = (0x4567 << 12) | (1 << 8) | 0x1c  # fresh ValueKey16
 ROOT_SLOT, CHILD_SLOT, RADIUS_SLOT = -8, -40, -48
 
@@ -60,7 +61,7 @@ class Payload:
         self.offsets = {name: symbols[name] - origin for name in required}
         assert all(0 <= off <= end - origin for off in self.offsets.values())
         self.config = self.offsets["kh_dock_config"]
-        assert self.offsets["kh_dock_refresh_begin"] - self.config == CONFIG_SIZE, "Rebuild SO: expected 53-word/424-byte render config"
+        assert self.offsets["kh_dock_refresh_begin"] - self.config == CONFIG_SIZE, "Rebuild SO: expected 54-word/432-byte render config"
         self.entries = {name: self.offsets["kh_dock_glass_" + name] for name in ("scope", "child_scope", "clip")}
         self.entries["radius"]=self.offsets["kh_dock_recents_radius"]
         self.entries["flight"]=self.offsets["kh_dock_recents_flight_radius"]
@@ -116,15 +117,15 @@ class Machine:
         self.put(CONTROL, 1, 4)
         self.put(CONTROL + 8, curve, 4)
         self.put(CONTROL + 24, 1, 4)
-        cfg = [0] * 53
+        cfg = [0] * 54
         for offset, value in {
                 0: CONTROL, 296: CONTROL + 24, 304: CONTROL + 8,
                 312: KEY_TAG, 320: SUPER_ALLOC, 328: STOCK_ALLOC,
                 336: SCOPE_RESUME, 344: CHILD_RESUME, 352: radius_slot,
                 360: double_bits(20.0), 368: double_bits(30.0),
-                376: scope_slot, 384: child_slot, 392: CONTROL+32, 400: CONTROL+64, 408: ORIGINAL_LR, 416: -56}.items():
+                376: scope_slot, 384: child_slot, 392: CONTROL+32, 400: CONTROL+64, 408: ORIGINAL_LR, 416: -56, 424: VISUAL_RESUME}.items():
             cfg[offset // 8] = value & MASK64
-        self.config = struct.pack("<53Q", *cfg)
+        self.config = struct.pack("<54Q", *cfg)
         self.u.mem_write(code + payload.config, self.config)
         self.put(THREAD + 96, self.top)
         self.put(THREAD + 104, self.top + pressure)
@@ -176,7 +177,7 @@ class Machine:
         self.reads.append((address, size))
 
     def on_code(self, cpu, pc, size, data):
-        if pc in (SCOPE_RESUME, CHILD_RESUME, SUPER_ALLOC, STOCK_ALLOC, ORIGINAL_LR):
+        if pc in (SCOPE_RESUME, CHILD_RESUME, SUPER_ALLOC, STOCK_ALLOC, ORIGINAL_LR, VISUAL_RESUME):
             self.terminal = pc
             cpu.emu_stop()
             return
@@ -235,7 +236,7 @@ class Machine:
         before_parent = bytes(self.u.mem_read(self.widget - 1, 32))
         result = self.run("scope", self.other,
                           allowed=((self.radius_store, self.radius_store + 8),
-                                   (self.child_root, self.child_root + 8)), expected=SCOPE_RESUME)
+                                   (self.child_root, self.child_root + 8)), expected=VISUAL_RESUME if owned else SCOPE_RESUME)
         assert self.get(CONTROL+64)==before_count+int(owned)
         expected_marker = MARKER if owned else 0
         assert self.get(self.radius_store) == self.radius_bits, "Replay STUR d0 bit-for-bit"

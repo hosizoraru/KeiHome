@@ -89,6 +89,16 @@ int main(int argc, char** argv) {
        (p.value_key_tag&0xfffu)!=0x11cu||!p.value_key_caller||!p.value_key_equals||
        bytes[p.glass_scope_stackmap]!=0x0f||bytes[p.glass_child_stackmap]!=0x1a)return 1;
     ++checks;
+    if(!p.glass_visual_stackmap||bytes[p.glass_visual_stackmap]!=0||
+       p.glass_visual_resume!=p.glass_build+0xac||
+       !rejects(p.glass_visual_resume,0xd503201fu)||
+       !rejects(p.glass_build+0xa8,branch_to(p.glass_build+0xa8,p.mode))||
+       !rejects(p.glass_build+0x90,branch_to(p.glass_build+0x90,p.mode)))return 1;
+    const auto old_visual_map=bytes[p.glass_visual_stackmap];
+    bytes[p.glass_visual_stackmap]=1;
+    DockGlassProfile bad_visual{};
+    if(ResolveDockGlass(image,&bad_visual,&why))return 1;
+    bytes[p.glass_visual_stackmap]=old_visual_map;++checks;
     // Original Glass keeps its material and physical Clip.none. Only the
     // authenticated owned child changes its inner native clip allocation.
     if(!rejects(p.glass_scope_store,u32(p.glass_scope_store)^0x1000u)||

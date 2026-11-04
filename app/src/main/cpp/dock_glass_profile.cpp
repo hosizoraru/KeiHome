@@ -120,6 +120,7 @@ bool GlassStackMaps(const IconHighlightImage& im,DockGlassProfile& p,
         for(size_t i=0;i<sizeof(sites)/sizeof(sites[0]);++i)if(pc==sites[i]) {
             if((seen&(1u<<i))||spills!=((pc==0x94||pc==0x138)?7u:8u)||other!=0)return false;seen|=1u<<i;
             const uint8_t roots=im.base[bitmap];
+            if(pc==0xc4){if(roots!=0)return false;p.glass_visual_stackmap=bitmap;}
             if(pc==0x158) {
                 if(roots!=0x1a)return false;p.glass_child_stackmap=bitmap;
             } else {
@@ -306,6 +307,12 @@ bool ResolveOwnedGlassSources(const IconHighlightImage& im,DockGlassProfile& p,c
     p.glass_child_scope_store=p.glass_build+0x13c;
     p.glass_clip_alloc_call=p.glass_build+0x154;
     p.glass_scope_resume=p.glass_scope_store+4;
+    p.glass_visual_resume=p.glass_build+0xac;
+    if(Word(im,p.glass_visual_resume)!=0xfc5d03a0u||
+       Word(im,p.glass_visual_resume+4)!=0x1e6e1001u||
+       !Role(im,Branch(im,p.glass_build+0x90),kDockGlassDiagnosticInterpolate)||
+       !Role(im,Branch(im,p.glass_build+0xa8),kDockGlassDiagnosticLog))
+        return Fail(why,"owned glass diagnostic/visual join");
     p.glass_child_scope_resume=p.glass_child_scope_store+4;
     p.glass_clip_alloc_resume=p.glass_clip_alloc_call+4;
     p.glass_scope_expected=Word(im,p.glass_scope_store);

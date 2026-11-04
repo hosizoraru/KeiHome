@@ -129,7 +129,7 @@ bool InstallPreparedDockGlass() {
         uint64_t(int64_t(p.glass_radius_slot)),p.recents_default_radius_bits,p.recents_stacked_min_radius_bits,
         uint64_t(int64_t(p.glass_scope_root_slot)),uint64_t(int64_t(p.glass_child_root_slot)),
         reinterpret_cast<uintptr_t>(&kh_dock_recents_corner_bits),reinterpret_cast<uintptr_t>(&kh_dock_glass_scope_counts),
-        loaded.base+p.recents_flight_radius+4,uint64_t(int64_t(p.recents_flight_radius_slot))
+        loaded.base+p.recents_flight_radius+4,uint64_t(int64_t(p.recents_flight_radius_slot)),loaded.base+p.glass_visual_resume
     };
     const DockGlassRefreshConfig refresh_config={
         reinterpret_cast<uintptr_t>(&kh_dock_glass_installed),reinterpret_cast<uintptr_t>(&kh_dock_glass_revision),
@@ -139,7 +139,8 @@ bool InstallPreparedDockGlass() {
     };
     const DockGlassModeConfig mode={loaded.base+p.mode_post,loaded.base+p.mode_post+4,loaded.base+p.mode,
         reinterpret_cast<uintptr_t>(&kh_dock_glass_enabled),reinterpret_cast<uintptr_t>(&kh_dock_material_mode),p.mode_slot,
-        loaded.base+p.curve_getter,reinterpret_cast<uintptr_t>(&kh_dock_superellipse_enabled)};
+        loaded.base+p.curve_getter,reinterpret_cast<uintptr_t>(&kh_dock_superellipse_enabled),
+        reinterpret_cast<uintptr_t>(&kh_dock_glass_corner_style)};
     memcpy(bridge+size_t(kh_dock_mode_replay-kh_dock_template),&p.mode_post_expected,4);
     const auto copy=[&](const uint8_t* config,const void* data,size_t size) {
         const size_t offset=size_t(config-kh_dock_template);

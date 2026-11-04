@@ -102,7 +102,8 @@ three-phase continuation uses the original native return PC and stack map;
 only primitive mode/eligibility values leave the managed call. Task-radius
 observers replay the original frame load or return instruction; they retain
 only raw numeric bits and never call a controller themselves. The copied
-render configuration is 424 bytes and the complete payload is 3,936 bytes.
+render configuration is 432 bytes, mode configuration is 72 bytes, and the complete
+payload is 3,976 bytes.
 
 The render bridge is a call-free leaf with a fully checked young-space arena:
 352 bytes for Recents soft glass plus a 16-byte native child key when eligible,
@@ -125,10 +126,10 @@ managed Dart from the policy-server thread. See [refresh contracts](dock-glass-r
 The final linked production payload passed:
 
 - 2,485 render, gate, geometry, input-wrapper, corner-style and fallback cases.
-- 145 mode/curve bridge and actual native `computeMode`/cached getter cases.
+- 175 mode/curve bridge and actual native `computeMode`/cached getter cases.
 - 470 getter, `Rx.refresh`, and `GetStream` native instruction execution cases.
 - 593 owned-glass scoping/pressure/root-handoff cases.
-- 495 refresh source/mutation checks and 530 render profile/rejection checks.
+- 495 refresh source/mutation checks and 550 render profile/rejection checks.
 - 38,495 C++ geometry checks with ASan/UBSan.
 - 55 focused JVM tests for corner preferences, transport, lease and status.
 
@@ -171,3 +172,40 @@ Idle does not continuously redraw at display refresh rate. Swipe CPU is close;
 mean FrameTimeline duration was 34.89ms versus 34.37ms. Both samples still have
 AVD frame misses; this single pair does not prove equal GPU cost or physical
 phone smoothness. Captures include the existing clock/widgets/native rendering.
+
+## Performance refinement, 2026-11-05
+
+Keep native GlassOs4Background / DockGlassWidget state, filter caches,
+WidgetRoot pass-blur registration and all native animation ownership. Search
+and folder source analysis is a comparison of responsibilities: their generic
+GlassWidget and folder press/drag spring lifecycles are not transplanted.
+
+Two bounded changes reduce construction work without changing visual fields:
+
+- Owned Recents glass skips only its native radius diagnostic segment. The
+  original radius spill is replayed; the visual path, DockScope and native
+  filters remain intact. Saves 19 original instructions, a 16-byte boxed Double
+  allocation/possible slow path, String interpolation and logWithTag calls per
+  owned build. The earlier logger setup/interpolation array still runs. Stock
+  instances and Rounded glass keep their diagnostic path; errors/warnings are
+  not globally suppressed. This is not a per-frame FPS saving claim.
+- The native continuous-corner eligibility getter runs only for soft glass in
+  Recents style. Material computation and its reactive dependency always run
+  for enabled Dock. Rounded/older/plain modes avoid the unused managed call.
+  Restoring Recents re-queries eligibility; preferences racing a managed call
+  are covered by execution tests.
+
+The skipped callees have independent instruction contracts. The first retained
+native call's original GC bitmap must be exactly empty; changing it rejects
+admission. Original VM return PCs, frame roots and stock continuations remain
+covered by all five source fixtures. No retained Dart widget cache, extra
+animation/timer, reduced blur quality or changed shader parameter is introduced.
+
+Evidence: `.artifacts/research/dock-perf-20261105/`. Five normal preference
+operations preserve Launcher 10386/5477/4463127 and server/UI identities.
+Folder open, search open and app enter/return were exercised on AVD8593. The
+source profiles pass 550 checks and linked execution passes 3,723 cases.
+Same-scene 12s weather/swipe samples show no established FPS gain; the removed
+work happens on relevant rebuilds, not every frame. Whole-launcher CPU includes
+clock/widgets/marquee and cannot be attributed entirely to Dock. See the
+comparison JSON and acceptance receipt for actual frame and CPU observations.

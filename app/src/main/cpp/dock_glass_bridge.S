@@ -599,6 +599,12 @@ kh_dock_glass_scope:
     ldr x17,[x17,#KH_DOCK_GLASS_RADIUS_SLOT]
     str d0,[x29,x17]
     adr x17,kh_dock_config
+    cbz x16,.Lglass_scope_log_stock
+    // Only owned Recents decoration: skip native diagnostic formatting.
+    // Original raw radius/receiver/context roots and all visual work survive.
+    ldr x17,[x17,#KH_DOCK_GLASS_VISUAL_RESUME]
+    br x17
+.Lglass_scope_log_stock:
     ldr x17,[x17,#KH_DOCK_GLASS_SCOPE_RESUME]
     br x17
 

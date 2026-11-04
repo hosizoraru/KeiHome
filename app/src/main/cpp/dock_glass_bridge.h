@@ -54,7 +54,8 @@
 #define KH_DOCK_OWNED_KEY_VALUE       0x969088
 #define KH_DOCK_FLIGHT_RADIUS_RESUME 408
 #define KH_DOCK_FLIGHT_RADIUS_SLOT   416
-#define KH_DOCK_CONFIG_SIZE           424
+#define KH_DOCK_GLASS_VISUAL_RESUME   424
+#define KH_DOCK_CONFIG_SIZE           432
 #define KH_DOCK_MATERIAL_GLASS_OS4      0
 #define KH_DOCK_MATERIAL_MIUIX_OS3      1
 #define KH_DOCK_MATERIAL_BASIC_BLUR     2
@@ -118,6 +119,7 @@ struct DockGlassBridgeConfig {
     uint64_t glass_scope_slot, glass_child_slot, recents_radius_address;
     uint64_t scope_counts_address;
     uint64_t flight_radius_resume, flight_radius_slot;
+    uint64_t glass_visual_resume;
 };
 
 #define KH_DOCK_CHECK(member, offset) \
@@ -172,6 +174,7 @@ KH_DOCK_CHECK(recents_radius_address, KH_DOCK_RECENTS_RADIUS_ADDRESS);
 KH_DOCK_CHECK(scope_counts_address, KH_DOCK_SCOPE_COUNTS_ADDRESS);
 KH_DOCK_CHECK(flight_radius_resume, KH_DOCK_FLIGHT_RADIUS_RESUME);
 KH_DOCK_CHECK(flight_radius_slot, KH_DOCK_FLIGHT_RADIUS_SLOT);
+KH_DOCK_CHECK(glass_visual_resume, KH_DOCK_GLASS_VISUAL_RESUME);
 #undef KH_DOCK_CHECK
 static_assert(sizeof(DockGlassBridgeConfig) == KH_DOCK_CONFIG_SIZE);
 

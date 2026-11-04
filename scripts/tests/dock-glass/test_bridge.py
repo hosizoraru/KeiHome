@@ -7,7 +7,7 @@ Requires unicorn, pyelftools and capstone. Does not compile a fixture or call
 Gradle, connect a device, install, or activate anything. The test copies the
 actual parent payload bytes (including sibling configs) as the installer does.
 It executes only gate/render; original native targets are terminal sentinels.
-Authored roots/tags isolate the 424-byte render ABI from profile-resolution QA.
+Authored roots/tags isolate the 432-byte render ABI from profile-resolution QA.
 """
 import argparse
 import hashlib
@@ -54,9 +54,9 @@ with io.BytesIO(artifact) as stream:
         if isinstance(section, RelocationSection) and section['sh_type'] in ('SHT_REL', 'SHT_RELA'):
             assert not any((origin <= item['r_offset'] < payload_end for item in section.iter_relocations())), 'Copied payload contains a dynamic relocation'
 entry = {name: syms['kh_dock_' + name] - origin for name in required}
-assert entry['refresh_begin'] - entry['config'] == 424, 'Render config ABI must be 424 bytes'
+assert entry['refresh_begin'] - entry['config'] == 432, 'Render config ABI must be 432 bytes'
 assert entry['refresh_end'] - entry['refresh_config'] == 104, 'Refresh config ABI'
-assert entry['payload_end'] - entry['mode_config'] == 64, 'Mode config ABI'
+assert entry['payload_end'] - entry['mode_config'] == 72, 'Mode config ABI'
 CODE, THREAD, FIELDS, POOL = 0x10000000, 0x20000000, 0x21000000, 0x22000000
 POLICY, STACK, END = 0x23000000, 0x24008000, 0x25000000
 HEAP = 1 << 32
@@ -142,8 +142,8 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     ]
     cfg.extend([POLICY+24,POLICY+32,VALUE_KEY,END,END,END,END,(-48)&((1<<64)-1),
                 struct.unpack('<Q',struct.pack('<d',20.0))[0],
-                struct.unpack('<Q',struct.pack('<d',30.0))[0],(-8)&((1<<64)-1),(-40)&((1<<64)-1),POLICY+40,POLICY+64,END,(-56)&((1<<64)-1)])
-    assert len(cfg) * 8 == 424
+                struct.unpack('<Q',struct.pack('<d',30.0))[0],(-8)&((1<<64)-1),(-40)&((1<<64)-1),POLICY+40,POLICY+64,END,(-56)&((1<<64)-1),END])
+    assert len(cfg) * 8 == 432
     owned_material=corner_style==1 and mode==0
     arena = 352 if owned_material else (336 if mode == 0 else 320)
     word(POLICY + 8, mode)
@@ -151,7 +151,7 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     word(POLICY + 24, corner_style)
     word(POLICY + 32, curve_enabled)
     number(POLICY+40,native_card_radius)
-    u.mem_write(CODE + entry['config'], struct.pack('<53Q', *cfg))
+    u.mem_write(CODE + entry['config'], struct.pack('<54Q', *cfg))
     word(POLICY, enabled)
     objects = {name: HEAP + 1052673 + 256 * i for i, name in enumerate(('outer', 'inner', 'box', 'grid', 'rx', 'config', 'device', 'grow', 'array', 'args', 'mode_controller', 'mode_rx', 'elderly_enum', 'normal_enum', 'metrics', 'no_word_rx', 'suppress_rx'))}
     for i, at in enumerate(objects.values()):
@@ -774,7 +774,7 @@ for enabled in (0,1,2,0xffffffff):
             parent_clip_case(enabled,flags<<28,heap_high)
             cases+=1
 
-report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=424, arena_bytes={'rounded_glass':336,'recents_glass':352,'other':320}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
+report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=432, arena_bytes={'rounded_glass':336,'recents_glass':352,'other':320}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
 if args.report:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

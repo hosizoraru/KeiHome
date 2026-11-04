@@ -50,6 +50,7 @@ struct DockGlassProfile {
     // signed root slots are relative to the original Dart frame pointer.
     size_t glass_build, glass_scope_store, glass_child_scope_store, glass_clip_alloc_call;
     size_t glass_scope_resume, glass_child_scope_resume, glass_clip_alloc_resume;
+    size_t glass_visual_resume, glass_visual_stackmap;
     uint32_t glass_scope_expected, glass_child_scope_expected, glass_clip_alloc_expected;
     int32_t glass_scope_root_slot, glass_radius_slot, glass_child_root_slot;
     // Genuine generic ValueKey: 16 bytes; ref32 typeArguments +7, value +b.

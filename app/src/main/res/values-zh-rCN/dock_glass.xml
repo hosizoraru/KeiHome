@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dock_glass_title">Dock 玻璃背景</string>
+    <string name="dock_glass_summary">为 Dock 使用桌面原生玻璃背景，材质外观跟随系统。</string>
+    <string name="dock_glass_pending">等待桌面接收设置…</string>
+</resources>

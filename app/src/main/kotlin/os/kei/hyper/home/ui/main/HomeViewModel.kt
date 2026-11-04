@@ -75,6 +75,9 @@ internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
 internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
   connected && !readFailed && snapshot?.systemUiInScope == true
 
+internal fun FrameworkUiState.dockGlassInScope(): Boolean =
+  connected && !readFailed && snapshot?.systemInScope == true
+
 internal fun FrameworkUiState.launcherLabelsInScope(): Boolean =
   connected && !readFailed && snapshot?.systemInScope == true
 
@@ -146,7 +149,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(FrameworkUiState())
   val runtime: StateFlow<RuntimeStatusUiState>
     field = MutableStateFlow(RuntimeStatusUiState())
-  val launcherLabelRuntime: StateFlow<RuntimeStatusUiState>
+  val homeScreenRuntime: StateFlow<RuntimeStatusUiState>
     field = MutableStateFlow(RuntimeStatusUiState())
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
@@ -154,8 +157,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(ThemeEffectsUiState())
   val launcherLabels = LauncherLabelSettings(viewModelScope) { framework.value.launcherLabelsInScope() }
 
+  val dockGlass = DockGlassSettings(viewModelScope) { framework.value.dockGlassInScope() }
+  fun readDockGlassSettings() { viewModelScope.launch { dockGlass.read() } }
+
   fun readLauncherLabelSettings() { viewModelScope.launch { launcherLabels.read() } }
-  suspend fun refreshLauncherLabelStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
+  suspend fun refreshHomeScreenStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
@@ -276,15 +282,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       FrameworkConnection.service.collectLatest { service ->
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
-        launcherLabelRuntime.value = RuntimeStatusUiState()
+        homeScreenRuntime.value = RuntimeStatusUiState()
         themeEffects.value = ThemeEffectsUiState()
         launcherLabels.reset()
+        dockGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
           readFramework()
           readThemeEffects()
           launcherLabels.read()
+          dockGlass.read()
           readSplashAppearance()
           delay(1_500)
           withContext(Dispatchers.IO) {
@@ -307,7 +315,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 4) launch {
         readFramework()
         readSplashAppearance()
-        while (true) { readThemeEffects(); launcherLabels.read(); delay(5_000) }
+        while (true) { readThemeEffects(); launcherLabels.read(); dockGlass.read(); delay(5_000) }
       }
       if (page in 0..3) launch {
         while (true) {
@@ -350,7 +358,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         readFramework()
-        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read() }
+        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read(); dockGlass.read() }
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()
@@ -698,9 +706,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
       val service = FrameworkConnection.service.value ?: return
-      // A label-only receipt deliberately omits the icon inventory. Keep its
+      // A home-screen preference receipt deliberately omits the icon inventory. Keep its
       // lifecycle/failures separate from the complete theme report and freshness.
-      val status: MutableStateFlow<RuntimeStatusUiState> = if (includeIconTheme) runtime else launcherLabelRuntime
+      val status: MutableStateFlow<RuntimeStatusUiState> = if (includeIconTheme) runtime else homeScreenRuntime
       // Rapid pager changes reuse a recent receipt; manual refresh still requests a new one.
       val previous = status.value.report
       if (!force && !status.value.readFailed && !status.value.timedOut && previous != null &&

@@ -42,6 +42,20 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val wallpaperSeeds = WallpaperSeedPublisher()
   private val themeMaterials = ThemeMaterialLease()
   private val launcherLabels = LauncherLabelLease()
+  private val dockGlass = DockGlassLease()
+
+  fun synchronizeDockGlass(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
+    if (!mayWrite() || Thread.currentThread().isInterrupted) return false
+    val user = currentUserId() ?: return false
+    val context = contextForUser(baseContext, user) ?: return false
+    val enabled = os.kei.hyper.home.data.DockGlassPreferences.read(preferences)
+    val cornerQ8 = if (enabled) DockScreenCorners.readQ8(context) else 0
+    val current = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == user &&
+      os.kei.hyper.home.data.DockGlassPreferences.read(preferences) == enabled }
+    return dockGlass.synchronize(enabled, user, SystemClock::elapsedRealtime, current, cornerQ8) { attempted ->
+      if (native.setDockGlass(context, enabled, cornerQ8, attempted)) native.acknowledgedDockGlassProcess else null
+    }
+  }
 
   fun synchronizeLauncherLabels(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
     if (!mayWrite()) return false
@@ -136,6 +150,12 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     val available = activeUser == request.userId && native.isAvailable(context)
     // The client retains the last successful identity across failures; never use it alone.
     val process = native.acknowledgedProcess.takeIf { available }
+    // Do not add another endpoint timeout when this optional feature has no ACK.
+    val dockAvailable = activeUser == request.userId &&
+      dockGlass.hasAcknowledgement(request.userId, SystemClock.elapsedRealtime()) &&
+      isCurrent() && native.isDockGlassAvailable(context)
+    val dockProcess = native.acknowledgedDockGlassProcess.takeIf { dockAvailable }
+    val dockEnabled = dockGlass.acknowledgedEnabled(dockProcess, request.userId, SystemClock.elapsedRealtime())
     val state = when {
       activeUser != null && activeUser != request.userId -> NativeRuntimeState.INACTIVE_USER
       process != null -> NativeRuntimeState.READY
@@ -147,6 +167,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
       refresh = refresh,
       launcherLabelMode = launcherLabels.acknowledgedMode(process, SystemClock.elapsedRealtime()),
+      dockGlassEnabled = dockEnabled,
+      dockGlassPid = dockProcess?.pid.takeIf { dockEnabled != null },
+      dockGlassStartTicks = dockProcess?.startTicks.takeIf { dockEnabled != null },
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)

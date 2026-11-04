@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dock_glass_title">Dock glass background</string>
+    <string name="dock_glass_summary">Use the home screen’s native glass background for the Dock. Material appearance follows the system.</string>
+    <string name="dock_glass_pending">Waiting for the home screen to receive this choice…</string>
+</resources>

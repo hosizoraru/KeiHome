@@ -21,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -86,6 +87,14 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
   val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
+  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  val homeScreenVisible = section == null || section == SettingsSection.HOOK
+  val systemInScope = framework.launcherLabelsInScope()
+  LaunchedEffect(model, lifecycle, homeScreenVisible, systemInScope) {
+    if (homeScreenVisible && systemInScope) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      while (true) { model.refreshHomeScreenStatus(); delay(5_000) }
+    }
+  }
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh)
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode,
@@ -93,7 +102,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections,
     model.preferences::setTopBarBlur, splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
     themeEffects, framework, model::setPreserveSystemMaterials, query, section,
-    onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) }) {
+    onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },
+    dockGlassContent = { DockGlassSettingsCard(model) }) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(model, lifecycle) {
       lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeFallbackResources() }

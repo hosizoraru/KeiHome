@@ -4,6 +4,8 @@ import android.content.Context
 import android.app.WallpaperManager
 import android.content.SharedPreferences
 import android.database.ContentObserver
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
@@ -30,6 +32,7 @@ internal class MonetColorMonitor(
   private val themePreferences: () -> SharedPreferences? = { null },
   private val onThemeMaterialsChanged: () -> Unit = {},
   private val onLauncherLabelsChanged: () -> Unit = {},
+  private val onDockGlassChanged: () -> Unit = {},
   private val onPackageResourcesChanged: (String) -> Unit = {},
   private val onOverlayResourcesChanged: (String) -> Unit = {},
   private val onTimeResourcesChanged: (Boolean) -> Unit = {},
@@ -60,6 +63,15 @@ internal class MonetColorMonitor(
       private set
     private var registered = false
     private var wallpaperRegistered = false
+    private var displayManager: DisplayManager? = null
+    private val displayListener = object : DisplayManager.DisplayListener {
+      override fun onDisplayAdded(displayId: Int) = Unit
+      override fun onDisplayRemoved(displayId: Int) = Unit
+      override fun onDisplayChanged(displayId: Int) {
+        if (!closed && displayId == Display.DEFAULT_DISPLAY &&
+          os.kei.hyper.home.data.DockGlassPreferences.read(materialPreferences)) requestMaterials()
+      }
+    }
     private var packageObserver: os.kei.hyper.home.data.PackageChangeObserver? = null
     private var overlayObserver: os.kei.hyper.home.data.IconOverlayObserver? = null
     private var timeObserver: os.kei.hyper.home.data.IconTimeObserver? = null
@@ -79,7 +91,8 @@ internal class MonetColorMonitor(
     private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestStatus() }
     private val materialListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == ThemeEffectsPreferences.KEY ||
-        key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY) requestMaterials()
+        key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY ||
+        key == os.kei.hyper.home.data.DockGlassPreferences.KEY) requestMaterials()
     }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
@@ -147,6 +160,12 @@ internal class MonetColorMonitor(
       }
       try {
         connectMaterialPreferences()
+        try {
+          if (synchronizer.synchronizeDockGlass(context, materialPreferences) { !closed } && !closed)
+            onDockGlassChanged()
+        } catch (failure: Exception) {
+          if (!closed) onFailure(failure)
+        }
         if (synchronizer.synchronizeLauncherLabels(context, materialPreferences) { !closed } && !closed)
           onLauncherLabelsChanged()
         if (synchronizer.synchronizeThemeMaterials(context, materialPreferences) { !closed } && !closed) {
@@ -263,6 +282,12 @@ internal class MonetColorMonitor(
           }
         } catch (failure: Exception) { onFailure(failure) }
         connectMaterialPreferences()
+        try {
+          context.getSystemService(DisplayManager::class.java)?.let {
+            it.registerDisplayListener(displayListener, handler)
+            displayManager = it
+          }
+        } catch (failure: Exception) { onFailure(failure) }
         requestMaterials()
         try {
           connectStatusPreferences()
@@ -301,6 +326,9 @@ internal class MonetColorMonitor(
       closed = true
       handler.removeCallbacksAndMessages(null)
       handler.post {
+        try { displayManager?.unregisterDisplayListener(displayListener) }
+        catch (failure: Exception) { onFailure(failure) }
+        displayManager = null
         try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
         packageObserver = null
         try { overlayObserver?.close() } catch (failure: Exception) { onFailure(failure) }

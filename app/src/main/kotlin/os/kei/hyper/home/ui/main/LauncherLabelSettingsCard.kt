@@ -3,16 +3,11 @@ package os.kei.hyper.home.ui.main
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherLabelMode
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -24,14 +19,8 @@ import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 internal fun LauncherLabelSettingsCard(model: HomeViewModel) {
   val state by model.launcherLabels.state.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
-  val runtime by model.launcherLabelRuntime.collectAsStateWithLifecycle()
-  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
   val inScope = framework.launcherLabelsInScope()
-  LaunchedEffect(model, lifecycle, state.saved, inScope) {
-    if (inScope) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      while (true) { model.refreshLauncherLabelStatus(); delay(5_000) }
-    }
-  }
   val issue = when {
     !inScope -> R.string.launcher_labels_scope
     state.unavailable -> R.string.theme_effects_unavailable

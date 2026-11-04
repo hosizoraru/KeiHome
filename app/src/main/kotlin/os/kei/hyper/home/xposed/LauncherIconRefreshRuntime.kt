@@ -107,6 +107,17 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         }
       }
     },
+    onDockGlassChanged = {
+      xposed.log(Log.INFO, TAG, "Dock glass choice acknowledged; notifying native home screen")
+      synchronized(lock) {
+        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
+          generations.nextLauncherLabelRefresh(BuildConfig.APPLICATION_ID)?.let {
+            pending.replace(IconRefreshRequest(it, 0))
+          }
+          postPendingLocked()
+        }
+      }
+    },
     onPackageResourcesChanged = { name ->
       synchronized(lock) {
         if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dock_glass_title">Dockのガラス背景</string>
+    <string name="dock_glass_summary">Dockにホーム画面の標準ガラス背景を使用します。マテリアルの外観はシステムに従います。</string>
+    <string name="dock_glass_pending">ホーム画面への設定の反映を待っています…</string>
+</resources>

@@ -7,6 +7,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
+  @Test fun dockAckHasItsOwnIdentityEvenWhenMonetIsUnavailable() {
+    val report = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
+      launcherStartTicks = null, dockGlassEnabled = true, dockGlassPid = 9701, dockGlassStartTicks = 3211)
+    assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    assertEquals(report.copy(dockGlassEnabled = false),
+      RuntimeStatusReport.decode(report.copy(dockGlassEnabled = false).encode()))
+    assertNull(RuntimeStatusReport.decode(report.copy(dockGlassPid = null).encode()))
+    assertNull(RuntimeStatusReport.decode(report.copy(dockGlassStartTicks = null).encode()))
+    assertNull(RuntimeStatusReport.decode(report.copy(dockGlassEnabled = null).encode()))
+    assertNull(RuntimeStatusReport.decode(report.encode().split('|').toMutableList()
+      .apply { this[13] = "2" }.joinToString("|")))
+    val v3 = ready.encode().split('|').take(13).toMutableList().apply { this[0] = "3" }.joinToString("|")
+    assertEquals(ready, RuntimeStatusReport.decode(v3))
+  }
+
   @Test fun labelAcknowledgementsRoundTripAndOldReportsRemainReadable() {
     for (mode in 0..2) {
       val report = ready.copy(launcherLabelMode = mode)

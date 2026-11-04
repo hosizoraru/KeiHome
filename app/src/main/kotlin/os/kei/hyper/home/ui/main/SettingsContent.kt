@@ -88,7 +88,8 @@ internal fun SettingsContent(
     R.string.launcher_labels_summary, R.string.launcher_labels_native, R.string.launcher_labels_marquee,
     R.string.launcher_labels_two_lines)
   val dockGlass = matches(SettingsSection.HOOK, R.string.launcher_labels_section,
-    R.string.dock_glass_title, R.string.dock_glass_summary)
+    R.string.dock_glass_title, R.string.dock_glass_summary, R.string.dock_glass_corner_title,
+    R.string.dock_glass_corner_summary, R.string.dock_glass_corner_recents, R.string.dock_glass_corner_rounded)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val rememberMenus = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)

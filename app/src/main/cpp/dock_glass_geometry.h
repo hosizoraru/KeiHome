@@ -28,7 +28,10 @@ struct DockGlassGeometry {
         double container_height,
         std::optional<double> screen_bottom_radius = std::nullopt,
         std::optional<double> icon_width = std::nullopt,
-        std::optional<double> icon_top = std::nullopt) noexcept {
+        std::optional<double> icon_top = std::nullopt,
+        bool recents_style = false,
+        double recents_default_radius = 20.0,
+        std::optional<double> native_recents_radius = std::nullopt) noexcept {
     constexpr double kPadding = 18.0;
     constexpr double kEdge = 8.0;
     constexpr double kFallbackRadius = 28.0;
@@ -66,8 +69,11 @@ struct DockGlassGeometry {
         return {};
     }
 
-    const double left = std::max(kEdge, first_left - kPadding);
-    const double right = std::min(content_width - kEdge, last_right + kPadding);
+    // Full five-item layout needs the whole native content width. Keep the
+    // existing icon fit guard and all <=4 geometry unchanged.
+    const double plate_edge = count == 5 ? 0.0 : kEdge;
+    const double left = std::max(plate_edge, first_left - kPadding);
+    const double right = std::min(content_width - plate_edge, last_right + kPadding);
     if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};
     constexpr double kVerticalPadding = 18.0;
     constexpr double kPaintOverflow = 12.0;
@@ -81,11 +87,19 @@ struct DockGlassGeometry {
     // Keep a 28dp minimum softness, growing only when the concentric inner arc
     // (screen radius - nearer horizontal outer inset) exceeds it. Missing, zero
     // or invalid screen radii use 28dp too. Both dimensions still cap the radius.
-    const double outer_inset = std::min(left, content_width - right);
-    const double radius = screen_bottom_radius &&
+    const double outer_inset = std::max(kEdge, std::min(left, content_width - right));
+    double radius = screen_bottom_radius &&
                           std::isfinite(*screen_bottom_radius) &&
                           *screen_bottom_radius > 0.0
             ? std::max(kFallbackRadius, *screen_bottom_radius - outer_inset)
             : kFallbackRadius;
-    return {true, left, right, top, bottom, std::min(radius, radius_cap)};
+    if (recents_style) {
+        // Observe the system's actual task-card getter. Before its first
+        // normal call, use its source-authenticated ordinary radius fallback.
+        if (!std::isfinite(recents_default_radius) || recents_default_radius <= 0) return {};
+        radius = native_recents_radius && std::isfinite(*native_recents_radius) &&
+                 *native_recents_radius > 0 && *native_recents_radius <= 256
+                ? *native_recents_radius : recents_default_radius;
+    }
+    return {true, left, right, top, bottom, std::min({radius, radius_cap, count == 5 ? 32.0 : radius_cap})};
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "dock_glass_profile.h"
 #include <string.h>
+#include <vector>
 #ifdef KH_DOCK_PROFILE_DIAGNOSTIC
 #include <stdio.h>
 #endif
@@ -51,6 +52,450 @@ uint32_t Pool(const IconHighlightImage& im,size_t at) {
 }
 uint32_t Slot(uint32_t w){return (w>>10&4095u)*8;}
 bool Fail(const char** why,const char* s){if(why)*why=s;return false;}
+template<size_t N> const DockPattern* Role(const IconHighlightImage& im,size_t at,
+                                        const DockPattern(&patterns)[N]) {
+    if(!at)return nullptr;
+    for(const auto& pattern:patterns)if(Match(im,at,pattern))return &pattern;
+    return nullptr;
+}
+bool Readable(const IconHighlightImage& im,size_t at,size_t bytes) {
+    if(at>im.size||bytes>im.size-at)return false;
+    for(size_t i=0;i<im.range_count;++i) {
+        const auto& r=im.ranges[i];
+        if(at>=r.begin&&at<=r.end&&bytes<=r.end-at)return true;
+    }
+    return false;
+}
+uint64_t Data(const IconHighlightImage& im,size_t at,size_t bytes) {
+    uint64_t value=0;if(bytes<=8&&Readable(im,at,bytes))memcpy(&value,im.base+at,bytes);return value;
+}
+bool SnapshotInteger(const IconHighlightImage& im,size_t& at,size_t end,int marker,int64_t& value) {
+    uint64_t low=0;unsigned shift=0;
+    while(at<end&&shift<=56) {
+        const uint8_t b=im.base[at++];
+        if(b>=128){value=int64_t(low)+(int64_t(b)-marker)*(int64_t{1}<<shift);return true;}
+        low|=uint64_t(b)<<shift;shift+=7;
+    }
+    return false;
+}
+bool Leb(const IconHighlightImage& im,size_t& at,size_t end,size_t& value) {
+    value=0;unsigned shift=0;
+    while(at<end&&shift<sizeof(size_t)*8) {
+        const uint8_t b=im.base[at++];
+        if(shift==63&&(b&127u)>1)return false;
+        value|=size_t(b&127u)<<shift;
+        if(!(b&128u))return true;shift+=7;
+    }
+    return false;
+}
+bool StackPayload(const IconHighlightImage& im,size_t at,unsigned flags,size_t& begin,size_t& end) {
+    if(!Readable(im,at,4))return false;
+    const uint32_t header=uint32_t(Data(im,at,4));
+    if((header&3u)!=flags||!Readable(im,at+4,header>>2))return false;
+    begin=at+4;end=begin+(header>>2);return true;
+}
+bool GlassStackMaps(const IconHighlightImage& im,DockGlassProfile& p,
+                    size_t table,size_t total,size_t code_base) {
+    size_t found=0,local_offset=0;
+    for(size_t i=0;i<total;++i)if(code_base+size_t(Data(im,table+16+i*8,4))==p.glass_build) {
+        ++found;local_offset=size_t(Data(im,table+20+i*8,4));
+    }
+    size_t global_begin=0,global_end=0,local_begin=0,local_end=0;
+    if(found!=1||local_offset>im.size-table||
+       !StackPayload(im,table+local_offset,2,local_begin,local_end))return false;
+    const size_t global_offset=size_t(Data(im,table,4));
+    if(global_offset>im.size-table||!StackPayload(im,table+global_offset,1,global_begin,global_end))return false;
+    // The future FP-0x28 slot carries only a Smi before the child root store;
+    // no captured heap reference relies on FP-8 remaining live across calls.
+    // At clip allocation the native child is traced in spill bit 4.
+    const size_t sites[]={0x94,0xac,0xc4,0xd4,0xe4,0xf8,0x118,0x138,0x13c,0x158};
+    unsigned seen=0;size_t cursor=local_begin,pc=0;
+    while(cursor<local_end) {
+        size_t delta=0,offset=0;
+        if(!Leb(im,cursor,local_end,delta)||!Leb(im,cursor,local_end,offset)||
+           delta>0x1e4-pc||offset>global_end-global_begin)return false;
+        pc+=delta;size_t bitmap=global_begin+offset,spills=0,other=0;
+        if(!Leb(im,bitmap,global_end,spills)||!Leb(im,bitmap,global_end,other)||
+           spills>512||other>512||(spills+other+7)/8>global_end-bitmap)return false;
+        for(size_t i=0;i<sizeof(sites)/sizeof(sites[0]);++i)if(pc==sites[i]) {
+            if((seen&(1u<<i))||spills!=((pc==0x94||pc==0x138)?7u:8u)||other!=0)return false;seen|=1u<<i;
+            const uint8_t roots=im.base[bitmap];
+            if(pc==0x158) {
+                if(roots!=0x1a)return false;p.glass_child_stackmap=bitmap;
+            } else {
+                if(pc==0x13c){if(roots!=0x0f)return false;p.glass_scope_stackmap=bitmap;}
+            }
+        }
+    }
+    return seen==1023u&&p.glass_scope_stackmap&&p.glass_child_stackmap;
+}
+// Decode only the bounded dispatch root and InstructionsTable. No debug data,
+// exported symbols, snapshot version hashes or fixture offsets are consulted.
+// All accesses stay in readable PT_LOAD ranges. Image headers locate the VM
+// and isolate instruction images; serialized table entries supply code RVAs.
+bool RecentsDispatch(const IconHighlightImage& im,DockGlassProfile& p,std::vector<size_t>& result) {
+    size_t snapshot=0,end=0;
+    for(size_t at=0x350;at<0x10000;at+=16)if(Data(im,at,4)==0xdcdcf5f5u) {
+        const uint64_t length=Data(im,at+4,8);
+        if(length>im.size||length<52||at>im.size-size_t(length)||
+           !Readable(im,at,size_t(length)+4))continue;
+        if(snapshot)return false;snapshot=at;end=at+size_t(length)+4;
+    }
+    if(!snapshot)return false;
+    size_t header=snapshot+52;
+    while(header<end&&header<snapshot+4096&&im.base[header])++header;
+    if(header==end||header==snapshot+4096)return false;++header;
+    size_t cursor=header;int64_t head[5]={};
+    for(auto& h:head)if(!SnapshotInteger(im,cursor,end,128,h)||h<0)return false;
+    if(head[4]>int64_t(im.size))return false;
+    const size_t table_header=((end+63)&~size_t(63))+size_t(head[4])+16;
+    if(!Readable(im,table_header,16))return false;
+    const size_t total=size_t(Data(im,table_header+4,4)),first=size_t(Data(im,table_header+8,4));
+    if(!total||total>500000||first>total||int64_t(total-first)!=head[3]||
+       Data(im,table_header+12,4)||!Readable(im,table_header+16,total*8))return false;
+    size_t code_base=0;
+    for(size_t i=0;i<im.range_count;++i) {
+        const auto& r=im.ranges[i];if(!r.executable)continue;
+        const size_t vm_bytes=size_t(Data(im,r.begin,8));
+        if(vm_bytes<64||(vm_bytes&63u)||vm_bytes>r.end-r.begin)continue;
+        const size_t isolate=r.begin+vm_bytes,bytes=size_t(Data(im,isolate,8));
+        if(Data(im,r.begin+8,8)!=64||Data(im,isolate+8,8)!=64||bytes<64||
+           !Contains(im,isolate,bytes))continue;
+        if(code_base)return false;code_base=isolate;
+    }
+    if(!code_base)return false;
+    if(!GlassStackMaps(im,p,table_header,total,code_base))return false;
+    std::vector<size_t> pcs;pcs.reserve(total);
+    for(size_t i=0;i<total;++i) {
+        const size_t offset=size_t(Data(im,table_header+16+i*8,4));
+        if(offset>im.size-code_base||!Contains(im,code_base+offset,4)||
+           (!pcs.empty()&&code_base+offset<=pcs.back()))return false;
+        pcs.push_back(code_base+offset);
+    }
+    struct Token {size_t end;int64_t signed_value,unsigned_value;};
+    Token previous{},before{};size_t count=0,expanded=0,valid=0,at=end;
+    const size_t limit=end>500000?end-500000:header;
+    while(at>header&&at>limit) {
+        const size_t stop=at;--at;
+        if(im.base[at]<128)break;
+        while(at>header&&im.base[at-1]<128)--at;
+        size_t a=at,b=at;int64_t sv=0,uv=0;
+        if(!SnapshotInteger(im,a,stop,192,sv)||!SnapshotInteger(im,b,stop,128,uv)||a!=stop||b!=stop)break;
+        if(count>=2) {
+            expanded+=before.signed_value>0&&before.signed_value<=63?size_t(before.signed_value):1;
+            if(uv==int64_t(expanded)&&uv>=77000&&uv<=500000&&previous.unsigned_value<head[1]) {
+                std::vector<size_t> table;table.reserve(size_t(uv));
+                size_t pc=previous.end,recent[64]={},rix=0,value=0;bool has_value=false,ok=true;
+                while(ok&&table.size()<size_t(uv)) {
+                    int64_t token=0;if(!SnapshotInteger(im,pc,end,192,token)){ok=false;break;}
+                    if(token==0){value=0;has_value=true;table.push_back(value);}
+                    else if(token<0) {
+                        if(token < -64||!recent[size_t(~token)]){ok=false;break;}
+                        value=recent[size_t(~token)];has_value=true;table.push_back(value);
+                    } else if(token<=63) {
+                        if(!has_value||size_t(token)>size_t(uv)-table.size()){ok=false;break;}
+                        table.insert(table.end(),size_t(token),value);
+                    } else {
+                        if(token-64<1||token-64>int64_t(total)){ok=false;break;}
+                        value=pcs[size_t(token-65)];recent[rix]=value;rix=(rix+1)&63;has_value=true;table.push_back(value);
+                    }
+                }
+                if(ok&&table.size()==size_t(uv)&&pc==end) {
+                    ++valid;result.swap(table);p.recents_dispatch_start=at;p.recents_dispatch_end=end;
+                }
+            }
+        }
+        before=previous;previous={stop,sv,uv};++count;
+    }
+    return valid==1;
+}
+template<size_t N> size_t DispatchRole(const IconHighlightImage& im,const std::vector<size_t>& table,
+                                     size_t selector,size_t bytes,uint32_t widget_tag,
+                                     const DockPattern(&roles)[N]) {
+    size_t found=0;const size_t cid=widget_tag>>12;
+    for(size_t at=selector;at+12<=selector+bytes;at+=4) {
+        const uint32_t word=Word(im,at);
+        if((word&0xffe0001fu)!=0xd2800011u)continue;
+        size_t after=at+4,bias=word>>5&65535u;
+        if((Word(im,after)&0xffe0001fu)==0xf2a00011u){bias|=size_t(Word(im,after)>>5&65535u)<<16;after+=4;}
+        if(Word(im,after)!=0x8b11001eu||Word(im,after+4)!=0xf87e7abeu)continue;
+        const size_t index=4096+bias+cid;
+        if(index>=table.size()||!Role(im,table[index],roles))continue;
+        if(found)return 0;found=table[index];
+    }
+    return found;
+}
+// Decode ARM VFPExpandImm for FMOV Dn,#imm. Values remain source-derived even
+// if a future coherent source graph changes its ordinary/stacked constants.
+uint64_t DoubleImmediate(uint32_t word) {
+    if((word&0xffe01fe0u)!=0x1e601000u)return 0;
+    const uint64_t imm=word>>13&255u,b6=imm>>6&1u;
+    const uint64_t exponent=((b6^1u)<<10)|(b6?0x3fcu:0u)|(imm>>4&3u);
+    return ((imm>>7)<<63)|(exponent<<52)|((imm&15u)<<48);
+}
+size_t LastCall(const IconHighlightImage& im,size_t at,size_t bytes) {
+    size_t last=0;
+    for(size_t p=at;p<at+bytes;p+=4) {
+        if(Word(im,p)==0xd65f03c0u)break;
+        if(Branch(im,p))last=p;
+    }
+    return last;
+}
+uint32_t RenderCid(const IconHighlightImage& im,size_t at,size_t bytes) {
+    uint32_t cid=0;
+    for(size_t p=at;p<at+bytes;p+=4) {
+        const uint32_t word=Word(im,p);
+        if((word&0xffe0001fu)==0xd2800011u&&Word(im,p+4)==0xeb11009fu) {
+            if(cid)return 0;cid=word>>5&65535u;
+        }
+    }
+    return cid;
+}
+template<size_t N> size_t FindCalling(const IconHighlightImage& im,const DockPattern(&patterns)[N],
+                                    size_t call_offset,size_t target) {
+    size_t found=0;if(!target)return 0;
+    for(size_t i=0;i<im.range_count;++i) {const auto& range=im.ranges[i];if(!range.executable)continue;
+        for(size_t at=range.begin;at+4<=range.end;at+=4) {
+            if((Word(im,at)&patterns[0].words[0].mask)!=patterns[0].words[0].word||
+               Branch(im,at+call_offset)!=target||!Role(im,at,patterns))continue;
+            if(found)return 0;found=at;
+        }
+    }
+    return found;
+}
+int32_t FrameSlot(uint32_t word) {
+    const uint32_t offset=word>>12&511u;return int32_t(offset)-(offset&256u?512:0);
+}
+bool GlassFutureSlotUntouched(const IconHighlightImage& im,const DockGlassProfile& p) {
+    // Reviewed full method has no FP/Dart-SP aliases in this interval. Decode
+    // scalar/SIMD unscaled, unsigned and pair stack accesses, including byte
+    // overlap, so a write of either half of the future 8-byte slot rejects.
+    for(size_t at=p.glass_scope_resume;at<p.glass_child_scope_store;at+=4) {
+        const uint32_t w=Word(im,at);const unsigned rn=w>>5&31u;
+        if(rn!=29&&rn!=15)continue;
+        int32_t offset=0;unsigned width=0;
+        if((w&0x3b200000u)==0x38000000u) {
+            if(w&0xc00u)return false;offset=FrameSlot(w);width=1u<<(w>>30);
+        } else if((w&0x3b000000u)==0x39000000u) {
+            width=1u<<(w>>30);offset=int32_t((w>>10&4095u)*width);
+        } else if((w&0x3a000000u)==0x28000000u) {
+            if((w&0x01800000u)!=0x01000000u)return false;
+            const unsigned scale=(w&0x04000000u)?(w>>30):(w>>31);
+            const int32_t encoded=int32_t(w>>15&127u);
+            offset=(encoded-(encoded&64?128:0))*int32_t(1u<<(scale+2));width=2u<<(scale+2);
+        } else {
+            // Includes register-offset stack memory and address arithmetic.
+            // Full roles permit ordinary uses, but never escaping a frame
+            // address or modifying the original Dart stack pointer here.
+            if((w&0x1f000000u)==0x11000000u||
+               (w&0x3b200c00u)==0x38200800u)return false;
+            continue;
+        }
+        if(rn==15)offset-=0x40;
+        if(offset<p.glass_child_root_slot+8&&offset+int32_t(width)>p.glass_child_root_slot)return false;
+    }
+    return true;
+}
+bool ResolveOwnedGlassSources(const IconHighlightImage& im,DockGlassProfile& p,const char** why) {
+    p.glass_build=Find(im,kDockGlassBuild);
+    p.value_key_caller=Find(im,kDockValueKeyCaller);
+    p.value_key_equals=Find(im,kDockValueKeyEquals);
+    if(!p.glass_build||!p.value_key_caller||!p.value_key_equals)
+        return Fail(why,"ambiguous owned Glass/ValueKey source roles");
+    p.glass_scope_store=p.glass_build+0x5c;
+    p.glass_child_scope_store=p.glass_build+0x13c;
+    p.glass_clip_alloc_call=p.glass_build+0x154;
+    p.glass_scope_resume=p.glass_scope_store+4;
+    p.glass_child_scope_resume=p.glass_child_scope_store+4;
+    p.glass_clip_alloc_resume=p.glass_clip_alloc_call+4;
+    p.glass_scope_expected=Word(im,p.glass_scope_store);
+    p.glass_child_scope_expected=Word(im,p.glass_child_scope_store);
+    p.glass_clip_alloc_expected=Word(im,p.glass_clip_alloc_call);
+    p.glass_scope_root_slot=FrameSlot(Word(im,p.glass_build+0x54));
+    p.glass_radius_slot=FrameSlot(p.glass_scope_expected);
+    p.glass_child_root_slot=FrameSlot(p.glass_child_scope_expected);
+    // Capture only a Smi while the original receiver has just been reloaded.
+    // Native code never touches that future child root before its first store.
+    if(!Role(im,Branch(im,p.glass_build+0xc0),kDockGlassDockScope)||
+       p.glass_scope_expected!=0xfc1d03a0u||p.glass_scope_root_slot!=-8||p.glass_radius_slot!=-48||
+       Word(im,p.glass_build+0x10)!=0xf81f83a1u||
+       Word(im,p.glass_build+0x54)!=0xf85f83a1u||Word(im,p.glass_build+0x58)!=0xfc40b020u||
+       p.glass_child_scope_expected!=0xf81d83a0u||p.glass_child_root_slot!=-40||
+       Branch(im,p.glass_clip_alloc_call)!=p.recents_rrect_alloc||
+       Pool(im,p.glass_build+0x168)!=p.recents_clip_pp||
+       Pool(im,p.glass_build+0x190)!=p.clip_pp||!GlassFutureSlotUntouched(im,p))
+        return Fail(why,"owned Glass scope replay/root graph");
+    p.value_key_alloc=Branch(im,p.value_key_caller+0x88);
+    p.value_key_tag=Tag(im,p.value_key_alloc);
+    const size_t generic=Branch(im,p.value_key_alloc+8,false);
+    if((p.value_key_tag&0xfffu)!=0x11cu||!Role(im,generic,kDockValueKeyAllocator)||
+       !Role(im,Branch(im,p.value_key_caller+0x9c),kDockValueKeyString)||
+       !Role(im,Branch(im,p.value_key_equals+0x30),kDockValueKeyRuntimeType))
+        return Fail(why,"native generic ValueKey allocation/equality graph");
+    return true;
+}
+bool ResolveRecentsCorners(const IconHighlightImage& im,DockGlassProfile& p,const char** why) {
+    p.recents_adaptive_clip=Find(im,kDockRecentsClip);
+    p.curve_getter=Find(im,kDockRecentsEnabled);
+    p.recents_enabled_for=Find(im,kDockRecentsFor);
+    p.recents_enabled_for_radius=Find(im,kDockRecentsForRadius);
+    const auto* clip=Role(im,p.recents_adaptive_clip,kDockRecentsClip);
+    if(!clip||!p.curve_getter||!p.recents_enabled_for||!p.recents_enabled_for_radius)
+        return Fail(why,"ambiguous native Recents clip/getter roles");
+    p.recents_eligibility=Branch(im,p.curve_getter+0x28);
+    if(!Role(im,p.recents_eligibility,kDockRecentsEligibility)||
+       Branch(im,p.recents_enabled_for+0x44)!=p.recents_enabled_for_radius||
+       Branch(im,p.recents_enabled_for_radius+0x14)!=p.curve_getter)
+        return Fail(why,"native Recents eligibility graph");
+    // The full getter includes native cache lookup, nullable resolution,
+    // canonical false fallback and publication. Bind its load/store slot;
+    // consumers must call this entry, never a reduced capability subroutine.
+    const uint32_t cache=Slot(Word(im,p.curve_getter+0x10));
+    if(!cache||cache!=Slot(Word(im,p.curve_getter+0x64)))
+        return Fail(why,"native Recents getter cache contract");
+    unsigned getter_calls=0,predicate_calls=0,allocations=0,pools=0;
+    size_t first_getter=0;
+    for(size_t at=p.recents_adaptive_clip;at<p.recents_adaptive_clip+clip->count*4;at+=4) {
+        const size_t target=Branch(im,at);
+        if(target==p.curve_getter){++getter_calls;first_getter=at;}
+        else if(target==p.recents_enabled_for)++predicate_calls;
+        else if(target&&Tag(im,target)) {
+            if(allocations==0)p.recents_superellipse_alloc=target;
+            else if(allocations==1)p.recents_rrect_alloc=target;
+            ++allocations;
+        }
+        // After the argument parser, all four PP pairs are the actual native
+        // clipBehavior token forwarded/stored by both allocation branches.
+        const uint32_t pp=first_getter?Pool(im,at):0;
+        if(pp){if(p.recents_clip_pp&&p.recents_clip_pp!=pp)return Fail(why,"native Recents clip token disagreement");
+            p.recents_clip_pp=pp;++pools;}
+    }
+    if(getter_calls!=1||predicate_calls!=1||allocations!=2||pools!=4||
+       !p.recents_clip_pp||p.recents_clip_pp==p.clip_pp)
+        return Fail(why,"native Recents adaptive allocation graph");
+    p.recents_superellipse_tag=Tag(im,p.recents_superellipse_alloc);
+    p.recents_rrect_tag=Tag(im,p.recents_rrect_alloc);
+    if((p.recents_superellipse_tag&0xfffu)!=0x21cu||
+       (p.recents_rrect_tag&0xfffu)!=0x21cu||p.recents_superellipse_tag==p.recents_rrect_tag)
+        return Fail(why,"native Recents clip allocation headers");
+    if(!ResolveOwnedGlassSources(im,p,why))return false;
+
+    std::vector<size_t> dispatch;
+    const size_t mount=Find(im,kDockRecentsRenderMount);
+    const auto* mount_role=Role(im,mount,kDockRecentsRenderMount);
+    if(!mount_role||!RecentsDispatch(im,p,dispatch))return Fail(why,"native Dart dispatch root");
+    const size_t key_index=4096+(p.value_key_tag>>12);
+    if(key_index>=dispatch.size()||dispatch[key_index]!=p.value_key_equals)
+        return Fail(why,"ValueKey CID/equality dispatch identity");
+    // The caller must allocate the defining class, not a later subclass that
+    // merely inherits the same equality method. The reviewed native dispatch
+    // cluster starts with ValueKey itself; generator oracles authenticate that
+    // ordering against the actual public ValueKey caller in every fixture.
+    for(size_t i=4096;i<key_index;++i)if(dispatch[i]==p.value_key_equals)
+        return Fail(why,"ValueKey inherited subclass CID");
+    const size_t stateless=Find(im,kDockGlassStatelessBuild);
+    const auto* stateless_role=Role(im,stateless,kDockGlassStatelessBuild);
+    if(!stateless_role||DispatchRole(im,dispatch,stateless,stateless_role->count*4,
+                                    p.material_tags[0],kDockGlassBuild)!=p.glass_build)
+        return Fail(why,"GlassOs4 material CID/build dispatch identity");
+    p.recents_superellipse_create=DispatchRole(im,dispatch,mount,mount_role->count*4,
+                                              p.recents_superellipse_tag,kDockRecentsSuperCreate);
+    p.recents_rrect_create=DispatchRole(im,dispatch,mount,mount_role->count*4,
+                                      p.recents_rrect_tag,kDockRecentsRectCreate);
+    const size_t super_update=Find(im,kDockRecentsSuperUpdate),rect_update=Find(im,kDockRecentsRectUpdate);
+    const auto* super_create=Role(im,p.recents_superellipse_create,kDockRecentsSuperCreate);
+    const auto* rect_create=Role(im,p.recents_rrect_create,kDockRecentsRectCreate);
+    const auto* super_up=Role(im,super_update,kDockRecentsSuperUpdate);
+    const auto* rect_up=Role(im,rect_update,kDockRecentsRectUpdate);
+    if(!super_create||!rect_create||!super_up||!rect_up)
+        return Fail(why,"ambiguous native clip render identities");
+    const size_t creates[]={p.recents_superellipse_create,p.recents_rrect_create};
+    const DockPattern* create_roles[]={super_create,rect_create};
+    const uint32_t cids[]={RenderCid(im,super_update,super_up->count*4),RenderCid(im,rect_update,rect_up->count*4)};
+    size_t directions[2]={};
+    for(size_t n=0;n<2;++n) {
+        const size_t begin=creates[n],end=begin+create_roles[n]->count*4;
+        unsigned render_allocations=0;uint32_t render_tag=0;
+        size_t direction=0;
+        for(size_t at=begin;at<end;at+=4) {
+            const size_t target=Branch(im,at);if(!target)continue;
+            if(!direction)direction=target;
+            const uint32_t tag=Tag(im,target);
+            if(tag){render_tag=tag;++render_allocations;}
+        }
+        directions[n]=direction;
+        const size_t last=LastCall(im,begin,create_roles[n]->count*4),ctor=Branch(im,last);
+        if(n==0)p.recents_superellipse_constructor=ctor;else p.recents_rrect_constructor=ctor;
+        const DockPattern* ctor_role=n==0?Role(im,ctor,kDockRecentsSuperConstructor):Role(im,ctor,kDockRecentsRectConstructor);
+        if(render_allocations!=1||!render_tag||!cids[n]||render_tag>>12!=cids[n]||!ctor_role)
+            return Fail(why,"native clip create/update render class graph");
+        if(n==0) {
+            // Older create methods pass the constant in their constructor;
+            // newer methods pass it directly to the shared base constructor.
+            unsigned token_edges=0;
+            for(size_t at=begin;at<end;at+=4)
+                if(Pool(im,at)==p.recents_clip_pp&&Branch(im,at+8)==ctor)++token_edges;
+            for(size_t at=ctor;at<ctor+ctor_role->count*4;at+=4)
+                if(Pool(im,at)==p.recents_clip_pp&&Branch(im,at+8))++token_edges;
+            if(token_edges!=1)return Fail(why,"native superellipse clipBehavior forwarding");
+        }
+    }
+    if(!directions[0]||directions[0]!=directions[1])return Fail(why,"native clip directionality graph");
+
+    const size_t radius_caller=Find(im,kDockRecentsRadiusCaller);
+    p.recents_radius_caller=radius_caller;
+    if(!radius_caller)return Fail(why,"ambiguous native Radius/BorderRadius caller roles");
+    // Inlined task-radius selection joins in D3, before flight-size scaling.
+    p.recents_flight_radius=radius_caller+0xd8;
+    p.recents_flight_radius_expected=Word(im,p.recents_flight_radius);
+    if((p.recents_flight_radius_expected&0xffe00fffu)!=0xfc4003a0u||
+       Word(im,radius_caller+0xe4)!=0x1e610864u)
+        return Fail(why,"native flight radius join/scaling");
+    p.recents_flight_radius_slot=int32_t(p.recents_flight_radius_expected<<11)>>23;
+    p.recents_radius_alloc=Branch(im,radius_caller+0xf0);
+    const size_t radius_scale=FindCalling(im,kDockRecentsRadiusScale,0x24,p.recents_radius_alloc);
+    p.recents_border_radius_alloc=Branch(im,radius_caller+0x104);
+    p.recents_radius_tag=Tag(im,p.recents_radius_alloc);
+    p.recents_border_radius_tag=Tag(im,p.recents_border_radius_alloc);
+    if(!radius_scale||
+       (p.recents_radius_tag&0xfffu)!=0x21cu||
+       (p.recents_border_radius_tag&0xfffu)!=0x21cu||p.recents_radius_tag==p.recents_border_radius_tag)
+        return Fail(why,"native Radius/BorderRadius allocation graph");
+    if(Branch(im,p.glass_build+0xe0)!=p.recents_radius_alloc||
+       Branch(im,p.glass_build+0xf4)!=p.recents_border_radius_alloc)
+        return Fail(why,"Glass native Radius/BorderRadius source graph");
+    p.recents_stacked_radius=Find(im,kDockRecentsStacked);
+    const size_t task_radius=Find(im,kDockRecentsTaskRadius);
+    p.recents_task_radius=task_radius;
+    if(!p.recents_stacked_radius||!task_radius||Branch(im,task_radius+0xac)!=p.recents_stacked_radius)
+        return Fail(why,"native ordinary/stacked radius graph");
+    const auto* task_role=Role(im,p.recents_task_radius,kDockRecentsTaskRadius);
+    size_t radius_returns=0;
+    if(!task_role)return Fail(why,"missing native task radius role");
+    for(size_t at=p.recents_task_radius;at<p.recents_task_radius+task_role->count*4;at+=4)
+        if(Word(im,at)==0xd65f03c0u) {
+            if(radius_returns==2)return Fail(why,"native task radius return count");
+            p.recents_task_radius_returns[radius_returns++]=at;
+        }
+    if(radius_returns!=2)return Fail(why,"incomplete task radius returns");
+    p.recents_default_radius_bits=DoubleImmediate(Word(im,p.recents_stacked_radius+0x24));
+    p.recents_stacked_min_radius_bits=DoubleImmediate(Word(im,p.recents_stacked_radius+0x14));
+    if(!p.recents_default_radius_bits||!p.recents_stacked_min_radius_bits||
+       p.recents_stacked_min_radius_bits!=DoubleImmediate(Word(im,p.recents_stacked_radius+0x40))||
+       p.recents_default_radius_bits!=DoubleImmediate(Word(im,task_radius+0x9c))||
+       p.recents_default_radius_bits!=DoubleImmediate(Word(im,radius_caller+0xd4)))
+        return Fail(why,"native radius constant consistency");
+
+    const size_t state_ctor=Find(im,kDockRecentsStatefulConstructor);
+    const size_t state_create=FindCalling(im,kDockRecentsStatefulCreate,0x24,state_ctor);
+    const auto* ctor_role=Role(im,state_ctor,kDockRecentsStatefulConstructor);
+    if(!ctor_role||!state_create)return Fail(why,"native StatefulElement selector graph");
+    const uint32_t glass_child_tag=Tag(im,Branch(im,p.glass_build+0x138));
+    if((glass_child_tag&0xfffu)!=0x21cu||
+       !DispatchRole(im,dispatch,state_ctor,ctor_role->count*4,glass_child_tag,kDockGlassChildCreate))
+        return Fail(why,"owned Glass child CID/createState identity");
+    return true;
+}
 bool ResolveClipNone(const IconHighlightImage& im,DockGlassProfile& p,
                      uint32_t original_clip_pp,const char** why) {
     // These full mapped roles authenticate both alternatives: equality to the
@@ -245,5 +690,6 @@ bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const c
        (p.double_tag&0xfff)!=0x15c||(p.material_tags[0]&0xfff)!=0x31c)
         return Fail(why,"incomplete Dock allocation/return contract");
     for(size_t i=1;i<4;++i) if((p.material_tags[i]&0xfff)!=0x21c)return Fail(why,"native material allocation");
+    if(!ResolveRecentsCorners(im,p,why))return false;
     *out=p;return true;
 }

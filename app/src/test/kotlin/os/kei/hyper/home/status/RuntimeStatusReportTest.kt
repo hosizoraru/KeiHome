@@ -9,7 +9,7 @@ import org.junit.Test
 class RuntimeStatusReportTest {
   @Test fun dockAckHasItsOwnIdentityEvenWhenMonetIsUnavailable() {
     val report = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
-      launcherStartTicks = null, dockGlassEnabled = true, dockGlassPid = 9701, dockGlassStartTicks = 3211)
+      launcherStartTicks = null, dockGlassEnabled = true, dockGlassPid = 9701, dockGlassStartTicks = 3211, dockGlassCornerStyle = 1)
     assertEquals(report, RuntimeStatusReport.decode(report.encode()))
     assertEquals(report.copy(dockGlassEnabled = false),
       RuntimeStatusReport.decode(report.copy(dockGlassEnabled = false).encode()))
@@ -20,6 +20,33 @@ class RuntimeStatusReportTest {
       .apply { this[13] = "2" }.joinToString("|")))
     val v3 = ready.encode().split('|').take(13).toMutableList().apply { this[0] = "3" }.joinToString("|")
     assertEquals(ready, RuntimeStatusReport.decode(v3))
+  }
+
+  @Test fun dockStyleRequiresAnExactCompleteAckAndV4CanOnlyAcknowledgeRounded() {
+    val choice = os.kei.hyper.home.data.DockGlassChoice(true)
+    val report = ready.copy(dockGlassEnabled = true, dockGlassPid = 9701,
+      dockGlassStartTicks = 3211, dockGlassCornerStyle = 1)
+    for (style in 0..1) for (enabled in listOf(false, true)) {
+      val observation = report.copy(dockGlassCornerStyle = style, dockGlassEnabled = enabled)
+      assertEquals(observation, RuntimeStatusReport.decode(observation.encode()))
+    }
+    assertTrue(report.acknowledgesDockGlass(choice))
+    assertFalse(report.copy(dockGlassCornerStyle = 0).acknowledgesDockGlass(choice))
+    assertFalse(report.copy(dockGlassEnabled = false).acknowledgesDockGlass(choice))
+    assertFalse(report.copy(dockGlassPid = null).acknowledgesDockGlass(choice))
+    assertFalse(report.copy(dockGlassCornerStyle = null).acknowledgesDockGlass(choice))
+    assertFalse(report.acknowledgesDockGlass(null))
+    for (style in listOf(null, -1, 2)) {
+      assertNull(RuntimeStatusReport.decode(report.copy(dockGlassCornerStyle = style).encode()))
+    }
+    assertNull(RuntimeStatusReport.decode(ready.copy(dockGlassCornerStyle = 1).encode()))
+    val legacy = report.encode().split('|').take(16).toMutableList().apply { this[0] = "4" }.joinToString("|")
+    val decoded = RuntimeStatusReport.decode(legacy)!!
+    assertEquals(report.copy(dockGlassCornerStyle = 0), decoded)
+    assertFalse(decoded.acknowledgesDockGlass(choice))
+    assertTrue(decoded.acknowledgesDockGlass(choice.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.ROUNDED)))
+    val noDockV4 = ready.encode().split('|').take(16).toMutableList().apply { this[0] = "4" }.joinToString("|")
+    assertEquals(ready, RuntimeStatusReport.decode(noDockV4))
   }
 
   @Test fun labelAcknowledgementsRoundTripAndOldReportsRemainReadable() {

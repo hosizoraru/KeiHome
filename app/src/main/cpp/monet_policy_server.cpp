@@ -41,6 +41,7 @@ uint64_t kh_launcher_label_notified = 0u;
 uint32_t kh_dock_glass_installed = 0u;
 uint32_t kh_dock_glass_enabled = 0u;
 uint32_t kh_dock_glass_corner_q8 = 0u;
+uint32_t kh_dock_glass_corner_style = kNativeDockGlassRecentsStyle;
 uint64_t kh_dock_glass_revision = 0u;
 uint64_t kh_dock_glass_notified = 0u;
 }
@@ -149,7 +150,8 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
             (flags == kNativeLauncherLabelsCommand &&
              (foreground > 2u || background != 0u || count != 0u)) ||
             (flags == kNativeDockGlassCommand &&
-             (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 || count != 0u))) {
+             (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 ||
+              count > kNativeDockGlassRecentsStyle))) {
         return false;
     }
     *output = {flags, foreground, background, count};
@@ -235,16 +237,25 @@ void SetLauncherLabelMode(uint32_t mode) {
         __atomic_fetch_add(&kh_launcher_label_revision, uint64_t{1}, __ATOMIC_ACQ_REL);
 }
 
-void SetDockGlassEnabled(uint32_t enabled, uint32_t corner_q8 = 0u) {
-    // Both fields are primitive atomic publications. Publish the corner before
-    // enabling, then one generation after the complete state change. Off-state
-    // corner updates need no native repaint; expiry/worker failure reset it.
+void SetDockGlassEnabled(uint32_t enabled, uint32_t corner_q8, uint32_t corner_style) {
+    // Publish geometry before enabling, then one revision for the entire command.
+    // Style changes count even while off; off-state radius updates need no repaint.
     const uint32_t old_corner = __atomic_exchange_n(
             &kh_dock_glass_corner_q8, corner_q8, __ATOMIC_ACQ_REL);
+    const uint32_t old_style = __atomic_exchange_n(
+            &kh_dock_glass_corner_style, corner_style, __ATOMIC_ACQ_REL);
     const uint32_t old_enabled = __atomic_exchange_n(
             &kh_dock_glass_enabled, enabled, __ATOMIC_ACQ_REL);
-    if (old_enabled != enabled || (enabled != 0u && old_corner != corner_q8))
+    if (old_enabled != enabled || old_style != corner_style ||
+            (enabled != 0u && old_corner != corner_q8))
         __atomic_fetch_add(&kh_dock_glass_revision, uint64_t{1}, __ATOMIC_ACQ_REL);
+}
+
+void DisableDockGlass() {
+    // Expiry and worker failure revoke the lease without changing the saved geometry.
+    SetDockGlassEnabled(0u,
+            __atomic_load_n(&kh_dock_glass_corner_q8, __ATOMIC_ACQUIRE),
+            __atomic_load_n(&kh_dock_glass_corner_style, __ATOMIC_ACQUIRE));
 }
 
 void MaintainPolicy(PolicyState* state, uint64_t now) {
@@ -254,7 +265,7 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
     if (state->dock_glass_expires_at != 0u &&
             (now >= state->dock_glass_expires_at ||
              __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
-        SetDockGlassEnabled(0u);
+        DisableDockGlass();
         state->dock_glass_expires_at = 0u;
     }
     if (state->labels_expires_at != 0u &&
@@ -324,7 +335,7 @@ bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_bef
         MaintainPolicy(state, now);
         state->dock_glass_expires_at = header.foreground
                 ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
-        SetDockGlassEnabled(header.foreground, header.background);
+        SetDockGlassEnabled(header.foreground, header.background, header.count);
         return true;
     }
     if (header.flags == kNativeLauncherLabelsCommand) {
@@ -609,7 +620,7 @@ void* PolicyWorker(void* data) {
     __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
     server->policies.materials_expires_at = 0u;
     server->policies.labels_expires_at = 0u;
-    SetDockGlassEnabled(0u);
+    DisableDockGlass();
     server->policies.dock_glass_expires_at = 0u;
     PublishPolicy(&server->policies, nullptr);
     __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);

@@ -34,11 +34,34 @@ void Rect(const DockGlassGeometry& g, double left, double right,
     CHECK(std::isfinite(g.left) && std::isfinite(g.right) &&
           std::isfinite(g.top) && std::isfinite(g.bottom) &&
           std::isfinite(g.radius));
+    if(!Near(g.left,left))std::fprintf(stderr,"rect left actual=%g expected=%g right=%g expected=%g\n",g.left,left,g.right,right);
     CHECK(Near(g.left, left));
     CHECK(Near(g.right, right));
     CHECK(Near(g.top, top));
     CHECK(Near(g.bottom, bottom));
     CHECK(Near(g.radius, radius));
+}
+
+void RecentsRadiusPolicy() {
+    // Same ink/plate bounds as Rounded; only the source-backed corner policy
+    // changes. Test observed native values and final size caps.
+    for (int count = 1; count <= 5; ++count) {
+        for (double screen : {0.0, 20.0, 30.0, 30.5, 60.0, 256.0}) {
+            const auto rounded = ComputeDockGlassGeometry(400, 80, count, 5, 90,
+                                                          screen, 48, 10);
+            const auto recent = ComputeDockGlassGeometry(400, 80, count, 5, 90,
+                                                         screen, 48, 10, true, 20, screen);
+            CHECK(rounded.visible && recent.visible);
+            CHECK(recent.left == rounded.left && recent.right == rounded.right &&
+                  recent.top == rounded.top && recent.bottom == rounded.bottom);
+            const double native_target = screen > 0 ? screen : 20.0;
+            CHECK(Near(recent.radius, std::min({native_target,
+                       (recent.right - recent.left) / 2,
+                       (recent.bottom - recent.top) / 2, count==5?32.0:256.0})));
+        }
+    }
+    Hidden(ComputeDockGlassGeometry(400, 80, 1, 5, 90, 60, 48, 10, true, 0));
+    CHECK(ComputeDockGlassGeometry(400, 80, 1, 5, 90, 60, 48, 10, true, 20, -1).radius == 20);
 }
 
 void NativePositionFixtures() {
@@ -50,7 +73,7 @@ void NativePositionFixtures() {
         {2, 5, 144, 256, 126, 274},
         {3, 5, 116, 284,  98, 302},
         {4, 5,  88, 312,  70, 330},
-        {5, 5,  12, 388,   8, 392},
+        {5, 5,  12, 388,   0, 400},
         {1, 4, 172, 228, 154, 246},
         {2, 4, 144, 256, 126, 274},
         {3, 4, 116, 284,  98, 302},
@@ -72,8 +95,8 @@ void NativePositionFixtures() {
 
 void NarrowAndMissingBounds() {
     // 18dp padding shrinks to 8dp edge clearance without moving any icon.
-    Rect(ComputeDockGlassGeometry(300, 40, 5, 5, 80), 8, 292, 8, 72, 28);
-    Rect(ComputeDockGlassGeometry(280, 40, 5, 5, 80), 8, 272, 8, 72, 28);
+    Rect(ComputeDockGlassGeometry(300, 40, 5, 5, 80), 0, 300, 8, 72, 28);
+    Rect(ComputeDockGlassGeometry(280, 40, 5, 5, 80), 0, 280, 8, 72, 28);
     Hidden(ComputeDockGlassGeometry(279, 40, 5, 5, 80));
     // Packed-layout envelope exactly fits the permitted content bounds.
     Rect(ComputeDockGlassGeometry(96, 40, 2, 5, 80), 8, 88, 8, 72, 28);
@@ -91,14 +114,14 @@ void NarrowAndMissingBounds() {
 }
 
 void RadiusRules() {
-    // Full normal dock has an 8dp outer inset, height cap 32dp.
+    // Full-five plate expands; preserve the old radius floor with a 32dp cap.
     for (double screen_radius : {0.0, 8.0, 10.0, 28.0, 35.0, 36.0}) {
         Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, screen_radius),
-             8, 392, 8, 72, 28);
+             0, 400, 8, 72, 28);
     }
-    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 38), 8, 392, 8, 72, 30);
-    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 40), 8, 392, 8, 72, 32);
-    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 1000), 8, 392, 8, 72, 32);
+    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 38), 0, 400, 8, 72, 30);
+    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 40), 0, 400, 8, 72, 32);
+    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, 1000), 0, 400, 8, 72, 32);
     // Wider padding now puts the full 56dp elderly dock at the same 8dp inset.
     Rect(ComputeDockGlassGeometry(400, 56, 4, 4, 80, 28), 8, 392, 8, 72, 28);
     Rect(ComputeDockGlassGeometry(400, 56, 4, 4, 80, 40), 8, 392, 8, 72, 32);
@@ -122,7 +145,7 @@ void RadiusRules() {
     Rect(ComputeDockGlassGeometry(400, 56, 1, 5, 200, 200), 154, 246, 8, 192, 46);
     Rect(ComputeDockGlassGeometry(400, 56, 1, 5, 200, 1000), 154, 246, 8, 192, 46);
     Rect(ComputeDockGlassGeometry(36, 20, 1, 5, 100, 1000), 8, 28, 8, 92, 10);
-    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 36), 8, 392, 8, 28, 10);
+    Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 36), 0, 400, 8, 28, 10);
 
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();
@@ -133,12 +156,12 @@ void RadiusRules() {
         Rect(ComputeDockGlassGeometry(400, 56, 1, 5, 80, fallback),
              154, 246, 8, 72, 28);
         Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 80, fallback),
-             8, 392, 8, 72, 28);
+             0, 400, 8, 72, 28);
         // The fallback floor still respects narrow/short geometry.
         Rect(ComputeDockGlassGeometry(36, 20, 1, 5, 100, fallback),
              8, 28, 8, 92, 10);
         Rect(ComputeDockGlassGeometry(400, 56, 5, 5, 36, fallback),
-             8, 392, 8, 28, 10);
+             0, 400, 8, 28, 10);
         // Radius fallback cannot make missing native bounds drawable.
         Hidden(ComputeDockGlassGeometry(0, 56, 1, 5, 80, fallback));
     }
@@ -149,9 +172,9 @@ void PaintedIconEnvelope() {
     // centered 56dp painted icons occupy [12,388] and must retain a dock plate.
     Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 80));
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 56),
-         8, 392, 8, 72, 28);
+         0, 400, 8, 72, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 80, 40, 56),
-         8, 392, 8, 72, 32);
+         0, 400, 8, 72, 32);
     Rect(ComputeDockGlassGeometry(400, 120, 4, 4, 80, std::nullopt, 56),
          8, 392, 8, 72, 28);
     Hidden(ComputeDockGlassGeometry(400, 120, 5, 4, 80, std::nullopt, 56));
@@ -166,7 +189,7 @@ void PaintedIconEnvelope() {
          8, 392, 8, 72, 28);
     // Ink at the 8dp edge is valid; one extra dp cannot be hidden by clipping.
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 64),
-         8, 392, 8, 72, 28);
+         0, 400, 8, 72, 28);
     Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 65));
     for (double bad : {0.0, -1.0, 101.0,
                        std::numeric_limits<double>::quiet_NaN(),
@@ -233,11 +256,11 @@ void InvalidInputs() {
 void NativeVerticalEnvelope() {
     // Explicit native ink gets 18dp padding, allowing 12dp beyond the root.
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, std::nullopt, 56, 20),
-         8, 392, 2, 94, 28);
+         0, 400, 2, 94, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, 40, 56, 20),
-         8, 392, 2, 94, 32);
+         0, 400, 2, 94, 32);
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, 256, 56, 20),
-         8, 392, 2, 94, 46);
+         0, 400, 2, 94, 32);
     // Near-top ink keeps its native Y; only the extra plate padding is clipped.
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 0),
          154, 246, -12, 74, 28);
@@ -276,7 +299,7 @@ void NativeVerticalEnvelope() {
          132, 268, 2, 132, 28);
     // Omission retains the original container-based vertical bounds exactly.
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, std::nullopt, 56),
-         8, 392, 8, 112, 28);
+         0, 400, 8, 112, 28);
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 16, std::nullopt, 8));
     for (double bad : {-1.0, std::numeric_limits<double>::quiet_NaN(),
                        std::numeric_limits<double>::infinity(),
@@ -333,10 +356,10 @@ void CountChangesAndEnvelopeSweep() {
                         CHECK(g.visible == fits);
                         if (!fits) { Hidden(g); ++hidden; continue; }
                         ++visible;
-                        CHECK(g.left >= 8 && g.right <= width - 8);
+                        CHECK(g.left >= (count==5?0:8) && g.right <= width - (count==5?0:8));
                         CHECK(g.left <= first && g.right >= last);
-                        CHECK(Near(g.left, std::max(8.0, first - 18)));
-                        CHECK(Near(g.right, std::min(width - 8, last + 18)));
+                        CHECK(Near(g.left, std::max(count==5?0.0:8.0, first - 18)));
+                        CHECK(Near(g.right, std::min(width - (count==5?0:8), last + 18)));
                         CHECK(g.top == 8 && g.bottom == height - 8);
                         CHECK(g.radius >= 0 && g.radius <= (g.right - g.left) / 2);
                         CHECK(g.radius <= (g.bottom - g.top) / 2);
@@ -358,9 +381,24 @@ void CountChangesAndEnvelopeSweep() {
 int main() {
     static_assert(std::is_trivial<DockGlassGeometry>::value, "plain result");
     static_assert(noexcept(ComputeDockGlassGeometry(400, 56, 1, 5, 80)), "pure math");
+    // Conservative RRect containment also covers the fuller native continuous
+    // curve: every corner of all five unscaled icon rectangles stays inside.
+    for(double width:{360.0,373.3333333333,400.0})for(double ink:{48.0,52.0,56.0})
+      for(double y:{0.0,4.0,8.0,12.0})for(double native_radius:{20.0,44.210527795173505,60.0,256.0}) {
+        auto g=ComputeDockGlassGeometry(width,100,5,5,80,60,ink,y,true,20,native_radius);
+        CHECK(g.visible);CHECK(g.radius<=32);
+        for(int i=0;i<5;++i)for(double x:{(i+.5)*width/5-ink/2,(i+.5)*width/5+ink/2})
+          for(double cy:{y,y+ink}) {
+            CHECK(x>=g.left&&x<=g.right&&cy>=g.top&&cy<=g.bottom);
+            double dx=std::max({g.left+g.radius-x,x-(g.right-g.radius),0.0});
+            double dy=std::max({g.top+g.radius-cy,cy-(g.bottom-g.radius),0.0});
+            CHECK(dx*dx+dy*dy<=g.radius*g.radius+1e-8);
+          }
+      }
     NativePositionFixtures();
     NarrowAndMissingBounds();
     RadiusRules();
+    RecentsRadiusPolicy();
     PaintedIconEnvelope();
     NativeVerticalEnvelope();
     InvalidInputs();

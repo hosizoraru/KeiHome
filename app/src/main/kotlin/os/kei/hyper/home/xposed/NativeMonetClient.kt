@@ -99,8 +99,8 @@ internal class NativeMonetClient {
     communicate(context, NativeMonetProtocol.launcherLabelsRequest(mode),
       materialCommand = true, labelCommand = true, onWriteAttempted = onWriteAttempted)
 
-  fun setDockGlass(context: Context, enabled: Boolean, cornerQ8: Int, onWriteAttempted: () -> Unit): Boolean =
-    communicate(context, NativeMonetProtocol.dockGlassRequest(enabled, cornerQ8), dockCommand = true,
+  fun setDockGlass(context: Context, enabled: Boolean, cornerQ8: Int, cornerStyle: Int, onWriteAttempted: () -> Unit): Boolean =
+    communicate(context, NativeMonetProtocol.dockGlassRequest(enabled, cornerQ8, cornerStyle), dockCommand = true,
       onWriteAttempted = onWriteAttempted)
 
   fun isDockGlassAvailable(context: Context): Boolean = communicate(context, null, dockCommand = true)
@@ -436,10 +436,11 @@ internal object NativeMonetProtocol {
     return header(flags = LAUNCHER_LABELS, foreground = mode, background = 0, count = 0).array()
   }
 
-  fun dockGlassRequest(enabled: Boolean, cornerQ8: Int = 0): ByteArray {
+  fun dockGlassRequest(enabled: Boolean, cornerQ8: Int = 0, cornerStyle: Int = 1): ByteArray {
     require(cornerQ8 in 0..65536)
+    require(cornerStyle in 0..1)
     return header(flags = DOCK_GLASS, foreground = if (enabled) 1 else 0,
-      background = cornerQ8, count = 0).array()
+      background = cornerQ8, count = cornerStyle).array()
   }
 
   private fun isPackageName(name: String): Boolean {

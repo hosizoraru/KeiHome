@@ -3,4 +3,8 @@
     <string name="dock_glass_title">Dock 玻璃背景</string>
     <string name="dock_glass_summary">为 Dock 使用桌面原生玻璃背景，材质外观跟随系统。</string>
     <string name="dock_glass_pending">等待桌面接收设置…</string>
+    <string name="dock_glass_corner_title">Dock 圆角</string>
+    <string name="dock_glass_corner_summary">最近任务跟随系统原生卡片的圆角样式，圆润跟随屏幕圆角。</string>
+    <string name="dock_glass_corner_recents">最近任务</string>
+    <string name="dock_glass_corner_rounded">圆润</string>
 </resources>

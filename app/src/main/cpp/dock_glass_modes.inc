@@ -5,7 +5,8 @@
     .hidden kh_dock_mode_post,kh_dock_mode_replay,kh_dock_mode_config,kh_dock_mode_end
 // Single B replaces the first instruction AFTER the untouched native sync BL.
 // Every authenticated sync return sets x0=x22 (canonical null). computeMode
-// always returns an enum, making x0 a two-phase discriminator without saved
+// always returns an enum; native curve eligibility returns canonical Bool.
+// These make x0 a three-phase discriminator without saved
 // state, a stack write, a new frame, or a retained Dart reference.
 kh_dock_mode_post:
     hint #38
@@ -34,6 +35,12 @@ kh_dock_mode_post:
     ldr x16,[x17,#KH_DOCK_MODE_COMPUTE]
     br x16
 .Ldock_mode_result:
+    add w16,w22,#0x20
+    cmp w0,w16
+    b.eq .Ldock_curve_true
+    add w16,w22,#0x30
+    cmp w0,w16
+    b.eq .Ldock_curve_false
     // No managed call here. Reject a non-object or out-of-range raw enum index
     // and never resample on this phase, including if enabled changed meanwhile.
     tbz x0,#0,.Ldock_mode_replay
@@ -41,6 +48,20 @@ kh_dock_mode_post:
     cmp x14,#3
     b.hi .Ldock_mode_replay
     ldr x16,[x17,#KH_DOCK_MODE_VALUE]
+    stlr w14,[x16]
+    // The original native caller owns this exact return PC and its stack map.
+    // No object from computeMode is needed past the primitive publication.
+    // Native eligibility includes its own initialization and device policy.
+    ldr x16,[x17,#KH_DOCK_MODE_CURVE_GETTER]
+    cbz x16,.Ldock_mode_replay
+    br x16
+.Ldock_curve_true:
+    mov w14,#1
+    b .Ldock_curve_publish
+.Ldock_curve_false:
+    mov w14,#0
+.Ldock_curve_publish:
+    ldr x16,[x17,#KH_DOCK_MODE_CURVE_VALUE]
     stlr w14,[x16]
 .Ldock_mode_replay:
 kh_dock_mode_replay:

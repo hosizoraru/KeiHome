@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Copied render config: thirty-seven uint64_t words, offsets in bytes. Addresses are
+// Copied render config: fifty-one uint64_t words, offsets in bytes. Addresses are
 // absolute native addresses; pool/table offsets are bytes, never Dart pointers.
 #define KH_DOCK_ENABLED                 0
 #define KH_DOCK_GATE_ENTER              8
@@ -37,7 +37,24 @@
 #define KH_DOCK_IGNORE_POINTER_TAG    272
 #define KH_DOCK_NATIVE_CLIP_PP        280
 #define KH_DOCK_PARENT_CLIP_RESUME    288
-#define KH_DOCK_CONFIG_SIZE           296
+#define KH_DOCK_CORNER_STYLE_ADDRESS  296
+#define KH_DOCK_CURVE_ENABLED_ADDRESS 304
+#define KH_DOCK_VALUE_KEY_TAG         312
+#define KH_DOCK_GLASS_SUPER_ALLOC     320
+#define KH_DOCK_GLASS_RRECT_ALLOC     328
+#define KH_DOCK_GLASS_SCOPE_RESUME     336
+#define KH_DOCK_CHILD_SCOPE_RESUME    344
+#define KH_DOCK_GLASS_RADIUS_SLOT     352
+#define KH_DOCK_RECENTS_DEFAULT_BITS  360
+#define KH_DOCK_RECENTS_MIN_BITS      368
+#define KH_DOCK_GLASS_SCOPE_SLOT      376
+#define KH_DOCK_GLASS_CHILD_SLOT      384
+#define KH_DOCK_RECENTS_RADIUS_ADDRESS 392
+#define KH_DOCK_SCOPE_COUNTS_ADDRESS  400
+#define KH_DOCK_OWNED_KEY_VALUE       0x969088
+#define KH_DOCK_FLIGHT_RADIUS_RESUME 408
+#define KH_DOCK_FLIGHT_RADIUS_SLOT   416
+#define KH_DOCK_CONFIG_SIZE           424
 #define KH_DOCK_MATERIAL_GLASS_OS4      0
 #define KH_DOCK_MATERIAL_MIUIX_OS3      1
 #define KH_DOCK_MATERIAL_BASIC_BLUR     2
@@ -92,6 +109,15 @@ struct DockGlassBridgeConfig {
     uint64_t ignore_pointer_tag;      // authenticated native 32-byte IgnorePointer
     uint64_t native_clip_pp;          // original parent clip when disabled
     uint64_t parent_clip_resume;      // original clip store +4; x1 overwritten next
+    uint64_t corner_style_address;    // &uint32_t: 0 rounded, 1 native Recents
+    uint64_t curve_enabled_address;   // native eligibility Bool, primitive 0/1
+    uint64_t value_key_tag;
+    uint64_t glass_super_alloc, glass_rrect_alloc;
+    uint64_t glass_scope_resume, child_scope_resume, glass_radius_slot;
+    uint64_t recents_default_bits, recents_min_bits;
+    uint64_t glass_scope_slot, glass_child_slot, recents_radius_address;
+    uint64_t scope_counts_address;
+    uint64_t flight_radius_resume, flight_radius_slot;
 };
 
 #define KH_DOCK_CHECK(member, offset) \
@@ -130,13 +156,33 @@ KH_DOCK_CHECK(no_word_suppress_rx_field, KH_DOCK_NO_WORD_SUPPRESS_RX_FIELD);
 KH_DOCK_CHECK(ignore_pointer_tag, KH_DOCK_IGNORE_POINTER_TAG);
 KH_DOCK_CHECK(native_clip_pp, KH_DOCK_NATIVE_CLIP_PP);
 KH_DOCK_CHECK(parent_clip_resume, KH_DOCK_PARENT_CLIP_RESUME);
+KH_DOCK_CHECK(corner_style_address, KH_DOCK_CORNER_STYLE_ADDRESS);
+KH_DOCK_CHECK(curve_enabled_address, KH_DOCK_CURVE_ENABLED_ADDRESS);
+KH_DOCK_CHECK(value_key_tag, KH_DOCK_VALUE_KEY_TAG);
+KH_DOCK_CHECK(glass_super_alloc, KH_DOCK_GLASS_SUPER_ALLOC);
+KH_DOCK_CHECK(glass_rrect_alloc, KH_DOCK_GLASS_RRECT_ALLOC);
+KH_DOCK_CHECK(glass_scope_resume, KH_DOCK_GLASS_SCOPE_RESUME);
+KH_DOCK_CHECK(child_scope_resume, KH_DOCK_CHILD_SCOPE_RESUME);
+KH_DOCK_CHECK(glass_radius_slot, KH_DOCK_GLASS_RADIUS_SLOT);
+KH_DOCK_CHECK(recents_default_bits, KH_DOCK_RECENTS_DEFAULT_BITS);
+KH_DOCK_CHECK(recents_min_bits, KH_DOCK_RECENTS_MIN_BITS);
+KH_DOCK_CHECK(glass_scope_slot, KH_DOCK_GLASS_SCOPE_SLOT);
+KH_DOCK_CHECK(glass_child_slot, KH_DOCK_GLASS_CHILD_SLOT);
+KH_DOCK_CHECK(recents_radius_address, KH_DOCK_RECENTS_RADIUS_ADDRESS);
+KH_DOCK_CHECK(scope_counts_address, KH_DOCK_SCOPE_COUNTS_ADDRESS);
+KH_DOCK_CHECK(flight_radius_resume, KH_DOCK_FLIGHT_RADIUS_RESUME);
+KH_DOCK_CHECK(flight_radius_slot, KH_DOCK_FLIGHT_RADIUS_SLOT);
 #undef KH_DOCK_CHECK
 static_assert(sizeof(DockGlassBridgeConfig) == KH_DOCK_CONFIG_SIZE);
 
 extern "C" {
 extern uint32_t kh_dock_material_mode; // parent definition, default 0
+extern uint32_t kh_dock_superellipse_enabled;
+extern uint64_t kh_dock_recents_corner_bits;
+extern uint64_t kh_dock_glass_scope_counts[3];
 extern const uint8_t kh_dock_template[], kh_dock_gate[], kh_dock_background[];
 extern const uint8_t kh_dock_parent_clip[];
+extern const uint8_t kh_dock_glass_scope[], kh_dock_glass_child_scope[], kh_dock_glass_clip[], kh_dock_recents_radius[], kh_dock_recents_flight_radius[];
 extern const uint8_t kh_dock_config[], kh_dock_end[];
 }
 #endif

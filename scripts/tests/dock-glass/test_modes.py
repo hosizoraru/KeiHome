@@ -65,7 +65,7 @@ def payload(path):
                 w=(w&~0x60ffffe0)|((delta&3)<<29)|(((delta>>2)&0x7ffff)<<5)
                 struct.pack_into('<I',blob,at,w)
     offsets={n.removeprefix('kh_dock_mode_'):syms[n]-first for n in names}
-    assert offsets['end']-offsets['config']==48
+    assert offsets['end']-offsets['config']==64
     return blob,offsets,{'elf':str(path.resolve()),'sha256':hashlib.sha256(raw).hexdigest(),'kind':e['e_type']}
 
 def fixture(number):
@@ -126,9 +126,11 @@ def fixture(number):
             aw,lw=struct.unpack('<II',im.read(ci[k-4].address,8))
             enum_pools.append(((aw>>10)&4095)<<(12 if aw&(1<<22) else 0))
             enum_pools[-1]+=((lw>>10)&4095)*8
-    return dict(number=number,im=im,md=md,post=post,replay=replay,outer=outer,logger=logger,compute=compute,cz=cz,ci=ci,style=style,device=device,version_field=version_field,rxa=rxa,blur=blur,basic=basic,logs=logs,enum_pools=enum_pools,stackmap=stackmap,sync_rets=rets)
+    curve,curve_size,curve_code=named('RecentsSuperellipseConfig.isEnabled')
+    curve_slot=curve_code[4].operands[1].mem.disp
+    return dict(curve=curve,curve_size=curve_size,curve_slot=curve_slot,number=number,im=im,md=md,post=post,replay=replay,outer=outer,logger=logger,compute=compute,cz=cz,ci=ci,style=style,device=device,version_field=version_field,rxa=rxa,blur=blur,basic=basic,logs=logs,enum_pools=enum_pools,stackmap=stackmap,sync_rets=rets)
 
-def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,phase_smi=False):
+def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,phase_smi=False,curve_enabled=True):
     u=Uc(UC_ARCH_ARM64,UC_MODE_ARM)
     for a,z in ((LIB,0x2000000),(BRIDGE,0x10000),(HEAP,0x40000),(THREAD,0x20000),(POOL,0x100000),(STACK,0x20000),(CTRL,0x1000)): u.mem_map(a,z)
     def put(a,v,n=8): u.mem_write(a,int(v&((1<<(8*n))-1)).to_bytes(n,'little'))
@@ -136,15 +138,18 @@ def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,ph
     post=LIB+f['post']; resume=post+4; compute=LIB+f['compute']; join=LIB+f['logger']+4
     u.mem_write(LIB+f['outer'],f['im'].read(f['outer'],f['logger']+8-f['outer']))
     u.mem_write(compute,f['im'].read(f['compute'],f['cz']))
+    curve=LIB+f['curve']
+    u.mem_write(curve,f['im'].read(f['curve'],f['curve_size']))
     code=bytearray(blob); code[off['replay']:off['replay']+4]=f['replay']
-    struct.pack_into('<6Q',code,off['config'],post,resume,compute,CTRL,CTRL+8,f['style'])
+    struct.pack_into('<8Q',code,off['config'],post,resume,compute,CTRL,CTRL+8,f['style'],curve,CTRL+16)
     u.mem_write(BRIDGE,bytes(code)); delta=BRIDGE-post; assert delta%4==0 and abs(delta)<0x8000000
     put(post,0x14000000|((delta//4)&0x3ffffff),4)
     for k,reg in enumerate(X): u.reg_write(reg,0x80800000+k*0x100)
     original_x1=u.reg_read(X[1])
     for k,v in {0:2 if phase_smi else NULL,15:DSP,21:0x80700000,22:NULL,26:THREAD,27:POOL,28:HEAP>>32,29:FP,30:post+(0x40 if guard=='wrong_lr' else 0)}.items(): u.reg_write(X[k],v)
     u.reg_write(ar.UC_ARM64_REG_SP,CSP)
-    put(THREAD+0x78,TABLE); put(POOL+0x40,SENTINEL); put(CTRL,0 if guard=='off' else 1,4); put(CTRL+8,99,4)
+    put(THREAD+0x78,TABLE); put(POOL+0x40,SENTINEL); put(CTRL,0 if guard=='off' else 1,4); put(CTRL+8,99,4); put(CTRL+16,99,4)
+    put(TABLE+f['curve_slot'],NULL+(0x20 if curve_enabled else 0x30))
     ready={'null':NULL,'smi':2,'late':SENTINEL}.get(guard,RX); put(TABLE+f['style'],ready)
     put(TABLE+f['device'],DEVICE); put(DEVICE+f['version_field'],4)
     for i in f['ci']:
@@ -161,20 +166,23 @@ def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,ph
         obj=HEAP+0x2001+k*0x40; put(POOL+p,obj); put(obj+7,(bad_index if bad_index is not None else k))
     native_calls={i.address+4:i for i in f['ci'] if i.mnemonic=='bl'}
     external_targets={int(i.op_str[1:],0) for i in native_calls.values()}
-    state={'steps':0,'compute_entries':0,'post_entries':0,'replays':0,'writes':[],'gc':0,'registered_rx_owners':[],'native_bl_lr_checks':0}
+    state={'steps':0,'compute_entries':0,'curve_entries':0,'curve_writes':[],'post_entries':0,'replays':0,'writes':[],'gc':0,'registered_rx_owners':[],'native_bl_lr_checks':0}
     expected_regs={k:u.reg_read(X[k]) for k in (15,21,22,26,27,28,29,30)}
     def on_write(uc,access,a,size,value,data):
         pc=uc.reg_read(ar.UC_ARM64_REG_PC)
         if BRIDGE<=pc<BRIDGE+off['config']:
-            assert a==CTRL+8 and size==4 and 0<=value<=3, 'Bridge must only publish a primitive mode'
-            state['writes'].append(value)
+            assert a in (CTRL+8,CTRL+16) and size==4 and 0<=value<=(3 if a==CTRL+8 else 1), 'Bridge only publishes primitives'
+            state['writes' if a==CTRL+8 else 'curve_writes'].append(value)
     def on_code(uc,a,size,data):
-        state['steps']+=1; assert state['steps']<400, 'Bounded two-phase execution; no retry loop'
+        state['steps']+=1; assert state['steps']<400, 'Bounded mode/curve execution; no retry loop'
         if a==join: uc.emu_stop(); return
         if a==BRIDGE: state['post_entries']+=1
         if a==BRIDGE+off['replay']:
             state['replays']+=1
             assert uc.reg_read(X[15])==DSP and uc.reg_read(X[29])==FP
+        if a==curve:
+            state['curve_entries']+=1
+            assert uc.reg_read(X[30])==post
         if a==compute:
             state['compute_entries']+=1
             assert uc.reg_read(X[30])==post and uc.reg_read(X[1])==original_x1
@@ -206,7 +214,7 @@ def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,ph
     u.hook_add(UC_HOOK_CODE,on_code); u.hook_add(UC_HOOK_MEM_WRITE,on_write)
     start=time.perf_counter(); u.emu_start(post,join+4,count=500); elapsed=time.perf_counter()-start
     sampled=guard in ('ready','toggle_off') and not phase_smi
-    assert state['compute_entries']==int(sampled) and state['post_entries']==1+int(sampled)
+    assert state['compute_entries']==int(sampled) and state['post_entries']==1+int(sampled)+int(sampled and bad_index is None)
     assert state['replays']==1 and u.reg_read(ar.UC_ARM64_REG_PC)==join
     expected_context=context+(0x10000 if gc and sampled else 0)
     assert u.reg_read(X[2])==expected_context and get(FP-0x18)==expected_context
@@ -215,8 +223,11 @@ def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,ph
     for k,v in expected_regs.items(): assert u.reg_read(X[k])==v,(f['number'],k)
     good=sampled and bad_index is None
     assert get(CTRL+8,4)==(mode if good else 99) and state['writes']==([mode] if good else []), (f['number'],mode,guard,bypass,gc,get(CTRL+8,4),state)
+    assert state['curve_entries']==int(good)
+    assert get(CTRL+16,4)==(int(curve_enabled) if good else 99)
+    assert state['curve_writes']==([int(curve_enabled)] if good else [])
     assert len(state['registered_rx_owners'])==int(sampled) and state['gc']==int(gc and sampled)
-    assert bytes(u.mem_read(BRIDGE+off['config'],48))==bytes(code[off['config']:off['config']+48]), 'No retained managed pointer in config'
+    assert bytes(u.mem_read(BRIDGE+off['config'],64))==bytes(code[off['config']:off['config']+64]), 'No retained managed pointer in config'
     assert state['native_bl_lr_checks']>=3 if sampled else state['native_bl_lr_checks']==0
     return dict(fixture=f['number'],mode=mode,guard=guard,bypass=bypass,moving_gc=gc,bad_index=bad_index,phase_smi=phase_smi,steps=state['steps'],compute_entries=state['compute_entries'],native_bl_lr_checks=state['native_bl_lr_checks'],root_count=len(f['stackmap']['object_bits']),seconds=elapsed)
 
@@ -232,7 +243,8 @@ def main():
         for guard in ('off','null','smi','late','wrong_lr','toggle_off'): cases.append(run(f,blob,off,guard=guard,gc=True))
         for bad in (4,-1): cases.append(run(f,blob,off,bad_index=bad,gc=True))
         cases.append(run(f,blob,off,phase_smi=True))
-        print(number,'25 mode POST/native compute/GC-boundary scenarios passed',flush=True)
+        for mode in range(4): cases.append(run(f,blob,off,mode=mode,curve_enabled=False,gc=True))
+        print(number,'29 mode/curve POST/native compute/GC-boundary scenarios passed',flush=True)
     report=dict(passed=True,artifact=artifact,release_payload=artifact['kind']=='ET_DYN',cases=len(cases),max_steps=max(c['steps'] for c in cases),details=cases,limits='Real native computeMode bytes/frame/RETs; external calls and moving GC controlled by host. Does not execute the Dart VM GC, Flutter rendering, or devices.')
     if args.report: args.report.write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='details'}))

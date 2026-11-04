@@ -14,7 +14,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 extern "C" const uint8_t kh_dock_payload_end[];
-extern "C" { uint32_t kh_dock_material_mode=0; }
+extern "C" { uint32_t kh_dock_material_mode=0; uint32_t kh_dock_superellipse_enabled=0; uint64_t kh_dock_recents_corner_bits=0; uint64_t kh_dock_glass_scope_counts[3]={}; }
 namespace {
 uint32_t phase=0;
 struct Loaded { uintptr_t base; IconHighlightRange ranges[16]; size_t count, span; bool valid; };
@@ -82,6 +82,12 @@ bool InstallPreparedDockGlass() {
     const long page=sysconf(_SC_PAGESIZE);
     if(page<4096||page>65536||(page&(page-1))||bytes>size_t(page))return Reject("Dock template ABI");
     const Patch patches[]={
+        {p.recents_flight_radius,p.recents_flight_radius_expected,kh_dock_recents_flight_radius,false},
+        {p.recents_task_radius_returns[0],0xd65f03c0u,kh_dock_recents_radius,false},
+        {p.recents_task_radius_returns[1],0xd65f03c0u,kh_dock_recents_radius,false},
+        {p.glass_scope_store,p.glass_scope_expected,kh_dock_glass_scope,false},
+        {p.glass_child_scope_store,p.glass_child_scope_expected,kh_dock_glass_child_scope,false},
+        {p.glass_clip_alloc_call,p.glass_clip_alloc_expected,kh_dock_glass_clip,true},
         {p.parent_clip_store,0xb801b001u,kh_dock_parent_clip,false},
         {p.gate,p.gate_expected,kh_dock_gate,false},
         {p.background_call,p.background_expected,kh_dock_background,true},
@@ -115,7 +121,15 @@ bool InstallPreparedDockGlass() {
         p.alignment_pp,p.fit_pp,p.clip_pp,p.double_tag,p.launcher_mode_slot,p.launcher_mode_rx,p.elderly_pp,p.device_layout_field,p.corner_field,
         p.ink_metrics_field,p.ink_width_field,reinterpret_cast<uintptr_t>(&kh_dock_glass_corner_q8),
         p.ink_top_field,p.cell_height_field,p.no_word_rx_field,p.no_word_suppress_rx_field,p.ignore_pointer_tag,
-        p.native_clip_pp,loaded.base+p.parent_clip_store+4
+        p.native_clip_pp,loaded.base+p.parent_clip_store+4,
+        reinterpret_cast<uintptr_t>(&kh_dock_glass_corner_style),
+        reinterpret_cast<uintptr_t>(&kh_dock_superellipse_enabled),p.value_key_tag,
+        loaded.base+p.recents_superellipse_alloc,loaded.base+p.recents_rrect_alloc,
+        loaded.base+p.glass_scope_store+4,loaded.base+p.glass_child_scope_store+4,
+        uint64_t(int64_t(p.glass_radius_slot)),p.recents_default_radius_bits,p.recents_stacked_min_radius_bits,
+        uint64_t(int64_t(p.glass_scope_root_slot)),uint64_t(int64_t(p.glass_child_root_slot)),
+        reinterpret_cast<uintptr_t>(&kh_dock_recents_corner_bits),reinterpret_cast<uintptr_t>(&kh_dock_glass_scope_counts),
+        loaded.base+p.recents_flight_radius+4,uint64_t(int64_t(p.recents_flight_radius_slot))
     };
     const DockGlassRefreshConfig refresh_config={
         reinterpret_cast<uintptr_t>(&kh_dock_glass_installed),reinterpret_cast<uintptr_t>(&kh_dock_glass_revision),
@@ -124,7 +138,8 @@ bool InstallPreparedDockGlass() {
         l.grid_slot,l.config_rx_field,l.rx_value_field,r.rx_subject_field,r.observer_slot
     };
     const DockGlassModeConfig mode={loaded.base+p.mode_post,loaded.base+p.mode_post+4,loaded.base+p.mode,
-        reinterpret_cast<uintptr_t>(&kh_dock_glass_enabled),reinterpret_cast<uintptr_t>(&kh_dock_material_mode),p.mode_slot};
+        reinterpret_cast<uintptr_t>(&kh_dock_glass_enabled),reinterpret_cast<uintptr_t>(&kh_dock_material_mode),p.mode_slot,
+        loaded.base+p.curve_getter,reinterpret_cast<uintptr_t>(&kh_dock_superellipse_enabled)};
     memcpy(bridge+size_t(kh_dock_mode_replay-kh_dock_template),&p.mode_post_expected,4);
     const auto copy=[&](const uint8_t* config,const void* data,size_t size) {
         const size_t offset=size_t(config-kh_dock_template);

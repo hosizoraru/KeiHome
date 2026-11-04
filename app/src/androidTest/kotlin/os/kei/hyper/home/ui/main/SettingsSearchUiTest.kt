@@ -61,7 +61,8 @@ class SettingsSearchUiTest {
             onExpandedChange = {}, label = context.getString(R.string.settings_search))
           SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {},
             ThemeEffectsUiState(savedChoice = true), true, {},
-            ThemeEffectsUiState(savedChoice = false), framework, { requested = it }, query, null, {}, {}) {}
+            ThemeEffectsUiState(savedChoice = false), framework, { requested = it }, query, null,
+            onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {}) {}
         }
       }
     }

@@ -24,10 +24,12 @@ static_assert(std::is_same_v<decltype(kh_monet_installed), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_dock_glass_installed), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_dock_glass_enabled), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_dock_glass_corner_q8), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_corner_style), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_dock_glass_revision), uint64_t>);
 static_assert(std::is_same_v<decltype(kh_dock_glass_notified), uint64_t>);
 static_assert(kNativeDockGlassCapability == 8u && kNativeDockGlassCommand == 8u);
 static_assert(kNativeDockGlassMaxCornerQ8 == 65536u);
+static_assert(kNativeDockGlassRoundedStyle == 0u && kNativeDockGlassRecentsStyle == 1u);
 static_assert(kNativeMonetExpiryMs == 45000u);
 
 namespace {
@@ -51,6 +53,16 @@ Bytes Request(uint32_t flags, uint32_t foreground, uint32_t background,
         AppendWord(&result, static_cast<uint32_t>(name.size()));
         result.insert(result.end(), name.begin(), name.end());
     }
+    return result;
+}
+
+// Dock word 5 is a style, with no package body even when it is 1.
+Bytes DockRequest(uint32_t enabled, uint32_t corner, uint32_t style) {
+    Bytes result;
+    for (uint32_t value : {kNativeMonetMagic, kNativeMonetProtocolVersion, 8u,
+                          enabled, corner, style})
+        AppendWord(&result, value);
+    assert(result.size() == 24u);
     return result;
 }
 
@@ -535,29 +547,35 @@ struct InstalledFlagSnapshot {
 
 void TestDockGlassCapabilitiesAndCommandAdmission() {
     const InstalledFlagSnapshot installed;
-    const Bytes enable = Request(8u, 1u, 0u, {});
-    const Bytes disable = Request(8u, 0u, 0u, {});
+    const Bytes enable = DockRequest(1u, 0u, 0u);
+    const Bytes disable = DockRequest(0u, 0u, 0u);
     for (uint32_t caps = 0u; caps < 16u; ++caps) {
-        PolicyState state{};
-        __atomic_store_n(&kh_monet_installed, uint32_t{bool(caps & 1u)}, __ATOMIC_RELEASE);
-        __atomic_store_n(&kh_theme_materials_installed, uint32_t{bool(caps & 2u)}, __ATOMIC_RELEASE);
-        __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
-        __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
-        assert(InstalledCapabilities() == caps);
-        assert(kh_monet_policy == nullptr && kh_dock_glass_enabled == 0u);
-        const uint64_t revision = kh_dock_glass_revision;
-        const uint64_t notified = kh_dock_glass_notified;
-        const bool dock = (caps & 8u) != 0u;
-        assert(ApplyRequest(&state, enable, 1u) == dock);
-        assert(kh_dock_glass_enabled == uint32_t{dock});
-        assert(kh_dock_glass_revision == revision + uint64_t{dock});
-        assert(state.dock_glass_expires_at ==
-                (dock ? 1u + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u));
-        assert(ApplyRequest(&state, disable, 2u) == dock);
-        assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
-        assert(kh_dock_glass_corner_q8 == 0u);
-        assert(kh_dock_glass_revision == revision + 2u * uint64_t{dock});
-        assert(kh_dock_glass_notified == notified && kh_monet_policy == nullptr);
+        for (uint32_t style : {0u, 1u}) {
+            PolicyState state{};
+            __atomic_store_n(&kh_monet_installed, uint32_t{bool(caps & 1u)}, __ATOMIC_RELEASE);
+            __atomic_store_n(&kh_theme_materials_installed, uint32_t{bool(caps & 2u)}, __ATOMIC_RELEASE);
+            __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
+            __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
+            assert(InstalledCapabilities() == caps);
+            assert(kh_monet_policy == nullptr && kh_dock_glass_enabled == 0u);
+            const uint64_t revision = kh_dock_glass_revision;
+            const uint64_t notified = kh_dock_glass_notified;
+            const uint32_t old_style = kh_dock_glass_corner_style;
+            const bool dock = (caps & 8u) != 0u;
+            assert(ApplyRequest(&state, DockRequest(1u, 0u, style), 1u) == dock);
+            assert(kh_dock_glass_enabled == uint32_t{dock});
+            assert(kh_dock_glass_corner_style == (dock ? style : old_style));
+            // Enabling and changing style together still publish only ONE revision.
+            assert(kh_dock_glass_revision == revision + uint64_t{dock});
+            assert(state.dock_glass_expires_at ==
+                    (dock ? 1u + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u));
+            assert(ApplyRequest(&state, DockRequest(0u, 0u, style), 2u) == dock);
+            assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+            assert(kh_dock_glass_corner_q8 == 0u);
+            assert(kh_dock_glass_corner_style == (dock ? style : old_style));
+            assert(kh_dock_glass_revision == revision + 2u * uint64_t{dock});
+            assert(kh_dock_glass_notified == notified && kh_monet_policy == nullptr);
+        }
     }
     for (uint32_t not_ready : {2u, UINT32_MAX}) {
         PolicyState state{};
@@ -567,7 +585,7 @@ void TestDockGlassCapabilitiesAndCommandAdmission() {
         assert(!ApplyRequest(&state, enable, 3u) && !ApplyRequest(&state, disable, 3u));
         assert(kh_dock_glass_revision == revision && state.dock_glass_expires_at == 0u);
     }
-    puts("Dock capability 8: all 16 combinations and uninstalled/partial admission passed");
+    puts("Dock capability 8: both corner styles, all 16 combinations and uninstalled/partial admission passed");
 }
 
 void TestDockGlassMalformedAndPolicyIsolation() {
@@ -597,6 +615,7 @@ void TestDockGlassMalformedAndPolicyIsolation() {
     const uint64_t revision = kh_dock_glass_revision, notified = kh_dock_glass_notified;
     const uint64_t expiry = state.dock_glass_expires_at;
     const uint32_t corner = kh_dock_glass_corner_q8;
+    const uint32_t style = kh_dock_glass_corner_style;
     const auto other_features_unchanged = [&] {
         assert(kh_monet_policy == pinned && memcmp(pinned, &policy, sizeof(policy)) == 0);
         assert(state.expiration == before_dock.expiration && state.expires_at == before_dock.expires_at);
@@ -611,16 +630,23 @@ void TestDockGlassMalformedAndPolicyIsolation() {
     const auto rejected_unchanged = [&](const Bytes& bad, uint64_t now = 5u) {
         assert(!ApplyRequest(&state, bad, now));
         assert(kh_dock_glass_enabled == 1u && state.dock_glass_expires_at == expiry);
-        assert(kh_dock_glass_corner_q8 == corner);
+        assert(kh_dock_glass_corner_q8 == corner && kh_dock_glass_corner_style == style);
         assert(kh_dock_glass_revision == revision);
         other_features_unchanged();
     };
-    for (size_t n = 0u; n < enable.size(); ++n)
-        rejected_unchanged(Bytes(enable.begin(), enable.begin() + n));
+    for (uint32_t corner_style : {0u, 1u}) {
+        const Bytes command = DockRequest(1u, 10240u, corner_style);
+        for (size_t n = 0u; n < command.size(); ++n)
+            rejected_unchanged(Bytes(command.begin(), command.begin() + n));
+    }
+    for (uint32_t bad_style : {2u, 3u, 512u, 513u, UINT32_MAX}) {
+        for (uint32_t enabled : {0u, 1u})
+            rejected_unchanged(DockRequest(enabled, 10240u, bad_style));
+    }
     for (const Bytes& bad : std::vector<Bytes>{
             Request(8u, 2u, 0u, {}), Request(8u, UINT32_MAX, 0u, {}),
             Request(8u, 1u, 65537u, {}), Request(8u, 1u, UINT32_MAX, {}),
-            Request(8u, 1u, 0u, {"com.example"})})
+            Request(8u, 1u, 0u, {"com.example", "com.other"})})
         rejected_unchanged(bad);
     for (uint32_t command : {4u, 5u, 6u, 7u, 9u, UINT32_MAX})
         rejected_unchanged(Request(command, 1u, 0u, {}));
@@ -644,7 +670,7 @@ void TestDockGlassMalformedAndPolicyIsolation() {
     ReleaseNativeMonetPolicy();
     Clear(&state);
     MaintainPolicy(&state, UINT64_MAX);
-    puts("Dock command 8: wire, truncation, corner bounds, reserved count/commands and isolation passed");
+    puts("Dock command 8: wire, truncation, corner/style bounds, reserved commands and isolation passed");
 }
 
 void TestDockGlassLeaseAndNotificationRevisions() {
@@ -653,8 +679,9 @@ void TestDockGlassLeaseAndNotificationRevisions() {
     __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
     const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
     const uint64_t heartbeat = uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs;
-    const uint64_t revision = kh_dock_glass_revision, saved_notified = kh_dock_glass_notified;
     const Bytes enable = Request(8u, 1u, 0u, {}), disable = Request(8u, 0u, 0u, {});
+    assert(ApplyRequest(&state, disable, 1u));
+    const uint64_t revision = kh_dock_glass_revision, saved_notified = kh_dock_glass_notified;
     assert(ApplyRequest(&state, disable, 1u));
     assert(kh_dock_glass_revision == revision && kh_dock_glass_notified == saved_notified);
     assert(ApplyRequest(&state, enable, 2u));
@@ -783,7 +810,8 @@ void TestDockGlassCornerUpdates() {
     MaintainPolicy(&state, expiry - 1u);
     assert(kh_dock_glass_corner_q8 == 4096u && kh_dock_glass_revision == revision);
     MaintainPolicy(&state, expiry);
-    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 0u);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 4096u);
+    assert(kh_dock_glass_corner_style == 0u);
     assert(kh_dock_glass_revision == ++revision && state.dock_glass_expires_at == 0u);
     MaintainPolicy(&state, expiry + 1u);
     assert(kh_dock_glass_revision == revision);
@@ -791,10 +819,70 @@ void TestDockGlassCornerUpdates() {
     assert(kh_dock_glass_revision == ++revision && kh_dock_glass_corner_q8 == 65536u);
     __atomic_store_n(&kh_dock_glass_installed, 0u, __ATOMIC_RELEASE);
     MaintainPolicy(&state, expiry + 3u);
-    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 0u);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 65536u);
+    assert(kh_dock_glass_corner_style == 0u);
     assert(kh_dock_glass_revision == ++revision && state.dock_glass_expires_at == 0u);
     assert(kh_dock_glass_notified == notified);
-    puts("Dock corner Q8: endpoints, off updates, one revision per visible change and reset passed");
+    puts("Dock corner Q8: endpoints, off updates, one revision per visible change and expiry retention passed");
+}
+
+void TestDockGlassCornerStylesAndExpiryRetention() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    const uint64_t heartbeat = uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs;
+    const uint64_t notified = kh_dock_glass_notified;
+    assert(ApplyRequest(&state, DockRequest(0u, 0u, 0u), 1u));
+    uint64_t revision = kh_dock_glass_revision;
+    struct Change { uint32_t enabled, corner, style; uint64_t revisions; };
+    uint64_t now = 2u;
+    for (const Change& change : {
+            Change{1u, 10240u, 1u, 1u}, // Enable, radius and style: one revision.
+            Change{1u, 10240u, 1u, 0u}, // Identical renewal.
+            Change{1u, 10240u, 0u, 1u}, // Style only, Recents -> Rounded.
+            Change{1u, 10240u, 0u, 0u},
+            Change{1u, 10240u, 1u, 1u}, // Style only, Rounded -> Recents.
+            Change{1u, 12800u, 0u, 1u}, // Radius and style together: one revision.
+            Change{0u, 12800u, 1u, 1u}, // Disable and style together: one revision.
+            Change{0u, 12800u, 1u, 0u},
+            Change{0u, 12800u, 0u, 1u}, // Style-only off change is still a revision.
+            Change{0u, 16384u, 0u, 0u}, // Off radius change needs no repaint.
+            Change{0u, 16384u, 1u, 1u},
+            Change{0u, 16384u, 1u, 0u}}) {
+        assert(ApplyRequest(&state, DockRequest(change.enabled, change.corner, change.style), now));
+        revision += change.revisions;
+        assert(kh_dock_glass_enabled == change.enabled);
+        assert(kh_dock_glass_corner_q8 == change.corner);
+        assert(kh_dock_glass_corner_style == change.style);
+        assert(kh_dock_glass_revision == revision && kh_dock_glass_notified == notified);
+        assert(state.dock_glass_expires_at == (change.enabled ? now + lease : 0u));
+        ++now;
+    }
+    for (uint32_t style : {0u, 1u}) {
+        const uint32_t radius = style == 0u ? 10240u : 12800u;
+        const Bytes enable = DockRequest(1u, radius, style);
+        assert(ApplyRequest(&state, enable, now));
+        assert(kh_dock_glass_revision == ++revision);
+        now += heartbeat;
+        assert(ApplyRequest(&state, enable, now));
+        const uint64_t expiry = now + lease;
+        assert(state.dock_glass_expires_at == expiry);
+        assert(kh_dock_glass_revision == revision); // Renewal moves only the deadline.
+        MaintainPolicy(&state, expiry - 1u);
+        assert(kh_dock_glass_enabled == 1u && kh_dock_glass_revision == revision);
+        MaintainPolicy(&state, expiry);
+        assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+        assert(kh_dock_glass_corner_q8 == radius && kh_dock_glass_corner_style == style);
+        assert(kh_dock_glass_revision == ++revision);
+        MaintainPolicy(&state, expiry + 1u);
+        assert(kh_dock_glass_revision == revision);
+        assert(ApplyRequest(&state, DockRequest(0u, radius, style), expiry + 2u));
+        assert(kh_dock_glass_revision == revision); // Off with retained geometry is quiet.
+        assert(kh_dock_glass_notified == notified && kh_monet_policy == nullptr);
+        now = expiry + 3u;
+    }
+    puts("Dock styles 0/1: single revisions, quiet renewals and radius/style retention at expiry passed");
 }
 
 void TestDockGlassWithFullRetirementQueue() {
@@ -903,6 +991,7 @@ int main() {
     assert(!StartNativeMonetPolicyServer());  // This host is not com.miui.home.
     assert(__atomic_load_n(&kh_monet_policy, __ATOMIC_ACQUIRE) == nullptr);
     assert(InstalledCapabilities() == 0u);
+    assert(kh_dock_glass_corner_style == 1u); // New-process default is Recents.
     TestPeerIdentityPredicate();
     TestIdleWithoutServiceStaysNull();
     TestWireAndLimits();
@@ -921,6 +1010,7 @@ int main() {
     TestDockGlassLeaseAndNotificationRevisions();
     TestDockGlassIndependentLeaseExpiry();
     TestDockGlassCornerUpdates();
+    TestDockGlassCornerStylesAndExpiryRetention();
     TestDockGlassWithFullRetirementQueue();
     TestConcurrentReaders();
     puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");

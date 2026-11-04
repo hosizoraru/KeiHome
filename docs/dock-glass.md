@@ -6,24 +6,54 @@ acceptance setup leaves it on for visual review.
 
 ## Appearance and ownership
 
-The renderer uses the launcher's own `GlassOs4Background`, the same material
-family used by its soft-glass surfaces. It also follows the native material
-decision when the system selects the older blur, basic blur, or plain background.
+Both corner options use the launcher's own `GlassOs4Background` and
+`_DockGlassWidget` filter settings, the material family already accepted for
+soft-glass Dock surfaces. Native older/basic/plain material decisions remain
+owned by the system.
 It does not introduce a separate wallpaper sampler, blur engine, or color scheme.
 
 The plate follows the painted icon envelope for one through five normal-mode
 items; an empty Dock has no added plate. The enlarged plate uses 18dp desired
-padding on each side and a 28dp minimum corner radius. Native horizontal screen
+padding on each side. Rounded retains its 28dp minimum corner radius. Native horizontal screen
 insets still bound its width. Its decoration can paint up to 12dp above/below
 the original box, while native layout and hit bounds keep their original size. Native elderly-mode capacity is handled
 separately. Native item centers and icon sizes are retained. Padding is bounded
-by the available Dock and screen edges, including the five-item case.
+by the available Dock and screen edges. With five items only, the plate can use
+the full native content width rather than retaining the 8dp decorative edge,
+and the corner radius is capped at 32dp. This leaves the first/last icons inside
+the plate's curved corners. Native item positions, touch bounds and all layouts
+with four or fewer items retain their previous geometry.
 
 Bottom screen corner radii come from `Display.getRoundedCorner`, converted using
-the same display's density. The radius accounts for the plate's horizontal
-inset and is clamped to its dimensions. Missing display metadata uses a bounded
-default. This is an inset-aware approximation; it does not assume a particular
-phone model or reproduce every vendor-specific continuous corner curve.
+the same display's density. The selector offers two policies:
+
+- **Recents** (default): observe the actual native task-radius calculation, including its
+  inlined flight caller before flight-size scaling. Until a normal native call
+  supplies a value, use the source-authenticated ordinary radius. The native
+  constants and control flow are resolved from code, not an OEM version table.
+  `RecentsSuperellipseConfig.isEnabled` supplies the native device eligibility;
+  radius is bounded by half of the actual plate's short side, as in the native
+  adaptive-clip predicate. Eligible soft glass uses `ClipRSuperellipse`, otherwise
+  `ClipRRect`. Only the owned original Glass inner clip changes class; its original
+  native glass-filter parameters are retained. The outer PhysicalShape uses
+  authenticated `Clip.none` and introduces no second circular clipping layer.
+- **Rounded**: retain `max(28, screenRadius - nearerHorizontalInset)`, capped by
+  plate dimensions, with the original native Dock glass material.
+
+Both respond to current display metadata. Recents refers to reuse of native
+card geometry/material primitives; it does not equate a rendered card's local
+radius with an unscaled physical screen radius. The native card's animated
+transform, task layout and asymmetric corner distribution are separate. Older
+blur/plain material modes retain their own native material/clip behavior.
+
+An earlier candidate reused the native window/Recents glass component and
+produced a flat gray surface on the AVD. It was rejected. The final design keeps
+the original Dock filter and uses a genuine native ValueKey with a Smi token to
+scope adaptation to module-owned material instances. Ownership is captured
+while the original receiver is live, carried only as a Smi in a proven unused
+future child slot, then transferred to the fresh native DockGlassWidget key.
+No managed pointer is retained in C++ or borrowed across an untracked GC slot.
+All original native scope, opacity, filter and child parameters remain intact.
 
 The injected nested Stack uses an authenticated native `Clip.none` value so
 negative decorative insets are not cut off. The original phone Stack also
@@ -42,7 +72,8 @@ decorative material transparent to input.
 Production has no launcher version, APK hash, or absolute-address allowlist.
 It authenticates instruction and data-flow relationships for the original
 phone background gate, material factory, Stack/Positioned/SizedBox/IgnorePointer
-allocations, native `computeMode`, and the existing reactive refresh path.
+allocations, native `computeMode`, Recents eligibility and clip dispatch, native
+ValueKey and Glass frame liveness, and the existing reactive refresh path.
 Unrecognized or ambiguous contracts are rejected before publishing patches.
 
 The five source fixtures are 7722, 8593, 8602, 9209, and 9226. Only 8593 has been
@@ -62,14 +93,21 @@ preferences intentionally remain framework APIs rather than app-local MMKV.
 Native capability/command 8 has an independent 45-second policy lease. Display
 changes and settings reuse the existing worker; no new timer or thread is added.
 
-A changed setting, or an enabled corner-radius change, requests one scoped
+An enable/style change, or an enabled display-radius change, requests one scoped
 package callback. It does not enumerate installed apps or regenerate icon
 artwork. Unchanged renewals leave the native revision unchanged. Native
-`computeMode` reads its dependencies under the existing reactive builder, so
-system material changes retain native reactive ownership.
+`computeMode` and native curve eligibility run under the existing reactive
+builder, so system material changes retain native reactive ownership. The
+three-phase continuation uses the original native return PC and stack map;
+only primitive mode/eligibility values leave the managed call. Task-radius
+observers replay the original frame load or return instruction; they retain
+only raw numeric bits and never call a controller themselves. The copied
+render configuration is 424 bytes and the complete payload is 3,936 bytes.
 
 The render bridge is a call-free leaf with a fully checked young-space arena:
-336 bytes for soft glass and 320 bytes for other material modes per Dock build.
+352 bytes for Recents soft glass plus a 16-byte native child key when eligible,
+336 bytes for Rounded soft glass, and 320
+bytes for other material modes per Dock build.
 These are build allocations, not per-frame allocations. Allocation pressure or
 invalid geometry returns to the native path. There is no custom Dart frame,
 managed reference retained in C++, polling animation, or per-frame JNI call.
@@ -86,12 +124,13 @@ managed Dart from the policy-server thread. See [refresh contracts](dock-glass-r
 
 The final linked production payload passed:
 
-- 1,817 render, gate, geometry, input-wrapper, and fallback execution cases.
-- 125 mode bridge and actual native `computeMode` execution cases.
+- 2,485 render, gate, geometry, input-wrapper, corner-style and fallback cases.
+- 145 mode/curve bridge and actual native `computeMode`/cached getter cases.
 - 470 getter, `Rx.refresh`, and `GetStream` native instruction execution cases.
-- 495 refresh source/mutation checks and 230 render profile/rejection checks.
-- 32,354 C++ geometry checks with ASan/UBSan.
-- 47 focused JVM tests for transport, lease, radius conversion, and status.
+- 593 owned-glass scoping/pressure/root-handoff cases.
+- 495 refresh source/mutation checks and 530 render profile/rejection checks.
+- 38,495 C++ geometry checks with ASan/UBSan.
+- 55 focused JVM tests for corner preferences, transport, lease and status.
 
 These controlled ARM64 execution tests cover original return PCs and simulated
 root relocation; they do not replace Dart VM GC or Flutter visual testing.
@@ -103,6 +142,32 @@ revision change, day/night rendering, native app clicking and dragging, and
 blank-Dock swipe passthrough. Temporary apps are removed and the original
 Gallery / Settings / MT Manager / Via Dock is restored before final acceptance.
 
+The final normal-settings gate switches Recents → Rounded → Recents and Dock
+OFF → ON without a native activation, force-stop or Launcher restart. The
+Launcher PID/parent/start remain 30358/27367/3958047 in all five receipts;
+system_server and SystemUI also retain their identities. Native ownership,
+child-key and Superellipse branch counters are nonzero. A genuine bottom
+swipe through Recents captures 44.210527795173505dp on this AVD. Rounded and
+Recents screenshots visibly differ while both preserve soft glass. Five icons
+were dragged into the Dock and the temporary package was then removed.
+Development installs changing machine code deliberately used native activation;
+these are separate from the normal-settings result above.
+
 Performance receipts and the final artifact/process identities are recorded in
 `acceptance.json` in that directory. Measurements are HyperOS AVD observations,
 not physical-device energy or frame-time guarantees.
+
+### Bounded AVD performance sample
+
+Release 194, same four-icon weather page and eight alternating 450ms swipes,
+12-second FrameTimeline samples, no trace-loss/overwrite counters:
+
+| Style | Idle frames / CPU of one guest core | Swipe frames / CPU | App deadline misses during swipes |
+| --- | --- | --- | --- |
+| Recents | 9 / 2.22% | 298 / 66.58% | 70 |
+| Rounded | 16 / 3.62% | 292 / 66.37% | 56 |
+
+Idle does not continuously redraw at display refresh rate. Swipe CPU is close;
+mean FrameTimeline duration was 34.89ms versus 34.37ms. Both samples still have
+AVD frame misses; this single pair does not prove equal GPU cost or physical
+phone smoothness. Captures include the existing clock/widgets/native rendering.

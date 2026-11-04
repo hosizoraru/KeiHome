@@ -29,7 +29,7 @@ class NativeMonetClientTest {
   @Test fun dockGlassUsesIndependentCapabilityAndExactHeader() {
     for (enabled in listOf(false, true)) {
       val command = NativeMonetProtocol.dockGlassRequest(enabled)
-      assertArrayEquals(words(magic, 1, 8, if (enabled) 1 else 0, 0, 0), command)
+      assertArrayEquals(words(magic, 1, 8, if (enabled) 1 else 0, 0, 1), command)
       for (capabilities in 1..15) {
         val output = ByteArrayOutputStream()
         val accepted = NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(capabilities) + ack()),
@@ -50,7 +50,7 @@ class NativeMonetClientTest {
 
   @Test fun dockGlassCarriesBoundedLogicalScreenRadiusWithoutChangingPacketSize() {
     for (corner in listOf(0, 10_240, 65_536)) {
-      assertArrayEquals(words(magic, 1, 8, 1, corner, 0), NativeMonetProtocol.dockGlassRequest(true, corner))
+      assertArrayEquals(words(magic, 1, 8, 1, corner, 1), NativeMonetProtocol.dockGlassRequest(true, corner))
     }
     assertThrows(IllegalArgumentException::class.java) { NativeMonetProtocol.dockGlassRequest(true, -1) }
     assertThrows(IllegalArgumentException::class.java) { NativeMonetProtocol.dockGlassRequest(true, 65_537) }
@@ -58,6 +58,22 @@ class NativeMonetClientTest {
     assertEquals(0, DockScreenCorners.quantize(120, Float.NaN))
     assertEquals(0, DockScreenCorners.quantize(-1, 3f))
     assertEquals(0, DockScreenCorners.quantize(120, 0f))
+  }
+
+  @Test fun bothDockStylesUseTheSameExact24ByteCommandAndTheirOwnAck() {
+    for (enabled in listOf(false, true)) for (style in 0..1) {
+      val command = NativeMonetProtocol.dockGlassRequest(enabled, 10_240, style)
+      assertEquals(24, command.size)
+      assertArrayEquals(words(magic, 1, 8, if (enabled) 1 else 0, 10_240, style), command)
+      val output = ByteArrayOutputStream()
+      assertTrue(exchange(ByteArrayInputStream(greeting(8) + ack()), output, request = command))
+      assertArrayEquals(command, output.toByteArray())
+      assertFalse(exchange(ByteArrayInputStream(greeting(8) + words(magic, 1, 1)),
+        ByteArrayOutputStream(), request = command))
+    }
+    for (style in listOf(-1, 2, Int.MAX_VALUE)) assertThrows(IllegalArgumentException::class.java) {
+      NativeMonetProtocol.dockGlassRequest(true, cornerStyle = style)
+    }
   }
 
   @Test fun dockGlassNeedsCurrentCompleteAckAndRejectionDoesNotPoisonMonet() {

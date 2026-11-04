@@ -34,7 +34,12 @@ internal data class RuntimeStatusReport(
   val dockGlassEnabled: Boolean? = null,
   val dockGlassPid: Int? = null,
   val dockGlassStartTicks: Long? = null,
+  val dockGlassCornerStyle: Int? = null,
 ) {
+  fun acknowledgesDockGlass(choice: os.kei.hyper.home.data.DockGlassChoice?): Boolean =
+    choice != null && dockGlassEnabled == choice.enabled && dockGlassCornerStyle == choice.cornerStyle.nativeValue &&
+      dockGlassPid != null && dockGlassStartTicks != null
+
   fun isFresh(now: Long): Boolean = now >= checkedAtElapsed && now - checkedAtElapsed <= FRESHNESS_MS
 
   fun matches(request: RuntimeStatusRequest, now: Long): Boolean = request.isPending(now) && requestId == request.id &&
@@ -43,14 +48,14 @@ internal data class RuntimeStatusReport(
   // Fixed fields keep this small protocol usable in the host tests and in system_server.
   // Only the diagnostic text needs escaping; request IDs are generated UUIDs.
   fun encode(): String = listOf(
-    "4", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
+    "5", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
     launcherPid ?: 0, launcherStartTicks ?: 0, refresh?.callbacks ?: -1,
     refresh?.completedAtMillis ?: 0,
     Base64.getEncoder().encodeToString(detail.orEmpty().take(400).toByteArray(Charsets.UTF_8)),
     iconTheme?.encode().orEmpty(),
     launcherLabelMode ?: -1,
     dockGlassEnabled?.let { if (it) 1 else 0 } ?: -1,
-    dockGlassPid ?: 0, dockGlassStartTicks ?: 0,
+    dockGlassPid ?: 0, dockGlassStartTicks ?: 0, dockGlassCornerStyle ?: -1,
   ).joinToString("|")
 
   companion object {
@@ -60,7 +65,7 @@ internal data class RuntimeStatusReport(
       val fields = raw?.split('|')
       if (fields == null || !((fields.size == 11 && fields[0] == "1") ||
           (fields.size == 12 && fields[0] == "2") || (fields.size == 13 && fields[0] == "3") ||
-          (fields.size == 16 && fields[0] == "4"))) null else {
+          (fields.size == 16 && fields[0] == "4") || (fields.size == 17 && fields[0] == "5"))) null else {
         val state = NativeRuntimeState.valueOf(fields[5])
         val pid = fields[6].toInt().takeIf { it > 0 }
         val start = fields[7].toLong().takeIf { it > 0 }
@@ -77,6 +82,9 @@ internal data class RuntimeStatusReport(
           dockGlassEnabled = fields.getOrNull(13)?.toInt()?.takeIf { it in 0..1 }?.let { it == 1 },
           dockGlassPid = fields.getOrNull(14)?.toInt()?.takeIf { it > 0 },
           dockGlassStartTicks = fields.getOrNull(15)?.toLong()?.takeIf { it > 0 },
+          // v4 had only the existing rounded style; earlier schemas had no Dock ACK.
+          dockGlassCornerStyle = if (fields.size == 16 && fields[13] != "-1") 0
+            else fields.getOrNull(16)?.toInt()?.takeIf { it in 0..1 },
         ).takeIf {
           it.requestId.isNotBlank() && it.userId >= 0 && it.moduleVersion > 0 && it.checkedAtElapsed >= 0 &&
             (fields.getOrNull(11).isNullOrEmpty() || it.iconTheme != null) &&
@@ -84,6 +92,9 @@ internal data class RuntimeStatusReport(
             (fields.size < 16 || (fields[13].toInt() in -1..1 &&
               (if (it.dockGlassEnabled == null) fields[14] == "0" && fields[15] == "0"
               else it.dockGlassPid != null && it.dockGlassStartTicks != null))) &&
+            (fields.size < 17 || (fields[16].toInt() in -1..1 &&
+              (if (it.dockGlassEnabled == null) it.dockGlassCornerStyle == null
+              else it.dockGlassCornerStyle != null))) &&
             (state != NativeRuntimeState.READY || (pid != null && start != null))
         }
       }

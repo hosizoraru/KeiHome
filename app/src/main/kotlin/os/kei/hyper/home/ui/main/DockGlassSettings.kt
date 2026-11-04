@@ -10,12 +10,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import os.kei.hyper.home.data.DockGlassPreferences
+import os.kei.hyper.home.data.DockGlassChoice
+import os.kei.hyper.home.data.DockGlassCornerStyle
 import os.kei.hyper.home.status.FrameworkConnection
 
 @Immutable
 internal data class DockGlassUiState(
-  val saved: Boolean? = null,
-  val pending: Boolean? = null,
+  val saved: DockGlassChoice? = null,
+  val pending: DockGlassChoice? = null,
   val saving: Boolean = false,
   val failed: Boolean = false,
   val unavailable: Boolean = false,
@@ -41,16 +43,24 @@ internal class DockGlassSettings(private val scope: CoroutineScope, private val 
     }
   }
 
-  fun save(enabled: Boolean) {
+  fun setEnabled(enabled: Boolean) {
+    (state.value.pending ?: state.value.saved)?.let { save(it.copy(enabled = enabled)) }
+  }
+
+  fun setCornerStyle(style: DockGlassCornerStyle) {
+    (state.value.pending ?: state.value.saved)?.let { save(it.copy(cornerStyle = style)) }
+  }
+
+  fun save(choice: DockGlassChoice) {
     val service = FrameworkConnection.service.value ?: return
     if (!inScope() || state.value.saving || state.value.unavailable) return
-    state.update { it.copy(pending = enabled, saving = true, failed = false) }
+    state.update { it.copy(pending = choice, saving = true, failed = false) }
     scope.launch {
       mutex.withLock {
         try {
           if (FrameworkConnection.service.value !== service || !inScope()) return@withLock
-          DockGlassPreferences.save(service, enabled)
-          if (FrameworkConnection.service.value === service) state.value = DockGlassUiState(saved = enabled)
+          DockGlassPreferences.save(service, choice)
+          if (FrameworkConnection.service.value === service) state.value = DockGlassUiState(saved = choice)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
           if (FrameworkConnection.service.value === service) state.update { it.copy(failed = true) }

@@ -24,6 +24,9 @@ constexpr uint32_t kNativeLauncherLabelsCommand = 3u;
 constexpr uint32_t kNativeDockGlassCommand = 8u;
 // Command 8 word 4: logical dp * 256; zero selects the native fallback.
 constexpr uint32_t kNativeDockGlassMaxCornerQ8 = 65536u;
+// Command 8 word 5 is a style, never a trailing package count.
+constexpr uint32_t kNativeDockGlassRoundedStyle = 0u;
+constexpr uint32_t kNativeDockGlassRecentsStyle = 1u;
 
 struct NativeMonetPolicyEntry {
     uint32_t len;
@@ -76,6 +79,7 @@ extern uint64_t kh_launcher_label_notified;
 extern uint32_t kh_dock_glass_installed;
 extern uint32_t kh_dock_glass_enabled;
 extern uint32_t kh_dock_glass_corner_q8;
+extern uint32_t kh_dock_glass_corner_style;
 extern uint64_t kh_dock_glass_revision;
 extern uint64_t kh_dock_glass_notified;
 // Independent of NativeMonetPolicy and its Dart ABI. The highlight installer
@@ -131,8 +135,11 @@ inline void ReleaseNativeMonetPolicy() {
 // an enabled material command independently renews a 45 s material lease, whose
 // expiry clears enabled. Bad/partial requests never renew either lease. Legacy
 // servers reject flags 2 without withdrawing or changing their Monet policy.
-// flags 8 independently sets Dock glass: fg=0/1, bg=count=0. An installed
-// Dock bridge is required. Enabled commands renew its own 45 s lease. Changed
-// enabled state, including expiry/worker failure to off, advances its revision;
+// flags 8 independently sets Dock glass: fg=0/1, bg=logical radius dp*256,
+// word 5=corner style (0=rounded, 1=Recents/default); values >1 are rejected.
+// This is exactly 24 bytes, with no body. An installed Dock bridge is required.
+// Enabled commands renew its own 45 s lease. Enabled or style changes and enabled
+// radius changes advance revision. Expiry/worker failure only disables, retaining
+// the last radius and style; unchanged renewals do not advance revision;
 // the native UI event bridge consumes that revision at a safe Dart boundary.
 bool StartNativeMonetPolicyServer();

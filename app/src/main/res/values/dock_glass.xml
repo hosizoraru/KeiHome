@@ -3,4 +3,8 @@
     <string name="dock_glass_title">Dock glass background</string>
     <string name="dock_glass_summary">Use the home screen’s native glass background for the Dock. Material appearance follows the system.</string>
     <string name="dock_glass_pending">Waiting for the home screen to receive this choice…</string>
+    <string name="dock_glass_corner_title">Dock corners</string>
+    <string name="dock_glass_corner_summary">Recents follows the native system card corner style. Rounded follows the screen corners.</string>
+    <string name="dock_glass_corner_recents">Recents</string>
+    <string name="dock_glass_corner_rounded">Rounded</string>
 </resources>

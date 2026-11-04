@@ -86,6 +86,11 @@ kh_dock_background:
     ldar w16, [x16]
     cmp w16, #1
     b.ne .Ldock_original
+    ldr x16, [x17, #KH_DOCK_CORNER_STYLE_ADDRESS]
+    ldar w16, [x16]
+    cmp w16, #1
+    b.hi .Ldock_original
+    fmov d25, x16                // snapshot style; primitive, no managed root
     ldr x16, [x17, #KH_DOCK_IGNORE_POINTER_TAG]
     cbz x16, .Ldock_original     // never construct an unauthenticated wrapper
     // Parent's native Obx mode-capture path publishes ONLY a primitive 0..3.
@@ -103,6 +108,13 @@ kh_dock_background:
     mov x16, #48
     cmp w14, #KH_DOCK_MATERIAL_GLASS_OS4
     csel x11, x16, x11, eq       // Glass48; other native primitives32
+    b.ne .Ldock_material_selected
+    fmov x16, d25
+    cbz x16, .Ldock_material_selected
+    // A genuine native ValueKey scopes clip adaptation to this owned glass.
+    // Material class, filter parameters and opacity remain the original ones.
+    mov x11, #64                // Glass48 + ValueKey<dynamic>16
+.Ldock_material_selected:
 
     ldur x3, [x29, #-8]
     dock_ref x3, w3
@@ -311,6 +323,11 @@ kh_dock_background:
     b.gt .Ldock_original
     fcmp d4, d3
     b.le .Ldock_original
+    cmp w2,#5
+    b.ne .Ldock_plate_edges
+    fmov d6,xzr                 // five items: use full native content width
+    fmov d7,d0
+.Ldock_plate_edges:
     fmov d16, #18.0
     fsub d3, d3, d16
     fmax d3, d3, d6               // plate left
@@ -333,6 +350,8 @@ kh_dock_background:
     fcmp d5, #0.0
     b.le .Ldock_original
     fmov d7, #28.0
+    fmov x16, d25
+    cbnz x16, .Ldock_recents_radius
     // Public Android rounded-corner radius, normalized to dp Q8 by the parent.
     // No Dart corner-list/units assumptions. Zero/missing/invalid uses bounded28.
     ldr x16, [x17, #KH_DOCK_CORNER_RADIUS_ADDRESS]
@@ -346,10 +365,37 @@ kh_dock_background:
     fdiv d7, d7, d16
     fsub d16, d0, d4
     fmin d16, d3, d16            // nearer horizontal plate inset
+    fmov d18,#8.0
+    fmax d16,d16,d18            // preserve existing rounded-radius policy
     fsub d7, d7, d16
     fmov d16, #28.0
     fmax d7, d7, d16             // retain native minimum softness
+    b .Ldock_radius_ready
+.Ldock_recents_radius:
+    // Observe the real native task-card getter result; never substitute the
+    // Dock's much wider aspect ratio into the task-card scaling formula.
+    ldr d7, [x17, #KH_DOCK_RECENTS_DEFAULT_BITS]
+    ldr x16, [x17, #KH_DOCK_RECENTS_RADIUS_ADDRESS]
+    cbz x16, .Ldock_radius_ready
+    ldar x16, [x16]
+    fmov d16, x16
+    ubfx x16, x16, #52, #11
+    cmp x16, #0x7ff
+    b.eq .Ldock_radius_ready
+    fcmp d16, #0.0
+    b.le .Ldock_radius_ready
+    mov w16, #256
+    scvtf d18, w16
+    fcmp d16, d18
+    b.gt .Ldock_radius_ready
+    fmov d7, d16
 .Ldock_radius_ready:
+    cmp w2,#5
+    b.ne .Ldock_radius_cap
+    mov w16,#32
+    scvtf d18,w16              // protect outermost icon corners in full Dock
+    fmin d7,d7,d18
+.Ldock_radius_cap:
     fmin d5, d5, d7
     fsub d4, d0, d4               // Positioned needs RIGHT INSET, not right edge
     fsub d21, d1, d21             // Positioned also needs BOTTOM INSET
@@ -424,9 +470,19 @@ kh_dock_background:
     stur w16, [x7, #0x13]
     fmov d7, #1.0
     stur d7, [x7, #0x17]         // raw opacity
-    cmp x11, #48
-    b.ne .Ldock_material_ready
+    cmp x11, #32
+    b.eq .Ldock_material_ready
     stur xzr, [x7, #0x1f]        // Glass48 ONLY; out of bounds for other modes
+    cmp x11, #64
+    b.ne .Ldock_material_ready
+    add x16, x7, #48
+    stur w16, [x7, #7]          // Key belongs only to this injected material
+    ldr x4, [x17, #KH_DOCK_VALUE_KEY_TAG]
+    stur x4, [x16, #-1]
+    mov w4, #(KH_DOCK_OWNED_KEY_VALUE & 0xffff)
+    movk w4, #(KH_DOCK_OWNED_KEY_VALUE >> 16), lsl #16
+    stur w4, [x16, #0xb]        // Smi marker; type arguments remain native null
+    sub x4, x7, #64             // restore left Double reference
 .Ldock_material_ready:
     // Only the decorative material ignores input. Original ItemBackground
     // stays a separate Stack child, preserving its native feedback behavior.
@@ -483,6 +539,162 @@ kh_dock_background:
     // x1, x15, x18-x30 and v8-v15 are still EXACT original values.
     ldr x16, [x17, #KH_DOCK_ORIGINAL_BACKGROUND]
     br x16
+
+// SPDX-License-Identifier: Apache-2.0
+// Owned material scoping. No new managed/native call, VM frame or C++ root.
+    .global kh_dock_glass_scope,kh_dock_glass_child_scope,kh_dock_glass_clip
+    .hidden kh_dock_glass_scope,kh_dock_glass_child_scope,kh_dock_glass_clip
+// x16 holds a Key reference. Retain it in d17 while checking its class/value.
+// Flags and x16/x17 are dead at all three authenticated native boundaries.
+    .macro dock_scope_count offset
+    adr x16,kh_dock_config
+    ldr x16,[x16,#KH_DOCK_SCOPE_COUNTS_ADDRESS]
+    add x16,x16,#\offset
+    ldar x17,[x16]
+    add x17,x17,#1
+    stlr x17,[x16]
+    .endm
+    .macro dock_owned_key fallback
+    cmp w16,w22
+    b.eq \fallback
+    tbz x16,#0,\fallback
+    fmov d17,x16
+    ldur w16,[x16,#-1]
+    ubfx w16,w16,#12,#20
+    adr x17,kh_dock_config
+    ldr x17,[x17,#KH_DOCK_VALUE_KEY_TAG]
+    lsr x17,x17,#12
+    cmp w16,w17
+    b.ne \fallback
+    fmov x16,d17
+    ldur w16,[x16,#0xb]
+    mov w17,#(KH_DOCK_OWNED_KEY_VALUE & 0xffff)
+    movk w17,#(KH_DOCK_OWNED_KEY_VALUE >> 16),lsl #16
+    cmp w16,w17
+    b.ne \fallback
+    .endm
+
+// Capture ownership while the original receiver is live, immediately after
+// its native radius load. Carry only a Smi in the future child-root slot; the
+// original graph does not read this slot until its first child-root store.
+kh_dock_glass_scope:
+    hint #38
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_GLASS_SCOPE_SLOT]
+    ldr x16,[x29,x16]
+    ldur w16,[x16,#7]
+    add x16,x16,x28,lsl #32
+    dock_owned_key .Lglass_scope_stock
+    dock_scope_count 0
+    mov w16,#(KH_DOCK_OWNED_KEY_VALUE & 0xffff)
+    movk w16,#(KH_DOCK_OWNED_KEY_VALUE >> 16),lsl #16
+    b .Lglass_scope_store
+.Lglass_scope_stock:
+    mov x16,#0
+.Lglass_scope_store:
+    adr x17,kh_dock_config
+    ldr x17,[x17,#KH_DOCK_GLASS_CHILD_SLOT]
+    str x16,[x29,x17]
+    adr x17,kh_dock_config
+    ldr x17,[x17,#KH_DOCK_GLASS_RADIUS_SLOT]
+    str d0,[x29,x17]
+    adr x17,kh_dock_config
+    ldr x17,[x17,#KH_DOCK_GLASS_SCOPE_RESUME]
+    br x17
+
+// The native allocator returned a fresh/remembered DockGlassWidget in x0.
+// Transfer only the Smi ownership token into a genuine native Key. All original
+// native scope Bools and original glass-filter parameters stay untouched.
+kh_dock_glass_child_scope:
+    hint #38
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_GLASS_CHILD_SLOT]
+    ldr x16,[x29,x16]
+    mov w17,#(KH_DOCK_OWNED_KEY_VALUE & 0xffff)
+    movk w17,#(KH_DOCK_OWNED_KEY_VALUE >> 16),lsl #16
+    cmp x16,x17
+    b.ne .Lglass_child_stock
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_CURVE_ENABLED_ADDRESS]
+    ldar w16,[x16]
+    cmp w16,#1
+    b.ne .Lglass_child_stock
+    ldr x16,[x17,#KH_DOCK_VALUE_KEY_TAG]
+    fmov d18,x16
+    ldp x16,x17,[x26,#0x60]
+    adds x16,x16,#16
+    b.cs .Lglass_child_stock
+    cmp x16,x17
+    b.hs .Lglass_child_stock
+    str x16,[x26,#0x60]
+    sub x16,x16,#16
+    stp w22,w22,[x16]
+    stp w22,w22,[x16,#8]
+    fmov x17,d18
+    str x17,[x16]
+    mov w17,#(KH_DOCK_OWNED_KEY_VALUE & 0xffff)
+    movk w17,#(KH_DOCK_OWNED_KEY_VALUE >> 16),lsl #16
+    str w17,[x16,#12]
+    add x16,x16,#1
+    stur w16,[x0,#7]
+    dock_scope_count 8
+.Lglass_child_stock:
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_GLASS_CHILD_SLOT]
+    str x0,[x29,x16]
+    ldr x17,[x17,#KH_DOCK_CHILD_SCOPE_RESUME]
+    br x17
+
+// Preserve the exact original allocator return PC, registers and stack map.
+// Native allocation handles its own pressure/GC paths for either widget class.
+kh_dock_glass_clip:
+    hint #38
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_CURVE_ENABLED_ADDRESS]
+    ldar w16,[x16]
+    cmp w16,#1
+    b.ne .Lglass_clip_stock
+    ldr x16,[x17,#KH_DOCK_GLASS_CHILD_SLOT]
+    ldr x16,[x29,x16]
+    ldur w16,[x16,#7]
+    add x16,x16,x28,lsl #32
+    dock_owned_key .Lglass_clip_stock
+    dock_scope_count 16
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_GLASS_SUPER_ALLOC]
+    br x16
+.Lglass_clip_stock:
+    adr x17,kh_dock_config
+    ldr x16,[x17,#KH_DOCK_GLASS_RRECT_ALLOC]
+    br x16
+// Observe native task-radius returns without calling a controller or changing
+// any native caller result/frame. Only unboxed numeric bits leave managed code.
+    .global kh_dock_recents_radius
+    .hidden kh_dock_recents_radius
+kh_dock_recents_radius:
+    hint #38
+    adr x16,kh_dock_config
+    ldr x16,[x16,#KH_DOCK_RECENTS_RADIUS_ADDRESS]
+    fmov x17,d0
+    stlr x17,[x16]
+    ret
+// Observe the inlined native task-radius join before any flight-size scaling.
+// Replay the original frame load. D3, all other registers and flags survive.
+    .global kh_dock_recents_flight_radius
+    .hidden kh_dock_recents_flight_radius
+kh_dock_recents_flight_radius:
+    hint #38
+    adr x16,kh_dock_config
+    ldr x16,[x16,#KH_DOCK_RECENTS_RADIUS_ADDRESS]
+    fmov x17,d3
+    stlr x17,[x16]
+    adr x16,kh_dock_config
+    ldr x17,[x16,#KH_DOCK_FLIGHT_RADIUS_SLOT]
+    ldr d0,[x29,x17]
+    ldr x16,[x16,#KH_DOCK_FLIGHT_RADIUS_RESUME]
+    br x16
+    .purgem dock_scope_count
+    .purgem dock_owned_key
 
     .purgem dock_ref
     .purgem dock_finite

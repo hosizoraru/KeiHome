@@ -7,10 +7,15 @@ struct DockGlassProfile {
     size_t phone, gate, skip, background_call, background, outer_call, outer_logger;
     size_t mode, mode_returns[4];
     size_t mode_post;
+    // Mapped source proof sites; not part of the assembly/config ABI.
+    size_t stack_paint, push_clip_rect, stack_create, stack_constructor, stack_clip_load;
+    size_t parent_clip_store; // STUR w1,[x0,#1b]; next LDUR x1 kills scratch x1
     uint32_t mode_post_expected, ink_metrics_field, ink_width_field, ink_top_field, cell_height_field, no_word_rx_field, no_word_suppress_rx_field;
     uint32_t gate_expected, background_expected, outer_expected, mode_slot;
     uint32_t material_tags[4], material_config_pp, stack_tag, positioned_tag, sized_box_tag, ignore_pointer_tag;
-    uint32_t background_tag, double_tag, alignment_pp, fit_pp, clip_pp;
+    uint32_t background_tag, double_tag, alignment_pp, fit_pp;
+    uint32_t clip_pp; // authenticated native Clip.none, not Hotseat's default
+    uint32_t native_clip_pp; // original parent value, retained for disabled mode
     uint32_t device_slot, corner_field, device_layout_field, launcher_mode_slot, launcher_mode_rx, elderly_pp;
 };
 // Resolve before any label/Dock patches. No symbols, image/version gates or

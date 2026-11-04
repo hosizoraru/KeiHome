@@ -12,7 +12,10 @@ decision when the system selects the older blur, basic blur, or plain background
 It does not introduce a separate wallpaper sampler, blur engine, or color scheme.
 
 The plate follows the painted icon envelope for one through five normal-mode
-items; an empty Dock has no added plate. Native elderly-mode capacity is handled
+items; an empty Dock has no added plate. The enlarged plate uses 18dp desired
+padding on each side and a 28dp minimum corner radius. Native horizontal screen
+insets still bound its width. Its decoration can paint up to 12dp above/below
+the original box, while native layout and hit bounds keep their original size. Native elderly-mode capacity is handled
 separately. Native item centers and icon sizes are retained. Padding is bounded
 by the available Dock and screen edges, including the five-item case.
 
@@ -22,7 +25,13 @@ inset and is clamped to its dimensions. Missing display metadata uses a bounded
 default. This is an inset-aware approximation; it does not assume a particular
 phone model or reproduce every vendor-specific continuous corner curve.
 
-Only the added material is inside a native `IgnorePointer`. Native icons,
+The injected nested Stack uses an authenticated native `Clip.none` value so
+negative decorative insets are not cut off. The original phone Stack also
+selects none while this feature is enabled, preserving the stock clip when
+disabled. Its clip store is a call-free leaf using only the register that the
+next authenticated native instruction overwrites. This prevents full five-cell
+layouts from cropping the taller decoration again at their parent. Only the added material is inside
+a native `IgnorePointer`. Native icons,
 dragging, and the original conditional `ItemBackground` retain their ownership.
 This matters: an earlier candidate displayed correctly but consumed page swipes
 starting in the blank Dock area. The final renderer explicitly makes its
@@ -77,11 +86,11 @@ managed Dart from the policy-server thread. See [refresh contracts](dock-glass-r
 
 The final linked production payload passed:
 
-- 1,683 render, gate, geometry, input-wrapper, and fallback execution cases.
+- 1,817 render, gate, geometry, input-wrapper, and fallback execution cases.
 - 125 mode bridge and actual native `computeMode` execution cases.
 - 470 getter, `Rx.refresh`, and `GetStream` native instruction execution cases.
-- 495 refresh source/mutation checks and 40 render profile/rejection checks.
-- 28,775 C++ geometry checks with ASan/UBSan.
+- 495 refresh source/mutation checks and 230 render profile/rejection checks.
+- 32,354 C++ geometry checks with ASan/UBSan.
 - 47 focused JVM tests for transport, lease, radius conversion, and status.
 
 These controlled ARM64 execution tests cover original return PCs and simulated

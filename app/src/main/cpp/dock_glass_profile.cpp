@@ -51,6 +51,59 @@ uint32_t Pool(const IconHighlightImage& im,size_t at) {
 }
 uint32_t Slot(uint32_t w){return (w>>10&4095u)*8;}
 bool Fail(const char** why,const char* s){if(why)*why=s;return false;}
+bool ResolveClipNone(const IconHighlightImage& im,DockGlassProfile& p,
+                     uint32_t original_clip_pp,const char** why) {
+    // These full mapped roles authenticate both alternatives: equality to the
+    // pool operand paints directly, while non-none plus layout overflow calls
+    // pushClipRect. No snapshot object/enum ordinal or pool-neighbor inference.
+    p.stack_paint=Find(im,kDockStackPaint);
+    p.push_clip_rect=Find(im,kDockPushClipRect);
+    p.stack_create=Find(im,kDockStackCreate);
+    p.stack_constructor=Find(im,kDockStackRenderConstructor);
+    if(!p.stack_paint||!p.push_clip_rect||!p.stack_create||!p.stack_constructor)
+        return Fail(why,"ambiguous Dock clip instruction roles");
+    p.clip_pp=Pool(im,p.stack_paint+0x28);
+    if(!p.clip_pp||Pool(im,p.push_clip_rect+0x108)!=p.clip_pp||
+       Branch(im,p.stack_paint+0x120)!=p.push_clip_rect)
+        return Fail(why,"native Stack/painting no-clip graph");
+
+    // Stack.createRenderObject reads widget+1b into x3 and forwards that exact
+    // saved argument to this constructor, which stores it in the paint field.
+    // The allocation CID must also equal paint's native RenderStack type guard.
+    const uint32_t render_tag=Tag(im,Branch(im,p.stack_create+0x64));
+    const uint32_t cid=Word(im,p.stack_paint+0x90);
+    const uint32_t clip_store=Word(im,p.stack_constructor+0xcc);
+    const uint32_t clip_load=Word(im,p.stack_paint+0x20);
+    if(Branch(im,p.stack_create+0x80)!=p.stack_constructor||!render_tag||
+       (render_tag&255u)!=0x1cu||
+       ((render_tag>>8&15u)*16u)<(clip_load>>12&511u)+4u||
+       (cid&0xffe0001fu)!=0xd2800011u||(cid>>5&65535u)!=(render_tag>>12)||
+       (clip_store&0xffe00fffu)!=0xb8000020u||
+       (clip_load&0xffe00fffu)!=0xb8400041u||
+       (clip_store>>12&511u)!=(clip_load>>12&511u)||
+       (Word(im,p.stack_paint+0xf4)>>12&511u)!=(clip_load>>12&511u))
+        return Fail(why,"native Stack clip creation/forwarding graph");
+
+    // The original Hotseat value must be pushClipRect's actual default, not
+    // an arbitrary pool operand that happens to differ from the none sentinel.
+    // Reviewed argument-parser forms save that default in x8/-10 or x4/-8.
+    uint32_t default_clip_pp=0;
+    for(size_t at=p.push_clip_rect;at<p.push_clip_rect+0x104;at+=4) {
+        const bool old_default=(Word(im,at)&31u)==8u&&
+            (Word(im,at+4)&31u)==8u&&Word(im,at+8)==0xd2800007u&&
+            Word(im,at+12)==0xf81f03a8u;
+        const bool new_default=(Word(im,at)&31u)==4u&&
+            (Word(im,at+4)&31u)==4u&&Word(im,at+8)==0xf81f83a4u;
+        const uint32_t pool=(old_default||new_default)?Pool(im,at):0;
+        if(pool) {
+            if(default_clip_pp)return Fail(why,"multiple native clip defaults");
+            default_clip_pp=pool;
+        }
+    }
+    if(!original_clip_pp||original_clip_pp!=default_clip_pp||original_clip_pp==p.clip_pp)
+        return Fail(why,"native Hotseat/default clip consistency");
+    return true;
+}
 }
 bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const char** why) {
     if(why)*why=nullptr;if(!out)return Fail(why,"missing Dock output");*out={};
@@ -71,6 +124,7 @@ bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const c
 #endif
     if(!p.phone||!outer||!width||!max||!sizebox||!pos||!corner||!scroll||!material||!p.mode||!elderly_shape||!sync||!ink||!height||!no_word_shape)
         return Fail(why,"ambiguous Dock instruction roles");
+    uint32_t original_clip_pp=0;
     for(size_t at=p.phone;at<p.phone+0x4c0;at+=4){
         const size_t target=Branch(im,at);
         bool bg=false;for(const auto& pattern:kDockBackground) if(target&&Match(im,target,pattern))bg=true;
@@ -78,10 +132,26 @@ bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const c
         if(Word(im,at+12)==0xb800f001u && Word(im,at+24)==0xb8017001u &&
            Word(im,at+36)==0xb801b001u && Word(im,at+44)==0xb800b001u && Branch(im,at)) {
             if(p.stack_tag)return Fail(why,"multiple native Stacks");p.stack_tag=Tag(im,Branch(im,at));
-            p.alignment_pp=Pool(im,at+4);p.fit_pp=Pool(im,at+16);p.clip_pp=Pool(im,at+28);
+            p.alignment_pp=Pool(im,at+4);p.fit_pp=Pool(im,at+16);
+            p.stack_clip_load=at+28;original_clip_pp=Pool(im,p.stack_clip_load);
+            p.parent_clip_store=at+36;
         }
     }
     if(!p.background_call)return Fail(why,"background call absent");
+    // The enabled-only parent leaf may use x1 without spilling or touching
+    // NZCV: the original store consumes w1, and the very next instruction
+    // overwrites all of x1 with the native root list from its saved FP slot.
+    // Bind that reload to the initial list save; x0 stays the allocated Stack.
+    const uint32_t root_save=Word(im,p.phone+0x160);
+    const uint32_t root_load=Word(im,p.parent_clip_store+4);
+    if(!p.parent_clip_store||Word(im,p.parent_clip_store)!=0xb801b001u||
+       (root_save&0xffe00fffu)!=0xf80003a2u||
+       (root_load&0xffe00fffu)!=0xf84003a1u||
+       (root_save>>12&511u)!=(root_load>>12&511u)||
+       Word(im,p.parent_clip_store+8)!=0xb800b001u)
+        return Fail(why,"native parent clip store/root reload liveness");
+    if(!ResolveClipNone(im,p,original_clip_pp,why))return false;
+    p.native_clip_pp=original_clip_pp;
     p.gate=p.background_call-16;p.gate_expected=Word(im,p.gate);p.background_expected=Word(im,p.background_call);
     if((p.gate_expected&0xfff8001fu)!=0x37200001u)return Fail(why,"native background gate changed");
     int64_t n=p.gate_expected>>5&0x3fff;if(n&0x2000)n-=0x4000;p.skip=size_t(int64_t(p.gate)+n*4);

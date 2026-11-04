@@ -7,7 +7,7 @@ Requires unicorn, pyelftools and capstone. Does not compile a fixture or call
 Gradle, connect a device, install, or activate anything. The test copies the
 actual parent payload bytes (including sibling configs) as the installer does.
 It executes only gate/render; original native targets are terminal sentinels.
-Authored roots/tags isolate the 280-byte render ABI from profile-resolution QA.
+Authored roots/tags isolate the 296-byte render ABI from profile-resolution QA.
 """
 import argparse
 import hashlib
@@ -36,7 +36,7 @@ with io.BytesIO(artifact) as stream:
     table = elf.get_section_by_name('.symtab')
     assert table is not None, 'Use the unstripped CMake output; hidden bridge symbols are required'
     syms = {symbol.name: symbol['st_value'] for symbol in table.iter_symbols()}
-    required = ('template', 'gate', 'background', 'config', 'end', 'payload_end', 'refresh_begin', 'refresh_event', 'refresh_value', 'refresh_config', 'refresh_end', 'mode_post', 'mode_replay', 'mode_config')
+    required = ('template', 'gate', 'parent_clip', 'background', 'config', 'end', 'payload_end', 'refresh_begin', 'refresh_event', 'refresh_value', 'refresh_config', 'refresh_end', 'mode_post', 'mode_replay', 'mode_config')
     missing = [name for name in required if 'kh_dock_' + name not in syms]
     assert not missing, f'Missing production payload symbols: {missing}'
     origin, payload_end = (syms['kh_dock_template'], syms['kh_dock_payload_end'])
@@ -53,7 +53,7 @@ with io.BytesIO(artifact) as stream:
         if isinstance(section, RelocationSection) and section['sh_type'] in ('SHT_REL', 'SHT_RELA'):
             assert not any((origin <= item['r_offset'] < payload_end for item in section.iter_relocations())), 'Copied payload contains a dynamic relocation'
 entry = {name: syms['kh_dock_' + name] - origin for name in required}
-assert entry['refresh_begin'] - entry['config'] == 280, 'Render config ABI must be 280 bytes; rebuild parent after appended IgnorePointer tag'
+assert entry['refresh_begin'] - entry['config'] == 296, 'Render config ABI must be 296 bytes'
 assert entry['refresh_end'] - entry['refresh_config'] == 104, 'Refresh config ABI'
 assert entry['payload_end'] - entry['mode_config'] == 48, 'Mode config ABI'
 CODE, THREAD, FIELDS, POOL = 0x10000000, 0x20000000, 0x21000000, 0x22000000
@@ -135,12 +135,13 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
         0x1f, 0x33, 0xf,                             # 240..256: painted top sources
         suppress_field,                              # 264: optional effective guard
         ignore_tag,                                  # 272: native input wrapper
+        0x130, END,                                  # 280..288: stock clip, parent continuation
     ]
-    assert len(cfg) * 8 == 280
+    assert len(cfg) * 8 == 296
     arena = 336 if mode == 0 else 320
     word(POLICY + 8, mode)
     word(POLICY + 16, q8)
-    u.mem_write(CODE + entry['config'], struct.pack('<35Q', *cfg))
+    u.mem_write(CODE + entry['config'], struct.pack('<37Q', *cfg))
     word(POLICY, enabled)
     objects = {name: HEAP + 1052673 + 256 * i for i, name in enumerate(('outer', 'inner', 'box', 'grid', 'rx', 'config', 'device', 'grow', 'array', 'args', 'mode_controller', 'mode_rx', 'elderly_enum', 'normal_enum', 'metrics', 'no_word_rx', 'suppress_rx'))}
     for i, at in enumerate(objects.values()):
@@ -300,8 +301,8 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     assert ref(pos + 23) != ref(pos + 31)
     native_icon_top = (max(0, ((w - 20 if width_flag else cell_height) - ink_width) / 2)
                        if effective_no_word else icon_top)
-    expected_top = max(0, native_icon_top - 8)
-    expected_bottom = min(H, native_icon_top + ink_width + 8)
+    expected_top = max(-12, native_icon_top - 18)
+    expected_bottom = min(H + 12, native_icon_top + ink_width + 18)
     assert num(ref(pos + 23) + 7) == expected_top
     assert num(ref(pos + 31) + 7) == H - expected_bottom, 'Positioned bottom must be an inset'
     M = 4 if elderly else 5
@@ -310,10 +311,10 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     last = centers[-1] + ink_width / 2
     for center in centers:
         assert left <= center - ink_width / 2 and right >= center + ink_width / 2, 'painted icon clipped'
-    assert math.isclose(left, max(8, first - 10), abs_tol=1e-10)
-    assert math.isclose(right, min(C - 8, last + 10), abs_tol=1e-10)
+    assert math.isclose(left, max(8, first - 18), abs_tol=1e-10)
+    assert math.isclose(right, min(C - 8, last + 18), abs_tol=1e-10)
     native_radius = q8 / 256 if corner_address and 0 <= q8 <= 65536 else 0
-    expected_radius = min(max(20, native_radius - min(left, C - right)), (right - left) / 2, (expected_bottom - expected_top) / 2)
+    expected_radius = min(max(28, native_radius - min(left, C - right)), (right - left) / 2, (expected_bottom - expected_top) / 2)
     assert math.isclose(num(mat + 11), expected_radius, abs_tol=1e-10), 'corner Q8 geometry'
     for off, pooloff in ((15, 264), (23, 272), (27, 280)):
         assert ref(stack + off) == NULL + 1280 + pooloff
@@ -518,9 +519,9 @@ for mode in range(4):
                                  cell_height=120, q8=256 * 256) == (not elderly or count <= 4)
                     cases += 1
 for native in (False, True):
-    for top in (0, 4, 8, 20, 80, 120, 128, 200):
+    for top in (0, 4, 8, 20, 80, 120, 128, 149, 150, 152, 200):
         assert setup(H=120, w=100, ink_width=56, icon_top=top,
-                     native=native) == (top < 128)
+                     native=native) == (top < 150)
         cases += 1
 for bad in (-1., float('nan'), float('inf'), -float('inf')):
     assert not setup(icon_top=bad)
@@ -682,7 +683,52 @@ for ignore_tag in (0x1e1021c, 0x1eb321c, 0x1eb321c, 0x1efa21c, 0x1efc21c):
             cases += 1
 assert not setup(ignore_tag=0)
 cases += 1
-report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=280, arena_bytes={'glass': 336, 'other': 320}, coverage=['production linked bytes copied to a different address', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
+# Execute the extra parent store through its authenticated native continuation.
+# Every register other than the proven-dead x1, all SIMD state, flags and stack
+# remain unchanged. Native continuation restores x1 and initializes children.
+def parent_clip_case(enabled, nzcv, heap_high):
+    u = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
+    heap = heap_high << 32
+    for at, size in ((CODE,8192),(POLICY,4096),(POOL,4096),(END,4096),(STACK-4096,8192),(heap+0x100000,4096)):
+        u.mem_map(at,size)
+    u.mem_write(CODE,blob)
+    def put(at,v): u.mem_write(at,struct.pack('<Q',v))
+    obj=heap+0x100001
+    original=heap+0x100401
+    none=heap+0x100501
+    child=heap+0x100601
+    put(CODE+entry['config'],POLICY)
+    put(CODE+entry['config']+160,0x118)
+    put(CODE+entry['config']+280,0x130)
+    put(CODE+entry['config']+288,END)
+    put(POOL+0x118,none);put(POOL+0x130,original)
+    u.mem_write(POLICY,struct.pack('<I',enabled))
+    put(STACK-0x28,child)
+    # Original LDUR x1,[fp,-28], STUR w1,[x0,+b], RET.
+    u.mem_write(END,bytes.fromhex('a1835df801b000b8c0035fd6'))
+    for i,r in enumerate(X):u.reg_write(r,0x44440000+i*256)
+    for i,r in enumerate(Q):u.reg_write(r,0x11112222333344445555666677770000+i)
+    for i,v in {0:obj,1:original,15:STACK-128,27:POOL,29:STACK,30:END+256}.items():u.reg_write(X[i],v)
+    u.reg_write(ar.UC_ARM64_REG_SP,STACK+1024)
+    u.reg_write(ar.UC_ARM64_REG_NZCV,nzcv)
+    before=[u.reg_read(r) for r in X];qbefore=[u.reg_read(r) for r in Q]
+    stack_before=bytes(u.mem_read(STACK-4096,8192))
+    u.emu_start(CODE+entry['parent_clip'],END+256,count=100)
+    assert u.reg_read(ar.UC_ARM64_REG_PC)==END+256
+    for i,r in enumerate(X):assert u.reg_read(r)==(child if i==1 else before[i]),i
+    assert [u.reg_read(r) for r in Q]==qbefore
+    assert u.reg_read(ar.UC_ARM64_REG_NZCV)==nzcv
+    assert u.reg_read(ar.UC_ARM64_REG_SP)==STACK+1024
+    assert bytes(u.mem_read(STACK-4096,8192))==stack_before
+    assert struct.unpack('<I',u.mem_read(obj+0x1b,4))[0]==((none if enabled==1 else original)&0xffffffff)
+    assert struct.unpack('<I',u.mem_read(obj+0xb,4))[0]==(child&0xffffffff)
+for enabled in (0,1,2,0xffffffff):
+    for flags in range(16):
+        for heap_high in (1,7):
+            parent_clip_case(enabled,flags<<28,heap_high)
+            cases+=1
+
+report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=296, arena_bytes={'glass': 336, 'other': 320}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
 if args.report:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

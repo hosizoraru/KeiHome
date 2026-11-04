@@ -82,6 +82,7 @@ bool InstallPreparedDockGlass() {
     const long page=sysconf(_SC_PAGESIZE);
     if(page<4096||page>65536||(page&(page-1))||bytes>size_t(page))return Reject("Dock template ABI");
     const Patch patches[]={
+        {p.parent_clip_store,0xb801b001u,kh_dock_parent_clip,false},
         {p.gate,p.gate_expected,kh_dock_gate,false},
         {p.background_call,p.background_expected,kh_dock_background,true},
         {r.second_event_call,r.second_event_expected,kh_dock_refresh_event,true},
@@ -113,7 +114,8 @@ bool InstallPreparedDockGlass() {
         p.material_config_pp,p.positioned_tag,p.stack_tag,p.sized_box_tag,p.background_tag,
         p.alignment_pp,p.fit_pp,p.clip_pp,p.double_tag,p.launcher_mode_slot,p.launcher_mode_rx,p.elderly_pp,p.device_layout_field,p.corner_field,
         p.ink_metrics_field,p.ink_width_field,reinterpret_cast<uintptr_t>(&kh_dock_glass_corner_q8),
-        p.ink_top_field,p.cell_height_field,p.no_word_rx_field,p.no_word_suppress_rx_field,p.ignore_pointer_tag
+        p.ink_top_field,p.cell_height_field,p.no_word_rx_field,p.no_word_suppress_rx_field,p.ignore_pointer_tag,
+        p.native_clip_pp,loaded.base+p.parent_clip_store+4
     };
     const DockGlassRefreshConfig refresh_config={
         reinterpret_cast<uintptr_t>(&kh_dock_glass_installed),reinterpret_cast<uintptr_t>(&kh_dock_glass_revision),

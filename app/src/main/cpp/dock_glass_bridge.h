@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Copied render config: thirty-five uint64_t words, offsets in bytes. Addresses are
+// Copied render config: thirty-seven uint64_t words, offsets in bytes. Addresses are
 // absolute native addresses; pool/table offsets are bytes, never Dart pointers.
 #define KH_DOCK_ENABLED                 0
 #define KH_DOCK_GATE_ENTER              8
@@ -35,7 +35,9 @@
 #define KH_DOCK_NO_WORD_RX_FIELD      256
 #define KH_DOCK_NO_WORD_SUPPRESS_RX_FIELD 264
 #define KH_DOCK_IGNORE_POINTER_TAG    272
-#define KH_DOCK_CONFIG_SIZE           280
+#define KH_DOCK_NATIVE_CLIP_PP        280
+#define KH_DOCK_PARENT_CLIP_RESUME    288
+#define KH_DOCK_CONFIG_SIZE           296
 #define KH_DOCK_MATERIAL_GLASS_OS4      0
 #define KH_DOCK_MATERIAL_MIUIX_OS3      1
 #define KH_DOCK_MATERIAL_BASIC_BLUR     2
@@ -68,7 +70,7 @@ struct DockGlassBridgeConfig {
     uint64_t background_tag;          // exact 16-byte native ItemBackground
     uint64_t alignment_pp;            // native Stack alignment
     uint64_t fit_pp;                  // native Stack fit
-    uint64_t clip_pp;                 // native Stack clipBehavior
+    uint64_t clip_pp;                 // authenticated native Clip.none
     uint64_t double_tag;              // complete 16-byte native Double header
     // Max count is independent of the DeviceConfig flag selecting cell WIDTH.
     // Parent derives these from hotSeatMaxCount -> isElderlyManMode's graph.
@@ -88,6 +90,8 @@ struct DockGlassBridgeConfig {
     // suppression Bool + enum-index guard, derived from the effective helper.
     uint64_t no_word_suppress_rx_field;
     uint64_t ignore_pointer_tag;      // authenticated native 32-byte IgnorePointer
+    uint64_t native_clip_pp;          // original parent clip when disabled
+    uint64_t parent_clip_resume;      // original clip store +4; x1 overwritten next
 };
 
 #define KH_DOCK_CHECK(member, offset) \
@@ -124,12 +128,15 @@ KH_DOCK_CHECK(cell_height_field, KH_DOCK_CELL_HEIGHT_FIELD);
 KH_DOCK_CHECK(no_word_rx_field, KH_DOCK_NO_WORD_RX_FIELD);
 KH_DOCK_CHECK(no_word_suppress_rx_field, KH_DOCK_NO_WORD_SUPPRESS_RX_FIELD);
 KH_DOCK_CHECK(ignore_pointer_tag, KH_DOCK_IGNORE_POINTER_TAG);
+KH_DOCK_CHECK(native_clip_pp, KH_DOCK_NATIVE_CLIP_PP);
+KH_DOCK_CHECK(parent_clip_resume, KH_DOCK_PARENT_CLIP_RESUME);
 #undef KH_DOCK_CHECK
 static_assert(sizeof(DockGlassBridgeConfig) == KH_DOCK_CONFIG_SIZE);
 
 extern "C" {
 extern uint32_t kh_dock_material_mode; // parent definition, default 0
 extern const uint8_t kh_dock_template[], kh_dock_gate[], kh_dock_background[];
+extern const uint8_t kh_dock_parent_clip[];
 extern const uint8_t kh_dock_config[], kh_dock_end[];
 }
 #endif

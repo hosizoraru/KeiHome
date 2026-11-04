@@ -21,16 +21,17 @@ struct DockGlassGeometry {
 // icon_width is the centered painted width inside each native layout cell;
 // absence preserves the cell-width envelope. No native icon positions change.
 // icon_top is the native painted Y coordinate; absence retains the legacy
-// container-height envelope. An explicit top bounds the plate around the ink.
+// container-height envelope. An explicit top surrounds the ink with 18dp
+// padding, allowing at most 12dp of decorative paint beyond the native box.
 [[nodiscard]] inline DockGlassGeometry ComputeDockGlassGeometry(
         double content_width, double cell_width, int count, int max_count,
         double container_height,
         std::optional<double> screen_bottom_radius = std::nullopt,
         std::optional<double> icon_width = std::nullopt,
         std::optional<double> icon_top = std::nullopt) noexcept {
-    constexpr double kPadding = 10.0;
+    constexpr double kPadding = 18.0;
     constexpr double kEdge = 8.0;
-    constexpr double kFallbackRadius = 20.0;
+    constexpr double kFallbackRadius = 28.0;
     const double ink_width = icon_width.value_or(cell_width);
     if (!std::isfinite(content_width) || !std::isfinite(cell_width) ||
         !std::isfinite(container_height) || content_width <= 2.0 * kEdge ||
@@ -68,16 +69,18 @@ struct DockGlassGeometry {
     const double left = std::max(kEdge, first_left - kPadding);
     const double right = std::min(content_width - kEdge, last_right + kPadding);
     if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};
-    const double top = icon_top ? std::max(0.0, *icon_top - kEdge) : kEdge;
+    constexpr double kVerticalPadding = 18.0;
+    constexpr double kPaintOverflow = 12.0;
+    const double top = icon_top ? std::max(-kPaintOverflow, *icon_top - kVerticalPadding) : kEdge;
     const double bottom = icon_top
-            ? std::min(container_height, *icon_top + ink_width + kEdge)
+            ? std::min(container_height + kPaintOverflow, *icon_top + ink_width + kVerticalPadding)
             : container_height - kEdge;
     const double radius_cap = std::min((right - left) / 2.0, (bottom - top) / 2.0);
     if (!(radius_cap > 0.0)) return {};
 
-    // Keep the native 20dp softness, growing only when the concentric inner arc
+    // Keep a 28dp minimum softness, growing only when the concentric inner arc
     // (screen radius - nearer horizontal outer inset) exceeds it. Missing, zero
-    // or invalid screen radii use 20dp too. Both dimensions still cap the radius.
+    // or invalid screen radii use 28dp too. Both dimensions still cap the radius.
     const double outer_inset = std::min(left, content_width - right);
     const double radius = screen_bottom_radius &&
                           std::isfinite(*screen_bottom_radius) &&

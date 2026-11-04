@@ -32,6 +32,31 @@ kh_dock_gate:
     ldr x16, [x17, #KH_DOCK_GATE_SKIP]
     br x16
 
+// Native parent Stack clip store. Its next instruction reloads x1 from the
+// original frame; only that dead register is used. No flags, other registers,
+// root slots or allocation state change. Keep its stock clip while disabled.
+    .global kh_dock_parent_clip
+    .hidden kh_dock_parent_clip
+kh_dock_parent_clip:
+    hint #38
+    adr x1, kh_dock_config
+    ldr x1, [x1, #KH_DOCK_ENABLED]
+    ldar w1, [x1]
+    sub w1, w1, #1
+    cbnz w1, .Ldock_parent_stock_clip
+    adr x1, kh_dock_config
+    ldr x1, [x1, #KH_DOCK_CLIP_PP]
+    b .Ldock_parent_write_clip
+.Ldock_parent_stock_clip:
+    adr x1, kh_dock_config
+    ldr x1, [x1, #KH_DOCK_NATIVE_CLIP_PP]
+.Ldock_parent_write_clip:
+    ldr x1, [x27, x1]
+    stur w1, [x0, #0x1b]
+    adr x1, kh_dock_config
+    ldr x1, [x1, #KH_DOCK_PARENT_CLIP_RESUME]
+    br x1
+
 // Reject only absent/uninitialized/Smi references. Class identities and field
 // layouts are authenticated by the parent profile, not guessed at runtime.
     .macro dock_ref xreg, wreg
@@ -286,28 +311,30 @@ kh_dock_background:
     b.gt .Ldock_original
     fcmp d4, d3
     b.le .Ldock_original
-    fmov d16, #10.0
+    fmov d16, #18.0
     fsub d3, d3, d16
     fmax d3, d3, d6               // plate left
     fadd d4, d4, d16
     fmin d4, d4, d7               // plate right
     fsub d5, d4, d3
     fdiv d5, d5, d18              // width/2
-    fsub d20, d21, d6
-    fmov d7, xzr
-    fmax d20, d20, d7            // top = max(0, nativeIconTop-8)
+    fsub d20, d21, d16
+    fmov d7, #-12.0
+    fmax d20, d20, d7            // top = max(-12, nativeIconTop-18)
     fadd d21, d21, d19
     dock_finite d21
-    fadd d21, d21, d6
-    fmin d21, d1, d21            // bottom edge = min(H, iconTop+inkWidth+8)
+    fadd d21, d21, d16
+    fmov d7, #12.0
+    fadd d7, d1, d7
+    fmin d21, d7, d21            // bottom = min(H+12, nativeIconTop+inkWidth+18)
     fsub d7, d21, d20
     fdiv d7, d7, d18              // actual painted plate height/2
     fmin d5, d5, d7
     fcmp d5, #0.0
     b.le .Ldock_original
-    fmov d7, #20.0
+    fmov d7, #28.0
     // Public Android rounded-corner radius, normalized to dp Q8 by the parent.
-    // No Dart corner-list/units assumptions. Zero/missing/invalid uses native20.
+    // No Dart corner-list/units assumptions. Zero/missing/invalid uses bounded28.
     ldr x16, [x17, #KH_DOCK_CORNER_RADIUS_ADDRESS]
     cbz x16, .Ldock_radius_ready
     ldar w4, [x16]
@@ -320,7 +347,7 @@ kh_dock_background:
     fsub d16, d0, d4
     fmin d16, d3, d16            // nearer horizontal plate inset
     fsub d7, d7, d16
-    fmov d16, #20.0
+    fmov d16, #28.0
     fmax d7, d7, d16             // retain native minimum softness
 .Ldock_radius_ready:
     fmin d5, d5, d7

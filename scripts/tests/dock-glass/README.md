@@ -19,7 +19,7 @@ python3 scripts/tests/dock-glass/test_modes.py --elf PATH_TO_RELEASE_SO --report
 python3 scripts/tests/dock-glass/test_refresh.py --elf PATH_TO_RELEASE_SO --report /tmp/dock-refresh.json
 ```
 
-The current suites execute 1,683 render cases, 125 mode cases, and 470 refresh
+The current suites execute 1,817 render cases, 125 mode cases, and 470 refresh
 cases across the five saved source fixtures. They authenticate the payload from
 the supplied ELF rather than a separately assembled approximation.
 

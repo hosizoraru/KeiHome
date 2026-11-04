@@ -7,6 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
+  @Test fun oldCapabilityFailuresRemainDistinctFromAnUnreachableLauncher() {
+    val missing = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
+      launcherStartTicks = null, detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE)
+    val legacy = missing.encode().split('|').take(11).toMutableList().apply { this[0] = "1" }.joinToString("|")
+    assertTrue(RuntimeStatusReport.decode(legacy)!!.hasMissingMonetCapability)
+    assertTrue(RuntimeStatusReport.decode(missing.encode())!!.hasMissingMonetCapability)
+    assertFalse(missing.copy(detail = "endpoint: deadline exceeded").hasMissingMonetCapability)
+    assertFalse(ready.copy(detail = missing.detail).hasMissingMonetCapability)
+  }
+
   @Test fun dockAckHasItsOwnIdentityEvenWhenMonetIsUnavailable() {
     val report = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
       launcherStartTicks = null, dockGlassEnabled = true, dockGlassPid = 9701, dockGlassStartTicks = 3211, dockGlassCornerStyle = 1)

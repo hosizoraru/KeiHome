@@ -8,6 +8,11 @@ internal data class IconRefreshReceipt(val callbacks: Int, val completedAtMillis
 
 internal enum class NativeRuntimeState { READY, UNAVAILABLE, INACTIVE_USER }
 
+internal object NativeRuntimeDiagnostic {
+  // Preserve the wire diagnostic so older resident payload reports remain recognizable.
+  const val MONET_CAPABILITY_UNAVAILABLE = "native Monet capability unavailable"
+}
+
 internal data class RuntimeStatusRequest(
   val id: String, val userId: Int, val startedAtElapsed: Long, val includeIconTheme: Boolean = false,
 ) {
@@ -36,6 +41,10 @@ internal data class RuntimeStatusReport(
   val dockGlassStartTicks: Long? = null,
   val dockGlassCornerStyle: Int? = null,
 ) {
+  val hasMissingMonetCapability: Boolean
+    get() = nativeState == NativeRuntimeState.UNAVAILABLE &&
+      detail == NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
+
   fun acknowledgesDockGlass(choice: os.kei.hyper.home.data.DockGlassChoice?): Boolean =
     choice != null && dockGlassEnabled == choice.enabled && dockGlassCornerStyle == choice.cornerStyle.nativeValue &&
       dockGlassPid != null && dockGlassStartTicks != null

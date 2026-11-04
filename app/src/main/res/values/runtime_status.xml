@@ -9,6 +9,8 @@
     <string name="runtime_expired">Status expired</string>
     <string name="runtime_generation_mismatch">Reporting build differs</string>
     <string name="runtime_unavailable">Waiting for launcher connection</string>
+    <string name="runtime_capability_missing">Launcher capability not loaded</string>
+    <string name="runtime_capability_missing_note">The launcher is connected, but its color capability did not load. After updating the module, restart the launcher or device once. If this persists, export the LSPosed logs.</string>
     <string name="runtime_inactive_user">User inactive</string>
     <string name="runtime_timed_out">Status query timed out</string>
     <string name="runtime_read_failed">Unable to read status</string>

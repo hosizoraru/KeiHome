@@ -212,6 +212,7 @@ internal enum class NativeStatusKind(@param:StringRes val label: Int) {
   NOT_REPORTED(R.string.runtime_not_reported),
   EXPIRED(R.string.runtime_expired),
   GENERATION_MISMATCH(R.string.runtime_generation_mismatch),
+  CAPABILITY_MISSING(R.string.runtime_capability_missing),
   UNAVAILABLE(R.string.runtime_unavailable),
   INACTIVE_USER(R.string.runtime_inactive_user),
   TIMED_OUT(R.string.runtime_timed_out),
@@ -242,7 +243,8 @@ internal fun runtimeCardState(
     }
     else -> when (report.nativeState) {
       NativeRuntimeState.INACTIVE_USER -> NativeStatusKind.INACTIVE_USER
-      NativeRuntimeState.UNAVAILABLE -> NativeStatusKind.UNAVAILABLE
+      NativeRuntimeState.UNAVAILABLE -> if (report.hasMissingMonetCapability) NativeStatusKind.CAPABILITY_MISSING
+        else NativeStatusKind.UNAVAILABLE
       NativeRuntimeState.READY -> if (report.moduleVersion == installedVersion) NativeStatusKind.READY
         else NativeStatusKind.GENERATION_MISMATCH
     }
@@ -400,6 +402,12 @@ private fun RuntimeStatusCard(
     }
     report?.detail?.takeIf { it.isNotBlank() }?.let { detail ->
       DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail, stacked = true)
+    }
+    if (runtime.kind == NativeStatusKind.CAPABILITY_MISSING) {
+      DashboardFootnote(
+        text = stringResource(R.string.runtime_capability_missing_note),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+      )
     }
     report?.let {
       DashboardDetail(

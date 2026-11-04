@@ -121,3 +121,13 @@ The final APK, status screenshots, deployment receipts and focused failure
 evidence are retained under:
 `/Users/voyager/.codex/visualizations/2026/10/31/keihome-native-status/`.
 Full temporary logs remain under `/tmp/keihome-runtime-status/`.
+
+### Physical capability failure, November 5
+
+An authenticated greeting without the Monet capability now displays a distinct
+"Launcher capability not loaded" warning and recovery guidance. Connection
+waiting, query failure and expiry remain separate, and readiness still requires
+the actual native capability. Legacy reports are recognized without changing
+their wire format. See [the physical diagnosis](physical-launcher-connection.md)
+for the old Home 8602 selection-contract rejection, current successful dynamic
+resolution, one-time native activation and subsequent process-stable acceptance.

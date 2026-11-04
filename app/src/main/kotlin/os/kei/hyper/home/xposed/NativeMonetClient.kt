@@ -21,6 +21,7 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import os.kei.hyper.home.status.NativeRuntimeDiagnostic
 
 /**
  * One authenticated exchange with the launcher; the monitor owns retries.
@@ -493,7 +494,7 @@ internal object NativeMonetProtocol {
       }
     }
     if (capabilities and requiredCapability == 0) {
-      return reject(if (requiredCapability == MONET_CAPABILITY) "native Monet capability unavailable"
+      return reject(if (requiredCapability == MONET_CAPABILITY) NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
       else if (requiredCapability == LAUNCHER_LABELS_CAPABILITY) "native launcher labels capability unavailable"
       else if (requiredCapability == DOCK_GLASS_CAPABILITY) "native Dock glass capability unavailable"
       else "native theme materials capability unavailable")

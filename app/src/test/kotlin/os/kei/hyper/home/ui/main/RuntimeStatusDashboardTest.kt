@@ -11,6 +11,7 @@ import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.NativeRuntimeState
+import os.kei.hyper.home.status.NativeRuntimeDiagnostic
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusUiState
 
@@ -221,5 +222,38 @@ class RuntimeStatusDashboardTest {
     assertEquals(receipt, current.report?.refresh)
     assertEquals("Endpoint unavailable", current.report?.detail)
     assertNull(native(state, checkedAt + 30_001).report)
+  }
+
+  @Test
+  fun anAuthenticatedMissingCapabilityIsNotPresentedAsAConnectionWait() {
+    val receipt = IconRefreshReceipt(261, 1_000_000)
+    val state = RuntimeStatusUiState(report = report().copy(
+      nativeState = NativeRuntimeState.UNAVAILABLE,
+      launcherPid = null,
+      launcherStartTicks = null,
+      refresh = receipt,
+      detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE,
+    ))
+    val current = native(state)
+    assertEquals(NativeStatusKind.CAPABILITY_MISSING, current.kind)
+    assertEquals(R.string.runtime_capability_missing, presentation(runtime = current).title)
+    assertEquals(StatusTone.WARNING, presentation(runtime = current).tone)
+    assertEquals(receipt, current.report?.refresh)
+    assertNull(current.report?.launcherPid)
+    assertNull(native(state, checkedAt + 30_001).report)
+    assertEquals(NativeStatusKind.TIMED_OUT, native(state.copy(timedOut = true)).kind)
+    assertEquals(NativeStatusKind.READ_FAILED, native(state.copy(readFailed = true)).kind)
+  }
+
+  @Test
+  fun unrelatedFailuresAndOldDiagnosticsCannotMaskARecoveredNativeCapability() {
+    listOf(null, "endpoint: deadline exceeded", "native greeting capabilities invalid").forEach { detail ->
+      assertEquals(NativeStatusKind.UNAVAILABLE, native(RuntimeStatusUiState(report = report().copy(
+        nativeState = NativeRuntimeState.UNAVAILABLE, detail = detail,
+      ))).kind)
+    }
+    assertEquals(NativeStatusKind.READY, native(RuntimeStatusUiState(report = report().copy(
+      detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE,
+    ))).kind)
   }
 }

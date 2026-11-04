@@ -34,6 +34,25 @@ dual-page rules and costs a 32-byte wrapper per page build. Visible weather and
 clock widgets retain their normal refreshes. Device checks must still establish
 actual pause/resume and rendering, beyond host emulation.
 
+Arranging the home screen pauses only scrolling **titles**, using the native
+reactive `ScreenLayerGetXController._isInNormalEditing` getter. Ordinary cached
+icons otherwise keep their immutable widget identity, so a parent rebuild alone
+does not update their existing GetBuilder titles. The cached-hit and both cold
+factory-return paths subscribe the parent and return fresh native draggable and
+shortcut widget copies. Native classes, keys, controllers, callbacks, model and
+flags are preserved. A fully initialized, unpublished 32-byte shell roots both
+copies and the original entry across the native getter. This costs 160 young
+bytes per eligible ordinary-icon build, never per animation frame. Missing
+controllers or insufficient space preserve the original widget.
+
+Only the completed long-name Marquee receives the published title TickerMode.
+Selection checkmarks, icon transitions, positioning, drag feedback, folder and
+widget animations remain outside this boundary. The native editing query uses
+the original Text allocation return PC and roots its String/Marquee through the
+title wrapper; it creates no new Dart frame, timer or retained C++ reference.
+Returning to normal mode resumes the resident title animation. Neither normal
+swipes nor partial drags add a new polling loop or a per-frame resolver.
+
 The resident widget follows the [Marquee API](https://pub.dev/documentation/marquee/latest/marquee/Marquee-class.html).
 The implementation uses its actual compiled constructor in the target image;
 documentation alone is not an ABI contract.
@@ -46,12 +65,13 @@ mapped-image and explicit ABI approach used in MiuiBackGestureHook, resolution
 validates the title builder, configuration getter, reactive-value getter, native
 text measurement, Marquee constructor, allocator and widget type check. It derives
 call targets, the field-table slot, class IDs, stack-root positions and continuation
-addresses, prefix helper, page construction, native visibility and fade graphs. Both
-saved 7722 and 8593 images resolve, including their different
+addresses, prefix helper, page construction, native visibility, editing, cached/cold
+ordinary-icon returns and fade graphs. All five saved 7722, 8593, 8602, 9209 and
+9226 images resolve, including their different
 String/Style root positions and source-width fields. Unknown effects in Text
 construction, ambiguous matches and branches into a patch interior reject support.
 
-Two exact 16-byte transfers, three call branches and one page-return branch are
+Two exact 16-byte transfers, three call branches and four return branches are
 installed only in a fresh image before Dart execution. The bridges replace the original native
 Text-allocation call with original Dart measurement/construction when scrolling
 is enabled. Both callees return to the **original allocation return PC**, keeping
@@ -112,8 +132,8 @@ acceptance is a separate milestone or release check and runs only when the user
 explicitly requests it; a previous physical-device check does not authorize
 testing later features on that device.
 
-Host resolution and rejection checks pass on the actual 7722/8593 ELF fixtures.
-The linked production bridges pass 540 ARM64 cases covering both heap-base forms,
+Host resolution and rejection checks pass on all five actual ELF fixtures.
+The linked production bridges pass 2,550 ARM64 cases covering both heap-base forms,
 all modes, native line counts, exact width boundaries, invalid measurements,
 memory pressure, a preference change during measurement or a prefix query,
 both prefix results, page visibility, and simulated moving roots. Fade cases
@@ -141,3 +161,5 @@ confirms that a visible weather page keeps its approximately one-second clock
 refresh while cached title marquees stop ticking. See the performance acceptance
 report for the final trace results and emulator limitations. Physical-device
 acceptance was not performed or requested for this feature.
+
+The editing/dragging checkpoint is documented in [launcher-labels-interactions.md](launcher-labels-interactions.md).

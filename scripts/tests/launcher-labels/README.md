@@ -31,11 +31,14 @@ python scripts/tests/launcher-labels/test_bridge.py \
   .artifacts/inputs/launchers/9226/libapp.so
 ```
 
-The 1,350 execution cases across five fixtures stub the original Dart measurement, prefix, allocation,
-constructor, fade, visibility and title-refresh callees. They assert original return
+The 2,550 execution cases across five fixtures stub the original Dart measurement, prefix, allocation,
+constructor, fade, visibility, editing and title-refresh callees. They assert original return
 PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
 width boundaries, preference changes, native pressure fallbacks and unchanged VM
-registers. Fade cases cover zero/nonzero/invalid fractions, all modes and a
+registers. Editing cases cover title-only pause, cached and both cold returns,
+immutable native child/key/field preservation, pressure, controller absence and
+relocated original/copy roots. The temporary rooting shell is never published
+into the widget tree. Fade cases cover zero/nonzero/invalid fractions, all modes and a
 missing widget, checking the unchanged callee arguments and return PC. Page cases
 also execute the exact 11
 initialization instructions from each fixture and assert that the Stack is

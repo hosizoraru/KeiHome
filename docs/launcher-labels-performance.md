@@ -121,3 +121,8 @@ Some exploratory captures have misleading scene names. In particular,
 from the 24-app comparison; `accepted-two-lines-main` has the checked 24-app
 screenshot. The quiet RepaintBoundary baseline records visual mode evidence
 rather than native-memory validation and is only experimental context.
+
+## Later interaction checkpoint
+
+The title-only editing pause, five-fixture native checks and page/drag/widget
+acceptance are documented in [launcher-labels-interactions.md](launcher-labels-interactions.md).

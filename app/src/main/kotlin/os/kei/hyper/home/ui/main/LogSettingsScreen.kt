@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
@@ -57,6 +58,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   val resources = LocalResources.current
   val scope = rememberCoroutineScope()
   var level by remember { mutableStateOf(AppLogStore.level(context)) }
+  var savingLevel by remember { mutableStateOf(false) }
   var rangeIndex by rememberSaveable { mutableIntStateOf(3) }
   var customHours by rememberSaveable { mutableStateOf("24") }
   var refresh by remember { mutableIntStateOf(0) }
@@ -104,8 +106,18 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         OverlaySpinnerPreference(title = stringResource(R.string.logs_level),
           items = levelLabels.map { DropdownItem(text = stringResource(it)) },
           selectedIndex = level.ordinal, onSelectedIndexChange = { index ->
-            level = AppLogStore.Level.entries[index]
-            AppLogStore.setLevel(context, level)
+            if (!savingLevel) {
+              savingLevel = true
+              scope.launch {
+                try {
+                  withContext(Dispatchers.IO) { AppLogStore.setLevel(context, AppLogStore.Level.entries[index]) }
+                  level = AppLogStore.Level.entries[index]
+                } catch (cancelled: CancellationException) { throw cancelled
+                } catch (_: Exception) {
+                  Toast.makeText(context, R.string.theme_effects_save_failed, Toast.LENGTH_SHORT).show()
+                } finally { savingLevel = false }
+              }
+            }
           })
         OverlaySpinnerPreference(title = stringResource(R.string.logs_window),
           items = labels.map { DropdownItem(text = stringResource(it)) }, selectedIndex = rangeIndex,

@@ -34,5 +34,7 @@ class AppLogStoreTest {
     assertEquals(1, AppLogStore.clear(context, since, now))
     assertEquals(0, AppLogStore.stats(context, since, now).second)
     assertEquals(1, AppLogStore.stats(context, old - 1, now).second)
+    AppLogStore.closeArchive(context)
+    root.deleteRecursively()
   }
 }

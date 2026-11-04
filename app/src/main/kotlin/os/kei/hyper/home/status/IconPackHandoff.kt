@@ -231,33 +231,32 @@ internal object IconPackHandoffs {
     val output = linkedMapOf<String, ByteArray>()
     val sharedActivities = targets.distinct().filter { it.className != null }.groupBy { it.className }
       .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
-    ZipFile(profile.file).use { source ->
-      for ((pkg, group) in targets.distinct().groupBy { it.packageName }) {
-        for (target in group) {
-          check()
-          val name = profile.source(target)?.dynamicName ?: continue
-          val kind = when (name) {
-            "ic_launcher_calender" -> NativeColorOsDynamicIcon.Kind.CALENDAR
-            "ic_launcher_clock" -> NativeColorOsDynamicIcon.Kind.CLOCK
-            else -> continue
-          }
-          val leaves = listOf("day.png", "night.png") + if (kind == NativeColorOsDynamicIcon.Kind.CLOCK)
-            listOf("clock_day_bg.png", "clock_day_hour_rectangle.png", "clock_day_minute_rectangle.png",
-              "night_clock_day_bg.png", "night_clock_day_hour_rectangle.png", "night_clock_day_minute_rectangle.png")
-            else emptyList()
-          if (leaves.any { source.getEntry("coloros-dynamic/$name/$it") == null }) continue
-          val assets = leaves.associateWith { profile.read("coloros-dynamic/$name/$it", check) }
-          val aliases = listOfNotNull(target.className?.takeUnless { it in sharedActivities }) +
-            if (group.size == 1 || target.className == null) listOf(pkg) else emptyList()
-          for (alias in aliases.distinct()) {
-            output.putAll(NativeColorOsDynamicIcon.entries(alias, kind, assets,
-              fixedDark = when (appearance) {
-                IconPackAppearance.LIGHT, IconPackAppearance.DIM_AT_NIGHT -> false
-                IconPackAppearance.DARK -> true
-                IconPackAppearance.SYSTEM -> null
-              },
-              dim = appearance == IconPackAppearance.DIM_AT_NIGHT))
-          }
+    val paths = profile.paths()
+    for ((pkg, group) in targets.distinct().groupBy { it.packageName }) {
+      for (target in group) {
+        check()
+        val name = profile.source(target)?.dynamicName ?: continue
+        val kind = when (name) {
+          "ic_launcher_calender" -> NativeColorOsDynamicIcon.Kind.CALENDAR
+          "ic_launcher_clock" -> NativeColorOsDynamicIcon.Kind.CLOCK
+          else -> continue
+        }
+        val leaves = listOf("day.png", "night.png") + if (kind == NativeColorOsDynamicIcon.Kind.CLOCK)
+          listOf("clock_day_bg.png", "clock_day_hour_rectangle.png", "clock_day_minute_rectangle.png",
+            "night_clock_day_bg.png", "night_clock_day_hour_rectangle.png", "night_clock_day_minute_rectangle.png")
+          else emptyList()
+        if (leaves.any { "coloros-dynamic/$name/$it" !in paths }) continue
+        val assets = leaves.associateWith { profile.read("coloros-dynamic/$name/$it", check) }
+        val aliases = listOfNotNull(target.className?.takeUnless { it in sharedActivities }) +
+          if (group.size == 1 || target.className == null) listOf(pkg) else emptyList()
+        for (alias in aliases.distinct()) {
+          output.putAll(NativeColorOsDynamicIcon.entries(alias, kind, assets,
+            fixedDark = when (appearance) {
+              IconPackAppearance.LIGHT, IconPackAppearance.DIM_AT_NIGHT -> false
+              IconPackAppearance.DARK -> true
+              IconPackAppearance.SYSTEM -> null
+            },
+            dim = appearance == IconPackAppearance.DIM_AT_NIGHT))
         }
       }
     }

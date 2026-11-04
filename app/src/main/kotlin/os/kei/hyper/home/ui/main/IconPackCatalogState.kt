@@ -49,10 +49,12 @@ internal fun catalogPackRows(state: IconPacksUiState, section: String, activePac
   fun identity(card: IconPackCardData): String = when (val source = card.pack.source) {
     is IconPackSource.Installed -> source.packageName
     is IconPackSource.Imported -> source.record.originalName
+    is IconPackSource.Builtin -> source.record.key
   }
   fun updated(card: IconPackCardData): Long = when (val source = card.pack.source) {
     is IconPackSource.Installed -> source.updatedAt
     is IconPackSource.Imported -> source.record.importedAt
+    is IconPackSource.Builtin -> 0L
   }
   val name = compareBy<IconPackCardData> { it.pack.displayName.lowercase(Locale.ROOT) }.thenBy { it.pack.id }
   val comparator = when (order) {

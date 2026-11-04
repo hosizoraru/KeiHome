@@ -19,13 +19,53 @@ abstract class PrepareThirdPartyNotices : DefaultTask() {
 }
 
 // Local firmware-derived profiles are optional build inputs, never checked into source control.
-android.sourceSets.getByName("main").assets.srcDir(rootProject.file(".artifacts/generated/assets"))
+// Each object already has its own DEFLATE stream. Keep offsets seekable inside the APK.
+android.androidResources.noCompress += "kicons"
+
+abstract class PrepareBuiltinIconStore @javax.inject.Inject constructor(
+  private val execution: org.gradle.process.ExecOperations,
+  private val fileSystem: org.gradle.api.file.FileSystemOperations,
+) : DefaultTask() {
+  @get:InputFiles
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val packs: ConfigurableFileCollection
+  @get:InputFiles
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val otherAssets: ConfigurableFileCollection
+  @get:InputFile
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val generator: RegularFileProperty
+  @get:OutputDirectory
+  abstract val outputDirectory: DirectoryProperty
+
+  @TaskAction
+  fun prepare() {
+    fileSystem.sync {
+      from(otherAssets.asFileTree)
+      into(outputDirectory)
+    }
+    if (packs.isEmpty) return // Public builds without optional OEM inputs do not need Python.
+    execution.exec {
+      commandLine(listOf("python3", generator.get().asFile.absolutePath, "--output",
+        outputDirectory.dir("builtin-icon-store").get().asFile.absolutePath) +
+        packs.files.sortedBy { it.name }.flatMap { listOf("--pack", it.absolutePath) })
+    }
+  }
+}
+
+val builtinAssets = tasks.register<PrepareBuiltinIconStore>("prepareBuiltinIconStore") {
+  packs.from(rootProject.fileTree(".artifacts/generated/assets/builtin-icon-packs") { include("*.zip") })
+  otherAssets.from(rootProject.fileTree(".artifacts/generated/assets") { exclude("builtin-icon-packs/**") })
+  generator.set(rootProject.layout.projectDirectory.file("scripts/pack-builtin-icons.py"))
+  outputDirectory.set(layout.buildDirectory.dir("generated/assets/shared-builtins"))
+}
 val noticeAssets = tasks.register<PrepareThirdPartyNotices>("prepareThirdPartyNotices") {
   notice.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
   outputDirectory.set(layout.buildDirectory.dir("generated/assets/third-party-notices"))
 }
 androidComponents.onVariants { variant ->
   variant.sources.assets?.addGeneratedSourceDirectory(noticeAssets, PrepareThirdPartyNotices::outputDirectory)
+  variant.sources.assets?.addGeneratedSourceDirectory(builtinAssets, PrepareBuiltinIconStore::outputDirectory)
 }
 // MMKV is used through JNI. This payload imports no C++ Prefab packages.
 android.buildFeatures.prefab = false

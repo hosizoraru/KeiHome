@@ -3,7 +3,7 @@
 ## Cache overview
 
 Settings shows a snapshot of the private `cacheDir`, grouped into active icon
-snapshots, built-in pack copies, import/export working files and other temporary
+snapshots, legacy built-in pack copies, import/export working files and other temporary
 files. The last category includes platform or diagnostic files in that directory.
 The scan runs off the UI thread, does not follow symbolic links, and reports an
 incomplete result if any file cannot be read. It can be refreshed from the top
@@ -15,6 +15,12 @@ caches, and can include shared bitmaps more than once. Clearing previews evicts
 only those memory caches; it does not delete active snapshots, imported packs,
 settings, or import/export files that another process may still be using.
 Android can independently reclaim files in its cache directory.
+
+Built-in profiles now share content-addressed objects in the APK and create no
+pack-cache copies. Their APK bytes are not part of this private-cache statistic.
+See [shared built-in resources](builtin-icon-storage.md) for the format, migration
+and device checks. The regenerable copies from older App versions are removed
+on the first built-in scan; user imports and active native themes are separate.
 
 Preview requests treat a snapshot removed during loading as temporarily
 unavailable while still propagating coroutine cancellation. This prevents a

@@ -18,6 +18,7 @@ internal object IconBuildInventory {
   fun sourceIdentity(pack: IconPackDescriptor): String = pack.id + "\n" + when (val source = pack.source) {
     is IconPackSource.Installed -> "${source.packageName}:${source.versionCode}:${source.updatedAt}"
     is IconPackSource.Imported -> source.record.id
+    is IconPackSource.Builtin -> source.record.id
   }
 
   fun decodeSource(bytes: ByteArray): String {

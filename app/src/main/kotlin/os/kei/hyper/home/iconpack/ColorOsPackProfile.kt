@@ -6,23 +6,37 @@ import org.json.JSONObject
 
 /** Local, resource-only conversion metadata; it never grants native import privileges. */
 internal data class ColorOsPackProfile(
-  val file: File,
+  val file: File?,
   val maskPath: String,
   val icons: Map<IconPackComponent, ColorOsIconSource>,
   val style: String = "classic",
+  val builtin: BuiltinIconPack? = null,
 ) {
   fun source(target: IconPackComponent): ColorOsIconSource? =
     icons[target] ?: icons[IconPackComponent(target.packageName)]
 
-  fun read(path: String, check: () -> Unit = {}): ByteArray =
-    IconPackArchive.readEntry(file, path, 4 * 1024 * 1024, check)
+  fun read(path: String, check: () -> Unit = {}): ByteArray = builtin?.read(path, 4 * 1024 * 1024, check)
+    ?: IconPackArchive.readEntry(requireNotNull(file), path, 4 * 1024 * 1024, check)
+
+  fun paths(): Set<String> = builtin?.paths ?: ZipFile(requireNotNull(file)).use { zip ->
+    zip.entries().asSequence().filterNot { it.isDirectory }.mapTo(hashSetOf()) { it.name }
+  }
 
   companion object {
     fun load(record: StoredIconPack, check: () -> Unit): ColorOsPackProfile? {
       if (record.format != IconPackFormat.CLASSIC_ZIP) return null
       if (ZipFile(record.originalFile).use { it.getEntry("coloros-source-manifest.json") == null }) return null
-      val root = JSONObject(String(IconPackArchive.readEntry(record.originalFile,
-        "coloros-source-manifest.json", 8 * 1024 * 1024, check), Charsets.UTF_8))
+      return parse(record.originalFile, null, IconPackArchive.readEntry(record.originalFile,
+        "coloros-source-manifest.json", 8 * 1024 * 1024, check), check)
+    }
+
+    fun load(record: BuiltinIconPack, check: () -> Unit): ColorOsPackProfile? {
+      if ("coloros-source-manifest.json" !in record.paths) return null
+      return parse(null, record, record.read("coloros-source-manifest.json", 8 * 1024 * 1024, check), check)
+    }
+
+    private fun parse(file: File?, builtin: BuiltinIconPack?, bytes: ByteArray, check: () -> Unit): ColorOsPackProfile? {
+      val root = JSONObject(bytes.toString(Charsets.UTF_8))
       val fallback = root.optJSONObject("fallback") ?: return null
       val style = root.optString("style")
       if (root.optInt("schema_version") != 1 || style !in setOf("classic", "daylight", "nightshadow", "material", "pebble") ||
@@ -52,7 +66,7 @@ internal data class ColorOsPackProfile(
         icons[component] = ColorOsIconSource(mono, dynamic, dynamicNames != null && dynamicNames.length() > 0,
           runtimeMode("light"), runtimeMode("dark"), fromRuntime(row.optJSONObject("monochrome")?.optString("source_key")))
       }
-      return ColorOsPackProfile(record.originalFile, "coloros-mask.png", icons, style)
+      return ColorOsPackProfile(file, "coloros-mask.png", icons, style, builtin)
     }
   }
 }

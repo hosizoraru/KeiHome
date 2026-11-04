@@ -96,6 +96,7 @@ internal class IconPackRenderer(private val context: Context) {
         android.installed(info.applicationInfo ?: throw IconPackException("Missing application resources"), dark)
       }
       is IconPackSource.Imported -> if (pack.format == IconPackFormat.APK) android.archive(source.record.originalFile, dark) else null
+      is IconPackSource.Builtin -> null
     }
     return Session(pack, dark, resources, colorOsFallback)
   }
@@ -230,9 +231,14 @@ internal class IconPackRenderer(private val context: Context) {
           val selected = selectArchiveVariant(artwork.variants, dark,
             context.resources.displayMetrics.densityDpi, Build.VERSION.SDK_INT) ?: return null
           if (!selected.isRaster) throw IconPackException("Uncompiled drawable XML requires an APK resource table")
-          val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing imported archive")
-          val file = if (artwork.part == IconArchivePart.ICONS) record.iconsFile else record.originalFile
-          val bytes = IconPackArchive.readEntry(file ?: throw IconPackException("Missing icons module"), selected.path, 16 * 1024 * 1024, check)
+          val bytes = when (val source = pack.source) {
+            is IconPackSource.Builtin -> source.record.read(selected.path, 16 * 1024 * 1024, check)
+            is IconPackSource.Imported -> {
+              val file = if (artwork.part == IconArchivePart.ICONS) source.record.iconsFile else source.record.originalFile
+              IconPackArchive.readEntry(file ?: throw IconPackException("Missing icons module"), selected.path, 16 * 1024 * 1024, check)
+            }
+            else -> throw IconPackException("Missing archive source")
+          }
           bitmap({ bytes.inputStream() }, sizePx, check)
         }
       }

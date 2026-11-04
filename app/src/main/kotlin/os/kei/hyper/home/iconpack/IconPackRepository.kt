@@ -13,6 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** App-process catalog only. The native bridge owns loaded-theme observations and apply.
  * No root paths, all-packages permission, package installation, or persistent URI grant. */
@@ -25,36 +27,33 @@ internal class IconPackRepository(
   private val worker = dispatcher.limitedParallelism(2)
   private val store = IconPackStore(File(application.noBackupFilesDir, "icon-packs"), limits)
   private val builtinRoot = File(application.cacheDir, "builtin-icon-packs")
-  private val builtinDirectory = File(builtinRoot, os.kei.hyper.home.BuildConfig.VERSION_CODE.toString())
-  private val builtinStore = IconPackStore(builtinDirectory, limits)
+  private val builtins = BuiltinIconPackStore(application.assets, limits)
   private val android = AndroidIconPackResources(application, limits)
   private val importedCache = mutableMapOf<String, IconPackDescriptor>()
   private data class InstalledKey(val packageName: String, val version: Long, val updated: Long, val configuration: String)
   private val installedCache = mutableMapOf<InstalledKey, AndroidIconPackIndex?>()
   private var builtinCache: IconPackScanResult? = null
+  private val builtinMutex = Mutex()
 
   fun invalidateInstalled() = synchronized(installedCache) { installedCache.clear() }
 
   suspend fun listBuiltins(): IconPackScanResult = withContext(worker) {
-    builtinCache?.let { return@withContext it }
-    // Bundled copies are regenerable cache, independent of the user's imported-pack quota.
-    builtinRoot.listFiles()?.filter { it != builtinDirectory }?.forEach { it.deleteRecursively() }
-    val caller = currentCoroutineContext()
-    val packs = mutableListOf<IconPackDescriptor>()
-    val failures = mutableListOf<IconPackFailure>()
-    val names = application.assets.list("builtin-icon-packs").orEmpty()
-      .filter { it.endsWith(".zip") && it != "coloros-runtime-fallback.zip" }
-    for (name in names) {
-      caller.ensureActive()
-      try {
-        val record = application.assets.open("builtin-icon-packs/$name").use { input ->
-          builtinStore.import(input, name, Build.VERSION.SDK_INT, { caller.ensureActive() })
-        }
-        packs += load(record.record) { caller.ensureActive() }.copy(builtinKey = name.removeSuffix(".zip"))
-      } catch (cancelled: CancellationException) { throw cancelled
-      } catch (failure: Exception) { failures += IconPackFailure(name, failure.message.orEmpty()) }
+    builtinMutex.withLock {
+      builtinCache?.let { return@withLock it }
+      // Legacy per-version copies are regenerable. New builtins read directly from the APK.
+      builtinRoot.deleteRecursively()
+      val caller = currentCoroutineContext()
+      val packs = mutableListOf<IconPackDescriptor>()
+      val failures = mutableListOf<IconPackFailure>()
+      for (record in builtins.list { caller.ensureActive() }.filter { it.key != "coloros-runtime-fallback" }) {
+        caller.ensureActive()
+        try {
+          packs += loadBuiltin(record) { caller.ensureActive() }
+        } catch (cancelled: CancellationException) { throw cancelled
+        } catch (failure: Exception) { failures += IconPackFailure(record.key, failure.message.orEmpty()) }
+      }
+      IconPackScanResult(packs, failures).also { builtinCache = it }
     }
-    IconPackScanResult(packs, failures).also { builtinCache = it }
   }
 
   suspend fun listInstalled(): IconPackScanResult = withContext(worker) {
@@ -164,14 +163,22 @@ internal class IconPackRepository(
 
   private var runtimeFallbackCache: IconPackDescriptor? = null
   suspend fun runtimeFallback(): IconPackDescriptor? = withContext(worker) {
-    runtimeFallbackCache?.let { return@withContext it }
-    val name = "coloros-runtime-fallback.zip"
-    if (name !in application.assets.list("builtin-icon-packs").orEmpty()) return@withContext null
-    val caller = currentCoroutineContext()
-    val record = application.assets.open("builtin-icon-packs/$name").use {
-      builtinStore.import(it, name, Build.VERSION.SDK_INT, checkCancelled = { caller.ensureActive() }).record
+    builtinMutex.withLock {
+      runtimeFallbackCache?.let { return@withLock it }
+      val caller = currentCoroutineContext()
+      val record = builtins.list { caller.ensureActive() }.firstOrNull { it.key == "coloros-runtime-fallback" }
+        ?: return@withLock null
+      loadBuiltin(record) { caller.ensureActive() }.also { runtimeFallbackCache = it }
     }
-    load(record) { caller.ensureActive() }.also { runtimeFallbackCache = it }
+  }
+
+  private fun loadBuiltin(record: BuiltinIconPack, check: () -> Unit): IconPackDescriptor {
+    val index = IconPackArchive(limits).classicIndex(record.paths, Build.VERSION.SDK_INT, check) { path, max ->
+      record.read(path, max, check)
+    }
+    return IconPackDescriptor(record.id, index.description.title ?: record.key, index.format,
+      IconPackSource.Builtin(record), index.entries, index.description, index.previews, index.notices, index.directives,
+      colorOsProfile = ColorOsPackProfile.load(record, check), builtinKey = record.key)
   }
 
   private fun load(record: StoredIconPack, check: () -> Unit): IconPackDescriptor {

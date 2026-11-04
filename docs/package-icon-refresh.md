@@ -16,6 +16,12 @@ Home night artwork, plus other style images and actual monochrome masks.
 symlinks, invalid names, excessive counts and oversized images are rejected.
 The source manifest retains per-file hashes and runtime provenance.
 
+The generated original ZIPs remain local inputs. Gradle's
+`prepareBuiltinIconStore` deduplicates their complete file bytes into one
+seekable APK asset and a catalog; it does not include the eleven independent
+ZIPs in the APK. Profiles keep the original ZIP digests as their identities,
+including applied-source receipts. Details: [built-in storage](builtin-icon-storage.md).
+
 The source cache is a snapshot, not a complete catalog: ColorOS can add artwork
 after installation or a native download request. Fetch the union of the whitelist
 and native resource catalog without installing their apps, then capture the

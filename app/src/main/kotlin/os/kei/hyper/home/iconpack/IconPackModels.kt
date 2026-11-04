@@ -166,6 +166,7 @@ internal sealed interface IconPackSource {
   data class Installed(val packageName: String, val versionCode: Long, val updatedAt: Long,
     val versionName: String? = null) : IconPackSource
   data class Imported(val record: StoredIconPack) : IconPackSource
+  data class Builtin(val record: BuiltinIconPack) : IconPackSource
 }
 
 internal data class IconPackDescriptor(

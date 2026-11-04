@@ -136,11 +136,16 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     }
   }
 
-  private fun classicIndex(file: File, paths: Set<String>, sdk: Int, check: () -> Unit): IconPackArchiveIndex {
+  private fun classicIndex(file: File, paths: Set<String>, sdk: Int, check: () -> Unit): IconPackArchiveIndex =
+    classicIndex(paths, sdk, check) { path, max -> readEntry(file, path, max, check) }
+
+  /** Same parser for validated archive paths and the signed, content-addressed builtin catalog. */
+  fun classicIndex(paths: Set<String>, sdk: Int, check: () -> Unit,
+    read: (String, Int) -> ByteArray): IconPackArchiveIndex {
     val filterFiles = paths.mapNotNull(::filterVariant)
     fun filter(dark: Boolean): IconAppFilter? {
       val path = selectArchiveVariant(filterFiles, dark, 160, sdk)?.path ?: return null
-      return AppFilterParser(limits).parse(readEntry(file, path, limits.maxXmlBytes, check),
+      return AppFilterParser(limits).parse(read(path, limits.maxXmlBytes),
         if (dark) IconNightMode.DARK else IconNightMode.LIGHT, check)
     }
     val light = filter(false)
@@ -165,7 +170,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         light = artwork(light?.mappings?.get(component)), dark = artwork(dark?.mappings?.get(component)))
     }
     if (entries.isEmpty()) throw IconPackException("Appfilter contains no supported component mappings")
-    val metadata = if ("description.xml" in paths) description(file, check) else IconPackDescription()
+    val metadata = if ("description.xml" in paths) description(read("description.xml", 64 * 1024), check) else IconPackDescription()
     return IconPackArchiveIndex(IconPackFormat.CLASSIC_ZIP, entries, description = metadata, notices = notices,
       directives = light?.directives.orEmpty() + dark?.directives.orEmpty())
   }
@@ -259,10 +264,14 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   }
 
   private fun description(file: File, check: () -> Unit): IconPackDescription {
+    return description(readEntry(file, "description.xml", 64 * 1024, check), check)
+  }
+
+  private fun description(bytes: ByteArray, check: () -> Unit): IconPackDescription {
     val values = linkedMapOf<String, String>()
     var tag: String? = null
     var value = StringBuilder()
-    BoundedPackXml.read(readEntry(file, "description.xml", 64 * 1024, check), limits, check,
+    BoundedPackXml.read(bytes, limits, check,
       start = { name, _, depth ->
         if (depth == 1 && name != "MIUI-Theme") throw IconPackException("Invalid MIUI description root")
         if (depth == 2) { tag = name; value = StringBuilder() }

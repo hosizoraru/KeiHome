@@ -200,11 +200,22 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     override fun onPackagesUnavailable(names: Array<out String>, user: UserHandle, replacing: Boolean) = packagesChanged()
   }
 
+  private var nativeImportGeneration = 0L
+
+  private suspend fun readImportState(): os.kei.hyper.home.status.IconImportLocalState? = try {
+    withContext(Dispatchers.IO) { IconPackImportProtocol.state(getApplication()) }
+  } catch (cancelled: CancellationException) { throw cancelled
+  } catch (failure: Exception) {
+    android.util.Log.e("KeiHomePackImport", "Local import receipt unavailable", failure)
+    iconPacks.update { it.copy(error = failure.message.orEmpty()) }
+    null
+  }
+
   init {
     viewModelScope.launch {
       browserSource.filterNotNull().first()
       val active = runtime.value.report?.iconTheme?.localId ?: return@launch
-      val managed = withContext(Dispatchers.IO) { active in IconPackImportProtocol.sources(application) }
+      val managed = active in (readImportState() ?: return@launch).allSources
       if (managed && !iconPacks.value.scanned) readIconPacks()
     }
     viewModelScope.launch {
@@ -248,21 +259,16 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       }
     }
     viewModelScope.launch {
-      val restored = withContext(Dispatchers.IO) {
-        IconPackImportProtocol.pendingSource(application) to IconPackImportProtocol.lastResult(application)
-      }
-      iconPacks.update { it.copy(nativeImporting = restored.first, nativeResult = restored.second) }
-    }
-    viewModelScope.launch {
-      IconPackImportProtocol.reports.collect { result ->
-        if (result != null && result.status != "IMPORTING") {
-          if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
-          val associations = withContext(Dispatchers.IO) { IconPackImportProtocol.associations(application) }
-          val sources = withContext(Dispatchers.IO) { IconPackImportProtocol.sources(application) }
-          val pending = withContext(Dispatchers.IO) { IconPackImportProtocol.pendingSource(application) }
-          iconPacks.update { it.copy(nativeAssociations = associations, nativeSources = sources,
-            nativeResult = result, nativeImporting = pending) }
+      if (readImportState() == null) return@launch
+      IconPackImportProtocol.states(application).filterNotNull().collect { stored ->
+        stored.result?.takeIf { it.imported }?.let { result ->
+          val id = requireNotNull(result.localId)
+          val palette = stored.componentPalette[id]
+          preferences.recordColorOsComponent(result.sourceId, id, confirmedPalette = palette, onlyIfMissing = palette == null)
         }
+        iconPacks.update { it.copy(nativeAssociations = stored.associations, nativeSources = stored.allSources,
+          nativeResult = stored.presentationResult(Process.myUid() / 100_000),
+          nativeImporting = stored.pendingSource ?: it.nativeImporting.takeIf { _ -> it.preparing }) }
       }
     }
     launcherApps?.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
@@ -439,6 +445,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     appearanceOverride: IconPackAppearance? = null) {
     if (iconPacks.value.nativeImporting != null) return
     val service = FrameworkConnection.service.value ?: return
+    val generation = ++nativeImportGeneration
     val selected = preferences.state.value
     val appearance = appearanceOverride ?: selected.iconPackAppearance
     val pack = original.copy(id = selected.systemIconFallback.sourceId(original.id))
@@ -451,25 +458,35 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
           selected.systemAppNameMatching, selected.colorOsForOtherPacks)
-        iconPacks.update { it.copy(preparing = false) }
-        val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack)
+        if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false) }
+        val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
+          preparedPalette = if (pack.builtinKey != null) includePalette else null)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         if (!result.imported && !result.pending) android.util.Log.e("KeiHomePackImport",
           "Native icon import ${result.status}: ${result.message}")
-        if (result.imported) preferences.recordColorOsComponent(result.sourceId, result.localId!!)
-        iconPacks.update { it.copy(nativeResult = result) }
         readIconPacks()
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) {
         android.util.Log.e("KeiHomePackImport", "Icon pack preparation or import failed: ${pack.id}", failure)
-        iconPacks.update { it.copy(nativeResult = NativeIconImportReport(handoff?.token.orEmpty(),
+        val stored = readImportState()
+        if (generation != nativeImportGeneration) return@launch
+        if (stored?.pendingSource == pack.id) iconPacks.update { it.copy(error = failure.message.orEmpty()) }
+        else iconPacks.update { it.copy(nativeResult = NativeIconImportReport(handoff?.token.orEmpty(),
           Process.myUid() / 100_000, pack.id, "FAILED", message = failure.message)) }
       } finally {
         val pending = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
-          IconPackImportProtocol.pendingSource(getApplication())
+          // Unknown storage state must retain the handoff, never turn into a false failure/cleanup.
+          val stored = readImportState()
+          if (stored == null) pack.id else stored.pendingSource
         }
         if (pending != pack.id) handoff?.file?.delete()
-        iconPacks.update { it.copy(nativeImporting = pending, preparing = false) }
+        if (generation == nativeImportGeneration) {
+          // The IO snapshot is for handoff ownership only; use the current ordered state
+          // for UI, since a newer receipt may have arrived while returning to Main.
+          val current = IconPackImportProtocol.states(getApplication()).value
+          iconPacks.update { it.copy(nativeImporting = if (current == null) pending else current.pendingSource,
+            preparing = false) }
+        }
       }
     }
   }
@@ -497,7 +514,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun recheckNativeIconImport() {
     val service = FrameworkConnection.service.value ?: return
-    viewModelScope.launch { IconPackImportProtocol.recheck(service) }
+    viewModelScope.launch {
+      if (!IconPackImportProtocol.recheck(getApplication(), service)) iconPacks.update { it.copy(
+        error = getApplication<Application>().getString(os.kei.hyper.home.R.string.icon_pack_native_uncertain)) }
+    }
   }
 
   private suspend fun launcherIconTargets(): List<IconPackComponent> = withContext(Dispatchers.IO) {
@@ -522,10 +542,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       val cards = withContext(Dispatchers.Default) {
         scans.flatMap { it.packs }.map { iconPackCardData(it, targets) }
       }
-      val associations = withContext(Dispatchers.IO) { IconPackImportProtocol.associations(getApplication()) }
-      val sources = withContext(Dispatchers.IO) { IconPackImportProtocol.sources(getApplication()) }
       iconPacks.update { it.copy(packs = cards, scanned = true,
-        nativeAssociations = associations, nativeSources = sources,
         failedSources = scans.sumOf { scan -> scan.failures.size }) }
     } catch (cancelled: CancellationException) { iconPacksDirty = true; throw cancelled
     } catch (failure: Exception) { iconPacks.update { it.copy(error = failure.message.orEmpty()) }

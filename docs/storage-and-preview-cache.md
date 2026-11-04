@@ -28,40 +28,157 @@ stale ZIP reference from crashing the app during theme changes or cache eviction
 
 ## MMKV
 
-App-owned display preferences now use Tencent MMKV **2.4.3**, the stable
+App-owned local preferences use Tencent MMKV **2.4.3**, pinned to the
 [2026-10-16 release](https://github.com/Tencent/MMKV/releases/tag/v2.4.3).
 The standard Android JNI artifact is pinned in the version catalog. The launcher
 payload imports no C++ Prefab packages, so unused automatic Prefab processing is
 disabled; the payload's C++ sources, ABI and runtime protocol are unchanged.
 
-`AppDisplayStorage` lazily initializes MMKV in KeiHome's own Application context.
-`app_display_v1` is a single-process store under `files/mmkv`. It includes App
+`AppLocalStorage` lazily initializes MMKV in KeiHome's own Application context,
+checking the App package and UID before opening a single-process store under
+`files/mmkv`. The existing `AppDisplayStorage` wrapper still migrates legacy
+`app_display` into `app_display_v1`, with the unchanged migration marker
+`__keihome_app_display_migrated_v1`. It includes App
 appearance/Monet UI preferences, page gestures, top blur, automatic apply,
 ColorOS choices, fallback selection, component associations and remembered
 browser filters/sort direction.
 
-On first open it:
+The current extension migrates five additional App-owned SharedPreferences
+groups: log settings and four related import groups. Their destinations are:
 
-1. Imports the existing `app_display` SharedPreferences.
-2. Verifies every value using the matching primitive/string/set API.
-3. Syncs the imported values, then records and syncs a migration marker.
-4. Exposes the store only after migration completes.
+| Legacy App-owned groups | MMKV destination | Contents |
+| --- | --- | --- |
+| `app_logs` | `app_logs_v1` | App log level |
+| `native_icon_associations`, `native_icon_sources`, `native_icon_operation`, `native_icon_auto_navigation` | `native_icon_state_v1`, one serialized `state` value | Source/component mappings and history, pending operation, result, navigation consumption, original request and component palette metadata |
 
-The original XML is retained. Completed migrations never reimport stale XML over
-new choices. MMKV's untyped `getAll()` is not used; known key types and key
-prefixes are enumerated explicitly. Existing StateFlows continue to publish UI
-changes, so switching stores does not introduce persistence reads during
-recomposition or remove necessary refresh.
+The simple display/log preference migration, on first open:
 
-Framework remote preferences retain API 102 authentication and acknowledgement.
-OEM-injected handoff/receipt storage retains its existing process and atomic
-update contracts. They are independent of this App-owned migration.
+1. Imports the existing SharedPreferences and checks the imported entry count.
+2. Verifies every value using the matching primitive/string/set API and checks
+   that its key exists.
+3. Requests a sync of the imported values, checks encoding of the migration
+   marker, then requests another sync. Log settings use
+   `__keihome_migrated_v1`; the display marker remains the one listed above.
+4. Returns the store only after those steps complete.
+
+The original XML is retained. Completed migrations do not reimport stale XML
+over new choices. Simple migrations use the legacy SharedPreferences entries
+with their original types; MMKV's untyped `getAll()` is not used. Log-level writes
+check `encode` and request sync before changing the collector's active level;
+the settings screen performs the write on the I/O dispatcher before updating
+its displayed selection. Existing display StateFlows retain their UI updates
+without adding persistence reads during recomposition.
+
+### Serialized import state and recovery
+
+`IconImportLocalStore` reads all four legacy import groups together and persists
+one versioned serialized snapshot. The presence of `state` is its migration
+boundary: subsequent opens decode that value rather than replaying the retained
+XML. A malformed stored snapshot fails instead of silently restoring stale XML.
+The snapshot includes associations, source history, pending token/source, result,
+consumed navigation tokens, the original request and component palette receipts.
+
+Store operations are serialized. Each changed snapshot checks `encode`, requests
+`sync()`, and checks that readback matches the serialized value before replacing
+the committed in-memory snapshot and publishing it through StateFlow. Receipt
+persistence also precedes releasing a completed operation's handoff or consuming
+its automatic navigation. These checks establish local write/readback and
+publication ordering. MMKV `sync()` requests a flush; its void return is not a
+filesystem durability acknowledgement or a native import success receipt.
+
+The local snapshot and framework request are not one atomic transaction. Local
+pending state is saved before the API 102 request is published. An unconfirmed
+Binder submission or timeout retains the original request and handoff and offers
+an uncertain/recheck state. Cancellation or failure to save an uncertainty
+message also leaves the pending operation available for reconciliation. Recheck
+reuses the saved token, user, start time, source, converted origin and automatic
+apply choice rather than replacing them with a new operation. A migrated pending
+operation without a saved full request requires the matching original framework
+request. Submission and recheck share a publication mutex; the local store
+monitor is not held across Binder or UI work.
+
+Palette metadata belongs to the operation that prepared the import. Its saved
+`preparedPalette` value becomes a component receipt only for a matching current
+successful import. The UI uses that confirmed component value; recovery without
+such metadata only fills missing display metadata, preserving an existing
+component choice rather than overwriting it with a later preparation for the
+same source.
+
+### Process boundaries and validation
+
+Framework `RemotePreferences` retains API 102 authentication, request publication
+and native receipt contracts. The Themes-host-owned `keihome_auto_apply` store
+remains SharedPreferences, including its checked ticket authorization and
+single-use consumption commits. MMKV is initialized only for KeiHome's App
+storage; none of this migration initializes it in an injected host. OEM handoff
+and receipt storage keeps its existing process ownership and atomic update
+contracts.
 
 The migration follows the official
 [Android tutorial](https://github.com/Tencent/MMKV/wiki/android_tutorial).
-Device tests verify boolean, integer, long, float, Unicode string and string-set
-values, store reopening, and skipping a stale legacy source. An explicit upgrade
-check also verified all **42** original values on the target AVD.
+The display-store tests cover primitive, Unicode string and string-set values,
+reopening and skipping stale XML; its original upgrade check covered **42**
+display values. The current extension passed **38 focused JVM tests** and
+**16 Android device tests** on HyperOS AVD `emulator-5580`. These cover grouped
+migration, the AVD's existing XML upgrade, stale XML, competing deliveries and
+navigation, failed encoding, caller cancellation, unconfirmed publication,
+recheck serialization, and log range/export/clear behavior.
+
+Actual UI checks verified the migrated DEBUG level, changing it back to INFO,
+and keeping INFO after the App process reopened. All five legacy XML files stayed
+byte-identical. ZIP sharing opened the system chooser, and its exported archive
+passed CRC validation. Both automatic and manual native theme application were
+exercised; returning to the App reconciled the applied state. A live completed
+receipt may legitimately lose its already-consumed one-shot navigation token;
+upgrade tests retain all other receipt fields and require saved consumption
+before admitting that replay difference.
+
+The final Release artifact, screenshots, operation receipts and host process
+identities are recorded in
+`.artifacts/research/mmkv-local-state-20261104/acceptance.json`. This is AVD
+acceptance; it does not establish physical-device speed or filesystem durability.
+
+## App log archive I/O
+
+Log settings live in MMKV; log contents remain ordinary files under
+`files/app-logs`. `AppLogStore` shares one `HourlyAppLogArchive` per canonical
+directory between direct records and logcat collection. The archive retains a
+buffered append stream for the active hourly file, closing it on rotation,
+replacement or archive close. Every accepted append flushes synchronously;
+there is no timer or asynchronous append queue, and no added fsync guarantee.
+
+Filenames remain `<epoch-hour>.log`, and records remain UTF-8
+`timestamp<TAB>content<LF>`. The **1 MiB per hour** cap accounts for the complete
+encoded line, including timestamp, tab and LF; a line that cannot fit is rejected
+whole. The App sanitizes CR/LF in content before appending. Seven-day retention
+uses hourly buckets, pruning at archive construction and once per clock hour on
+append. Only numeric regular `.log` files are owned; unrelated files, directories
+and symbolic links are excluded from pruning and range scans.
+
+Stats, export and clear first filter filename hours against the inclusive
+requested range. Bounds use `floorDiv` on millisecond timestamps without
+multiplying filename hours, avoiding overflow and incorrect selection around
+epoch zero. Narrow windows therefore do not read unrelated retained hourly logs.
+Individual timestamped records are still filtered inside each selected hour.
+Malformed records are ignored by stats/export and retained by clear. Inverted
+ranges return zero stats/removals and a README-only ZIP; a range with no matching
+records has the same empty result.
+
+Stats and export open stable file descriptors and capture their byte-length
+limits under the writer lock, then release that lock before streaming records.
+Later appends are beyond those limits; an already captured reader keeps its
+prior contents if clear replaces the pathname. Streams close on both success
+and failure, including snapshot acquisition or ZIP output failures. ZIP exports
+contain `README.txt` and only nonempty selected hourly logs; file export writes
+a temporary ZIP and atomically publishes it after completion.
+
+Clear holds the writer lock while streaming retained records into sibling
+temporary files and atomically replacing affected hourly files. It uses no
+full-log lists or in-place truncate fallback. Atomicity is **per hourly file**,
+not for the entire selected range: a later failure can leave earlier files
+already cleared. An affected append stream closes before replacement and
+reopens on the next append. Closing the archive releases its writer and rejects
+new operations while allowing already captured readers to finish.
 
 ## Complete previews
 

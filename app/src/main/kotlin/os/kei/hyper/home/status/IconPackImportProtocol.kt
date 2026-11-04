@@ -8,10 +8,14 @@ import android.os.Bundle
 import android.os.Process
 import android.os.SystemClock
 import io.github.libxposed.service.XposedService
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -19,6 +23,7 @@ internal data class IconPackImportRequest(
   val token: String, val userId: Int, val startedAt: Long, val sourceId: String, val recheck: Long = 0,
   val convertedOrigin: String? = null,
   val autoApply: Boolean = false,
+  val preparedPalette: Boolean? = null,
 ) {
   fun pending(now: Long) = now >= startedAt && now - startedAt <= 600_000L &&
     userId >= 0 && token.matches(Regex("[0-9a-f-]{36}")) && sourceId.isNotBlank()
@@ -66,12 +71,9 @@ internal object IconPackImportProtocol {
   private const val USER = "request_user"
   private const val START = "request_start"
   private const val SOURCE = "request_source"
-  private const val ASSOCIATIONS = "native_icon_associations"
-  private const val OPERATIONS = "native_icon_operation"
   private const val RECHECK = "recheck"
   private const val ORIGIN = "converted_origin"
-  private val mutableReports = MutableStateFlow<NativeIconImportReport?>(null)
-  val reports = mutableReports.asStateFlow()
+  private val remoteWrites = Mutex()
 
   fun read(preferences: SharedPreferences?): IconPackImportRequest? {
     val values = preferences?.all ?: return null
@@ -80,70 +82,54 @@ internal object IconPackImportProtocol {
       values[RECHECK] as? Long ?: 0, values[ORIGIN] as? String, values["auto_apply"] as? Boolean ?: false)
   }
 
+  @Volatile private var appStore: IconImportLocalStore? = null
+  private fun local(context: Context): IconImportLocalStore = appStore ?: synchronized(this) {
+    appStore ?: IconImportLocalStore(context.applicationContext).also { appStore = it }
+  }
+
   fun accept(context: Context, extras: Bundle?): Boolean {
     val report = NativeIconImportReport.read(extras) ?: return false
     if (report.userId != Process.myUid() / 100_000) return false
-    if (report.imported) {
-      // An updated conversion replaces the forward mapping while an older component can
-      // still be applied. Retain reverse ownership before changing that forward mapping.
-      val sources = context.getSharedPreferences("native_icon_sources", Context.MODE_PRIVATE)
-      val old = associations(context)
-      sources.edit().apply {
-        old.forEach { (source, component) -> if (!sources.contains(component)) putString(component, source) }
-        putString(report.localId, report.sourceId)
-      }.commit()
-      context.getSharedPreferences(ASSOCIATIONS, Context.MODE_PRIVATE).edit()
-        .putString(report.sourceId, report.localId).commit()
+    val mutation = local(context).accept(report)
+    // Persistence precedes both publication and release of the original handoff.
+    if (mutation.complete) IconPackHandoffs.file(context, report.token).delete()
+    return mutation.accepted
+  }
+
+  fun associations(context: Context): Map<String, String> = local(context).snapshot().associations
+  fun state(context: Context): IconImportLocalState = local(context).snapshot()
+  fun states(context: Context) = local(context).states
+
+  fun sources(context: Context): Map<String, String> = local(context).snapshot().allSources
+
+  fun pendingSource(context: Context): String? = local(context).snapshot().pendingSource
+  fun lastResult(context: Context): NativeIconImportReport? = local(context).snapshot().result
+
+  suspend fun recheck(context: Context, service: XposedService): Boolean = withContext(Dispatchers.IO) {
+    recheckNativeImport(local(context), remoteWrites) { stored ->
+      val request = stored.request
+      if (request != null) publishRequest(service, request, SystemClock.elapsedRealtime())
+      else {
+        val remote = service.getRemotePreferences(GROUP)
+        val requestOnHost = read(remote)
+        check(stored.pendingToken == null || (requestOnHost?.token == stored.pendingToken &&
+          requestOnHost.sourceId == stored.pendingSource)) { "Pending import needs its original framework request" }
+        remote.edit().putLong(RECHECK, SystemClock.elapsedRealtime()).commit()
+      }
     }
-    val storage = context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE)
-    val current = storage.getString(TOKEN, null)
-    if (current == report.token) {
-      storage.edit().putString("result", report.encode()).apply {
-        if (!report.pending) { remove(TOKEN); remove(SOURCE) }
-      }.commit()
-      if (!report.pending) IconPackHandoffs.file(context, report.token).delete()
-    }
-    mutableReports.value = report
-    return true
   }
 
-  fun associations(context: Context): Map<String, String> =
-    context.getSharedPreferences(ASSOCIATIONS, Context.MODE_PRIVATE).all.mapNotNull { (k, v) ->
-      (v as? String)?.let { k to it }
-    }.toMap()
-
-  fun sources(context: Context): Map<String, String> {
-    val current = associations(context).entries.associate { it.value to it.key }
-    val history = context.getSharedPreferences("native_icon_sources", Context.MODE_PRIVATE)
-      .all.mapNotNull { (component, source) -> (source as? String)?.let { component to it } }.toMap()
-    return current + history
-  }
-
-  fun pendingSource(context: Context): String? = context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE)
-    .getString(SOURCE, null)
-  fun lastResult(context: Context): NativeIconImportReport? = NativeIconImportReport.decode(
-    context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE).getString("result", null))
-
-  suspend fun recheck(service: XposedService) = withContext(Dispatchers.IO) {
-    service.getRemotePreferences(GROUP).edit().putLong(RECHECK, SystemClock.elapsedRealtime()).commit()
-  }
+  private fun publishRequest(service: XposedService, request: IconPackImportRequest, recheck: Long = 0): Boolean =
+    service.getRemotePreferences(GROUP).edit().putString(TOKEN, request.token)
+      .putInt(USER, request.userId).putLong(START, request.startedAt)
+      .putLong(RECHECK, recheck).putString(SOURCE, request.sourceId).putString(ORIGIN, request.convertedOrigin)
+      .putBoolean("auto_apply", request.autoApply).commit()
 
   suspend fun submit(context: Context, service: XposedService, handoff: IconPackHandoff,
-    autoApply: Boolean = false): NativeIconImportReport? = withContext(Dispatchers.IO) {
+    autoApply: Boolean = false, preparedPalette: Boolean? = null): NativeIconImportReport? = withContext(Dispatchers.IO) {
     val request = IconPackImportRequest(handoff.token, Process.myUid() / 100_000,
-      SystemClock.elapsedRealtime(), handoff.sourceId, convertedOrigin = handoff.convertedOrigin)
-    val storage = context.getSharedPreferences(OPERATIONS, Context.MODE_PRIVATE)
-    check(storage.edit().putString(TOKEN, request.token).putString(SOURCE, request.sourceId).remove("result").commit())
-    val committed = service.getRemotePreferences(GROUP).edit().putString(TOKEN, request.token)
-      .putInt(USER, request.userId).putLong(START, request.startedAt)
-      .putLong(RECHECK, 0).putString(SOURCE, request.sourceId).putString(ORIGIN, request.convertedOrigin)
-      .putBoolean("auto_apply", autoApply).commit()
-    if (!committed) {
-      storage.edit().remove(TOKEN).remove(SOURCE).commit()
-      error("Could not submit native import")
-    }
-    reports.first { it?.token == request.token && it.userId == request.userId &&
-      it.sourceId == request.sourceId && it.status != "IMPORTING" }
+      SystemClock.elapsedRealtime(), handoff.sourceId, convertedOrigin = handoff.convertedOrigin, autoApply = autoApply, preparedPalette = preparedPalette)
+    submitNativeImport(local(context), request, local(context).states.map { it?.result }, publicationMutex = remoteWrites) { publishRequest(service, request) }
   }
 
   fun nativeDetail(localId: String): Intent = Intent(Intent.ACTION_VIEW, Uri.Builder()
@@ -154,9 +140,44 @@ internal object IconPackImportProtocol {
   fun takeAutoApply(context: Context, report: NativeIconImportReport): Intent? {
     val token = report.autoApplyToken ?: return null
     if (!report.imported || token != report.token) return null
-    val store = context.getSharedPreferences("native_icon_auto_navigation", Context.MODE_PRIVATE)
-    if (store.getString("token", null) == token) return null
-    if (!store.edit().putString("token", token).commit()) return null
+    val consumed = try { local(context).takeNavigation(report)
+    } catch (failure: Exception) {
+      android.util.Log.w("KeiHomePackImport", "Automatic navigation receipt is unconfirmed", failure)
+      false
+    }
+    if (!consumed) return null
     return nativeDetail(requireNotNull(report.localId)).putExtra("keihome.AUTO_APPLY_TOKEN", token)
   }
+}
+
+/** The local/remote boundary is not an atomic transaction. An uncertain publication retains
+ * the original request and handoff; a recheck republishes its identity for journal recovery. */
+internal suspend fun submitNativeImport(store: IconImportLocalStore, request: IconPackImportRequest,
+  reports: Flow<NativeIconImportReport?>, timeoutMillis: Long = 120_000L,
+  publicationMutex: Mutex = Mutex(), publish: suspend () -> Boolean): NativeIconImportReport? {
+  val published = publicationMutex.withLock {
+    store.begin(request)
+    try { publish()
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (failure: Exception) {
+      android.util.Log.w("KeiHomePackImport", "Native submission is unconfirmed", failure)
+      false
+    }
+  }
+  val report = if (published) withTimeoutOrNull(timeoutMillis) {
+    reports.first { it?.token == request.token && it.userId == request.userId &&
+      it.sourceId == request.sourceId && it.status != "IMPORTING" }
+  } else null
+  return report ?: store.uncertain(request)
+}
+
+/** Both snapshot acquisition and the Binder write share the publication owner. Reports may
+ * arrive during that call; no store monitor is held across Binder or UI work. */
+internal suspend fun recheckNativeImport(store: IconImportLocalStore, publicationMutex: Mutex,
+  publish: suspend (IconImportLocalState) -> Boolean): Boolean = try {
+  publicationMutex.withLock { publish(store.snapshot()) }
+} catch (cancelled: CancellationException) { throw cancelled
+} catch (failure: Exception) {
+  android.util.Log.w("KeiHomePackImport", "Native operation recheck is unconfirmed", failure)
+  false
 }

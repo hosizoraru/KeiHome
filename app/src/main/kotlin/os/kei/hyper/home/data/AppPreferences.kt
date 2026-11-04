@@ -209,10 +209,12 @@ internal class AppPreferences private constructor(context: Context) {
     state.update { it.copy(monetInspiration = enabled) }
   }
 
-  fun recordColorOsComponent(sourceId: String, localId: String) {
+  fun recordColorOsComponent(sourceId: String, localId: String, confirmedPalette: Boolean? = null,
+    onlyIfMissing: Boolean = false) {
+    if (onlyIfMissing && preferences.contains("coloros_component_$localId")) return
     val key = "coloros_prepared_$sourceId"
-    if (!preferences.contains(key)) return
-    val monet = preferences.getBoolean(key, false)
+    if (confirmedPalette == null && !preferences.contains(key)) return
+    val monet = confirmedPalette ?: preferences.getBoolean(key, false)
     preferences.edit().putBoolean("coloros_component_$localId", monet).apply()
     state.update { it.copy(colorOsComponents = it.colorOsComponents + (localId to monet)) }
   }

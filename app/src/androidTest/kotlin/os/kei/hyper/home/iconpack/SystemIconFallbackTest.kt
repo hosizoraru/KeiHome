@@ -28,23 +28,23 @@ class SystemIconFallbackTest {
 
   @Test fun anOlderAppliedComponentKeepsItsSourceAfterRegeneratingTheSamePack() {
     val prefix = "fallback-history-${System.nanoTime()}"
-    val isolated = object : android.content.ContextWrapper(context) {
-      override fun getSharedPreferences(name: String, mode: Int) =
-        context.getSharedPreferences("$prefix.$name", mode)
-    }
+    val local = os.kei.hyper.home.status.IconImportLocalStore(context, prefix, "$prefix.")
     val source = "coloros:classic:SYSTEM:test:system-fallback-v1:DEFAULT"
     val old = java.util.UUID.randomUUID().toString()
     val newer = java.util.UUID.randomUUID().toString()
     try {
-      isolated.getSharedPreferences("native_icon_associations", 0).edit().putString(source, old).commit()
-      assertTrue(IconPackImportProtocol.accept(isolated, NativeIconImportReport(
+      context.getSharedPreferences("$prefix.native_icon_associations", 0).edit().putString(source, old).commit()
+      val mutation = local.accept(NativeIconImportReport(
         java.util.UUID.randomUUID().toString(), android.os.Process.myUid() / 100000,
-        source, "IMPORTED", newer).bundle()))
-      assertEquals(newer, IconPackImportProtocol.associations(isolated)[source])
-      assertEquals(source, IconPackImportProtocol.sources(isolated)[old])
-      assertEquals(source, IconPackImportProtocol.sources(isolated)[newer])
+        source, "IMPORTED", newer))
+      assertTrue(mutation.publish)
+      assertEquals(newer, local.snapshot().associations[source])
+      assertEquals(source, local.snapshot().sources[old])
+      assertEquals(source, local.snapshot().sources[newer])
     } finally {
-      for (name in listOf("native_icon_associations", "native_icon_sources", "native_icon_operation"))
+      os.kei.hyper.home.data.AppLocalStorage.open(context, prefix).close()
+      com.tencent.mmkv.MMKV.removeStorage(prefix)
+      for (name in listOf("native_icon_associations", "native_icon_sources", "native_icon_operation", "native_icon_auto_navigation"))
         context.deleteSharedPreferences("$prefix.$name")
     }
   }

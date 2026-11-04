@@ -124,11 +124,13 @@ internal class SystemUiThemeCompatibilityRuntime(
       initializePreferences()
       val application = Class.forName("android.app.ActivityThread")
         .getDeclaredMethod("currentApplication").invoke(null) as? Application
-      val profile = SystemUiMaterialProfile.resolve(
+      val profiles = SystemUiProfilesCache.resolve(
         loader = loader,
         apkPath = apkPath,
-        nativeLibraryCacheDir = application?.codeCacheDir,
+        directory = application?.codeCacheDir,
       )
+      val profile = profiles.material
+      xposed.log(Log.INFO, TAG, "SystemUI profile descriptors: " + if (profiles.restored) "restored" else "resolved")
       replace(profile.themedGate, MATERIAL_ID, XposedInterface.Hooker { chain ->
         if (!lifecycle.enter()) chain.proceed() else try {
           val original = chain.proceed()
@@ -148,9 +150,7 @@ internal class SystemUiThemeCompatibilityRuntime(
       })
       profile.volumeRefresh?.let(::installVolumeRefresh)
       profile.volumeRefreshUnavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
-      val controlCenter = SystemUiControlCenterRefreshProfile.resolve(
-        loader, apkPath, profile, application?.codeCacheDir,
-      )
+      val controlCenter = profiles.controlCenter
       controlCenter.profile?.let(::installControlCenterRefresh)
       controlCenter.unavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
       profile.callers.forEach { xposed.deoptimize(it) }

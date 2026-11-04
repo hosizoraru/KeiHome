@@ -31,20 +31,24 @@ bool Matches(const IconHighlightImage& im, size_t pc, const LabelWord (&p)[N]) {
     for (size_t i = 0; i < N; ++i) if ((Word(im, pc + 4*i) & p[i].mask) != p[i].word) return false;
     return true;
 }
-template<size_t N>
-size_t Find(const IconHighlightImage& im, const LabelWord (&p)[N], size_t call = 0, size_t target = 0) {
+template<size_t N, typename Predicate>
+size_t FindWhere(const IconHighlightImage& im, const LabelWord (&p)[N], Predicate accepts) {
     size_t found = 0;
     for (size_t i = 0; i < im.range_count; ++i) {
         const auto& r = im.ranges[i];
         if (!r.executable || r.end - r.begin < 4*N) continue;
         for (size_t pc = r.begin; pc <= r.end - 4*N; pc += 4) {
             if ((Word(im, pc) & p[0].mask) != p[0].word || !Matches(im, pc, p)) continue;
-            if (target && Call(im, pc + call) != target) continue;
+            if (!accepts(pc)) continue;
             if (found) return 0;
             found = pc;
         }
     }
     return found;
+}
+template<size_t N>
+size_t Find(const IconHighlightImage& im, const LabelWord (&p)[N], size_t call = 0, size_t target = 0) {
+    return FindWhere(im, p, [&](size_t pc) { return !target || Call(im, pc + call) == target; });
 }
 uint32_t AllocationTag(const IconHighlightImage& im, size_t pc) {
     const uint32_t a = Word(im, pc), b = Word(im, pc + 4), c = Word(im, pc + 8);
@@ -52,7 +56,8 @@ uint32_t AllocationTag(const IconHighlightImage& im, size_t pc) {
             (c & 0xfc000000u) != 0x14000000u) return 0;
     const int64_t n = c & 0x3ffffff;
     const int64_t generic = int64_t(pc + 8) + (n - (n & 0x2000000 ? 0x4000000 : 0)) * 4;
-    if (generic <= 0 || !Matches(im, size_t(generic), kLabelAllocator)) return 0;
+    if (generic <= 0 || (!Matches(im, size_t(generic), kLabelAllocator) &&
+            !Matches(im, size_t(generic), kLabelParameterizedAllocator))) return 0;
     return (a >> 5 & 65535) | (b >> 5 & 65535) << 16;
 }
 bool NoInteriorBranch(const IconHighlightImage& im, size_t at) {
@@ -140,6 +145,68 @@ bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* o
         }
     }
     if (!p.ticker_tag) return Reject(why, "missing TickerMode allocator");
+    // Reuse the live editor's reactive visibility flag. The enum-derived
+    // normal/multiselect getters do not track the editor surface lifecycle.
+    // The receiver's field-table identity is independently shared by the grid
+    // visibility and screen-layer editing graphs, rather than a version table.
+    const size_t editing_state = FindWhere(im, kLabelEditingState, [&](size_t pc) {
+        return Call(im, pc + 0x54) == p.value &&
+            Slot(Word(im, pc + 0x10)) == Slot(Word(im, p.cell_visibility + 0x98)) &&
+            Field(Word(im, pc + 0x4c)) == Field(Word(im, p.cell_visibility + 0xd4));
+    });
+    p.editing = editing_state;
+    if (!editing_state ||
+            Word(im, p.cell_visibility + 0x94) != 0xf9403f40u ||
+            Slot(Word(im, editing_state + 0x10)) != Slot(Word(im, p.cell_visibility + 0x98)) ||
+            Field(Word(im, editing_state + 0x4c)) != Field(Word(im, p.cell_visibility + 0xd4)))
+        return Reject(why, "ambiguous native editing subscription graph");
+    p.editing_slot = Slot(Word(im, editing_state + 0x10));
+    // Subscribe the reactive parent on both cached and cold ordinary-icon paths.
+    // Fresh immutable drag/shortcut copies make cached GetBuilder titles rebuild;
+    // only the title publishes TickerMode. Other native child classes pass through.
+    const size_t cache = Find(im, kLabelCacheGet);
+    const size_t factory = Find(im, kLabelShortcutFactory);
+    const size_t drag_factory = FindWhere(im, kLabelDragFactory, [&](size_t pc) {
+        return (AllocationTag(im, Call(im, pc + 4)) & 0xfff) == 0x51c &&
+                Matches(im, Call(im, pc + 0x44) + 0x34c, kLabelDragChild);
+    });
+    const size_t drag_ctor = Call(im, drag_factory + 0x44);
+    size_t factory_count = 0;
+    if (drag_factory) for (size_t pc = drag_factory - 0x90; pc <= drag_factory + 0x48; pc += 4) {
+        if ((Word(im, pc) & 0xffe00fffu) != 0xf84003a0u ||
+                Word(im, pc+4) != 0xaa1d03efu || Word(im, pc+8) != 0xa8c179fdu ||
+                Word(im, pc+12) != 0xd65f03c0u || Call(im, pc-4) != drag_ctor) continue;
+        if (factory_count == 2 || !NoInteriorBranch(im, pc)) return Reject(why, "ambiguous drag factory returns");
+        const int32_t slot = Field(Word(im, pc));
+        if (factory_count && slot != p.factory_root) return Reject(why, "drag factory root mismatch");
+        p.factory_root = slot; p.factory_post[factory_count] = pc;
+        p.factory_expected[factory_count++] = Word(im, pc);
+    }
+    if (factory_count != 2 || p.factory_root >= 0 || p.factory_root < -256)
+        return Reject(why, "missing cold icon factory roots");
+
+    p.drag_tag = AllocationTag(im, Call(im, drag_factory + 4));
+    if (!drag_factory || !drag_ctor || (p.drag_tag & 0xfff) != 0x51c ||
+            !Matches(im, drag_ctor + 0x34c, kLabelDragChild))
+        return Reject(why, "missing native draggable child contract");
+    if (!cache || !factory) return Reject(why, "missing cached shortcut graph");
+    p.shortcut_tag = AllocationTag(im, Call(im, factory + 0x18));
+    p.shortcut_cid = p.shortcut_tag >> 12;
+    if (!p.shortcut_cid || (p.shortcut_tag & 0xfff) != 0x31c || !Call(im, factory + 0x3c))
+        return Reject(why, "missing shortcut allocator/constructor");
+    for (size_t pc = cache + 0x100; pc < cache + 0x200; pc += 4) {
+        if ((Word(im, pc) & 0xffe00fffu) != 0xf84003a1u ||
+                Word(im, pc+4) != 0xb840b020u || Word(im, pc+8) != 0x8b1c8000u ||
+                Word(im, pc+12) != 0xaa1d03efu || Word(im, pc+16) != 0xa8c179fdu ||
+                Word(im, pc+20) != 0xd65f03c0u) continue;
+        if (p.cache_post || !Call(im, pc-4) || !NoInteriorBranch(im, pc))
+            return Reject(why, "ambiguous cached shortcut return");
+        p.cache_post = pc; p.cache_root = Field(Word(im, pc));
+        memcpy(p.cache_expected, im.base + pc, sizeof(p.cache_expected));
+    }
+    if (!p.cache_post || p.cache_root >= 0 || p.cache_root < -256)
+        return Reject(why, "missing cached shortcut root");
+
     // The UI item-change handler has two adjacent info calls before it consumes
     // the change set. Both discard their result. Reuse the first original call
     // PC for the resident title-cache refresh; no extra Dart frame is invented.

@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 extern "C" const uint8_t kh_label_template[], kh_label_pre[], kh_label_post[], kh_label_lines[],
-        kh_label_config[], kh_label_end[], kh_label_refresh[], kh_label_page_post[], kh_label_page_replay[], kh_label_fade[];
+        kh_label_config[], kh_label_end[], kh_label_refresh[], kh_label_page_post[], kh_label_page_replay[], kh_label_fade[], kh_label_cache_post[], kh_label_factory_one[], kh_label_factory_two[];
 namespace {
 uint32_t installed = 0;
 struct Loaded { uintptr_t base; IconHighlightRange ranges[16]; size_t count, span; bool valid; };
@@ -92,7 +92,7 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     const size_t bytes = size_t(kh_label_end - kh_label_template);
     const size_t config = size_t(kh_label_config - kh_label_template);
     if (queried < 4096 || queried > 65536 || (queried & (queried-1)) || bytes > size_t(queried) ||
-            config + 288 != bytes) return Reject("bridge ABI");
+            config + 368 != bytes) return Reject("bridge ABI");
     auto* bridge = static_cast<uint8_t*>(AllocateNear(loaded.base + p.allocation_call,
             loaded.base + p.refresh_call, loaded.base + p.cell_call + 4, loaded.base + p.fade_call, size_t(queried)));
     if (!bridge) return Reject("near bridge unavailable");
@@ -113,8 +113,11 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
         p.cell_controller_field, p.cell_screen_field, loaded.base + p.cell_call + 48,
         uint64_t(int64_t(p.prefix_widget_slot)), loaded.base + p.prefix_helper,
         loaded.base + p.fade_wrap, p.fade_start_field, p.fade_end_field,
+        loaded.base + p.editing, p.editing_slot,
+        loaded.base + p.cache_post, uint64_t(int64_t(p.cache_root)), p.shortcut_cid, p.drag_tag,
+        loaded.base + p.factory_post[0], loaded.base + p.factory_post[1], uint64_t(int64_t(p.factory_root)), p.shortcut_tag,
     };
-    static_assert(sizeof(data) == 288);
+    static_assert(sizeof(data) == 368);
     memcpy(bridge + config, data, sizeof(data));
     memcpy(bridge + (kh_label_page_replay - kh_label_template), p.cell_replay, sizeof(p.cell_replay));
     __builtin___clear_cache(reinterpret_cast<char*>(bridge), reinterpret_cast<char*>(bridge) + bytes);
@@ -159,6 +162,23 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     memcpy(&original, image.base + p.fade_call, 4);
     if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.fade_call), original, fade_call) != kHookSuccess)
         return Reject("fade call transaction");
+    const uintptr_t cache_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_cache_post - kh_label_template));
+    const int64_t cache_delta = int64_t(cache_bridge) - int64_t(loaded.base + p.cache_post);
+    if (cache_delta < -0x8000000 || cache_delta >= 0x8000000) return Reject("cache branch range");
+    const uint32_t cache_jump = 0x14000000u | (uint32_t(cache_delta / 4) & 0x3ffffffu);
+    if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.cache_post),
+            p.cache_expected[0], cache_jump) != kHookSuccess) return Reject("cache return transaction");
+    const uintptr_t factory_bridges[] = {
+        reinterpret_cast<uintptr_t>(bridge + (kh_label_factory_one - kh_label_template)),
+        reinterpret_cast<uintptr_t>(bridge + (kh_label_factory_two - kh_label_template)),
+    };
+    for (size_t i = 0; i < 2; ++i) {
+        const int64_t d = int64_t(factory_bridges[i]) - int64_t(loaded.base + p.factory_post[i]);
+        if (d < -0x8000000 || d >= 0x8000000) return Reject("factory branch range");
+        const uint32_t jump = 0x14000000u | (uint32_t(d/4) & 0x3ffffffu);
+        if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.factory_post[i]),
+                p.factory_expected[i], jump) != kHookSuccess) return Reject("factory return transaction");
+    }
     __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&installed, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeLabels",

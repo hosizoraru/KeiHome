@@ -2,7 +2,7 @@
 <resources>
     <string name="launcher_labels_section">Home screen</string>
     <string name="launcher_labels_title">App names</string>
-    <string name="launcher_labels_summary">Scroll names that exceed their available width, or use two lines in the existing grid.</string>
+    <string name="launcher_labels_summary">Scroll names that exceed their available width, or use two lines in the existing grid. Scrolling pauses while arranging the home screen.</string>
     <string name="launcher_labels_native">System default</string>
     <string name="launcher_labels_marquee">Scroll long names</string>
     <string name="launcher_labels_two_lines">Two lines</string>

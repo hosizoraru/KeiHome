@@ -2,7 +2,7 @@
 <resources>
     <string name="launcher_labels_section">桌面</string>
     <string name="launcher_labels_title">应用名称显示</string>
-    <string name="launcher_labels_summary">名称超出宽度时轮播，或在原有网格内使用两行显示。</string>
+    <string name="launcher_labels_summary">名称超出宽度时轮播，或在原有网格内使用两行显示；整理桌面时暂停轮播。</string>
     <string name="launcher_labels_native">跟随系统</string>
     <string name="launcher_labels_marquee">长名称轮播</string>
     <string name="launcher_labels_two_lines">两行显示</string>

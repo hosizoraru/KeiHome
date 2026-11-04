@@ -28,12 +28,12 @@ int main(int argc, char** argv) {
     printf("builder=%zx lines=%zx measure=%zx ctor=%zx alloc=%zx textCid=%u sizeCid=%u marqueeTag=%x "
            "grid=%x source=%d text=%d style=%d widget=%d line=%d after=%zx textAlloc=%zx "
            "width=%x sourceWidth=%x ltr=%x event=%zx logger=%zx font=%zx "
-           "cell=%zx visible=%zx tickerTag=%x cellRoot=%d controller=%x screen=%x prefix=%zx prefixRoot=%d fadeCall=%zx fadeWrap=%zx fadeStart=%x fadeEnd=%x\n", p.builder, p.lines, p.measure,
+           "cell=%zx visible=%zx tickerTag=%x cellRoot=%d controller=%x screen=%x prefix=%zx prefixRoot=%d fadeCall=%zx fadeWrap=%zx fadeStart=%x fadeEnd=%x editing=%zx editingSlot=%x cache=%zx cacheRoot=%d shortcutCid=%u dragTag=%x factoryOne=%zx factoryTwo=%zx factoryRoot=%d shortcutTag=%x\n", p.builder, p.lines, p.measure,
            p.marquee_constructor, p.allocation_call, p.text_cid, p.size_cid, p.marquee_tag, p.grid_slot,
            p.source_slot, p.text_slot, p.style_slot, p.widget_slot, p.lines_slot, p.after_text_init,
            p.text_allocator, p.width_field, p.source_width_field, p.ltr_slot,
            p.refresh_call, p.refresh_logger, p.font_refresh, p.cell_call, p.cell_visibility, p.ticker_tag,
-           p.cell_root_slot, p.cell_controller_field, p.cell_screen_field, p.prefix_helper, p.prefix_widget_slot, p.fade_call, p.fade_wrap, p.fade_start_field, p.fade_end_field);
+           p.cell_root_slot, p.cell_controller_field, p.cell_screen_field, p.prefix_helper, p.prefix_widget_slot, p.fade_call, p.fade_wrap, p.fade_start_field, p.fade_end_field, p.editing, p.editing_slot, p.cache_post, p.cache_root, p.shortcut_cid, p.drag_tag, p.factory_post[0], p.factory_post[1], p.factory_root, p.shortcut_tag);
     const auto rejects = [&](size_t at, uint32_t replacement) {
         uint32_t old; memcpy(&old, bytes.data() + at, 4);
         memcpy(bytes.data() + at, &replacement, 4);
@@ -49,6 +49,8 @@ int main(int argc, char** argv) {
             !rejects(p.font_refresh, 0xaa0003e0) || !rejects(p.refresh_call + 8, 0xaa0003e0) ||
             !rejects(p.cell_call, 0x94000000) || !rejects(p.cell_call + 4, 0xaa0003e0) ||
             !rejects(p.cell_visibility, 0xaa0003e0) || !rejects(p.prefix_helper, 0xaa0003e0) || !rejects(p.fade_call, 0x94000000) ||
-            !rejects(p.fade_wrap, 0xaa0003e0)) return 1;
+            !rejects(p.fade_wrap, 0xaa0003e0) || !rejects(p.editing, 0xaa0003e0) ||
+            !rejects(p.editing + 0x14, 0x94000000) || !rejects(p.cache_post + 4, 0xaa0003e0) || !rejects(p.factory_post[0], 0xaa0003e0) ||
+            !rejects(p.factory_post[1], 0xaa0003e0)) return 1;
     puts("Label graph and rejection checks passed");
 }

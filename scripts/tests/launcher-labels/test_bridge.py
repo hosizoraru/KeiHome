@@ -28,11 +28,11 @@ def linked_template(path):
         for segment in elf.iter_segments():
             if segment["p_type"] == "PT_LOAD" and segment["p_vaddr"] <= begin < end <= segment["p_vaddr"] + segment["p_filesz"]:
                 stream.seek(segment["p_offset"] + begin - segment["p_vaddr"])
-                return stream.read(end-begin), {n: syms["kh_label_"+n]-begin for n in ("pre", "post", "lines", "refresh", "page_post", "page_replay", "fade", "config")}
+                return stream.read(end-begin), {n: syms["kh_label_"+n]-begin for n in ("pre", "post", "lines", "refresh", "page_post", "page_replay", "fade", "cache_post", "factory_one", "factory_two", "config")}
     raise AssertionError("bridge not in one file-backed ELF range")
 
 
-def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressure=False, relocate=False, change=None, prefix=False, prefix_change=None):
+def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressure=False, relocate=False, change=None, prefix=False, prefix_change=None, editing=False, editing_state="ready", title_pressure=False):
     heap = high << 32
     uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
     for at, size in [(BRIDGE, 4096), (THREAD, 4096), (FIELDS, 0x10000), (POOL, 0x100000),
@@ -65,15 +65,20 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     data = [POLICY, CODE+p["textAlloc"], CODE+p["measure"], CODE+p["ctor"], CODE+p["alloc"]+20,
             CODE+p["after"], p["textCid"], p["sizeCid"], p["marqueeTag"], p["grid"], 0x2b, 0x13,
             p["width"], p["sourceWidth"], p["ltr"], p["source"], p["text"], p["style"], p["widget"], p["line"]]+[0]*11+[p["prefixRoot"], CODE+p["prefix"]]
+    data += [0]*13
+    data[24]=p['tickerTag'];data[36]=CODE+p['editing'];data[37]=p['editingSlot']
+    editor, sentinel = heap+0x100d01, heap+0x100e01
+    put(POOL+0x40,sentinel)
+    put(FIELDS+p['editingSlot'], {'ready':editor,'null':null,'sentinel':sentinel}[editing_state])
     blob = bytearray(template)
-    struct.pack_into("<33Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in data))
+    struct.pack_into("<46Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in data))
     uc.mem_write(BRIDGE, bytes(blob))
     # Real methods return to this original allocation-site PC; emulate its detour.
     return_pc = CODE+p["alloc"]+4
     uc.mem_map(return_pc & ~4095, 4096)
     uc.mem_write(return_pc, struct.pack("<IIQ", 0x58000050, 0xd61f0200, BRIDGE+entries["post"]))
     pages = {return_pc & ~4095}
-    for target in (CODE+p["textAlloc"], CODE+p["measure"], CODE+p["ctor"], CODE+p["after"], CODE+p["alloc"]+20, CODE+p["prefix"]):
+    for target in (CODE+p["textAlloc"], CODE+p["measure"], CODE+p["ctor"], CODE+p["after"], CODE+p["alloc"]+20, CODE+p["prefix"], CODE+p["editing"]):
         page = target & ~4095
         if page not in pages:
             uc.mem_map(page, 4096)
@@ -86,10 +91,28 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     calls, finished = [], []
     expected_text, expected_style, expected_marquee = text, style, None
     expected_prefix_widget=prefix_widget
+    expected_title_wrapper=None
 
     def hook(cpu, pc, count, unused):
-        nonlocal expected_text, expected_style, expected_marquee, expected_prefix_widget
-        if pc == CODE+p["measure"]:
+        nonlocal expected_text, expected_style, expected_marquee, expected_prefix_widget, expected_title_wrapper
+        if pc == CODE+p['editing']:
+            calls.append('Editing')
+            assert cpu.reg_read(X[1])==editor and cpu.reg_read(X[30])==return_pc
+            expected_title_wrapper=get(STACK+p['text'])
+            assert get(expected_title_wrapper-1)==p['tickerTag']
+            if relocate:
+                old_wrapper=expected_title_wrapper;expected_title_wrapper+=0x1000
+                uc.mem_write(expected_title_wrapper-1,bytes(uc.mem_read(old_wrapper-1,32)))
+                old_marquee=expected_marquee;expected_marquee+=0x1000
+                uc.mem_write(expected_marquee-1,bytes(uc.mem_read(old_marquee-1,0x70)))
+                expected_text+=0x1000;expected_style+=0x1000
+                word(expected_title_wrapper+7,expected_text);word(expected_title_wrapper+15,expected_marquee)
+                word(expected_marquee+11,expected_text);word(expected_marquee+15,expected_style)
+                put(STACK+p['text'],expected_title_wrapper);put(STACK+p['style'],expected_style)
+                uc.mem_write(old_wrapper-1,b'\xcc'*32)
+            cpu.reg_write(X[0],null+(0x20 if editing else 0x30))
+            cpu.reg_write(ar.UC_ARM64_REG_PC,return_pc)
+        elif pc == CODE+p["measure"]:
             assert cpu.reg_read(X[30]) == return_pc
             assert (cpu.reg_read(X[1]), cpu.reg_read(X[2])) == (expected_text, expected_style)
             calls.append("measure")
@@ -129,6 +152,7 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
                 cpu.mem_write(expected_marquee-1, bytes(cpu.mem_read(widget-1, 0x70)))
                 put(STACK+p["text"], expected_marquee)
             word(expected_marquee+0xb, expected_text); word(expected_marquee+0xf, expected_style)
+            if title_pressure:put(THREAD+0x68,top+0x70+32)
             cpu.reg_write(X[0], null); cpu.reg_write(ar.UC_ARM64_REG_PC, return_pc)
         elif pc in (CODE+p["after"], CODE+p["alloc"]+20):
             finished.append(pc); cpu.emu_stop()
@@ -143,7 +167,11 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     assert get(STACK+p["style"]) == expected_style
     assert get(STACK+p["source"]) == source
     assert get(STACK+p["prefixRoot"])==expected_prefix_widget
-    assert get(STACK+p["widget"]) == (expected_marquee if marquee else original)
+    assert get(STACK+p["widget"]) == ((expected_title_wrapper or expected_marquee) if marquee else original)
+    if expected_title_wrapper:
+        assert struct.unpack('<I',uc.mem_read(expected_title_wrapper+7,4))[0]==null&0xffffffff
+        assert struct.unpack('<I',uc.mem_read(expected_title_wrapper+11,4))[0]==(null+(0x30 if editing else 0x20))&0xffffffff
+        assert struct.unpack('<I',uc.mem_read(expected_title_wrapper+15,4))[0]==expected_marquee&0xffffffff
     if marquee: assert uc.reg_read(X[4]) == 2 and finished == [CODE+p["after"]]
     else:
         assert get(THREAD+0x60) == top+(0x70 if "Prefix" in calls else 0)
@@ -327,6 +355,92 @@ def execute_page(template, entries, p, high, visible, pressure=False, relocate=F
         assert uc.reg_read(X[i])==value,(i,hex(uc.reg_read(X[i])))
 
 
+def execute_cache(template, entries, p, high, mode, editing, pressure=False,
+                  relocate=False, ordinary=True, controller_state='ready', change=None, factory=0, wrapped_input=False):
+    heap = high << 32
+    uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
+    for at, size in [(BRIDGE,4096),(THREAD,4096),(FIELDS,0x10000),(POOL,0x100000),
+                     (POLICY,4096),(STACK-0x10000,0x20000),(END,4096),
+                     (heap+0x100000,0x20000)]: uc.mem_map(at,size)
+    def put(at,v): uc.mem_write(at,struct.pack('<Q',v&0xffffffffffffffff))
+    def get(at): return struct.unpack('<Q',uc.mem_read(at,8))[0]
+    def word(at,v): uc.mem_write(at,struct.pack('<I',v&0xffffffff))
+    def u32(at): return struct.unpack('<I',uc.mem_read(at,4))[0]
+    null, entry, child, controller, sentinel, shortcut = [heap+0x100001+0x100*i for i in range(6)]
+    put(entry-1,(999<<12)|0x31c)
+    uc.mem_write(child-1,struct.pack('<Q',null)*10)
+    put(child-1,p['dragTag']); put(shortcut-1,((p['shortcutCid'] if ordinary else 997)<<12)|0x31c)
+    word(child+19,shortcut)
+    word(entry+11,child); word(child+7,null)
+    root_slot = p['factoryRoot'] if factory else p['cacheRoot']
+    put(STACK+root_slot,child if factory else entry)
+    if wrapped_input:
+        old_ticker=heap+0x101001
+        put(old_ticker-1,p['tickerTag']);word(old_ticker+15,shortcut);word(child+19,old_ticker)
+    put(THREAD+0x78,FIELDS); put(POOL+0x40,sentinel)
+    put(FIELDS+p['editingSlot'], {'ready':controller,'null':null,'sentinel':sentinel}[controller_state])
+    word(POLICY,mode)
+    top=heap+0x110000; wrapper=top+1; expected_entry=entry; expected_child=child
+    put(THREAD+0x60,top); put(THREAD+0x68,top+(160 if pressure else 4096))
+    config=[0]*46
+    config[0]=POLICY; config[24]=p['tickerTag']
+    config[36:]=[CODE+p['editing'],p['editingSlot'],CODE+p['cache'],p['cacheRoot'],p['shortcutCid'],p['dragTag'],CODE+p['factoryOne'],CODE+p['factoryTwo'],p['factoryRoot'],p['shortcutTag']]
+    blob=bytearray(template)
+    struct.pack_into('<46Q',blob,entries['config'],*(v&0xffffffffffffffff for v in config))
+    uc.mem_write(BRIDGE,bytes(blob))
+    return_pc=CODE+(p['factoryOne'] if factory==1 else p['factoryTwo'] if factory==2 else p['cache'])
+    for page in {return_pc&~4095,(CODE+p['editing'])&~4095}: uc.mem_map(page,4096)
+    word(return_pc,0x14000000|(((BRIDGE+entries['factory_one' if factory==1 else 'factory_two' if factory==2 else 'cache_post']-return_pc)//4)&0x3ffffff))
+    for i,v in [(0,null),(15,STACK-0x28),(21,0x21000000),(22,null),(26,THREAD),
+                (27,POOL),(28,high),(29,STACK),(30,return_pc)]: uc.reg_write(X[i],v)
+    calls=[]; finished=[]
+    def hook(cpu,pc,size,_):
+        nonlocal wrapper,expected_entry,expected_child
+        if pc==CODE+p['editing']:
+            calls.append(pc)
+            assert cpu.reg_read(X[1])==controller and cpu.reg_read(X[30])==return_pc
+            assert get(STACK+root_slot)==wrapper
+            assert u32(wrapper+7)==(child if factory else entry)&0xffffffff
+            assert u32(wrapper+15)==(top+113)&0xffffffff
+            assert u32(wrapper+11)==(top+33)&0xffffffff
+            assert u32(top+33+19)==(top+113)&0xffffffff
+            assert get(wrapper-1)==p['tickerTag']
+            if relocate:
+                old_wrapper=wrapper; wrapper+=0x1000
+                expected_entry=entry+0x2000; expected_child=child+0x2000
+                uc.mem_write(wrapper-1,bytes(uc.mem_read(old_wrapper-1,160)))
+                uc.mem_write(expected_entry-1,bytes(uc.mem_read(entry-1,48)))
+                uc.mem_write(expected_child-1,bytes(uc.mem_read(child-1,80)))
+                word(wrapper+7,expected_child if factory else expected_entry);word(wrapper+11,wrapper+32);word(wrapper+15,wrapper+112);word(wrapper+32+19,wrapper+112)
+                word(expected_entry+11,expected_child)
+                put(STACK+root_slot,wrapper)
+                for old,n in [(old_wrapper,160),(entry,48),(child,80)]: uc.mem_write(old-1,b'\xcc'*n)
+            if change is not None: word(POLICY,change)
+            cpu.reg_write(X[0],null+(0x20 if editing else 0x30))
+            cpu.reg_write(ar.UC_ARM64_REG_PC,return_pc)
+        elif pc==return_pc+(8 if factory else 16):
+            finished.append(pc);cpu.emu_stop()
+    uc.hook_add(UC_HOOK_CODE,hook)
+    uc.emu_start(return_pc,END,count=500)
+    assert len(finished)==1 and get(STACK+root_slot)==(expected_child if factory else expected_entry)
+    wrapped=mode==1 and ordinary and not pressure and controller_state=='ready' and not wrapped_input
+    assert calls==([CODE+p['editing']] if wrapped else [])
+    assert uc.reg_read(X[0])==(wrapper+32 if wrapped else child)
+    if wrapped:
+        assert u32(wrapper+7)==(expected_child if factory else expected_entry)&0xffffffff
+        assert u32(wrapper+11)==(wrapper+32)&0xffffffff
+        assert u32(wrapper+15)==(wrapper+112)&0xffffffff
+        assert u32(wrapper+32+19)==(wrapper+112)&0xffffffff
+        assert get(wrapper+112-1)==p['shortcutTag']
+        assert bytes(uc.mem_read(wrapper+112-1+8,40))==bytes(uc.mem_read(shortcut-1+8,40))
+        assert bytes(uc.mem_read(wrapper+32-1+24,56))==bytes(uc.mem_read(expected_child-1+24,56))
+        assert get(THREAD+0x60)==top+160
+    else: assert get(THREAD+0x60)==top
+    assert u32(expected_entry+11)==expected_child&0xffffffff
+    for i,v in [(15,STACK),(21,0x21000000),(22,null),(26,THREAD),(27,POOL),(28,high),(29,STACK)]:
+        assert uc.reg_read(X[i])==v,(i,hex(uc.reg_read(X[i])))
+
+
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("--payload", required=True)
     parser.add_argument("--resolver", required=True); parser.add_argument("launchers", nargs="+")
@@ -334,10 +448,33 @@ def main():
     total = 0
     for path in args.launchers:
         row = subprocess.check_output([args.resolver, path], text=True).splitlines()[0]
-        decimal = {"textCid", "sizeCid", "source", "text", "style", "widget", "line", "cellRoot", "cellResult", "prefixRoot"}
+        decimal = {"textCid", "sizeCid", "source", "text", "style", "widget", "line", "cellRoot", "cellResult", "prefixRoot", "cacheRoot", "shortcutCid", "factoryRoot"}
         p = {k: int(v, 10 if k in decimal else 16) for k, v in (pair.split("=") for pair in row.split())}
         p["cellReplay"] = Path(path).read_bytes()[p["cell"]+4:p["cell"]+48]
         for high in (0, 0x74):
+            for editing in (False,True):
+                for editing_state in ('ready','null','sentinel'):
+                    for relocate in (False,True):
+                        for title_pressure in (False,True):
+                            execute(template,entries,p,high,1,editing=editing,editing_state=editing_state,relocate=relocate,title_pressure=title_pressure);total+=1
+            for factory in (1,2):
+                for mode in (0,1,2):
+                    for editing in (False,True):
+                        for pressure in (False,True):
+                            for relocate in (False,True):
+                                execute_cache(template,entries,p,high,mode,editing,pressure,relocate,factory=factory);total+=1
+            for editing in (False,True):
+                for relocate in (False,True):
+                    execute_cache(template,entries,p,high,1,editing,relocate=relocate,wrapped_input=True);total+=1
+            for mode in (0,1,2):
+                for editing in (False,True):
+                    for pressure in (False,True):
+                        for relocate in (False,True):
+                            execute_cache(template,entries,p,high,mode,editing,pressure,relocate);total+=1
+                    for ordinary,controller_state in ((False,'ready'),(True,'null'),(True,'sentinel')):
+                        execute_cache(template,entries,p,high,mode,editing,ordinary=ordinary,controller_state=controller_state);total+=1
+            for change in (0,2):
+                execute_cache(template,entries,p,high,1,True,relocate=True,change=change);total+=1
             for visible in (False, True):
                 for pressure in (False, True):
                     for relocate in (False, True):

@@ -2,7 +2,7 @@
 <resources>
     <string name="launcher_labels_section">ホーム画面</string>
     <string name="launcher_labels_title">アプリ名の表示</string>
-    <string name="launcher_labels_summary">幅に収まらない名前をスクロールするか、現在のグリッド内に2行で表示します。</string>
+    <string name="launcher_labels_summary">幅に収まらない名前をスクロールするか、現在のグリッド内に2行で表示します。ホーム画面の整理中はスクロールを一時停止します。</string>
     <string name="launcher_labels_native">システムに従う</string>
     <string name="launcher_labels_marquee">長い名前をスクロール</string>
     <string name="launcher_labels_two_lines">2行で表示</string>

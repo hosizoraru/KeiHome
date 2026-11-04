@@ -33,7 +33,15 @@ def main():
     roles = [('LinesInline', 'GridController.titleLines', 0, 39),
              ('ConfigExpanded', 'GridController.currentConfig', 0, 25),
              ('ChangeEventExpanded', 'ItemChangeProcessor.processItemsChanged', 0, 36),
-             ('CellGridBodyExpanded', 'CellLayout.buildGridCellAndBackground', 0x64, 17)]
+             ('CellGridBodyExpanded', 'CellLayout.buildGridCellAndBackground', 0x64, 17),
+             ('EditingState', 'ScreenLayerGetXController._isInNormalEditing', 0, 25),
+             ('CacheGet', 'WidgetCacheManager.get', 0, 30),
+             ('ShortcutFactory', 'WidgetShortCutBuilder.build', -0xc8, 20),
+             ('DragFactory', 'WidgetFactory.wrapDraggable', 0x3d8, 22),
+             # Fixture location is in the adjacent constructor; production follows
+             # the factory's constructor BL before authenticating this field store.
+             ('DragChild', 'WidgetFactory.wrapDraggable', 0x77c, 7),
+             ('ParameterizedAllocator', 'WidgetFactory.wrapDraggable', 0x3dc, 23)]
     for library in args.library:
         image = elf.Image(library)
         [(lines, size)] = image.syms['GridController.titleLines']
@@ -41,9 +49,17 @@ def main():
         for role, name, offset, count in roles:
             [(address, size)] = image.syms[name]
             assert size >= count*4 or offset == size
-            address += offset
+            address += offset if offset >= 0 else size + offset
+            if role == 'ParameterizedAllocator':
+                def branch(pc):
+                    w = struct.unpack('<I', image.read(pc,4))[0] & 0x3ffffff
+                    return pc + (w - (0x4000000 if w & 0x2000000 else 0))*4
+                address = branch(branch(address)+8)
             words = struct.unpack('<'+'I'*count, image.read(address, count*4))
-            pattern = [(word & mask(word), mask(word)) for word in words]
+            pattern = []
+            for index, word in enumerate(words):
+                bits = 0xffe00fff if role == 'EditingState' and index == 19 else mask(word)
+                pattern.append((word & bits, bits))
             assert role not in contracts or contracts[role] == pattern, (role, library)
             contracts[role] = pattern
     lines = ['// SPDX-License-Identifier: Apache-2.0',

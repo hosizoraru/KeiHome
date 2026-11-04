@@ -8,6 +8,13 @@ struct LauncherLabelProfile {
     size_t change_event, refresh_call, refresh_logger, font_refresh;
     size_t cell_call, cell_visibility;
     size_t prefix_helper;
+    size_t editing;
+    uint32_t editing_slot;
+    size_t cache_post, factory_post[2];
+    uint32_t factory_expected[2];
+    int32_t factory_root;
+    int32_t cache_root;
+    uint32_t shortcut_cid, shortcut_tag, drag_tag, cache_expected[4];
     size_t fade_call, fade_wrap;
     uint32_t fade_start_field, fade_end_field;
     int32_t prefix_widget_slot;

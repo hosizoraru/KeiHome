@@ -38,6 +38,11 @@ uint32_t kh_launcher_labels_installed = 0u;
 uint32_t kh_launcher_label_mode = 0u;
 uint64_t kh_launcher_label_revision = 0u;
 uint64_t kh_launcher_label_notified = 0u;
+uint32_t kh_dock_glass_installed = 0u;
+uint32_t kh_dock_glass_enabled = 0u;
+uint32_t kh_dock_glass_corner_q8 = 0u;
+uint64_t kh_dock_glass_revision = 0u;
+uint64_t kh_dock_glass_notified = 0u;
 }
 
 namespace {
@@ -62,6 +67,7 @@ struct PolicyState {
     uint64_t expires_at;
     uint64_t materials_expires_at;
     uint64_t labels_expires_at;
+    uint64_t dock_glass_expires_at;
 };
 
 struct RequestHeader {
@@ -78,7 +84,9 @@ uint32_t InstalledCapabilities() {
             ? kNativeThemeMaterialsCapability : 0u;
     const uint32_t labels = __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeLauncherLabelsCapability : 0u;
-    return monet | materials | labels;
+    const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeDockGlassCapability : 0u;
+    return monet | materials | labels | dock;
 }
 
 uint32_t ReadLe32(const uint8_t* bytes) {
@@ -131,14 +139,17 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
     const uint32_t count = ReadLe32(header + 20u);
     if (ReadLe32(header) != kNativeMonetMagic ||
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
-            flags > kNativeLauncherLabelsCommand || count > kNativeMonetMaxPackages ||
+            (flags > kNativeLauncherLabelsCommand && flags != kNativeDockGlassCommand) ||
+            count > kNativeMonetMaxPackages ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
                             (background >> 24u) != 0xffu)) ||
             (flags == kNativeThemeMaterialsCommand &&
              (foreground > 1u || background != 0u || count != 0u)) ||
             (flags == kNativeLauncherLabelsCommand &&
-             (foreground > 2u || background != 0u || count != 0u))) {
+             (foreground > 2u || background != 0u || count != 0u)) ||
+            (flags == kNativeDockGlassCommand &&
+             (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 || count != 0u))) {
         return false;
     }
     *output = {flags, foreground, background, count};
@@ -224,10 +235,28 @@ void SetLauncherLabelMode(uint32_t mode) {
         __atomic_fetch_add(&kh_launcher_label_revision, uint64_t{1}, __ATOMIC_ACQ_REL);
 }
 
+void SetDockGlassEnabled(uint32_t enabled, uint32_t corner_q8 = 0u) {
+    // Both fields are primitive atomic publications. Publish the corner before
+    // enabling, then one generation after the complete state change. Off-state
+    // corner updates need no native repaint; expiry/worker failure reset it.
+    const uint32_t old_corner = __atomic_exchange_n(
+            &kh_dock_glass_corner_q8, corner_q8, __ATOMIC_ACQ_REL);
+    const uint32_t old_enabled = __atomic_exchange_n(
+            &kh_dock_glass_enabled, enabled, __ATOMIC_ACQ_REL);
+    if (old_enabled != enabled || (enabled != 0u && old_corner != corner_q8))
+        __atomic_fetch_add(&kh_dock_glass_revision, uint64_t{1}, __ATOMIC_ACQ_REL);
+}
+
 void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
 #endif
+    if (state->dock_glass_expires_at != 0u &&
+            (now >= state->dock_glass_expires_at ||
+             __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
+        SetDockGlassEnabled(0u);
+        state->dock_glass_expires_at = 0u;
+    }
     if (state->labels_expires_at != 0u &&
             (now >= state->labels_expires_at ||
              __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) != 1u)) {
@@ -289,6 +318,15 @@ template <typename Reader, typename Clock>
 bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_before_deadline) {
     RequestHeader header{};
     if (!ReadRequestHeader(read_exactly, &header)) return false;
+    if (header.flags == kNativeDockGlassCommand) {
+        const uint64_t now = now_before_deadline();
+        if (!now || (InstalledCapabilities() & kNativeDockGlassCapability) == 0u) return false;
+        MaintainPolicy(state, now);
+        state->dock_glass_expires_at = header.foreground
+                ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
+        SetDockGlassEnabled(header.foreground, header.background);
+        return true;
+    }
     if (header.flags == kNativeLauncherLabelsCommand) {
         const uint64_t now = now_before_deadline();
         if (!now || (InstalledCapabilities() & kNativeLauncherLabelsCapability) == 0u) return false;
@@ -313,6 +351,8 @@ bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_bef
 }
 
 uint64_t NextMaintenanceWake(const PolicyState* state, uint64_t deadline) {
+    if (state->dock_glass_expires_at != 0u && state->dock_glass_expires_at < deadline)
+        deadline = state->dock_glass_expires_at;
     if (state->expiration != nullptr && state->expires_at < deadline) {
         deadline = state->expires_at;
     }
@@ -569,6 +609,8 @@ void* PolicyWorker(void* data) {
     __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
     server->policies.materials_expires_at = 0u;
     server->policies.labels_expires_at = 0u;
+    SetDockGlassEnabled(0u);
+    server->policies.dock_glass_expires_at = 0u;
     PublishPolicy(&server->policies, nullptr);
     __atomic_store_n(&g_server_state, kServerFailed, __ATOMIC_RELEASE);
     // With the public pointer null, new readers cannot prolong access to an old

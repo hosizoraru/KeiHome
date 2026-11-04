@@ -19,6 +19,10 @@ add_library(keihome_hyos_lsp SHARED
     launcher_label_profile.cpp
     launcher_label_hooks.cpp
     launcher_label_bridge.S
+    dock_glass_profile.cpp
+    dock_glass_refresh.cpp
+    dock_glass_hooks.cpp
+    dock_glass_payload.S
     monet_hooks.cpp
     monet_image_identity.cpp
     monet_image_recovery.cpp

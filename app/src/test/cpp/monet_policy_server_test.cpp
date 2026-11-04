@@ -21,6 +21,14 @@ static_assert(std::is_same_v<decltype(kh_monet_tint_ever_enabled), uint32_t>,
 static_assert(std::is_same_v<decltype(kh_theme_materials_enabled), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_theme_materials_installed), uint32_t>);
 static_assert(std::is_same_v<decltype(kh_monet_installed), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_installed), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_enabled), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_corner_q8), uint32_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_revision), uint64_t>);
+static_assert(std::is_same_v<decltype(kh_dock_glass_notified), uint64_t>);
+static_assert(kNativeDockGlassCapability == 8u && kNativeDockGlassCommand == 8u);
+static_assert(kNativeDockGlassMaxCornerQ8 == 65536u);
+static_assert(kNativeMonetExpiryMs == 45000u);
 
 namespace {
 
@@ -512,6 +520,305 @@ void TestInstalledCapabilitiesAndCommandAdmission() {
     Clear(&state);
 }
 
+struct InstalledFlagSnapshot {
+    const uint32_t monet = kh_monet_installed;
+    const uint32_t materials = kh_theme_materials_installed;
+    const uint32_t labels = kh_launcher_labels_installed;
+    const uint32_t dock = kh_dock_glass_installed;
+    ~InstalledFlagSnapshot() {
+        __atomic_store_n(&kh_monet_installed, monet, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_theme_materials_installed, materials, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_launcher_labels_installed, labels, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_dock_glass_installed, dock, __ATOMIC_RELEASE);
+    }
+};
+
+void TestDockGlassCapabilitiesAndCommandAdmission() {
+    const InstalledFlagSnapshot installed;
+    const Bytes enable = Request(8u, 1u, 0u, {});
+    const Bytes disable = Request(8u, 0u, 0u, {});
+    for (uint32_t caps = 0u; caps < 16u; ++caps) {
+        PolicyState state{};
+        __atomic_store_n(&kh_monet_installed, uint32_t{bool(caps & 1u)}, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_theme_materials_installed, uint32_t{bool(caps & 2u)}, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
+        __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
+        assert(InstalledCapabilities() == caps);
+        assert(kh_monet_policy == nullptr && kh_dock_glass_enabled == 0u);
+        const uint64_t revision = kh_dock_glass_revision;
+        const uint64_t notified = kh_dock_glass_notified;
+        const bool dock = (caps & 8u) != 0u;
+        assert(ApplyRequest(&state, enable, 1u) == dock);
+        assert(kh_dock_glass_enabled == uint32_t{dock});
+        assert(kh_dock_glass_revision == revision + uint64_t{dock});
+        assert(state.dock_glass_expires_at ==
+                (dock ? 1u + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u));
+        assert(ApplyRequest(&state, disable, 2u) == dock);
+        assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+        assert(kh_dock_glass_corner_q8 == 0u);
+        assert(kh_dock_glass_revision == revision + 2u * uint64_t{dock});
+        assert(kh_dock_glass_notified == notified && kh_monet_policy == nullptr);
+    }
+    for (uint32_t not_ready : {2u, UINT32_MAX}) {
+        PolicyState state{};
+        __atomic_store_n(&kh_dock_glass_installed, not_ready, __ATOMIC_RELEASE);
+        const uint64_t revision = kh_dock_glass_revision;
+        assert((InstalledCapabilities() & 8u) == 0u);
+        assert(!ApplyRequest(&state, enable, 3u) && !ApplyRequest(&state, disable, 3u));
+        assert(kh_dock_glass_revision == revision && state.dock_glass_expires_at == 0u);
+    }
+    puts("Dock capability 8: all 16 combinations and uninstalled/partial admission passed");
+}
+
+void TestDockGlassMalformedAndPolicyIsolation() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_theme_materials_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+    assert(CommitPolicy(&state, Policy(0xff123456u), 1u));
+    const NativeMonetPolicy* pinned = AcquireNativeMonetPolicy();
+    const NativeMonetPolicy policy = *pinned;
+    assert(ApplyRequest(&state, Request(2u, 1u, 0u, {}), 2u));
+    assert(ApplyRequest(&state, Request(3u, 2u, 0u, {}), 3u));
+    const Bytes enable = Request(8u, 1u, 0u, {});
+    const Bytes disable = Request(8u, 0u, 0u, {});
+    const uint8_t wire[] = {
+        0x4b, 0x48, 0x4d, 0x33, 1, 0, 0, 0, 8, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    };
+    assert(enable.size() == sizeof(wire) && memcmp(enable.data(), wire, sizeof(wire)) == 0);
+    const uint64_t selection = kh_monet_selection_revision;
+    const uint32_t history = kh_monet_tint_ever_enabled;
+    const uint64_t label_revision = kh_launcher_label_revision;
+    const PolicyState before_dock = state;
+    assert(ApplyRequest(&state, enable, 4u));
+    const uint64_t revision = kh_dock_glass_revision, notified = kh_dock_glass_notified;
+    const uint64_t expiry = state.dock_glass_expires_at;
+    const uint32_t corner = kh_dock_glass_corner_q8;
+    const auto other_features_unchanged = [&] {
+        assert(kh_monet_policy == pinned && memcmp(pinned, &policy, sizeof(policy)) == 0);
+        assert(state.expiration == before_dock.expiration && state.expires_at == before_dock.expires_at);
+        assert(state.retired == before_dock.retired && state.retired_count == before_dock.retired_count);
+        assert(state.materials_expires_at == before_dock.materials_expires_at);
+        assert(state.labels_expires_at == before_dock.labels_expires_at);
+        assert(kh_theme_materials_enabled == 1u && kh_launcher_label_mode == 2u);
+        assert(kh_launcher_label_revision == label_revision);
+        assert(kh_monet_selection_revision == selection && kh_monet_tint_ever_enabled == history);
+        assert(kh_dock_glass_notified == notified);
+    };
+    const auto rejected_unchanged = [&](const Bytes& bad, uint64_t now = 5u) {
+        assert(!ApplyRequest(&state, bad, now));
+        assert(kh_dock_glass_enabled == 1u && state.dock_glass_expires_at == expiry);
+        assert(kh_dock_glass_corner_q8 == corner);
+        assert(kh_dock_glass_revision == revision);
+        other_features_unchanged();
+    };
+    for (size_t n = 0u; n < enable.size(); ++n)
+        rejected_unchanged(Bytes(enable.begin(), enable.begin() + n));
+    for (const Bytes& bad : std::vector<Bytes>{
+            Request(8u, 2u, 0u, {}), Request(8u, UINT32_MAX, 0u, {}),
+            Request(8u, 1u, 65537u, {}), Request(8u, 1u, UINT32_MAX, {}),
+            Request(8u, 1u, 0u, {"com.example"})})
+        rejected_unchanged(bad);
+    for (uint32_t command : {4u, 5u, 6u, 7u, 9u, UINT32_MAX})
+        rejected_unchanged(Request(command, 1u, 0u, {}));
+    for (size_t offset : {size_t{0}, size_t{4}, size_t{20}}) {
+        Bytes bad = enable;
+        WriteLe32(bad.data() + offset, offset == 20u ? kNativeMonetMaxPackages + 1u : 0u);
+        rejected_unchanged(bad);
+    }
+    rejected_unchanged(disable, 0u); // Failed clock/deadline cannot commit.
+    PolicyAllocation* invalid = AllocatePolicy();
+    assert(invalid != nullptr);
+    invalid->policy.flags = 8u;
+    assert(!Decode(enable, &invalid->policy));
+    assert(!CommitPolicy(&state, invalid, 5u));
+    free(invalid);
+    other_features_unchanged();
+    assert(ApplyRequest(&state, disable, 6u));
+    assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+    assert(kh_dock_glass_revision == revision + 1u);
+    other_features_unchanged();
+    ReleaseNativeMonetPolicy();
+    Clear(&state);
+    MaintainPolicy(&state, UINT64_MAX);
+    puts("Dock command 8: wire, truncation, corner bounds, reserved count/commands and isolation passed");
+}
+
+void TestDockGlassLeaseAndNotificationRevisions() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    const uint64_t heartbeat = uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs;
+    const uint64_t revision = kh_dock_glass_revision, saved_notified = kh_dock_glass_notified;
+    const Bytes enable = Request(8u, 1u, 0u, {}), disable = Request(8u, 0u, 0u, {});
+    assert(ApplyRequest(&state, disable, 1u));
+    assert(kh_dock_glass_revision == revision && kh_dock_glass_notified == saved_notified);
+    assert(ApplyRequest(&state, enable, 2u));
+    assert(kh_dock_glass_revision == revision + 1u && state.dock_glass_expires_at == 2u + lease);
+    assert(kh_dock_glass_notified == saved_notified);
+    // Simulate the UI bridge consuming this generation. The worker must never
+    // consume/overwrite it, including on renewal, expiry and capability loss.
+    __atomic_store_n(&kh_dock_glass_notified, revision + 1u, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, enable, 2u + heartbeat));
+    const uint64_t expiry = 2u + heartbeat + lease;
+    assert(state.dock_glass_expires_at == expiry && kh_dock_glass_revision == revision + 1u);
+    MaintainPolicy(&state, 2u + lease);
+    MaintainPolicy(&state, expiry - 1u);
+    assert(kh_dock_glass_enabled == 1u && kh_dock_glass_revision == revision + 1u);
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == expiry);
+    MaintainPolicy(&state, expiry);
+    assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+    assert(kh_dock_glass_revision == revision + 2u);
+    MaintainPolicy(&state, expiry + 1u);
+    assert(ApplyRequest(&state, disable, expiry + 2u));
+    assert(kh_dock_glass_revision == revision + 2u); // Repeated off is not a notification.
+    assert(ApplyRequest(&state, enable, expiry + 3u));
+    assert(kh_dock_glass_revision == revision + 3u);
+    const uint64_t late = state.dock_glass_expires_at + 1u;
+    assert(ApplyRequest(&state, enable, late));
+    assert(kh_dock_glass_revision == revision + 5u); // Expired off, then newly enabled.
+    assert(state.dock_glass_expires_at == late + lease);
+    assert(ApplyRequest(&state, disable, late + 1u));
+    assert(ApplyRequest(&state, disable, late + 2u));
+    assert(kh_dock_glass_revision == revision + 6u);
+    assert(ApplyRequest(&state, enable, late + 3u));
+    __atomic_store_n(&kh_dock_glass_installed, 0u, __ATOMIC_RELEASE);
+    assert(!ApplyRequest(&state, enable, late + 4u));
+    MaintainPolicy(&state, late + 4u);
+    assert(kh_dock_glass_enabled == 0u && state.dock_glass_expires_at == 0u);
+    assert(kh_dock_glass_revision == revision + 8u);
+    MaintainPolicy(&state, late + 5u);
+    assert(kh_dock_glass_revision == revision + 8u);
+    assert(kh_dock_glass_notified == revision + 1u);
+    assert(kh_monet_policy == nullptr);
+    __atomic_store_n(&kh_dock_glass_notified, saved_notified, __ATOMIC_RELEASE);
+    puts("Dock lease: heartbeat/repeated off stable, boundary/late renewal and uninstall revisions passed");
+}
+
+void TestDockGlassIndependentLeaseExpiry() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    for (uint32_t* flag : {&kh_monet_installed, &kh_theme_materials_installed,
+                           &kh_launcher_labels_installed, &kh_dock_glass_installed})
+        __atomic_store_n(flag, 1u, __ATOMIC_RELEASE);
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    const uint64_t heartbeat = uint64_t{kNativeMonetKeepaliveMs} * kNanosecondsPerMs;
+    const uint64_t revision = kh_dock_glass_revision, notified = kh_dock_glass_notified;
+    assert(ApplyRequest(&state, Request(8u, 1u, 0u, {}), 1u));
+    assert(ApplyRequest(&state, Request(2u, 1u, 0u, {}), 1u + heartbeat));
+    assert(ApplyRequest(&state, Request(3u, 2u, 0u, {}), 2u + heartbeat));
+    assert(ApplyRequest(&state, Request(1u, 0xff123456u, 0xffabcdefu, {"com.example"}),
+                        3u + heartbeat));
+    const NativeMonetPolicy* policy = kh_monet_policy;
+    const uint64_t selection = kh_monet_selection_revision;
+    assert(state.dock_glass_expires_at == 1u + lease); // Other commands cannot renew Dock.
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == 1u + lease);
+    assert(NextMaintenanceWake(&state, 1u) == 1u);
+    MaintainPolicy(&state, lease);
+    assert(kh_dock_glass_enabled == 1u);
+    MaintainPolicy(&state, 1u + lease);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_revision == revision + 2u);
+    assert(kh_theme_materials_enabled == 1u && kh_launcher_label_mode == 2u);
+    assert(kh_monet_policy == policy && policy->count == 1u && kh_monet_selection_revision == selection);
+    const uint64_t materials_expiry = state.materials_expires_at;
+    const uint64_t labels_expiry = state.labels_expires_at, policy_expiry = state.expires_at;
+    assert(ApplyRequest(&state, Request(8u, 1u, 0u, {}), 2u + lease));
+    const uint64_t dock_expiry = state.dock_glass_expires_at;
+    assert(state.materials_expires_at == materials_expiry && state.labels_expires_at == labels_expiry);
+    assert(state.expires_at == policy_expiry && kh_monet_policy == policy);
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == materials_expiry);
+    MaintainPolicy(&state, materials_expiry);
+    assert(kh_theme_materials_enabled == 0u && kh_launcher_label_mode == 2u);
+    assert(kh_dock_glass_enabled == 1u && kh_dock_glass_revision == revision + 3u);
+    MaintainPolicy(&state, labels_expiry);
+    assert(kh_launcher_label_mode == 0u && kh_monet_policy == policy && policy->count == 1u);
+    assert(kh_dock_glass_enabled == 1u && kh_dock_glass_revision == revision + 3u);
+    MaintainPolicy(&state, policy_expiry);
+    assert(kh_monet_policy->count == 0u && kh_monet_policy->flags == 1u);
+    assert(kh_dock_glass_enabled == 1u && state.dock_glass_expires_at == dock_expiry);
+    assert(kh_dock_glass_revision == revision + 3u);
+    assert(NextMaintenanceWake(&state, UINT64_MAX) == dock_expiry);
+    MaintainPolicy(&state, dock_expiry);
+    MaintainPolicy(&state, dock_expiry + 1u);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_revision == revision + 4u);
+    assert(kh_dock_glass_notified == notified);
+    Clear(&state);
+    puts("Dock/Monet/material/label leases: independent renewal, expiry and wake ordering passed");
+}
+
+void TestDockGlassCornerUpdates() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    uint64_t revision = kh_dock_glass_revision;
+    const uint64_t notified = kh_dock_glass_notified;
+    struct Change { uint32_t enabled, corner; uint64_t revisions; };
+    uint64_t now = 1u;
+    for (const Change& change : {
+            Change{0u, 1u, 0u}, Change{0u, 65536u, 0u}, Change{0u, 0u, 0u},
+            Change{1u, 32768u, 1u}, // Enable and corner change publish ONE revision.
+            Change{1u, 32768u, 0u}, // Unchanged heartbeat renews only the lease.
+            Change{1u, 65536u, 1u}, // Largest allowed logical corner.
+            Change{1u, 0u, 1u},     // Native fallback while enabled is a change.
+            Change{1u, 1u, 1u}, Change{1u, 1u, 0u},
+            Change{0u, 65536u, 1u}, // Disable and corner change still publish ONE.
+            Change{0u, 0u, 0u}}) {
+        assert(ApplyRequest(&state, Request(8u, change.enabled, change.corner, {}), now));
+        revision += change.revisions;
+        assert(kh_dock_glass_enabled == change.enabled);
+        assert(kh_dock_glass_corner_q8 == change.corner);
+        assert(kh_dock_glass_revision == revision && kh_dock_glass_notified == notified);
+        assert(state.dock_glass_expires_at == (change.enabled ? now + lease : 0u));
+        ++now;
+    }
+    assert(ApplyRequest(&state, Request(8u, 1u, 4096u, {}), now));
+    ++revision;
+    assert(kh_dock_glass_revision == revision && kh_dock_glass_corner_q8 == 4096u);
+    const uint64_t expiry = state.dock_glass_expires_at;
+    MaintainPolicy(&state, expiry - 1u);
+    assert(kh_dock_glass_corner_q8 == 4096u && kh_dock_glass_revision == revision);
+    MaintainPolicy(&state, expiry);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 0u);
+    assert(kh_dock_glass_revision == ++revision && state.dock_glass_expires_at == 0u);
+    MaintainPolicy(&state, expiry + 1u);
+    assert(kh_dock_glass_revision == revision);
+    assert(ApplyRequest(&state, Request(8u, 1u, 65536u, {}), expiry + 2u));
+    assert(kh_dock_glass_revision == ++revision && kh_dock_glass_corner_q8 == 65536u);
+    __atomic_store_n(&kh_dock_glass_installed, 0u, __ATOMIC_RELEASE);
+    MaintainPolicy(&state, expiry + 3u);
+    assert(kh_dock_glass_enabled == 0u && kh_dock_glass_corner_q8 == 0u);
+    assert(kh_dock_glass_revision == ++revision && state.dock_glass_expires_at == 0u);
+    assert(kh_dock_glass_notified == notified);
+    puts("Dock corner Q8: endpoints, off updates, one revision per visible change and reset passed");
+}
+
+void TestDockGlassWithFullRetirementQueue() {
+    const InstalledFlagSnapshot installed;
+    PolicyState state{};
+    __atomic_store_n(&kh_monet_installed, 1u, __ATOMIC_RELEASE);
+    __atomic_store_n(&kh_dock_glass_installed, 1u, __ATOMIC_RELEASE);
+    assert(CommitPolicy(&state, Policy(0xff123456u), 1u));
+    const NativeMonetPolicy* pinned = AcquireNativeMonetPolicy();
+    for (uint32_t i = 0u; i < kMaxRetiredPolicies; ++i)
+        assert(CommitPolicy(&state, Policy(0xff000010u + i), 2u + i));
+    const NativeMonetPolicy* current = kh_monet_policy;
+    PolicyAllocation* expiration = state.expiration;
+    const uint64_t policy_expiry = state.expires_at, selection = kh_monet_selection_revision;
+    assert(ApplyRequest(&state, Request(8u, 1u, 0u, {}), 100u));
+    assert(ApplyRequest(&state, Request(8u, 0u, 0u, {}), 101u));
+    assert(state.retired_count == kMaxRetiredPolicies && kh_monet_policy == current);
+    assert(state.expiration == expiration && state.expires_at == policy_expiry);
+    assert(kh_monet_selection_revision == selection && pinned->foreground == 0xff123456u);
+    ReleaseNativeMonetPolicy();
+    Clear(&state);
+    puts("Dock commands remain independent of full policy retirement capacity");
+}
+
 void TestConcurrentReaders() {
     PolicyState state{};
     std::atomic<bool> stop{false};
@@ -609,6 +916,12 @@ int main() {
     TestMaterialCommandDoesNotConsumePolicyRetirementCapacity();
     TestInstalledCapabilitiesAndCommandAdmission();
     TestLauncherLabelCommands();
+    TestDockGlassCapabilitiesAndCommandAdmission();
+    TestDockGlassMalformedAndPolicyIsolation();
+    TestDockGlassLeaseAndNotificationRevisions();
+    TestDockGlassIndependentLeaseExpiry();
+    TestDockGlassCornerUpdates();
+    TestDockGlassWithFullRetirementQueue();
     TestConcurrentReaders();
     puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");
 }

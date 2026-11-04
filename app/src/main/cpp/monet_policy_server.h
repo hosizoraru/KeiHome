@@ -13,6 +13,7 @@ constexpr uint32_t kNativeMonetProfileVersion = 1u;
 constexpr uint32_t kNativeMonetCapability = 1u;
 constexpr uint32_t kNativeThemeMaterialsCapability = 2u;
 constexpr uint32_t kNativeLauncherLabelsCapability = 4u;
+constexpr uint32_t kNativeDockGlassCapability = 8u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
@@ -20,6 +21,9 @@ constexpr uint32_t kNativeMonetKeepaliveMs = 15000u;
 constexpr uint32_t kNativeMonetExpiryMs = 45000u;
 constexpr uint32_t kNativeThemeMaterialsCommand = 2u;
 constexpr uint32_t kNativeLauncherLabelsCommand = 3u;
+constexpr uint32_t kNativeDockGlassCommand = 8u;
+// Command 8 word 4: logical dp * 256; zero selects the native fallback.
+constexpr uint32_t kNativeDockGlassMaxCornerQ8 = 65536u;
 
 struct NativeMonetPolicyEntry {
     uint32_t len;
@@ -66,6 +70,14 @@ extern uint32_t kh_launcher_labels_installed;
 extern uint32_t kh_launcher_label_mode;
 extern uint64_t kh_launcher_label_revision;
 extern uint64_t kh_launcher_label_notified;
+// Installer publishes installed only after rendering AND native UI invalidation
+// are ready. The server owns enabled/revision; the UI bridge owns notified.
+// Primitive process-lifetime state only; no Java or Dart references.
+extern uint32_t kh_dock_glass_installed;
+extern uint32_t kh_dock_glass_enabled;
+extern uint32_t kh_dock_glass_corner_q8;
+extern uint64_t kh_dock_glass_revision;
+extern uint64_t kh_dock_glass_notified;
 // Independent of NativeMonetPolicy and its Dart ABI. The highlight installer
 // release-stores installed=1 ONLY after its validated bridge is active. The
 // server release-stores enabled; the bridge acquire-loads it on use. Both start
@@ -106,7 +118,7 @@ inline void ReleaseNativeMonetPolicy() {
 // accepted here. Closing the Java owner reconnects to the new hot-reload owner.
 // One greeting/request/ACK per connection, all uint32 words little-endian:
 //   greeting: magic, protocolVersion, getuid(), capabilities
-//             1=Monet (including legacy greeting 1), 2=highlight, 3=both
+//             bits: 1=Monet, 2=highlight, 4=labels, 8=Dock glass
 //             0 is unavailable; unknown bits are rejected by the client
 //   request:  magic, protocolVersion, flags, fgARGB, bgARGB, count
 //             then count repetitions of length + ASCII package bytes
@@ -119,4 +131,8 @@ inline void ReleaseNativeMonetPolicy() {
 // an enabled material command independently renews a 45 s material lease, whose
 // expiry clears enabled. Bad/partial requests never renew either lease. Legacy
 // servers reject flags 2 without withdrawing or changing their Monet policy.
+// flags 8 independently sets Dock glass: fg=0/1, bg=count=0. An installed
+// Dock bridge is required. Enabled commands renew its own 45 s lease. Changed
+// enabled state, including expiry/worker failure to off, advances its revision;
+// the native UI event bridge consumes that revision at a safe Dart boundary.
 bool StartNativeMonetPolicyServer();

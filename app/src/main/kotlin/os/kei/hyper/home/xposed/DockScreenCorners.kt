@@ -9,8 +9,9 @@ import kotlin.math.roundToInt
 /** Public display metadata, converted to the same logical dp as Flutter. */
 internal object DockScreenCorners {
   fun readQ8(context: Context): Int = runCatching {
-    val display = context.getSystemService(DisplayManager::class.java)
-      ?.getDisplay(Display.DEFAULT_DISPLAY) ?: return 0
+    val display = runCatching { context.display }.getOrNull()
+      ?: context.getSystemService(DisplayManager::class.java)
+        ?.getDisplay(Display.DEFAULT_DISPLAY) ?: return 0
     val density = context.createDisplayContext(display).resources.displayMetrics.density
     val radius = listOfNotNull(
       display.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.radius,

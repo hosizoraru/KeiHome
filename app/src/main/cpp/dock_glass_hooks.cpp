@@ -112,6 +112,21 @@ bool InstallPreparedDockGlass() {
     }
     if(!bridge)return Reject("near Dock mapping unavailable");
     memcpy(bridge,kh_dock_template,bytes);
+    // One dead register and unchanged NZCV: XOR each contiguous CID bit run.
+    // A 20-bit CID needs at most ten AArch64 logical-immediate instructions.
+    const size_t cid_at=size_t(kh_dock_parent_cid-kh_dock_template);
+    const uint32_t cid=p.sized_box_tag>>12u;
+    size_t cid_word=0;
+    for(unsigned bit=0;bit<20u;) {
+        if(!(cid&(1u<<bit))){++bit;continue;}
+        const unsigned first=bit;
+        while(bit<20u&&(cid&(1u<<bit)))++bit;
+        const uint32_t instruction=0x52000021u|(((32u-first)&31u)<<16u)|((bit-first-1u)<<10u);
+        if(cid_word>=10u||cid_at+cid_word*4u+4u>bytes) {
+            munmap(bridge,size_t(page));return Reject("parent CID encoding");
+        }
+        memcpy(bridge+cid_at+cid_word++*4u,&instruction,4);
+    }
     const DockGlassBridgeConfig render={
         reinterpret_cast<uintptr_t>(&kh_dock_glass_enabled),loaded.base+p.gate+4,loaded.base+p.skip,loaded.base+p.background,
         l.grid_slot,l.config_rx_field,l.rx_value_field,p.device_slot,

@@ -57,8 +57,8 @@ All original native scope, opacity, filter and child parameters remain intact.
 
 The injected nested Stack uses an authenticated native `Clip.none` value so
 negative decorative insets are not cut off. The original phone Stack also
-selects none while this feature is enabled, preserving the stock clip when
-disabled. Its clip store is a call-free leaf using only the register that the
+selects none only for the module's first SizedBox decoration, preserving the stock
+clip for an empty/native child list, disabled state and every fallback. Its clip store is a call-free leaf using only the register that the
 next authenticated native instruction overwrites. This prevents full five-cell
 layouts from cropping the taller decoration again at their parent. Only the added material is inside
 a native `IgnorePointer`. Native icons,
@@ -209,3 +209,29 @@ Same-scene 12s weather/swipe samples show no established FPS gain; the removed
 work happens on relevant rebuilds, not every frame. Whole-launcher CPU includes
 clock/widgets/marquee and cannot be attributed entirely to Dock. See the
 comparison JSON and acceptance receipt for actual frame and CPU observations.
+
+## Display adaptation checkpoint (2026-11-05)
+
+The plate is built inside the native Dock parent. Width, height, visible icon
+size, icon top, cell metrics and mode come from the source-authenticated current
+layout. Native positioning/insets remain in charge; no physical screen size,
+DPI, screen-bottom Y or test-device coordinates determine the plate position.
+The decorative dp padding/overflow are design limits. Public corner metadata is
+read from the context's display, with a default-display fallback, and converted
+to the same logical density as Flutter.
+
+If the native parent plus bounded overflow cannot contain the complete painted
+icon vertically, decoration falls back to the original background. This matches
+the existing conservative horizontal admission. The parent Clip.none adjustment
+now additionally verifies the module's first SizedBox child through the native
+live list root; an empty list or native fallback keeps original clipping.
+This guard uses one dead register, preserves NZCV and adds no heap allocation.
+
+Actual Phone AVD checks include density 400 and 560 at 1120x2436, and 960x2160
+at density 480. The native Dock reflowed and contained all four original icons.
+Original 1120x2436/density480 overrides were restored. Launcher PID 6549 stayed
+unchanged through these configuration checks. This is bounded configuration
+coverage; it does not establish universal form-factor or landscape acceptance.
+
+Wallpaper material selection and Pad source findings have separate source and
+device acceptance from these placement checks.

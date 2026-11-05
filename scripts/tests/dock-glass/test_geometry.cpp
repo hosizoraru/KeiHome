@@ -279,18 +279,18 @@ void NativeVerticalEnvelope() {
          154, 246, 20, 112, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 38.5),
          154, 246, 20.5, 112, 28);
-    Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 80),
-         154, 246, 62, 112, 25);
+    Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 80));
+    Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 56),
+         154, 246, 38, 112, 28);
+    Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 56.001));
     // An explicit top remains useful even for roots too short for legacy insets.
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 16, std::nullopt, 8, 4),
          178, 222, -12, 28, 20);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 1, std::nullopt, 8, 0),
          178, 222, -12, 13, 12.5);
-    // Off-root ink may leave positive padding overlap, but never a zero-height plate.
-    Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 128),
-         154, 246, 110, 132, 11);
-    Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 149),
-         154, 246, 131, 132, 0.5);
+    // Off-root ink must never leave only part of an icon inside the plate.
+    Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 128));
+    Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 149));
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 150));
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 151));
     // Missing ink width uses the native cell width on both axes.
@@ -315,7 +315,7 @@ void NativeVerticalEnvelope() {
                                                        256, ink, icon_top);
                 const double top = std::max(-12.0, icon_top - 18);
                 const double bottom = std::min(height + 12, icon_top + ink + 18);
-                CHECK(g.visible == (bottom > top));
+                CHECK(g.visible == (bottom > top && bottom >= icon_top + ink));
                 if (!g.visible) { Hidden(g); continue; }
                 const double left = 200 - ink / 2 - 18;
                 const double right = 200 + ink / 2 + 18;
@@ -325,6 +325,7 @@ void NativeVerticalEnvelope() {
                 CHECK(Near((g.left + g.right) / 2, 200));
                 CHECK(g.top >= -12 && g.bottom <= height + 12);
                 CHECK(g.top <= icon_top);
+                CHECK(g.bottom >= icon_top + ink);
                 CHECK(g.radius > 0 && g.radius <= (g.right - g.left) / 2);
             }
         }

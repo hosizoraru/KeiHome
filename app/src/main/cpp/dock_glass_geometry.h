@@ -81,6 +81,7 @@ struct DockGlassGeometry {
     const double bottom = icon_top
             ? std::min(container_height + kPaintOverflow, *icon_top + ink_width + kVerticalPadding)
             : container_height - kEdge;
+    if (icon_top && bottom < *icon_top + ink_width) return {};
     const double radius_cap = std::min((right - left) / 2.0, (bottom - top) / 2.0);
     if (!(radius_cap > 0.0)) return {};
 

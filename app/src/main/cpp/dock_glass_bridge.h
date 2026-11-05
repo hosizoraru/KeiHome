@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-// Copied render config: fifty-one uint64_t words, offsets in bytes. Addresses are
+// Copied render config: fifty-four uint64_t words, offsets in bytes. Addresses are
 // absolute native addresses; pool/table offsets are bytes, never Dart pointers.
 #define KH_DOCK_ENABLED                 0
 #define KH_DOCK_GATE_ENTER              8
@@ -185,6 +185,7 @@ extern uint64_t kh_dock_recents_corner_bits;
 extern uint64_t kh_dock_glass_scope_counts[3];
 extern const uint8_t kh_dock_template[], kh_dock_gate[], kh_dock_background[];
 extern const uint8_t kh_dock_parent_clip[];
+extern const uint8_t kh_dock_parent_cid[];
 extern const uint8_t kh_dock_glass_scope[], kh_dock_glass_child_scope[], kh_dock_glass_clip[], kh_dock_recents_radius[], kh_dock_recents_flight_radius[];
 extern const uint8_t kh_dock_config[], kh_dock_end[];
 }

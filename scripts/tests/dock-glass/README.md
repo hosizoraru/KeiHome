@@ -20,7 +20,7 @@ python3 scripts/tests/dock-glass/test_refresh.py --elf PATH_TO_RELEASE_SO --repo
 python3 scripts/tests/dock-glass/test_glass_scope.py --elf PATH_TO_RELEASE_SO --report /tmp/dock-glass-scope.json
 ```
 
-The current suites execute 2,485 render cases, 175 mode/curve cases, 470 refresh, and 593 glass ownership/radius
+The current suites execute 2,785 render cases, 175 mode/curve cases, 470 refresh, and 593 glass ownership/radius
 cases across the five saved source fixtures. They authenticate the payload from
 the supplied ELF rather than a separately assembled approximation.
 
@@ -43,7 +43,7 @@ preference application, and performance require separate AVD acceptance.
 The ownership suite also executes both native task-radius return observation and
 the inlined flight-radius join against linked production instructions. It checks
 exact primitive writes, native frame-load replay, ownership counters, preserved
-registers, and tail transfers. Config: 432 bytes; copied payload: 3,976 bytes.
+registers, and tail transfers. Config: 432 bytes; copied payload: 4,072 bytes.
 
 Full-five geometry has additional conservative curved-rectangle containment
 checks for every icon corner across native icon sizes, heights and observed
@@ -53,3 +53,10 @@ Mode execution includes both corner choices and preference changes during the
 managed call. Owned scope execution terminates at the authenticated visual
 continuation; stock scope still enters the original diagnostic. Source mutation
 checks reject changed diagnostic callees, visual joins and retained-call GC maps.
+
+Display adaptation regression covers complete vertical icon containment and
+conservative fallback when the original parent cannot contain the painted ink.
+Parent clipping additionally checks the completed native child list before the
+Stack stores it, preserving stock clipping on pressure/invalid/empty fallback.
+Its dynamically encoded SizedBox CID comparison preserves all NZCV values,
+uses one dead register, and adds no managed allocation.

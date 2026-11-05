@@ -37,7 +37,7 @@ with io.BytesIO(artifact) as stream:
     table = elf.get_section_by_name('.symtab')
     assert table is not None, 'Use the unstripped CMake output; hidden bridge symbols are required'
     syms = {symbol.name: symbol['st_value'] for symbol in table.iter_symbols()}
-    required = ('template', 'gate', 'parent_clip', 'background', 'config', 'end', 'payload_end', 'refresh_begin', 'refresh_event', 'refresh_value', 'refresh_config', 'refresh_end', 'mode_post', 'mode_replay', 'mode_config')
+    required = ('template', 'gate', 'parent_clip', 'parent_cid', 'background', 'config', 'end', 'payload_end', 'refresh_begin', 'refresh_event', 'refresh_value', 'refresh_config', 'refresh_end', 'mode_post', 'mode_replay', 'mode_config')
     missing = [name for name in required if 'kh_dock_' + name not in syms]
     assert not missing, f'Missing production payload symbols: {missing}'
     origin, payload_end = (syms['kh_dock_template'], syms['kh_dock_payload_end'])
@@ -401,7 +401,7 @@ for enabled in (0, 2):
     assert not setup(enabled=enabled)
     cases += 1
 for C, H, w in ((36, 100, 20), (96, 80, 40), (401.5, 80.5, 55.25), (400, 17, 56)):
-    assert setup(C=C, H=H, w=w)
+    assert setup(C=C, H=H, w=w) == (H + 12 >= 8 + w)
     cases += 1
 for field in ('C', 'H', 'w'):
     for bad in (float('nan'), float('inf'), -float('inf'), -1.0, 0.0):
@@ -529,7 +529,7 @@ for count in (1, 5):
     assert setup(q8=40 * 256, count=count, w=100, ink_width=56, corner_address=False)
     cases += 1
 for C, H, w, ink in ((36, 100, 20, 20), (400, 17, 100, 56), (400, 36, 100, 56)):
-    assert setup(C=C, H=H, w=w, ink_width=ink, q8=40 * 256)
+    assert setup(C=C, H=H, w=w, ink_width=ink, q8=40 * 256) == (H + 12 >= 8 + ink)
     cases += 1
 for bits in range(16):
     for enabled in (0, 1, 2):
@@ -565,9 +565,9 @@ for mode in range(4):
                                  cell_height=120, q8=256 * 256) == (not elderly or count <= 4)
                     cases += 1
 for native in (False, True):
-    for top in (0, 4, 8, 20, 80, 120, 128, 149, 150, 152, 200):
+    for top in (0, 4, 8, 20, 76, 76.001, 80, 120, 128, 149, 150, 152, 200):
         assert setup(H=120, w=100, ink_width=56, icon_top=top,
-                     native=native) == (top < 150)
+                     native=native) == (top <= 76)
         cases += 1
 for bad in (-1., float('nan'), float('inf'), -float('inf')):
     assert not setup(icon_top=bad)
@@ -732,17 +732,33 @@ cases += 1
 # Execute the extra parent store through its authenticated native continuation.
 # Every register other than the proven-dead x1, all SIMD state, flags and stack
 # remain unchanged. Native continuation restores x1 and initializes children.
-def parent_clip_case(enabled, nzcv, heap_high):
+def parent_clip_case(enabled, nzcv, heap_high, first_tag=SIZED, empty=False):
     u = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
     heap = heap_high << 32
     for at, size in ((CODE,8192),(POLICY,4096),(POOL,4096),(END,4096),(STACK-4096,8192),(heap+0x100000,4096)):
         u.mem_map(at,size)
     u.mem_write(CODE,blob)
+    words=[0xd503201f]*10
+    bit,used,cid=0,0,SIZED>>12
+    while bit<20:
+        if not cid&(1<<bit):
+            bit+=1
+            continue
+        first_bit=bit
+        while bit<20 and cid&(1<<bit): bit+=1
+        words[used]=0x52000021|(((32-first_bit)&31)<<16)|((bit-first_bit-1)<<10)
+        used+=1
+    u.mem_write(CODE+entry['parent_cid'],struct.pack('<10I',*words))
     def put(at,v): u.mem_write(at,struct.pack('<Q',v))
     obj=heap+0x100001
     original=heap+0x100401
     none=heap+0x100501
     child=heap+0x100601
+    array,first=heap+0x100701,heap+0x100801
+    u.mem_write(child+0xb,struct.pack('<I',0 if empty else 2))
+    u.mem_write(child+0xf,struct.pack('<I',array&0xffffffff))
+    u.mem_write(array+0xf,struct.pack('<I',first&0xffffffff))
+    u.mem_write(first-1,struct.pack('<I',first_tag))
     put(CODE+entry['config'],POLICY)
     put(CODE+entry['config']+160,0x118)
     put(CODE+entry['config']+280,0x130)
@@ -754,7 +770,7 @@ def parent_clip_case(enabled, nzcv, heap_high):
     u.mem_write(END,bytes.fromhex('a1835df801b000b8c0035fd6'))
     for i,r in enumerate(X):u.reg_write(r,0x44440000+i*256)
     for i,r in enumerate(Q):u.reg_write(r,0x11112222333344445555666677770000+i)
-    for i,v in {0:obj,1:original,15:STACK-128,27:POOL,29:STACK,30:END+256}.items():u.reg_write(X[i],v)
+    for i,v in {0:obj,1:original,15:STACK-128,27:POOL,28:heap_high,29:STACK,30:END+256}.items():u.reg_write(X[i],v)
     u.reg_write(ar.UC_ARM64_REG_SP,STACK+1024)
     u.reg_write(ar.UC_ARM64_REG_NZCV,nzcv)
     before=[u.reg_read(r) for r in X];qbefore=[u.reg_read(r) for r in Q]
@@ -766,13 +782,19 @@ def parent_clip_case(enabled, nzcv, heap_high):
     assert u.reg_read(ar.UC_ARM64_REG_NZCV)==nzcv
     assert u.reg_read(ar.UC_ARM64_REG_SP)==STACK+1024
     assert bytes(u.mem_read(STACK-4096,8192))==stack_before
-    assert struct.unpack('<I',u.mem_read(obj+0x1b,4))[0]==((none if enabled==1 else original)&0xffffffff)
+    expected=none if enabled==1 and not empty and first_tag==SIZED else original
+    assert struct.unpack('<I',u.mem_read(obj+0x1b,4))[0]==(expected&0xffffffff)
     assert struct.unpack('<I',u.mem_read(obj+0xb,4))[0]==(child&0xffffffff)
 for enabled in (0,1,2,0xffffffff):
     for flags in range(16):
         for heap_high in (1,7):
-            parent_clip_case(enabled,flags<<28,heap_high)
-            cases+=1
+            for first_tag,empty in ((SIZED,False),(BG,False),(SIZED,True)):
+                parent_clip_case(enabled,flags<<28,heap_high,first_tag,empty)
+                cases+=1
+for bit in range(20):
+    for heap_high in (1,7):
+        parent_clip_case(1,0xa0000000,heap_high,SIZED^(1<<(bit+12)))
+        cases+=1
 
 report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=432, arena_bytes={'rounded_glass':336,'recents_glass':352,'other':320}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
 if args.report:

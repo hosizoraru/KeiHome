@@ -36,13 +36,34 @@ kh_dock_gate:
 // original frame; only that dead register is used. No flags, other registers,
 // root slots or allocation state change. Keep its stock clip while disabled.
     .global kh_dock_parent_clip
+    .global kh_dock_parent_cid
     .hidden kh_dock_parent_clip
+    .hidden kh_dock_parent_cid
 kh_dock_parent_clip:
     hint #38
     adr x1, kh_dock_config
     ldr x1, [x1, #KH_DOCK_ENABLED]
     ldar w1, [x1]
     sub w1, w1, #1
+    cbnz w1, .Ldock_parent_stock_clip
+    // The Stack has not stored children yet. Its proven fp-40 root owns the
+    // completed GrowableList: only the module's painted plate is a SizedBox.
+    ldur x1, [x29, #-40]
+    ldur w1, [x1, #0xb]
+    cbz w1, .Ldock_parent_stock_clip
+    ldur x1, [x29, #-40]
+    ldur w1, [x1, #0xf]
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #0xf]
+    add x1, x1, x28, lsl #32
+    ldur w1, [x1, #-1]
+    ubfx w1, w1, #12, #20
+kh_dock_parent_cid:
+    // Installer XORs the resolved CID with at most ten logical immediates.
+    // EOR/CBNZ preserve NZCV and use the sole proven-dead register.
+    .rept 10
+    nop
+    .endr
     cbnz w1, .Ldock_parent_stock_clip
     adr x1, kh_dock_config
     ldr x1, [x1, #KH_DOCK_CLIP_PP]
@@ -340,10 +361,13 @@ kh_dock_background:
     fmax d20, d20, d7            // top = max(-12, nativeIconTop-18)
     fadd d21, d21, d19
     dock_finite d21
+    fmov d22, d21               // full native painted bottom, before padding
     fadd d21, d21, d16
     fmov d7, #12.0
     fadd d7, d1, d7
     fmin d21, d7, d21            // bottom = min(H+12, nativeIconTop+inkWidth+18)
+    fcmp d21, d22
+    b.lt .Ldock_original        // do not draw a plate containing only part of an icon
     fsub d7, d21, d20
     fdiv d7, d7, d18              // actual painted plate height/2
     fmin d5, d5, d7

@@ -235,3 +235,13 @@ coverage; it does not establish universal form-factor or landscape acceptance.
 
 Wallpaper material selection and Pad source findings have separate source and
 device acceptance from these placement checks.
+
+Additional portrait checks use 1080x1920 and 1296x2800 at the original 480dpi.
+The visible Dock icons remain inside the plate, whose vertical location
+follows the native layout. Launcher 3844/2126/9661200, system_server and SystemUI
+identities stay unchanged; 1120x2436 is restored afterward. The short-screen
+vendor layout places the native search capsule close to its last workspace
+row; this check establishes Dock placement, not a redesign of vendor workspace
+spacing. These are simulated configurations on one AVD, not physical-device
+or universal landscape acceptance. See
+`.artifacts/research/dock-material-20261105/geometry-device/expanded-layout.json`.

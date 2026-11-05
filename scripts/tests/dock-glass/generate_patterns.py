@@ -110,7 +110,30 @@ def clip_identity_oracle(im,clip,super_create,rect_create,glass):
  assert next(i for i in range(4096,len(table)) if table[i]==im.syms['ValueKey.=='][0][0])==4096+(key_tag>>12)
  assert branch(im,key_caller+0x9c)==im.syms['ValueKey.toString'][0][0]
  cids.append(key_tag>>12)
- return cids
+ # Find the native search entry wrapper by its createState dispatch identity
+ # and its two calls to the source-owned center resolver, not allocator order.
+ unlock=im.syms['UnlockAnimWidget.createState'][0][0]
+ center=im.syms['SearchBarGetXController.getCenterLocation'][0][0]
+ item_pc,item_size=im.syms['_HotseatWidgetState._buildItems'][0]
+ allocators=[]
+ for i,w in enumerate(struct.unpack('<'+'I'*(item_size//4),im.read(item_pc,item_size))):
+  if w&0xfc000000!=0x94000000:continue
+  target=branch(im,item_pc+i*4);a,c=struct.unpack('<II',im.read(target,8))
+  if a&0xffe0001f!=0xd2800002 or c&0xffe0001f!=0xf2a00002:continue
+  tag=((a>>5)&65535)|((c>>5)&65535)<<16
+  if any(4096+bias+(tag>>12)<len(table) and table[4096+bias+(tag>>12)]==unlock for bias in biases):
+   allocators.append(target)
+ assert len(allocators)==1
+ callers=[]
+ for lo,hi,ex in im.ranges:
+  if not ex:continue
+  for i,w in enumerate(struct.unpack('<'+'I'*((hi-lo)//4),im.read(lo,(hi-lo)//4*4))):
+   at=lo+i*4
+   if w&0xfc000000==0x94000000 and branch(im,at)==allocators[0] and at>=0xc4:
+    first,second=struct.unpack('<I',im.read(at-0xc4,4))[0],struct.unpack('<I',im.read(at-0xa0,4))[0]
+    if first&0xfc000000==second&0xfc000000==0x94000000 and branch(im,at-0xc4)==center and branch(im,at-0xa0)==center:callers.append(at)
+ assert len(callers)==1,callers
+ return cids,callers[0]
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--fixtures',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
@@ -135,7 +158,14 @@ def main():
    at,size=roles[role];calls=[at+i*4 for i,w in enumerate(struct.unpack('<'+'I'*(size//4),im.read(at,size))) if w&0xfc000000==0x94000000]
    ctor=branch(im,calls[-1]);words=struct.unpack('<128I',im.read(ctor,512));length=(words.index(0xd65f03c0)+1)*4
    roles[role.replace('Create','Constructor')]=(ctor,length)
-  print(version,'clip / original Glass child / ValueKey CIDs',clip_identity_oracle(im,roles['RecentsClip'],roles['RecentsSuperCreate'][0],roles['RecentsRectCreate'][0],roles['GlassBuild'][0]))
+  cids,unlock_call=clip_identity_oracle(im,roles['RecentsClip'],roles['RecentsSuperCreate'][0],roles['RecentsRectCreate'][0],roles['GlassBuild'][0])
+  print(version,'clip / original Glass child / ValueKey CIDs',cids,'native search entry',hex(unlock_call))
+  roles['UnlockSearch']=(unlock_call-0xc4,0x104)
+  for role,name in [('UnlockCreate','UnlockAnimWidget.createState'),('UnlockLocation','_UnlockWidgetState._resolveCellLocationInfo'),('UnlockCenter','SearchBarGetXController.getCenterLocation')]:
+   [(at,size)]=im.syms[name];roles[role]=(at,size)
+  create,size=roles['UnlockCreate'];ctor=branch(im,create+0x24)
+  words=struct.unpack('<512I',im.read(ctor,2048))
+  roles['UnlockConstructor']=(ctor,(words.index(0xd65f03c0)+1)*4)
   # The unnamed RenderStack constructor is the final direct call from the
   # symbol-oracle creation method. Production follows this same call edge.
   create,size=roles['StackCreate'];assert size==0x94

@@ -297,6 +297,47 @@ bool GlassFutureSlotUntouched(const IconHighlightImage& im,const DockGlassProfil
     }
     return true;
 }
+bool ResolveUnlockAnimation(const IconHighlightImage& im,DockGlassProfile& p,
+                            const std::vector<size_t>& dispatch,const char** why) {
+    p.unlock_search=Find(im,kDockUnlockSearch);
+    p.unlock_location=Find(im,kDockUnlockLocation);
+    p.unlock_center=Find(im,kDockUnlockCenter);
+    const size_t stateful=Find(im,kDockRecentsStatefulConstructor);
+    const auto* stateful_role=Role(im,stateful,kDockRecentsStatefulConstructor);
+    const auto* location=Role(im,p.unlock_location,kDockUnlockLocation);
+    if(!p.unlock_search||!p.unlock_center||!location||!stateful_role||
+       Branch(im,p.unlock_search)!=p.unlock_center||
+       Branch(im,p.unlock_search+0x24)!=p.unlock_center)
+        return Fail(why,"native unlock/search center roles");
+    const size_t call=p.unlock_search+0xc4;
+    p.unlock_tag=Tag(im,Branch(im,call));
+    p.unlock_create=DispatchRole(im,dispatch,stateful,stateful_role->count*4,
+                                p.unlock_tag,kDockUnlockCreate);
+    if(!p.unlock_tag||(p.unlock_tag&0xfffu)!=0x31cu||!p.unlock_create||
+       !Role(im,Branch(im,p.unlock_create+0x24),kDockUnlockConstructor)||
+       Word(im,call+0x1c)!=0xd2800060u|| // native search animation category
+       Word(im,call+0x28)!=0xb8027020u||
+       Word(im,call+0x30)!=0xf801f022u||
+       Word(im,call+0x38)!=0xb802b022u)
+        return Fail(why,"native unlock widget layout/dispatch");
+    const uint32_t debug=Word(im,call+0x34);
+    if((debug&0xffc003ffu)!=0xf9400362u)
+        return Fail(why,"native unlock debug token");
+    p.unlock_debug_pp=((debug>>10)&4095u)*8u;
+    // Native failure/default branches return the canonical Offset.zero. Keep
+    // that typed immutable seed; the existing search role resolves live
+    // center/visibility from current GridConfig during animation preparation.
+    for(size_t at=p.unlock_location;at<p.unlock_location+location->count*4-4;at+=4) {
+        const uint32_t w=Word(im,at);
+        if((w&0xffc003ffu)!=0xf9400360u||!Branch(im,at+4,false))continue;
+        const uint32_t pool=((w>>10)&4095u)*8u;
+        if(p.unlock_zero_pp&&p.unlock_zero_pp!=pool)
+            return Fail(why,"native unlock zero ambiguity");
+        p.unlock_zero_pp=pool;
+    }
+    if(!p.unlock_zero_pp)return Fail(why,"native unlock Offset seed");
+    return true;
+}
 bool ResolveOwnedGlassSources(const IconHighlightImage& im,DockGlassProfile& p,const char** why) {
     p.glass_build=Find(im,kDockGlassBuild);
     p.value_key_caller=Find(im,kDockValueKeyCaller);
@@ -391,6 +432,7 @@ bool ResolveRecentsCorners(const IconHighlightImage& im,DockGlassProfile& p,cons
     const size_t mount=Find(im,kDockRecentsRenderMount);
     const auto* mount_role=Role(im,mount,kDockRecentsRenderMount);
     if(!mount_role||!RecentsDispatch(im,p,dispatch))return Fail(why,"native Dart dispatch root");
+    if(!ResolveUnlockAnimation(im,p,dispatch,why))return false;
     const size_t key_index=4096+(p.value_key_tag>>12);
     if(key_index>=dispatch.size()||dispatch[key_index]!=p.value_key_equals)
         return Fail(why,"ValueKey CID/equality dispatch identity");

@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
     printf("phone=%zx bg=%zx gate=%zx outer=%zx mode=%zx tags=%x,%x,%x,%x stack=%x box=%x pos=%x device=%x corner=%x clip_none=%x native_clip=%x parent_clip_store=%zx\n",p.phone,p.background_call,p.gate,p.outer_call,p.mode,p.material_tags[0],p.material_tags[1],p.material_tags[2],p.material_tags[3],p.stack_tag,p.sized_box_tag,p.positioned_tag,p.device_slot,p.corner_field,p.clip_pp,p.native_clip_pp,p.parent_clip_store);
     printf("curve_getter=%zx adaptive=%zx radius=%x border=%x super=%x rect=%x behavior_pp=%x ordinary_bits=%llx stacked_min_bits=%llx dispatch=%zx..%zx\n",p.curve_getter,p.recents_adaptive_clip,p.recents_radius_tag,p.recents_border_radius_tag,p.recents_superellipse_tag,p.recents_rrect_tag,p.recents_clip_pp,(unsigned long long)p.recents_default_radius_bits,(unsigned long long)p.recents_stacked_min_radius_bits,p.recents_dispatch_start,p.recents_dispatch_end);
     printf("glass=%zx scope=%zx/%08x child_scope=%zx/%08x clip_alloc=%zx/%08x roots=%d,%d key_tag=%08x key_alloc=%zx key_caller=%zx key_equals=%zx scope_map=%zx/%02x child_map=%zx/%02x\n",p.glass_build,p.glass_scope_store,p.glass_scope_expected,p.glass_child_scope_store,p.glass_child_scope_expected,p.glass_clip_alloc_call,p.glass_clip_alloc_expected,p.glass_scope_root_slot,p.glass_child_root_slot,p.value_key_tag,p.value_key_alloc,p.value_key_caller,p.value_key_equals,p.glass_scope_stackmap,bytes[p.glass_scope_stackmap],p.glass_child_stackmap,bytes[p.glass_child_stackmap]);
+    printf("unlock_search=%zx unlock_create=%zx unlock_location=%zx unlock_center=%zx unlock_tag=%x unlock_zero_pp=%x unlock_debug_pp=%x\n",p.unlock_search,p.unlock_create,p.unlock_location,p.unlock_center,p.unlock_tag,p.unlock_zero_pp,p.unlock_debug_pp);
     if(argc==3)return 0;
     unsigned checks=0;
     if(!p.recents_flight_radius||p.recents_flight_radius_slot>=0||
@@ -43,11 +44,19 @@ int main(int argc, char** argv) {
             !rejected.recents_superellipse_tag&&
             !rejected.recents_default_radius_bits&&!rejected.recents_dispatch_start&&
             !rejected.glass_build&&!rejected.glass_scope_store&&!rejected.value_key_tag&&
-            !rejected.glass_scope_stackmap&&!rejected.glass_child_stackmap;
+            !rejected.glass_scope_stackmap&&!rejected.glass_child_stackmap&&
+            !rejected.unlock_tag&&!rejected.unlock_search&&!rejected.unlock_zero_pp;
         memcpy(bytes.data()+at,&old,4);++checks;
         if(!ok)fprintf(stderr,"accepted mutation at %zx\n",at);
         return ok;
     };
+    if(!rejects(p.unlock_search,0x94000000u)||
+       !rejects(p.unlock_search+0xc4,0x94000000u)||
+       !rejects(p.unlock_search+0xe0,0xd2800040u)||
+       !rejects(p.unlock_search+0xf4,0xd503201fu)||
+       !rejects(p.unlock_create+0x24,0x94000000u)||
+       !rejects(p.unlock_location,0xd503201fu)||
+       !rejects(p.unlock_center,0xd503201fu))return 1;
     if(!rejects(p.gate,p.gate_expected^0x20u)||!rejects(p.background_call,0x94000000u)||
        !rejects(p.mode_post,0xd503201fu)||!rejects(p.mode,0xd503201fu)||
        !rejects(p.background+8,0x94000000u)||!rejects(p.phone+0x40,0xd503201fu)||

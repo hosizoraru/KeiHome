@@ -25,6 +25,8 @@ The Desktop tab groups launcher glass appearance, Dock glass and corner style,
 and app-name presentation. Its overview reuses the semantic status card from
 Status and Icon packs. Each feature occupies a separate pill row; the pills
 reserve the same space for the status graphic as the headline.
+Cards with feature pills measure and clip their decorative symbol against the
+whole card, preserving its square proportions even with a short headline.
 
 Saved choices and native acknowledgements remain distinct. Only fresh reports
 from the current module can confirm a matching configuration. Scope, missing

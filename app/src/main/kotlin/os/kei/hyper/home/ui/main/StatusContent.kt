@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.colorResource
@@ -810,88 +812,98 @@ internal fun StatusOverviewCard(
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
     Box(Modifier.fillMaxWidth().clipToBounds()) {
-      // This layer follows the text's measured height; the decorative symbol never
-      // expands the card or overlaps the text column, including at large font sizes.
-      Box(Modifier.matchParentSize()) {
-        Icon(
-          imageVector = icon,
-          modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .offset(x = 27.dp, y = 31.dp)
-            .size(130.dp)
-            .then(
-              if (tone == StatusTone.READY) {
-                Modifier.border(5.dp, accentColor, CircleShape).padding(26.dp)
-              } else Modifier,
-            ),
-          tint = accentColor,
-          contentDescription = null,
-        )
+      // Badge rows belong to the card, so their symbol uses the full card bounds.
+      if (badges.isNotEmpty()) Box(Modifier.matchParentSize()) {
+        StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.CenterEnd)
+          .offset(x = 27.dp).requiredSize(130.dp))
       }
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
-      ) {
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-          Text(
-            text = title,
-            style = MiuixTheme.textStyles.title2.copy(fontWeight = FontWeight.SemiBold),
-            color = contentColor,
-          )
-          Text(
-            text = summary,
-            style = MiuixTheme.textStyles.body2,
-            color = contentColor.copy(alpha = 0.84f),
-          )
-        }
-        if (footer != null) {
-          Text(
-            text = footer,
-            modifier = Modifier.padding(top = 12.dp),
-            style = MiuixTheme.textStyles.footnote1,
-            color = contentColor,
-          )
-        }
-      }
-    }
-    if (environmentSummary != null) Text(environmentSummary,
-      modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
-      style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
-      maxLines = 2, overflow = TextOverflow.Ellipsis)
-    if (badges.isNotEmpty()) {
-      Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 112.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-      ) {
-        badges.forEach { MetadataPill(it, accentColor) }
-      }
-    }
-    if (details.isNotEmpty()) {
-      Column(
-        modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-      ) {
-        details.forEach { detail ->
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+      Column {
+        Box(Modifier.fillMaxWidth().clipToBounds()) {
+          if (badges.isEmpty()) Box(Modifier.matchParentSize()) {
+            StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.BottomEnd)
+              .offset(x = 27.dp, y = 31.dp).size(130.dp))
+          }
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
           ) {
-            Text(
-              text = detail.label,
-              modifier = Modifier.weight(1f),
-              style = MiuixTheme.textStyles.body2,
-              color = contentColor.copy(alpha = 0.7f),
-            )
-            Text(
-              text = detail.value,
-              modifier = Modifier.weight(1.2f),
-              style = MiuixTheme.textStyles.body2,
-              color = contentColor,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+              Text(
+                text = title,
+                style = MiuixTheme.textStyles.title2.copy(fontWeight = FontWeight.SemiBold),
+                color = contentColor,
+              )
+              Text(
+                text = summary,
+                style = MiuixTheme.textStyles.body2,
+                color = contentColor.copy(alpha = 0.84f),
+              )
+            }
+            if (footer != null) {
+              Text(
+                text = footer,
+                modifier = Modifier.padding(top = 12.dp),
+                style = MiuixTheme.textStyles.footnote1,
+                color = contentColor,
+              )
+            }
+          }
+        }
+        if (environmentSummary != null) Text(environmentSummary,
+          modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
+          style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
+          maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (badges.isNotEmpty()) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 112.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            badges.forEach { MetadataPill(it, accentColor) }
+          }
+        }
+        if (details.isNotEmpty()) {
+          Column(
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
+            details.forEach { detail ->
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+              ) {
+                Text(
+                  text = detail.label,
+                  modifier = Modifier.weight(1f),
+                  style = MiuixTheme.textStyles.body2,
+                  color = contentColor.copy(alpha = 0.7f),
+                )
+                Text(
+                  text = detail.value,
+                  modifier = Modifier.weight(1.2f),
+                  style = MiuixTheme.textStyles.body2,
+                  color = contentColor,
+                )
+              }
+            }
           }
         }
       }
     }
   }
+}
+
+@Composable
+private fun StatusOverviewSymbol(
+  icon: ImageVector, tone: StatusTone, color: Color, modifier: Modifier,
+) {
+  Icon(
+    imageVector = icon,
+    modifier = modifier.then(
+      if (tone == StatusTone.READY) Modifier.border(5.dp, color, CircleShape).padding(26.dp)
+      else Modifier,
+    ),
+    tint = color,
+    contentDescription = null,
+  )
 }

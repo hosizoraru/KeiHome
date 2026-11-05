@@ -89,6 +89,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     when (section) {
       "home" -> {
         item("native") { SystemIconThemeCard(runtime) { model.refresh(3) } }
+        item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
+          stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
         item("completion") { PackCompletionCard(model, onOpenSettings) }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }

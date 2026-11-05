@@ -39,6 +39,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  if (section == "monet") {
+    MonetDestinationScreen(model, onBack)
+    return
+  }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales) {

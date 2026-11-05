@@ -1,5 +1,24 @@
 # Apps browser and App appearance
 
+## Monet navigation, 2026-11-06
+
+The primary navigation contains Status, Apps, Icon packs and Settings. The
+icon-pack landing page opens Monet through `PackRoute("monet")`. The Status
+Monet shortcut selects Icon packs before opening the same child destination,
+so the back arrow and system Back both return to Icon packs.
+
+The original Monet controls, palette previews and apply action are preserved.
+The child destination owns its scroll state and lifecycle observation, keeping
+logical page 2 for palette refresh and its apply action. Icon-pack pages retain
+logical page 3; removing a pager tab does not change either refresh contract.
+English, Simplified Chinese and Japanese include the new entry summary.
+
+Release checks on HyperOS Phone `emulator-5580` covered both entrances, the
+back arrow, system Back and the edge-back gesture, scrolling, retained parent
+scroll position, refresh and the four-tab pager. Monet remained disabled. The
+API 102 Java update preserved Launcher, SystemUI and system-server identities.
+Evidence is under `.artifacts/research/monet-subpage-20261106/`.
+
 ## Settings and About
 
 Settings is grouped into App, system and hook, cache, and About destinations.

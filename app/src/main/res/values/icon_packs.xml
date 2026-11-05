@@ -2,6 +2,7 @@
 <resources>
     <string name="icon_pack_native_eligibility_failed">Imported, but local icon support is not ready. Expand details to retry the update.</string>
     <string name="navigation_icon_packs">Icon packs</string>
+    <string name="pack_monet_summary">Themed icons, color schemes, and palette settings.</string>
     <string name="icon_pack_active">Used by the launcher</string>
     <string name="icon_pack_system_default">System default</string>
     <string name="icon_pack_system_theme">System icon theme</string>

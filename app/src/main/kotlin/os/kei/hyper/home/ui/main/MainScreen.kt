@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -45,7 +43,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.ui.components.BlurredBar
@@ -69,7 +66,6 @@ import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -85,28 +81,28 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
     os.kei.hyper.home.data.AppPagerGesture.IOS_LIKE -> PagerInterceptionMode.TapToHalt
   }
-  val pager = rememberPagerState { 5 }
+  val pages = remember { listOf(0, 1, 3, 4) }
+  // Reset the old five-tab pager state once; its Settings index no longer exists.
+  val pager = androidx.compose.runtime.key("main-tabs-v2") { rememberPagerState { pages.size } }
   val navigationScope = rememberCoroutineScope()
-  val selectedTab = pager.currentPage
+  val selectedTab = pager.currentPage.coerceIn(pages.indices)
   fun selectTab(index: Int) { navigationScope.launch { pager.springAnimateToPage(index) } }
-  val page = listOf(0, 1, 3, 2, 4)[selectedTab]
+  val page = pages[selectedTab]
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, selectedTab, locales) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(page, locales) }
   }
   val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
-    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_monet),
-    stringResource(R.string.navigation_settings))
+    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_settings))
   val navigation = remember(labels) { listOf(
     NavigationItem(labels[0], MiuixIcons.Info), NavigationItem(labels[1], MiuixIcons.GridView),
-    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Theme),
-    NavigationItem(labels[4], MiuixIcons.Settings),
+    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
-  val behaviors = List(5) { tab -> androidx.compose.runtime.key("bar-$tab") { MiuixScrollBehavior() } }
+  val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
   val appList = rememberLazyListState()
-  val pageScrolls = List(5) { tab -> androidx.compose.runtime.key("scroll-$tab") { rememberScrollState() } }
+  val pageScrolls = pages.map { page -> androidx.compose.runtime.key("scroll-$page") { rememberScrollState() } }
   val savedPages = rememberSaveableStateHolder()
   Scaffold(
     modifier = modifier,
@@ -121,7 +117,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
               AppsFilterMenu(model)
               AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
             }
-            if (selectedTab != 4) RefreshAction(model, page)
+            if (page != 4) RefreshAction(model, page)
           },
         )
       }
@@ -144,7 +140,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   ) { insets ->
     val padding = PaddingValues(start = 16.dp, end = 16.dp,
       top = insets.calculateTopPadding() + 4.dp,
-      bottom = insets.calculateBottomPadding() + if (page == 2 || page == 3) 100.dp else 24.dp)
+      bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
       HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
@@ -154,7 +150,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
         pageNestedScrollConnection = if (gestureMode == PagerInterceptionMode.CrossAxis)
           top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
         else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
-        val page = listOf(0, 1, 3, 2, 4)[tab]
+        val page = pages[tab]
         savedPages.SaveableStateProvider(page) {
         val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[tab].nestedScrollConnection)
         if (tab == 1) {
@@ -171,15 +167,11 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
             when (page) {
               0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = { selectTab(3) },
+                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = {
+                    navigationScope.launch { pager.scrollToPage(2); onOpenPackSection("monet") }
+                  },
                     onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") })
                   RefreshFeedback(model, 0)
-                }
-              }
-              2 -> {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                  MonetPage(model)
-                  RefreshFeedback(model, 2)
                 }
               }
               4 -> SettingsRootPage(model, onOpenSettingsSection)
@@ -212,51 +204,6 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     runtime = runtime,
     iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered },
     onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment)
-}
-
-@Composable
-private fun MonetPage(model: HomeViewModel) {
-  val monet by model.monet.collectAsStateWithLifecycle()
-  val framework by model.framework.collectAsStateWithLifecycle()
-  val runtime by model.runtime.collectAsStateWithLifecycle()
-  val preferences by model.preferences.state.collectAsStateWithLifecycle()
-  val packs by model.iconPacks.collectAsStateWithLifecycle()
-  val browser by model.browserSource.collectAsStateWithLifecycle()
-  val ordinary = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == false
-  val paletteNames = browser.takeIf { it?.revision == runtime.report?.iconTheme?.previewKey }?.paletteNames
-  val locked = colorOsPaletteLocked(ordinary, paletteNames)
-  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
-    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
-  top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    top.yukonga.miuix.kmp.preference.SwitchPreference(
-      title = stringResource(R.string.pack_monet_toggle),
-      summary = stringResource(if (locked) R.string.pack_monet_ordinary_locked
-        else if (ordinary) R.string.pack_monet_fallback_summary else R.string.pack_monet_toggle_summary),
-      checked = monet.snapshot?.monochrome?.enabled == true,
-      enabled = !locked && framework.connected && monet.snapshot != null &&
-        framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong() &&
-        monet.action != os.kei.hyper.home.data.MonetActionStatus.APPLYING,
-      onCheckedChange = model::setMonetEnabled)
-  }
-  val inspiration = preferences.monetInspiration ?:
-    (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
-      runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
-  top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference(
-      title = stringResource(R.string.pack_monet_design),
-      items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
-      selectedIndex = if (inspiration) 1 else 0,
-      onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
-    if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
-      model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
-  }
-  if (inspiration) ColorOsSettings(model, ready, inspiration = true)
-  MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
-    preferredStyle = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION else null,
-    preferredAppearance = preferences.iconPackAppearance,
-    actionAvailable = !locked && framework.connected && !framework.readFailed &&
-      framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
-    actionStatus = monet.action, onApply = model::applyMonet)
 }
 
 @Composable

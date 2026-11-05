@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="navigation_icon_packs">图标包</string>
+    <string name="pack_monet_summary">主题图标、取色方案与配色设置。</string>
     <string name="icon_pack_active">桌面正在使用</string>
     <string name="icon_pack_system_default">系统默认</string>
     <string name="icon_pack_system_theme">系统主题图标</string>

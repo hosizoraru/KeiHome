@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_desktop">桌面</string>
+    <string name="desktop_synced_count">%1$d / %2$d 已同步</string>
+    <string name="desktop_labels_status_title">应用名称</string>
+    <string name="desktop_glass_status_title">玻璃质感</string>
+    <string name="desktop_dock_on">已开启 · %1$s</string>
+    <string name="desktop_feature_off">未开启</string>
+    <string name="desktop_status_not_ready">未就绪</string>
+    <string name="desktop_status_error">同步异常</string>
+    <string name="desktop_status_unavailable">暂不支持</string>
+    <string name="desktop_appearance_section">桌面外观</string>
+    <string name="desktop_refresh_completed">桌面设置与接收状态已于 %1$s 刷新。</string>
+    <string name="desktop_ready_title">桌面已就绪</string>
+    <string name="desktop_pending_title">桌面待同步</string>
+    <string name="desktop_error_title">桌面同步异常</string>
+    <string name="desktop_dock_status_title">Dock</string>
+    <string name="desktop_status_badge">%1$s · %2$s</string>
+</resources>

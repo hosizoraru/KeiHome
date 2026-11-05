@@ -294,7 +294,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
-          if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
+          if (visiblePage != null && visiblePage != 4)
+            launch { readRuntimeStatus(includeIconTheme = visiblePage != 5) }
           readFramework()
           readThemeEffects()
           launcherLabels.read()
@@ -322,8 +323,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 4) launch {
         readFramework()
         readSplashAppearance()
-        while (true) { readThemeEffects(); launcherLabels.read(); dockGlass.read(); launcherGlass.read(); delay(5_000) }
+        while (true) { readThemeEffects(); delay(5_000) }
       }
+      if (page == 5) launch { observeDesktopStatus() }
       if (page in 0..3) launch {
         while (true) {
           readFramework()
@@ -343,12 +345,29 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   /** Keep the fallback controls current only while they are visible. */
-  suspend fun observeFallbackResources(): Unit = coroutineScope {
-    launch { if (iconPacksDirty) readIconPacks() }
+  suspend fun observeFallbackResources(pageObserved: Boolean = false): Unit = coroutineScope {
+    if (!pageObserved) launch { if (iconPacksDirty) readIconPacks() }
     while (true) {
       if (appsDirty) scanApps()
-      readRuntimeStatus(true)
+      if (!pageObserved) readRuntimeStatus(true)
       delay(10_000)
+    }
+  }
+
+  /** Receipts omit the icon inventory; polling ends when the visible desktop surface leaves. */
+  suspend fun observeDesktopStatus(): Unit = coroutineScope {
+    launch {
+      while (true) {
+        readFramework()
+        launcherLabels.read()
+        dockGlass.read()
+        launcherGlass.read()
+        delay(5_000)
+      }
+    }
+    while (true) {
+      refreshHomeScreenStatus()
+      delay(5_000)
     }
   }
 
@@ -365,7 +384,18 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         readFramework()
-        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read(); dockGlass.read(); launcherGlass.read() }
+        if (page == 4) { readSplashAppearance(); readThemeEffects() }
+        if (page == 5) {
+          launcherLabels.read()
+          dockGlass.read()
+          launcherGlass.read()
+          refreshHomeScreenStatus()
+          val failed = framework.value.readFailed || homeScreenRuntime.value.readFailed ||
+            homeScreenRuntime.value.timedOut || launcherLabels.state.value.failed ||
+            dockGlass.state.value.failed || launcherGlass.state.value.failed
+          refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
+          return@launch
+        }
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()

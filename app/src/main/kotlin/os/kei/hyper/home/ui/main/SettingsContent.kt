@@ -61,6 +61,7 @@ internal fun SettingsContent(
   launcherLabelsContent: @Composable () -> Unit,
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
+  desktopStatusObserver: @Composable () -> Unit = {},
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -80,18 +81,19 @@ internal fun SettingsContent(
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
   val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
     R.string.top_bar_gaussian, R.string.top_bar_progressive)
-  val fallback = matches(SettingsSection.HOOK, R.string.settings_hook_section,
+  val migratedSearch = section == null && query.isNotBlank()
+  val fallback = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
     R.string.system_fallback_classic, R.string.system_fallback_boundless,
     R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
   val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
-  val launcherGlass = matches(SettingsSection.HOOK, R.string.settings_system_appearance,
+  val launcherGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.settings_system_appearance,
     R.string.launcher_glass_title, R.string.launcher_glass_summary,
     R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
-  val labels = matches(SettingsSection.HOOK, R.string.launcher_labels_section, R.string.launcher_labels_title,
+  val labels = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.launcher_labels_section, R.string.launcher_labels_title,
     R.string.launcher_labels_summary, R.string.launcher_labels_native, R.string.launcher_labels_marquee,
     R.string.launcher_labels_two_lines)
-  val dockGlass = matches(SettingsSection.HOOK, R.string.launcher_labels_section,
+  val dockGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.launcher_labels_section,
     R.string.dock_glass_title, R.string.dock_glass_summary, R.string.dock_glass_corner_title,
     R.string.dock_glass_corner_summary, R.string.dock_glass_corner_recents, R.string.dock_glass_corner_rounded)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
@@ -157,7 +159,8 @@ internal fun SettingsContent(
     if (effects || launcherGlass) {
       SmallTitle(stringResource(R.string.settings_system_appearance), modifier = Modifier.semantics { heading() })
       if (effects) ThemeEffectsCard(themeEffects, framework, onThemeEffectsChange)
-      if (launcherGlass) launcherGlassContent()
+    if (launcherGlass || labels || dockGlass) desktopStatusObserver()
+    if (launcherGlass) launcherGlassContent()
     }
     if (labels || dockGlass) {
       SmallTitle(stringResource(R.string.launcher_labels_section), modifier = Modifier.semantics { heading() })

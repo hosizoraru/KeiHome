@@ -1,9 +1,14 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +24,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -43,10 +49,16 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     MonetDestinationScreen(model, onBack)
     return
   }
+  val fallback = section == "fallback"
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
-  LaunchedEffect(model, lifecycle, locales) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(3, locales) }
+  LaunchedEffect(model, lifecycle, locales, section) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      coroutineScope {
+        launch { model.observePage(3, locales) }
+        if (fallback) model.observeFallbackResources(pageObserved = true)
+      }
+    }
   }
   val behavior = MiuixScrollBehavior()
   val list = rememberLazyListState()
@@ -60,6 +72,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           "builtin" -> R.string.pack_builtin
           "installed" -> R.string.pack_installed
           "imported" -> R.string.pack_imported
+          "fallback" -> R.string.pack_completion_title
           else -> R.string.pack_coloros_title
         }), scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
@@ -75,10 +88,16 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     }, floatingActionButton = { PackActionFab(model, 3, section) },
   ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      IconPacksPage(model, list,
-        PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() + if (section == "coloros") 100.dp else 24.dp),
-        Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), section, onNavigate)
+      val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
+        bottom = insets.calculateBottomPadding() + if (section == "coloros" || fallback) 100.dp else 24.dp)
+      val contentModifier = Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)
+      if (fallback) {
+        Column(contentModifier.verticalScroll(rememberScrollState()).padding(padding),
+          verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SystemIconFallbackCard(model)
+          RefreshFeedback(model, 3)
+        }
+      } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate)
     }
   }
 }

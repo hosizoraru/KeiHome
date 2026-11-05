@@ -9,7 +9,7 @@
     <string name="settings_app_section">App 设置</string>
     <string name="settings_app_summary">外观、语言、页面导航与图标包操作</string>
     <string name="settings_hook_section">系统与 Hook</string>
-    <string name="settings_hook_summary">系统图标回退、材质效果与启动遮罩</string>
+    <string name="settings_hook_summary">系统材质效果与启动画面适配</string>
     <string name="settings_cache_section">缓存管理</string>
     <string name="settings_cache_summary">图标预览与缓存清理</string>
     <string name="settings_about_summary">版本、源码与开源组件声明</string>

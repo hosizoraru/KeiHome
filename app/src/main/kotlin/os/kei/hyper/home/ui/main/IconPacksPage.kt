@@ -63,8 +63,7 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 
 @Composable
 internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues,
-  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {},
-  onOpenSettings: () -> Unit = {}) {
+  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {}) {
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
@@ -91,7 +90,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("native") { SystemIconThemeCard(runtime) { model.refresh(3) } }
         item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
           stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
-        item("completion") { PackCompletionCard(model, onOpenSettings) }
+        item("completion") { PackCompletionCard(model) { onNavigate("fallback") } }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
       }

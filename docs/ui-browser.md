@@ -2,7 +2,7 @@
 
 ## Monet navigation, 2026-11-06
 
-The primary navigation contains Status, Apps, Icon packs and Settings. The
+The primary navigation contains Status, Apps, Icon packs, Desktop and Settings. The
 icon-pack landing page opens Monet through `PackRoute("monet")`. The Status
 Monet shortcut selects Icon packs before opening the same child destination,
 so the back arrow and system Back both return to Icon packs.
@@ -18,6 +18,30 @@ back arrow, system Back and the edge-back gesture, scrolling, retained parent
 scroll position, refresh and the four-tab pager. Monet remained disabled. The
 API 102 Java update preserved Launcher, SystemUI and system-server identities.
 Evidence is under `.artifacts/research/monet-subpage-20261106/`.
+
+## Desktop navigation, 2026-11-06
+
+The Desktop tab groups launcher glass appearance, Dock glass and corner style,
+and app-name presentation. Its overview reuses the semantic status card from
+Status and Icon packs. Each feature occupies a separate pill row; the pills
+reserve the same space for the status graphic as the headline.
+
+Saved choices and native acknowledgements remain distinct. Only fresh reports
+from the current module can confirm a matching configuration. Scope, missing
+capabilities, pending changes and preference errors have separate states;
+an acknowledged disabled Dock is a valid synchronized choice.
+
+Settings / System and Hook retains system material preservation and launch
+screen adaptation. The icon-pack completion card opens its own fallback
+destination containing system fallback, app-name matching and optional ColorOS
+completion. Global settings search still renders matching migrated controls.
+
+Desktop observation runs only while the surface is started. Receipt reads omit
+the icon inventory, and neither polling nor manual Desktop refresh scans apps,
+loads icon packs or refreshes the Monet palette. Fallback pages share the normal
+icon-pack observer and separately maintain app data without duplicating receipt
+requests. Focused state tests and AVD evidence are stored under
+`.artifacts/research/desktop-tab-20261106/`.
 
 ## Settings and About
 

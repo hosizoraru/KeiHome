@@ -62,6 +62,7 @@ import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Refresh
@@ -81,9 +82,9 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
     os.kei.hyper.home.data.AppPagerGesture.IOS_LIKE -> PagerInterceptionMode.TapToHalt
   }
-  val pages = remember { listOf(0, 1, 3, 4) }
-  // Reset the old five-tab pager state once; its Settings index no longer exists.
-  val pager = androidx.compose.runtime.key("main-tabs-v2") { rememberPagerState { pages.size } }
+  val pages = remember { listOf(0, 1, 3, 5, 4) }
+  // The tab order changed; retain logical page IDs for content and refresh state.
+  val pager = androidx.compose.runtime.key("main-tabs-v3") { rememberPagerState { pages.size } }
   val navigationScope = rememberCoroutineScope()
   val selectedTab = pager.currentPage.coerceIn(pages.indices)
   fun selectTab(index: Int) { navigationScope.launch { pager.springAnimateToPage(index) } }
@@ -94,10 +95,12 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(page, locales) }
   }
   val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
-    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_settings))
+    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_desktop),
+    stringResource(R.string.navigation_settings))
   val navigation = remember(labels) { listOf(
     NavigationItem(labels[0], MiuixIcons.Info), NavigationItem(labels[1], MiuixIcons.GridView),
-    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Settings),
+    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Home),
+    NavigationItem(labels[4], MiuixIcons.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
@@ -157,8 +160,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           AppsPage(model, appList, padding, pageModifier)
         } else if (page == 3) {
           val sectionList = rememberLazyListState()
-          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection,
-            onOpenSettings = { onOpenSettingsSection("hook") })
+          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
@@ -173,6 +175,10 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                     onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") })
                   RefreshFeedback(model, 0)
                 }
+              }
+              5 -> {
+                DesktopPage(model)
+                RefreshFeedback(model, 5)
               }
               4 -> SettingsRootPage(model, onOpenSettingsSection)
             }

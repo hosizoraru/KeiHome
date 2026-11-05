@@ -8,7 +8,7 @@ Optional: --report /path/to/glass-scope.json
 
 Requires unicorn, pyelftools and capstone. No assembler, replacement leaf,
 Gradle, device, native allocator or managed runtime is invoked. The complete
-installer-copy payload is relocated; only its 432-byte config is authored here.
+installer-copy payload is relocated; only its 456-byte config is authored here.
 Native continuations/allocators are terminal sentinels, not mocked leaf bodies.
 This verifies execution/ABI contracts, not visual material acceptance on an AVD.
 """
@@ -30,7 +30,7 @@ from unicorn import arm64_const as ar
 
 
 MASK32, MASK64 = (1 << 32) - 1, (1 << 64) - 1
-CONFIG_SIZE, KEY_SIZE, MARKER = 432, 16, 0x969088
+CONFIG_SIZE, KEY_SIZE, MARKER = 456, 16, 0x969088
 X = [getattr(ar, f"UC_ARM64_REG_X{i}") for i in range(31)]
 Q = [getattr(ar, f"UC_ARM64_REG_Q{i}") for i in range(32)]
 MD = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
@@ -61,7 +61,7 @@ class Payload:
         self.offsets = {name: symbols[name] - origin for name in required}
         assert all(0 <= off <= end - origin for off in self.offsets.values())
         self.config = self.offsets["kh_dock_config"]
-        assert self.offsets["kh_dock_refresh_begin"] - self.config == CONFIG_SIZE, "Rebuild SO: expected 54-word/432-byte render config"
+        assert self.offsets["kh_dock_refresh_begin"] - self.config == CONFIG_SIZE, "Rebuild SO: expected 57-word/456-byte render config"
         self.entries = {name: self.offsets["kh_dock_glass_" + name] for name in ("scope", "child_scope", "clip")}
         self.entries["radius"]=self.offsets["kh_dock_recents_radius"]
         self.entries["flight"]=self.offsets["kh_dock_recents_flight_radius"]
@@ -117,7 +117,7 @@ class Machine:
         self.put(CONTROL, 1, 4)
         self.put(CONTROL + 8, curve, 4)
         self.put(CONTROL + 24, 1, 4)
-        cfg = [0] * 54
+        cfg = [0] * 57
         for offset, value in {
                 0: CONTROL, 296: CONTROL + 24, 304: CONTROL + 8,
                 312: KEY_TAG, 320: SUPER_ALLOC, 328: STOCK_ALLOC,
@@ -125,7 +125,7 @@ class Machine:
                 360: double_bits(20.0), 368: double_bits(30.0),
                 376: scope_slot, 384: child_slot, 392: CONTROL+32, 400: CONTROL+64, 408: ORIGINAL_LR, 416: -56, 424: VISUAL_RESUME}.items():
             cfg[offset // 8] = value & MASK64
-        self.config = struct.pack("<54Q", *cfg)
+        self.config = struct.pack("<57Q", *cfg)
         self.u.mem_write(code + payload.config, self.config)
         self.put(THREAD + 96, self.top)
         self.put(THREAD + 104, self.top + pressure)

@@ -102,16 +102,56 @@ three-phase continuation uses the original native return PC and stack map;
 only primitive mode/eligibility values leave the managed call. Task-radius
 observers replay the original frame load or return instruction; they retain
 only raw numeric bits and never call a controller themselves. The copied
-render configuration is 432 bytes, mode configuration is 72 bytes, and the complete
-payload is 3,976 bytes.
+render configuration is 456 bytes, mode configuration is 72 bytes, and the complete
+payload is 4,168 bytes. The executable mapping rounds that bounded payload up to
+the host page size; this uses two pages on a 4 KiB system.
 
 The render bridge is a call-free leaf with a fully checked young-space arena:
-352 bytes for Recents soft glass plus a 16-byte native child key when eligible,
-336 bytes for Rounded soft glass, and 320
+400 bytes for Recents soft glass plus a 16-byte native child key when eligible,
+384 bytes for Rounded soft glass, and 368
 bytes for other material modes per Dock build.
 These are build allocations, not per-frame allocations. Allocation pressure or
 invalid geometry returns to the native path. There is no custom Dart frame,
 managed reference retained in C++, polling animation, or per-frame JNI call.
+
+## Native unlock transition
+
+The decorative plate is wrapped in the same native `UnlockAnimWidget` category
+used by the small search bar. Previously the icon and search animations ran
+while the added plate was already painted at its final size and opacity.
+The wrapper now participates in the launcher's own prepare, show, completion,
+interruption and disposal paths. It adds no independent animation clock,
+delayed task, broadcast receiver or preference.
+
+Only the decoration joins this transition. Its existing `IgnorePointer` remains
+inside the animation widget; the original icon subtree, callbacks, drag targets,
+occupied-cell sizing, five-icon containment and stock background remain outside.
+The existing native glass filter and its material parameters are unchanged.
+The native search category resolves its live center and screen visibility from
+current launcher configuration. A canonical native `Offset.zero` is only the
+typed initial seed; no phone size, absolute screen position, DPI or animation
+duration is embedded in the bridge.
+
+The wrapper is one immutable 48-byte widget per successful Dock build, included
+in the arena totals above. Its state and animation lifecycle are native Flutter
+objects. These are distinct from bridge allocation and are not claimed to have
+zero cost. On stable layouts the same element/state is retained across builds,
+and no module timer drives idle frames.
+
+Admission authenticates the native search caller's center-call edges, complete
+widget field stores, allocator size/tag, serialized `createState` dispatch and
+state constructor, plus the native location/center roles. There are no new
+code patches or managed-call boundaries. All fields are initialized before the
+original caller can reach a safepoint. Unsupported or ambiguous contracts fail
+closed rather than manufacturing an unverified widget class.
+
+The five retained source fixtures resolve this graph and reject mutations of
+its calls, layout, category and state roles. Linked production ARM64 execution
+also checks the wrapper's child, canonical fields, exact arena bounds, heap
+pressure fallback and preservation of registers/stack. Device acceptance is a
+separate HyperOS Phone AVD gate; source coverage is not five-device acceptance.
+Current evidence is under `.artifacts/research/dock-unlock-20261106/`, including
+baseline/candidate unlock videos and the final `acceptance.json` receipt.
 
 An acknowledgement means the live native endpoint accepted the policy; it is
 not a receipt for a painted frame. Expiry disables subsequent native builds.

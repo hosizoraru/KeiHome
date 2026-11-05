@@ -80,7 +80,8 @@ bool InstallPreparedDockGlass() {
     const auto& p=profile;const auto& r=refresh;const auto& l=p.labels;
     const size_t bytes=size_t(kh_dock_payload_end-kh_dock_template);
     const long page=sysconf(_SC_PAGESIZE);
-    if(page<4096||page>65536||(page&(page-1))||bytes>size_t(page))return Reject("Dock template ABI");
+    if(page<4096||page>65536||(page&(page-1))||bytes>8192)return Reject("Dock template ABI");
+    const size_t mapping_bytes=(bytes+size_t(page)-1u)&~(size_t(page)-1u);
     const Patch patches[]={
         {p.recents_flight_radius,p.recents_flight_radius_expected,kh_dock_recents_flight_radius,false},
         {p.recents_task_radius_returns[0],0xd65f03c0u,kh_dock_recents_radius,false},
@@ -100,14 +101,14 @@ bool InstallPreparedDockGlass() {
     for(uintptr_t distance=0x1000000;distance<0x7000000&&!bridge;distance+=0x1000000) {
         for(int sign=-1;sign<=1;sign+=2) {
             const uintptr_t hint=sign>0?aligned+distance:aligned-distance;
-            void* memory=mmap(reinterpret_cast<void*>(hint),size_t(page),PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+            void* memory=mmap(reinterpret_cast<void*>(hint),mapping_bytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
             if(memory==MAP_FAILED)continue;
             bool near=true;for(const auto& patch:patches) {
                 const uintptr_t to=reinterpret_cast<uintptr_t>(memory)+size_t(patch.entry-kh_dock_template);
                 if(!Jump(loaded.base+patch.at,to,patch.link)){near=false;break;}
             }
             if(near){bridge=static_cast<uint8_t*>(memory);break;}
-            munmap(memory,size_t(page));
+            munmap(memory,mapping_bytes);
         }
     }
     if(!bridge)return Reject("near Dock mapping unavailable");
@@ -123,7 +124,7 @@ bool InstallPreparedDockGlass() {
         while(bit<20u&&(cid&(1u<<bit)))++bit;
         const uint32_t instruction=0x52000021u|(((32u-first)&31u)<<16u)|((bit-first-1u)<<10u);
         if(cid_word>=10u||cid_at+cid_word*4u+4u>bytes) {
-            munmap(bridge,size_t(page));return Reject("parent CID encoding");
+            munmap(bridge,mapping_bytes);return Reject("parent CID encoding");
         }
         memcpy(bridge+cid_at+cid_word++*4u,&instruction,4);
     }
@@ -144,7 +145,8 @@ bool InstallPreparedDockGlass() {
         uint64_t(int64_t(p.glass_radius_slot)),p.recents_default_radius_bits,p.recents_stacked_min_radius_bits,
         uint64_t(int64_t(p.glass_scope_root_slot)),uint64_t(int64_t(p.glass_child_root_slot)),
         reinterpret_cast<uintptr_t>(&kh_dock_recents_corner_bits),reinterpret_cast<uintptr_t>(&kh_dock_glass_scope_counts),
-        loaded.base+p.recents_flight_radius+4,uint64_t(int64_t(p.recents_flight_radius_slot)),loaded.base+p.glass_visual_resume
+        loaded.base+p.recents_flight_radius+4,uint64_t(int64_t(p.recents_flight_radius_slot)),loaded.base+p.glass_visual_resume,
+        p.unlock_tag,p.unlock_zero_pp,p.unlock_debug_pp
     };
     const DockGlassRefreshConfig refresh_config={
         reinterpret_cast<uintptr_t>(&kh_dock_glass_installed),reinterpret_cast<uintptr_t>(&kh_dock_glass_revision),
@@ -163,8 +165,8 @@ bool InstallPreparedDockGlass() {
         memcpy(bridge+offset,data,size);return true;
     };
     if(!copy(kh_dock_config,&render,sizeof(render))||!copy(kh_dock_refresh_config,&refresh_config,sizeof(refresh_config))||
-       !copy(kh_dock_mode_config,&mode,sizeof(mode))||mprotect(bridge,size_t(page),PROT_READ|PROT_EXEC)) {
-        munmap(bridge,size_t(page));return Reject("Dock mapping publication failed");
+       !copy(kh_dock_mode_config,&mode,sizeof(mode))||mprotect(bridge,mapping_bytes,PROT_READ|PROT_EXEC)) {
+        munmap(bridge,mapping_bytes);return Reject("Dock mapping publication failed");
     }
     __builtin___clear_cache(reinterpret_cast<char*>(bridge),reinterpret_cast<char*>(bridge)+bytes);
     // Original image was authenticated before label publication. Only our own
@@ -180,6 +182,6 @@ bool InstallPreparedDockGlass() {
     }
     __atomic_store_n(&kh_dock_glass_installed,1u,__ATOMIC_RELEASE);
     __atomic_store_n(&phase,4u,__ATOMIC_RELEASE);
-    __android_log_print(ANDROID_LOG_INFO,"KeiHomeDock","Dock native glass installed: render, native material selection, revision refresh; phone=%zx mode=%zx",p.phone,p.mode);
+    __android_log_print(ANDROID_LOG_INFO,"KeiHomeDock","Dock native glass installed: render, native unlock, material selection, revision refresh; phone=%zx mode=%zx",p.phone,p.mode);
     return true;
 }

@@ -43,7 +43,21 @@ preference application, and performance require separate AVD acceptance.
 The ownership suite also executes both native task-radius return observation and
 the inlined flight-radius join against linked production instructions. It checks
 exact primitive writes, native frame-load replay, ownership counters, preserved
-registers, and tail transfers. Config: 432 bytes; copied payload: 4,072 bytes.
+registers, and tail transfers. Config: 456 bytes; copied payload: 4,168 bytes.
+
+The render suite also executes the native unlock wrapper construction against
+linked production instructions. It checks the 48-byte widget, source-owned
+category/global screen identity, canonical Offset/boolean/debug fields, original
+IgnorePointer and icon/native-background separation. Its young-space boundary
+cases include the entire wrapper before publishing the allocation top.
+The installer permits a bounded 8 KiB payload, rounded to the actual page size.
+No second animation implementation is modeled by this host test: native Flutter
+animation, interruption and idle behavior require actual device recordings.
+
+The profile suite resolves the search-center edges and native StatefulWidget
+dispatch in all five source fixtures. Seven additional mutations per source
+cover the new caller, allocator, category, field store, state construction and
+geometry roles; rejected output must also clear the unlock fields.
 
 Full-five geometry has additional conservative curved-rectangle containment
 checks for every icon corner across native icon sizes, heights and observed

@@ -439,12 +439,12 @@ kh_dock_background:
     orr x7, x7, x16
     fmov d23, x7
 
-    // Reserve the WHOLE arena before any heap/thread/stack mutation. 288 bytes
-    // plus material size: Doubles96 + IgnorePointer32 + Positioned48 + Array32 +
+    // Reserve the WHOLE arena before any heap/thread/stack mutation. 336 bytes
+    // plus material size: Doubles96 + IgnorePointer32 + Unlock48 + Positioned48 + Array32 +
     // Stack32 + SizedBox32 + original ItemBackground16, reserved even when
     // omitted. Exact-end is pressure too, matching the native bump allocator.
     ldp x9, x10, [x26, #0x60]
-    add x12, x11, #288
+    add x12, x11, #336
     adds x12, x9, x12
     b.cs .Ldock_original
     cmp x12, x10
@@ -478,7 +478,7 @@ kh_dock_background:
     add x7, x9, #97              // material tagged pointer
     add x9, x9, #81              // bottom inset tagged pointer
     add x12, x7, x11             // IgnorePointer
-    add x12, x12, #32            // Positioned
+    add x12, x12, #80            // Unlock48 then Positioned
     add x13, x12, #48            // Array
     add x14, x13, #32            // Stack
     add x0, x14, #32             // SizedBox = result
@@ -510,16 +510,36 @@ kh_dock_background:
 .Ldock_material_ready:
     // Only the decorative material ignores input. Original ItemBackground
     // stays a separate Stack child, preserving its native feedback behavior.
-    sub x11, x12, #32            // material size is no longer live: wrapper ptr
+    sub x11, x12, #80            // material size is no longer live: wrapper ptr
     ldr x16, [x17, #KH_DOCK_IGNORE_POINTER_TAG]
     stur x16, [x11, #-1]
     stur w7, [x11, #0xb]         // native SingleChild child
     add w16, w22, #0x20
     stur w16, [x11, #0xf]        // canonical true; key and remaining slots null
 
+    // One native UnlockAnimWidget, scoped to decoration. It joins the existing
+    // unlock controller; no extra managed call, timer, frame or retained root.
+    sub x11, x12, #48
+    ldr x16, [x17, #KH_DOCK_UNLOCK_TAG]
+    stur x16, [x11, #-1]
+    sub x16, x12, #80
+    stur w16, [x11, #0xb]        // original IgnorePointer
+    ldr x16, [x17, #KH_DOCK_UNLOCK_ZERO_PP]
+    ldr x16, [x27, x16]
+    stur w16, [x11, #0xf]        // canonical Offset.zero seed
+    mov x16, #3
+    stur x16, [x11, #0x17]       // source-owned search animation category
+    mov x16, #-1
+    stur x16, [x11, #0x1f]       // source-owned global screen identity
+    add w16, w22, #0x30
+    stur w16, [x11, #0x27]       // native fallback resolves live center
+    ldr x16, [x17, #KH_DOCK_UNLOCK_DEBUG_PP]
+    ldr x16, [x27, x16]
+    stur w16, [x11, #0x2b]
+
     ldr x16, [x17, #KH_DOCK_POSITIONED_TAG]
     stur x16, [x12, #-1]
-    stur w11, [x12, #0xb]        // IgnorePointer child; key+7/typeargs+f null
+    stur w11, [x12, #0xb]        // animated decoration; key+7/typeargs+f null
     stur w4, [x12, #0x13]
     stur w6, [x12, #0x17]
     stur w5, [x12, #0x1b]

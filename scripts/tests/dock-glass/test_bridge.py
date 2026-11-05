@@ -7,7 +7,7 @@ Requires unicorn, pyelftools and capstone. Does not compile a fixture or call
 Gradle, connect a device, install, or activate anything. The test copies the
 actual parent payload bytes (including sibling configs) as the installer does.
 It executes only gate/render; original native targets are terminal sentinels.
-Authored roots/tags isolate the 432-byte render ABI from profile-resolution QA.
+Authored roots/tags isolate the 456-byte render ABI from profile-resolution QA.
 """
 import argparse
 import hashlib
@@ -41,7 +41,7 @@ with io.BytesIO(artifact) as stream:
     missing = [name for name in required if 'kh_dock_' + name not in syms]
     assert not missing, f'Missing production payload symbols: {missing}'
     origin, payload_end = (syms['kh_dock_template'], syms['kh_dock_payload_end'])
-    assert 0 < payload_end - origin <= 4096, 'Payload copy range must fit the parent page contract'
+    assert 0 < payload_end - origin <= 8192, 'Payload copy range must fit the bounded mapping contract'
     assert all((origin <= syms['kh_dock_' + name] <= payload_end for name in required)), 'Payload entry outside copied range; check wrapper section after GNU-stack'
     for segment in elf.iter_segments():
         if segment['p_type'] == 'PT_LOAD' and segment['p_vaddr'] <= origin and (payload_end <= segment['p_vaddr'] + segment['p_filesz']):
@@ -54,7 +54,7 @@ with io.BytesIO(artifact) as stream:
         if isinstance(section, RelocationSection) and section['sh_type'] in ('SHT_REL', 'SHT_RELA'):
             assert not any((origin <= item['r_offset'] < payload_end for item in section.iter_relocations())), 'Copied payload contains a dynamic relocation'
 entry = {name: syms['kh_dock_' + name] - origin for name in required}
-assert entry['refresh_begin'] - entry['config'] == 432, 'Render config ABI must be 432 bytes'
+assert entry['refresh_begin'] - entry['config'] == 456, 'Render config ABI must be 456 bytes'
 assert entry['refresh_end'] - entry['refresh_config'] == 104, 'Refresh config ABI'
 assert entry['payload_end'] - entry['mode_config'] == 72, 'Mode config ABI'
 CODE, THREAD, FIELDS, POOL = 0x10000000, 0x20000000, 0x21000000, 0x22000000
@@ -143,15 +143,17 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     cfg.extend([POLICY+24,POLICY+32,VALUE_KEY,END,END,END,END,(-48)&((1<<64)-1),
                 struct.unpack('<Q',struct.pack('<d',20.0))[0],
                 struct.unpack('<Q',struct.pack('<d',30.0))[0],(-8)&((1<<64)-1),(-40)&((1<<64)-1),POLICY+40,POLICY+64,END,(-56)&((1<<64)-1),END])
-    assert len(cfg) * 8 == 432
+    unlock_tag = 0x21eb31c
+    cfg.extend([unlock_tag, 0x140, 0x148])
+    assert len(cfg) * 8 == 456
     owned_material=corner_style==1 and mode==0
-    arena = 352 if owned_material else (336 if mode == 0 else 320)
+    arena = 400 if owned_material else (384 if mode == 0 else 368)
     word(POLICY + 8, mode)
     word(POLICY + 16, q8)
     word(POLICY + 24, corner_style)
     word(POLICY + 32, curve_enabled)
     number(POLICY+40,native_card_radius)
-    u.mem_write(CODE + entry['config'], struct.pack('<54Q', *cfg))
+    u.mem_write(CODE + entry['config'], struct.pack('<57Q', *cfg))
     word(POLICY, enabled)
     objects = {name: HEAP + 1052673 + 256 * i for i, name in enumerate(('outer', 'inner', 'box', 'grid', 'rx', 'config', 'device', 'grow', 'array', 'args', 'mode_controller', 'mode_rx', 'elderly_enum', 'normal_enum', 'metrics', 'no_word_rx', 'suppress_rx'))}
     for i, at in enumerate(objects.values()):
@@ -198,6 +200,8 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     for p in (256, 264, 272, 280, 312):
         put(POOL + p, NULL + 1280 + p)
     put(POOL + 64, NULL + 1024)
+    put(POOL + 0x140, NULL + 0x1900)
+    put(POOL + 0x148, NULL + 0x1a00)
     put(THREAD + 96, TOP)
     put(THREAD + 104, TOP + (4096 if pressure is None else pressure))
     u.mem_write(TOP, b'\xa5' * 4096)
@@ -278,7 +282,15 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     stack = ref(root + 11)
     array = ref(stack + 11)
     pos = ref(array + 15)
-    ignore = ref(pos + 11)
+    unlock = ref(pos + 11)
+    assert get(unlock - 1) == unlock_tag
+    assert ref(unlock + 7) == NULL and ref(unlock + 0x13) == NULL
+    assert ref(unlock + 0xf) == NULL + 0x1900
+    assert get(unlock + 0x17) == 3 and get(unlock + 0x1f) == (1 << 64) - 1
+    assert ref(unlock + 0x27) == NULL + 0x30
+    assert ref(unlock + 0x2b) == NULL + 0x1a00
+    assert sum(get(TOP + off) == unlock_tag for off in range(0, arena, 16)) == 1
+    ignore = ref(unlock + 0xb)
     mat = ref(ignore + 0xb)
     assert get(ignore - 1) == ignore_tag
     assert ref(ignore + 7) == NULL
@@ -364,7 +376,7 @@ for native_card in (0,20,30,40.2,46,60,256,-1,float('nan'),float('inf')):
         assert setup(count=count,corner_style=1,native_card_radius=native_card)
         recents_cases+=1
 for mode in range(4):
-    arena=352 if mode==0 else 320
+    arena=400 if mode==0 else 368
     for pressure in (0,arena-1,arena):
         assert not setup(mode=mode,corner_style=1,pressure=pressure)
         recents_cases+=1
@@ -392,10 +404,10 @@ for elderly in (False, True):
             ok = setup(count=count, elderly=elderly, native=native)
             assert ok == (1 <= count <= (4 if elderly else 5))
             cases += 1
-for p in (0, 1, 335, 336):
+for p in (0, 1, 383, 384):
     assert not setup(pressure=p)
     cases += 1
-assert setup(pressure=337)
+assert setup(pressure=385)
 cases += 1
 for enabled in (0, 2):
     assert not setup(enabled=enabled)
@@ -447,7 +459,7 @@ for mode in range(4):
                 cases += 1
         assert setup(mode=mode, native=native, switch_mode=True)
         cases += 1
-    arena = 336 if mode == 0 else 320
+    arena = 384 if mode == 0 else 368
     for available in (arena - 1, arena):
         assert not setup(mode=mode, pressure=available)
         cases += 1
@@ -796,7 +808,7 @@ for bit in range(20):
         parent_clip_case(1,0xa0000000,heap_high,SIZED^(1<<(bit+12)))
         cases+=1
 
-report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=432, arena_bytes={'rounded_glass':336,'recents_glass':352,'other':320}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'exactly one IgnorePointer with canonical true, native background outside wrapper', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
+report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=456, arena_bytes={'rounded_glass':384,'recents_glass':400,'other':368}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'one native UnlockAnimWidget scopes one IgnorePointer and leaves native background outside', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
 if args.report:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

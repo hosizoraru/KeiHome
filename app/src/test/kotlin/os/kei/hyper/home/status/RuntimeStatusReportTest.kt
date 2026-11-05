@@ -7,6 +7,58 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
+  @Test fun schemaSixAppendsCapabilityAndAcceptedStyleWithoutMovingOlderFields() {
+    for (style in listOf(null) + os.kei.hyper.home.data.LauncherGlassStyle.entries.map { it.nativeValue }) {
+      val report = ready.copy(launcherGlassAvailable = true, launcherGlassStyle = style)
+      val fields = report.encode().split('|')
+      assertEquals(19, fields.size)
+      assertEquals("6", fields[0])
+      assertEquals(ready.encode().split('|').subList(1, 17), fields.subList(1, 17))
+      assertEquals("1", fields[17])
+      assertEquals((style ?: -1).toString(), fields[18])
+      assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    }
+    assertEquals(listOf("0", "-1"), ready.encode().split('|').takeLast(2))
+    for ((schema, size) in listOf("1" to 11, "2" to 12, "3" to 13, "4" to 16, "5" to 17)) {
+      val old = ready.encode().split('|').take(size).toMutableList().apply { this[0] = schema }.joinToString("|")
+      assertEquals(ready, RuntimeStatusReport.decode(old))
+      assertFalse(RuntimeStatusReport.decode(old)!!.launcherGlassAvailable)
+      assertNull(RuntimeStatusReport.decode(old)!!.launcherGlassStyle)
+    }
+  }
+
+  @Test fun launcherGlassAvailabilityIsIndependentOfMonetAndNeverAnAckByItself() {
+    val report = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
+      launcherStartTicks = null, launcherGlassAvailable = true)
+    assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    assertFalse(report.acknowledgesLauncherGlass(os.kei.hyper.home.data.LauncherGlassStyle.SYSTEM))
+    for (style in os.kei.hyper.home.data.LauncherGlassStyle.entries) {
+      val accepted = report.copy(launcherGlassStyle = style.nativeValue)
+      assertEquals(accepted, RuntimeStatusReport.decode(accepted.encode()))
+      assertTrue(accepted.acknowledgesLauncherGlass(style))
+      assertFalse(accepted.acknowledgesLauncherGlass(null))
+      assertFalse(accepted.copy(launcherGlassAvailable = false).acknowledgesLauncherGlass(style))
+      assertFalse(accepted.copy(nativeState = NativeRuntimeState.INACTIVE_USER).acknowledgesLauncherGlass(style))
+      assertFalse(accepted.acknowledgesLauncherGlass(
+        os.kei.hyper.home.data.LauncherGlassStyle.entries[(style.ordinal + 1) % 3]))
+    }
+  }
+
+  @Test fun malformedOrContradictoryGlassFieldsCannotBecomeAnAcceptedStyle() {
+    for (available in listOf("-1", "2", "true", "")) {
+      assertNull(RuntimeStatusReport.decode(ready.encode().split('|').toMutableList()
+        .apply { this[17] = available }.joinToString("|")))
+    }
+    for (style in listOf("-2", "3", "2147483648", "")) {
+      assertNull(RuntimeStatusReport.decode(ready.copy(launcherGlassAvailable = true).encode().split('|')
+        .toMutableList().apply { this[18] = style }.joinToString("|")))
+    }
+    for (style in 0..2)
+      assertNull(RuntimeStatusReport.decode(ready.copy(launcherGlassStyle = style).encode()))
+    assertNull(RuntimeStatusReport.decode(ready.encode().split('|').dropLast(1).joinToString("|")))
+    assertNull(RuntimeStatusReport.decode(ready.encode() + "|0"))
+  }
+
   @Test fun oldCapabilityFailuresRemainDistinctFromAnUnreachableLauncher() {
     val missing = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE, launcherPid = null,
       launcherStartTicks = null, detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE)

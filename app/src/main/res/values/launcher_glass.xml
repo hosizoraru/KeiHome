@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launcher_glass_title">Dock and search material</string>
+    <string name="launcher_glass_summary">Choose a light or dark glass preset for the Dock and search capsule, preserving native blur, refraction and animations. Folder backgrounds follow their native theme.</string>
+    <string name="launcher_glass_system">Follow system</string>
+    <string name="launcher_glass_light">Light material</string>
+    <string name="launcher_glass_dark">Dark material</string>
+    <string name="launcher_glass_saved_status">Saved: %1$s · %2$s</string>
+    <string name="launcher_glass_pending">Waiting for the launcher</string>
+    <string name="launcher_glass_unavailable">Material control unavailable in this launcher</string>
+    <string name="launcher_glass_accepted">Accepted by the launcher</string>
+</resources>

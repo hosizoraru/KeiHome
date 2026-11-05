@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launcher_glass_title">Dock 与搜索框质感</string>
+    <string name="launcher_glass_summary">为 Dock 与小搜索框选择浅色或深色玻璃方案，保留原生模糊、折射与动画。文件夹背景继续跟随原生主题。</string>
+    <string name="launcher_glass_system">跟随系统</string>
+    <string name="launcher_glass_light">浅色质感</string>
+    <string name="launcher_glass_dark">深色质感</string>
+    <string name="launcher_glass_saved_status">已保存：%1$s · %2$s</string>
+    <string name="launcher_glass_pending">等待桌面接收</string>
+    <string name="launcher_glass_unavailable">当前桌面暂不支持此质感设置</string>
+    <string name="launcher_glass_accepted">桌面已接收</string>
+</resources>

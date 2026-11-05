@@ -33,6 +33,7 @@ internal class MonetColorMonitor(
   private val onThemeMaterialsChanged: () -> Unit = {},
   private val onLauncherLabelsChanged: () -> Unit = {},
   private val onDockGlassChanged: () -> Unit = {},
+  private val onLauncherGlassChanged: () -> Unit = {},
   private val onPackageResourcesChanged: (String) -> Unit = {},
   private val onOverlayResourcesChanged: (String) -> Unit = {},
   private val onTimeResourcesChanged: (Boolean) -> Unit = {},
@@ -93,7 +94,8 @@ internal class MonetColorMonitor(
       if (key == null || key == ThemeEffectsPreferences.KEY ||
         key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY ||
         key == os.kei.hyper.home.data.DockGlassPreferences.KEY ||
-        key == os.kei.hyper.home.data.DockGlassPreferences.CORNER_STYLE_KEY) requestMaterials()
+        key == os.kei.hyper.home.data.DockGlassPreferences.CORNER_STYLE_KEY ||
+        key == os.kei.hyper.home.data.LauncherGlassPreferences.KEY) requestMaterials()
     }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->
@@ -161,6 +163,12 @@ internal class MonetColorMonitor(
       }
       try {
         connectMaterialPreferences()
+        try {
+          if (synchronizer.synchronizeLauncherGlass(context, materialPreferences) { !closed } && !closed)
+            onLauncherGlassChanged()
+        } catch (failure: Exception) {
+          if (!closed) onFailure(failure)
+        }
         try {
           if (synchronizer.synchronizeDockGlass(context, materialPreferences) { !closed } && !closed)
             onDockGlassChanged()

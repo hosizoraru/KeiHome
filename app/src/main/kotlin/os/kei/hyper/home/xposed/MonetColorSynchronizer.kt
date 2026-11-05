@@ -21,6 +21,7 @@ import os.kei.hyper.home.data.parseMonetPaletteJson
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.NativeRuntimeState
+import os.kei.hyper.home.status.NativeRuntimeDiagnostic
 import os.kei.hyper.home.status.RuntimeStatusInbox
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusRequest
@@ -43,6 +44,19 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private val themeMaterials = ThemeMaterialLease()
   private val launcherLabels = LauncherLabelLease()
   private val dockGlass = DockGlassLease()
+  private val launcherGlass = LauncherGlassLease()
+
+  fun synchronizeLauncherGlass(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
+    if (!mayWrite() || Thread.currentThread().isInterrupted) return false
+    val user = currentUserId() ?: return false
+    val context = contextForUser(baseContext, user) ?: return false
+    val style = os.kei.hyper.home.data.LauncherGlassPreferences.read(preferences).nativeValue
+    val current = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == user &&
+      os.kei.hyper.home.data.LauncherGlassPreferences.read(preferences).nativeValue == style }
+    return launcherGlass.synchronize(style, user, SystemClock::elapsedRealtime, current) { attempted ->
+      if (native.setLauncherGlass(context, style, attempted)) native.acknowledgedLauncherGlassProcess else null
+    }
+  }
 
   fun synchronizeDockGlass(baseContext: Context, preferences: SharedPreferences?, mayWrite: () -> Boolean): Boolean {
     if (!mayWrite() || Thread.currentThread().isInterrupted) return false
@@ -149,32 +163,44 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     if (!isCurrent()) return false
     val context = contextForUser(baseContext, request.userId) ?: return false
     val activeUser = currentUserId()
-    val available = activeUser == request.userId && native.isAvailable(context)
-    // The client retains the last successful identity across failures; never use it alone.
-    val process = native.acknowledgedProcess.takeIf { available }
+    val identities = NativeRuntimeIdentitySelection()
+    if (activeUser == request.userId) {
+      native.isAvailable(context)
+      identities.observe(native.lastGreeting)
+    }
     // Do not add another endpoint timeout when this optional feature has no ACK.
-    val dockAvailable = activeUser == request.userId &&
+    val probeDock = activeUser == request.userId &&
       dockGlass.hasAcknowledgement(request.userId, SystemClock.elapsedRealtime()) &&
-      isCurrent() && native.isDockGlassAvailable(context)
-    val dockProcess = native.acknowledgedDockGlassProcess.takeIf { dockAvailable }
+      isCurrent()
+    val dockAvailable = probeDock && native.isDockGlassAvailable(context)
+    if (probeDock) identities.observe(native.lastGreeting)
+    // Select every ACK after the last probe, including authenticated capability rejections.
+    val greeting = identities.greeting
+    val process = identities.process
+    val acknowledgementProcess = identities.acknowledgementProcess
+    val launcherGlassAvailable = greeting?.launcherGlassAvailable == true
+    val dockProcess = acknowledgementProcess.takeIf { dockAvailable }
     val dockCheckedAt = SystemClock.elapsedRealtime()
     val dockEnabled = dockGlass.acknowledgedEnabled(dockProcess, request.userId, dockCheckedAt)
     val dockStyle = dockGlass.acknowledgedStyle(dockProcess, request.userId, dockCheckedAt)
     val state = when {
       activeUser != null && activeUser != request.userId -> NativeRuntimeState.INACTIVE_USER
-      process != null -> NativeRuntimeState.READY
+      greeting?.monetAvailable == true -> NativeRuntimeState.READY
       else -> NativeRuntimeState.UNAVAILABLE
     }
     val report = RuntimeStatusReport(
       requestId = request.id, userId = request.userId,
       moduleVersion = BuildConfig.VERSION_CODE.toLong(), checkedAtElapsed = SystemClock.elapsedRealtime(),
       nativeState = state, launcherPid = process?.pid, launcherStartTicks = process?.startTicks,
-      refresh = refresh,
-      launcherLabelMode = launcherLabels.acknowledgedMode(process, SystemClock.elapsedRealtime()),
+      refresh = identities.retainEarlierAcknowledgement(refresh),
+      launcherLabelMode = launcherLabels.acknowledgedMode(acknowledgementProcess, SystemClock.elapsedRealtime()),
       dockGlassEnabled = dockEnabled,
       dockGlassCornerStyle = dockStyle,
       dockGlassPid = dockProcess?.pid.takeIf { dockEnabled != null },
       dockGlassStartTicks = dockProcess?.startTicks.takeIf { dockEnabled != null },
+      launcherGlassAvailable = launcherGlassAvailable,
+      launcherGlassStyle = launcherGlass.acknowledgedStyle(
+        acknowledgementProcess.takeIf { launcherGlassAvailable }, request.userId, SystemClock.elapsedRealtime()),
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)
@@ -187,7 +213,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
             ?.takeIf { isCurrent() && iconTheme.describe().revision == inventory.revision })
       } else null,
       detail = if (state == NativeRuntimeState.UNAVAILABLE) {
-        if (activeUser == null) "Foreground user unavailable" else NativeMonetClient.lastTransportFailure
+        if (activeUser == null) "Foreground user unavailable"
+        else if (greeting != null && !greeting.monetAvailable) NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
+        else NativeMonetClient.lastTransportFailure
       } else null,
     )
     if (!isCurrent() || currentUserId() != activeUser) return false

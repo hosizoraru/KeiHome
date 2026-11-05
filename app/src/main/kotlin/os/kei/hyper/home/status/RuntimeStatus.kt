@@ -40,6 +40,8 @@ internal data class RuntimeStatusReport(
   val dockGlassPid: Int? = null,
   val dockGlassStartTicks: Long? = null,
   val dockGlassCornerStyle: Int? = null,
+  val launcherGlassAvailable: Boolean = false,
+  val launcherGlassStyle: Int? = null,
 ) {
   val hasMissingMonetCapability: Boolean
     get() = nativeState == NativeRuntimeState.UNAVAILABLE &&
@@ -49,15 +51,23 @@ internal data class RuntimeStatusReport(
     choice != null && dockGlassEnabled == choice.enabled && dockGlassCornerStyle == choice.cornerStyle.nativeValue &&
       dockGlassPid != null && dockGlassStartTicks != null
 
+  fun acknowledgesLauncherGlass(style: os.kei.hyper.home.data.LauncherGlassStyle?): Boolean =
+    style != null && launcherGlassAvailable && nativeState != NativeRuntimeState.INACTIVE_USER &&
+      launcherGlassStyle == style.nativeValue
+
   fun isFresh(now: Long): Boolean = now >= checkedAtElapsed && now - checkedAtElapsed <= FRESHNESS_MS
 
   fun matches(request: RuntimeStatusRequest, now: Long): Boolean = request.isPending(now) && requestId == request.id &&
     userId == request.userId && checkedAtElapsed >= request.startedAtElapsed && isFresh(now)
 
+  // Schema 6 has 19 pipe-delimited fields; schema 5's fields 0..16 retain their positions.
+  // [17] wallpaper glass capability: "0"/"1"; [18] accepted material: "-1" unknown,
+  // "0" follow wallpaper, "1" light, "2" dark. Numeric fields stay wire compatible.
+  // Capability and ACK are independent of Monet readiness; neither is a painted-frame receipt.
   // Fixed fields keep this small protocol usable in the host tests and in system_server.
   // Only the diagnostic text needs escaping; request IDs are generated UUIDs.
   fun encode(): String = listOf(
-    "5", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
+    "6", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
     launcherPid ?: 0, launcherStartTicks ?: 0, refresh?.callbacks ?: -1,
     refresh?.completedAtMillis ?: 0,
     Base64.getEncoder().encodeToString(detail.orEmpty().take(400).toByteArray(Charsets.UTF_8)),
@@ -65,6 +75,7 @@ internal data class RuntimeStatusReport(
     launcherLabelMode ?: -1,
     dockGlassEnabled?.let { if (it) 1 else 0 } ?: -1,
     dockGlassPid ?: 0, dockGlassStartTicks ?: 0, dockGlassCornerStyle ?: -1,
+    if (launcherGlassAvailable) 1 else 0, launcherGlassStyle ?: -1,
   ).joinToString("|")
 
   companion object {
@@ -74,7 +85,8 @@ internal data class RuntimeStatusReport(
       val fields = raw?.split('|')
       if (fields == null || !((fields.size == 11 && fields[0] == "1") ||
           (fields.size == 12 && fields[0] == "2") || (fields.size == 13 && fields[0] == "3") ||
-          (fields.size == 16 && fields[0] == "4") || (fields.size == 17 && fields[0] == "5"))) null else {
+          (fields.size == 16 && fields[0] == "4") || (fields.size == 17 && fields[0] == "5") ||
+          (fields.size == 19 && fields[0] == "6"))) null else {
         val state = NativeRuntimeState.valueOf(fields[5])
         val pid = fields[6].toInt().takeIf { it > 0 }
         val start = fields[7].toLong().takeIf { it > 0 }
@@ -94,6 +106,8 @@ internal data class RuntimeStatusReport(
           // v4 had only the existing rounded style; earlier schemas had no Dock ACK.
           dockGlassCornerStyle = if (fields.size == 16 && fields[13] != "-1") 0
             else fields.getOrNull(16)?.toInt()?.takeIf { it in 0..1 },
+          launcherGlassAvailable = fields.getOrNull(17) == "1",
+          launcherGlassStyle = fields.getOrNull(18)?.toInt()?.takeIf { it in 0..2 },
         ).takeIf {
           it.requestId.isNotBlank() && it.userId >= 0 && it.moduleVersion > 0 && it.checkedAtElapsed >= 0 &&
             (fields.getOrNull(11).isNullOrEmpty() || it.iconTheme != null) &&
@@ -104,6 +118,8 @@ internal data class RuntimeStatusReport(
             (fields.size < 17 || (fields[16].toInt() in -1..1 &&
               (if (it.dockGlassEnabled == null) it.dockGlassCornerStyle == null
               else it.dockGlassCornerStyle != null))) &&
+            (fields.size < 19 || (fields[17] in listOf("0", "1") && fields[18].toInt() in -1..2 &&
+              (it.launcherGlassAvailable || it.launcherGlassStyle == null))) &&
             (state != NativeRuntimeState.READY || (pid != null && start != null))
         }
       }

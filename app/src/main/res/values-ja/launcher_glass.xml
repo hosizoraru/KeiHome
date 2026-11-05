@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="launcher_glass_title">Dock と検索バーの質感</string>
+    <string name="launcher_glass_summary">Dock と検索バーに明るい・暗いガラスを適用し、標準のぼかし・屈折・アニメーションを保ちます。フォルダ背景は標準テーマに従います。</string>
+    <string name="launcher_glass_system">システムに合わせる</string>
+    <string name="launcher_glass_light">明るい質感</string>
+    <string name="launcher_glass_dark">暗い質感</string>
+    <string name="launcher_glass_saved_status">保存済み：%1$s · %2$s</string>
+    <string name="launcher_glass_pending">ホーム画面の受信待ち</string>
+    <string name="launcher_glass_unavailable">このホーム画面ではガラスの質感を設定できません</string>
+    <string name="launcher_glass_accepted">ホーム画面が受信済み</string>
+</resources>

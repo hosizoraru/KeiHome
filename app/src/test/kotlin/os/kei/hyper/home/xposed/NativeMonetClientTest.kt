@@ -24,13 +24,74 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import os.kei.hyper.home.data.LauncherGlassStyle
 
 class NativeMonetClientTest {
+  @Test fun launcherGlassHasItsOwnCapabilityAndExact24ByteWallpaperMaterialCommand() {
+    for (material in LauncherGlassStyle.entries) {
+      val style = material.nativeValue
+      val command = NativeMonetProtocol.launcherGlassRequest(style)
+      assertEquals(24, command.size)
+      assertArrayEquals(words(magic, 1, 9, style, 0, 0), command)
+      for (capabilities in 1..31) {
+        val output = ByteArrayOutputStream()
+        var writes = 0
+        val accepted = NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(capabilities) + ack()),
+          output, targetUid, targetUid, command, onWriteAttempt = { writes++ })
+        assertEquals(capabilities and 16 != 0, accepted)
+        assertEquals(if (accepted) 1 else 0, writes)
+        assertArrayEquals(if (accepted) command else byteArrayOf(), output.toByteArray())
+      }
+    }
+    for (style in listOf(-1, 3, Int.MAX_VALUE)) assertThrows(IllegalArgumentException::class.java) {
+      NativeMonetProtocol.launcherGlassRequest(style)
+    }
+  }
+
+  @Test fun launcherGlassCapabilityIsObservableWithoutPretendingMonetOrStyleWasAcknowledged() {
+    for (capabilities in listOf(1, 16, 17, 31)) {
+      var observed: Int? = null
+      val output = ByteArrayOutputStream()
+      assertEquals(capabilities and 1 != 0, NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(capabilities)), output, targetUid, targetUid, request = null,
+        onGreeting = { observed = it }))
+      assertEquals(capabilities, observed)
+      assertEquals(0, output.size())
+      assertEquals(capabilities and 16 != 0, NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(capabilities)), output, targetUid, targetUid, request = null,
+        readinessCapability = NativeMonetProtocol.LAUNCHER_GLASS_CAPABILITY))
+    }
+    for (current in listOf(false, true)) {
+      var observed = false
+      assertFalse(NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(if (current) 32 else 16)), ByteArrayOutputStream(),
+        targetUid, targetUid, request = null, isCurrentTarget = { current },
+        onGreeting = { observed = true }))
+      assertFalse(observed)
+    }
+  }
+
+  @Test fun launcherGlassRequiresACompleteCurrentAckAndDoesNotPoisonOtherCommands() {
+    val command = NativeMonetProtocol.launcherGlassRequest(2)
+    for (length in 0 until 12) assertThrows(EOFException::class.java) {
+      exchange(ByteArrayInputStream(greeting(16) + ack().copyOf(length)), ByteArrayOutputStream(), request = command)
+    }
+    var checks = 0
+    assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(16) + ack()),
+      ByteArrayOutputStream(), targetUid, targetUid, command, isCurrentTarget = { ++checks == 1 }))
+    assertFalse(exchange(ByteArrayInputStream(greeting(31) + words(magic, 1, 1)),
+      ByteArrayOutputStream(), request = command))
+    for (ordinary in listOf(request(), NativeMonetProtocol.themeMaterialsRequest(true),
+      NativeMonetProtocol.launcherLabelsRequest(1), NativeMonetProtocol.dockGlassRequest(true))) {
+      assertTrue(exchange(ByteArrayInputStream(greeting(31) + ack()), ByteArrayOutputStream(), request = ordinary))
+    }
+  }
+
   @Test fun dockGlassUsesIndependentCapabilityAndExactHeader() {
     for (enabled in listOf(false, true)) {
       val command = NativeMonetProtocol.dockGlassRequest(enabled)
       assertArrayEquals(words(magic, 1, 8, if (enabled) 1 else 0, 0, 1), command)
-      for (capabilities in 1..15) {
+      for (capabilities in 1..31) {
         val output = ByteArrayOutputStream()
         val accepted = NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(capabilities) + ack()),
           output, targetUid, targetUid, command)
@@ -93,7 +154,7 @@ class NativeMonetClientTest {
     for (mode in 0..2) {
       val command = NativeMonetProtocol.launcherLabelsRequest(mode)
       assertArrayEquals(words(magic, 1, 3, mode, 0, 0), command)
-      for (capabilities in 1..15) {
+      for (capabilities in 1..31) {
         val output = ByteArrayOutputStream()
         val accepted = NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(capabilities) + ack()),
           output, targetUid, targetUid, command)
@@ -173,8 +234,11 @@ class NativeMonetClientTest {
       NativeMonetProtocol.launcherLabelsRequest(1) to 4,
       NativeMonetProtocol.dockGlassRequest(false) to 8,
       NativeMonetProtocol.dockGlassRequest(true) to 8,
+      NativeMonetProtocol.launcherGlassRequest(0) to 16,
+      NativeMonetProtocol.launcherGlassRequest(1) to 16,
+      NativeMonetProtocol.launcherGlassRequest(2) to 16,
     )
-    for (capabilities in 1..15) {
+    for (capabilities in 1..31) {
       for ((request, required) in requests) {
         val output = ByteArrayOutputStream()
         val input = ByteArrayInputStream(greeting(capabilities) + ack())
@@ -192,8 +256,9 @@ class NativeMonetClientTest {
     val requests = listOf(null, request(), NativeMonetProtocol.disableRequest(),
       NativeMonetProtocol.themeMaterialsRequest(false), NativeMonetProtocol.themeMaterialsRequest(true),
       NativeMonetProtocol.launcherLabelsRequest(0), NativeMonetProtocol.launcherLabelsRequest(1),
-      NativeMonetProtocol.dockGlassRequest(false), NativeMonetProtocol.dockGlassRequest(true))
-    for (capabilities in listOf(0, 16, 17, 31, Int.MIN_VALUE, -1)) {
+      NativeMonetProtocol.dockGlassRequest(false), NativeMonetProtocol.dockGlassRequest(true),
+      NativeMonetProtocol.launcherGlassRequest(0), NativeMonetProtocol.launcherGlassRequest(2))
+    for (capabilities in listOf(0, 32, 33, 63, Int.MIN_VALUE, -1)) {
       for (request in requests) {
         val output = ByteArrayOutputStream()
         var failure: String? = null

@@ -23,6 +23,11 @@ add_library(keihome_hyos_lsp SHARED
     dock_glass_refresh.cpp
     dock_glass_hooks.cpp
     dock_glass_payload.S
+    launcher_glass_policy.cpp
+    launcher_glass_material_profile.cpp
+    launcher_glass_material_hooks.cpp
+    launcher_glass_material_bridge.S
+    launcher_glass_patch.cpp
     monet_hooks.cpp
     monet_image_identity.cpp
     monet_image_recovery.cpp

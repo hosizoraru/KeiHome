@@ -57,8 +57,8 @@ constexpr WordMask kRefresh[] = {
 };
 static_assert(sizeof(kRefresh) / sizeof(kRefresh[0]) * 4 == 0x38);
 
-// Complete GetStream.add: preserves subject/data in native roots, invokes an
-// optional native onData callback, then forwards both to _notifyData.
+// Complete GetStream.add: preserves subject/data in native roots, checks the
+// generic type argument, then forwards both to _notifyData.
 constexpr WordMask kStreamAdd[] = {
     {0xa9bf79fdu, 0xffffffffu}, {0xaa0f03fdu, 0xffffffffu},
     {0xd10041efu, 0xffffffffu}, {0xaa0103e4u, 0xffffffffu},

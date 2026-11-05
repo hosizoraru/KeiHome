@@ -14,6 +14,7 @@ constexpr uint32_t kNativeMonetCapability = 1u;
 constexpr uint32_t kNativeThemeMaterialsCapability = 2u;
 constexpr uint32_t kNativeLauncherLabelsCapability = 4u;
 constexpr uint32_t kNativeDockGlassCapability = 8u;
+constexpr uint32_t kNativeLauncherGlassCapability = 16u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
@@ -22,6 +23,7 @@ constexpr uint32_t kNativeMonetExpiryMs = 45000u;
 constexpr uint32_t kNativeThemeMaterialsCommand = 2u;
 constexpr uint32_t kNativeLauncherLabelsCommand = 3u;
 constexpr uint32_t kNativeDockGlassCommand = 8u;
+constexpr uint32_t kNativeLauncherGlassCommand = 9u;
 // Command 8 word 4: logical dp * 256; zero selects the native fallback.
 constexpr uint32_t kNativeDockGlassMaxCornerQ8 = 65536u;
 // Command 8 word 5 is a style, never a trailing package count.
@@ -122,7 +124,7 @@ inline void ReleaseNativeMonetPolicy() {
 // accepted here. Closing the Java owner reconnects to the new hot-reload owner.
 // One greeting/request/ACK per connection, all uint32 words little-endian:
 //   greeting: magic, protocolVersion, getuid(), capabilities
-//             bits: 1=Monet, 2=highlight, 4=labels, 8=Dock glass
+//             bits: 1=Monet, 2=highlight, 4=labels, 8=Dock, 16=glass style
 //             0 is unavailable; unknown bits are rejected by the client
 //   request:  magic, protocolVersion, flags, fgARGB, bgARGB, count
 //             then count repetitions of length + ASCII package bytes
@@ -142,4 +144,8 @@ inline void ReleaseNativeMonetPolicy() {
 // radius changes advance revision. Expiry/worker failure only disables, retaining
 // the last radius and style; unchanged renewals do not advance revision;
 // the native UI event bridge consumes that revision at a safe Dart boundary.
+// flags 9 selects the launcher's native glass pipeline: fg=0 system, 1 classic,
+// 2 modern; bg=count=0. Its independent lease restores system selection on
+// expiry. A request is accepted before painting; a mode changes only between
+// complete admitted render invocations, never halfway through a glass pass.
 bool StartNativeMonetPolicyServer();

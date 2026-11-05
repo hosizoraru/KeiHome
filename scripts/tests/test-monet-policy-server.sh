@@ -15,6 +15,7 @@ trap 'rm -rf -- "$monet_test_build_dir"' EXIT
     -Wall -Wextra -Werror -O1 -g -fno-omit-frame-pointer \
     -fsanitize=address,undefined -fno-sanitize-recover=all -pthread \
     "${monet_test_repo}/app/src/test/cpp/monet_policy_server_test.cpp" \
+    "${monet_test_repo}/app/src/main/cpp/launcher_glass_policy.cpp" \
     -o "${monet_test_build_dir}/monet-policy-server-test"
 
 "${monet_test_build_dir}/monet-policy-server-test"

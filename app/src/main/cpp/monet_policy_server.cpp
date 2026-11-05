@@ -2,6 +2,7 @@
 // Independently authored for KeiHome, following MiuiBackGestureHook's exact
 // process/sender authentication and explicit native lifetime ownership principles.
 #include "monet_policy_server.h"
+#include "launcher_glass_policy.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -69,6 +70,7 @@ struct PolicyState {
     uint64_t materials_expires_at;
     uint64_t labels_expires_at;
     uint64_t dock_glass_expires_at;
+    uint64_t launcher_glass_expires_at;
 };
 
 struct RequestHeader {
@@ -87,7 +89,9 @@ uint32_t InstalledCapabilities() {
             ? kNativeLauncherLabelsCapability : 0u;
     const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeDockGlassCapability : 0u;
-    return monet | materials | labels | dock;
+    const uint32_t glass = __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u
+            ? kNativeLauncherGlassCapability : 0u;
+    return monet | materials | labels | dock | glass;
 }
 
 uint32_t ReadLe32(const uint8_t* bytes) {
@@ -140,7 +144,8 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
     const uint32_t count = ReadLe32(header + 20u);
     if (ReadLe32(header) != kNativeMonetMagic ||
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
-            (flags > kNativeLauncherLabelsCommand && flags != kNativeDockGlassCommand) ||
+            (flags > kNativeLauncherLabelsCommand && flags != kNativeDockGlassCommand &&
+             flags != kNativeLauncherGlassCommand) ||
             count > kNativeMonetMaxPackages ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
@@ -151,7 +156,9 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
              (foreground > 2u || background != 0u || count != 0u)) ||
             (flags == kNativeDockGlassCommand &&
              (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 ||
-              count > kNativeDockGlassRecentsStyle))) {
+              count > kNativeDockGlassRecentsStyle)) ||
+            (flags == kNativeLauncherGlassCommand &&
+             (foreground > kLauncherGlassDark || background != 0u || count != 0u))) {
         return false;
     }
     *output = {flags, foreground, background, count};
@@ -262,6 +269,12 @@ void MaintainPolicy(PolicyState* state, uint64_t now) {
 #if defined(__ANDROID__)
     ReportMonetImageRecovery(now);
 #endif
+    if (state->launcher_glass_expires_at != 0u &&
+            (now >= state->launcher_glass_expires_at ||
+             __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
+        RequestLauncherGlassStyle(kLauncherGlassSystem);
+        state->launcher_glass_expires_at = 0u;
+    }
     if (state->dock_glass_expires_at != 0u &&
             (now >= state->dock_glass_expires_at ||
              __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) != 1u)) {
@@ -329,6 +342,16 @@ template <typename Reader, typename Clock>
 bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_before_deadline) {
     RequestHeader header{};
     if (!ReadRequestHeader(read_exactly, &header)) return false;
+    if (header.flags == kNativeLauncherGlassCommand) {
+        const uint64_t now = now_before_deadline();
+        if (!now || (InstalledCapabilities() & kNativeLauncherGlassCapability) == 0u)
+            return false;
+        MaintainPolicy(state, now);
+        if (!RequestLauncherGlassStyle(header.foreground)) return false;
+        state->launcher_glass_expires_at = header.foreground
+                ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
+        return true;
+    }
     if (header.flags == kNativeDockGlassCommand) {
         const uint64_t now = now_before_deadline();
         if (!now || (InstalledCapabilities() & kNativeDockGlassCapability) == 0u) return false;
@@ -362,6 +385,8 @@ bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_bef
 }
 
 uint64_t NextMaintenanceWake(const PolicyState* state, uint64_t deadline) {
+    if (state->launcher_glass_expires_at != 0u && state->launcher_glass_expires_at < deadline)
+        deadline = state->launcher_glass_expires_at;
     if (state->dock_glass_expires_at != 0u && state->dock_glass_expires_at < deadline)
         deadline = state->dock_glass_expires_at;
     if (state->expiration != nullptr && state->expires_at < deadline) {
@@ -620,6 +645,8 @@ void* PolicyWorker(void* data) {
     __atomic_store_n(&kh_theme_materials_enabled, uint32_t{0}, __ATOMIC_RELEASE);
     server->policies.materials_expires_at = 0u;
     server->policies.labels_expires_at = 0u;
+    RequestLauncherGlassStyle(kLauncherGlassSystem);
+    server->policies.launcher_glass_expires_at = 0u;
     DisableDockGlass();
     server->policies.dock_glass_expires_at = 0u;
     PublishPolicy(&server->policies, nullptr);

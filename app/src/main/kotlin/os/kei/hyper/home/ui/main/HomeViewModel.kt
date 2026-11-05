@@ -78,6 +78,9 @@ internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
 internal fun FrameworkUiState.dockGlassInScope(): Boolean =
   connected && !readFailed && snapshot?.systemInScope == true
 
+internal fun FrameworkUiState.launcherGlassInScope(): Boolean =
+  connected && !readFailed && snapshot?.systemInScope == true
+
 internal fun FrameworkUiState.launcherLabelsInScope(): Boolean =
   connected && !readFailed && snapshot?.systemInScope == true
 
@@ -159,6 +162,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   val dockGlass = DockGlassSettings(viewModelScope) { framework.value.dockGlassInScope() }
   fun readDockGlassSettings() { viewModelScope.launch { dockGlass.read() } }
+  val launcherGlass = LauncherGlassSettings(viewModelScope) { framework.value.launcherGlassInScope() }
+  fun readLauncherGlassSettings() { viewModelScope.launch { launcherGlass.read() } }
 
   fun readLauncherLabelSettings() { viewModelScope.launch { launcherLabels.read() } }
   suspend fun refreshHomeScreenStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
@@ -286,6 +291,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         themeEffects.value = ThemeEffectsUiState()
         launcherLabels.reset()
         dockGlass.reset()
+        launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4) launch { readRuntimeStatus(true) }
@@ -293,6 +299,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           readThemeEffects()
           launcherLabels.read()
           dockGlass.read()
+          launcherGlass.read()
           readSplashAppearance()
           delay(1_500)
           withContext(Dispatchers.IO) {
@@ -315,7 +322,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (page == 4) launch {
         readFramework()
         readSplashAppearance()
-        while (true) { readThemeEffects(); launcherLabels.read(); dockGlass.read(); delay(5_000) }
+        while (true) { readThemeEffects(); launcherLabels.read(); dockGlass.read(); launcherGlass.read(); delay(5_000) }
       }
       if (page in 0..3) launch {
         while (true) {
@@ -358,7 +365,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     viewModelScope.launch {
       try {
         readFramework()
-        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read(); dockGlass.read() }
+        if (page == 4) { readSplashAppearance(); readThemeEffects(); launcherLabels.read(); dockGlass.read(); launcherGlass.read() }
         if (page in 0..3) readRuntimeStatus(true, force = true)
         if (page == 3) {
           readThemeEffects()

@@ -812,17 +812,13 @@ internal fun StatusOverviewCard(
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
     Box(Modifier.fillMaxWidth().clipToBounds()) {
-      // Badge rows belong to the card, so their symbol uses the full card bounds.
-      if (badges.isNotEmpty()) Box(Modifier.matchParentSize()) {
+      // Keep the symbol square and clip it only at the full card boundary.
+      Box(Modifier.matchParentSize()) {
         StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.CenterEnd)
           .offset(x = 27.dp).requiredSize(130.dp))
       }
       Column {
         Box(Modifier.fillMaxWidth().clipToBounds()) {
-          if (badges.isEmpty()) Box(Modifier.matchParentSize()) {
-            StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.BottomEnd)
-              .offset(x = 27.dp, y = 31.dp).size(130.dp))
-          }
           Column(
             modifier = Modifier
               .fillMaxWidth()

@@ -62,6 +62,7 @@ internal fun SettingsContent(
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
+  staticScopeContent: @Composable () -> Unit = {},
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -87,6 +88,8 @@ internal fun SettingsContent(
     R.string.system_fallback_classic, R.string.system_fallback_boundless,
     R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
   val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
+  val staticScope = matches(SettingsSection.HOOK, R.string.scope_title, R.string.scope_search,
+    extra = "scope libxposed")
   val launcherGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.settings_system_appearance,
     R.string.launcher_glass_title, R.string.launcher_glass_summary,
     R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
@@ -111,13 +114,14 @@ internal fun SettingsContent(
   val source = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_source, extra = "GitHub")
   val notices = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_notices, extra = "license")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, fallback, effects, launcherGlass, labels, dockGlass, splashVisible, autoApply, rememberMenus,
+    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, rememberMenus,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
+    if (staticScope) staticScopeContent()
     if (fallback) {
       SmallTitle(stringResource(R.string.settings_icon_fallback_section), modifier = Modifier.semantics { heading() })
       fallbackContent()

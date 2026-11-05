@@ -89,9 +89,6 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh)
-  if (section == SettingsSection.HOOK || (query.isNotBlank() &&
-      (stringResource(R.string.scope_title) + " " + stringResource(R.string.scope_search))
-        .contains(query.trim(), ignoreCase = true))) StaticScopeCard(model)
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode,
     model.preferences::setShowIconPreviews, { model.clearPreviewCache(); cacheRefresh++ }, model.preferences::setPageUserScroll,
     model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections,
@@ -100,6 +97,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
+    staticScopeContent = { StaticScopeCard(model) },
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

@@ -69,6 +69,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val framework by model.framework.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val sort by model.packSort.collectAsStateWithLifecycle()
+  val source by model.browserSource.collectAsStateWithLifecycle()
+  val needsUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+  val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId)
   var query by rememberSaveable(section) { mutableStateOf("") }
   val activeId = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme?.localId
@@ -87,10 +90,26 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
       "home" -> {
-        item("native") { SystemIconThemeCard(runtime) { model.refresh(3) } }
+        item("native") {
+          val badges = buildList {
+            if (pending != null) add(stringResource(R.string.pack_pending_apply))
+            else if (needsUpdate) add(stringResource(R.string.pack_update_available_short))
+            source?.generation?.colorOsPackages?.size?.let { count ->
+              if (count > 0) add(stringResource(R.string.coloros_fallback_applied, count))
+            }
+            val applied = source?.systemFallback
+            add(if (applied != null) stringResource(R.string.system_fallback_applied,
+              stringResource(systemFallbackLabel(applied.style)), applied.names.size)
+            else stringResource(R.string.pack_completion_selected,
+              stringResource(systemFallbackLabel(preferences.systemIconFallback))))
+          }
+          SystemIconThemeCard(runtime, badges) { model.refresh(3) }
+        }
         item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
           stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
-        item("completion") { PackCompletionCard(model) { onNavigate("fallback") } }
+        item("completion") {
+          PackCompletionCard(needsUpdate, pending, state.nativeImporting != null) { onNavigate("fallback") }
+        }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
       }

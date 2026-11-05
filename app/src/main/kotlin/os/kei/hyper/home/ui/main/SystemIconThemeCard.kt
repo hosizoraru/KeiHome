@@ -8,7 +8,9 @@ import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 @Composable
-internal fun SystemIconThemeCard(runtime: RuntimeStatusUiState, onRefresh: () -> Unit) {
+internal fun SystemIconThemeCard(
+  runtime: RuntimeStatusUiState, badges: List<String> = emptyList(), onRefresh: () -> Unit,
+) {
   val theme = runtime.report?.takeIf { it.isFresh(SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme
   val available = theme != null && theme.source != SystemIconThemeReport.Source.UNAVAILABLE
@@ -22,5 +24,5 @@ internal fun SystemIconThemeCard(runtime: RuntimeStatusUiState, onRefresh: () ->
   } else stringResource(if (available) R.string.icon_pack_inventory_incomplete else R.string.icon_pack_waiting_system)
   StatusOverviewCard(title = stringResource(R.string.icon_pack_active), summary = name,
     footer = footer, tone = if (theme?.complete == true && available) StatusTone.READY else StatusTone.WARNING,
-    details = emptyList(), onRefresh = onRefresh)
+    details = emptyList(), onRefresh = onRefresh, badges = badges)
 }

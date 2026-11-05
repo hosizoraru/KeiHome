@@ -37,6 +37,9 @@ Settings / System and Hook retains system material preservation and launch
 screen adaptation. The icon-pack completion card opens its own fallback
 destination containing system fallback, app-name matching and optional ColorOS
 completion. Global settings search still renders matching migrated controls.
+The icon-pack overview owns the ColorOS completion count, applied or selected
+system fallback, and pending update/application pills, one per row. The
+completion destination card keeps its guidance and native application action.
 
 Desktop observation runs only while the surface is started. Receipt reads omit
 the icon inventory, and neither polling nor manual Desktop refresh scans apps,

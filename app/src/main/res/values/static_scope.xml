@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="scope_title">Static scope</string>
+  <string name="scope_search">scope authorization LSPosed Xposed framework permissions</string>
+  <string name="scope_count">%1$d / %2$d granted</string>
+  <string name="scope_disconnected">Connect the module service first. Check that KeiHome is enabled in the framework manager.</string>
+  <string name="scope_read_failed">Unable to read the current scope. Check again before requesting access.</string>
+  <string name="scope_requesting">Confirm access in the framework dialog or notification.</string>
+  <string name="scope_loading">Reading scope and installed targets…</string>
+  <string name="scope_unsupported">This framework does not support the system scope. Other available targets can still be requested.</string>
+  <string name="scope_unconfirmed">Some installed targets could not be confirmed. Check again to include them.</string>
+  <string name="scope_complete">All available declared targets are authorized.</string>
+  <string name="scope_missing">Some available declared targets still need authorization.</string>
+  <string name="scope_system">System framework</string>
+  <string name="scope_launcher">Launcher</string>
+  <string name="scope_themes">Themes</string>
+  <string name="scope_system_ui">System UI</string>
+  <string name="scope_granted">Granted</string>
+  <string name="scope_absent">Not installed</string>
+  <string name="scope_unknown">Unconfirmed</string>
+  <string name="scope_not_supported">Unsupported</string>
+  <string name="scope_not_granted">Not granted</string>
+  <string name="scope_partial">Some scopes remain unauthorized. You can request them again.</string>
+  <string name="scope_failed">The request was not completed. Check the framework response and try again.</string>
+  <string name="scope_returned">Authorization is incomplete. You can request the remaining scopes again.</string>
+  <string name="scope_timeout">No callback arrived. The actual scope has been checked again; you can retry.</string>
+  <string name="scope_runtime_note">Authorization and target loading are shown separately. A newly authorized target may need to load again before its features become available.</string>
+  <string name="scope_request">Request access</string>
+  <string name="scope_check">Check scope</string>
+  <string name="scope_open_manager">Open manager</string>
+  <string name="scope_manager_unavailable">Open your framework manager and check whether KeiHome is enabled.</string>
+</resources>

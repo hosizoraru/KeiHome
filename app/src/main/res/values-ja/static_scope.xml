@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="scope_title">静的スコープ</string>
+  <string name="scope_search">スコープ 許可 申請 LSPosed Xposed フレームワーク 権限</string>
+  <string name="scope_count">%1$d / %2$d 許可済み</string>
+  <string name="scope_disconnected">モジュールサービスに未接続です。管理アプリで KeiHome が有効か確認してください。</string>
+  <string name="scope_read_failed">現在のスコープを読み取れません。再確認してから申請してください。</string>
+  <string name="scope_requesting">フレームワークのダイアログまたは通知で許可してください。</string>
+  <string name="scope_loading">許可とインストール済みの対象を確認中…</string>
+  <string name="scope_unsupported">このフレームワークはシステムスコープに対応していません。他の利用可能な対象は申請できます。</string>
+  <string name="scope_unconfirmed">一部の対象のインストール状態を確認できません。再確認してください。</string>
+  <string name="scope_complete">利用可能な宣言済みの対象はすべて許可されています。</string>
+  <string name="scope_missing">一部の利用可能な対象が未許可です。</string>
+  <string name="scope_system">システム</string>
+  <string name="scope_launcher">ランチャー</string>
+  <string name="scope_themes">テーマ</string>
+  <string name="scope_system_ui">システム UI</string>
+  <string name="scope_granted">許可済み</string>
+  <string name="scope_absent">未インストール</string>
+  <string name="scope_unknown">未確認</string>
+  <string name="scope_not_supported">非対応</string>
+  <string name="scope_not_granted">未許可</string>
+  <string name="scope_partial">一部のスコープは未許可です。再申請できます。</string>
+  <string name="scope_failed">申請が完了しませんでした。フレームワークの応答を確認して再試行してください。</string>
+  <string name="scope_returned">許可は未完了です。残りのスコープを再申請できます。</string>
+  <string name="scope_timeout">応答がないため実際の許可を再確認しました。再試行できます。</string>
+  <string name="scope_runtime_note">許可状態と対象の読み込み状態は別々に表示されます。新しく許可された対象は再読み込みが必要な場合があります。</string>
+  <string name="scope_request">許可を申請</string>
+  <string name="scope_check">許可を確認</string>
+  <string name="scope_open_manager">管理アプリを開く</string>
+  <string name="scope_manager_unavailable">フレームワークの管理アプリで KeiHome が有効か確認してください。</string>
+</resources>

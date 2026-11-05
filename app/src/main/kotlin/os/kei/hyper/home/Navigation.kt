@@ -5,10 +5,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +34,14 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun MainNavigation() {
   val model: HomeViewModel = viewModel()
+  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  DisposableEffect(model, lifecycle) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) model.scopeRequests.onResumed()
+    }
+    lifecycle.addObserver(observer)
+    onDispose { lifecycle.removeObserver(observer) }
+  }
   NativeIconAutoNavigation(model)
   val backStack = rememberNavBackStack<HomeRoute>(Main)
   val swipe = if (LocalLayoutDirection.current == LayoutDirection.Rtl)

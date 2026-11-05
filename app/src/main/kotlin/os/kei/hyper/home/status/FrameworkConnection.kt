@@ -46,6 +46,8 @@ internal data class FrameworkSnapshot(
   val themesInScope: Boolean = false,
   val systemUiInScope: Boolean = false,
   val systemUiTarget: FrameworkTarget? = null,
+  val grantedScope: Set<String> = emptySet(),
+  val frameworkProperties: Long = 0,
 )
 
 internal data class FrameworkTarget(val state: HookedTarget.State, val loadedVersionCode: Long)
@@ -78,6 +80,8 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     themesInScope = "com.android.thememanager" in currentScope,
     systemUiInScope = "com.android.systemui" in currentScope,
     systemUiTarget = systemUiTarget?.let { FrameworkTarget(it.state, it.loadedVersionCode) },
+    grantedScope = currentScope.toSet(),
+    frameworkProperties = frameworkProperties,
   )
 }
 

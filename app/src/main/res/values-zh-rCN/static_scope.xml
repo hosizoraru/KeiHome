@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="scope_title">静态作用域</string>
+  <string name="scope_search">作用域 授权 申请 LSPosed Xposed 框架 权限</string>
+  <string name="scope_count">%1$d / %2$d 已授权</string>
+  <string name="scope_disconnected">尚未连接模块服务，请在框架管理器中检查 KeiHome 是否已启用。</string>
+  <string name="scope_read_failed">暂时无法读取实际作用域，请重新检查后再申请。</string>
+  <string name="scope_requesting">请在框架弹窗或通知中确认授权。</string>
+  <string name="scope_loading">正在读取授权与已安装的目标应用…</string>
+  <string name="scope_unsupported">当前框架不支持系统作用域，仍可申请其他可用目标。</string>
+  <string name="scope_unconfirmed">部分目标的安装状态暂时无法确认，重新检查后可继续申请。</string>
+  <string name="scope_complete">所有可用的声明目标均已授权。</string>
+  <string name="scope_missing">部分可用的声明目标尚未授权。</string>
+  <string name="scope_system">系统框架</string>
+  <string name="scope_launcher">系统桌面</string>
+  <string name="scope_themes">主题壁纸</string>
+  <string name="scope_system_ui">系统界面</string>
+  <string name="scope_granted">已授权</string>
+  <string name="scope_absent">未安装</string>
+  <string name="scope_unknown">待确认</string>
+  <string name="scope_not_supported">不支持</string>
+  <string name="scope_not_granted">未授权</string>
+  <string name="scope_partial">仍有部分作用域未授权，可以再次申请。</string>
+  <string name="scope_failed">申请未完成，请查看框架返回的原因后重试。</string>
+  <string name="scope_returned">授权尚未完成，可以重新申请剩余作用域。</string>
+  <string name="scope_timeout">暂未收到回调，已重新检查实际授权，可以重试。</string>
+  <string name="scope_runtime_note">授权状态与目标加载状态分别显示。新授权的目标可能需要重新加载后，相关功能才会生效。</string>
+  <string name="scope_request">申请授权</string>
+  <string name="scope_check">检查授权</string>
+  <string name="scope_open_manager">打开框架</string>
+  <string name="scope_manager_unavailable">请打开所用框架的管理器，检查 KeiHome 是否已启用。</string>
+</resources>

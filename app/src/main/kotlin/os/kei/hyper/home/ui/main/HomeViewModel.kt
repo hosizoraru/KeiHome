@@ -62,6 +62,8 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.status.IconPackHandoffs
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
+import os.kei.hyper.home.status.LibxposedStaticScopeClient
+import os.kei.hyper.home.status.StaticScopeRequests
 
 internal data class FrameworkUiState(
   val connected: Boolean = false,
@@ -76,13 +78,18 @@ internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
   connected && !readFailed && snapshot?.systemUiInScope == true
 
 internal fun FrameworkUiState.dockGlassInScope(): Boolean =
-  connected && !readFailed && snapshot?.systemInScope == true
+  launcherScopeGranted()
 
 internal fun FrameworkUiState.launcherGlassInScope(): Boolean =
-  connected && !readFailed && snapshot?.systemInScope == true
+  launcherScopeGranted()
 
 internal fun FrameworkUiState.launcherLabelsInScope(): Boolean =
-  connected && !readFailed && snapshot?.systemInScope == true
+  launcherScopeGranted()
+
+private fun FrameworkUiState.launcherScopeGranted(): Boolean =
+  connected && !readFailed && snapshot?.let {
+    it.systemInScope && "com.miui.home" in it.grantedScope
+  } == true
 
 internal data class MonetUiState(
   val snapshot: MonetPaletteSnapshot? = null,
@@ -150,6 +157,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(IconPacksUiState())
   val framework: StateFlow<FrameworkUiState>
     field = MutableStateFlow(FrameworkUiState())
+  val scopeRequests = StaticScopeRequests(viewModelScope, onReconciled = { readFramework() })
+  private var scopeClient: LibxposedStaticScopeClient? = null
   val runtime: StateFlow<RuntimeStatusUiState>
     field = MutableStateFlow(RuntimeStatusUiState())
   val homeScreenRuntime: StateFlow<RuntimeStatusUiState>
@@ -285,6 +294,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     launcherApps?.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
     viewModelScope.launch {
       FrameworkConnection.service.collectLatest { service ->
+        scopeClient = service?.let { LibxposedStaticScopeClient(application, it) }
+        scopeRequests.connect(scopeClient)
         framework.value = FrameworkUiState(connected = service != null)
         runtime.value = RuntimeStatusUiState()
         homeScreenRuntime.value = RuntimeStatusUiState()
@@ -620,13 +631,24 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   private suspend fun readFramework() {
     val service = FrameworkConnection.service.value ?: return
+    val client = scopeClient?.takeIf { it.identity === service } ?: return
+    val scopeRead = scopeRequests.beginRead(service) ?: return
     try {
-      val result = withContext(Dispatchers.IO) { service.readFrameworkSnapshot() }
-      if (FrameworkConnection.service.value === service) framework.value = FrameworkUiState(true, result)
+      val (result, scopePlan) = withContext(Dispatchers.IO) {
+        val snapshot = service.readFrameworkSnapshot()
+        snapshot to client.plan(snapshot.grantedScope, snapshot.frameworkProperties)
+      }
+      if (FrameworkConnection.service.value === service && scopeClient === client) {
+        val accepted = scopeRequests.observePlan(service, scopeRead, scopePlan)
+        if (accepted) framework.value = FrameworkUiState(true, result)
+      }
     } catch (cancellation: CancellationException) {
       throw cancellation
     } catch (_: Exception) {
-      if (FrameworkConnection.service.value === service) framework.update { it.copy(readFailed = true) }
+      if (FrameworkConnection.service.value === service && scopeClient === client) {
+        if (scopeRequests.readFailed(service, scopeRead))
+          framework.update { it.copy(readFailed = true) }
+      }
     }
   }
 

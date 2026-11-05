@@ -209,7 +209,8 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
     runtime = runtime,
     iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered },
-    onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment)
+    onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment,
+    scopeContent = { StaticScopeCard(model, attentionOnly = true) })
 }
 
 @Composable

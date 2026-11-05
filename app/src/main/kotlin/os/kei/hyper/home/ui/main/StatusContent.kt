@@ -127,6 +127,7 @@ internal fun StatusBody(
   runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
   coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: () -> Unit = {},
+  scopeContent: @Composable () -> Unit = {},
 ) {
   // The containing page's SaveableStateProvider retains these across tab switches.
   var runtimeExpanded by rememberSaveable { mutableStateOf(false) }
@@ -135,6 +136,7 @@ internal fun StatusBody(
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     RuntimeStatusSection(framework, runtime, runtimeExpanded,
       { runtimeExpanded = !runtimeExpanded }, onRefresh, onOpenEnvironment)
+    scopeContent()
     DashboardMonetCard(
       snapshot = monetSnapshot,
       readFailed = monetReadFailed,

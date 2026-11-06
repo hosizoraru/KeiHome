@@ -19,7 +19,63 @@ class ActiveIconThemeTest {
   private val active get() = File(temporary.root, "icons")
   private val stock get() = File(temporary.root, "stock-icons")
   private val mod get() = File(temporary.root, "mod-icons")
-  private fun reader(maxEntries: Int = 16_384) = ActiveIconTheme(active, stock, mod, maxEntries)
+  private fun reader(maxEntries: Int = os.kei.hyper.home.iconpack.IconPackLimits().maxEntries) =
+    ActiveIconTheme(active, stock, mod, maxEntries)
+
+  @Test fun indexesAnImportedArchiveLargerThanTheOld64MiBLimitWithoutLoadingItsPayload() {
+    ZipOutputStream(active.outputStream()).use { zip ->
+      zip.setLevel(0)
+      zip.putNextEntry(ZipEntry("unused-padding.bin"))
+      val block = ByteArray(8192)
+      repeat(8193) { zip.write(block) }
+      zip.closeEntry()
+      zip.putNextEntry(ZipEntry("res/drawable/com.sample.large.png"))
+      zip.write(png())
+      zip.closeEntry()
+    }
+    assertTrue(active.length() > 64L * 1024 * 1024)
+    val result = reader().snapshot(setOf("com.sample.large"))
+    assertTrue(result.complete)
+    assertEquals(setOf("com.sample.large"), result.coveredPackages)
+    assertFalse(ActiveIconTheme(active, stock, mod, maxArchiveBytes = active.length() - 1)
+      .describe().complete)
+    assertTrue(ActiveIconTheme(active, stock, mod, maxArchiveBytes = active.length())
+      .describe().complete)
+  }
+
+  @Test fun inventoriesMoreThanTheOldEntryCountWithoutDroppingLateIcons() {
+    archive(active, (0..16_384).associate { "res/drawable/com.sample.icon$it.png" to png() })
+    val report = reader().describe()
+    assertTrue(report.complete)
+    assertEquals(16_385, report.resourceCount)
+    assertEquals(setOf("com.sample.icon16384"),
+      reader().snapshot(setOf("com.sample.icon16384")).coveredPackages)
+  }
+
+  @Test fun manySmallDescriptorsMayExceedOneMiBButStillHaveABoundedAggregate() {
+    val xml = ("<Icon><Image/><!--" + " ".repeat(4096) + "--></Icon>").toByteArray()
+    archive(active, (0..299).associate { "fancy_icons/com.sample.icon$it/manifest.xml" to xml })
+    assertTrue(300L * xml.size > 1024 * 1024)
+    assertTrue(reader().describe().complete)
+    assertEquals(300, reader().describe().resourceCount)
+    val bounded = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = 299L * xml.size)
+    assertFalse(bounded.describe().complete)
+    assertTrue(bounded.snapshot(setOf("com.sample.icon0")).coveredPackages.isEmpty())
+  }
+
+  @Test fun directoryDescriptorBudgetSupportsLargeCollectionsAndStillRejectsOverflow() {
+    val xml = ("<Icon><Image/><!--" + " ".repeat(4096) + "--></Icon>").toByteArray()
+    repeat(300) { i ->
+      File(mod, "fancy_icons/com.sample.icon$i/manifest.xml").apply {
+        parentFile.mkdirs()
+        writeBytes(xml)
+      }
+    }
+    assertTrue(reader().describe().complete)
+    assertEquals(300, reader().describe().resourceCount)
+    assertFalse(ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = 299L * xml.size)
+      .describe().complete)
+  }
 
   @Test fun timeRefreshTargetsOnlyCanonicalTemplatesAndExactComponentOwners() {
     val dynamic = os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon

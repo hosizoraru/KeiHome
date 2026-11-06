@@ -3,15 +3,19 @@ package os.kei.hyper.home.iconpack
 internal object IconBuildInventory {
   const val NAMES_PATH = "keihome-browser-native-names.txt"
   const val SOURCE_PATH = "keihome-build-source.txt"
-  const val MAX_BYTES = 4 * 1024 * 1024
+  const val MAX_BYTES = 16 * 1024 * 1024
+  private val maxNames = IconPackLimits().maxEntries
 
-  fun encodeNames(names: Set<String>): ByteArray =
-    names.sorted().joinToString("\n", postfix = if (names.isEmpty()) "" else "\n").toByteArray(Charsets.UTF_8)
+  fun encodeNames(names: Set<String>): ByteArray {
+    require(names.size <= maxNames && names.all(::validDottedName))
+    return names.sorted().joinToString("\n", postfix = if (names.isEmpty()) "" else "\n")
+      .toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_BYTES) }
+  }
 
   fun decodeNames(bytes: ByteArray): Set<String> {
     require(bytes.size <= MAX_BYTES)
     val names = bytes.toString(Charsets.UTF_8).split('\n').dropLast(1)
-    require(names.all(::validDottedName) && names.size <= 16384)
+    require(names.all(::validDottedName) && names.size <= maxNames)
     return names.toSet().also { require(encodeNames(it).contentEquals(bytes)) }
   }
 

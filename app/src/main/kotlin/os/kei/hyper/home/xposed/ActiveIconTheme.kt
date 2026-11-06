@@ -31,7 +31,9 @@ internal class ActiveIconTheme(
   private val activeIcons: File = File("/data/system/theme/icons"),
   private val stockIcons: File = File("/system/media/theme/default/icons"),
   private val modIcons: File = File("/system/media/theme/miui_mod_icons"),
-  private val maxEntries: Int = 16_384,
+  private val maxEntries: Int = os.kei.hyper.home.iconpack.IconPackLimits().maxEntries,
+  private val maxArchiveBytes: Long = os.kei.hyper.home.iconpack.IconPackLimits().maxInputBytes,
+  private val maxDescriptorsTotal: Long = 32L * 1024 * 1024,
 ) {
   data class Snapshot(
     val signature: Signature,
@@ -64,7 +66,7 @@ internal class ActiveIconTheme(
   private val revision = AtomicLong()
   private val cached = mutableMapOf<String, Index>()
 
-  init { require(maxEntries > 0) }
+  init { require(maxEntries > 0 && maxArchiveBytes > 0 && maxDescriptorsTotal > 0) }
 
   fun invalidate() { revision.incrementAndGet() }
 
@@ -151,7 +153,7 @@ internal class ActiveIconTheme(
       when (sourceStamp.kind) {
         Kind.MISSING -> Inventory(emptySet())
         Kind.DIRECTORY -> if (directory) readDirectory(file) else null
-        Kind.FILE -> if (!directory && sourceStamp.size <= MAX_PACK_BYTES) readArchive(file) else null
+        Kind.FILE -> if (!directory && sourceStamp.size <= maxArchiveBytes) readArchive(file) else null
         Kind.UNKNOWN -> null
       }
     } catch (_: IOException) { null
@@ -196,14 +198,14 @@ internal class ActiveIconTheme(
       if (resource.descriptor) {
         if (entry.size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
         descriptorBytes += entry.size
-        if (descriptorBytes > MAX_DESCRIPTORS_TOTAL) throw IOException("Icon descriptors total limit")
+        if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
       }
       if (resource.layer != null) {
         val config = zip.getEntry(resource.layerConfig) ?: continue
         if (config.isDirectory || config.size <= 0) continue
         if (config.size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon layer config limit")
         descriptorBytes += config.size
-        if (descriptorBytes > MAX_DESCRIPTORS_TOTAL) throw IOException("Icon descriptors total limit")
+        if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
         val declared = zip.getInputStream(config).use {
           declaresLayer(it.readNBytes(MAX_DESCRIPTOR_BYTES + 1), resource.layer)
         }
@@ -253,7 +255,7 @@ internal class ActiveIconTheme(
         if (resource.descriptor) {
           if (attrs.size() > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
           descriptorBytes += attrs.size()
-          if (descriptorBytes > MAX_DESCRIPTORS_TOTAL) throw IOException("Icon descriptors total limit")
+          if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
         }
         if (resource.layer != null) {
           val config = root.resolve(resource.layerConfig)
@@ -263,7 +265,7 @@ internal class ActiveIconTheme(
           val size = Files.size(config)
           if (size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon layer config limit")
           descriptorBytes += size
-          if (descriptorBytes > MAX_DESCRIPTORS_TOTAL) throw IOException("Icon descriptors total limit")
+          if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
           val declared = Files.newInputStream(config).use {
             declaresLayer(it.readNBytes(MAX_DESCRIPTOR_BYTES + 1), resource.layer)
           }
@@ -352,9 +354,7 @@ internal class ActiveIconTheme(
   }
 
   private companion object {
-    const val MAX_PACK_BYTES = 64L * 1024 * 1024
     const val MAX_DESCRIPTOR_BYTES = 64 * 1024
-    const val MAX_DESCRIPTORS_TOTAL = 1024 * 1024L
     val LAYER_VARIABLE = Regex("layer[0-9]+")
     val PNG_SIGNATURE = byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10).toList()
   }

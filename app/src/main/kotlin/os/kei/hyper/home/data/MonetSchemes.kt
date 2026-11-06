@@ -5,7 +5,7 @@ import com.materialkolor.dynamiccolor.ColorSpec.SpecVersion.SPEC_2021
 import com.materialkolor.hct.Hct
 import com.materialkolor.palettes.TonalPalette
 import com.materialkolor.quantize.QuantizerCelebi
-import com.materialkolor.scheme.DynamicScheme.Platform.PHONE
+import com.materialkolor.dynamiccolor.DynamicScheme.Platform.PHONE
 import com.materialkolor.scheme.SchemeExpressive
 import com.materialkolor.scheme.SchemeFruitSalad
 import com.materialkolor.scheme.SchemeMonochrome

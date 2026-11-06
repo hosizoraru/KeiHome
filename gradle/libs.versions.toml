@@ -1,5 +1,5 @@
 [versions]
-androidGradlePlugin = "9.4.1"
+androidGradlePlugin = "9.5.1"
 androidxCore = "1.19.1"
 androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
@@ -13,8 +13,8 @@ dexkit = "2.3.0"
 junit = "4.13.2"
 kotlin = "2.4.21"
 libxposed = "102.0.0"
-miuix = "0.9.4-fc455d9a-SNAPSHOT"
-materialColorUtilities = "5.0.1"
+miuix = "0.9.4-fa6f5b50-SNAPSHOT"
+materialColorUtilities = "6.0.0"
 mmkv = "2.4.3"
 
 [libraries]

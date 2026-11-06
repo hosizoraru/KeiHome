@@ -62,8 +62,9 @@ runtime's lifetime and invalidation contracts. No unverified shared bitmap,
 texture or mutable ZIP cache was added.
 
 Research and per-device captures are retained in
-`.artifacts/research/launcher-open-20261107/`, including
-`coloros-reference.md`, archive audits and independent trace reports.
+`.artifacts/research/launcher-open-20261107/`, including archive audits and
+independent trace reports. The reproducible ColorOS findings are documented in
+[coloros-icon-cache-reference.md](coloros-icon-cache-reference.md).
 
 ## November 7 device observations
 
@@ -109,3 +110,31 @@ The five retained native fixtures pass 3,430 linked ARM64 execution cases,
 including editing-state transitions, missing controllers and relocation during
 each native query. These are ABI and ownership checks; actual device interaction
 and rendering remain separate acceptance gates.
+
+## Final acceptance checkpoint
+
+Release `1.4.0+gebac22d.b0222` / `104000222` uses the KeiOS Release identity.
+Its native payload is byte-identical to the accepted AVD candidate 220.
+The AVD completed an eight-probe cross-page drag with completed checkmarks and
+no residual drag feedback. Temporary probes were subsequently removed.
+
+A single Classic ART+ regeneration/application succeeded on AVD: the protected
+applied archive has 723 fancy descriptors, 35 compact single-image descriptors
+and no byte-identical expanded day/night pairs. Physical-device artwork remains
+in its previous valid layout; it adopts compaction on its next pack update.
+
+The initial AVD mode 1 -> 2 -> 1 and physical mode 2 -> 1 -> 2 cycles each advanced
+revision/notified exactly twice while preserving Launcher PID and start time.
+An additional warm AVD cycle also preserved identity and restored mode 1;
+the final AVD revision/notified is five and physical is three.
+Server and SystemUI identities also remained stable. Explicit development native
+activations are recorded separately; the final AVD APK update used ordinary
+API 102 Java reload and preserved all three process identities.
+
+The receipt is `.artifacts/research/launcher-open-20261107/acceptance.json`.
+Residual Dart GC and native raster/snapshot costs remain investigation targets;
+these changes do not establish universal jank removal or a memory-saving ratio.
+An early post-update AVD capture showed an empty folder thumbnail and a slow
+Home transition. Later settled warm captures in both modes rendered the folder
+correctly. These observations do not establish a cold-cache fix or attribute
+that transient state to a particular hook.

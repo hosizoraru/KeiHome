@@ -34,13 +34,27 @@ Service connectivity, scope grants and loaded hooks are different states.
 Finishing the guide never claims all hooks are active. Runtime health remains on
 the Status page; an unavailable framework does not block Continue or Set up later.
 
-The fixed footer uses MIUIX FloatingToolbar with a rounded container, divider and
-native buttons, rather than an opaque full-width bar. Its actual measured height
-and navigation safe area are reserved outside the body scroll viewport, so
-scroll-to-focus does not place scope actions behind the footer. The TopAppBar
+The footer uses MIUIX Scaffold's native `floatingToolbar` slot with a rounded
+FloatingToolbar, divider and native buttons. There is no full-width bottom bar.
+Its measured height, floating spacing and navigation safe area are reserved
+inside the scroll content. Padding outside the scroll modifier previously
+shortened the viewport and left a solid block below it; the body now draws
+behind the floating controls and can scroll its final item above them. The TopAppBar
 uses MIUIX scroll behavior and the existing preference-aware blurred header.
 MIUIX navigation provides page transitions and normal Back behavior; strings
 cover English, Simplified Chinese and Japanese.
+
+The icon step first explains automatic light/dark adaptation for supported
+system Default, Classic and Boundless icons after activation. Changing packs
+and enabling Monet are optional. The three entry points follow the main page:
+available packs, Monet, then completion/fallback. Each returns to the same guide
+step without changing preferences.
+
+The main icon page shows the system-icon notice only for a fresh native DEFAULT
+source report. A third-party theme hides it; a selected fallback preference does
+not imply that the active theme is native. The builtin catalog always shows the
+notice as a separate information card, including while a third-party theme is
+active.
 
 ## Community references
 
@@ -60,7 +74,9 @@ code or assets were copied.
 recognition, persisted progress/completion, malformed state and unchanged app
 preferences. `OnboardingNavigationTest` uses isolated MMKV IDs to exercise the
 real navigation flow, catalog/desktop round trips, completion/replay, resume and
-large text without clearing user data or changing scope grants.
+large text without clearing user data or changing scope grants. The current
+footer tests scroll every page to its end at standard and 1.6 font scale and
+compare the final content bounds against the floating toolbar.
 
 Device receipts and screenshots live in
 `.artifacts/research/onboarding-20261106/`. Acceptance is limited to the HyperOS
@@ -74,7 +90,8 @@ and feature controls with isolated guide stores; they do not claim a destructive
 fresh installation was performed.
 
 On this AVD, background launch of the test ComponentActivity is blocked. The test
-host was explicitly launched through adb; the system's cross-package startup
+host is explicitly brought forward by a test-only outer rule before
+ActivityScenario starts; the system's cross-package startup
 confirmation was approved. Back regression dispatches through the real
 Activity back dispatcher because this AVD denies Espresso's global key injection.
 These are test-host constraints, not new runtime grants requested by the guide.

@@ -29,7 +29,7 @@
   <string name="pack_apply_native">システムテーマで適用</string>
   <string name="pack_apply_note">変更後は再生成し、システムテーマで適用してください。</string>
   <string name="pack_hyperos">HyperOS · デフォルト / クラシック / バウンドレス</string>
-  <string name="pack_hyperos_summary">モジュールを有効にすると、システム標準の「デフォルト」「クラシック」「バウンドレス」で対応アイコンがライト・ダークモードに自動で追従します。追加のインポートは不要で、Monet は個別に切り替えられます。</string>
+  <string name="pack_hyperos_summary">明暗は標準の動作を維持し、Monet は個別に切り替えられます。</string>
   <string name="pack_hyperos_open">ホーム設定を開く</string>
   <string name="pack_hyperos_theme_open">テーマ・壁紙のアイコン</string>
   <string name="pack_hyperos_icons_open">アイコンスタイルを開く</string>

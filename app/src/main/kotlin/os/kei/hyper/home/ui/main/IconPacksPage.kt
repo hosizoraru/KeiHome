@@ -73,8 +73,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val needsUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
   val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId)
   var query by rememberSaveable(section) { mutableStateOf("") }
-  val activeId = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
-    !runtime.readFailed && !runtime.timedOut }?.iconTheme?.localId
+  val activeTheme = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
+    !runtime.readFailed && !runtime.timedOut }?.iconTheme
+  val activeId = activeTheme?.localId
   val importReady = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
   val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -105,9 +106,11 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           }
           SystemIconThemeCard(runtime, badges) { model.refresh(3) }
         }
-        item("system-appearance") {
-          PackInfoCard(stringResource(R.string.pack_system_appearance_note),
-            Modifier.testTag("icon-packs.system-appearance-note"))
+        if (activeTheme?.source == os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT) {
+          item("system-appearance") {
+            PackInfoCard(stringResource(R.string.pack_system_appearance_note),
+              Modifier.testTag("icon-packs.system-appearance-note"))
+          }
         }
         item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
           stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
@@ -129,6 +132,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("coloros") { PackNavigationCard("ColorOS", stringResource(R.string.pack_coloros_summary),
           { onNavigate("coloros") }) }
         item("hyperos") { HyperOsPackCard() }
+        item("system-appearance") {
+          PackInfoCard(stringResource(R.string.pack_system_appearance_note),
+            Modifier.testTag("icon-packs.builtin-system-appearance-note"))
+        }
       }
       "coloros" -> {
         item("settings") { ColorOsSettings(model, importReady) }

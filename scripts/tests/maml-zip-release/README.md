@@ -54,3 +54,7 @@ the private diagnostic gate, retain normal MAML finish/texture operations, and
 restore the gate to enabled. Validate same-process paired gestures, cleanup
 drain, thread idling, native visuals and process continuity. AVD execution does
 not substitute for physical-device performance evidence.
+
+The matched physical cleanup-dispatch A/B on launcher 8602, including unchanged
+process identities and remaining GC/layout costs, is recorded in
+`docs/launcher-drop-performance.md`.

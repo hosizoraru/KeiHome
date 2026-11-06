@@ -75,11 +75,11 @@ performance comparison.
 
 The physical device has loaded the new native library. Its shared spawner,
 Gallery, Weather, SystemUI and system_server identities remained unchanged
-across the explicit launcher-only development restart. Final physical drag
-comparisons require the device to be manually unlocked.
+across the explicit launcher-only development restart. After the user unlocked
+the device, the paired comparison below completed without further restarts.
 
-The verification receipt records completed checks, the pending physical
-comparison, native identities, diagnostic-gate restoration and build identity:
+The verification receipt records source checks, the physical comparison,
+native identities, diagnostic-gate restoration and build identity:
 
 `.artifacts/research/launcher-drop-20261106/acceptance.json`
 
@@ -87,3 +87,54 @@ The private native diagnostic gate permits same-process paired profiling.
 It has no public UI or unprivileged write transport and defaults to enabled.
 Any profiling session must restore it to enabled and verify the authenticated
 resident native image before writing it.
+
+## Physical paired acceptance
+
+The matched sample contains four valid drops per condition: two round trips
+between pages 11 and 12, with the same temporary application, start/end cell,
+gesture timing and release window (-200 ms to +1800 ms). The user's two-line
+names, glass Dock, icon theme and wallpaper were preserved. Both directions were
+checked through the actual launcher hierarchy after each drop. An unsuccessful
+exploratory drop onto a full page and the initial setup round are excluded from
+the primary summary.
+
+The private native gate changed only ZIP cleanup dispatch. Launcher PID 4099
+(start 16644038), SystemUI and system_server identities stayed unchanged
+throughout the alternating off/on trials. No installation or restart occurred
+between these trials.
+
+| Metric | Cleanup on UI | Deferred metadata cleanup |
+| --- | ---: | ---: |
+| Longest frame per trial, range | 104.5-217.8 ms | 28.6-33.8 ms |
+| Median of trial longest frames | 176.0 ms | 28.8 ms |
+| Median trial p95 frame duration | 26.9 ms | 12.8 ms |
+| App Deadline Missed frames / observed frames | 25 / 330 | 8 / 382 |
+| Median UI-thread CPU in the 2 s window | 837.9 ms | 362.3 ms |
+
+The median longest frame decreased by 83.6%; UI-thread CPU in the release window
+decreased by 56.8%. These are bounded Xiaomi 17 Pro / launcher 8602 measurements,
+not an overall FPS, energy, or all-device guarantee. Each trace passed the
+recorded error/loss/overwrite checks.
+
+Remaining native work is still observable: up to 24.8 ms for a UI.Build slice,
+14.2 ms for UI.Layout, 28.9 ms for UI.Finalize and 54.1 ms for an old-space GC
+slice in the enabled samples. GC can occur in the native idle callback and its
+duration must not be equated directly with a missed frame. Native collection,
+layout, thumbnail invalidation and drop animations remain intact. The change
+does not eliminate every missed deadline.
+
+At cleanup, the default-on gate was restored, queued/completed counts both
+reached 774, fallback stayed 0, and peak queued metadata was 56 of 64 entries.
+The worker remained asleep with zero additional CPU ticks in a three-second
+idle check. The temporary app and device-side helper/traces were removed; the
+original ten apps on page 11 and four Dock apps were verified visually and in
+the launcher hierarchy.
+
+The installed, KeiOS-signed Release is `1.4.0+gb7e36dd.b0207` / `104000207`.
+Its resident native Build ID matches the archived release payload. The final
+Java/API 102 install and paired user-flow acceptance did not restart Launcher.
+The original explicit development native activation is recorded separately.
+
+Follow-up evidence in the same research directory: `paired-summary.json`,
+per-trial `paired-*-stages.json`, `paired-final-native.json`,
+`paired-worker-idle.json`, and `paired-final-home.png`.

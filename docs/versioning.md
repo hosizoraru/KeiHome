@@ -39,3 +39,35 @@ The script keeps the data, checks the API 102 Java reload and verifies process
 identities. An ordinary unpatched Android device may reject that downgrade; a
 physical-device release needs an explicit migration/versioning plan. No
 uninstall is performed as part of this transition.
+
+## Public Release signing
+
+Public builds use the existing KeiOS Release certificate. Supply all four
+credentials through private Gradle properties or environment variables:
+
+| Gradle property | Environment variable |
+| --- | --- |
+| `keihome.release.storeFile` | `KEIHOME_RELEASE_STORE_FILE` |
+| `keihome.release.storePassword` | `KEIHOME_RELEASE_STORE_PASSWORD` |
+| `keihome.release.keyAlias` | `KEIHOME_RELEASE_KEY_ALIAS` |
+| `keihome.release.keyPassword` | `KEIHOME_RELEASE_KEY_PASSWORD` |
+
+The keystore path is absolute or relative to the project root. Keep credentials
+and the keystore outside tracked source. Password values are used verbatim.
+Supplying a partial configuration fails rather than using a development key.
+
+Use the required-signing flag for every public build:
+
+```bash
+./gradlew :app:assembleRelease :app:lintRelease -Pkeihome.requireReleaseSigning=true
+```
+
+Without credentials or the required-signing flag, private AVD Release builds
+continue to use the local debug certificate. An existing development-signed
+installation cannot be updated normally by a differently signed public APK;
+do not uninstall or clear device data as part of release preparation.
+
+After verification, create an annotated release tag on the exact source commit
+used by the APK. Archive the APK, SHA-256 checksum, signing certificate digest,
+R8 mapping and matching native symbols. Creating a local tag does not publish a
+GitHub release.

@@ -4,6 +4,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.JavaVersion
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -44,12 +45,36 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
         }
       }
 
+      val releaseSigningFields = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+      val releaseSigningEnvironment = listOf(
+        "KEIHOME_RELEASE_STORE_FILE", "KEIHOME_RELEASE_STORE_PASSWORD",
+        "KEIHOME_RELEASE_KEY_ALIAS", "KEIHOME_RELEASE_KEY_PASSWORD",
+      )
+      val releaseSigning = releaseSigningFields.zip(releaseSigningEnvironment).map { (field, env) ->
+        project.providers.gradleProperty("keihome.release.$field")
+          .orElse(project.providers.environmentVariable(env)).orNull
+      }
+      val hasReleaseSigning = releaseSigning.all { !it.isNullOrEmpty() }
+      val requireReleaseSigning =
+        project.providers.gradleProperty("keihome.requireReleaseSigning").orNull == "true"
+      if (!hasReleaseSigning && (requireReleaseSigning || releaseSigning.any { it != null })) {
+        throw GradleException("Complete KeiHome Release signing credentials are required; see docs/versioning.md")
+      }
+      val releaseSigner = if (hasReleaseSigning) {
+        signingConfigs.create("keiosRelease").apply {
+          storeFile = project.rootProject.file(releaseSigning[0]!!)
+          storePassword = releaseSigning[1]
+          keyAlias = releaseSigning[2]
+          keyPassword = releaseSigning[3]
+        }
+      } else {
+        signingConfigs.getByName("debug")
+      }
+
       buildTypes {
         release {
-          // No distribution keystore is part of the repository. Use the
-          // machine-local debug key so the private release artifact can be
-          // installed over the AVD/debug build for device testing.
-          signingConfig = signingConfigs.getByName("debug")
+          // Private AVD builds retain their development identity unless formal credentials are supplied.
+          signingConfig = releaseSigner
           isMinifyEnabled = true
           isShrinkResources = true
           proguardFiles(

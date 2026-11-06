@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import java.io.IOException
@@ -93,14 +94,15 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
   val included = remember(dependencies) {
     thirdPartyComponents.filter { it.kind != AttributionKind.DEPENDENCY || it.dependencies(dependencies).isNotEmpty() }
   }
+  val componentCount = included.count { it.kind == AttributionKind.DEPENDENCY }
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.notices_thanks), style = MiuixTheme.textStyles.title4)
         Text(stringResource(R.string.notices_intro), style = MiuixTheme.textStyles.body2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        MetadataPill(stringResource(R.string.notices_component_count,
-          included.count { it.kind == AttributionKind.DEPENDENCY }), MiuixTheme.colorScheme.primary)
+        MetadataPill(pluralStringResource(R.plurals.notices_component_count, componentCount, componentCount),
+          MiuixTheme.colorScheme.primary)
       }
     }
     AttributionKind.entries.forEach { kind ->

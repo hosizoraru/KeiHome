@@ -1,7 +1,9 @@
 <resources>
     <string name="notices_thanks">感谢开源</string>
     <string name="notices_intro">了解 KeiHome 使用的组件、源代码和离线许可证。</string>
-    <string name="notices_component_count">%1$d 组依赖组件</string>
+    <plurals name="notices_component_count">
+        <item quantity="other">%1$d 组依赖组件</item>
+    </plurals>
     <string name="notices_dependencies">依赖组件</string>
     <string name="notices_sources">代码改编与参考</string>
     <string name="notices_history">历史许可归档</string>

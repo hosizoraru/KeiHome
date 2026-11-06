@@ -1,7 +1,9 @@
 <resources>
     <string name="notices_thanks">オープンソースに感謝</string>
     <string name="notices_intro">KeiHome を支えるコンポーネント、ソースとオフラインのライセンスを確認できます。</string>
-    <string name="notices_component_count">%1$d グループの依存コンポーネント</string>
+    <plurals name="notices_component_count">
+        <item quantity="other">%1$d グループの依存コンポーネント</item>
+    </plurals>
     <string name="notices_dependencies">依存コンポーネント</string>
     <string name="notices_sources">改編したコードと参考実装</string>
     <string name="notices_history">過去のライセンス記録</string>

@@ -1,7 +1,10 @@
 <resources>
     <string name="notices_thanks">Built with open source</string>
     <string name="notices_intro">Explore the components behind KeiHome, their source and offline license texts.</string>
-    <string name="notices_component_count">%1$d component families</string>
+    <plurals name="notices_component_count">
+        <item quantity="one">%1$d component family</item>
+        <item quantity="other">%1$d component families</item>
+    </plurals>
     <string name="notices_dependencies">Dependencies</string>
     <string name="notices_sources">Adapted source and references</string>
     <string name="notices_history">Historical attribution</string>

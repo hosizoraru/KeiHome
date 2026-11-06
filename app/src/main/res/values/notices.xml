@@ -1,0 +1,31 @@
+<resources>
+    <string name="notices_thanks">Built with open source</string>
+    <string name="notices_intro">Explore the components behind KeiHome, their source and offline license texts.</string>
+    <string name="notices_component_count">%1$d component families</string>
+    <string name="notices_dependencies">Dependencies</string>
+    <string name="notices_sources">Adapted source and references</string>
+    <string name="notices_history">Historical attribution</string>
+    <string name="notices_full">Complete notices</string>
+    <string name="notices_full_summary">Copyright, source offers and build information</string>
+    <string name="notices_versions">Resolved versions in this build</string>
+    <string name="notices_source">Upstream source</string>
+    <string name="notices_source_offer">Source and rebuilding information</string>
+    <string name="notices_source_unavailable">No app can open this source link.</string>
+    <string name="notices_retry">Tap to retry</string>
+    <string name="notices_role_miuix">Interface, navigation, preferences and blur · Apache 2.0</string>
+    <string name="notices_role_android">Android and Compose infrastructure · Apache 2.0</string>
+    <string name="notices_role_compose">Compose multiplatform components · Apache 2.0</string>
+    <string name="notices_role_kotlin">Language runtime · Apache 2.0</string>
+    <string name="notices_role_kotlinx">Coroutines, serialization and immutable collections · Apache 2.0</string>
+    <string name="notices_role_mmkv">Preferences and storage · BSD 3-Clause</string>
+    <string name="notices_role_dexkit">Dynamic DEX analysis · Apache 2.0 / LGPL 3.0 / GPL 3.0</string>
+    <string name="notices_role_libxposed">Framework service integration · Apache 2.0</string>
+    <string name="notices_role_materialkolor">Wallpaper colors and Monet schemes · Apache 2.0 / MIT</string>
+    <string name="notices_role_serialization">Binary data serialization · Apache 2.0</string>
+    <string name="notices_role_async">Asynchronous task contracts · Apache 2.0</string>
+    <string name="notices_role_annotations">Annotations and compiler contracts · Apache 2.0</string>
+    <string name="notices_role_cxx">Native C++ build support · Apache 2.0 with LLVM exceptions</string>
+    <string name="notices_role_glass">Adapted glass and animation examples, via MIUIX · Apache 2.0</string>
+    <string name="notices_role_native">Reference for native hook infrastructure · Apache 2.0</string>
+    <string name="notices_role_history">Earlier native backend; not included in the current payload · LGPL 3.0</string>
+</resources>

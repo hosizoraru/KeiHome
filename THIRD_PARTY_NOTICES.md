@@ -1,5 +1,55 @@
 # Third-party notices
 
+The in-App notices catalog groups the resolved dependency graph by project and
+provides upstream links and offline license texts. Exact resolved coordinates
+and versions for each build are generated into
+`assets/third-party-dependencies.tsv` from that variant's runtime classpath;
+they include transitive dependencies and platform metadata. Source references
+and historical licenses are presented separately from current dependencies.
+
+## MIUIX
+
+KeiHome uses the MIUIX UI, icons, preferences, navigation and blur modules under
+Apache 2.0. The current pinned snapshot is `0.9.4-fa6f5b50-SNAPSHOT`.
+The full Apache 2.0 text is bundled as `assets/licenses/Apache-2.0.txt`.
+
+Source: <https://github.com/compose-miuix-ui/miuix/tree/fa6f5b50>
+
+## AndroidX, Compose, Kotlin and supporting libraries
+
+The following resolved component families use Apache 2.0. Their exact module
+coordinates and versions are included in the generated dependency inventory
+and are shown in their in-App component details:
+
+- AndroidX and the JetBrains AndroidX ports:
+  <https://cs.android.com/androidx/platform/frameworks/support>
+- Compose Multiplatform: <https://github.com/JetBrains/compose-multiplatform>
+- Kotlin: <https://github.com/JetBrains/kotlin>
+- Kotlinx coroutines, serialization and immutable collections:
+  <https://github.com/Kotlin>
+- libxposed framework service and interface:
+  <https://github.com/libxposed/service>,
+  <https://github.com/libxposed/interface>
+- FlatBuffers: <https://github.com/google/flatbuffers>
+- Guava ListenableFuture: <https://github.com/google/guava>
+- JetBrains Annotations: <https://github.com/JetBrains/java-annotations>
+- JSpecify: <https://github.com/jspecify/jspecify>
+- Poko annotations: <https://github.com/drewhamilton/Poko>
+
+The libxposed API itself is a compile-only framework contract rather than a
+bundled implementation.
+
+## libc++ build dependency
+
+The resolved native build support includes `dev.rikka.ndk.thirdparty:cxx`.
+Its upstream license is Apache 2.0 with LLVM exceptions and retained legacy
+license terms, bundled as `assets/licenses/libcxx-LICENSE.txt`. The dependency
+inventory records build components; it does not imply a separate libc++ shared
+library is packaged in the APK.
+
+Source: <https://github.com/RikkaW/libcxx-prefab>
+License: <https://github.com/topjohnwu/libcxx/blob/master/LICENSE.TXT>
+
 ## Tencent MMKV 2.4.3
 
 KeiHome uses Tencent MMKV for App-owned preferences. MMKV is distributed under
@@ -42,13 +92,19 @@ APK distribution must supply the matching source access.
 ## MaterialKolor color utilities
 
 Wallpaper quantization, seed ranking and tonal schemes use MaterialKolor's
-`material-color-utilities` 5.0.1, the same engine already used by MIUIX.
+`material-color-utilities` 6.0.0, the same engine already used by MIUIX.
 No Material UI components are included through this dependency.
 
-Source: <https://github.com/jordond/MaterialKolor/tree/5.0.1>
+Source: <https://github.com/jordond/MaterialKolor/tree/6.0.0>
 
-Copyright (c) 2025 Jordon de Hoog. Licensed under the MIT License; the full
-notice is included in `app/src/main/assets/licenses/MaterialKolor-MIT.txt`.
+MaterialKolor's generated color engine is derived from Google's Kotlin
+Material Color Utilities under Apache 2.0. The MaterialKolor project itself
+is MIT licensed, copyright (c) 2026 Jordon de Hoog. Both texts are included:
+`assets/licenses/Apache-2.0.txt` and
+`assets/licenses/MaterialKolor-MIT.txt`.
+
+Engine source:
+<https://github.com/material-foundation/material-color-utilities/tree/5b3618b16fdc3825e21d5679bafd144662088ea1>
 
 ## MIUIX liquid-glass navigation and blur samples
 

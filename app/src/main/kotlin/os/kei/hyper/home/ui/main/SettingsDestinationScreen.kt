@@ -50,6 +50,12 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
   val license = bundledLicenseForRoute(route)
+  val component = thirdPartyComponentForRoute(route)
+  val licenseTitle = when (license?.key) {
+    "notices" -> stringResource(R.string.notices_full)
+    "dexkit-source" -> stringResource(R.string.notices_source_offer)
+    else -> license?.title
+  }
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
@@ -60,7 +66,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = license?.title ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
+      TopAppBar(title = licenseTitle ?: component?.name ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
           if (route == SettingsSection.CACHE.route) IconButton(onClick = { cacheRefresh++ },
@@ -79,6 +85,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           bottom = insets.calculateBottomPadding() + 24.dp)) {
         when {
           license != null -> LicenseDocument(license.asset)
+          component != null -> ThirdPartyComponentDetails(component, onNavigate)
           route == "notices" -> ThirdPartyNotices(onNavigate)
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh)
         }

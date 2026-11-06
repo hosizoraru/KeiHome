@@ -7,6 +7,10 @@ abstract class PrepareThirdPartyNotices : DefaultTask() {
   @get:PathSensitive(PathSensitivity.RELATIVE)
   abstract val notice: RegularFileProperty
 
+  @get:InputFile
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val apacheLicense: RegularFileProperty
+
   @get:OutputDirectory
   abstract val outputDirectory: DirectoryProperty
 
@@ -15,6 +19,25 @@ abstract class PrepareThirdPartyNotices : DefaultTask() {
     val output = outputDirectory.file("THIRD_PARTY_NOTICES.md").get().asFile
     output.parentFile.mkdirs()
     notice.get().asFile.copyTo(output, overwrite = true)
+    outputDirectory.file("licenses/Apache-2.0.txt").get().asFile.apply {
+      parentFile.mkdirs()
+      apacheLicense.get().asFile.copyTo(this, overwrite = true)
+    }
+  }
+}
+
+abstract class PrepareDependencyVersions : DefaultTask() {
+  @get:Input
+  abstract val modules: ListProperty<String>
+
+  @get:OutputDirectory
+  abstract val outputDirectory: DirectoryProperty
+
+  @TaskAction
+  fun prepare() {
+    val output = outputDirectory.file("third-party-dependencies.tsv").get().asFile
+    output.parentFile.mkdirs()
+    output.writeText(modules.get().distinct().sorted().joinToString("\n", postfix = "\n"))
   }
 }
 
@@ -61,9 +84,23 @@ val builtinAssets = tasks.register<PrepareBuiltinIconStore>("prepareBuiltinIconS
 }
 val noticeAssets = tasks.register<PrepareThirdPartyNotices>("prepareThirdPartyNotices") {
   notice.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
+  apacheLicense.set(rootProject.layout.projectDirectory.file("LICENSES/Apache-2.0.txt"))
   outputDirectory.set(layout.buildDirectory.dir("generated/assets/third-party-notices"))
 }
 androidComponents.onVariants { variant ->
+  val dependencyVersions = tasks.register<PrepareDependencyVersions>(
+    "prepare${variant.name.replaceFirstChar(Char::uppercaseChar)}DependencyVersions",
+  ) {
+    modules.set(configurations.named("${variant.name}RuntimeClasspath").map { configuration ->
+      configuration.incoming.resolutionResult.allComponents.mapNotNull { component ->
+        (component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier)?.let {
+          "${it.group}\t${it.module}\t${it.version}"
+        }
+      }
+    })
+    outputDirectory.set(layout.buildDirectory.dir("generated/dependency-notices/${variant.name}/assets"))
+  }
+  variant.sources.assets?.addGeneratedSourceDirectory(dependencyVersions, PrepareDependencyVersions::outputDirectory)
   variant.sources.assets?.addGeneratedSourceDirectory(noticeAssets, PrepareThirdPartyNotices::outputDirectory)
   variant.sources.assets?.addGeneratedSourceDirectory(builtinAssets, PrepareBuiltinIconStore::outputDirectory)
 }

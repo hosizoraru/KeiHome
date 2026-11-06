@@ -1,0 +1,31 @@
+<resources>
+    <string name="notices_thanks">オープンソースに感謝</string>
+    <string name="notices_intro">KeiHome を支えるコンポーネント、ソースとオフラインのライセンスを確認できます。</string>
+    <string name="notices_component_count">%1$d グループの依存コンポーネント</string>
+    <string name="notices_dependencies">依存コンポーネント</string>
+    <string name="notices_sources">改編したコードと参考実装</string>
+    <string name="notices_history">過去のライセンス記録</string>
+    <string name="notices_full">すべての声明</string>
+    <string name="notices_full_summary">著作権、ソースの提供とビルド情報</string>
+    <string name="notices_versions">このビルドで解決されたバージョン</string>
+    <string name="notices_source">上流ソースコード</string>
+    <string name="notices_source_offer">ソースと再ビルドの案内</string>
+    <string name="notices_source_unavailable">このソースのリンクを開くアプリがありません。</string>
+    <string name="notices_retry">タップして再試行</string>
+    <string name="notices_role_miuix">UI、ナビゲーション、設定とぼかし · Apache 2.0</string>
+    <string name="notices_role_android">Android と Compose の基盤 · Apache 2.0</string>
+    <string name="notices_role_compose">Compose のマルチプラットフォーム機能 · Apache 2.0</string>
+    <string name="notices_role_kotlin">言語ランタイム · Apache 2.0</string>
+    <string name="notices_role_kotlinx">コルーチン、シリアライズと不変コレクション · Apache 2.0</string>
+    <string name="notices_role_mmkv">設定とストレージ · BSD 3-Clause</string>
+    <string name="notices_role_dexkit">DEX の動的解析 · Apache 2.0 / LGPL 3.0 / GPL 3.0</string>
+    <string name="notices_role_libxposed">フレームワークのサービス連携 · Apache 2.0</string>
+    <string name="notices_role_materialkolor">壁紙の色抽出と Monet 配色 · Apache 2.0 / MIT</string>
+    <string name="notices_role_serialization">バイナリデータのシリアライズ · Apache 2.0</string>
+    <string name="notices_role_async">非同期タスクのインターフェース · Apache 2.0</string>
+    <string name="notices_role_annotations">アノテーションとコンパイラの契約 · Apache 2.0</string>
+    <string name="notices_role_cxx">ネイティブ C++ のビルド支援 · Apache 2.0 と LLVM 例外</string>
+    <string name="notices_role_glass">MIUIX 経由のガラスとアニメーションのサンプル改編 · Apache 2.0</string>
+    <string name="notices_role_native">ネイティブ Hook 基盤の参考実装 · Apache 2.0</string>
+    <string name="notices_role_history">以前のネイティブバックエンド。現在のペイロードには含まれません · LGPL 3.0</string>
+</resources>

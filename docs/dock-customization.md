@@ -52,6 +52,8 @@ Pad source research uses retained `pad-5490` AOT. Its native corner reference
 changes with smart-hub policy; its bottom margin follows grid configuration.
 The new Pad choice reproduces the icon/spacing relation, not every Pad window,
 taskbar or gesture policy. This is not live-Pad acceptance of the new controls.
+Specifically, the source has a normal 16 dp reference and a smart-hub 20 dp
+reference, normalized to a 60 dp icon. The new Pad choice uses the normal branch.
 
 ## Wire format and reload
 
@@ -86,3 +88,31 @@ Evidence: `.artifacts/research/dock-customization-20261107/`. Source admission,
 linked ARM64 execution, wire/lease tests and device rendering are separate
 checks. Final `acceptance.json` records actual tested settings, screenshots,
 APK identity and process continuity.
+
+### Phone AVD acceptance, 2026-11-07
+
+The installed KeiOS Release is `1.4.0+g4ef7363.b0213` / `104000213`.
+Native activation was explicit development work. After that activation, all
+tested geometry changes and reset kept Launcher PID 20178, system_server 8825
+and SystemUI 2694 unchanged. The preceding Java-only update also passed the
+API 102 process-identity checks.
+
+The actual UI/device flow covered Pad geometry, padding 18 to 6, relative
+translation, screen-concentric reference, five icons, hidden gesture handle,
+Custom radius 24 to 0, and reset. The material remained native glass. Tapping
+the moved MT Manager icon launched `bin.mt.plus/.MainLightIcon`. A matched
+four-icon screenshot pair confirmed downward movement and unchanged opaque
+icon extent. Pixel displacement is not claimed to equal Android density times
+the setting through every native ancestor transform.
+
+The temporary fifth application was removed. Original four Dock apps remain
+in order; gesture-handle visibility was restored. Dock remains enabled with
+Recents, padding 18, translation 0, custom radius 24 and name marquee unchanged.
+Final native revision/notified both read 9, and the full options ACK is legacy
+value 1 after reset.
+
+Checks: 97 focused JVM tests, Release lint, native wire/lease sanitizers including
+80 extended choices, 38,602 geometry assertions, 4,609 linked ARM64 cases across
+rendering/placement/material/mode/refresh checks, and five source-profile
+admissions with mutated margin returns rejected. Pad evidence is source-only;
+this task did not install/test on the physical phone or live Pad.

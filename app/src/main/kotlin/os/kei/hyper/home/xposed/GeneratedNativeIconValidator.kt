@@ -21,6 +21,8 @@ internal object GeneratedNativeIconValidator {
     }
     val light = bytes("res/drawable-xxhdpi/$name.png")
     val dark = bytes("nightmode/res/drawable-xxhdpi/$name.png")
+    // Asset presence selects one fixed template; every path and byte must still match.
+    val legacyExpanded = light.contentEquals(dark) && "${root}night.png" in actualPaths
     fun matches(canonical: Map<String, ByteArray>): Boolean {
       val expected = canonical.filterKeys { it.startsWith(root) }
       return actualPaths == expected.keys && expected.all { (path, value) ->
@@ -29,12 +31,12 @@ internal object GeneratedNativeIconValidator {
     }
     if ("${root}mask.png" in actualPaths) {
       require(matches(NativePaletteIcon.entries(name, light, dark,
-        bytes("${root}mask.png"), bytes("${root}bg.png")))) {
+        bytes("${root}mask.png"), bytes("${root}bg.png"), legacyExpanded = legacyExpanded))) {
         "Incomplete or noncanonical generated palette icon: $name"
       }
       return
     }
-    if (matches(NativeDayNightIcon.entries(name, light, dark))) return
+    if (matches(NativeDayNightIcon.entries(name, light, dark, legacyExpanded = legacyExpanded))) return
 
     val kind = if (clockNames.any { "$root$it" in actualPaths }) NativeColorOsDynamicIcon.Kind.CLOCK
       else NativeColorOsDynamicIcon.Kind.CALENDAR

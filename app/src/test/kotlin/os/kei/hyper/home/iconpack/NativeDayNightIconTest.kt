@@ -46,6 +46,23 @@ class NativeDayNightIconTest {
     }
   }
 
+  @Test fun identicalBytesKeepFallbackAndDescriptorWithOneAlwaysVisibleImage() {
+    val entries = NativeDayNightIcon.entries(name, day, day.copyOf())
+    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "$root/manifest.xml", "$root/day.png"), entries.keys)
+    assertArrayEquals(day, entries.getValue("res/drawable-xxhdpi/$name.png"))
+    assertArrayEquals(day, entries.getValue("$root/day.png"))
+    val icon = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+      .parse(entries.getValue("$root/manifest.xml").inputStream()).documentElement
+    assertEquals("0", icon.getAttribute("frameRate"))
+    assertEquals("none", icon.getAttribute("useVariableUpdater"))
+    val children = icon.getElementsByTagName("*")
+    assertEquals(1, children.length)
+    val image = children.item(0) as Element
+    assertEquals("Image", image.tagName)
+    assertEquals(mapOf("x" to "0", "y" to "0", "w" to "2", "h" to "2",
+      "src" to "day.png", "visibility" to "1"), attributes(image))
+  }
+
   @Test fun rejectsUnsafeNamesAndInvalidOrIncompatiblePngHeaders() {
     assertThrows(IllegalArgumentException::class.java) { NativeDayNightIcon.entries("../escape", day, night) }
     assertThrows(IllegalArgumentException::class.java) { NativeDayNightIcon.entries(name, byteArrayOf(1), night) }

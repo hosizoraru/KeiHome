@@ -174,3 +174,21 @@ Remaining boundaries are package/device MAML policy, retained snapshots during
 other transitions, and full-pack performance. The separate Clock fixture
 under `/tmp/keihome-maml-pair-contract/` remains a diagnostic control for
 devices that deny MAML to Settings.
+
+## Identical artwork
+
+Generated pairs whose day and night PNGs are byte-identical keep the ordinary
+fallback PNG and the native fancy descriptor, but now contain just `day.png`
+and one base Image. Its visibility is `1`, or `(1-#palette_enabled)` in a
+palette selector. Real day/night pairs, palette masks, Settings observers and
+the zero frame rate are unchanged.
+
+This avoids an unnecessary resource entry and Image node without removing
+system-fallback coverage. Validation accepts both the new canonical compact
+form and the previous canonical expanded form. It still compares exact paths
+and bytes; arbitrary MAML programs and mixed layouts are rejected. Existing
+applied packs remain valid and adopt the smaller form when regenerated.
+
+The November 7 physical snapshot contains 937 descriptors, of which 38 have
+identical day/night artwork. This is a bounded reduction, not evidence that
+all large-pack memory peaks or application-launch stalls have been resolved.

@@ -9,13 +9,18 @@ internal object NativePaletteIcon {
   fun entries(
     nativeName: String, lightPng: ByteArray, darkPng: ByteArray,
     monochromePng: ByteArray, backgroundMaskPng: ByteArray,
+    legacyExpanded: Boolean = false,
   ): Map<String, ByteArray> {
-    val pair = NativeDayNightIcon.entries(nativeName, lightPng, darkPng)
+    val pair = NativeDayNightIcon.entries(nativeName, lightPng, darkPng, legacyExpanded = legacyExpanded)
     val size = GeneratedIconPng.squareSize(lightPng)
     require(GeneratedIconPng.squareSize(darkPng) == size) { "Day/night PNG dimensions must match" }
     GeneratedIconPng.requireAlphaMask(monochromePng, size)
     GeneratedIconPng.requireAlphaMask(backgroundMaskPng, size)
     val root = "fancy_icons/$nativeName"
+    val compact = "$root/night.png" !in pair
+    val dayVisibility = if (compact) "(1-#palette_enabled)" else "(1-#palette_enabled)*(1-#__darkmode)"
+    val nightImage = if (compact) "" else
+      "\n        <Image x=\"0\" y=\"0\" w=\"$size\" h=\"$size\" src=\"night.png\" visibility=\"(1-#palette_enabled)*#__darkmode\" />"
     val manifest = """
       <?xml version="1.0" encoding="utf-8"?>
       <Icon version="1" width="$size" height="$size" screenWidth="1080" resDensity="480" frameRate="0" useVariableUpdater="none">
@@ -30,8 +35,7 @@ internal object NativePaletteIcon {
             <Variable name="palette_enabled" type="int" column="value" row="0" />
           </ContentProviderBinder>
         </VariableBinders>
-        <Image x="0" y="0" w="$size" h="$size" src="day.png" visibility="(1-#palette_enabled)*(1-#__darkmode)" />
-        <Image x="0" y="0" w="$size" h="$size" src="night.png" visibility="(1-#palette_enabled)*#__darkmode" />
+        <Image x="0" y="0" w="$size" h="$size" src="day.png" visibility="$dayVisibility" />$nightImage
         <Image x="0" y="0" w="$size" h="$size" src="bg.png" tint="@palette_bg" tintmode="5" visibility="#palette_enabled" />
         <Image x="0" y="0" w="$size" h="$size" src="mask.png" tint="@palette_fg" tintmode="5" visibility="#palette_enabled" />
       </Icon>

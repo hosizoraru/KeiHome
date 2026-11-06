@@ -4,6 +4,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
 
@@ -61,11 +62,33 @@ class NativePaletteIconTest {
     assertEquals(listOf("5", "5"), images.drop(2).map { it.getAttribute("tintmode") })
   }
 
-  @Test fun acceptsIndexedMasksAndIdenticalDayNightArt() {
+  @Test fun identicalBytesKeepFallbacksMasksAndObserversWithOneUntintedImage() {
     val indexed = NativeIconPngFixtures.indexedMask()
-    val entries = NativePaletteIcon.entries(name, light, light, indexed, shape)
+    val entries = NativePaletteIcon.entries(name, light, light.copyOf(), indexed, shape)
+    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "nightmode/res/drawable-xxhdpi/$name.png",
+      "$root/manifest.xml", "$root/day.png", "$root/mask.png", "$root/bg.png"), entries.keys)
+    assertArrayEquals(light, entries.getValue("res/drawable-xxhdpi/$name.png"))
+    assertArrayEquals(light, entries.getValue("nightmode/res/drawable-xxhdpi/$name.png"))
+    assertArrayEquals(light, entries.getValue("$root/day.png"))
     assertArrayEquals(indexed, entries.getValue("$root/mask.png"))
-    assertArrayEquals(light, entries.getValue("$root/night.png"))
+    assertArrayEquals(shape, entries.getValue("$root/bg.png"))
+    val icon = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+      .parse(entries.getValue("$root/manifest.xml").inputStream()).documentElement
+    assertEquals("0", icon.getAttribute("frameRate"))
+    assertEquals("none", icon.getAttribute("useVariableUpdater"))
+    val children = elements(icon)
+    assertEquals(listOf("VariableBinders", "Image", "Image", "Image"), children.map { it.tagName })
+    val expanded = NativePaletteIcon.entries(name, light, dark, indexed, shape)
+    val expandedIcon = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+      .parse(expanded.getValue("$root/manifest.xml").inputStream()).documentElement
+    assertTrue(elements(expandedIcon).first().isEqualNode(children.first()))
+    val images = children.drop(1)
+    assertEquals(listOf("day.png", "bg.png", "mask.png"), images.map { it.getAttribute("src") })
+    assertEquals(listOf("(1-#palette_enabled)", "#palette_enabled", "#palette_enabled"),
+      images.map { it.getAttribute("visibility") })
+    assertEquals("", images.first().getAttribute("tint"))
+    assertEquals(listOf("@palette_bg", "@palette_fg"), images.drop(1).map { it.getAttribute("tint") })
+    assertEquals(listOf("5", "5"), images.drop(1).map { it.getAttribute("tintmode") })
   }
 
   @Test fun rejectsInvalidNamesMismatchedDimensionsAndMissingOrOpaqueSilhouettes() {

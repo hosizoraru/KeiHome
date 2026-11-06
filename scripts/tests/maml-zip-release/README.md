@@ -1,5 +1,12 @@
 # Rust MAML ZIP metadata release
 
+The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
+ring. The host test covers 9,095 exactly-once releases, initialization failures,
+out-of-order publication, single-attempt reservation races, ticket wraparound,
+saturation, worker recursion and eight concurrent producers. Run the same test
+with `-fsanitize=thread` for the concurrent ownership checks. Neither sanitizer
+run substitutes for Android interaction and frame-trace acceptance.
+
 Run from the repository root. SDK binaries are local source fixtures, not
 redistributed project assets.
 

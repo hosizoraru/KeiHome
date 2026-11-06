@@ -121,10 +121,10 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
           if (result?.imported == true) NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
         }
         if (result != null && !result.imported) {
-          Text(stringResource(if (result.status == "UNCERTAIN") R.string.icon_pack_native_uncertain
+          Text(stringResource(if (result.pending) R.string.icon_pack_native_uncertain
             else R.string.icon_pack_native_failed), style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.error)
-          if (result.status == "UNCERTAIN") TextButton(stringResource(R.string.icon_pack_recheck),
+            color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+          if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck),
             onClick = model::recheckNativeIconImport)
         }
       }

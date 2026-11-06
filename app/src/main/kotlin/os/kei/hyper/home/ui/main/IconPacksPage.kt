@@ -366,11 +366,12 @@ private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewReposi
       }
       if (result != null && !result.imported) {
         Text(stringResource(when (result.status) {
-          "UNCERTAIN" -> R.string.icon_pack_native_uncertain
+          "IMPORTING", "UNCERTAIN" -> R.string.icon_pack_native_uncertain
           "UNSUPPORTED" -> R.string.icon_pack_native_unsupported
           else -> R.string.icon_pack_native_failed
-        }), style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
-        if (result.status == "UNCERTAIN") TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
+        }), style = MiuixTheme.textStyles.footnote2,
+          color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+        if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
       }
       if (result?.imported == true && result.convertedReady == false) {
         Text(stringResource(R.string.icon_pack_native_eligibility_failed), style = MiuixTheme.textStyles.footnote2,

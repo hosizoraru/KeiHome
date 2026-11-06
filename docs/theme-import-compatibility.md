@@ -86,3 +86,25 @@ log's inode and byte offset, and includes newly created, replaced or truncated
 streams while waiting for fresh API 102 reconciliation. Existing bytes cannot
 replay an old acknowledgement. Four host regression tests cover append,
 rotation, stale-log exclusion, replacement and truncation.
+
+## Slow native results
+
+Pending imports now request the receipt again at 15, 45, 90, 150, 240 and
+360 seconds from the original request. These are status queries for the same
+token/user/source/timestamp, not repeated imports or applications. Queries
+remain sequential, retain consumed attempts across foreground observer
+re-entry, and stop on terminal results or operation replacement. A 30-second
+scheduling grace permits the final query to run under load.
+
+Automatic queries run only while the relevant App page is observed in the
+foreground. Exhausting the automatic budget leaves a neutral pending state
+and a manual query action; it does not manufacture a failed theme result.
+Legacy requests without a trustworthy timestamp remain manually recoverable.
+Late receipts still use the original identity checks and single-use apply
+receipt. Queued publications revalidate the operation before committing, and
+manual/automatic query nonces strictly increase even in the same clock tick.
+
+The English, Chinese and Japanese pending text explains that large packs may
+take several minutes. Explicit native failures remain errors. Focused tests
+cover foreground cancellation, replacement, clock reset, late receipt replay,
+query serialization and dispatcher jitter at the final scheduled query.

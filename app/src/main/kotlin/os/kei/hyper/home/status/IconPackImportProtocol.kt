@@ -9,6 +9,8 @@ import android.os.Process
 import android.os.SystemClock
 import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -105,16 +107,21 @@ internal object IconPackImportProtocol {
   fun pendingSource(context: Context): String? = local(context).snapshot().pendingSource
   fun lastResult(context: Context): NativeIconImportReport? = local(context).snapshot().result
 
-  suspend fun recheck(context: Context, service: XposedService): Boolean = withContext(Dispatchers.IO) {
-    recheckNativeImport(local(context), remoteWrites) { stored ->
+  suspend fun recheck(context: Context, service: XposedService,
+    expected: NativeImportReceiptOperation? = null, canPublish: () -> Boolean = { true }): Boolean = withContext(Dispatchers.IO) {
+    recheckNativeImport(local(context), remoteWrites, expected, canPublish) { stored ->
+      val remote = service.getRemotePreferences(GROUP)
+      val nonce = nextNativeReceiptQueryNonce(SystemClock.elapsedRealtime(),
+        remote.getLong(RECHECK, 0L), stored.request?.recheck ?: 0L) ?: return@recheckNativeImport false
       val request = stored.request
-      if (request != null) publishRequest(service, request, SystemClock.elapsedRealtime())
+      if (request != null) publishRequest(service, request, nonce)
       else {
-        val remote = service.getRemotePreferences(GROUP)
         val requestOnHost = read(remote)
         check(stored.pendingToken == null || (requestOnHost?.token == stored.pendingToken &&
-          requestOnHost.sourceId == stored.pendingSource)) { "Pending import needs its original framework request" }
-        remote.edit().putLong(RECHECK, SystemClock.elapsedRealtime()).commit()
+          requestOnHost.sourceId == stored.pendingSource && requestOnHost.userId == Process.myUid() / 100_000)) {
+          "Pending import needs its original framework request"
+        }
+        remote.edit().putLong(RECHECK, nonce).commit()
       }
     }
   }
@@ -174,8 +181,14 @@ internal suspend fun submitNativeImport(store: IconImportLocalStore, request: Ic
 /** Both snapshot acquisition and the Binder write share the publication owner. Reports may
  * arrive during that call; no store monitor is held across Binder or UI work. */
 internal suspend fun recheckNativeImport(store: IconImportLocalStore, publicationMutex: Mutex,
+  expected: NativeImportReceiptOperation? = null, canPublish: () -> Boolean = { true },
   publish: suspend (IconImportLocalState) -> Boolean): Boolean = try {
-  publicationMutex.withLock { publish(store.snapshot()) }
+  publicationMutex.withLock {
+    val state = store.snapshot()
+    currentCoroutineContext().ensureActive()
+    if (!canPublish() || (expected != null && state.pendingReceiptOperation(expected.userId) != expected)) false
+    else publish(state)
+  }
 } catch (cancelled: CancellationException) { throw cancelled
 } catch (failure: Exception) {
   android.util.Log.w("KeiHomePackImport", "Native operation recheck is unconfirmed", failure)

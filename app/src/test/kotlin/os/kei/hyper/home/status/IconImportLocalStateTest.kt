@@ -83,8 +83,45 @@ class IconImportLocalStateTest {
     assertEquals("UNCERTAIN", pending.presentationResult(0)!!.status)
     assertNull(pending.result)
     val importing = pending.accept(result(status = "IMPORTING")).state
-    assertEquals("UNCERTAIN", importing.presentationResult(0)!!.status)
+    assertEquals("IMPORTING", importing.presentationResult(0)!!.status)
     assertEquals("IMPORTING", importing.result!!.status)
+  }
+
+  @Test fun pendingPresentationRemainsNeutralUntilARealTerminalReceipt() {
+    val initial = IconImportLocalState().begin(request())
+    assertTrue(initial.presentationResult(0)!!.pending)
+    val uncertain = initial.accept(result(status = "UNCERTAIN")).state
+    assertTrue(uncertain.presentationResult(0)!!.pending)
+    val delayed = uncertain.accept(result()).state
+    assertTrue(delayed.presentationResult(0)!!.imported)
+    assertNull(delayed.pendingReceiptOperation(0))
+    val failed = uncertain.accept(result(status = "FAILED")).state
+    assertFalse(failed.presentationResult(0)!!.pending)
+    assertEquals("FAILED", failed.presentationResult(0)!!.status)
+    assertNull(failed.pendingReceiptOperation(0))
+  }
+
+  @Test fun queryIdentityRequiresTheOriginalTokenSourceAndUser() {
+    val initial = IconImportLocalState().begin(request())
+    val expected = initial.pendingReceiptOperation(0)!!
+    assertEquals(expected, initial.accept(result(status = "IMPORTING")).state.pendingReceiptOperation(0))
+    assertEquals(expected, initial.accept(result(status = "UNCERTAIN")).state.pendingReceiptOperation(0))
+    assertNull(initial.pendingReceiptOperation(10))
+    assertNotEquals(expected, initial.begin(request("next")).pendingReceiptOperation(0))
+    assertNull(initial.copy(pendingSource = "other").pendingReceiptOperation(0))
+    assertNull(initial.copy(pendingToken = "other").pendingReceiptOperation(0))
+  }
+
+  @Test fun delayedSuccessAndItsReplayCannotApplyTheSameOperationTwice() {
+    val pending = IconImportLocalState().begin(request().copy(autoApply = true))
+      .accept(result(status = "UNCERTAIN")).state
+    val receipt = result()
+    val completed = pending.accept(receipt).state
+    val navigated = requireNotNull(completed.consumeNavigation(receipt))
+    val replayed = navigated.accept(receipt).state
+    assertEquals("component", replayed.associations["source"])
+    assertNull(replayed.pendingReceiptOperation(0))
+    assertNull(replayed.consumeNavigation(receipt))
   }
 
   @Test fun paletteMetadataBelongsToTheAcceptedOperationAndSurvivesLaterPreparation() {

@@ -61,6 +61,8 @@ import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.status.IconPackHandoffs
 import os.kei.hyper.home.status.IconPackImportProtocol
+import os.kei.hyper.home.status.NativeImportReceiptRetries
+import os.kei.hyper.home.status.pendingReceiptOperation
 import os.kei.hyper.home.status.NativeIconImportReport
 import os.kei.hyper.home.status.LibxposedStaticScopeClient
 import os.kei.hyper.home.status.StaticScopeRequests
@@ -221,6 +223,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   private var nativeImportGeneration = 0L
+  private data class NativeReceiptVisibility(val observers: Int = 0, val generation: Long = 0)
+  private val nativeReceiptVisibility = MutableStateFlow(NativeReceiptVisibility())
+  private val nativeReceiptRetries = NativeImportReceiptRetries(SystemClock::elapsedRealtime)
 
   private suspend fun readImportState(): os.kei.hyper.home.status.IconImportLocalState? = try {
     withContext(Dispatchers.IO) { IconPackImportProtocol.state(getApplication()) }
@@ -293,6 +298,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
     launcherApps?.registerCallback(packageCallback, Handler(Looper.getMainLooper()))
     viewModelScope.launch {
+      combine(IconPackImportProtocol.states(application).map { it?.pendingReceiptOperation(Process.myUid() / 100_000) },
+        FrameworkConnection.service, nativeReceiptVisibility) { operation, service, visibility ->
+        if (visibility.observers > 0 && service != null && operation != null) Triple(operation, service, visibility) else null
+      }.distinctUntilChanged().collectLatest { observation ->
+        val (operation, service, visibility) = observation ?: return@collectLatest
+        nativeReceiptRetries.observe(operation) {
+          IconPackImportProtocol.recheck(getApplication(), service, operation) {
+            nativeReceiptVisibility.value == visibility && FrameworkConnection.service.value === service
+          }
+        }
+      }
+    }
+    viewModelScope.launch {
       FrameworkConnection.service.collectLatest { service ->
         scopeClient = service?.let { LibxposedStaticScopeClient(application, it) }
         scopeRequests.connect(scopeClient)
@@ -327,6 +345,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   suspend fun observePage(page: Int, localeTags: String): Unit = coroutineScope {
     val observation = ++pageObservation
     visiblePage = page
+    launch { observeNativeImportReceipts() }
     locale = localeTags
     if (page in 0..1 && (appsDirty || scannedLocale != locale)) scanApps()
     if (page in 2..3 && iconPacksDirty) launch { readIconPacks() }
@@ -357,12 +376,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   /** Keep the fallback controls current only while they are visible. */
   suspend fun observeFallbackResources(pageObserved: Boolean = false): Unit = coroutineScope {
+    if (!pageObserved) launch { observeNativeImportReceipts() }
     if (!pageObserved) launch { if (iconPacksDirty) readIconPacks() }
     while (true) {
       if (appsDirty) scanApps()
       if (!pageObserved) readRuntimeStatus(true)
       delay(10_000)
     }
+  }
+
+  private suspend fun observeNativeImportReceipts(): Nothing {
+    nativeReceiptVisibility.update { it.copy(observers = it.observers + 1, generation = it.generation + 1) }
+    try { awaitCancellation() }
+    finally { nativeReceiptVisibility.update { it.copy(observers = it.observers - 1, generation = it.generation + 1) } }
   }
 
   /** Receipts omit the icon inventory; polling ends when the visible desktop surface leaves. */
@@ -570,9 +596,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun recheckNativeIconImport() {
     val service = FrameworkConnection.service.value ?: return
+    val operation = IconPackImportProtocol.states(getApplication()).value
+      ?.pendingReceiptOperation(Process.myUid() / 100_000) ?: return
     viewModelScope.launch {
-      if (!IconPackImportProtocol.recheck(getApplication(), service)) iconPacks.update { it.copy(
-        error = getApplication<Application>().getString(os.kei.hyper.home.R.string.icon_pack_native_uncertain)) }
+      IconPackImportProtocol.recheck(getApplication(), service, operation) {
+        FrameworkConnection.service.value === service
+      }
     }
   }
 

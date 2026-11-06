@@ -234,6 +234,53 @@ class IconImportLocalStoreTest {
     } }
   }
 
+  @Test fun queuedQueryDropsItsOriginalOperationAfterReplacement(): Unit = runBlocking {
+    probe { id, prefix -> runBlocking {
+      val store = IconImportLocalStore(context, id, prefix)
+      val a = request()
+      store.begin(a)
+      val expected = store.snapshot().pendingReceiptOperation(0)!!
+      val mutex = Mutex(locked = true)
+      val queued = CompletableDeferred<Unit>()
+      var published = false
+      val query = launch {
+        queued.complete(Unit)
+        assertFalse(recheckNativeImport(store, mutex, expected) { published = true; true })
+      }
+      queued.await()
+      store.accept(report(a))
+      val b = request()
+      store.begin(b)
+      mutex.unlock()
+      query.join()
+      assertFalse(published)
+      assertEquals(b, store.snapshot().request)
+    } }
+  }
+
+  @Test fun queuedQueryDropsARetiredConnectionWithoutChangingThePendingRequest(): Unit = runBlocking {
+    probe { id, prefix -> runBlocking {
+      val store = IconImportLocalStore(context, id, prefix)
+      val original = request()
+      store.begin(original)
+      val expected = store.snapshot().pendingReceiptOperation(0)!!
+      val mutex = Mutex(locked = true)
+      val queued = CompletableDeferred<Unit>()
+      var connected = true
+      var published = false
+      val query = launch {
+        queued.complete(Unit)
+        assertFalse(recheckNativeImport(store, mutex, expected, { connected }) { published = true; true })
+      }
+      queued.await()
+      connected = false
+      mutex.unlock()
+      query.join()
+      assertFalse(published)
+      assertEquals(original, store.snapshot().request)
+    } }
+  }
+
   @Test fun existingUpgradeAssociationsAndReceiptRemainAvailable() {
     assumeTrue(InstrumentationRegistry.getArguments().getString("mmkv.verifyImportUpgrade") == "true")
     val state = IconImportLocalStore(context).snapshot()

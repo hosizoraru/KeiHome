@@ -45,7 +45,7 @@
     <string name="icon_pack_current">Currently applied</string>
     <string name="icon_pack_native_open">Open in system Themes</string>
     <string name="icon_pack_native_import">Import into system Themes</string>
-    <string name="icon_pack_native_uncertain">Still waiting for Themes. Check its local library before retrying.</string>
+    <string name="icon_pack_native_uncertain">Waiting for System Themes to finish importing. Large icon packs can take several minutes. Automatic status checks are limited; you can also check the import status manually.</string>
     <string name="icon_pack_native_unsupported">Native theme import is not available on this system yet.</string>
     <string name="icon_pack_native_failed">Could not complete the native theme action.</string>
     <string name="icon_pack_native_note">APK/ZIP exports include light and dark static icons for installed apps. Re-import after installing more apps. MTZ resources are preserved. Apply from the system Themes screen.</string>

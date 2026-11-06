@@ -47,7 +47,7 @@ internal data class IconImportLocalState(
   /** A saved pending operation always offers reconciliation, including after cancellation or
    * when persisting an uncertainty message failed. This is presentation, never a success ACK. */
   fun presentationResult(userId: Int): NativeIconImportReport? =
-    if (pendingToken != null && pendingSource != null && (result == null || result.status == "IMPORTING"))
+    if (pendingToken != null && pendingSource != null && result == null)
       NativeIconImportReport(pendingToken, userId, pendingSource, "UNCERTAIN") else result
 
   fun consumeNavigation(report: NativeIconImportReport): IconImportLocalState? {

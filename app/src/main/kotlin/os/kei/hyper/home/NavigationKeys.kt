@@ -7,3 +7,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object Main : HomeRoute
 @Serializable data class PackRoute(val section: String) : HomeRoute
 @Serializable data class SettingsRoute(val section: String) : HomeRoute
+@Serializable data class OnboardingRoute(val page: Int, val replay: Boolean = false) : HomeRoute
+@Serializable data object OnboardingDesktop : HomeRoute

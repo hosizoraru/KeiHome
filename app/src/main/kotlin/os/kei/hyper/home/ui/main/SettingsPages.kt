@@ -36,6 +36,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
   APP("app", R.string.settings_app_section, R.string.settings_app_summary),
+  GUIDE("setup", R.string.setup_title, R.string.setup_replay_summary),
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
   CACHE("cache", R.string.settings_cache_section, R.string.settings_cache_summary),
   LOG("log", R.string.settings_log_section, R.string.settings_log_summary),
@@ -54,6 +55,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         SettingsSection.entries.forEach { section ->
           val icon = when (section) {
             SettingsSection.APP -> MiuixIcons.Settings
+            SettingsSection.GUIDE -> MiuixIcons.Info
             SettingsSection.HOOK -> MiuixIcons.Layers
             SettingsSection.CACHE -> MiuixIcons.Refresh
             SettingsSection.LOG -> MiuixIcons.Info
@@ -66,6 +68,15 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         }
       }
     } else {
+      if (listOf(stringResource(R.string.setup_title), stringResource(R.string.setup_replay_summary),
+          stringResource(R.string.setup_search_keywords))
+          .any { it.contains(query.trim(), ignoreCase = true) }) {
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+          BasicComponent(title = stringResource(R.string.setup_title),
+            summary = stringResource(R.string.setup_replay_summary), onClick = { onNavigate("setup") },
+            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+        }
+      }
       if (listOf(stringResource(R.string.settings_log_section), stringResource(R.string.settings_log_summary))
           .any { it.contains(query.trim(), ignoreCase = true) }) {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

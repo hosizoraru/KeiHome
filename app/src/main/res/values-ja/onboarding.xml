@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">使い方ガイド</string>
+    <string name="setup_replay_summary">現在の設定を保ったまま初期設定を確認</string>
+    <string name="setup_step">ステップ %1$d / %2$d</string>
+    <string name="setup_later">あとで設定</string>
+    <string name="setup_exit">ガイドを閉じる</string>
+    <string name="setup_previous">戻る</string>
+    <string name="setup_next">次へ</string>
+    <string name="setup_finish">KeiHome を使う</string>
+    <string name="setup_welcome_title">ホーム画面を自分らしく</string>
+    <string name="setup_welcome_body">KeiHome の機能と動作環境を確認し、好みの見た目を選びます。設定はあとでも行え、設定画面からこのガイドに戻れます。</string>
+    <string name="setup_feature_icons">統一感のあるアイコン</string>
+    <string name="setup_feature_icons_body">内蔵・インストール済みパック、明暗アイコン、Monet の配色を利用できます。</string>
+    <string name="setup_feature_desktop">ホーム画面のカスタマイズ</string>
+    <string name="setup_feature_desktop_body">Dock のガラス効果、ホーム画面のガラススタイル、長いアプリ名の表示を調整できます。</string>
+    <string name="setup_feature_control">有効化は自分のペースで</string>
+    <string name="setup_feature_control_body">ガイドが機能の有効化、スコープの申請、アイコンパックの適用を自動で行うことはありません。</string>
+    <string name="setup_framework_title">モジュールの動作環境を確認</string>
+    <string name="setup_framework_body">KeiHome は LSPosed API 102 を使用します。管理アプリでモジュールを有効にし、必要なスコープを許可してください。未完了でも先に進めます。</string>
+    <string name="setup_service_connected">フレームワークに接続済み</string>
+    <string name="setup_service_disconnected">フレームワークに未接続</string>
+    <string name="setup_activation_note">サービスの接続やスコープの許可だけでは Hook の動作は保証されません。実際のホームアプリとの接続は「状態」で確認できます。</string>
+    <string name="setup_icons_title">好みのアイコンを選ぶ</string>
+    <string name="setup_icons_body">一覧からプレビュー・適用を行い、このガイドに戻れます。変更しなければ現在のアイコン設定を維持します。</string>
+    <string name="setup_builtin_body">アプリに含まれるアイコンスタイルを確認します。</string>
+    <string name="setup_installed_body">端末にインストール済みのパックを使います。</string>
+    <string name="setup_imported_body">テーマやアイコンパックのファイルを読み込み、管理します。</string>
+    <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
+    <string name="setup_icon_tip_body">適用にはシステムのテーマアプリを使用します。対応状況、補完・フォールバック、Monet は「アイコンパック」で調整できます。</string>
+    <string name="setup_desktop_title">必要に応じて見た目を調整</string>
+    <string name="setup_desktop_body">「デスクトップ」と同じ設定を開きます。対応する変更は自動で同期され、利用可否はホームアプリによって異なります。開くだけでは設定は変わりません。</string>
+    <string name="setup_open_desktop">デスクトップ設定を開く</string>
+    <string name="setup_open_desktop_body">Dock のガラス効果、角の形状、ガラスの描画スタイル、アプリ名の表示。</string>
+    <string name="setup_finish_title">KeiHome を使ってみましょう</string>
+    <string name="setup_finish_body">ガイドはここまでです。未完了の設定はあとでも行えます。「設定」からいつでもこのガイドを開けます。</string>
+    <string name="setup_finish_note_body">「状態」でモジュールとホームアプリの動作状況を確認できます。ガイドの完了は、すべてのスコープや機能の有効化を意味しません。</string>
+    <string name="setup_logs_body">ホームアプリや Hook の問題は LSPosed ログ、画面や設定の問題はアプリのログを確認してください。</string>
+    <string name="setup_search_keywords">初回 初期設定 はじめに ガイド</string>
+</resources>

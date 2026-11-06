@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">使用向导</string>
+    <string name="setup_replay_summary">重新了解配置流程，保留当前设置</string>
+    <string name="setup_step">第 %1$d 步，共 %2$d 步</string>
+    <string name="setup_later">稍后设置</string>
+    <string name="setup_exit">退出向导</string>
+    <string name="setup_previous">上一步</string>
+    <string name="setup_next">继续</string>
+    <string name="setup_finish">开始使用</string>
+    <string name="setup_welcome_title">让桌面更合心意</string>
+    <string name="setup_welcome_body">用几个步骤了解 KeiHome，确认运行环境，并选择喜欢的桌面效果。配置可以稍后完成，设置里也能重新进入。</string>
+    <string name="setup_feature_icons">统一图标风格</string>
+    <string name="setup_feature_icons_body">使用内置或已安装的图标包，搭配深浅色图标与 Monet 取色。</string>
+    <string name="setup_feature_desktop">桌面个性化</string>
+    <string name="setup_feature_desktop_body">按需调整 Dock 玻璃、桌面玻璃风格与长应用名称的显示方式。</string>
+    <string name="setup_feature_control">由你决定何时启用</string>
+    <string name="setup_feature_control_body">向导不会自动开启功能、申请作用域或应用图标包。</string>
+    <string name="setup_framework_title">确认模块运行环境</string>
+    <string name="setup_framework_body">KeiHome 通过 LSPosed API 102 工作。请在管理器中启用模块，并按需授权作用域；尚未配置好也可以继续浏览。</string>
+    <string name="setup_service_connected">框架服务已连接</string>
+    <string name="setup_service_disconnected">框架服务暂未连接</string>
+    <string name="setup_activation_note">服务连接与作用域授权不等于 Hook 已加载。进入应用后，请在状态页确认桌面的实际连接情况。</string>
+    <string name="setup_icons_title">选择喜欢的图标方案</string>
+    <string name="setup_icons_body">可以进入现有图标包目录预览和应用，再返回继续向导。不做选择也会保留当前图标方案。</string>
+    <string name="setup_builtin_body">浏览随应用提供的图标风格。</string>
+    <string name="setup_installed_body">使用设备上已经安装的图标包。</string>
+    <string name="setup_imported_body">导入并管理原生主题或图标包文件。</string>
+    <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
+    <string name="setup_icon_tip_body">应用图标包会使用系统主题壁纸。图标覆盖率、补全回退与 Monet 选项都可以在图标包板块继续调整。</string>
+    <string name="setup_desktop_title">按需调整桌面效果</string>
+    <string name="setup_desktop_body">这里使用与桌面板块相同的控制项。受支持的设置会自动同步，实际可用情况取决于系统桌面。仅打开页面不会改变当前配置。</string>
+    <string name="setup_open_desktop">打开桌面个性化</string>
+    <string name="setup_open_desktop_body">Dock 玻璃、圆角、玻璃渲染风格与应用名称显示。</string>
+    <string name="setup_finish_title">开始探索 KeiHome</string>
+    <string name="setup_finish_body">向导已结束，未完成的配置可以稍后继续。需要回顾时，随时到设置里重新打开使用向导。</string>
+    <string name="setup_finish_note_body">状态主页会显示模块与桌面的运行情况。完成向导并不代表所有作用域和功能已经生效。</string>
+    <string name="setup_logs_body">桌面或 Hook 问题优先查看 LSPosed 日志；界面、设置问题使用 App 日志。</string>
+    <string name="setup_search_keywords">首次 初次 引导 向导</string>
+</resources>

@@ -68,6 +68,7 @@ class OnboardingNavigationTest {
     }
     currentPage = index
     rule.onNodeWithTag("setup.page.$index").assertIsDisplayed()
+    settleTransition()
   }
 
   private fun action(tag: String) = rule.onNode(hasTestTag("setup.$tag") and
@@ -78,6 +79,14 @@ class OnboardingNavigationTest {
       rule.onAllNodesWithTag("icon-packs.$section").fetchSemanticsNodes()
         .any { kotlin.math.abs(it.boundsInRoot.left) < 1f }
     }
+    settleTransition()
+  }
+
+  private fun settleTransition() {
+    // MIUIX can still block pointer input after the clipped scene reaches the viewport.
+    rule.waitForIdle()
+    rule.mainClock.advanceTimeBy(1_000)
+    android.os.SystemClock.sleep(1_000)
     rule.waitForIdle()
   }
 

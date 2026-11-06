@@ -133,7 +133,7 @@ class OnboardingNavigationTest {
     packPage("monet")
     back()
     page(2)
-    rule.onNodeWithText(context.getString(R.string.system_fallback_title))
+    rule.onNodeWithText(context.getString(R.string.pack_completion_title))
       .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
     packPage("fallback")
     back()
@@ -199,7 +199,7 @@ class OnboardingNavigationTest {
     page(2)
     rule.onNodeWithText(context.getString(R.string.setup_native_icons_title))
       .performScrollTo().assertIsDisplayed()
-    rule.onNodeWithText(context.getString(R.string.system_fallback_title))
+    rule.onNodeWithText(context.getString(R.string.pack_completion_title))
       .performScrollTo().assertIsDisplayed()
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("large-icons")

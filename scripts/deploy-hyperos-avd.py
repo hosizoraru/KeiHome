@@ -164,7 +164,7 @@ def main():
         entries = [line for line in maps.splitlines() if active_apk in line]
         if not entries or any("(deleted)" in line or int(line.split()[4]) != inode for line in entries):
             raise RuntimeError("New launcher does not map the currently installed module APK")
-        native_deadline = time.monotonic() + 30
+        native_deadline = time.monotonic() + 120
         while True:
             native_log = adb("logcat", "-d", "-v", "brief", "--pid", str(current["pid"]),
                              "-s", "KeiHomeMonet")

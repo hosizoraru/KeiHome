@@ -64,3 +64,48 @@ texture or mutable ZIP cache was added.
 Research and per-device captures are retained in
 `.artifacts/research/launcher-open-20261107/`, including
 `coloros-reference.md`, archive audits and independent trace reports.
+
+## November 7 device observations
+
+On the physical Xiaomi 17 Pro, the new queue completed 100 metadata releases
+during one nine-application move. Peak pending work was nine and every fallback
+category remained zero. The drop window still contains a 52.06 ms old-generation
+GC and two app-deadline misses across 95 frames. The earlier capture used another
+process and cache state, so these captures do not establish a percentage speedup.
+
+Three guarded launches of the actual Settings icon, followed by Home, produced
+264 launcher frames in the three one-second opening windows with no app-deadline
+misses. The first window's longest frame was 21.52 ms; the two warm windows were
+11.44 and 13.86 ms. Settings was verified as the resumed activity on every tap.
+These bounded observations do not establish that every icon or application is
+free of startup jank. Concurrent marking on Dart worker threads is not itself
+proof that the UI was blocked.
+
+The prior physical process had a historical RSS high-water mark of 1,711,588 KiB.
+It is neither a single-click peak nor a before/after optimization measurement.
+A fresh process after development activation cannot support a memory-saving claim.
+On both targets the single cleanup worker accumulated no extra CPU ticks in a
+three-second idle observation.
+
+The AVD's longer bulk-drag trace includes expensive native raster snapshots.
+Its release window has insufficient rendered-frame evidence for a useful
+smoothness comparison. A separate opening attempt failed its resumed-activity
+guard and is excluded. Virtual-GPU measurements remain separate from physical
+acceptance.
+
+## Editing animation boundary
+
+Offscreen page tickers are suppressed only outside native editing. During
+editing, a drag can retain an animation owned by its source page after crossing
+to another page; disabling that ancestor would also mute unrelated native
+completion and selection animations. The existing authenticated editing getter
+is queried only for an otherwise invisible page, using the original mapped
+return PC and rooted child list. An unpublished Smi distinguishes the second
+return; no additional frame, retained Dart pointer, timer or per-frame work is
+introduced. Unknown controller state conservatively keeps native tickers active.
+The title-specific editing pause remains in place.
+
+The five retained native fixtures pass 3,430 linked ARM64 execution cases,
+including editing-state transitions, missing controllers and relocation during
+each native query. These are ABI and ownership checks; actual device interaction
+and rendering remain separate acceptance gates.

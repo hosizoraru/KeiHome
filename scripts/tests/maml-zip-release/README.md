@@ -31,7 +31,7 @@ clang++ -std=c++17 -Wall -Wextra -Werror -O1 -g \
 ```
 
 Repeat the queue command with `-fsanitize=thread` for concurrent ownership
-checks. The queue test covers 8,067 allocations, a blocked consumer/full queue,
+checks. The queue test covers 9,095 allocations, a blocked consumer/full queue,
 startup fallback, eight producers, recursion rejection and complete drain.
 
 The two SDK tests each perform 328 checks. They include typed destructor

@@ -1,5 +1,11 @@
 # Launcher cross-page drop cleanup
 
+The November 7 follow-up replaces the original queue producer with a bounded
+sequence-based MPSC ring and records separate capacity/contention fallbacks.
+See [launcher-open-performance.md](launcher-open-performance.md) for its
+9,095 ownership checks and current physical/AVD evidence. The measurements below
+describe the earlier checkpoint and are not paired comparisons against it.
+
 ## Reproduction and attribution
 
 The 2026-11-06 physical-device report describes a pause after an application is

@@ -174,11 +174,20 @@ private fun aboutCardColors() = CardDefaults.defaultColors(
 )
 
 @Composable
-internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit, onBackground: Boolean = false) {
+internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit,
+  onBackground: Boolean = false, showChannel: Boolean = true) {
+  val context = LocalContext.current
   val colors = if (onBackground) aboutCardColors() else CardDefaults.defaultColors()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = colors) {
     if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
       endActions = { AboutDetailValue(stringResource(R.string.settings_source_private)) })
+    if (showChannel) BasicComponent(title = stringResource(R.string.update_channel),
+      summary = stringResource(R.string.update_channel_summary), onClick = {
+        if (!UpdateChannel.open(context))
+          android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
+      }, endActions = {
+        Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      })
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
       endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
   }

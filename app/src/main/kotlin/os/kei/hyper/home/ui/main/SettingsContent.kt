@@ -82,6 +82,8 @@ internal fun SettingsContent(
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
   val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
     R.string.top_bar_gaussian, R.string.top_bar_progressive)
+  val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
+    R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
   val fallback = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
@@ -113,15 +115,21 @@ internal fun SettingsContent(
   val aboutApi = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.polish_about_api, extra = "API Android")
   val source = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_source, extra = "GitHub")
   val notices = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.settings_notices, extra = "license")
+  val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
+    R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, rememberMenus,
-        pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices).none { it }) {
+        pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
     if (staticScope) staticScopeContent()
+    if (hideIcon) {
+      SmallTitle(stringResource(R.string.app_entry_settings), modifier = Modifier.semantics { heading() })
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) { LauncherIconSetting() }
+    }
     if (fallback) {
       SmallTitle(stringResource(R.string.settings_icon_fallback_section), modifier = Modifier.semantics { heading() })
       fallbackContent()
@@ -232,7 +240,7 @@ internal fun SettingsContent(
       )
       AboutCard(about && section != SettingsSection.ABOUT, aboutPackage, aboutApi)
     }
-    if (source || notices) AboutLinks(source, notices, onOpenNotices)
+    if (source || notices || channel) AboutLinks(source, notices, onOpenNotices, showChannel = channel)
   }
 }
 

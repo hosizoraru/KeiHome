@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,6 +66,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   val scope = rememberCoroutineScope()
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(
+    modifier = Modifier.testTag("icon-packs.$section"),
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(title = stringResource(when (section) {

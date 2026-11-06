@@ -14,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.Density
 import androidx.activity.ComponentActivity
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
@@ -22,11 +24,13 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.tencent.mmkv.MMKV
 import android.graphics.Bitmap
 import java.io.File
+import java.io.FileInputStream
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import os.kei.hyper.home.MainNavigation
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppLocalStorage
@@ -35,11 +39,22 @@ import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class OnboardingNavigationTest {
-  @get:Rule val rule = createComposeRule()
+  @get:Rule(order = 0) val foregroundHost = object : ExternalResource() {
+    override fun before() {
+      // HyperOS requires the test host to be visible before ActivityScenario's background start.
+      val command = "am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER " +
+        "-n ${context.packageName}/androidx.activity.ComponentActivity"
+      InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use {
+        FileInputStream(it.fileDescriptor).use { output -> output.readBytes() }
+      }
+    }
+  }
+  @get:Rule(order = 1) val rule = createComposeRule()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val id = "onboarding_nav_${UUID.randomUUID()}"
   private val store by lazy { OnboardingPreferences(context, id, existingConfiguration = false) }
   private var currentPage = 0
+  private var capturePrefix = "standard"
 
   @After fun clean() {
     AppLocalStorage.open(context, id).close()
@@ -57,6 +72,24 @@ class OnboardingNavigationTest {
 
   private fun action(tag: String) = rule.onNode(hasTestTag("setup.$tag") and
     hasAnyAncestor(hasTestTag("setup.page.$currentPage")))
+
+  private fun packPage(section: String) {
+    rule.waitUntil(10_000) {
+      rule.onAllNodesWithTag("icon-packs.$section").fetchSemanticsNodes()
+        .any { kotlin.math.abs(it.boundsInRoot.left) < 1f }
+    }
+    rule.waitForIdle()
+  }
+
+  private fun checkContentEnd() {
+    action("content").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+    rule.waitForIdle()
+    val end = action("end").fetchSemanticsNode().boundsInRoot
+    val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
+    check(end.bottom <= toolbar.top + 1f) { "Step $currentPage content ends behind the floating toolbar" }
+    action("next").assertIsDisplayed().assertIsEnabled()
+    screenshot("$capturePrefix-step-$currentPage-end")
+  }
 
   private fun back() = rule.runOnUiThread {
     val activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED)
@@ -79,21 +112,40 @@ class OnboardingNavigationTest {
     rule.setContent { KeiHomeTheme { MainNavigation(store) } }
     page(0)
     screenshot("welcome")
+    checkContentEnd()
     action("next").performClick()
     page(1)
     screenshot("framework")
+    checkContentEnd()
     action("next").assertIsEnabled().performClick()
     page(2)
+    rule.onNodeWithText(context.getString(R.string.setup_native_icons_title)).assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.icon_pack_library)).performScrollTo().performClick()
+    packPage("library")
     rule.onNodeWithText(context.getString(R.string.pack_builtin)).performClick()
-    rule.waitForIdle()
+    packPage("builtin")
+    back()
+    packPage("library")
     back()
     page(2)
+    rule.onNodeWithText(context.getString(R.string.navigation_monet))
+      .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+    packPage("monet")
+    back()
+    page(2)
+    rule.onNodeWithText(context.getString(R.string.system_fallback_title))
+      .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+    packPage("fallback")
+    back()
+    page(2)
+    checkContentEnd()
     action("next").performClick()
     page(3)
     rule.onNodeWithText(context.getString(R.string.setup_open_desktop)).performClick()
     rule.waitForIdle()
     back()
     page(3)
+    checkContentEnd()
     action("previous").performClick()
     page(2)
     rule.runOnIdle { assertEquals(2, store.state.value) }
@@ -102,6 +154,7 @@ class OnboardingNavigationTest {
     action("next").performClick()
     page(4)
     screenshot("finish")
+    checkContentEnd()
     rule.onNode(hasText(context.getString(R.string.settings_log_section)) and hasClickAction())
       .performScrollTo().performClick()
     rule.waitForIdle()
@@ -124,6 +177,7 @@ class OnboardingNavigationTest {
   }
 
   @Test fun resumedSetupKeepsTheFooterReachableWithLargeTextAndCanBeDeferred() {
+    capturePrefix = "large"
     store.visit(1)
     rule.setContent {
       val density = LocalDensity.current
@@ -132,9 +186,30 @@ class OnboardingNavigationTest {
       }
     }
     page(1)
+    action("previous").performClick()
+    page(0)
+    checkContentEnd()
+    action("next").performClick()
+    page(1)
     rule.onNodeWithText(context.getString(R.string.scope_open_manager)).performScrollTo().assertIsDisplayed()
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("large-text")
+    checkContentEnd()
+    action("next").performClick()
+    page(2)
+    rule.onNodeWithText(context.getString(R.string.setup_native_icons_title))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.system_fallback_title))
+      .performScrollTo().assertIsDisplayed()
+    action("next").assertIsDisplayed().assertIsEnabled()
+    screenshot("large-icons")
+    checkContentEnd()
+    action("next").performClick()
+    page(3)
+    checkContentEnd()
+    action("next").performClick()
+    page(4)
+    checkContentEnd()
     action("exit").performClick()
     rule.waitForIdle()
     rule.runOnIdle { assertEquals(OnboardingPreferences.COMPLETE, store.state.value) }

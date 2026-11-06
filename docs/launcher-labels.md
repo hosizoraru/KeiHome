@@ -30,7 +30,9 @@ Cached desktop pages need an additional lifecycle boundary: the original
 Marquee alone continues ticking after a page leaves the viewport. The complete
 `CellLayout` page is wrapped in the launcher's resident `TickerMode`, using its
 reactive `_isScreenVisibleForGrid` predicate. This preserves its overview and
-dual-page rules and costs a 32-byte wrapper per page build. Visible weather and
+dual-page rules and costs a 32-byte wrapper per page build. Native editing keeps
+page tickers active, including the offscreen source of a drag; only the title
+pause applies while arranging apps. Visible weather and
 clock widgets retain their normal refreshes. Device checks must still establish
 actual pause/resume and rendering, beyond host emulation.
 
@@ -133,7 +135,7 @@ explicitly requests it; a previous physical-device check does not authorize
 testing later features on that device.
 
 Host resolution and rejection checks pass on all five actual ELF fixtures.
-The linked production bridges pass 2,550 ARM64 cases covering both heap-base forms,
+The linked production bridges pass 3,430 ARM64 cases covering both heap-base forms,
 all modes, native line counts, exact width boundaries, invalid measurements,
 memory pressure, a preference change during measurement or a prefix query,
 both prefix results, page visibility, and simulated moving roots. Fade cases

@@ -276,8 +276,9 @@ kh_label_refresh:
     br x16
 
 // CellLayout's original final Stack allocator has returned. Add the resident
-// TickerMode around the WHOLE page using native grid visibility. That predicate
-// observes native reactive page state, including overview and dual-page layouts.
+// TickerMode around the page using native grid visibility outside editing.
+// Editing must keep source-page tickers alive: native drag completion can await
+// an animation owned by that page after the pointer crosses to another page.
 // Its return PC is the ORIGINAL allocation PC, retaining the original stack map.
 // The live child-list root temporarily owns TickerMode; its temporary key roots
 // the list and its child roots Stack. No reference leaves Dart.
@@ -328,6 +329,25 @@ kh_label_page_replay:
     ldr x16, [x17, #200]
     br x16
 .Lpage_visible_return:
+    ldur w11, [x9, #11]
+    tbz w11, #0, .Lpage_publish   // unpublished Smi: editing query has returned
+    add x11, x22, #0x20
+    cmp x0, x11
+    b.eq .Lpage_publish           // visible page needs no additional query
+    ldr x1, [x26, #0x78]
+    ldr x16, [x17, #296]
+    ldr x1, [x1, x16]
+    cmp w1, w22
+    b.eq .Lpage_enable
+    ldr x16, [x27, #0x40]
+    cmp w1, w16
+    b.eq .Lpage_enable
+    stur wzr, [x9, #11]          // safe Smi phase marker, never published
+    ldr x16, [x17, #288]
+    br x16                       // same original return PC and live list root
+.Lpage_enable:
+    add x0, x22, #0x20           // unknown editing state: retain native tickers
+.Lpage_publish:
     stur w0, [x9, #11]            // canonical boolean: enabled
     ldur w11, [x9, #7]
     add x11, x11, x28, lsl #32

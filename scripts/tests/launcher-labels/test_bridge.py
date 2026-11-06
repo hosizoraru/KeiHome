@@ -277,10 +277,11 @@ def execute_refresh(template, entries, p, high, revision, notified, grid_state, 
     assert get(root) == (high << 32)+0x153001
 
 
-def execute_page(template, entries, p, high, visible, pressure=False, relocate=False):
+def execute_page(template, entries, p, high, visible, pressure=False, relocate=False,
+                 editing=False, controller_state="ready", relocate_editor=False):
     heap = high << 32
     uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
-    for at, size in [(BRIDGE, 4096), (THREAD, 4096), (POOL, 0x100000),
+    for at, size in [(BRIDGE, 4096), (THREAD, 4096), (FIELDS, 0x10000), (POOL, 0x100000),
                      (STACK-0x10000, 0x20000), (END, 4096), (heap+0x100000, 0x20000)]:
         uc.mem_map(at, size)
     def put(at, value): uc.mem_write(at, struct.pack("<Q", value & 0xffffffffffffffff))
@@ -296,17 +297,23 @@ def execute_page(template, entries, p, high, visible, pressure=False, relocate=F
     word(cell_widget+p["controller"],controller);put(controller+p["screen"],19)
     for offset in (7,11,15,19,23,27): word(child+offset,null)
     uc.mem_write(POOL,struct.pack("<Q",null)*0x20000)
+    editor, sentinel = heap+0x101a01, heap+0x101b01
+    object(editor, 996); object(sentinel, 995)
+    put(POOL+0x40, sentinel); put(THREAD+0x78, FIELDS)
+    put(FIELDS+p["editingSlot"], {"ready":editor,"null":null,"sentinel":sentinel}[controller_state])
     put(STACK+p["cellRoot"],source)
     top = heap+0x110000
     put(THREAD+0x60, top); put(THREAD+0x68, top+(0x20 if pressure else 0x1000))
     config = [0]*24+[p["tickerTag"], CODE+p["visible"], p["cellRoot"], 0,
                        p["controller"], p["screen"], CODE+p["cell"]+48]
+    config += [0]*15
+    config[36:38] = [CODE+p["editing"], p["editingSlot"]]
     blob = bytearray(template)
-    struct.pack_into("<31Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in config))
+    struct.pack_into("<46Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in config))
     uc.mem_write(BRIDGE,bytes(blob))
     uc.mem_write(BRIDGE+entries["page_replay"],p["cellReplay"])
     return_pc = CODE+p["cell"]+4
-    for page in {return_pc&~4095, (CODE+p["visible"])&~4095}:
+    for page in {return_pc&~4095, (CODE+p["visible"])&~4095, (CODE+p["editing"])&~4095}:
         uc.mem_map(page, 4096)
     jump = 0x14000000 | (((BRIDGE+entries["page_post"]-return_pc)//4)&0x3ffffff)
     word(return_pc, jump)
@@ -335,6 +342,24 @@ def execute_page(template, entries, p, high, visible, pressure=False, relocate=F
                 uc.mem_write(old_wrapper-1,b"\xcc"*0x20)
             cpu.reg_write(X[0],null+(0x20 if visible else 0x30))
             cpu.reg_write(ar.UC_ARM64_REG_PC,return_pc)
+        elif pc==CODE+p["editing"]:
+            calls.append(pc)
+            assert cpu.reg_read(X[1])==editor and cpu.reg_read(X[30])==return_pc
+            assert get(STACK+p["cellRoot"])==wrapper
+            assert struct.unpack("<I",uc.mem_read(wrapper+11,4))[0]==0
+            if relocate_editor:
+                old_wrapper=wrapper;wrapper=heap+0x119001
+                uc.mem_write(wrapper-1,bytes(uc.mem_read(old_wrapper-1,0x20)))
+                old_source,old_child=expected_source,expected_child
+                expected_source+=0x2000;expected_child+=0x2000
+                uc.mem_write(expected_source-1,bytes(uc.mem_read(old_source-1,0x20)))
+                uc.mem_write(expected_child-1,bytes(uc.mem_read(old_child-1,0x50)))
+                word(wrapper+7,expected_source);word(wrapper+15,expected_child)
+                word(expected_child+11,expected_source)
+                put(STACK+p["cellRoot"],wrapper)
+                uc.mem_write(old_wrapper-1,b"\xcc"*0x20)
+            cpu.reg_write(X[0],null+(0x20 if editing else 0x30))
+            cpu.reg_write(ar.UC_ARM64_REG_PC,return_pc)
         elif pc==CODE+p["cell"]+48:
             finished.append(pc);cpu.emu_stop()
     uc.hook_add(UC_HOOK_CODE,hook)
@@ -345,10 +370,11 @@ def execute_page(template, entries, p, high, visible, pressure=False, relocate=F
         assert calls==[] and uc.reg_read(X[0])==child
         assert get(THREAD+0x60)==top
     else:
-        assert calls==[CODE+p["visible"]]
+        assert calls==[CODE+p["visible"]]+([CODE+p["editing"]] if not visible and controller_state=="ready" else [])
         assert uc.reg_read(X[0])==wrapper
         assert struct.unpack("<I",uc.mem_read(wrapper+7,4))[0]==null&0xffffffff
-        assert struct.unpack("<I",uc.mem_read(wrapper+11,4))[0]==(null+(0x20 if visible else 0x30))&0xffffffff
+        enabled=visible or editing or controller_state!="ready"
+        assert struct.unpack("<I",uc.mem_read(wrapper+11,4))[0]==(null+(0x20 if enabled else 0x30))&0xffffffff
         assert struct.unpack("<I",uc.mem_read(wrapper+15,4))[0]==expected_child&0xffffffff
     assert struct.unpack("<I",uc.mem_read(expected_child+11,4))[0]==expected_source&0xffffffff
     for i,value in [(15,STACK-0x20),(21,0x21000000),(22,null),(26,THREAD),(27,POOL),(28,high),(29,STACK)]:
@@ -478,7 +504,11 @@ def main():
             for visible in (False, True):
                 for pressure in (False, True):
                     for relocate in (False, True):
-                        execute_page(template, entries, p, high, visible, pressure, relocate); total += 1
+                        for editing in (False,True):
+                            for controller_state in ("ready","null","sentinel"):
+                                for relocate_editor in (False,True):
+                                    execute_page(template, entries, p, high, visible, pressure, relocate,
+                                                 editing,controller_state,relocate_editor); total += 1
             for revision, notified in ((0,0), (1,0), (1,1), (2,1)):
                 for grid_state in ('ready','null','sentinel'):
                     execute_refresh(template, entries, p, high, revision, notified, grid_state); total += 1

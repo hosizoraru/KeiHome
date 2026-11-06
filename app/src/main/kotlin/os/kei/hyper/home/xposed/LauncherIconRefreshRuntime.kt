@@ -33,6 +33,10 @@ import os.kei.hyper.home.status.IconPackImportProtocol
 
 internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val lifecycle = IconRefreshReloadLifecycle()
+  private val frameworkManager = FrameworkManagerReceiver(
+    runActive = { work -> lifecycle.withActiveRuntime { work() } },
+    onFailure = { failure -> logFailure("could not open framework manager", failure) },
+  )
   private val lock = lifecycle.lock
   private val generations = IconRefreshGeneration()
   private val iconTheme = ActiveIconTheme()
@@ -352,6 +356,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       NativeMonetSocketBroker.stop()
       monetColorMonitor.stop()
       iconPackImportMonitor.stop()
+      frameworkManager.stop()
       stopRefreshWorker()
       handles.forEach {
         try {
@@ -371,6 +376,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       prepare = prepare@ {
         closingWorkers.pruneStopped()
         if (closingWorkers.hasLiveThreads()) return@prepare false
+        frameworkManager.stop()
         stopRefreshWorker()
         NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
@@ -407,6 +413,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
         service?.let { profile.context.get(it) } as? Context
       } ?: return
+      try {
+        handler?.let { frameworkManager.start(context, it) }
+      } catch (failure: Exception) { logFailure("could not register framework entry", failure) }
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       monetColorMonitor.start(context)
       iconPackImportMonitor.start(context)

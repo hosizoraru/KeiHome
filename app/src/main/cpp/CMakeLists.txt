@@ -39,6 +39,9 @@ add_library(keihome_hyos_lsp SHARED
     monet_tint_bridge.S
     selection_profile.cpp
     monet_selection_bridge.S
+    deferred_zip_release.cpp
+    maml_zip_release_profile.cpp
+    maml_zip_release_hooks.cpp
 )
 
 # A disposable diagnostic build only. OFF contributes no observer or worker to
@@ -83,7 +86,7 @@ target_link_options(keihome_hyos_lsp PRIVATE
     -Wl,-z,relro
     -Wl,-z,now
 )
-target_link_libraries(keihome_hyos_lsp PRIVATE log dl binder_ndk)
+target_link_libraries(keihome_hyos_lsp PRIVATE log dl binder_ndk android)
 set_target_properties(keihome_hyos_lsp PROPERTIES
     CXX_EXTENSIONS OFF
     OUTPUT_NAME "keihome_hyos_lsp"

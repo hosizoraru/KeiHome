@@ -7,6 +7,7 @@
 
 #include "lsposed_hook_backend.h"
 #include "native_api.h"
+#include "maml_zip_release_hooks.h"
 #include "monet_hooks.h"
 
 #include <android/log.h>
@@ -125,6 +126,7 @@ void BackfillLoadedLibrary(const char* name) {
 void BackfillLoadedLibraries() {
     BackfillLoadedLibrary(kHyperRuntimeName);
     BackfillLoadedLibrary(kDartLibraryName);
+    BackfillLoadedLibrary("librust_maml_sdk.so");
 }
 
 void OnLsposedLibraryLoaded(const char* name, void* handle) {
@@ -133,6 +135,10 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
 
 void HandleLoadedLibrary(const char* name, void* handle, bool fresh_load) {
     if (name == nullptr || handle == nullptr || !IsLauncherHookProcess()) return;
+    if (EndsWith(name, "librust_maml_sdk.so")) {
+        InstallMamlZipRelease();
+        return;
+    }
     if (EndsWith(name, kHyperRuntimeName)) {
         EnsureLsposedMadviseGuard(name);
         return;

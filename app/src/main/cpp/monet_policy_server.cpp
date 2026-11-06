@@ -10,6 +10,7 @@
 
 #if defined(__ANDROID__)
 #include "monet_image_recovery.h"
+#include "maml_zip_release_hooks.h"
 #include <android/binder_ibinder.h>
 #include <android/binder_parcel.h>
 #include <dlfcn.h>
@@ -521,6 +522,9 @@ enum class WaitResult { Ready, Timeout, Failed };
 WaitResult WaitForFd(int fd, short events, uint64_t deadline,
                      PolicyState* policies) {
     for (;;) {
+#if defined(__ANDROID__)
+        PrepareMamlZipReleaseWorker();
+#endif
         const uint64_t now = NowNs();
         if (now == 0u) return WaitResult::Failed;
         MaintainPolicy(policies, now);
@@ -616,6 +620,11 @@ void* PolicyWorker(void* data) {
     if (getpid() == server->pid && getuid() == server->uid && IsLauncherProcess()) {
         uint32_t retry_ms = 250u;
         for (;;) {
+#if defined(__ANDROID__)
+            // This worker exists only after launcher specialization. Starting
+            // ZIP cleanup here avoids thread/TLS setup on a Dart UI release.
+            PrepareMamlZipReleaseWorker();
+#endif
             const uint64_t now = NowNs();
             if (now == 0u) break;
             MaintainPolicy(&server->policies, now);

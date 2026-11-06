@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
-import os.kei.hyper.home.data.DockGlassCornerStyle
 import os.kei.hyper.home.data.LauncherGlassStyle
 import os.kei.hyper.home.data.LauncherLabelMode
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -49,9 +48,7 @@ private fun DesktopStatusCard(model: HomeViewModel) {
   val dockValue = when (val saved = dock.saved) {
     null -> stringResource(R.string.theme_effects_loading)
     else -> if (!saved.enabled) stringResource(R.string.desktop_feature_off) else
-      stringResource(R.string.desktop_dock_on, stringResource(
-        if (saved.cornerStyle == DockGlassCornerStyle.RECENTS) R.string.dock_glass_corner_recents
-        else R.string.dock_glass_corner_rounded))
+      stringResource(R.string.desktop_dock_on, stringResource(saved.cornerStyle.labelResource))
   }
   val labelValue = stringResource(when (labels.saved) {
     LauncherLabelMode.NATIVE -> R.string.launcher_labels_native

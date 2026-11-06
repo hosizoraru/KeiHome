@@ -4,7 +4,24 @@
     <string name="dock_glass_summary">Use the home screen’s native glass background for the Dock. Material appearance follows the system.</string>
     <string name="dock_glass_pending">Waiting for the home screen to receive this choice…</string>
     <string name="dock_glass_corner_title">Dock corners</string>
-    <string name="dock_glass_corner_summary">Recents follows the native system card corner style. Rounded follows the screen corners.</string>
-    <string name="dock_glass_corner_recents">Recents</string>
-    <string name="dock_glass_corner_rounded">Rounded</string>
+    <string name="dock_glass_corner_summary">Choose a corner style for the Dock background.</string>
+    <string name="dock_glass_corner_recents_summary">Follow the native Recents card corners.</string>
+    <string name="dock_glass_corner_rounded_summary">Shape the background using the system screen-corner reference.</string>
+    <string name="dock_glass_corner_pad_summary">Shape the corners using the icon size and vertical spacing.</string>
+    <string name="dock_glass_corner_concentric_summary">Shape the background using the screen-corner reference; lower the Dock with Vertical position. Five large icons or system clipping may limit the result.</string>
+    <string name="dock_glass_corner_custom_summary">Set the radius manually, within the background bounds.</string>
+    <string name="dock_glass_corner_recents">Recents (follow default)</string>
+    <string name="dock_glass_corner_rounded">Rounded (screen reference)</string>
+    <string name="dock_glass_corner_pad">Pad (icon + padding)</string>
+    <string name="dock_glass_corner_concentric">Screen-concentric reference</string>
+    <string name="dock_glass_corner_custom">Custom radius</string>
+    <string name="dock_glass_padding_title">Dock height</string>
+    <string name="dock_glass_padding_summary">Adjust background space above and below icons without resizing them. Default: 18 dp.</string>
+    <string name="dock_glass_offset_title">Vertical position</string>
+    <string name="dock_glass_offset_summary">Positive moves down; negative moves up, within available space. Default: 0 dp.</string>
+    <string name="dock_glass_radius_title">Custom corner radius</string>
+    <string name="dock_glass_radius_summary">Used only with Custom radius. The background bounds limit the visible radius. Default: 24 dp.</string>
+    <string name="dock_glass_reset">Reset Dock geometry</string>
+    <string name="dock_glass_reset_summary">Restore Recents, 18 dp padding, 0 dp offset and 24 dp custom radius.</string>
+    <string name="dock_glass_dp">%1$d dp</string>
 </resources>

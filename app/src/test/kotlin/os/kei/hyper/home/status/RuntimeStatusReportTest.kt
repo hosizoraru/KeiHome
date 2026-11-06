@@ -98,7 +98,7 @@ class RuntimeStatusReportTest {
     assertFalse(report.copy(dockGlassPid = null).acknowledgesDockGlass(choice))
     assertFalse(report.copy(dockGlassCornerStyle = null).acknowledgesDockGlass(choice))
     assertFalse(report.acknowledgesDockGlass(null))
-    for (style in listOf(null, -1, 2)) {
+    for (style in listOf(null, -1, 5)) {
       assertNull(RuntimeStatusReport.decode(report.copy(dockGlassCornerStyle = style).encode()))
     }
     assertNull(RuntimeStatusReport.decode(ready.copy(dockGlassCornerStyle = 1).encode()))
@@ -109,6 +109,29 @@ class RuntimeStatusReportTest {
     assertTrue(decoded.acknowledgesDockGlass(choice.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.ROUNDED)))
     val noDockV4 = ready.encode().split('|').take(16).toMutableList().apply { this[0] = "4" }.joinToString("|")
     assertEquals(ready, RuntimeStatusReport.decode(noDockV4))
+  }
+
+  @Test fun rawDockGeometryRoundTripsWithoutChangingTheSchemaAndAckChecksEveryActiveField() {
+    val choice = os.kei.hyper.home.data.DockGlassChoice(true,
+      os.kei.hyper.home.data.DockGlassCornerStyle.CUSTOM, 0, -48, 64)
+    val report = ready.copy(dockGlassEnabled = true, dockGlassPid = 9000,
+      dockGlassStartTicks = 123L, dockGlassCornerStyle = choice.options)
+    assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    assertEquals("6", report.encode().substringBefore('|'))
+    assertTrue(report.acknowledgesDockGlass(choice))
+    for (different in listOf(choice.copy(verticalPaddingDp = 32),
+      choice.copy(verticalOffsetDp = 96), choice.copy(customRadiusDp = 24),
+      choice.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.PAD))) {
+      assertFalse(report.acknowledgesDockGlass(different))
+    }
+    for (invalid in listOf(5, 1 or (34 shl 3), 4 or (65 shl 9),
+      1 or (24 shl 9), 1 or (97 shl 16), 1 shl 24)) {
+      assertNull(RuntimeStatusReport.decode(report.copy(dockGlassCornerStyle = invalid).encode()))
+    }
+    val legacy = report.copy(dockGlassCornerStyle = 1)
+    assertTrue(legacy.acknowledgesDockGlass(os.kei.hyper.home.data.DockGlassChoice(true)))
+    assertFalse(legacy.acknowledgesDockGlass(os.kei.hyper.home.data.DockGlassChoice(true, verticalPaddingDp = 0)))
+    assertFalse(legacy.acknowledgesDockGlass(os.kei.hyper.home.data.DockGlassChoice(true, verticalOffsetDp = 1)))
   }
 
   @Test fun labelAcknowledgementsRoundTripAndOldReportsRemainReadable() {

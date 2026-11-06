@@ -2,7 +2,7 @@ package os.kei.hyper.home.xposed
 
 /** Owned by the existing monitor; a save or a greeting is never a setting ACK. */
 internal class DockGlassLease {
-  private data class Ack(val enabled: Boolean, val cornerQ8: Int, val cornerStyle: Int, val user: Int, val process: NativeMonetProcessIdentity, val at: Long)
+  private data class Ack(val enabled: Boolean, val cornerQ8: Int, val options: Int, val user: Int, val process: NativeMonetProcessIdentity, val at: Long)
   private var previous: Ack? = null
   private var dirty = false
 
@@ -15,12 +15,12 @@ internal class DockGlassLease {
       !dirty && it.process == process && it.user == user && now >= it.at && now - it.at < 45_000
     }?.enabled
 
-  fun acknowledgedStyle(process: NativeMonetProcessIdentity?, user: Int, now: Long): Int? =
+  fun acknowledgedOptions(process: NativeMonetProcessIdentity?, user: Int, now: Long): Int? =
     previous?.takeIf {
       !dirty && it.process == process && it.user == user && now >= it.at && now - it.at < 45_000
-    }?.cornerStyle
+    }?.options
 
-  fun synchronize(enabled: Boolean, user: Int, now: () -> Long, isCurrent: () -> Boolean, cornerQ8: Int = 0, cornerStyle: Int = 1,
+  fun synchronize(enabled: Boolean, user: Int, now: () -> Long, isCurrent: () -> Boolean, cornerQ8: Int = 0, options: Int = 1,
     exchange: (onWriteAttempted: () -> Unit) -> NativeMonetProcessIdentity?): Boolean {
     if (!isCurrent()) return false
     val started = now()
@@ -33,8 +33,8 @@ internal class DockGlassLease {
       // The first off ACK must also reconcile a resident bridge left enabled by
       // an old API-102 owner. Unchanged renewals do not schedule another callback.
       val changed = dirty || old == null || old.user != user || old.process != process ||
-        old.enabled != enabled || old.cornerStyle != cornerStyle || enabled && old.cornerQ8 != cornerQ8 || started < old.at || started - old.at >= 45_000
-      previous = Ack(enabled, cornerQ8, cornerStyle, user, process, started)
+        old.enabled != enabled || old.options != options || enabled && old.cornerQ8 != cornerQ8 || started < old.at || started - old.at >= 45_000
+      previous = Ack(enabled, cornerQ8, options, user, process, started)
       dirty = false
       committed = true
       return changed

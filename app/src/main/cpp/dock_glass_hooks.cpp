@@ -83,6 +83,7 @@ bool InstallPreparedDockGlass() {
     if(page<4096||page>65536||(page&(page-1))||bytes>8192)return Reject("Dock template ABI");
     const size_t mapping_bytes=(bytes+size_t(page)-1u)&~(size_t(page)-1u);
     const Patch patches[]={
+        {p.bottom_margin_return,0xd65f03c0u,kh_dock_bottom_margin,false},
         {p.recents_flight_radius,p.recents_flight_radius_expected,kh_dock_recents_flight_radius,false},
         {p.recents_task_radius_returns[0],0xd65f03c0u,kh_dock_recents_radius,false},
         {p.recents_task_radius_returns[1],0xd65f03c0u,kh_dock_recents_radius,false},

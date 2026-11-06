@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import os.kei.hyper.home.status.NativeRuntimeDiagnostic
+import os.kei.hyper.home.data.DockGlassOptions
 
 /**
  * One authenticated exchange with the launcher; the monitor owns retries.
@@ -112,8 +113,8 @@ internal class NativeMonetClient {
     communicate(context, NativeMonetProtocol.launcherLabelsRequest(mode),
       materialCommand = true, labelCommand = true, onWriteAttempted = onWriteAttempted)
 
-  fun setDockGlass(context: Context, enabled: Boolean, cornerQ8: Int, cornerStyle: Int, onWriteAttempted: () -> Unit): Boolean =
-    communicate(context, NativeMonetProtocol.dockGlassRequest(enabled, cornerQ8, cornerStyle), dockCommand = true,
+  fun setDockGlass(context: Context, enabled: Boolean, cornerQ8: Int, options: Int, onWriteAttempted: () -> Unit): Boolean =
+    communicate(context, NativeMonetProtocol.dockGlassRequest(enabled, cornerQ8, options), dockCommand = true,
       onWriteAttempted = onWriteAttempted)
 
   fun setLauncherGlass(context: Context, style: Int, onWriteAttempted: () -> Unit): Boolean =
@@ -432,8 +433,9 @@ internal object NativeMonetProtocol {
   private const val LAUNCHER_LABELS_CAPABILITY = 4
   const val DOCK_GLASS_CAPABILITY = 8
   const val LAUNCHER_GLASS_CAPABILITY = 16
+  const val DOCK_LAYOUT_CAPABILITY = 32
   private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY or
-    LAUNCHER_LABELS_CAPABILITY or DOCK_GLASS_CAPABILITY or LAUNCHER_GLASS_CAPABILITY
+    LAUNCHER_LABELS_CAPABILITY or DOCK_GLASS_CAPABILITY or LAUNCHER_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
   private const val ENABLED = 1
   private const val THEME_MATERIALS = 2
   private const val LAUNCHER_LABELS = 3
@@ -471,11 +473,11 @@ internal object NativeMonetProtocol {
     return header(flags = LAUNCHER_LABELS, foreground = mode, background = 0, count = 0).array()
   }
 
-  fun dockGlassRequest(enabled: Boolean, cornerQ8: Int = 0, cornerStyle: Int = 1): ByteArray {
+  fun dockGlassRequest(enabled: Boolean, cornerQ8: Int = 0, options: Int = 1): ByteArray {
     require(cornerQ8 in 0..65536)
-    require(cornerStyle in 0..1)
+    require(DockGlassOptions.isValid(options))
     return header(flags = DOCK_GLASS, foreground = if (enabled) 1 else 0,
-      background = cornerQ8, count = cornerStyle).array()
+      background = cornerQ8, count = options).array()
   }
 
   /** Wallpaper glass material: 0 follows wallpaper, 1 light, 2 dark; command 9 is unchanged. */
@@ -531,17 +533,22 @@ internal object NativeMonetProtocol {
         0, ENABLED -> MONET_CAPABILITY
         THEME_MATERIALS -> THEME_MATERIALS_CAPABILITY
         LAUNCHER_LABELS -> LAUNCHER_LABELS_CAPABILITY
-        DOCK_GLASS -> DOCK_GLASS_CAPABILITY
+        DOCK_GLASS -> {
+          val options = ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN).getInt(5 * Int.SIZE_BYTES)
+          if (!DockGlassOptions.isValid(options)) return reject("native Dock options invalid")
+          if (options in 0..1) DOCK_GLASS_CAPABILITY else DOCK_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
+        }
         LAUNCHER_GLASS -> LAUNCHER_GLASS_CAPABILITY
         else -> return reject("native request opcode unsupported")
       }
     }
     if (!isCurrentTarget()) return reject("launcher changed before policy publication")
     onGreeting(capabilities)
-    if (capabilities and requiredCapability == 0) {
+    if (capabilities and requiredCapability != requiredCapability) {
       return reject(if (requiredCapability == MONET_CAPABILITY) NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
       else if (requiredCapability == LAUNCHER_LABELS_CAPABILITY) "native launcher labels capability unavailable"
       else if (requiredCapability == DOCK_GLASS_CAPABILITY) "native Dock glass capability unavailable"
+      else if (requiredCapability and DOCK_LAYOUT_CAPABILITY != 0) "native Dock layout capability unavailable"
       else if (requiredCapability == LAUNCHER_GLASS_CAPABILITY) "native launcher glass capability unavailable"
       else "native theme materials capability unavailable")
     }

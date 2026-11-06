@@ -100,7 +100,12 @@ internal fun SettingsContent(
     R.string.launcher_labels_two_lines)
   val dockGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.launcher_labels_section,
     R.string.dock_glass_title, R.string.dock_glass_summary, R.string.dock_glass_corner_title,
-    R.string.dock_glass_corner_summary, R.string.dock_glass_corner_recents, R.string.dock_glass_corner_rounded)
+    R.string.dock_glass_corner_summary, R.string.dock_glass_corner_recents, R.string.dock_glass_corner_rounded,
+    R.string.dock_glass_corner_pad, R.string.dock_glass_corner_concentric, R.string.dock_glass_corner_custom,
+    R.string.dock_glass_padding_title, R.string.dock_glass_padding_summary,
+    R.string.dock_glass_offset_title, R.string.dock_glass_offset_summary,
+    R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
+    R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val rememberMenus = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)

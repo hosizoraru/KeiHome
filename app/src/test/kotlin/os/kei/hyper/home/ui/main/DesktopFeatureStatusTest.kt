@@ -186,7 +186,7 @@ class DesktopFeatureStatusTest {
       val saved = DockGlassUiState(saved = DockGlassChoice(enabled = false, cornerStyle = cornerStyle))
       val disabled = report.copy(nativeState = NativeRuntimeState.UNAVAILABLE,
         launcherPid = null, launcherStartTicks = null, dockGlassEnabled = false,
-        dockGlassCornerStyle = cornerStyle.nativeValue)
+        dockGlassCornerStyle = saved.saved!!.options)
       assertEquals(DesktopFeatureStatus.ACCEPTED,
         desktopDockStatus(saved, runtime.copy(report = disabled), true, now, version))
       for (observation in listOf(

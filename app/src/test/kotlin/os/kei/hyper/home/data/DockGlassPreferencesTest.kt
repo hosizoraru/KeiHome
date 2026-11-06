@@ -18,11 +18,11 @@ class DockGlassPreferencesTest {
     assertEquals(0, remote.commits)
   }
 
-  @Test fun bothStylesRoundTripAndOffOnPreservesTheSelectedStyle() = runBlocking {
+  @Test fun allStylesRoundTripAndOffOnPreservesGeometry() = runBlocking {
     val remote = Preferences()
     for (style in DockGlassCornerStyle.entries) {
       for (enabled in listOf(true, false, true)) {
-        val choice = DockGlassChoice(enabled, style)
+        val choice = DockGlassChoice(enabled, style, verticalPaddingDp = 32, verticalOffsetDp = -48, customRadiusDp = 64)
         DockGlassPreferences.save(remote.preferences, choice)
         assertEquals(enabled, remote.values[DockGlassPreferences.KEY])
         assertEquals(style.nativeValue, remote.values[DockGlassPreferences.CORNER_STYLE_KEY])
@@ -31,14 +31,15 @@ class DockGlassPreferencesTest {
         assertEquals(choice, DockGlassPreferences.readConfirmed(reopened.preferences))
       }
     }
-    assertEquals(6, remote.commits)
+    assertEquals(DockGlassCornerStyle.entries.size * 3, remote.commits)
   }
 
   @Test fun invalidStoredStylesFallBackToRecentsAndAbiValuesRemainStable() {
     assertEquals(0, DockGlassCornerStyle.ROUNDED.nativeValue)
     assertEquals(1, DockGlassCornerStyle.RECENTS.nativeValue)
     val remote = Preferences()
-    for (invalid in listOf(-1, 2, Int.MAX_VALUE)) {
+    assertEquals(listOf(0, 1, 2, 3, 4), DockGlassCornerStyle.entries.map { it.nativeValue })
+    for (invalid in listOf(-1, 5, Int.MAX_VALUE)) {
       remote.values[DockGlassPreferences.CORNER_STYLE_KEY] = invalid
       assertEquals(DockGlassCornerStyle.RECENTS, DockGlassPreferences.readChoice(remote.preferences).cornerStyle)
     }
@@ -47,7 +48,7 @@ class DockGlassPreferencesTest {
   @Test fun failedCommitRequiresRetryOfTheWholeChoiceEvenIfRemoteCacheAlreadyChanged() {
     val remote = Preferences()
     val initial = DockGlassChoice(true)
-    val pending = DockGlassChoice(true, DockGlassCornerStyle.ROUNDED)
+    val pending = DockGlassChoice(true, DockGlassCornerStyle.ROUNDED, 0, 96, 64)
     runBlocking { DockGlassPreferences.save(remote.preferences, initial) }
     remote.commitSucceeds = false
     assertThrows(IllegalStateException::class.java) {
@@ -68,9 +69,38 @@ class DockGlassPreferencesTest {
     assertEquals(3, remote.commits)
   }
 
+  @Test fun invalidGeometryFallsBackAndEveryGeometryKeyTriggersTheListener() {
+    val remote = Preferences()
+    for (value in listOf(-100, 100, "18")) {
+      remote.values[DockGlassPreferences.VERTICAL_PADDING_KEY] = value
+      remote.values[DockGlassPreferences.VERTICAL_OFFSET_KEY] = value
+      remote.values[DockGlassPreferences.CUSTOM_RADIUS_KEY] = value
+      assertEquals(DockGlassChoice(), DockGlassPreferences.readChoice(remote.preferences))
+    }
+    for (key in listOf(null, DockGlassPreferences.KEY, DockGlassPreferences.CORNER_STYLE_KEY,
+      DockGlassPreferences.VERTICAL_PADDING_KEY, DockGlassPreferences.VERTICAL_OFFSET_KEY,
+      DockGlassPreferences.CUSTOM_RADIUS_KEY)) {
+      org.junit.Assert.assertTrue(DockGlassPreferences.isPreferenceKey(key))
+    }
+    org.junit.Assert.assertFalse(DockGlassPreferences.isPreferenceKey("launcher_glass_style"))
+  }
+
+  @Test fun readUsesOneSnapshotForAllFiveFields() {
+    val remote = Preferences()
+    remote.values.putAll(mapOf(DockGlassPreferences.KEY to true,
+      DockGlassPreferences.CORNER_STYLE_KEY to 4,
+      DockGlassPreferences.VERTICAL_PADDING_KEY to 0,
+      DockGlassPreferences.VERTICAL_OFFSET_KEY to -48,
+      DockGlassPreferences.CUSTOM_RADIUS_KEY to 64))
+    assertEquals(DockGlassChoice(true, DockGlassCornerStyle.CUSTOM, 0, -48, 64),
+      DockGlassPreferences.readChoice(remote.preferences))
+    assertEquals(1, remote.snapshots)
+  }
+
   private class Preferences(var commitSucceeds: Boolean = true) {
     val values = mutableMapOf<String, Any>()
     var commits = 0
+    var snapshots = 0
     val preferences: SharedPreferences
 
     init {
@@ -82,7 +112,7 @@ class DockGlassPreferencesTest {
           "hashCode" -> System.identityHashCode(proxy)
           "equals" -> proxy === args?.firstOrNull()
           "toString" -> "DockGlassPreferencesTest"
-          "getAll" -> values.toMap()
+          "getAll" -> { snapshots++; values.toMap() }
           "contains" -> values.containsKey(args!![0] as String)
           "getInt" -> values[args!![0] as String] as? Int ?: args[1] as Int
           "getBoolean" -> {

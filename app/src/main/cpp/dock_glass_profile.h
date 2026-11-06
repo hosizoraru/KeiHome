@@ -7,6 +7,7 @@ struct DockGlassProfile {
     size_t unlock_search, unlock_create, unlock_location, unlock_center;
     uint32_t unlock_tag, unlock_zero_pp, unlock_debug_pp;
     size_t phone, gate, skip, background_call, background, outer_call, outer_logger;
+    size_t bottom_margin_return;
     size_t mode, mode_returns[4];
     size_t mode_post;
     // Mapped source proof sites; not part of the assembly/config ABI.

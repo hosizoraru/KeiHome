@@ -64,12 +64,12 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     val context = contextForUser(baseContext, user) ?: return false
     val choice = os.kei.hyper.home.data.DockGlassPreferences.readChoice(preferences)
     val enabled = choice.enabled
-    val cornerStyle = choice.cornerStyle.nativeValue
+    val options = choice.options
     val cornerQ8 = if (enabled) DockScreenCorners.readQ8(context) else 0
     val current = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == user &&
       os.kei.hyper.home.data.DockGlassPreferences.readChoice(preferences) == choice }
-    return dockGlass.synchronize(enabled, user, SystemClock::elapsedRealtime, current, cornerQ8, cornerStyle) { attempted ->
-      if (native.setDockGlass(context, enabled, cornerQ8, cornerStyle, attempted)) native.acknowledgedDockGlassProcess else null
+    return dockGlass.synchronize(enabled, user, SystemClock::elapsedRealtime, current, cornerQ8, options) { attempted ->
+      if (native.setDockGlass(context, enabled, cornerQ8, options, attempted)) native.acknowledgedDockGlassProcess else null
     }
   }
 
@@ -182,7 +182,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     val dockProcess = acknowledgementProcess.takeIf { dockAvailable }
     val dockCheckedAt = SystemClock.elapsedRealtime()
     val dockEnabled = dockGlass.acknowledgedEnabled(dockProcess, request.userId, dockCheckedAt)
-    val dockStyle = dockGlass.acknowledgedStyle(dockProcess, request.userId, dockCheckedAt)
+    val dockOptions = dockGlass.acknowledgedOptions(dockProcess, request.userId, dockCheckedAt)
     val state = when {
       activeUser != null && activeUser != request.userId -> NativeRuntimeState.INACTIVE_USER
       greeting?.monetAvailable == true -> NativeRuntimeState.READY
@@ -195,7 +195,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       refresh = identities.retainEarlierAcknowledgement(refresh),
       launcherLabelMode = launcherLabels.acknowledgedMode(acknowledgementProcess, SystemClock.elapsedRealtime()),
       dockGlassEnabled = dockEnabled,
-      dockGlassCornerStyle = dockStyle,
+      dockGlassCornerStyle = dockOptions,
       dockGlassPid = dockProcess?.pid.takeIf { dockEnabled != null },
       dockGlassStartTicks = dockProcess?.startTicks.takeIf { dockEnabled != null },
       launcherGlassAvailable = launcherGlassAvailable,

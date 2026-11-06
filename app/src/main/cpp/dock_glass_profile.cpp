@@ -602,6 +602,17 @@ bool ResolveClipNone(const IconHighlightImage& im,DockGlassProfile& p,
 bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const char** why) {
     if(why)*why=nullptr;if(!out)return Fail(why,"missing Dock output");*out={};
     DockGlassProfile p{};
+    const size_t bottom_margin=Find(im,kDockBottomMargin);
+    if(!bottom_margin)return Fail(why,"native Dock bottom margin missing/ambiguous");
+    size_t bottom_size=0;
+    for(const auto& pattern:kDockBottomMargin)
+        if(Match(im,bottom_margin,pattern))bottom_size=pattern.count*4;
+    for(size_t at=bottom_margin;at<bottom_margin+bottom_size;at+=4)
+        if(Word(im,at)==0xd65f03c0u) {
+            if(p.bottom_margin_return)return Fail(why,"ambiguous Dock margin return");
+            p.bottom_margin_return=at;
+        }
+    if(!p.bottom_margin_return)return Fail(why,"native Dock margin return missing");
     if(!ResolveLauncherLabels(im,&p.labels,why))return false;
     p.phone=Find(im,kDockPhone);
     p.background=0;

@@ -37,7 +37,7 @@ class NativeRuntimeIdentitySelectionTest {
     init {
       labels.synchronize(1, 0, { 100L }, { true }) { attempted -> attempted(); process }
       dock.synchronize(enabled = true, user = 0, now = { 100L }, isCurrent = { true },
-        cornerQ8 = 10957, cornerStyle = 1) { attempted -> attempted(); process }
+        cornerQ8 = 10957, options = 1) { attempted -> attempted(); process }
       glass.synchronize(2, 0, { 100L }, { true }) { attempted -> attempted(); process }
     }
   }
@@ -48,7 +48,7 @@ class NativeRuntimeIdentitySelectionTest {
     assertNull(process)
     assertNull(leases.labels.acknowledgedMode(process, now))
     assertNull(leases.dock.acknowledgedEnabled(process, 0, now))
-    assertNull(leases.dock.acknowledgedStyle(process, 0, now))
+    assertNull(leases.dock.acknowledgedOptions(process, 0, now))
     assertNull(leases.glass.acknowledgedStyle(process, 0, now))
     assertNull(selection.retainEarlierAcknowledgement(receipt))
   }
@@ -61,7 +61,7 @@ class NativeRuntimeIdentitySelectionTest {
       assertEquals(a, selection.acknowledgementProcess)
       assertEquals(1, leases.labels.acknowledgedMode(selection.acknowledgementProcess, now))
       assertEquals(true, leases.dock.acknowledgedEnabled(selection.acknowledgementProcess, 0, now))
-      assertEquals(1, leases.dock.acknowledgedStyle(selection.acknowledgementProcess, 0, now))
+      assertEquals(1, leases.dock.acknowledgedOptions(selection.acknowledgementProcess, 0, now))
       assertEquals(2, leases.glass.acknowledgedStyle(selection.acknowledgementProcess, 0, now))
       assertEquals(receipt, selection.retainEarlierAcknowledgement(receipt))
       assertTrue(probe(selection, next, 31, NativeMonetProtocol.DOCK_GLASS_CAPABILITY))

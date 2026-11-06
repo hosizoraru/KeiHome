@@ -74,3 +74,12 @@ Parent clipping additionally checks the completed native child list before the
 Stack stores it, preserving stock clipping on pressure/invalid/empty fallback.
 Its dynamically encoded SizedBox CID comparison preserves all NZCV values,
 uses one dead register, and adds no managed allocation.
+
+## Geometry options and placement
+
+`test_bottom.py` executes the linked native margin return leaf for all five
+styles, enabled/disabled gates and offset boundaries, checking unchanged stack,
+LR and non-scratch registers. Extended renderer cases cover height, Pad/custom
+radius, screen-reference geometry and one/five-icon limits. The policy tests
+exercise packed options validation and quiet lease renewals. See
+`docs/dock-customization.md` for source-coordinate limits and device acceptance.

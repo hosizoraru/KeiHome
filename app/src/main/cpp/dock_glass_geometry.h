@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include "dock_glass_options.h"
 
 struct DockGlassGeometry {
     bool visible;
@@ -31,12 +32,13 @@ struct DockGlassGeometry {
         std::optional<double> icon_top = std::nullopt,
         bool recents_style = false,
         double recents_default_radius = 20.0,
-        std::optional<double> native_recents_radius = std::nullopt) noexcept {
+        std::optional<double> native_recents_radius = std::nullopt,
+        uint32_t options = 0u) noexcept {
     constexpr double kPadding = 18.0;
     constexpr double kEdge = 8.0;
     constexpr double kFallbackRadius = 28.0;
     const double ink_width = icon_width.value_or(cell_width);
-    if (!std::isfinite(content_width) || !std::isfinite(cell_width) ||
+    if (!ValidDockGlassOptions(options) || !std::isfinite(content_width) || !std::isfinite(cell_width) ||
         !std::isfinite(container_height) || content_width <= 2.0 * kEdge ||
         cell_width <= 0.0 || container_height <= 0.0 ||
         (!icon_top && container_height <= 2.0 * kEdge) ||
@@ -72,16 +74,23 @@ struct DockGlassGeometry {
     // Full five-item layout needs the whole native content width. Keep the
     // existing icon fit guard and all <=4 geometry unchanged.
     const double plate_edge = count == 5 ? 0.0 : kEdge;
-    const double left = std::max(plate_edge, first_left - kPadding);
-    const double right = std::min(content_width - plate_edge, last_right + kPadding);
+    double left = std::max(plate_edge, first_left - kPadding);
+    double right = std::min(content_width - plate_edge, last_right + kPadding);
     if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};
-    constexpr double kVerticalPadding = 18.0;
+    const double kVerticalPadding = DockGlassPadding(options);
     constexpr double kPaintOverflow = 12.0;
     const double top = icon_top ? std::max(-kPaintOverflow, *icon_top - kVerticalPadding) : kEdge;
     const double bottom = icon_top
             ? std::min(container_height + kPaintOverflow, *icon_top + ink_width + kVerticalPadding)
             : container_height - kEdge;
     if (icon_top && bottom < *icon_top + ink_width) return {};
+    const unsigned style = options & 7u;
+    if (style == 3u && count != 5 && screen_bottom_radius && std::isfinite(*screen_bottom_radius) &&
+            *screen_bottom_radius > 0) {
+        left = std::min({std::max(0.0, *screen_bottom_radius - (bottom - top) * 0.5),
+                        first_left, content_width - last_right});
+        right = content_width - left;
+    }
     const double radius_cap = std::min((right - left) / 2.0, (bottom - top) / 2.0);
     if (!(radius_cap > 0.0)) return {};
 
@@ -94,7 +103,16 @@ struct DockGlassGeometry {
                           *screen_bottom_radius > 0.0
             ? std::max(kFallbackRadius, *screen_bottom_radius - outer_inset)
             : kFallbackRadius;
-    if (recents_style) {
+    if (style == 2u) {
+        radius = std::max(0.0, ink_width * (16.0 / 60.0) +
+                (bottom - top - ink_width) * 0.5);
+    } else if (style == 4u) {
+        radius = double((options >> 9u) & 127u);
+    } else if (style == 3u && screen_bottom_radius &&
+            std::isfinite(*screen_bottom_radius) && *screen_bottom_radius > 0) {
+        radius = std::max(0.0, *screen_bottom_radius -
+                std::min(left, content_width - right));
+    } else if (recents_style || style == 1u) {
         // Observe the system's actual task-card getter. Before its first
         // normal call, use its source-authenticated ordinary radius fallback.
         if (!std::isfinite(recents_default_radius) || recents_default_radius <= 0) return {};

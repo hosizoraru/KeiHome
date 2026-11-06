@@ -51,6 +51,24 @@ internal class DockGlassSettings(private val scope: CoroutineScope, private val 
     (state.value.pending ?: state.value.saved)?.let { save(it.copy(cornerStyle = style)) }
   }
 
+  fun setVerticalPadding(value: Int) {
+    (state.value.pending ?: state.value.saved)?.let { save(it.copy(verticalPaddingDp = value.coerceIn(0, 32))) }
+  }
+
+  fun setVerticalOffset(value: Int) {
+    (state.value.pending ?: state.value.saved)?.let { save(it.copy(verticalOffsetDp = value.coerceIn(-48, 96))) }
+  }
+
+  fun setCustomRadius(value: Int) {
+    (state.value.pending ?: state.value.saved)?.let { save(it.copy(customRadiusDp = value.coerceIn(0, 64))) }
+  }
+
+  fun resetGeometry() {
+    (state.value.pending ?: state.value.saved)?.let {
+      save(DockGlassChoice(enabled = it.enabled))
+    }
+  }
+
   fun save(choice: DockGlassChoice) {
     val service = FrameworkConnection.service.value ?: return
     if (!inScope() || state.value.saving || state.value.unavailable) return

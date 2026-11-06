@@ -14,6 +14,7 @@ constexpr uint32_t kNativeMonetCapability = 1u;
 constexpr uint32_t kNativeThemeMaterialsCapability = 2u;
 constexpr uint32_t kNativeLauncherLabelsCapability = 4u;
 constexpr uint32_t kNativeDockGlassCapability = 8u;
+constexpr uint32_t kNativeDockLayoutCapability = 32u;
 constexpr uint32_t kNativeLauncherGlassCapability = 16u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;

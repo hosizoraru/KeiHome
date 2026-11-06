@@ -146,7 +146,7 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     unlock_tag = 0x21eb31c
     cfg.extend([unlock_tag, 0x140, 0x148])
     assert len(cfg) * 8 == 456
-    owned_material=corner_style==1 and mode==0
+    owned_material=(corner_style&7)==1 and mode==0
     arena = 400 if owned_material else (384 if mode == 0 else 368)
     word(POLICY + 8, mode)
     word(POLICY + 16, q8)
@@ -329,8 +329,18 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     assert ref(pos + 23) != ref(pos + 31)
     native_icon_top = (max(0, ((w - 20 if width_flag else cell_height) - ink_width) / 2)
                        if effective_no_word else icon_top)
-    expected_top = max(-12, native_icon_top - 18)
-    expected_bottom = min(H + 12, native_icon_top + ink_width + 18)
+    padding_code=(corner_style>>3)&63
+    padding=padding_code-1 if padding_code else 18
+    native_radius=q8/256 if corner_address and 0<q8<=65536 else 0
+    actual_left,actual_right=left,right
+    expected_top = max(-12, native_icon_top - padding)
+    expected_bottom = min(H + 12, native_icon_top + ink_width + padding)
+    if (corner_style&7)==3 and count!=5 and native_radius>0:
+        capacity = 4 if elderly else 5
+        centers0 = [C/2+(i-(count-1)/2)*w if count<capacity else (i+0.5)*(C/capacity) for i in range(count)]
+        inset = min(max(0,native_radius-(expected_bottom-expected_top)/2),
+                    centers0[0]-ink_width/2,C-centers0[-1]-ink_width/2)
+        left,right=inset,C-inset
     assert num(ref(pos + 23) + 7) == expected_top
     assert num(ref(pos + 31) + 7) == H - expected_bottom, 'Positioned bottom must be an inset'
     M = 4 if elderly else 5
@@ -339,13 +349,24 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     last = centers[-1] + ink_width / 2
     for center in centers:
         assert left <= center - ink_width / 2 and right >= center + ink_width / 2, 'painted icon clipped'
-    assert math.isclose(left, max(0 if count==5 else 8, first - 18), abs_tol=1e-10)
-    assert math.isclose(right, min(C - (0 if count==5 else 8), last + 18), abs_tol=1e-10)
+    if (corner_style&7)==3 and count!=5 and native_radius>0:
+        assert math.isclose(actual_left,left,abs_tol=1e-10) and math.isclose(actual_right,right,abs_tol=1e-10)
+    else:
+        assert math.isclose(left, max(0 if count==5 else 8, first - 18), abs_tol=1e-10)
+    if not ((corner_style&7)==3 and count!=5 and native_radius>0):
+        assert math.isclose(right, min(C - (0 if count==5 else 8), last + 18), abs_tol=1e-10)
     native_radius = q8 / 256 if corner_address and 0 <= q8 <= 65536 else 0
     expected_radius = min(max(28, native_radius - max(8,min(left, C - right))), (right - left) / 2, (expected_bottom - expected_top) / 2)
-    if corner_style==1:
+    if (corner_style&7)==1:
         target=native_card_radius if math.isfinite(native_card_radius) and 0<native_card_radius<=256 else 20
         expected_radius=min(target,(right-left)/2,(expected_bottom-expected_top)/2)
+    elif (corner_style&7)==2:
+        expected_radius=min(max(0,ink_width*16/60+(expected_bottom-expected_top-ink_width)/2),
+                            (right-left)/2,(expected_bottom-expected_top)/2)
+    elif (corner_style&7)==3 and native_radius>0:
+        expected_radius=min(max(0,native_radius-min(left,C-right)),(right-left)/2,(expected_bottom-expected_top)/2)
+    elif (corner_style&7)==4:
+        expected_radius=min((corner_style>>9)&127,(right-left)/2,(expected_bottom-expected_top)/2)
     if count==5:expected_radius=min(expected_radius,32)
     actual_radius=num(mat+11)
     assert math.isclose(actual_radius,expected_radius,abs_tol=1e-10), 'corner style/Q8 geometry'
@@ -382,7 +403,25 @@ for mode in range(4):
         recents_cases+=1
     assert setup(mode=mode,corner_style=1,pressure=arena+1)
     recents_cases+=1
-for style in (2,0xffffffff):
+for style in (0,1,2,3,4):
+ for padding in (0,6,18,32):
+  for custom_radius in ((0,16,64) if style==4 else (0,)):
+   options=style | ((padding+1)<<3) | (custom_radius<<9)
+   try:
+    result=setup(count=4,C=420,w=80,H=88,ink_width=64,icon_top=4,
+                 corner_style=options,q8=60*256)
+   except Exception as error:
+    raise RuntimeError((style,padding,custom_radius)) from error
+   assert result is True,(style,padding,custom_radius,result)
+   recents_cases+=1
+for count in (1,5):
+ for style in (2,3,4):
+  for padding in (0,18,32):
+   options=style|((padding+1)<<3)|(12<<9 if style==4 else 0)
+   assert setup(count=count,C=420,w=80,H=88,ink_width=64,icon_top=4,
+                corner_style=options,q8=60*256)
+   recents_cases+=1
+for style in (5,0xffffffff):
     assert not setup(corner_style=style)
     recents_cases+=1
 active_case = {}

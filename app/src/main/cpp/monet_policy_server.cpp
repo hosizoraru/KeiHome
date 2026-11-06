@@ -2,6 +2,7 @@
 // Independently authored for KeiHome, following MiuiBackGestureHook's exact
 // process/sender authentication and explicit native lifetime ownership principles.
 #include "monet_policy_server.h"
+#include "dock_glass_options.h"
 #include "launcher_glass_policy.h"
 
 #include <errno.h>
@@ -89,7 +90,7 @@ uint32_t InstalledCapabilities() {
     const uint32_t labels = __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeLauncherLabelsCapability : 0u;
     const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
-            ? kNativeDockGlassCapability : 0u;
+            ? kNativeDockGlassCapability | kNativeDockLayoutCapability : 0u;
     const uint32_t glass = __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeLauncherGlassCapability : 0u;
     return monet | materials | labels | dock | glass;
@@ -147,7 +148,7 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
             (flags > kNativeLauncherLabelsCommand && flags != kNativeDockGlassCommand &&
              flags != kNativeLauncherGlassCommand) ||
-            count > kNativeMonetMaxPackages ||
+            (count > kNativeMonetMaxPackages && flags != kNativeDockGlassCommand) ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
                             (background >> 24u) != 0xffu)) ||
@@ -157,7 +158,7 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
              (foreground > 2u || background != 0u || count != 0u)) ||
             (flags == kNativeDockGlassCommand &&
              (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 ||
-              count > kNativeDockGlassRecentsStyle)) ||
+              !ValidDockGlassOptions(count))) ||
             (flags == kNativeLauncherGlassCommand &&
              (foreground > kLauncherGlassDark || background != 0u || count != 0u))) {
         return false;

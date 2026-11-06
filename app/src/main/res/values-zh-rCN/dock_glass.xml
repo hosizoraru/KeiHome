@@ -4,7 +4,24 @@
     <string name="dock_glass_summary">为 Dock 使用桌面原生玻璃背景，材质外观跟随系统。</string>
     <string name="dock_glass_pending">等待桌面接收设置…</string>
     <string name="dock_glass_corner_title">Dock 圆角</string>
-    <string name="dock_glass_corner_summary">最近任务跟随系统原生卡片的圆角样式，圆润跟随屏幕圆角。</string>
-    <string name="dock_glass_corner_recents">最近任务</string>
-    <string name="dock_glass_corner_rounded">圆润</string>
+    <string name="dock_glass_corner_summary">选择 Dock 背景的圆角样式。</string>
+    <string name="dock_glass_corner_recents_summary">跟随原生最近任务卡片的圆角。</string>
+    <string name="dock_glass_corner_rounded_summary">依据系统提供的屏幕圆角参考调整背景。</string>
+    <string name="dock_glass_corner_pad_summary">结合图标尺寸与上下留白调整背景圆角。</string>
+    <string name="dock_glass_corner_concentric_summary">依据屏幕圆角参考调整形状，可配合垂直位置下移 Dock。五个大图标或系统裁剪可能限制效果。</string>
+    <string name="dock_glass_corner_custom_summary">手动设置圆角半径，实际效果受背景尺寸限制。</string>
+    <string name="dock_glass_corner_recents">最近任务（跟随默认）</string>
+    <string name="dock_glass_corner_rounded">圆润（屏幕参考）</string>
+    <string name="dock_glass_corner_pad">Pad（图标 + 内边距）</string>
+    <string name="dock_glass_corner_concentric">屏幕同心参考</string>
+    <string name="dock_glass_corner_custom">自定义半径</string>
+    <string name="dock_glass_padding_title">Dock 高度</string>
+    <string name="dock_glass_padding_summary">调整图标上下的背景留白，不改变图标大小。默认 18 dp。</string>
+    <string name="dock_glass_offset_title">垂直位置</string>
+    <string name="dock_glass_offset_summary">正值向下，负值向上，移动范围受可用空间限制。默认 0 dp。</string>
+    <string name="dock_glass_radius_title">自定义圆角半径</string>
+    <string name="dock_glass_radius_summary">仅在自定义半径模式下使用，可见圆角受背景边界限制。默认 24 dp。</string>
+    <string name="dock_glass_reset">重置 Dock 几何设置</string>
+    <string name="dock_glass_reset_summary">恢复最近任务圆角、18 dp 内边距、0 dp 偏移及 24 dp 自定义半径。</string>
+    <string name="dock_glass_dp">%1$d dp</string>
 </resources>

@@ -109,7 +109,9 @@ kh_dock_background:
     b.ne .Ldock_original
     ldr x16, [x17, #KH_DOCK_CORNER_STYLE_ADDRESS]
     ldar w16, [x16]
-    cmp w16, #1
+    fmov d26, x16                // one immutable packed geometry snapshot
+    and w16, w16, #7
+    cmp w16, #4
     b.hi .Ldock_original
     fmov d25, x16                // snapshot style; primitive, no managed root
     ldr x16, [x17, #KH_DOCK_IGNORE_POINTER_TAG]
@@ -131,7 +133,8 @@ kh_dock_background:
     csel x11, x16, x11, eq       // Glass48; other native primitives32
     b.ne .Ldock_material_selected
     fmov x16, d25
-    cbz x16, .Ldock_material_selected
+    cmp w16, #1
+    b.ne .Ldock_material_selected
     // A genuine native ValueKey scopes clip adaptation to this owned glass.
     // Material class, filter parameters and opacity remain the original ones.
     mov x11, #64                // Glass48 + ValueKey<dynamic>16
@@ -349,6 +352,8 @@ kh_dock_background:
     fmov d6,xzr                 // five items: use full native content width
     fmov d7,d0
 .Ldock_plate_edges:
+    fmov d28, d3
+    fsub d29, d0, d4             // native painted side limits, before padding
     fmov d16, #18.0
     fsub d3, d3, d16
     fmax d3, d3, d6               // plate left
@@ -356,6 +361,15 @@ kh_dock_background:
     fmin d4, d4, d7               // plate right
     fsub d5, d4, d3
     fdiv d5, d5, d18              // width/2
+    fmov x16, d26
+    ubfx w16, w16, #3, #6
+    cbz w16, .Ldock_default_vertical_padding
+    sub w16, w16, #1
+    scvtf d16, w16
+    b .Ldock_vertical_padding_ready
+.Ldock_default_vertical_padding:
+    fmov d16, #18.0
+.Ldock_vertical_padding_ready:
     fsub d20, d21, d16
     fmov d7, #-12.0
     fmax d20, d20, d7            // top = max(-12, nativeIconTop-18)
@@ -373,9 +387,39 @@ kh_dock_background:
     fmin d5, d5, d7
     fcmp d5, #0.0
     b.le .Ldock_original
+    fmov x16, d25
+    cmp w16, #3
+    b.ne .Ldock_concentric_edges_ready
+    cmp w2, #5
+    b.eq .Ldock_concentric_edges_ready // keep five-icon edge padding
+    ldr x16, [x17, #KH_DOCK_CORNER_RADIUS_ADDRESS]
+    ldar w4, [x16]
+    cbz w4, .Ldock_concentric_edges_ready
+    scvtf d27, w4
+    mov w16, #256
+    scvtf d7, w16
+    fdiv d27, d27, d7
+    fsub d7, d21, d20
+    fmov d18, #2.0
+    fdiv d7, d7, d18
+    fsub d27, d27, d7
+    fmov d16, xzr
+    fmax d27, d27, d16
+    fmin d27, d27, d28
+    fmin d3, d27, d29
+    fsub d4, d0, d3
+    fsub d5, d4, d3
+    fdiv d5, d5, d18
+    fmin d5, d5, d7
+.Ldock_concentric_edges_ready:
     fmov d7, #28.0
     fmov x16, d25
-    cbnz x16, .Ldock_recents_radius
+    cmp w16, #2
+    b.eq .Ldock_pad_radius
+    cmp w16, #4
+    b.eq .Ldock_custom_radius
+    cmp w16, #1
+    b.eq .Ldock_recents_radius
     // Public Android rounded-corner radius, normalized to dp Q8 by the parent.
     // No Dart corner-list/units assumptions. Zero/missing/invalid uses bounded28.
     ldr x16, [x17, #KH_DOCK_CORNER_RADIUS_ADDRESS]
@@ -389,11 +433,38 @@ kh_dock_background:
     fdiv d7, d7, d16
     fsub d16, d0, d4
     fmin d16, d3, d16            // nearer horizontal plate inset
+    fmov x16, d25
+    cmp w16, #3
+    b.eq .Ldock_concentric_radius
     fmov d18,#8.0
     fmax d16,d16,d18            // preserve existing rounded-radius policy
     fsub d7, d7, d16
     fmov d16, #28.0
     fmax d7, d7, d16             // retain native minimum softness
+    b .Ldock_radius_ready
+.Ldock_concentric_radius:
+    fsub d7, d7, d16
+    fmov d16, xzr
+    fmax d7, d7, d16
+    b .Ldock_radius_ready
+.Ldock_custom_radius:
+    fmov x16, d26
+    ubfx w16, w16, #9, #7
+    scvtf d7, w16
+    b .Ldock_radius_ready
+.Ldock_pad_radius:
+    fmov d16, #16.0
+    mov w16, #60
+    scvtf d18, w16
+    fdiv d16, d16, d18
+    fmul d7, d19, d16
+    fsub d16, d21, d20
+    fsub d16, d16, d19
+    fmov d18, #2.0
+    fdiv d16, d16, d18
+    fadd d7, d7, d16
+    fmov d16, xzr
+    fmax d7, d7, d16
     b .Ldock_radius_ready
 .Ldock_recents_radius:
     // Observe the real native task-card getter result; never substitute the
@@ -578,6 +649,30 @@ kh_dock_background:
     stur w2, [x0, #0xf]          // native C
     stur w3, [x0, #0x13]         // native H
     ret                         // unchanged original 117d29c LR/stack map
+
+// Original native total-bottom-margin getter RET. Moving its result moves the
+// actual Dock container, including icon transforms and hit testing.
+    .global kh_dock_bottom_margin
+    .hidden kh_dock_bottom_margin
+kh_dock_bottom_margin:
+    hint #38
+    adr x17, kh_dock_config
+    ldr x16, [x17, #KH_DOCK_ENABLED]
+    ldar w16, [x16]
+    cmp w16, #1
+    b.ne .Ldock_bottom_return
+    ldr x16, [x17, #KH_DOCK_CORNER_STYLE_ADDRESS]
+    ldar w16, [x16]
+    sbfx w16, w16, #16, #8
+    cbz w16, .Ldock_bottom_return
+    scvtf d16, w16
+    fsub d0, d0, d16
+    // Stay within the native parent's bottom boundary. Do not invent a
+    // navigation-bar inset; stock device/inset policy stays upstream.
+    fmov d16, xzr
+    fmax d0, d0, d16
+.Ldock_bottom_return:
+    ret
 
 .Ldock_original:
     // x1, x15, x18-x30 and v8-v15 are still EXACT original values.

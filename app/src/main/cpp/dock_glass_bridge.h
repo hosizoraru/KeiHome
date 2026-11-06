@@ -195,5 +195,6 @@ extern const uint8_t kh_dock_parent_clip[];
 extern const uint8_t kh_dock_parent_cid[];
 extern const uint8_t kh_dock_glass_scope[], kh_dock_glass_child_scope[], kh_dock_glass_clip[], kh_dock_recents_radius[], kh_dock_recents_flight_radius[];
 extern const uint8_t kh_dock_config[], kh_dock_end[];
+extern const uint8_t kh_dock_bottom_margin[];
 }
 #endif

@@ -62,35 +62,51 @@ class DockGlassLeaseTest {
     fun sync(enabled: Boolean, style: Int) =
       lease.synchronize(enabled, 0, { 100L }, { true }, 10_240, style) { process }
     assertTrue(sync(true, 1))
-    assertEquals(1, lease.acknowledgedStyle(process, 0, 100))
+    assertEquals(1, lease.acknowledgedOptions(process, 0, 100))
     assertFalse(sync(true, 1))
     assertTrue(sync(true, 0))
-    assertEquals(0, lease.acknowledgedStyle(process, 0, 100))
+    assertEquals(0, lease.acknowledgedOptions(process, 0, 100))
     assertFalse(sync(true, 0))
     assertTrue(sync(false, 0))
     assertTrue(sync(false, 1))
     assertFalse(sync(false, 1))
   }
 
+  @Test fun eachEncodedGeometryFieldReconcilesOnceIncludingWhileDisabled() {
+    val base = os.kei.hyper.home.data.DockGlassChoice(
+      cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.CUSTOM)
+    for (enabled in listOf(true, false)) {
+      val lease = DockGlassLease()
+      for (choice in listOf(base, base.copy(verticalPaddingDp = 0),
+        base.copy(verticalPaddingDp = 0, verticalOffsetDp = -48),
+        base.copy(verticalPaddingDp = 0, verticalOffsetDp = -48, customRadiusDp = 64))) {
+        fun sync() = lease.synchronize(enabled, 0, { 100L }, { true }, options = choice.options) { process }
+        assertTrue(sync())
+        assertEquals(choice.options, lease.acknowledgedOptions(process, 0, 100))
+        assertFalse(sync())
+      }
+    }
+  }
+
   @Test fun styleAckCannotSurviveLostWritesForeignIdentityExpiryOrStaleSelection() {
     val lease = DockGlassLease()
-    assertTrue(lease.synchronize(true, 0, { 100L }, { true }, cornerStyle = 1) { process })
-    assertNull(lease.acknowledgedStyle(process.copy(startTicks = 124), 0, 100))
-    assertNull(lease.acknowledgedStyle(process, 10, 100))
-    assertNull(lease.acknowledgedStyle(process, 0, 99))
-    assertNull(lease.acknowledgedStyle(process, 0, 45_100))
-    assertFalse(lease.synchronize(true, 0, { 200L }, { true }, cornerStyle = 0) { attempted ->
+    assertTrue(lease.synchronize(true, 0, { 100L }, { true }, options = 1) { process })
+    assertNull(lease.acknowledgedOptions(process.copy(startTicks = 124), 0, 100))
+    assertNull(lease.acknowledgedOptions(process, 10, 100))
+    assertNull(lease.acknowledgedOptions(process, 0, 99))
+    assertNull(lease.acknowledgedOptions(process, 0, 45_100))
+    assertFalse(lease.synchronize(true, 0, { 200L }, { true }, options = 0) { attempted ->
       attempted(); null
     })
-    assertNull(lease.acknowledgedStyle(process, 0, 200))
-    assertTrue(lease.synchronize(true, 0, { 300L }, { true }, cornerStyle = 1) { process })
+    assertNull(lease.acknowledgedOptions(process, 0, 200))
+    assertTrue(lease.synchronize(true, 0, { 300L }, { true }, options = 1) { process })
     var current = true
-    assertFalse(lease.synchronize(true, 0, { 400L }, { current }, cornerStyle = 0) { attempted ->
+    assertFalse(lease.synchronize(true, 0, { 400L }, { current }, options = 0) { attempted ->
       attempted(); current = false; process
     })
-    assertNull(lease.acknowledgedStyle(process, 0, 400))
-    assertTrue(lease.synchronize(true, 0, { 500L }, { true }, cornerStyle = 1) { process })
-    assertFalse(lease.synchronize(true, 0, { 600L }, { true }, cornerStyle = 1) { process })
+    assertNull(lease.acknowledgedOptions(process, 0, 400))
+    assertTrue(lease.synchronize(true, 0, { 500L }, { true }, options = 1) { process })
+    assertFalse(lease.synchronize(true, 0, { 600L }, { true }, options = 1) { process })
   }
 
 }

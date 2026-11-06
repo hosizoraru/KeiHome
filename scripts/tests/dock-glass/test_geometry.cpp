@@ -380,6 +380,20 @@ void CountChangesAndEnvelopeSweep() {
 } // namespace
 
 int main() {
+    for(uint32_t style=0;style<=4;++style)
+        for(uint32_t padding : {0u,6u,18u,32u})
+            for(int count=1;count<=5;++count) {
+                const uint32_t options=style|((padding+1u)<<3u)|
+                        (style==4u ? 12u<<9u : 0u);
+                CHECK(ValidDockGlassOptions(options));
+                const auto shape=ComputeDockGlassGeometry(420,80,count,5,88,60.0,64.0,4.0,false,20.0,std::nullopt,options);
+                CHECK(shape.visible&&shape.left>=0&&shape.right<=420);
+                CHECK(shape.top<=4&&shape.bottom>=68&&shape.radius>=0);
+                CHECK(shape.radius<=(shape.bottom-shape.top)*0.5);
+                if(style==4)CHECK(shape.radius==12.0);
+            }
+    const auto pad=ComputeDockGlassGeometry(420,80,4,5,88,60.0,64.0,4.0,false,20.0,std::nullopt,2u);
+    CHECK(std::abs(pad.radius-(64.0*16.0/60.0+17.0))<1e-10);
     static_assert(std::is_trivial<DockGlassGeometry>::value, "plain result");
     static_assert(noexcept(ComputeDockGlassGeometry(400, 56, 1, 5, 80)), "pure math");
     // Conservative RRect containment also covers the fuller native continuous

@@ -54,6 +54,7 @@ kh_dock_mode_post:
     cbnz w14,.Ldock_mode_replay
     ldr x16,[x17,#KH_DOCK_MODE_CORNER_STYLE]
     ldar w16,[x16]
+    and w16,w16,#7
     cmp w16,#1
     b.ne .Ldock_mode_replay
     // The original native caller owns this exact return PC and its stack map.

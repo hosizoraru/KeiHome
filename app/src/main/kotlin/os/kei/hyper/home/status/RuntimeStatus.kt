@@ -2,6 +2,7 @@ package os.kei.hyper.home.status
 
 import androidx.compose.runtime.Immutable
 import java.util.Base64
+import os.kei.hyper.home.data.DockGlassOptions
 
 @Immutable
 internal data class IconRefreshReceipt(val callbacks: Int, val completedAtMillis: Long)
@@ -39,7 +40,7 @@ internal data class RuntimeStatusReport(
   val dockGlassEnabled: Boolean? = null,
   val dockGlassPid: Int? = null,
   val dockGlassStartTicks: Long? = null,
-  val dockGlassCornerStyle: Int? = null,
+  val dockGlassCornerStyle: Int? = null, // Raw command-8 options; low 3 bits are the corner style.
   val launcherGlassAvailable: Boolean = false,
   val launcherGlassStyle: Int? = null,
 ) {
@@ -48,7 +49,7 @@ internal data class RuntimeStatusReport(
       detail == NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
 
   fun acknowledgesDockGlass(choice: os.kei.hyper.home.data.DockGlassChoice?): Boolean =
-    choice != null && dockGlassEnabled == choice.enabled && dockGlassCornerStyle == choice.cornerStyle.nativeValue &&
+    choice != null && dockGlassEnabled == choice.enabled && dockGlassCornerStyle == choice.options &&
       dockGlassPid != null && dockGlassStartTicks != null
 
   fun acknowledgesLauncherGlass(style: os.kei.hyper.home.data.LauncherGlassStyle?): Boolean =
@@ -61,6 +62,7 @@ internal data class RuntimeStatusReport(
     userId == request.userId && checkedAtElapsed >= request.startedAtElapsed && isFresh(now)
 
   // Schema 6 has 19 pipe-delimited fields; schema 5's fields 0..16 retain their positions.
+  // [16] carries raw Dock options, including the legacy default-geometry words 0 and 1.
   // [17] wallpaper glass capability: "0"/"1"; [18] accepted material: "-1" unknown,
   // "0" follow wallpaper, "1" light, "2" dark. Numeric fields stay wire compatible.
   // Capability and ACK are independent of Monet readiness; neither is a painted-frame receipt.
@@ -105,7 +107,7 @@ internal data class RuntimeStatusReport(
           dockGlassStartTicks = fields.getOrNull(15)?.toLong()?.takeIf { it > 0 },
           // v4 had only the existing rounded style; earlier schemas had no Dock ACK.
           dockGlassCornerStyle = if (fields.size == 16 && fields[13] != "-1") 0
-            else fields.getOrNull(16)?.toInt()?.takeIf { it in 0..1 },
+            else fields.getOrNull(16)?.toInt()?.takeIf(DockGlassOptions::isValid),
           launcherGlassAvailable = fields.getOrNull(17) == "1",
           launcherGlassStyle = fields.getOrNull(18)?.toInt()?.takeIf { it in 0..2 },
         ).takeIf {
@@ -115,7 +117,7 @@ internal data class RuntimeStatusReport(
             (fields.size < 16 || (fields[13].toInt() in -1..1 &&
               (if (it.dockGlassEnabled == null) fields[14] == "0" && fields[15] == "0"
               else it.dockGlassPid != null && it.dockGlassStartTicks != null))) &&
-            (fields.size < 17 || (fields[16].toInt() in -1..1 &&
+            (fields.size < 17 || ((fields[16] == "-1" || DockGlassOptions.isValid(fields[16].toInt())) &&
               (if (it.dockGlassEnabled == null) it.dockGlassCornerStyle == null
               else it.dockGlassCornerStyle != null))) &&
             (fields.size < 19 || (fields[17] in listOf("0", "1") && fields[18].toInt() in -1..2 &&

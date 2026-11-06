@@ -29,7 +29,18 @@ int main(int argc, char** argv) {
     printf("curve_getter=%zx adaptive=%zx radius=%x border=%x super=%x rect=%x behavior_pp=%x ordinary_bits=%llx stacked_min_bits=%llx dispatch=%zx..%zx\n",p.curve_getter,p.recents_adaptive_clip,p.recents_radius_tag,p.recents_border_radius_tag,p.recents_superellipse_tag,p.recents_rrect_tag,p.recents_clip_pp,(unsigned long long)p.recents_default_radius_bits,(unsigned long long)p.recents_stacked_min_radius_bits,p.recents_dispatch_start,p.recents_dispatch_end);
     printf("glass=%zx scope=%zx/%08x child_scope=%zx/%08x clip_alloc=%zx/%08x roots=%d,%d key_tag=%08x key_alloc=%zx key_caller=%zx key_equals=%zx scope_map=%zx/%02x child_map=%zx/%02x\n",p.glass_build,p.glass_scope_store,p.glass_scope_expected,p.glass_child_scope_store,p.glass_child_scope_expected,p.glass_clip_alloc_call,p.glass_clip_alloc_expected,p.glass_scope_root_slot,p.glass_child_root_slot,p.value_key_tag,p.value_key_alloc,p.value_key_caller,p.value_key_equals,p.glass_scope_stackmap,bytes[p.glass_scope_stackmap],p.glass_child_stackmap,bytes[p.glass_child_stackmap]);
     printf("unlock_search=%zx unlock_create=%zx unlock_location=%zx unlock_center=%zx unlock_tag=%x unlock_zero_pp=%x unlock_debug_pp=%x\n",p.unlock_search,p.unlock_create,p.unlock_location,p.unlock_center,p.unlock_tag,p.unlock_zero_pp,p.unlock_debug_pp);
-    if(argc==3)return 0;
+    if(argc==3) {
+        // New placement contract: a missing/changed return must disable
+        // admission, without depending on a symbol or source-version table.
+        const uint32_t original=u32(p.bottom_margin_return);
+        if(original!=0xd65f03c0u)return 1;
+        const uint32_t nop=0xd503201fu;
+        memcpy(bytes.data()+p.bottom_margin_return,&nop,4);
+        DockGlassProfile rejected{};const char* reason=nullptr;
+        if(ResolveDockGlass(image,&rejected,&reason)||!reason||rejected.phone)return 1;
+        puts("Dock margin return mutation rejected");
+        return 0;
+    }
     unsigned checks=0;
     if(!p.recents_flight_radius||p.recents_flight_radius_slot>=0||
        !p.recents_task_radius_returns[0]||!p.recents_task_radius_returns[1])return 1;

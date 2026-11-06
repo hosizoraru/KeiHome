@@ -93,8 +93,7 @@ internal class MonetColorMonitor(
     private val materialListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == ThemeEffectsPreferences.KEY ||
         key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY ||
-        key == os.kei.hyper.home.data.DockGlassPreferences.KEY ||
-        key == os.kei.hyper.home.data.DockGlassPreferences.CORNER_STYLE_KEY ||
+        os.kei.hyper.home.data.DockGlassPreferences.isPreferenceKey(key) ||
         key == os.kei.hyper.home.data.LauncherGlassPreferences.KEY) requestMaterials()
     }
     private val wallpaperDirty = AtomicBoolean(true)

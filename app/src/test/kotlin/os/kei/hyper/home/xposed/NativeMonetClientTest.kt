@@ -49,7 +49,7 @@ class NativeMonetClientTest {
   }
 
   @Test fun launcherGlassCapabilityIsObservableWithoutPretendingMonetOrStyleWasAcknowledged() {
-    for (capabilities in listOf(1, 16, 17, 31)) {
+    for (capabilities in listOf(1, 16, 17, 31, 32, 40, 63)) {
       var observed: Int? = null
       val output = ByteArrayOutputStream()
       assertEquals(capabilities and 1 != 0, NativeMonetProtocol.exchange(
@@ -64,7 +64,7 @@ class NativeMonetClientTest {
     for (current in listOf(false, true)) {
       var observed = false
       assertFalse(NativeMonetProtocol.exchange(
-        ByteArrayInputStream(greeting(if (current) 32 else 16)), ByteArrayOutputStream(),
+        ByteArrayInputStream(greeting(if (current) 64 else 16)), ByteArrayOutputStream(),
         targetUid, targetUid, request = null, isCurrentTarget = { current },
         onGreeting = { observed = true }))
       assertFalse(observed)
@@ -132,9 +132,36 @@ class NativeMonetClientTest {
       assertFalse(exchange(ByteArrayInputStream(greeting(8) + words(magic, 1, 1)),
         ByteArrayOutputStream(), request = command))
     }
-    for (style in listOf(-1, 2, Int.MAX_VALUE)) assertThrows(IllegalArgumentException::class.java) {
-      NativeMonetProtocol.dockGlassRequest(true, cornerStyle = style)
+    for (style in listOf(-1, 5, Int.MAX_VALUE)) assertThrows(IllegalArgumentException::class.java) {
+      NativeMonetProtocol.dockGlassRequest(true, options = style)
     }
+  }
+
+  @Test fun extendedDockOptionsUseOneWordAndRequireBothCapabilitiesBeforeWriting() {
+    val base = os.kei.hyper.home.data.DockGlassChoice()
+    val options = listOf(
+      base.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.PAD).options,
+      base.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.CONCENTRIC).options,
+      base.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.CUSTOM, customRadiusDp = 64).options,
+      base.copy(verticalPaddingDp = 0).options, base.copy(verticalOffsetDp = -48).options,
+      base.copy(verticalOffsetDp = 96).options)
+    for (enabled in listOf(false, true)) for (value in options) {
+      val command = NativeMonetProtocol.dockGlassRequest(enabled, 10_240, value)
+      assertArrayEquals(words(magic, 1, 8, if (enabled) 1 else 0, 10_240, value), command)
+      for (caps in listOf(8, 31, 32, 40, 63)) {
+        val output = ByteArrayOutputStream()
+        val accepted = (caps and 40) == 40
+        assertEquals(accepted, exchange(ByteArrayInputStream(greeting(caps) + ack()), output, request = command))
+        assertArrayEquals(if (accepted) command else byteArrayOf(), output.toByteArray())
+      }
+      for (badAck in listOf(words(magic, 1, 7), words(magic, 2, 8), words(magic, 1, 8))) {
+        assertFalse(exchange(ByteArrayInputStream(greeting(40) + badAck), ByteArrayOutputStream(), request = command))
+      }
+    }
+    val invalid = words(magic, 1, 8, 1, 0, 5)
+    val output = ByteArrayOutputStream()
+    assertFalse(exchange(ByteArrayInputStream(greeting(40) + ack()), output, request = invalid))
+    assertEquals(0, output.size())
   }
 
   @Test fun dockGlassNeedsCurrentCompleteAckAndRejectionDoesNotPoisonMonet() {
@@ -258,7 +285,7 @@ class NativeMonetClientTest {
       NativeMonetProtocol.launcherLabelsRequest(0), NativeMonetProtocol.launcherLabelsRequest(1),
       NativeMonetProtocol.dockGlassRequest(false), NativeMonetProtocol.dockGlassRequest(true),
       NativeMonetProtocol.launcherGlassRequest(0), NativeMonetProtocol.launcherGlassRequest(2))
-    for (capabilities in listOf(0, 32, 33, 63, Int.MIN_VALUE, -1)) {
+    for (capabilities in listOf(0, 64, 65, 127, Int.MIN_VALUE, -1)) {
       for (request in requests) {
         val output = ByteArrayOutputStream()
         var failure: String? = null

@@ -1,0 +1,3 @@
+<resources>
+    <string name="pack_system_appearance_note">模块激活后，使用系统内置的「默认」「经典」或「无界」图标包，支持的图标就会自动跟随系统深浅色，无需额外导入图标包。</string>
+</resources>

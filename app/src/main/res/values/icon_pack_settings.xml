@@ -23,7 +23,7 @@
   <string name="pack_apply_native">Apply in system Themes</string>
   <string name="pack_apply_note">After changing these options, regenerate and apply in system Themes.</string>
   <string name="pack_hyperos">HyperOS · Default / Classic / Boundless</string>
-  <string name="pack_hyperos_summary">Keep native light/dark behavior; Monet is optional</string>
+  <string name="pack_hyperos_summary">With the module activated, supported icons in the system Default, Classic or Boundless icon pack follow the system light/dark mode automatically. No extra import is needed; Monet can be enabled separately.</string>
   <string name="pack_hyperos_open">Open launcher settings</string>
   <string name="pack_hyperos_theme_open">Icons in Themes and wallpapers</string>
   <string name="pack_hyperos_icons_open">Open icon styles</string>

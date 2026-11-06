@@ -105,13 +105,17 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           }
           SystemIconThemeCard(runtime, badges) { model.refresh(3) }
         }
+        item("system-appearance") {
+          PackInfoCard(stringResource(R.string.pack_system_appearance_note),
+            Modifier.testTag("icon-packs.system-appearance-note"))
+        }
+        item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
+          stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
         item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
           stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
         item("completion") {
           PackCompletionCard(needsUpdate, pending, state.nativeImporting != null) { onNavigate("fallback") }
         }
-        item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
-          stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
       }
       "library" -> {
         item("builtin") { PackNavigationCard(stringResource(R.string.pack_builtin),
@@ -145,7 +149,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
         }
         if (state.scanned && cards.isEmpty()) item("empty") {
-          Text(stringResource(if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty))
+          PackInfoCard(stringResource(if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
+            Modifier.testTag("icon-packs.empty"))
         }
         item("import") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {

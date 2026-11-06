@@ -1,0 +1,3 @@
+<resources>
+    <string name="pack_system_appearance_note">モジュールを有効にすると、システム標準の「デフォルト」「クラシック」「バウンドレス」アイコンパックで、対応アイコンがシステムのライト・ダークモードに自動で追従します。追加のインポートは不要です。</string>
+</resources>

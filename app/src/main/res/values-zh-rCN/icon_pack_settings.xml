@@ -23,7 +23,7 @@
   <string name="pack_apply_native">在系统主题中应用</string>
   <string name="pack_apply_note">调整后重新生成，再到系统主题中应用。</string>
   <string name="pack_hyperos">HyperOS · 默认 / 经典 / 无界</string>
-  <string name="pack_hyperos_summary">亮暗色保持原生逻辑；Monet 可独立开关</string>
+  <string name="pack_hyperos_summary">模块激活后，使用系统内置的「默认」「经典」或「无界」图标包，支持的图标会自动跟随系统深浅色，无需额外导入。Monet 可独立开关。</string>
   <string name="pack_hyperos_open">打开系统桌面设置</string>
   <string name="pack_hyperos_theme_open">主题壁纸中的图标</string>
   <string name="pack_hyperos_icons_open">打开图标样式</string>

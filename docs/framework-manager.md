@@ -1,8 +1,9 @@
 # Framework manager entry
 
 The scope card (including onboarding) and the Hook-log card share the same
-bounded launcher. An installed manager APK and a visible manager notification
-are not prerequisites.
+bounded launcher. An already running parasitic manager can be reused without an
+installed manager APK or visible notification. Cold launch is not fully
+supported; see the known limitation below.
 
 ## Routes
 
@@ -68,10 +69,28 @@ Evidence is stored under
 
 The HyperOS Phone AVD has LSPosed 2.2.1-log (7936) and no standalone manager APK.
 The scope entry and Hook-log entry are checked by actual interaction and
-screenshots, including an already running parasitic manager. Focused tests
+screenshots with an already running parasitic manager. Focused tests
 cover protocol bounds, malformed and expired requests, denied transport, and
 bounded waiting. Normal API 102 updates must preserve Launcher, SystemUI and
 `system_server` identities.
+
+### Known cold-launch limitation
+
+On 2026-11-06 the user tested the case where LSPosed was absent from Recents.
+The entry opened the host Shell Activity's native bugreport warning instead of
+the injected manager. This is a failed cold launch, not manager availability.
+Cancel that warning; do not generate a bugreport as part of opening the manager.
+
+The bridge currently acknowledges that Android accepted the Activity start.
+That acknowledgement does not prove manager injection, so this failure does not
+automatically show the manual-entry dialog. The device bridge tests likewise
+verify transport and intent acceptance, not cold-start injection.
+
+The user explicitly chose to retain the current implementation and defer
+further cold-launch work. The workaround is to first open the genuine manager
+through the root module's action or the LSPosed dial code, then reuse KeiHome's
+entry. Do not describe this checkpoint as complete parasitic-manager startup
+support or use the warm-launch screenshots as cold-start evidence.
 
 The separate host-QEMU crash and recovery are recorded under
 `.artifacts/research/avd-host-crash-20261106/`. Its MoltenVK fence/mutex abort is

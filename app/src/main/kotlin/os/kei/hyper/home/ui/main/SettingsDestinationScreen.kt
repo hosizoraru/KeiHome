@@ -67,7 +67,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   Scaffold(topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = licenseTitle ?: component?.name ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
-        color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
+        color = if (backdrop != null && license == null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
           if (route == SettingsSection.CACHE.route) IconButton(onClick = { cacheRefresh++ },
             modifier = Modifier.testTag("settings.cache.refresh")) {

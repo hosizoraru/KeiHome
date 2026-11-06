@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="framework_entry_help">自動で開けませんでした。KernelSU や Magisk のフレームワークモジュールからマネージャーを開いてください。LSPosed では次のコードも使えます：\n%1$s\n自動で開かない場合はダイヤル画面で手入力してください。</string>
+    <string name="framework_entry_dial">ダイヤル画面を開く</string>
+    <string name="framework_entry_copy">コードをコピー</string>
+    <string name="framework_entry_no_dialer">電話アプリが見つかりません。コードをコピーし、電話アプリで入力してください。</string>
+</resources>

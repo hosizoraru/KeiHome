@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="framework_entry_help">暂时无法自动打开框架。可在 KernelSU 或 Magisk 等 Root 管理器的框架模块页打开管理器。LSPosed 也可以使用拨号代码：\n%1$s\n拨号器未自动跳转时，请手动输入。</string>
+    <string name="framework_entry_dial">打开拨号键盘</string>
+    <string name="framework_entry_copy">复制拨号代码</string>
+    <string name="framework_entry_no_dialer">未找到拨号应用，请复制代码后在电话应用中输入。</string>
+</resources>

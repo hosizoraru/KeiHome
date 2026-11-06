@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="framework_entry_help">Automatic launch is unavailable. Open the manager from the framework module in KernelSU or Magisk. For LSPosed, you can also use this dial code:\n%1$s\nIf the dialer does not open the manager, enter the code manually.</string>
+    <string name="framework_entry_dial">Open dialer</string>
+    <string name="framework_entry_copy">Copy dial code</string>
+    <string name="framework_entry_no_dialer">No dialer found. Copy the code and enter it in your phone app.</string>
+</resources>

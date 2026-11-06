@@ -1,8 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import android.content.ComponentName
-import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -13,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -29,7 +25,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = false) {
   val state by model.scopeRequests.state.collectAsStateWithLifecycle()
   if (attentionOnly && !state.needsAttention) return
-  val context = LocalContext.current
+  val openManager = rememberFrameworkManagerAction()
   val plan = state.plan
   val color = MiuixTheme.colorScheme.primary
   Card(Modifier.fillMaxWidth().testTag("framework.static-scope"), insideMargin = PaddingValues(0.dp)) {
@@ -91,15 +87,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
           modifier = Modifier.weight(1f), enabled = state.connected && !state.requesting, onClick = {
             if (state.canRequest) model.scopeRequests.request() else model.scopeRequests.check()
           })
-        TextButton(stringResource(R.string.scope_open_manager), modifier = Modifier.weight(1f), onClick = {
-          val manager = Intent(Intent.ACTION_MAIN).setComponent(
-            ComponentName("org.lsposed.manager", "org.lsposed.manager.ui.activity.MainActivity"))
-          runCatching { context.startActivity(manager) }.onFailure {
-            val fallback = context.packageManager.getLaunchIntentForPackage("org.lsposed.manager")
-            if (fallback == null || runCatching { context.startActivity(fallback) }.isFailure)
-              Toast.makeText(context, R.string.scope_manager_unavailable, Toast.LENGTH_LONG).show()
-          }
-        })
+        TextButton(stringResource(R.string.scope_open_manager), modifier = Modifier.weight(1f), onClick = openManager)
       }
     }
   }

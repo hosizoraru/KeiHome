@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 @Composable
 internal fun LogSettingsScreen(onBack: () -> Unit) {
   val context = LocalContext.current
+  val openFrameworkLogs = rememberFrameworkManagerAction(os.kei.hyper.home.status.FrameworkManagerProtocol.LOGS)
   val resources = LocalResources.current
   val scope = rememberCoroutineScope()
   var level by remember { mutableStateOf(AppLogStore.level(context)) }
@@ -88,15 +89,8 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.logs_source),
-          summary = stringResource(R.string.logs_scope), onClick = {
-            runCatching {
-              // LSPosed Manager's installed "logs" launcher shortcut uses this exact data URI.
-              context.startActivity(Intent(Intent.ACTION_MAIN).setClassName("org.lsposed.manager",
-                "org.lsposed.manager.ui.activity.MainActivity").setData(Uri.parse("logs")))
-            }.onFailure {
-              Toast.makeText(context, R.string.logs_lsposed_unavailable, Toast.LENGTH_SHORT).show()
-            }
-          }, endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+          summary = stringResource(R.string.logs_scope), onClick = openFrameworkLogs,
+          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
         Text(stringResource(R.string.logs_app_note), style = MiuixTheme.textStyles.footnote1,

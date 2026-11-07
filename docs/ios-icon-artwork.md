@@ -1,7 +1,8 @@
 # iOS artwork source investigation
 
-Checkpoint: 2026-11-07. This is source research and a desktop-side prototype,
-not a new enabled online source in the Android application.
+Checkpoint: 2026-11-07. This document records source research and a desktop-side
+prototype. The subsequent Android implementation and its boundaries are described
+in [Apple icon pack](apple-icon-pack.md).
 
 ## What actually works
 

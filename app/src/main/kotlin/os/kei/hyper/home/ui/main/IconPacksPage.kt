@@ -127,6 +127,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           stringResource(R.string.pack_installed_summary), { onNavigate("installed") }) }
         item("imported") { PackNavigationCard(stringResource(R.string.pack_imported),
           stringResource(R.string.pack_imported_summary), { onNavigate("imported") }) }
+        item("apple") { PackNavigationCard(stringResource(R.string.apple_pack_title),
+          stringResource(R.string.apple_pack_summary), { onNavigate("apple") }) }
       }
       "builtin" -> {
         item("coloros") { PackNavigationCard("ColorOS", stringResource(R.string.pack_coloros_summary),
@@ -319,7 +321,7 @@ private fun themeEffectsTargetStatus(target: FrameworkTarget?): Int = when {
 }
 
 @Composable
-private fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepository,
+internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepository,
   appearance: IconPackAppearance, nativeId: String?, current: Boolean, importing: Boolean, enabled: Boolean,
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit) {
   val context = LocalContext.current

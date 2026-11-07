@@ -13,6 +13,7 @@
     <permission android:name="${applicationId}.permission.OPEN_FRAMEWORK_MANAGER"
         android:protectionLevel="signature" />
     <uses-permission android:name="${applicationId}.permission.OPEN_FRAMEWORK_MANAGER" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- The browser explicitly lists installed system and user applications, including non-launcher packages. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"

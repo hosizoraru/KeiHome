@@ -23,6 +23,7 @@ internal object IconBuildInventory {
     is IconPackSource.Installed -> "${source.packageName}:${source.versionCode}:${source.updatedAt}"
     is IconPackSource.Imported -> source.record.id
     is IconPackSource.Builtin -> source.record.id
+    is IconPackSource.Generated -> source.digest
   }
 
   fun decodeSource(bytes: ByteArray): String {

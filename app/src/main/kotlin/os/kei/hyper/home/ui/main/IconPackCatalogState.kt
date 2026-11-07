@@ -50,11 +50,13 @@ internal fun catalogPackRows(state: IconPacksUiState, section: String, activePac
     is IconPackSource.Installed -> source.packageName
     is IconPackSource.Imported -> source.record.originalName
     is IconPackSource.Builtin -> source.record.key
+    is IconPackSource.Generated -> "Apple"
   }
   fun updated(card: IconPackCardData): Long = when (val source = card.pack.source) {
     is IconPackSource.Installed -> source.updatedAt
     is IconPackSource.Imported -> source.record.importedAt
     is IconPackSource.Builtin -> 0L
+    is IconPackSource.Generated -> source.createdAt
   }
   val name = compareBy<IconPackCardData> { it.pack.displayName.lowercase(Locale.ROOT) }.thenBy { it.pack.id }
   val comparator = when (order) {
@@ -64,7 +66,7 @@ internal fun catalogPackRows(state: IconPacksUiState, section: String, activePac
     else -> name
   }.let { if (reverse) it.reversed() else it }
   return state.packs.asSequence().filter { card ->
-    card.pack.builtinKey == null && when (section) {
+    card.pack.builtinKey == null && card.pack.source !is IconPackSource.Generated && when (section) {
       "installed" -> card.pack.format == IconPackFormat.INSTALLED_APK || card.pack.format == IconPackFormat.APK
       "imported" -> card.pack.format != IconPackFormat.INSTALLED_APK && card.pack.format != IconPackFormat.APK
       else -> false

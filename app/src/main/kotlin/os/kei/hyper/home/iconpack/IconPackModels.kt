@@ -167,6 +167,8 @@ internal sealed interface IconPackSource {
     val versionName: String? = null) : IconPackSource
   data class Imported(val record: StoredIconPack) : IconPackSource
   data class Builtin(val record: BuiltinIconPack) : IconPackSource
+  /** Immutable local output of an online source; identity changes only with its contents. */
+  data class Generated(val file: java.io.File, val digest: String, val createdAt: Long) : IconPackSource
 }
 
 internal data class IconPackDescriptor(

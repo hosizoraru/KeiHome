@@ -50,6 +50,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  if (section in setOf("apple", "apple-mappings", "apple-search")) {
+    ApplePackScreen(model, section, onBack, onNavigate)
+    return
+  }
   if (section == "monet") {
     MonetDestinationScreen(model, onBack)
     return

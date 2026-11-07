@@ -155,6 +155,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val currentPreviews = CurrentIconPreviewRepository(application,
     { pack, entry -> packPreviews.load(pack, entry) })
   private val packRepository = IconPackRepository(application)
+  private val appleRepository = os.kei.hyper.home.iconpack.apple.AppleIconRepository(application)
+  val applePacks: ApplePackController = ApplePackController(viewModelScope, appleRepository) {
+    iconPacksDirty = true
+    viewModelScope.launch { readIconPacks() }
+  }
   val iconPacks: StateFlow<IconPacksUiState>
     field = MutableStateFlow(IconPacksUiState())
   val framework: StateFlow<FrameworkUiState>
@@ -472,6 +477,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     apps.update { it.copy(previewGeneration = it.previewGeneration + 1) }
   }
 
+  internal suspend fun appleDownloadCacheBytes(): Long = appleRepository.cacheBytes()
+
   internal fun previewCacheBytes(): Long =
     previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes()
 
@@ -527,6 +534,16 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun importNativeIconPack(original: IconPackDescriptor, includePalette: Boolean = true,
     appearanceOverride: IconPackAppearance? = null) {
+    if (original.source is os.kei.hyper.home.iconpack.IconPackSource.Generated) {
+      if (iconPacks.value.nativeImporting != null) return
+      applePacks.generate { fresh -> importPreparedIconPack(fresh, includePalette, appearanceOverride) }
+      return
+    }
+    importPreparedIconPack(original, includePalette, appearanceOverride)
+  }
+
+  private fun importPreparedIconPack(original: IconPackDescriptor, includePalette: Boolean,
+    appearanceOverride: IconPackAppearance?) {
     if (iconPacks.value.nativeImporting != null) return
     val service = FrameworkConnection.service.value ?: return
     val generation = ++nativeImportGeneration
@@ -617,6 +634,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   private suspend fun readIconPacks() = iconPacksMutex.withLock {
     iconPacksDirty = false
+    applePacks.refreshTargetsIfLoaded()
     iconPacks.update { it.copy(loading = true, error = null) }
     try {
       val targets = launcherIconTargets()
@@ -624,10 +642,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val installed = async { packRepository.listInstalled() }
         val builtins = async { packRepository.listBuiltins() }
         val imported = async { packRepository.listImported() }
+        val apple = async { appleRepository.descriptor() }
         val builtinResult = builtins.await()
         val builtinIds = builtinResult.packs.map { it.id }.toSet()
         listOf(builtinResult, installed.await(),
-          imported.await().let { it.copy(packs = it.packs.filterNot { pack -> pack.id in builtinIds }) })
+          imported.await().let { it.copy(packs = it.packs.filterNot { pack -> pack.id in builtinIds }) },
+          os.kei.hyper.home.iconpack.IconPackScanResult(listOfNotNull(apple.await()), emptyList()))
       }
       val cards = withContext(Dispatchers.Default) {
         scans.flatMap { it.packs }.map { iconPackCardData(it, targets) }

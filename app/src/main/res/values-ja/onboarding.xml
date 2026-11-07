@@ -28,14 +28,17 @@
     <string name="setup_monet_body">任意：対応アイコンの動的配色を、明暗とは個別に切り替えられます。</string>
     <string name="setup_fallback_body">任意：未対応アイコンの補完方法を確認し、パックの変更後に調整できます。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
-    <string name="setup_icon_tip_body">パックや補完ルールを変更したら、更新・適用後にホーム画面で確認してください。システムの明暗への追従と Monet の動的配色は別々に利用できます。</string>
+    <string name="setup_icon_tip_body">パック、補完ルール、生成対象を変更したら、各ページ下部のフローティングボタンで生成・適用し、ホーム画面で確認してください。対応する明暗表示や配色の変更は自動で同期されます。\n\n「設定 → アイコンパックと操作」で自動適用と生成対象を変更できます。標準では未インストールのアプリの対応も保持します。インストール済みアプリのみの生成はサイズを抑えますが、新しいアプリの追加後に更新が必要になる場合があります。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
-    <string name="setup_desktop_body">「デスクトップ」と同じ設定を開きます。対応する変更は自動で同期され、利用可否はホームアプリによって異なります。開くだけでは設定は変わりません。</string>
+    <string name="setup_desktop_body">「デスクトップ」と同じ設定を開きます。対応する変更は自動で同期され、ランチャーを何度も再起動する必要はありません。「状態」で接続と設定の受信状況を確認してください。利用可否はホームアプリによって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
     <string name="setup_open_desktop_body">Dock のガラス効果、角の形状、ガラスの描画スタイル、アプリ名の表示。</string>
     <string name="setup_finish_title">KeiHome を使ってみましょう</string>
     <string name="setup_finish_body">ガイドはここまでです。未完了の設定はあとでも行えます。「設定」からいつでもこのガイドを開けます。</string>
     <string name="setup_finish_note_body">「状態」でモジュールとホームアプリの動作状況を確認できます。ガイドの完了は、すべてのスコープや機能の有効化を意味しません。</string>
-    <string name="setup_logs_body">ホームアプリや Hook の問題は LSPosed ログ、画面や設定の問題はアプリのログを確認してください。</string>
+    <string name="setup_logs_title">モジュール機能の問題には LSPosed ログを</string>
+    <string name="setup_logs_body">アイコン、Dock、その他の Hook が機能しない場合や、ランチャーが重い場合は、LSPosed からログを書き出してください。App ログは KeiHome の画面や設定などの問題専用で、LSPosed ログの代わりにはなりません。報告時は「アプリについて」の環境情報も添えてください。</string>
+    <string name="setup_open_logs_body">機能の問題は LSPosed へ。App 自体の問題はフローティングボタンでログを書き出し</string>
+    <string name="setup_open_cache_body">使用量を確認。フローティングボタンはメモリ内のプレビューだけを消去し、適用済みテーマを保持</string>
     <string name="setup_search_keywords">初回 初期設定 はじめに ガイド</string>
 </resources>

@@ -65,7 +65,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 @Composable
 internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
   onBack: () -> Unit, onExit: () -> Unit, onNext: () -> Unit,
-  onOpenPack: (String) -> Unit, onOpenDesktop: () -> Unit, onOpenLogs: () -> Unit) {
+  onOpenPack: (String) -> Unit, onOpenDesktop: () -> Unit, onOpenSettings: (String) -> Unit) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, page, locales) {
@@ -165,6 +165,8 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
                   onClick = { onOpenPack("monet") })
                 BasicComponent(title = stringResource(R.string.pack_completion_title), summary = stringResource(R.string.setup_fallback_body),
                   onClick = { onOpenPack("fallback") })
+                BasicComponent(title = stringResource(R.string.pack_action_settings), summary = stringResource(R.string.pack_action_settings_summary),
+                  onClick = { onOpenSettings("pack-actions") })
               }
               SetupNote(stringResource(R.string.setup_icon_tip_title), stringResource(R.string.setup_icon_tip_body))
             }
@@ -177,9 +179,12 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
               StaticScopeCard(model, attentionOnly = true)
               SetupNote(stringResource(if (framework.connected) R.string.setup_service_connected
                 else R.string.setup_service_disconnected), stringResource(R.string.setup_finish_note_body))
+              SetupNote(stringResource(R.string.setup_logs_title), stringResource(R.string.setup_logs_body))
               Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                BasicComponent(title = stringResource(R.string.settings_log_section), summary = stringResource(R.string.setup_logs_body),
-                  onClick = onOpenLogs)
+                BasicComponent(title = stringResource(R.string.settings_log_section), summary = stringResource(R.string.setup_open_logs_body),
+                  onClick = { onOpenSettings("log") })
+                BasicComponent(title = stringResource(R.string.settings_cache_section), summary = stringResource(R.string.setup_open_cache_body),
+                  onClick = { onOpenSettings("cache") })
               }
             }
           }

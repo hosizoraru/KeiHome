@@ -48,7 +48,13 @@ The icon step first explains automatic light/dark adaptation for supported
 system Default, Classic and Boundless icons after activation. Changing packs
 and enabling Monet are optional. The three entry points follow the main page:
 available packs, Monet, then completion/fallback. Each returns to the same guide
-step without changing preferences.
+step without changing preferences. A fourth entry opens **Settings > Icon packs
+and actions**, explaining automatic application and the default all-app mapping
+scope versus installed-app-only generation. The guide identifies the floating
+update action and distinguishes generation from supported live palette/night
+changes. The final page links to preview-cache management and gives LSPosed
+feature logs a separate explanation card. App logs are explicitly limited to
+KeiHome's own interface/settings issues.
 
 The main icon page shows the system-icon notice only for a fresh native DEFAULT
 source report. A third-party theme hides it; a selected fallback preference does
@@ -95,3 +101,14 @@ ActivityScenario starts; the system's cross-package startup
 confirmation was approved. Back regression dispatches through the real
 Activity back dispatcher because this AVD denies Espresso's global key injection.
 These are test-host constraints, not new runtime grants requested by the guide.
+
+### 2026-11-07 guide refresh
+
+Both navigation tests passed again on the Phone AVD, including pack-actions and
+cache-management round trips to the same guide step. The existing large-text
+resume/defer test also passed. All five pages were additionally captured at
+system font scale 2.0, including their scroll ends; the final content remained
+above the floating actions. System font scale was restored to 1.0.
+This checkpoint is recorded separately in
+`.artifacts/research/pad-glass-icons-20261107/guide-device-tests.log`; it does not
+claim a rerun of the historical full JVM suite. No native payload was changed.

@@ -102,7 +102,7 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
           else backStack.add(route.copy(page = route.page + 1))
         }, onOpenPack = ::open,
         onOpenDesktop = { backStack.add(OnboardingDesktop) },
-        onOpenLogs = { openSettings("log") })
+        onOpenSettings = ::openSettings)
     }
     entry<OnboardingDesktop>(swipeDismiss = swipe) {
       OnboardingDesktopScreen(model, onBack = ::back)

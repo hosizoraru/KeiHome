@@ -7,7 +7,8 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    if (argc != 2 && !(argc==3&&!strcmp(argv[2],"--resolve-only"))) return 2;
+    if (argc != 2 && !(argc==3&&(!strcmp(argv[2],"--resolve-only")||
+                                 !strcmp(argv[2],"--root-only")))) return 2;
     std::ifstream stream(argv[1], std::ios::binary);
     std::vector<uint8_t> bytes{std::istreambuf_iterator<char>(stream), {}};
     if (bytes.size() < 64) return 2;
@@ -29,6 +30,49 @@ int main(int argc, char** argv) {
     printf("curve_getter=%zx adaptive=%zx radius=%x border=%x super=%x rect=%x behavior_pp=%x ordinary_bits=%llx stacked_min_bits=%llx dispatch=%zx..%zx\n",p.curve_getter,p.recents_adaptive_clip,p.recents_radius_tag,p.recents_border_radius_tag,p.recents_superellipse_tag,p.recents_rrect_tag,p.recents_clip_pp,(unsigned long long)p.recents_default_radius_bits,(unsigned long long)p.recents_stacked_min_radius_bits,p.recents_dispatch_start,p.recents_dispatch_end);
     printf("glass=%zx scope=%zx/%08x child_scope=%zx/%08x clip_alloc=%zx/%08x roots=%d,%d key_tag=%08x key_alloc=%zx key_caller=%zx key_equals=%zx scope_map=%zx/%02x child_map=%zx/%02x\n",p.glass_build,p.glass_scope_store,p.glass_scope_expected,p.glass_child_scope_store,p.glass_child_scope_expected,p.glass_clip_alloc_call,p.glass_clip_alloc_expected,p.glass_scope_root_slot,p.glass_child_root_slot,p.value_key_tag,p.value_key_alloc,p.value_key_caller,p.value_key_equals,p.glass_scope_stackmap,bytes[p.glass_scope_stackmap],p.glass_child_stackmap,bytes[p.glass_child_stackmap]);
     printf("unlock_search=%zx unlock_create=%zx unlock_location=%zx unlock_center=%zx unlock_tag=%x unlock_zero_pp=%x unlock_debug_pp=%x\n",p.unlock_search,p.unlock_create,p.unlock_location,p.unlock_center,p.unlock_tag,p.unlock_zero_pp,p.unlock_debug_pp);
+    if(argc==3&&!strcmp(argv[2],"--root-only")) {
+        size_t phone_bytes=0x4c0;
+        for(size_t offset=4;offset<phone_bytes;offset+=4)
+            if(u32(p.phone+offset)==0xa9bf79fdu&&u32(p.phone+offset+4)==0xaa0f03fdu){
+                phone_bytes=offset;break;
+            }
+        size_t root_save=0;
+        if(!dock_glass_profile_detail::ResolveRootListSave(
+                image,p.phone,phone_bytes,&root_save,&why))return 1;
+        unsigned checks=1;
+        const auto proof=[&](size_t span,size_t expected,const char* failure) {
+            size_t result=123;const char* reason=nullptr;
+            const bool accepted=dock_glass_profile_detail::ResolveRootListSave(
+                image,p.phone,span,&result,&reason);
+            ++checks;
+            return failure?(!accepted&&!result&&reason&&!strcmp(reason,failure)):
+                           (accepted&&result==expected);
+        };
+        // Reach the actual uniqueness proof; full Phone contracts reject
+        // arbitrary changed instructions before this stage.
+        const size_t duplicate_at=p.phone+0x20;
+        uint8_t saved[20];memcpy(saved,bytes.data()+duplicate_at,20);
+        memcpy(bytes.data()+duplicate_at,bytes.data()+root_save-12,20);
+        const uint32_t call=u32(root_save-12),original=u32(root_save);
+        const int64_t immediate=call&0x3ffffffu;
+        const int64_t target=int64_t(root_save-12)+
+                             ((immediate^0x2000000)-0x2000000)*4;
+        const uint32_t duplicate_call=0x94000000u|
+            (uint32_t((target-int64_t(duplicate_at))/4)&0x3ffffffu);
+        memcpy(bytes.data()+duplicate_at,&duplicate_call,4);
+        if(!proof(phone_bytes,0,"multiple native root list saves"))return 1;
+        const uint32_t nop=0xd503201fu;
+        memcpy(bytes.data()+root_save,&nop,4);
+        if(!proof(phone_bytes,duplicate_at+12,nullptr))return 1;
+        memcpy(bytes.data()+duplicate_at+8,&nop,4);
+        if(!proof(phone_bytes,0,"missing native root list save"))return 1;
+        memcpy(bytes.data()+root_save,&original,4);
+        if(!proof(phone_bytes,root_save,nullptr)||
+           !proof(root_save-p.phone,0,"missing native root list save")||
+           !proof(0,0,"invalid native root list bounds"))return 1;
+        memcpy(bytes.data()+duplicate_at,saved,20);
+        printf("Dock bounded unique-root checks=%u\n",checks);return 0;
+    }
     if(argc==3) {
         // New placement contract: a missing/changed return must disable
         // admission, without depending on a symbol or source-version table.
@@ -171,6 +215,9 @@ int main(int argc, char** argv) {
        !rejects(p.parent_clip_store+4,u32(p.parent_clip_store+4)^3u)||
        !rejects(p.parent_clip_store+4,u32(p.parent_clip_store+4)^0x40u)||
        !rejects(p.parent_clip_store+4,u32(p.parent_clip_store+4)^0x10000u))return 1;
+    // Preserve both reviewed IC forms and the shifted list/receiver/root save.
+    for(size_t offset:{0xf4u,0xf8u,0xfcu,0x100u,0x158u,0x15cu,0x160u,0x164u})
+        if(!rejects(p.phone+offset,0xd503201fu))return 1;
 
     const auto write32=[&](size_t at,uint32_t value){memcpy(bytes.data()+at,&value,4);};
     const auto set_pool=[&](size_t at,uint32_t value){
@@ -291,7 +338,7 @@ int main(int argc, char** argv) {
         if(u32(ph)==0x6474e551u)spare_ph=ph;}
     if(!spare_ph)return 1;
     for(const auto& role:std::vector<std::pair<size_t,size_t>>{
-            {p.stack_paint,0x248},{p.push_clip_rect,0x22c},
+            {p.phone,0x4c0},{p.stack_paint,0x248},{p.push_clip_rect,0x22c},
             {p.stack_create,0x94},{p.stack_constructor,0x124},
             {p.glass_build,0x1e4},{p.value_key_caller,0xac},{p.value_key_equals,0x108}}) {
         std::vector<uint8_t> duplicate=bytes;

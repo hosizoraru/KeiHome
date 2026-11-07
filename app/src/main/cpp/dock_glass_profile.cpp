@@ -599,6 +599,27 @@ bool ResolveClipNone(const IconHighlightImage& im,DockGlassProfile& p,
     return true;
 }
 }
+bool dock_glass_profile_detail::ResolveRootListSave(const IconHighlightImage& im,
+        size_t phone,size_t bytes,size_t* save,const char** why) {
+    if(save)*save=0;
+    if(!save||!im.base||phone>im.size||bytes>im.size-phone||bytes<20||
+       ((phone|bytes)&3u)||!Contains(im,phone,bytes))
+        return Fail(why,"invalid native root list bounds");
+    size_t found=0;
+    // The call result becomes x2, then survives the Hotseat receiver reload.
+    // IC loads may fuse ADD/LDP and move this entire sequence.
+    for(size_t at=phone+4;at<=phone+bytes-16;at+=4) {
+        if(!Branch(im,at-4)||Word(im,at)!=0xaa0003e2u||
+           Word(im,at+4)!=0xf85f83a0u||
+           (Word(im,at+8)&0xffe00fffu)!=0xf80003a2u||
+           Word(im,at+12)!=0xb841b001u)continue;
+        if(found)return Fail(why,"multiple native root list saves");
+        found=at+8;
+    }
+    if(!found)return Fail(why,"missing native root list save");
+    *save=found;
+    return true;
+}
 bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const char** why) {
     if(why)*why=nullptr;if(!out)return Fail(why,"missing Dock output");*out={};
     DockGlassProfile p{};
@@ -630,7 +651,13 @@ bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const c
     if(!p.phone||!outer||!width||!max||!sizebox||!pos||!corner||!scroll||!material||!p.mode||!elderly_shape||!sync||!ink||!height||!no_word_shape)
         return Fail(why,"ambiguous Dock instruction roles");
     uint32_t original_clip_pp=0;
-    for(size_t at=p.phone;at<p.phone+0x4c0;at+=4){
+    const auto* phone_role=Role(im,p.phone,kDockPhone);
+    if(!phone_role)return Fail(why,"native phone role missing");
+    const size_t phone_end=p.phone+phone_role->count*4;
+    size_t root_save_at=0;
+    if(!dock_glass_profile_detail::ResolveRootListSave(
+            im,p.phone,phone_role->count*4,&root_save_at,why))return false;
+    for(size_t at=p.phone;at<phone_end;at+=4){
         const size_t target=Branch(im,at);
         bool bg=false;for(const auto& pattern:kDockBackground) if(target&&Match(im,target,pattern))bg=true;
         if(bg){if(p.background_call)return Fail(why,"multiple background calls");p.background_call=at;p.background=target;}
@@ -647,9 +674,9 @@ bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const c
     // NZCV: the original store consumes w1, and the very next instruction
     // overwrites all of x1 with the native root list from its saved FP slot.
     // Bind that reload to the initial list save; x0 stays the allocated Stack.
-    const uint32_t root_save=Word(im,p.phone+0x160);
+    const uint32_t root_save=Word(im,root_save_at);
     const uint32_t root_load=Word(im,p.parent_clip_store+4);
-    if(!p.parent_clip_store||Word(im,p.parent_clip_store)!=0xb801b001u||
+    if(!root_save_at||!p.parent_clip_store||Word(im,p.parent_clip_store)!=0xb801b001u||
        (root_save&0xffe00fffu)!=0xf80003a2u||
        (root_load&0xffe00fffu)!=0xf84003a1u||
        (root_save>>12&511u)!=(root_load>>12&511u)||

@@ -136,11 +136,13 @@ def clip_identity_oracle(im,clip,super_create,rect_create,glass):
  return cids,callers[0]
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--fixtures',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--fixtures',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+ p.add_argument('--launcher-root',type=Path,default=Path(__file__).resolve().parents[3]/'.artifacts/inputs/launchers');a=p.parse_args()
  meta=json.loads(a.fixtures.read_text());groups={}
  for version,entry in meta.items():
-  im=elf.Image(a.fixtures.parents[2]/'inputs'/'launchers'/version/'libapp.so')
-  roles={'Phone':(int(entry['inner'],16),0x4c0),'Outer':(int(entry['outer'],16),0x400)}
+  im=elf.Image(a.launcher_root/version/'libapp.so')
+  roles={'Phone':(int(entry['inner'],16),int(entry.get('phone_size','0x4c0'),16)),
+         'Outer':(int(entry['outer'],16),0x400)}
   [(at,size)]=im.syms['HotseatLayerGetxController._getTotalHotSeatsMarginBottom'];roles['BottomMargin']=(at,size)
   for role,name in [('Background','_HotseatWidgetState._buildBackground'),('CellWidth','GridController.dockCellWidth'),('MaxCount','DeviceConfig.hotSeatMaxCount'),('SizedBox','_CupertinoActivityIndicatorState.build'),('Positioned','_AnimatedPositionedState.build'),('Corner','DeviceConfig.screenCornerRadius='),('MaterialFactory','_DockBackgroundViewState._buildStrategy'),('Mode','BlurCapabilityCheckerImpl.computeMode'),('Elderly','LauncherModeController.isElderlyManMode'),('Sync','_HotseatWidgetState._syncRemoveAnimationState'),('Ink','HotseatLayerGetxController.backgroundLayout'),('CellHeight','GridController.dockCellHeight'),('NoWord','Utilities.isNoWordModel'),('StackPaint','RenderStack.paint'),('PushClipRect','PaintingContext.pushClipRect'),('StackCreate','Stack.createRenderObject')]:
    [(at,size)]=im.syms[name];roles[role]=(at,size)

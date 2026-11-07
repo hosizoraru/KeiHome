@@ -67,3 +67,8 @@ struct DockGlassProfile {
 // Resolve before any label/Dock patches. No symbols, image/version gates or
 // fixed code addresses are consulted by the production resolver.
 bool ResolveDockGlass(const IconHighlightImage&, DockGlassProfile*, const char** = nullptr);
+namespace dock_glass_profile_detail {
+// Bounded source proof shared with focused host ambiguity/boundary mutations.
+bool ResolveRootListSave(const IconHighlightImage&, size_t phone, size_t bytes,
+                         size_t* save, const char** = nullptr);
+}

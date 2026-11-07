@@ -1,0 +1,27 @@
+{
+  "7722": {
+    "inner": "0x1130e88",
+    "outer": "0x11304a8"
+  },
+  "8593": {
+    "inner": "0x117d11c",
+    "outer": "0x117c738"
+  },
+  "8602": {
+    "inner": "0x117d5f0",
+    "outer": "0x117cc0c"
+  },
+  "9209": {
+    "inner": "0x11bfacc",
+    "outer": "0x11bf0ec"
+  },
+  "9226": {
+    "inner": "0x1103d78",
+    "outer": "0x1103398"
+  },
+  "8604": {
+    "inner": "0x117d3cc",
+    "outer": "0x117c9e8",
+    "phone_size": "0x4bc"
+  }
+}

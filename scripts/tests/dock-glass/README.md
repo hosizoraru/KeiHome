@@ -36,6 +36,44 @@ Source versions and symbol addresses in that inventory are test/generator
 oracles, not production admission gates. Regeneration requires review of the
 native call/data relationships, not merely widening masks until a fixture fits.
 
+The bounded profile inventory in `fixtures.json` covers 7722, 8593, 8602, 9209,
+9226 and 8604. The latter uses a fused IC `LDP` instead of `ADD` + `LDP`, reducing
+the phone closure from `0x4c0` to `0x4bc` bytes. Its root-list save moves by four
+bytes. The resolver bounds its scan by the matched contract and binds the save
+to the list result, receiver reload and matching Stack reload. The two added
+Phone/Outer contracts retain exact instructions; existing masks are unchanged.
+
+Focused host checks and reproducible regeneration:
+
+```sh
+clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror \
+  -Iapp/src/main/cpp scripts/tests/dock-glass/test_profile.cpp \
+  app/src/main/cpp/dock_glass_profile.cpp \
+  app/src/main/cpp/launcher_label_profile.cpp \
+  app/src/main/cpp/icon_highlight_profile.cpp -o /tmp/keihome-dock-profile-test
+for fixture in 7722 8593 8602 9209 9226 8604; do
+  /tmp/keihome-dock-profile-test ".artifacts/inputs/launchers/$fixture/libapp.so"
+  /tmp/keihome-dock-profile-test ".artifacts/inputs/launchers/$fixture/libapp.so" --root-only
+done
+python3 scripts/tests/dock-glass/verify_fixture_oracle.py \
+  --binary /tmp/keihome-dock-profile-test
+python3 scripts/tests/dock-glass/generate_patterns.py \
+  --fixtures scripts/tests/dock-glass/fixtures.json \
+  --output /tmp/keihome-dock-patterns.inc
+cmp app/src/main/cpp/dock_glass_patterns.inc /tmp/keihome-dock-patterns.inc
+```
+
+The oracle reads native symbols independently from `.gnu_debugdata` and locates
+anonymous closures through calls to the named background/sync functions and
+Dart frame boundaries. The profile mutations include both IC forms, the shifted
+root-list sequence, and executable/non-executable duplicate phone contracts.
+These checks establish resolver compatibility; device acceptance is separate.
+The direct root proof rejects two complete call/result/receiver/save sequences,
+accepts the sole sequence when moved, and rejects missing or truncated proofs.
+`test_modes.py` imports the same six-fixture inventory for its choices and `all`
+execution; each caller stack map is still decoded independently from the actual
+serialized snapshot. Run mode bridge acceptance against the final linked SO.
+
 Controlled managed-call boundaries and simulated root relocation test the
 bridge contracts. Actual Dart GC, rendering, input, material following, runtime
 preference application, and performance require separate AVD acceptance.

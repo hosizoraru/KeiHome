@@ -7,6 +7,10 @@ import/apply contract continues to use DexKit.
 
 ## Source fixtures
 
+The later [8604 follow-up](launcher-8604-compatibility.md) extends this historical
+five-fixture checkpoint with the reported 8604 binary, additional native
+contracts and a separate Phone AVD acceptance/restoration record.
+
 The original APKs and extracted libraries live outside version control under
 `.artifacts/inputs/launchers/<build>/`. The three newly supplied APKs were moved
 from Downloads to `launcher.apk` in those directories without changing bytes.
@@ -20,6 +24,7 @@ every extracted library's SHA256 are recorded in
 | 7722 | existing baseline | `fb8b1f91eba2d9c43875f49bbded70cca462be341fc379b9864e7c6136d6e463` |
 | 8593 | 801028593 | `68f62bbd0a73ae0096c27a4cb4bf1789a4452220510a05c658a3968fa38f470d` |
 | 8602 | 801028602 | `5030b84065cfbacd2db0a92f3af284a9bf71d592c05ba06b9292b7d004849610` |
+| 8604 | 801028604 | `1adaa4466d8516c14174a36814948c03f70579090468f7d40937156e05b87b20` |
 | 9209 | 801029209 | `5d9c0106f8fe72170dac888ba992371f2c9560aed9358e01f7c8b799f317627b` |
 | 9226 | 801029226 | `a981d774576e1d3b0ab925305346c7a2c9900b831e11299c53ebba9541cd5f0a` |
 

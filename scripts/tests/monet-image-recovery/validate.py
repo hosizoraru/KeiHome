@@ -27,6 +27,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--library', type=Path, action='append', required=True)
     p.add_argument('--output', type=Path)
+    p.add_argument('--verify-generated', action='store_true',
+                   help='Require the supplied complete fixture matrix to reproduce shipping contracts')
     a = p.parse_args()
     if not __debug__: p.error('assertions must be enabled')
     output = a.output.resolve() if a.output else Path(tempfile.mkdtemp(prefix='keihome-image-recovery-'))
@@ -50,7 +52,8 @@ def main():
     command = [sys.executable, HERE/'generate_contracts.py', '--output', output/'patterns.h', '--evidence', output/'contracts.json']
     for path in fixtures: command += ['--library', path]
     run(command)
-    if len(fixtures) == 5: assert (output/'patterns.h').read_bytes() == (CPP/'monet_image_recovery_patterns.h').read_bytes()
+    if a.verify_generated:
+        assert (output/'patterns.h').read_bytes() == (CPP/'monet_image_recovery_patterns.h').read_bytes()
     flags = ['-std=c++17', '-O2', '-UNDEBUG', '-Wall', '-Wextra', '-Werror', '-I'+str(CPP)]
     run([cxx, *flags, HERE/'test_resolver.cpp', CPP/'monet_image_recovery_resolver.cpp',
          CPP/'monet_image_identity.cpp', '-o', output/'resolver'])

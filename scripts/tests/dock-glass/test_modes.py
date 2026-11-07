@@ -17,6 +17,7 @@ from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
 from unicorn import Uc, UC_ARCH_ARM64, UC_MODE_ARM, UC_HOOK_CODE, UC_HOOK_MEM_WRITE
 from unicorn import arm64_const as ar
 ROOT = Path(__file__).resolve().parents[3]
+FIXTURE_NUMBERS = tuple(json.loads((Path(__file__).parent / 'fixtures.json').read_text()))
 sys.path.insert(0, str(ROOT / 'scripts/tests/icon-highlight'))
 from elf_fixture import Image
 
@@ -236,10 +237,10 @@ def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,ph
     return dict(fixture=f['number'],corner_style=corner_style,curve_entries=state['curve_entries'],mode=mode,guard=guard,bypass=bypass,moving_gc=gc,bad_index=bad_index,phase_smi=phase_smi,steps=state['steps'],compute_entries=state['compute_entries'],native_bl_lr_checks=state['native_bl_lr_checks'],root_count=len(f['stackmap']['object_bits']),seconds=elapsed)
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__); p.add_argument('--elf',type=Path,required=True); p.add_argument('--report',type=Path); p.add_argument('--fixture',choices=('all','7722','8593','8602','9209','9226'),default='all'); args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__); p.add_argument('--elf',type=Path,required=True); p.add_argument('--report',type=Path); p.add_argument('--fixture',choices=('all',*FIXTURE_NUMBERS),default='all'); args=p.parse_args()
     if not __debug__: p.error('Assertions must be enabled')
     blob,off,artifact=payload(args.elf); cases=[]
-    for number in (('7722','8593','8602','9209','9226') if args.fixture=='all' else (args.fixture,)):
+    for number in (FIXTURE_NUMBERS if args.fixture=='all' else (args.fixture,)):
         f=fixture(number)
         for mode in range(4):
             for bypass in ('flag','count'):

@@ -579,10 +579,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     preferences.setSystemIconFallback(value)
   }
 
-  fun currentFallbackSource(): IconPackDescriptor? {
-    val active = runtime.value.report?.iconTheme?.localId ?: return null
-    return currentIconPackSource(active, runtime.value.report?.iconTheme?.title, iconPacks.value,
-      preferences.state.value.colorOsComponents, ::colorOsDisplayName)
+  fun currentFallbackSource(
+    theme: os.kei.hyper.home.status.SystemIconThemeReport? = runtime.value.report?.iconTheme,
+    catalog: IconPacksUiState = iconPacks.value,
+    ownedColorOs: Map<String, Boolean> = preferences.state.value.colorOsComponents,
+  ): IconPackDescriptor? {
+    val active = theme?.localId ?: return null
+    return currentIconPackSource(active, theme.title, catalog, ownedColorOs, ::colorOsDisplayName)
   }
 
   fun updateCurrentSystemFallback() {

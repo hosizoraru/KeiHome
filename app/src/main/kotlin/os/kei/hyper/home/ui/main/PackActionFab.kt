@@ -33,7 +33,8 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   val pending = if (update) pendingNativeApplication(state, activeSource) else null
   val context = LocalContext.current
   if ((!update && !generate && !(page == 2 && inspiration)) ||
-    (update && (activeSource == null || model.currentFallbackSource() == null))) return
+    (update && (activeSource == null ||
+      model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents) == null))) return
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
   val label = stringResource(if (busy && state.preparing) R.string.pack_action_preparing

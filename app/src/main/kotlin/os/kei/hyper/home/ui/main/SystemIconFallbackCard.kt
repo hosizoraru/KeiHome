@@ -44,7 +44,7 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
   val apps by model.apps.collectAsStateWithLifecycle()
   val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
   val choices = model.preferences.systemIconFallbackChoices
-  val pack = model.currentFallbackSource()
+  val pack = model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents)
   val busy = state.nativeImporting != null
   val result = state.nativeResult?.takeIf { pack != null &&
     it.sourceId == preferences.systemIconFallback.sourceId(pack.id) }

@@ -47,3 +47,19 @@ restoration receipt belong in
 `.artifacts/research/launcher-8604-20261107/acceptance.json`.
 Do not interpret source acceptance as verification on the reporting REDMI
 device or on all retained firmware versions.
+
+## Hot-reload listener retirement
+
+The first development activation exposed a separate Android display-dispatch
+failure: `HandlerExecutor` rejected a callback after its worker queue quit,
+terminating `system_server`. The trace does not identify the delegate's owner,
+but the module's `MonetColorMonitor` had this exact unsafe lifetime: listener
+unregistration was queued and `quitSafely()` was called immediately.
+
+Retirement now closes that listener's executor first, unregisters the listener
+on its worker, and quits from cleanup's `finally` block. The executor also drops
+callbacks racing with retirement, including callbacks already queued. Unexpected
+active-queue rejection and unrelated callback failures remain visible.
+Six focused concurrency/lifetime tests exercise these distinctions.
+The failed activation remains recorded and is not counted as process-stable
+acceptance; subsequent Java hot reload and setting changes require a new receipt.

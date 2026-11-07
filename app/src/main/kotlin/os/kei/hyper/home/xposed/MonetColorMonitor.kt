@@ -65,6 +65,7 @@ internal class MonetColorMonitor(
     private var registered = false
     private var wallpaperRegistered = false
     private var displayManager: DisplayManager? = null
+    private val displayExecutor = RetiringDisplayListenerExecutor { handler.post(it) }
     private val displayListener = object : DisplayManager.DisplayListener {
       override fun onDisplayAdded(displayId: Int) = Unit
       override fun onDisplayRemoved(displayId: Int) = Unit
@@ -292,7 +293,14 @@ internal class MonetColorMonitor(
         connectMaterialPreferences()
         try {
           context.getSystemService(DisplayManager::class.java)?.let {
-            it.registerDisplayListener(displayListener, handler)
+            // The Handler overload creates a HandlerExecutor that throws on late dispatch
+            // after quit, even when the delegate's listener generation was cancelled.
+            it.registerDisplayListener(
+              displayExecutor,
+              DisplayManager.EVENT_TYPE_DISPLAY_ADDED or DisplayManager.EVENT_TYPE_DISPLAY_CHANGED or
+                DisplayManager.EVENT_TYPE_DISPLAY_REMOVED,
+              displayListener,
+            )
             displayManager = it
           }
         } catch (failure: Exception) { onFailure(failure) }
@@ -332,51 +340,56 @@ internal class MonetColorMonitor(
     override fun stop() {
       if (closed) return
       closed = true
+      displayExecutor.close()
       handler.removeCallbacksAndMessages(null)
       handler.post {
-        try { displayManager?.unregisterDisplayListener(displayListener) }
-        catch (failure: Exception) { onFailure(failure) }
-        displayManager = null
-        try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-        packageObserver = null
-        try { overlayObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-        overlayObserver = null
-        try { timeObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-        timeObserver = null
         try {
-          actionPreferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
-        } catch (failure: Exception) {
-          onFailure(failure)
-        }
-        actionPreferences = null
-        try {
-          runtimePreferences?.unregisterOnSharedPreferenceChangeListener(statusListener)
-        } catch (failure: Exception) {
-          onFailure(failure)
-        }
-        runtimePreferences = null
-        try {
-          materialPreferences?.unregisterOnSharedPreferenceChangeListener(materialListener)
-        } catch (failure: Exception) {
-          onFailure(failure)
-        }
-        materialPreferences = null
-        if (wallpaperRegistered) {
-          WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
-          wallpaperRegistered = false
-        }
-        if (registered) {
+          try { displayManager?.unregisterDisplayListener(displayListener) }
+          catch (failure: Exception) { onFailure(failure) }
+          displayManager = null
+          try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+          packageObserver = null
+          try { overlayObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+          overlayObserver = null
+          try { timeObserver?.close() } catch (failure: Exception) { onFailure(failure) }
+          timeObserver = null
           try {
-            context.contentResolver.unregisterContentObserver(observer)
-          } catch (failure: Throwable) {
+            actionPreferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+          } catch (failure: Exception) {
             onFailure(failure)
           }
-          registered = false
+          actionPreferences = null
+          try {
+            runtimePreferences?.unregisterOnSharedPreferenceChangeListener(statusListener)
+          } catch (failure: Exception) {
+            onFailure(failure)
+          }
+          runtimePreferences = null
+          try {
+            materialPreferences?.unregisterOnSharedPreferenceChangeListener(materialListener)
+          } catch (failure: Exception) {
+            onFailure(failure)
+          }
+          materialPreferences = null
+          if (wallpaperRegistered) {
+            WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
+            wallpaperRegistered = false
+          }
+          if (registered) {
+            try {
+              context.contentResolver.unregisterContentObserver(observer)
+            } catch (failure: Throwable) {
+              onFailure(failure)
+            }
+            registered = false
+          }
+        } finally {
+          // Keep the queue accepting callbacks until listener teardown has completed.
+          thread.quitSafely()
         }
       }
       // Release a probe's latch wait before the API 102 generation handover.
       thread.interrupt()
-      thread.quitSafely()
     }
   }
 

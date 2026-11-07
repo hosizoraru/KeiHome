@@ -94,7 +94,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   suspend fun search(term: String, options: AppleIconOptions): List<AppleAppMatch> = mutex.withLock {
     withContext(Dispatchers.IO) {
       AppleSystemMappings.localSearch(term, options.platform).takeIf { it.isNotEmpty() }
-        ?.let { return@withContext it }
+        ?.let { return@withContext it.map { app -> app.copy(country = options.country) } }
       val file = File(metadata, AppleIconPolicy.key("search:${options.platform}:${options.country}:" +
         term.trim().lowercase(java.util.Locale.ROOT)) + ".json")
       readJson(file)?.takeIf { System.currentTimeMillis() - it.optLong("time") in 0..AppleIconPolicy.SEARCH_TTL_MS }

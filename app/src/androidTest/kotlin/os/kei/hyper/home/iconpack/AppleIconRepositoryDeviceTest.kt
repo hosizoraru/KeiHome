@@ -472,6 +472,17 @@ class AppleIconRepositoryDeviceTest {
       "downloads/images").listFiles()!!.size)
   }
 
+  @Test fun localChoicesAndTheirPreviewsRetainTheSearchStorefront() = fixture { repo, server, _, _ ->
+    for (query in listOf("Apple Music", "App Store", "Settings")) {
+      val match = repo.search(query, options.copy(country = "jp")).single()
+      assertEquals("jp", match.country)
+      val preview = repo.preview(match, options)
+      assertEquals("jp", preview.app.country)
+      assertTrue(preview.light.isFile)
+    }
+    assertTrue(server.requests.isEmpty())
+  }
+
   @Test fun offlineMusicUsesVerifiedRoundedPairAndDoesNotFakeOriginalDark() = fixture { repo, server, _, _ ->
     server.offline = true
     val music = AppleAppTarget("com.apple.android.music", "Apple Music", false)

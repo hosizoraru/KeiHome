@@ -20,8 +20,12 @@
     <string name="apple_options_pending">未反映の変更があります。差分を生成してパックを更新してください。</string>
     <string name="apple_download_cache">ダウンロード済み画像</string>
     <string name="apple_cache_summary">アプリ間・生成間で画像を再利用します。キャッシュ削除後も割り当てと生成済みパックは保持されます。</string>
-    <string name="apple_check_updates">Apple 画像の更新を確認</string>
-    <string name="apple_check_updates_summary">ストア情報を再確認し、変更・不足分だけを取得します。リクエスト間隔を調整し、キャンセルできます。</string>
+    <string name="apple_check_updates">未完了のリソースを補完</string>
+    <string name="apple_check_updates_summary">不足・制限中のリソースをまとめて取得し、取得済みの明暗画像は保持します。アイコンが変わったアプリは割り当て詳細から個別に更新できます。</string>
+    <string name="apple_refresh_one">このアプリの画像を更新</string>
+    <string name="apple_fetch_metadata">ストアのリソースを取得中</string>
+    <string name="apple_refresh_one_summary">この割り当てのストア情報と画像だけを再取得し、ほかのキャッシュは保持します。その後、差分生成して再適用してください。</string>
+    <string name="apple_cooldown_summary">ストアへのリクエストを休止中です。%1$s 以降に補完を再開できます。取得済みのアイコンは保持され、全件を取り直す必要はありません。</string>
     <string name="apple_clear_downloads">ダウンロードキャッシュを削除</string>
     <string name="apple_generate">アイコンパックを生成</string>
     <string name="apple_generate_incremental">差分を生成</string>
@@ -46,7 +50,7 @@
     <string name="apple_preview_loading">ライトとダークのプレビューを取得中…</string>
     <string name="apple_preview_light">ライト</string>
     <string name="apple_preview_dark">ダーク</string>
-    <string name="apple_preview_same">専用ダーク画像なし</string>
+    <string name="apple_preview_same">明暗で共通の画像</string>
     <string name="apple_use_mapping">このアイコンを使用</string>
     <string name="apple_error_size">パックのサイズ上限を超えました。解像度または割り当て数を減らしてください。</string>
     <string name="apple_cache_manage_hint">Apple アイコンパックで取得済み画像を削除できます。生成済みパックと割り当ては別に保持されます。</string>
@@ -54,4 +58,6 @@
     <string name="apple_searching">Apple アプリを検索中…</string>
     <string name="apple_source_note">一部の Apple システムアイコンと Apple Music はオフライン用に内蔵しています。画像の権利は Apple と各開発元に帰属し、専用ダーク画像の有無は取得結果で判定します。</string>
     <string name="apple_original_note">Original の元画像には専用ダーク画像がない場合があります。一部のアプリでは Rounded でネイティブのダーク画像を取得できます。</string>
+    <string name="apple_shared_dark_badge">明暗で共通</string>
+    <string name="apple_dark_pending">ダーク画像は取得待ち</string>
 </resources>

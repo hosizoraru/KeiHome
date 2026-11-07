@@ -20,8 +20,12 @@
     <string name="apple_options_pending">There are pending changes. Generate incrementally to update the pack.</string>
     <string name="apple_download_cache">Downloaded artwork</string>
     <string name="apple_cache_summary">Reuses artwork across apps and generations. Clearing downloads keeps your mappings and the generated pack.</string>
-    <string name="apple_check_updates">Check Apple artwork updates</string>
-    <string name="apple_check_updates_summary">Refresh store metadata, then download changed or missing artwork only. Requests are paced; you can cancel.</string>
+    <string name="apple_check_updates">Complete missing resources</string>
+    <string name="apple_check_updates_summary">Fetch missing or limited resources in batches and keep completed light/dark artwork. Refresh individual apps in mapping details when their icons change.</string>
+    <string name="apple_refresh_one">Refresh artwork for this app</string>
+    <string name="apple_fetch_metadata">Fetching store resources</string>
+    <string name="apple_refresh_one_summary">Fetch only the store details and images for this mapping. Keep other cached apps untouched, then generate incrementally and apply.</string>
+    <string name="apple_cooldown_summary">Store requests are cooling down. Continue after %1$s. Cached icons remain available; you do not need to download the whole set again.</string>
     <string name="apple_clear_downloads">Clear download cache</string>
     <string name="apple_generate">Generate icon pack</string>
     <string name="apple_generate_incremental">Incremental generation</string>
@@ -46,7 +50,7 @@
     <string name="apple_preview_loading">Fetching light and dark previews…</string>
     <string name="apple_preview_light">Light</string>
     <string name="apple_preview_dark">Dark</string>
-    <string name="apple_preview_same">No separate dark artwork</string>
+    <string name="apple_preview_same">Shared light/dark artwork</string>
     <string name="apple_use_mapping">Use this icon</string>
     <string name="apple_error_size">This pack exceeds the size limit. Reduce resolution or the number of mappings.</string>
     <string name="apple_cache_manage_hint">Manage downloaded artwork from Apple icon pack. Generated packs and mappings are kept separately.</string>
@@ -54,4 +58,6 @@
     <string name="apple_searching">Searching Apple apps…</string>
     <string name="apple_source_note">Some Apple system icons and Apple Music are included for offline use. Artwork belongs to Apple and the app publishers; independent dark availability is checked from decoded pixels.</string>
     <string name="apple_original_note">Original artwork may not include a separate dark variant. Rounded can provide a native dark rendition for some apps.</string>
+    <string name="apple_shared_dark_badge">Shared light/dark</string>
+    <string name="apple_dark_pending">Dark artwork pending</string>
 </resources>

@@ -1,5 +1,9 @@
 # Apple icon pack
 
+The expanded system presets, new Siri artwork, locale-aware storefront defaults,
+shared-versus-incomplete dark-resource presentation, and incremental batch/backoff
+policy are documented in [Apple system mappings](apple-system-mappings.md).
+
 Checkpoint: 2026-11-08. The source is available at Icon packs > Available icon
 packs > Apple. This implements static light/dark artwork; Clear and Tint remain
 research, not advertised runtime effects.

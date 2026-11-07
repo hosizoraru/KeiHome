@@ -38,7 +38,7 @@ internal data class AppleAppMatch(
   val country: String? = null,
 ) {
   init {
-    require(id.matches(Regex("[0-9]{6,12}|system_(appstore|settings|music|safari|finder)")))
+    require(id.matches(Regex("[0-9]{6,12}|system_(appstore|settings|music|safari|finder|siri|feedback)")))
     require(country == null || country.matches(Regex("[a-z]{2}")))
   }
 

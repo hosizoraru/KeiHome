@@ -27,8 +27,10 @@ import os.kei.hyper.home.iconpack.IconPackSource
 
 internal data class AppleGenerationProgress(val done: Int, val total: Int, val label: String)
 internal data class AppleGenerationResult(val pack: IconPackDescriptor, val mapped: Int,
-  val dark: Int, val reused: Int, val failed: Int, val unchanged: Boolean, val stale: Int)
-internal data class AppleArtworkPreview(val app: AppleAppMatch, val light: File, val dark: File?)
+  val dark: Int, val reused: Int, val failed: Int, val unchanged: Boolean, val stale: Int,
+  val retryAtMillis: Long = 0)
+internal data class AppleArtworkPreview(val app: AppleAppMatch, val light: File, val dark: File?,
+  val limited: Boolean = false)
 internal class ApplePackSizeException : IOException("Apple pack exceeds 300 MiB")
 
 /** Download cache is evictable; the published immutable pack and user mappings are not. */
@@ -49,12 +51,21 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   private val bundledRevision by lazy {
     context.assets.open("apple-system-icons/provenance.json").use { AppleIconPolicy.digest(it.readBytes()) }
   }
+  init {
+    client.restoreBackoff(settings.getString("request_backoff", null))
+    client.setOnBackoffChanged { settings.putString("request_backoff", it) }
+  }
+
+  fun retryAtMillis(): Long = client.retryAtMillis()
 
   fun options(): AppleIconOptions = runCatching {
     val value = JSONObject(settings.getString("options", null).orEmpty())
     AppleIconOptions(ApplePlatform.valueOf(value.getString("platform")), value.getInt("resolution"),
       AppleCorners.valueOf(value.getString("corners")), value.getString("country"))
-  }.getOrDefault(AppleIconOptions())
+  }.getOrElse {
+    val locales = android.content.res.Resources.getSystem().configuration.locales
+    AppleIconOptions(country = AppleStorefrontPolicy.defaultCountry(List(locales.size()) { locales[it] }))
+  }
 
   fun setOptions(options: AppleIconOptions) {
     settings.putString("options", options.json().toString())
@@ -100,14 +111,13 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   }
 
   suspend fun targets(): List<AppleAppTarget> = withContext(Dispatchers.IO) {
-    val pm = context.packageManager
     context.getSystemService(LauncherApps::class.java)
       ?.getActivityList(null, Process.myUserHandle()).orEmpty()
       .distinctBy { it.applicationInfo.packageName }.mapNotNull {
         currentCoroutineContext().ensureActive()
         val app = it.applicationInfo
         if (app.packageName == context.packageName) return@mapNotNull null
-        AppleAppTarget(app.packageName, app.loadLabel(pm).toString(),
+        AppleAppTarget(app.packageName, it.label.toString(),
           app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
       }.sortedBy { it.label.lowercase(java.util.Locale.ROOT) }
   }
@@ -136,13 +146,14 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     withContext(Dispatchers.IO) { downloads.deleteRecursively(); Unit }
   }
 
-  suspend fun preview(app: AppleAppMatch, options: AppleIconOptions): AppleArtworkPreview = mutex.withLock {
+  suspend fun preview(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean = false): AppleArtworkPreview = mutex.withLock {
     withContext(Dispatchers.IO) {
       val effective = options.forApp(app)
-      val pair = (if (!app.id.startsWith("system_")) previousPair(app, effective, readPublication()) else null)
-        ?: checkNotNull(pair(app, effective, refresh = false))
+      val pair = (if (!refresh && !app.id.startsWith("system_")) previousPair(app, effective, readPublication()) else null)
+        ?: checkNotNull(pair(app, effective, refresh, forceImages = refresh))
+      if (refresh) settings.putBoolean("updated.${app.artworkId(effective)}", true)
       pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
-      AppleArtworkPreview(app, pair.light, pair.dark)
+      AppleArtworkPreview(app, pair.light, pair.dark, isLimitedMetadata(app, effective))
     }
   }
 
@@ -154,7 +165,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         val pair = previousPair(app, effective, readPublication())
           ?: pair(app, effective, refresh = false, cacheOnly = true) ?: return@withContext null
         pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
-        AppleArtworkPreview(app, pair.light, pair.dark)
+        AppleArtworkPreview(app, pair.light, pair.dark, isLimitedMetadata(app, effective))
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (_: Exception) { null }
     }
@@ -168,6 +179,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }
         .toMap().toSortedMap()
       record.optInt("schema") != 2 ||
+        assignments.values.any { settings.getBoolean("updated.$it", false) } ||
         record.optJSONObject("options")?.toString() != options.json().toString() ||
         record.optString("bundled") != bundledRevision ||
         record.optJSONObject("mappings")?.toString() != JSONObject(assignments).toString()
@@ -201,14 +213,19 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   } }
 
   suspend fun generate(targets: List<AppleAppTarget>, options: AppleIconOptions, refresh: Boolean = false,
+    retryIncomplete: Boolean = false,
     progress: (AppleGenerationProgress) -> Unit): AppleGenerationResult = mutex.withLock {
     withContext(Dispatchers.IO) { try {
       val selected = targets.mapNotNull { target -> match(target, options)?.let { target to it } }
       require(selected.isNotEmpty()) { "No Apple mappings" }
       generated.mkdirs()
       val resolved = linkedMapOf<String, PairFiles>()
+      val failedUpdates = mutableSetOf<String>()
       val assignments = linkedMapOf<String, String>()
       val previous = readPublication()
+      val fetched = prefetchMetadata(selected.map { it.second }, options, previous, refresh, retryIncomplete) { done, total ->
+        progress(AppleGenerationProgress(done, total, context.getString(os.kei.hyper.home.R.string.apple_fetch_metadata)))
+      }
       var failed = 0
       var reused = 0
       var firstError: Exception? = null
@@ -220,9 +237,13 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         val artworkId = app.artworkId(effective)
         progress(AppleGenerationProgress(index, selected.size, target.label))
         try {
+          fetched.errors[artworkId]?.let { throw it }
           val pair = resolved[artworkId] ?: (
-            if (!refresh && !app.id.startsWith("system_")) previousPair(app, effective, previous) else null
-          ).let { cached -> cached ?: checkNotNull(pair(app, effective, refresh)) }.also {
+            if (!refresh && artworkId !in fetched.updated && !app.id.startsWith("system_") &&
+              !(retryIncomplete && isLimitedMetadata(app, effective)) && !limitedMetadataNeedsRetry(app, effective))
+              previousPair(app, effective, previous) else null
+          ).let { cached -> cached ?: checkNotNull(pair(app, effective, refresh, metadataReady = true)) }
+            .let { if (artworkId in fetched.limited) it.copy(stale = true) else it }.also {
             sourceBytes += it.light.length() + (it.dark?.length() ?: 0L)
             if (sourceBytes > 300L * 1024 * 1024) throw ApplePackSizeException()
             resolved[artworkId] = it
@@ -233,11 +254,12 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         } catch (failure: Exception) {
           if (failure is ApplePackSizeException) throw failure
           failed++
+          failedUpdates += artworkId
           if (firstError == null) firstError = failure
           val oldApp = previous?.optJSONObject("mappings")?.optString(target.packageName)
             ?.let { publishedApp(it, previous) }?.takeIf { it.country == effective.country }
           val retained = oldApp?.let {
-            resolved[it.artworkId(effective)] ?: previousPair(it, effective, previous)
+            resolved[it.artworkId(effective)] ?: previousPair(it, effective, previous, allowPending = true)
           }
           if (retained != null) {
             if (retained.id !in resolved) {
@@ -245,7 +267,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
               if (sourceBytes > 300L * 1024 * 1024) throw ApplePackSizeException()
               reused++
             }
-            resolved[retained.id] = retained
+            resolved[retained.id] = retained.copy(stale = true)
             assignments[target.packageName] = retained.id
           }
         }
@@ -295,6 +317,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         writeJson(publication, identity.put("digest", digest)
           .put("createdAt", if (previous?.optString("digest") == digest) previous.optLong("createdAt") else System.currentTimeMillis()))
       }
+      resolved.keys.filterNot { it in failedUpdates }.forEach { settings.remove("updated.$it") }
       pruneImages(resolved.values.flatMap { listOfNotNull(it.light, it.dark) }.toSet())
       // Keep the previous immutable archive for in-flight previews and conversion.
       generated.listFiles().orEmpty().filter { it.extension == "zip" && it != archive }
@@ -302,14 +325,80 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       progress(AppleGenerationProgress(selected.size, selected.size, ""))
       AppleGenerationResult(checkNotNull(descriptor()), assignments.size,
         assignments.values.count { resolved[it]?.dark != null }, reused, failed,
-        previous?.optString("digest") == digest, resolved.values.count { it.stale })
+        previous?.optString("digest") == digest, resolved.values.count { it.stale }, client.retryAtMillis())
     } finally { pruneImages(emptySet()) } }
   }
 
   private data class PairFiles(val id: String, val light: File, val dark: File?, val reused: Boolean,
     val stale: Boolean = false)
 
-  private suspend fun previousPair(app: AppleAppMatch, options: AppleIconOptions, record: JSONObject?): PairFiles? {
+  private fun metadataFile(app: AppleAppMatch, options: AppleIconOptions) =
+    File(metadata, "${AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")}.json")
+
+  private fun isLimitedMetadata(app: AppleAppMatch, options: AppleIconOptions): Boolean =
+    readJson(metadataFile(app, options))?.optBoolean("limited") == true
+
+  private fun saveMetadata(app: AppleAppMatch, options: AppleIconOptions, art: AppleArtwork) {
+    val old = readJson(metadataFile(app, options))
+    if (art.limited && old != null && !old.optBoolean("limited")) return
+    writeJson(metadataFile(app, options), JSONObject().put("template", art.template).put("time", art.checkedAt)
+      .put("fallback", art.fallback).put("limited", art.limited).put("catalogVersion", 2))
+  }
+
+  private data class MetadataFetch(
+    val errors: Map<String, Exception>, val limited: Set<String>, val updated: Set<String>,
+  )
+
+  private suspend fun prefetchMetadata(apps: List<AppleAppMatch>, options: AppleIconOptions,
+    previous: JSONObject?, refresh: Boolean, retryIncomplete: Boolean,
+    progress: (Int, Int) -> Unit): MetadataFetch {
+    val errors = mutableMapOf<String, Exception>()
+    val limited = mutableSetOf<String>()
+    val updated = mutableSetOf<String>()
+    val pending = apps.distinctBy { it.artworkId(options.forApp(it)) }.filter { app ->
+      val effective = options.forApp(app)
+      when {
+        app.id.startsWith("system_") -> false
+        !refresh && bundledRole(app, effective) != null -> false
+        refresh -> true
+        retryIncomplete && isLimitedMetadata(app, effective) -> true
+        limitedMetadataNeedsRetry(app, effective) -> true
+        previousPair(app, effective, previous) != null -> false
+        readJson(metadataFile(app, effective)) != null -> false
+        else -> true
+      }
+    }
+    var checked = 0
+    for ((country, group) in pending.groupBy { options.forApp(it).country }) {
+      val effective = options.copy(country = country)
+      for (batch in group.chunked(25)) {
+        currentCoroutineContext().ensureActive()
+        progress(checked, pending.size)
+        try {
+          val results = client.artworks(batch, effective)
+          for (app in batch) {
+            val result = results[app.id]
+            if (result != null) {
+              saveMetadata(app, effective, result)
+              updated += app.artworkId(effective)
+              if (result.limited) limited += app.artworkId(effective)
+            }
+            else errors[app.artworkId(effective)] = IOException("Apple artwork unavailable")
+          }
+        } catch (cancelled: CancellationException) { throw cancelled
+        } catch (failure: Exception) {
+          batch.forEach { errors[it.artworkId(effective)] = failure }
+        }
+        checked += batch.size
+        progress(checked, pending.size)
+      }
+    }
+    return MetadataFetch(errors, limited, updated)
+  }
+
+  private suspend fun previousPair(app: AppleAppMatch, options: AppleIconOptions, record: JSONObject?,
+    allowPending: Boolean = false): PairFiles? {
+    if (!allowPending && settings.getBoolean("updated.${app.artworkId(options)}", false)) return null
     val publishedOptions = record?.optJSONObject("options") ?: return null
     if (publishedOptions.optString("platform") != options.platform.name ||
       publishedOptions.optInt("resolution") != options.resolution ||
@@ -355,7 +444,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   }
 
   private suspend fun pair(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean,
-    cacheOnly: Boolean = false): PairFiles? {
+    cacheOnly: Boolean = false, metadataReady: Boolean = false, forceImages: Boolean = false): PairFiles? {
     if (app.id.startsWith("system_")) return systemIcon(app, options)
     val key = AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")
     val metaFile = File(metadata, "$key.json")
@@ -367,15 +456,15 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     if (bundled && cached == null && !refresh) return systemIcon(app, options)
     if (cacheOnly && cached == null) return null
     var stale = false
-    val art = if (cached != null && !refresh) cached else {
+    val art = if (cached != null && (metadataReady ||
+      (!refresh && (cacheOnly || !limitedMetadataNeedsRetry(app, options))))) cached else {
       try {
         val fresh = client.artwork(app, options)
         if (fresh.limited && cached != null && !cached.limited) {
           stale = true
           cached
         } else fresh.also {
-          writeJson(metaFile, JSONObject().put("template", it.template).put("time", it.checkedAt)
-            .put("fallback", it.fallback).put("limited", it.limited))
+          saveMetadata(app, options, it)
         }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) {
@@ -387,11 +476,20 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     if (bundled && art.limited) return systemIcon(app, options)?.copy(stale = true)
     val lightUrl = AppleIconPolicy.rendition(art.template, options, false)
     val darkUrl = AppleIconPolicy.rendition(art.template, options, true)
-    val light = image(lightUrl, options, cacheOnly) ?: return null
-    val dark = image(darkUrl, options, cacheOnly) ?: return null
+    val light = image(lightUrl, options, cacheOnly, forceImages) ?: return null
+    val dark = image(darkUrl, options, cacheOnly, forceImages) ?: return null
     val distinct = distinctPixels(light.first, dark.first)
+    if (!distinct && bundled) systemIcon(app, options)?.takeIf { it.dark != null }?.let { return it }
     return PairFiles(app.artworkId(options), light.first, dark.first.takeIf { distinct },
       light.second && dark.second, stale || art.limited)
+  }
+
+  private fun limitedMetadataNeedsRetry(app: AppleAppMatch, options: AppleIconOptions): Boolean {
+    val stored = readJson(metadataFile(app, options)) ?: return false
+    if (!stored.optBoolean("limited")) return false
+    // Migrate the old single-resource fallback once; subsequent retries are user-driven and bounded.
+    return stored.optInt("catalogVersion") < 2 ||
+      System.currentTimeMillis() - stored.optLong("time") !in 0..(15 * 60 * 1000L)
   }
 
   private fun distinctPixels(light: File, dark: File): Boolean {
@@ -407,12 +505,13 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     }.also { writeJson(comparison, JSONObject().put("distinct", it)) }
   }
 
-  private suspend fun image(url: String, options: AppleIconOptions, cacheOnly: Boolean): Pair<File, Boolean>? {
+  private suspend fun image(url: String, options: AppleIconOptions, cacheOnly: Boolean,
+    refresh: Boolean = false): Pair<File, Boolean>? {
     val size = options.resolution
     // A shared CDN URL is not evidence that two storefronts supplied the same artwork.
     val index = File(metadata, "url-${AppleIconPolicy.key("${options.country}:$url")}.json")
     val previous = readJson(index)?.optString("digest")
-    if (previous?.matches(Regex("[0-9a-f]{64}")) == true) {
+    if (!refresh && previous?.matches(Regex("[0-9a-f]{64}")) == true) {
       val existing = File(images, "$previous.png")
       if (existing.isFile && validPng(existing, size) &&
         AppleIconPolicy.digest(existing.readBytes()) == previous) {
@@ -443,6 +542,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       "1584215428" -> "photos"
       "1232058109" -> "files"
       "1584216193" -> "camera"
+      "6758482875" -> "siri"
+      "1160481993" -> "wallet"
+      "6473799789" -> "passwords"
       else -> null
     }
     else -> null

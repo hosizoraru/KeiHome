@@ -74,4 +74,10 @@ class AppleMappingBrowserTest {
     assertEquals(listOf("app.z"), appleMappingRows(cached, "apple", AppleMappingFilter.MISSING_DARK,
       AppleMappingSort.PACKAGE, "us", region = "jp", matchedOnly = true).map { it.target.packageName })
   }
+
+  @Test fun sharedOriginalRemainsVisibleInTheNoIndependentDarkFilter() {
+    val shared = rows.map { it.copy(darkCapability = AppleDarkCapability.SHARED) }
+    assertEquals(listOf("app.a", "app.z"), appleMappingRows(shared, "", AppleMappingFilter.MISSING_DARK,
+      AppleMappingSort.NAME, "us").map { it.target.packageName })
+  }
 }

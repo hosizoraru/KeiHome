@@ -21,7 +21,9 @@ def main():
     parser.add_argument("--music-snapshot", type=Path)
     parser.add_argument("--music-original-snapshot", type=Path)
     parser.add_argument("--camera-snapshot", type=Path)
+    parser.add_argument("--only", nargs="+", help="Refresh selected roles; retain hash-verified other assets.")
     args = parser.parse_args()
+    ios_apps = args.ios_settings_catalog.parent.parent
     args.output.mkdir(parents=True, exist_ok=True)
     specs = [
         ("appstore", Path("/System/Applications/App Store.app/Contents/Resources/Assets.car"),
@@ -35,6 +37,13 @@ def main():
          "AppIconUpdated", "macos-source", ["macos"]),
         ("finder", Path("/System/Library/CoreServices/Finder.app/Contents/Resources/Assets.car"),
          "Finder", "macos-source", ["macos"]),
+        ("siri", Path("/System/Applications/Siri.app/Contents/Resources/Assets.car"),
+         "AppIcon", "macos-source", ["macos"]),
+        ("siri", ios_apps / "SiriApp.app/Assets.car", "AppIcon", "ios-source", ["ios"]),
+        ("wallet", ios_apps / "Passbook.app/Assets.car", "AppIcon", "ios-source", ["ios"]),
+        ("passwords", ios_apps / "Passwords.app/Assets.car", "AppIcon", "ios-source", ["ios"]),
+        ("feedback", Path("/System/Library/CoreServices/Applications/Feedback Assistant.app/Contents/Resources/Assets.car"),
+         "AppIcon", "macos-source", ["ios", "macos"]),
     ]
     applications = args.ios_settings_catalog.parent.parent
     for role, bundle, name in [("photos", "Photos", "AppIcon"),
@@ -44,6 +53,12 @@ def main():
         if catalog.is_file():
             specs.append((role, catalog, name, "ios-source", ["ios"]))
     records = []
+    if args.only:
+        previous = json.loads((args.output / "provenance.json").read_text())
+        records = [record for record in previous["images"] if record["role"] not in args.only]
+        for record in records:
+            if sha(args.output / record["file"]) != record["sha256"]:
+                raise ValueError(f"Retained artwork checksum mismatch: {record['file']}")
     with tempfile.TemporaryDirectory(prefix="keihome-apple-system-") as directory:
         temp = Path(directory)
         tool = temp / "render"
@@ -51,6 +66,8 @@ def main():
                         "-framework", "ImageIO", str(Path(__file__).with_name("render-apple-system-icons.m")),
                         "-o", str(tool)], check=True)
         for role, catalog, name, source, platforms in specs:
+            if args.only and role not in args.only:
+                continue
             catalog_hash = sha(catalog)
             for platform in platforms:
                 subprocess.run([str(tool), str(catalog), name, platform, str(temp), role, source], check=True)
@@ -69,6 +86,8 @@ def main():
             ("music", "1108187390", "original", args.music_original_snapshot),
             ("camera", "1584216193", "rounded", args.camera_snapshot),
         ]:
+            if args.only and role not in args.only:
+                continue
             if snapshot is None:
                 continue
             report = json.loads((snapshot / "report.json").read_text())
@@ -87,6 +106,7 @@ def main():
     manifest = dict(schema=2, attribution="Artwork copyright Apple Inc. No Apple affiliation.",
         encoding="Static 8-bit sRGB target; WebP lossless with exact transparent pixels.",
         appStoreIOS="Apple's macOS App Store layered artwork rendered with the native iOS presentation.",
+        siriAndFeedbackIOS="Siri uses the iOS SiriApp catalog; Feedback uses Apple's macOS catalog with native iOS presentation.",
         images=records)
     (args.output / "provenance.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"{len(records)} renders, {sum(x['bytes'] for x in records):,} bytes")

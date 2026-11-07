@@ -2,6 +2,9 @@
 <resources>
     <string name="apple_filter_missing_dark">独立したダークアイコンなし</string>
     <string name="apple_missing_dark_badge">キャッシュ済みアイコンに独立したダーク版はありません</string>
+    <string name="apple_missing_dark_badge_compact">ダーク画像待ち</string>
+    <string name="apple_mapping_accessibility">%1$s の対応先は %2$s。パッケージ：%3$s</string>
+    <string name="apple_mapping_package_accessibility">%1$s。パッケージ：%2$s</string>
     <string name="apple_mapping_transfer">マッピングのインポートとエクスポート</string>
     <string name="apple_mapping_export">手動マッピングをエクスポート…</string>
     <string name="apple_mapping_import">手動マッピングをインポート…</string>

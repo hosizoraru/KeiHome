@@ -20,8 +20,12 @@
     <string name="apple_options_pending">有待生成的更改，请增量生成以更新图标包。</string>
     <string name="apple_download_cache">已下载图标缓存</string>
     <string name="apple_cache_summary">跨应用、跨次生成复用资源。清理下载缓存会保留自定义映射和已生成的图标包。</string>
-    <string name="apple_check_updates">检查 Apple 图标更新</string>
-    <string name="apple_check_updates_summary">重新检查商店信息，仅下载变更或缺失的资源。请求会控制频率，支持取消。</string>
+    <string name="apple_check_updates">补齐未完成资源</string>
+    <string name="apple_check_updates_summary">分批补齐缺失或受限的资源，保留已完成的深浅色缓存。单个应用换图标时，可在映射详情中单独刷新。</string>
+    <string name="apple_refresh_one">刷新此应用图标</string>
+    <string name="apple_fetch_metadata">获取商店资源</string>
+    <string name="apple_refresh_one_summary">仅重新获取此映射的商店资料与图标，保留其他应用的缓存。完成后需增量生成并重新应用。</string>
+    <string name="apple_cooldown_summary">商店请求正在冷却，可在 %1$s 后继续补齐。已缓存的图标会保留并继续使用，无需重新获取整批资源。</string>
     <string name="apple_clear_downloads">清理下载缓存</string>
     <string name="apple_generate">生成图标包</string>
     <string name="apple_generate_incremental">增量生成</string>
@@ -46,7 +50,7 @@
     <string name="apple_preview_loading">正在获取深浅色预览…</string>
     <string name="apple_preview_light">浅色</string>
     <string name="apple_preview_dark">深色</string>
-    <string name="apple_preview_same">无独立深色资源</string>
+    <string name="apple_preview_same">明暗共用原图</string>
     <string name="apple_use_mapping">使用此图标</string>
     <string name="apple_error_size">图标包超过大小限制，请降低分辨率或减少映射数量。</string>
     <string name="apple_cache_manage_hint">可在 Apple 图标包中清理下载资源；已生成的图标包和映射单独保留。</string>
@@ -54,4 +58,6 @@
     <string name="apple_searching">正在搜索 Apple 应用…</string>
     <string name="apple_source_note">少量 Apple 系统图标与 Apple Music 已内置，可离线使用。图标版权归 Apple 与应用开发者，是否有独立深色以实际获取结果为准。</string>
     <string name="apple_original_note">Original 原图可能没有独立深色资源；部分应用使用 Rounded 时可获得原生深色效果。</string>
+    <string name="apple_shared_dark_badge">明暗共用原图</string>
+    <string name="apple_dark_pending">深色资源待补齐</string>
 </resources>

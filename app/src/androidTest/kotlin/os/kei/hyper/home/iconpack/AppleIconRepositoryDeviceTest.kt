@@ -34,7 +34,7 @@ class AppleIconRepositoryDeviceTest {
       JSONObject(it.bufferedReader().readText())
     }
     val records = manifest.getJSONArray("images")
-    assertEquals(26, records.length())
+    assertEquals(38, records.length())
     for (i in 0 until records.length()) {
       val record = records.getJSONObject(i)
       val bytes = context.assets.open("apple-system-icons/${record.getString("file")}").use { it.readBytes() }
@@ -54,6 +54,7 @@ class AppleIconRepositoryDeviceTest {
     var revision = 1
     var identicalDark = false
     var catalogLimited = false
+    var catalogStandardOnly = false
     var tagDarkPng = false
     var storefrontArtwork = false
     var lightColor: Int? = null
@@ -64,15 +65,19 @@ class AppleIconRepositoryDeviceTest {
       if (offline) throw IOException("offline")
       if (url.contains("/apps/")) {
         if (catalogLimited) throw AppleRequestException(429)
-        val id = java.net.URI(url).path.substringAfterLast('/')
-        if (id == suspendId) { suspended.complete(Unit); awaitCancellation() }
+        val ids = java.net.URI(url).query.split('&').first { it.startsWith("ids=") }.substringAfter('=').split(',')
+        if (suspendId in ids) { suspended.complete(Unit); awaitCancellation() }
         val country = java.net.URI(url).path.substringAfter("/catalog/").substringBefore('/')
-        val region = if (storefrontArtwork) "$country/" else ""
-        val art = JSONObject().put("url", "https://is1-ssl.mzstatic.com/image/thumb/r$revision/$region$id/{w}x{h}{c}.{f}")
-        val attributes = JSONObject().put("name", "Test Music").put("platformAttributes",
-          JSONObject().put("ios", JSONObject().put("iconArtwork", art)))
-        return JSONObject().put("data", JSONArray().put(JSONObject().put("id", id)
-          .put("attributes", attributes))).toString().toByteArray()
+        val region = (if (catalogStandardOnly) "standard/" else "") +
+          (if (storefrontArtwork) "$country/" else "")
+        val data = JSONArray()
+        for (id in ids) {
+          val art = JSONObject().put("url", "https://is1-ssl.mzstatic.com/image/thumb/r$revision/$region$id/{w}x{h}{c}.{f}")
+          val attributes = JSONObject().put("name", "Test Music").put("platformAttributes",
+            JSONObject().put("ios", JSONObject().put(if (catalogStandardOnly) "artwork" else "iconArtwork", art)))
+          data.put(JSONObject().put("id", id).put("attributes", attributes))
+        }
+        return JSONObject().put("data", data).toString().toByteArray()
       }
       if ("itunes.apple.com/lookup" in url || "itunes.apple.com/search" in url) {
         return JSONObject().put("results", JSONArray().put(JSONObject()
@@ -153,8 +158,8 @@ class AppleIconRepositoryDeviceTest {
     val result = repo.generate(listOf(target, second), options) {}
     assertEquals(2, result.mapped)
     assertEquals(6, server.requests.size)
-    assertTrue(server.requests.any { "/catalog/us/apps/${first.id}" in it })
-    assertTrue(server.requests.any { "/catalog/jp/apps/${first.id}" in it })
+    assertTrue(server.requests.any { "/catalog/us/apps?ids=${first.id}" in it })
+    assertTrue(server.requests.any { "/catalog/jp/apps?ids=${first.id}" in it })
     assertFalse(repo.needsGeneration(listOf(target, second), options))
     ZipFile((result.pack.source as IconPackSource.Generated).file).use { zip ->
       val manifest = JSONObject(zip.getInputStream(zip.getEntry("apple-source-manifest.json")).bufferedReader().readText())
@@ -261,7 +266,7 @@ class AppleIconRepositoryDeviceTest {
     val korean = first.copy(country = "kr")
     repo.setMatch(target, options, korean)
     repo.generate(listOf(target), options.copy(country = "gb")) {}
-    assertTrue(server.requests.any { "/catalog/kr/apps/${first.id}" in it })
+    assertTrue(server.requests.any { "/catalog/kr/apps?ids=${first.id}" in it })
     assertTrue(server.requests.any { "itunes.apple.com/lookup" in it && "country=kr" in it })
     server.requests.clear(); server.offline = true
     assertNotNull(repo.cachedPreview(korean, options.copy(country = "tw")))
@@ -450,6 +455,64 @@ class AppleIconRepositoryDeviceTest {
     val result = repo.generate(listOf(target), options, refresh = true) {}
     assertTrue(result.unchanged); assertEquals(original.pack.source, result.pack.source)
     assertEquals(1, result.dark); assertEquals(1, result.stale)
+  }
+
+  @Test fun oldLimitedMetadataIsPromotedWhileOtherArtworkRemainsCached() = fixture { repo, server, root, _ ->
+    server.catalogStandardOnly = true; server.identicalDark = true
+    repo.setMatch(target, options, first)
+    assertEquals(0, repo.generate(listOf(target), options) {}.dark)
+    val metadata = File(root, "downloads/metadata/${AppleIconPolicy.key("art:ios:us:${first.id}")}.json")
+    metadata.writeText(JSONObject(metadata.readText()).apply { remove("catalogVersion") }.toString())
+    server.catalogStandardOnly = false; server.identicalDark = false
+    val promoted = repo.generate(listOf(target), options) {}
+    assertEquals(1, promoted.dark)
+    assertEquals(0, promoted.stale)
+    val calls = server.requests.size
+    assertTrue(repo.generate(listOf(target), options) {}.unchanged)
+    assertEquals(calls, server.requests.size)
+    assertTrue(server.requests.first().contains("/apps?ids=${first.id}"))
+  }
+
+  @Test fun limitedMetadataRetriesAfterCooldown() = fixture { repo, server, root, _ ->
+    server.catalogStandardOnly = true; server.identicalDark = true
+    repo.setMatch(target, options, first)
+    repo.generate(listOf(target), options) {}
+    val calls = server.requests.size
+    repo.generate(listOf(target), options) {}
+    assertEquals(calls, server.requests.size)
+    val metadata = File(root, "downloads/metadata/${AppleIconPolicy.key("art:ios:us:${first.id}")}.json")
+    metadata.writeText(JSONObject(metadata.readText())
+      .put("time", System.currentTimeMillis() - 16 * 60 * 1000L).toString())
+    server.catalogStandardOnly = false; server.identicalDark = false
+    assertEquals(1, repo.generate(listOf(target), options) {}.dark)
+  }
+
+  @Test fun completingMissingResourcesDoesNotRefreshFinishedApps() = fixture { repo, server, _, _ ->
+    repo.setMatch(target, options, first)
+    val initial = repo.generate(listOf(target), options) {}
+    val calls = server.requests.size
+    val again = repo.generate(listOf(target), options, retryIncomplete = true) {}
+    assertTrue(again.unchanged)
+    assertEquals(initial.dark, again.dark)
+    assertEquals(calls, server.requests.size)
+  }
+
+  @Test fun individualRefreshIsUsedByTheNextGenerationWithoutRefetchingOtherApps() = fixture { repo, server, _, _ ->
+    val other = AppleAppTarget("android.other", "Other", false)
+    val second = first.copy(id = "987654321")
+    repo.setMatch(target, options, first); repo.setMatch(other, options, second)
+    repo.generate(listOf(target, other), options) {}
+    assertEquals(1, server.requests.count { "/api/apps/" in it })
+    val before = repo.cachedPreview(second, options)!!.light.readBytes()
+    server.revision = 2; server.lightColor = Color.GREEN
+    repo.preview(first, options, refresh = true)
+    assertTrue(repo.needsGeneration(listOf(target, other), options))
+    val calls = server.requests.size
+    val regenerated = repo.generate(listOf(target, other), options) {}
+    assertFalse(regenerated.unchanged)
+    assertEquals(calls, server.requests.size)
+    assertArrayEquals(before, repo.cachedPreview(second, options)!!.light.readBytes())
+    assertFalse(repo.needsGeneration(listOf(target, other), options))
   }
 
   @Test fun changingMappingToAnUnavailableAppRetainsThePreviousAppliedArtwork() = fixture { repo, server, _, _ ->

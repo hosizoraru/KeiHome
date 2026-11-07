@@ -75,6 +75,36 @@ class AppleBundledArtworkDeviceTest {
     assertArrayEquals(expected, corrected.light.readBytes())
   }
 
+  @Test fun siriAndFeedbackRenderOfflineForEveryPlatformAndReuseCachedPixels() = fixture { repo, _, _ ->
+    for (id in listOf("system_siri", "system_feedback")) {
+      for (platform in ApplePlatform.entries) {
+        val match = AppleAppMatch(id, "Apple", "Apple")
+        val opts = options.copy(platform = platform)
+        val first = requireNotNull(repo.cachedPreview(match, opts))
+        val dark = requireNotNull(first.dark)
+        assertFalse(first.light.readBytes().contentEquals(dark.readBytes()))
+        val again = requireNotNull(repo.cachedPreview(match, opts))
+        assertEquals(first.light, again.light)
+        assertEquals(dark, again.dark)
+      }
+    }
+  }
+
+  @Test fun newSystemPresetsStillRespectManualChoicesAndExclusions() = fixture { repo, _, _ ->
+    val assistant = AppleAppTarget("com.miui.voiceassist", "超级小爱", true)
+    val proxy = AppleAppTarget("com.miui.voiceassistProxy", "超级小爱", false)
+    assertEquals("6758482875", repo.match(assistant, options)?.id)
+    assertEquals("6758482875", repo.match(proxy, options)?.id)
+    repo.setMatch(assistant, options, store.copy(country = "jp"))
+    repo.setMatch(proxy, options, null)
+    assertEquals("jp", repo.match(assistant, options)?.country)
+    assertNull(repo.match(proxy, options))
+    repo.resetMatch(assistant, options)
+    repo.resetMatch(proxy, options)
+    assertEquals("6758482875", repo.match(assistant, options)?.id)
+    assertEquals("6758482875", repo.match(proxy, options)?.id)
+  }
+
   @Test fun cameraHasIndependentOfflineVariantsAcrossIOSPlatformsAndResolutions() = fixture { repo, root, _ ->
     val camera = AppleAppMatch("1584216193", "Camera", "Apple", "com.apple.camera")
     // Simulate the standard, appearance-insensitive metadata retained by the older app.

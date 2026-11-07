@@ -5,6 +5,9 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -21,14 +24,29 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-internal class AppleRequestException(val status: Int) : IOException("Apple HTTP $status")
+private const val MAX_BACKOFF_MILLIS = 24 * 60 * 60 * 1_000L
+
+internal class AppleRequestException(val status: Int, val retryAtMillis: Long = 0L) :
+  IOException("Apple HTTP $status")
+
+internal fun appleRetryAfterMillis(header: String?, now: Long): Long {
+  val value = header?.trim()?.takeIf { it.length <= 128 } ?: return 0L
+  val seconds = value.toLongOrNull()
+  val deadline = if (seconds != null) {
+    if (seconds < 0) return 0L
+    now + seconds.coerceAtMost(MAX_BACKOFF_MILLIS / 1_000) * 1_000
+  } else try {
+    ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()
+  } catch (_: Exception) { return 0L }
+  return deadline.coerceIn(now, now + MAX_BACKOFF_MILLIS)
+}
 
 internal fun interface AppleIconTransport {
   suspend fun get(url: String): ByteArray
 }
 
 /** One bounded request at a time; cancellation also disconnects blocking HTTP reads. */
-internal class AppleHttpTransport : AppleIconTransport {
+internal class AppleHttpTransport(private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO) : AppleIconTransport {
   override suspend fun get(url: String): ByteArray {
     try { return withTimeout(30_000) { fetch(url) }
     } catch (failure: TimeoutCancellationException) {
@@ -37,7 +55,7 @@ internal class AppleHttpTransport : AppleIconTransport {
     }
   }
 
-  private suspend fun fetch(url: String): ByteArray = withContext(Dispatchers.IO) {
+  private suspend fun fetch(url: String): ByteArray = withContext(ioDispatcher) {
     var next = url
     repeat(4) {
       AppleIconPolicy.validateUrl(next)
@@ -48,7 +66,7 @@ internal class AppleHttpTransport : AppleIconTransport {
       connection.setRequestProperty("User-Agent", "KeiHome/AppleArtwork")
       connection.setRequestProperty("Accept", "application/json,image/png")
       val response = coroutineScope {
-        val closer = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+        val closer = launch(ioDispatcher, start = CoroutineStart.UNDISPATCHED) {
           try { awaitCancellation() } finally { connection.disconnect() }
         }
         try {
@@ -59,7 +77,9 @@ internal class AppleHttpTransport : AppleIconTransport {
             next = URI(next).resolve(location).toString()
             null
           } else {
-            if (code != 200) throw AppleRequestException(code)
+            if (code != 200) throw AppleRequestException(code,
+              if (code == 429 || code == 503)
+                appleRetryAfterMillis(connection.getHeaderField("Retry-After"), System.currentTimeMillis()) else 0L)
             if (connection.contentLengthLong > AppleIconPolicy.MAX_RESPONSE) throw IOException("Apple response too large")
             connection.inputStream.use { input ->
               val output = ByteArrayOutputStream()
@@ -83,10 +103,78 @@ internal class AppleHttpTransport : AppleIconTransport {
 }
 
 internal class AppleIconClient(private val transport: AppleIconTransport = AppleHttpTransport(),
-  private val metadataIntervalMillis: Long = 3_500) {
+  private val metadataIntervalMillis: Long = 3_500,
+  private val clockMillis: () -> Long = System::currentTimeMillis) {
+  init { require(metadataIntervalMillis in 0..60_000) }
+  private data class Backoff(val retryAt: Long, val strikes: Int, val status: Int)
   private val requests = Mutex()
-  private var nextMetadataAt = 0L
-  private val blockedUntil = mutableMapOf<String, Long>()
+  private val nextMetadataAt = mutableMapOf<String, Long>()
+  private val stateLock = Any()
+  private val backoffs = linkedMapOf<String, Backoff>()
+  private var onBackoffChanged: ((String) -> Unit)? = null
+
+  fun backoffSnapshot(): String = synchronized(stateLock) { snapshotLocked() }
+
+  fun setOnBackoffChanged(callback: (String) -> Unit) {
+    synchronized(stateLock) { onBackoffChanged = callback }
+  }
+
+  fun retryAtMillis(): Long = synchronized(stateLock) {
+    backoffs.values.maxOfOrNull { it.retryAt.takeIf { time -> time > clockMillis() } ?: 0L } ?: 0L
+  }
+
+  fun restoreBackoff(snapshot: String?) {
+    if (snapshot == null || snapshot.length !in 1..8_192) return
+    val restored = try {
+      val root = JSONObject(snapshot)
+      if (root.optInt("version") != 1) return
+      val hosts = root.getJSONObject("hosts")
+      if (hosts.length() > 16) return
+      val now = clockMillis()
+      buildMap<String, Backoff> {
+        for (host in hosts.keys()) {
+          if (!allowedHost(host)) continue
+          val value = hosts.optJSONObject(host) ?: continue
+          val time = value.opt("retryAtMillis") as? Number ?: continue
+          val strikes = value.opt("strikes") as? Number ?: continue
+          val status = value.opt("status") as? Number ?: continue
+          if (time.toDouble() != time.toLong().toDouble() ||
+            strikes.toDouble() != strikes.toInt().toDouble() ||
+            status.toDouble() != status.toInt().toDouble()) continue
+          if (time.toLong() !in (now - MAX_BACKOFF_MILLIS)..(now + MAX_BACKOFF_MILLIS) ||
+            strikes.toInt() !in 1..7 || status.toInt() !in listOf(429, 503)) continue
+          put(host, Backoff(time.toLong(), strikes.toInt(), status.toInt()))
+        }
+      }
+    } catch (_: Exception) { return }
+    synchronized(stateLock) {
+      for ((host, state) in restored) {
+        val current = backoffs[host]
+        if (current == null || state.retryAt > current.retryAt) backoffs[host] = state
+      }
+    }
+    notifyBackoffChanged()
+  }
+
+  private fun snapshotLocked(): String {
+    val hosts = JSONObject()
+    val now = clockMillis()
+    val persisted = backoffs.entries.filter { (host, state) ->
+      allowedHost(host) && state.retryAt in (now - MAX_BACKOFF_MILLIS)..(now + MAX_BACKOFF_MILLIS)
+    }.sortedWith(compareBy<Map.Entry<String, Backoff>> {
+      if (it.key == "apps.apple.com" || it.key == "itunes.apple.com") 0 else 1
+    }.thenByDescending { it.value.retryAt }).take(16)
+    for ((host, state) in persisted) hosts.put(host, JSONObject()
+      .put("retryAtMillis", state.retryAt).put("strikes", state.strikes).put("status", state.status))
+    return JSONObject().put("version", 1).put("hosts", hosts).toString()
+  }
+
+  private fun notifyBackoffChanged() {
+    val (callback, snapshot) = synchronized(stateLock) { onBackoffChanged to snapshotLocked() }
+    try { callback?.invoke(snapshot)
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: Exception) { /* Persistence failure must not hide the typed HTTP failure. */ }
+  }
 
   suspend fun search(term: String, options: AppleIconOptions): List<AppleAppMatch> {
     require(term.trim().length in 1..100)
@@ -112,41 +200,108 @@ internal class AppleIconClient(private val transport: AppleIconTransport = Apple
   }
 
   suspend fun artwork(app: AppleAppMatch, options: AppleIconOptions): AppleArtwork {
-    val effective = options.forApp(app)
-    // The storefront groups iPhone and iPad artwork under ios. iPad eligibility comes from search.
-    val additional = if (options.platform == ApplePlatform.MACOS) "mac" else "iphone"
-    try {
-      val body = metadataRequest("https://apps.apple.com/api/apps/v1/catalog/${effective.country}/apps/${app.id}?" +
-        query(mapOf("platform" to "web", "additionalPlatforms" to additional, "extend" to "iconArtwork",
-          "fields[apps]" to "name,artwork,iconArtwork", "l" to "en-US")))
-      return parseArtwork(body, app, effective, System.currentTimeMillis())
-    } catch (cancelled: CancellationException) { throw cancelled
-    } catch (_: Exception) {
-      val body = metadataRequest("https://itunes.apple.com/lookup?" +
-        query(mapOf("id" to app.id, "country" to effective.country)))
-      return parseStandardArtwork(body, app, effective, System.currentTimeMillis())
+    return artworks(listOf(app), options)[app.id] ?: throw IOException("Apple artwork unavailable")
+  }
+
+  /** Plain app-ID keys; callers must keep effective storefront/platform together. */
+  suspend fun artworks(apps: List<AppleAppMatch>, options: AppleIconOptions): Map<String, AppleArtwork> {
+    val result = linkedMapOf<String, AppleArtwork>()
+    var lastFailure: Exception? = null
+    val publicApps = apps.filter { it.id.matches(Regex("[0-9]{6,12}")) }
+    require(publicApps.map { options.forApp(it).country }.distinct().size <= 1) {
+      "Apple artwork batches must use one effective storefront"
     }
+    val groups = publicApps.distinctBy { it.id }.groupBy { options.forApp(it).country }
+    val additional = if (options.platform == ApplePlatform.MACOS) "mac" else "iphone"
+    for ((country, countryApps) in groups) for (batch in countryApps.chunked(25)) {
+      currentCoroutineContext().ensureActive()
+      val effective = options.copy(country = country)
+      try {
+        val body = metadataRequest("https://apps.apple.com/api/apps/v1/catalog/$country/apps?" +
+          query(mapOf("ids" to batch.joinToString(",") { it.id }, "platform" to "web",
+            "additionalPlatforms" to additional, "extend" to "iconArtwork",
+            "fields[apps]" to "name,bundleId,artwork,iconArtwork", "l" to "en-US")))
+        for (app in batch) {
+          currentCoroutineContext().ensureActive()
+          try { result[app.id] = parseArtwork(body, app, effective, clockMillis())
+          } catch (cancelled: CancellationException) { throw cancelled
+          } catch (failure: Exception) { lastFailure = failure }
+        }
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (failure: Exception) { lastFailure = failure }
+      val missing = batch.filter { it.id !in result }
+      if (missing.isEmpty()) continue
+      try {
+        val body = metadataRequest("https://itunes.apple.com/lookup?" +
+          query(mapOf("id" to missing.joinToString(",") { it.id }, "country" to country,
+            "entity" to options.platform.entity)))
+        for (app in missing) {
+          currentCoroutineContext().ensureActive()
+          try { result[app.id] = parseStandardArtwork(body, app, effective, clockMillis())
+          } catch (cancelled: CancellationException) { throw cancelled
+          } catch (failure: Exception) {
+            if (lastFailure !is AppleRequestException) lastFailure = failure
+          }
+        }
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (failure: Exception) {
+        if (failure is AppleRequestException || lastFailure !is AppleRequestException) lastFailure = failure
+      }
+    }
+    if (result.isEmpty() && lastFailure != null) throw lastFailure
+    return result
   }
 
   suspend fun image(url: String): ByteArray {
     AppleIconPolicy.validateUrl(url, artwork = true)
-    return transport.get(url)
+    return request(url, paced = false)
   }
 
-  private suspend fun metadataRequest(url: String): ByteArray = requests.withLock {
-    val now = android.os.SystemClock.elapsedRealtime()
+  private suspend fun metadataRequest(url: String): ByteArray = request(url, paced = true)
+
+  private suspend fun request(url: String, paced: Boolean): ByteArray = requests.withLock {
+    AppleIconPolicy.validateUrl(url)
     val host = URI(url).host
-    if (now < (blockedUntil[host] ?: 0L)) throw AppleRequestException(429)
-    delay((nextMetadataAt - now).coerceAtLeast(0))
+    fun checkBlocked() {
+      val blocked = synchronized(stateLock) { backoffs[host]?.takeIf { it.retryAt > clockMillis() } }
+      if (blocked != null) throw AppleRequestException(blocked.status, blocked.retryAt)
+    }
+    checkBlocked()
+    if (paced) delay(((nextMetadataAt[host] ?: 0L) - System.nanoTime() / 1_000_000).coerceAtLeast(0))
+    checkBlocked()
     try {
-      transport.get(url)
+      val body = transport.get(url)
+      val changed = synchronized(stateLock) { backoffs.remove(host) != null }
+      if (changed) notifyBackoffChanged()
+      body
     } catch (failure: AppleRequestException) {
-      if (failure.status == 429) blockedUntil[host] = android.os.SystemClock.elapsedRealtime() + 60_000
+      if (failure.status == 429 || failure.status == 503) {
+        val deadline = synchronized(stateLock) {
+          val now = clockMillis()
+          val previous = backoffs[host]?.takeIf { it.retryAt >= now - MAX_BACKOFF_MILLIS }
+          val strikes = ((previous?.strikes ?: 0) + 1).coerceAtMost(7)
+          val exponential = (60_000L shl (strikes - 1)).coerceAtMost(60 * 60 * 1_000L)
+          val retryAt = maxOf(now + exponential, failure.retryAtMillis)
+            .coerceAtMost(now + MAX_BACKOFF_MILLIS)
+          if (host !in backoffs && backoffs.size >= 16) {
+            backoffs.entries.firstOrNull { it.value.retryAt <= now }?.let { backoffs.remove(it.key) }
+          }
+          backoffs[host] = Backoff(retryAt, strikes, failure.status)
+          retryAt
+        }
+        notifyBackoffChanged()
+        throw AppleRequestException(failure.status, deadline)
+      }
       throw failure
-    } finally { nextMetadataAt = android.os.SystemClock.elapsedRealtime() + metadataIntervalMillis }
+    } finally {
+      if (paced) nextMetadataAt[host] = System.nanoTime() / 1_000_000 + metadataIntervalMillis
+    }
   }
 
   companion object {
+    private fun allowedHost(host: String): Boolean =
+      host in listOf("apps.apple.com", "itunes.apple.com") ||
+        host.matches(Regex("is[0-9]{1,2}-ssl\\.mzstatic\\.com"))
     private fun query(values: Map<String, String>): String = values.entries.joinToString("&") {
       "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
     }.replace("%2C", ",").replace("%5B", "[").replace("%5D", "]")

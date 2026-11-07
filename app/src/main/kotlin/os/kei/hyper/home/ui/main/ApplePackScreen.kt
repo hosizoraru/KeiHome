@@ -170,6 +170,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     }
   }
   LaunchedEffect(controller, section) { controller.load() }
+  LaunchedEffect(state.retryAtMillis) {
+    if (state.retryAtMillis > 0) {
+      kotlinx.coroutines.delay((state.retryAtMillis - System.currentTimeMillis()).coerceAtLeast(0))
+      controller.refreshCooldown()
+    }
+  }
   LaunchedEffect(search, state.editing) { if (search && state.editing == null) onBack() }
   DisposableEffect(controller, search) { onDispose { if (search) controller.closeSearch() } }
   LaunchedEffect(model, lifecycle, locales) {
@@ -241,6 +247,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           bottom = insets.calculateBottomPadding() +
             maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (state.retryAtMillis > 0) item("request-cooldown") {
+          PackInfoCard(stringResource(R.string.apple_cooldown_summary,
+            android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
+        }
         if (main) {
           item("intro") { PackInfoCard(stringResource(R.string.apple_intro)) }
           item("options") {
@@ -291,7 +301,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               BasicComponent(title = stringResource(R.string.apple_download_cache),
                 summary = stringResource(R.string.apple_cache_summary),
                 endActions = { Text(Formatter.formatShortFileSize(context, state.cacheBytes)) })
-              BasicComponent(title = stringResource(R.string.apple_check_updates), enabled = enabled,
+            BasicComponent(title = stringResource(R.string.apple_check_updates),
+              enabled = enabled && state.retryAtMillis == 0L,
                 summary = stringResource(R.string.apple_check_updates_summary), onClick = { controller.generate(refresh = true) })
               BasicComponent(title = stringResource(R.string.apple_clear_downloads), enabled = enabled && !state.searching,
                 onClick = controller::clearDownloads)
@@ -341,6 +352,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
         } else {
           item("intro") { PackInfoCard(stringResource(R.string.apple_search_intro, state.editing?.label.orEmpty())) }
+          state.editing?.packageName?.let { packageName ->
+            item("editing-package") {
+              Text(packageName, Modifier.padding(horizontal = 12.dp),
+                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
+          }
           val current = state.rows.firstOrNull { it.target.packageName == state.editing?.packageName }
           if (current?.app != null) item("current-mapping") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
@@ -351,6 +368,14 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 summary = stringResource(R.string.apple_no_cached_preview), enabled = enabled && !state.previewing,
                 onClick = { focus.clearFocus(); keyboard?.hide()
                   controller.preview(current.app.copy(country = current.app.country ?: state.options.country)) })
+              if (!current.app.id.startsWith("system_")) BasicComponent(
+                title = stringResource(R.string.apple_refresh_one),
+                summary = stringResource(R.string.apple_refresh_one_summary),
+                enabled = enabled && !state.previewing && state.retryAtMillis == 0L,
+                onClick = {
+                  focus.clearFocus(); keyboard?.hide()
+                  controller.preview(current.app.copy(country = current.app.country ?: state.options.country), refresh = true)
+                })
             }
           }
           item("search-region") {

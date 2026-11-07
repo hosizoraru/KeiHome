@@ -3,11 +3,13 @@ package os.kei.hyper.home.ui.main
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -17,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
@@ -28,6 +32,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
@@ -125,7 +130,8 @@ internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter
         AppleMappingFilter.CROSS_REGION -> row.app?.country?.let { it != country } == true
         AppleMappingFilter.SYSTEM -> row.target.system
         AppleMappingFilter.USER -> !row.target.system
-        AppleMappingFilter.MISSING_DARK -> row.app != null && row.darkCapability == AppleDarkCapability.MISSING
+        AppleMappingFilter.MISSING_DARK -> row.app != null &&
+          row.darkCapability in listOf(AppleDarkCapability.MISSING, AppleDarkCapability.SHARED)
       } &&
       (needle.isEmpty() || listOfNotNull(row.target.label, row.target.packageName, row.app?.name,
         row.app?.publisher, row.app?.bundleId, row.app?.id, row.app?.let { it.country ?: country })
@@ -163,25 +169,47 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp),
       onClick = { if (enabled) onSelect(row) }) {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val app = row.app
+        val mappingDescription = if (app != null) {
+          stringResource(R.string.apple_mapping_accessibility, row.target.label, app.name, row.target.packageName)
+        } else {
+          stringResource(R.string.apple_mapping_package_accessibility, row.target.label, row.target.packageName)
+        }
+        Row(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = mappingDescription },
+          verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(row.target.label, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
+          if (app != null) {
+            Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(18.dp),
+              tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Text(app.name, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
+              maxLines = 2, overflow = TextOverflow.Ellipsis)
+          }
+        }
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          if (app != null) {
+            val country = app.country ?: state.options.country
+            val regionDescription = appleRegionName(country, LocalConfiguration.current.locales[0])
+            MetadataPill(country.uppercase(Locale.ROOT), MiuixTheme.colorScheme.onSurfaceSecondary,
+              Modifier.clearAndSetSemantics { contentDescription = regionDescription })
+          }
           MetadataPill(stringResource(when {
-            row.custom && row.app == null -> R.string.apple_excluded
+            row.custom && app == null -> R.string.apple_excluded
             row.custom -> R.string.apple_custom
-            row.app != null -> R.string.apple_automatic
+            app != null -> R.string.apple_automatic
             else -> R.string.apple_filter_unmapped
           }), MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        Text(row.target.packageName, style = MiuixTheme.textStyles.footnote2,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        row.app?.let { app ->
-          Text("${app.name} · ${appleRegionName(app.country ?: state.options.country, LocalConfiguration.current.locales[0])}",
-            style = MiuixTheme.textStyles.body2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-          if (row.darkCapability == AppleDarkCapability.MISSING) {
-            MetadataPill(stringResource(R.string.apple_missing_dark_badge), MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (app != null && row.darkCapability in listOf(AppleDarkCapability.MISSING, AppleDarkCapability.SHARED)) {
+            val shared = row.darkCapability == AppleDarkCapability.SHARED
+            val missingDarkDescription = stringResource(if (shared) R.string.apple_shared_dark_badge else R.string.apple_missing_dark_badge)
+            MetadataPill(stringResource(if (shared) R.string.apple_shared_dark_badge else R.string.apple_missing_dark_badge_compact),
+              MiuixTheme.colorScheme.onSurfaceSecondary,
+              Modifier.clearAndSetSemantics { contentDescription = missingDarkDescription })
           }
+        }
+        if (app != null) {
           val cached = preview
           Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
             if (cached != null) AppleArtworkPair(cached, compact = true) else {
@@ -197,11 +225,16 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
 
 @Composable
 internal fun AppleArtworkPair(preview: AppleArtworkPreview, compact: Boolean = false) {
-  Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-    AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
-      if (compact) 56.dp else 76.dp)
-    AppleArtworkThumb(preview.dark ?: preview.light,
-      stringResource(if (preview.dark == null) R.string.apple_preview_same else R.string.apple_preview_dark),
-      if (compact) 56.dp else 76.dp, dark = true)
+  Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+      AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
+        if (compact) 56.dp else 76.dp)
+    }
+    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+      AppleArtworkThumb(preview.dark ?: preview.light,
+        stringResource(if (preview.dark == null)
+          if (preview.limited) R.string.apple_dark_pending else R.string.apple_preview_same else R.string.apple_preview_dark),
+        if (compact) 56.dp else 76.dp, dark = true)
+    }
   }
 }

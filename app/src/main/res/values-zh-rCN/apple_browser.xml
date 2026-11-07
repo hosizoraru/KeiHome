@@ -2,6 +2,9 @@
 <resources>
     <string name="apple_filter_missing_dark">缺少独立深色图标</string>
     <string name="apple_missing_dark_badge">已缓存的图标没有独立深色变体</string>
+    <string name="apple_missing_dark_badge_compact">深色待补齐</string>
+    <string name="apple_mapping_accessibility">%1$s 映射到 %2$s。包名：%3$s</string>
+    <string name="apple_mapping_package_accessibility">%1$s。包名：%2$s</string>
     <string name="apple_mapping_transfer">映射导入与导出</string>
     <string name="apple_mapping_export">导出手动映射…</string>
     <string name="apple_mapping_import">导入手动映射…</string>

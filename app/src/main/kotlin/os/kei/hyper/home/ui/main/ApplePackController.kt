@@ -22,9 +22,10 @@ import os.kei.hyper.home.iconpack.apple.AppleIconRepository
 import os.kei.hyper.home.iconpack.apple.AppleRequestException
 import os.kei.hyper.home.iconpack.apple.ApplePackSizeException
 import os.kei.hyper.home.iconpack.apple.AppleMappingTransfer
+import os.kei.hyper.home.iconpack.apple.AppleStorefrontPolicy
 
 internal enum class ApplePackError { NETWORK, LIMITED, EMPTY, GENERATION, SIZE }
-internal enum class AppleDarkCapability { UNKNOWN, INDEPENDENT, MISSING }
+internal enum class AppleDarkCapability { UNKNOWN, INDEPENDENT, SHARED, MISSING }
 internal data class AppleMappingRow(val target: AppleAppTarget, val app: AppleAppMatch?, val custom: Boolean,
   val darkCapability: AppleDarkCapability = AppleDarkCapability.UNKNOWN)
 internal data class ApplePackUiState(
@@ -35,6 +36,7 @@ internal data class ApplePackUiState(
   val pack: IconPackDescriptor? = null,
   val publishedOptions: AppleIconOptions? = null,
   val cacheBytes: Long = 0,
+  val retryAtMillis: Long = 0,
   val progress: AppleGenerationProgress? = null,
   val result: AppleGenerationResult? = null,
   val error: ApplePackError? = null,
@@ -46,7 +48,7 @@ internal data class ApplePackUiState(
   val previewing: Boolean = false,
   val preview: AppleArtworkPreview? = null,
   val currentPreview: AppleArtworkPreview? = null,
-  val searchCountry: String = "us",
+  val searchCountry: String = options.country,
   val previewRevision: Int = 0,
 )
 
@@ -63,6 +65,7 @@ internal class ApplePackController(
   private var currentPreviewJob: Job? = null
   private var capabilitiesJob: Job? = null
   private var reloadRequested = false
+  private var searchCountryExplicit = false
 
   fun load() {
     if (mutable.value.loading || mutable.value.busy) { reloadRequested = true; return }
@@ -80,6 +83,7 @@ internal class ApplePackController(
         mutable.update { value -> value.copy(loading = false,
           rows = if (value.options == options) snapshot else value.rows,
           pack = pack, publishedOptions = published, cacheBytes = bytes, pendingChanges = pending,
+          retryAtMillis = repository.retryAtMillis(),
           previewRevision = value.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (_: Exception) { mutable.update { it.copy(loading = false, error = ApplePackError.GENERATION) } }
@@ -103,9 +107,10 @@ internal class ApplePackController(
     currentPreviewJob?.cancel()
     val snapshot = mutable.value
     val current = snapshot.rows.firstOrNull { it.target.packageName == target.packageName }?.app
+    searchCountryExplicit = current?.country != null
     mutable.update { it.copy(editing = target, candidates = emptyList(), searching = false, searched = false,
       error = null, preview = null, currentPreview = null, previewing = false,
-      searchCountry = current?.country ?: it.options.country) }
+      searchCountry = AppleStorefrontPolicy.searchCountry(target.label, it.options.country, current?.country)) }
     if (current != null) currentPreviewJob = scope.launch {
       try {
         val preview = repository.cachedPreview(current, snapshot.options)
@@ -116,7 +121,9 @@ internal class ApplePackController(
   }
 
   fun searchCountry(country: String) {
-    if (mutable.value.searchCountry == country || mutable.value.busy) return
+    if (mutable.value.busy) return
+    searchCountryExplicit = true
+    if (mutable.value.searchCountry == country) return
     search?.cancel()
     mutable.update { it.copy(searchCountry = country, candidates = emptyList(), preview = null,
       searched = false, searching = false, previewing = false, error = null) }
@@ -140,15 +147,18 @@ internal class ApplePackController(
   fun search(query: String) {
     val snapshot = mutable.value
     if (snapshot.busy || snapshot.editing == null || query.trim().length !in 1..100) return
+    val country = AppleStorefrontPolicy.searchCountry(query, snapshot.searchCountry,
+      snapshot.searchCountry.takeIf { searchCountryExplicit })
     search?.cancel()
     mutable.update { it.copy(searching = true, searched = false, candidates = emptyList(), error = null,
-      preview = null, previewing = false) }
+      preview = null, previewing = false, searchCountry = country) }
     search = scope.launch {
       try {
-        val candidates = repository.search(query, snapshot.options.copy(country = snapshot.searchCountry))
+        val candidates = repository.search(query, snapshot.options.copy(country = country))
         mutable.update { it.copy(searching = false, searched = true, candidates = candidates) }
       } catch (cancelled: CancellationException) { throw cancelled
-      } catch (failure: Exception) { mutable.update { it.copy(searching = false, error = failure.uiError()) } }
+      } catch (failure: Exception) { mutable.update { it.copy(searching = false, error = failure.uiError()) }
+      } finally { refreshCooldown() }
     }
   }
 
@@ -163,20 +173,23 @@ internal class ApplePackController(
     refreshCapabilities()
   }
 
-  fun preview(app: AppleAppMatch) {
+  fun preview(app: AppleAppMatch, refresh: Boolean = false) {
     if (mutable.value.busy) return
     search?.cancel()
     val options = mutable.value.options
     mutable.update { it.copy(previewing = true, preview = null, error = null) }
     search = scope.launch {
       try {
-        val preview = repository.preview(app, options)
+        val preview = repository.preview(app, options, refresh)
         val bytes = repository.cacheBytes()
         mutable.update { it.copy(preview = preview, previewing = false, cacheBytes = bytes,
+          currentPreview = if (refresh && it.currentPreview?.app?.id == app.id) preview else it.currentPreview,
+          pendingChanges = it.pendingChanges || refresh,
           previewRevision = it.previewRevision + 1) }
         refreshCapabilities()
       } catch (cancelled: CancellationException) { throw cancelled
-      } catch (failure: Exception) { mutable.update { it.copy(previewing = false, error = failure.uiError()) } }
+      } catch (failure: Exception) { mutable.update { it.copy(previewing = false, error = failure.uiError()) }
+      } finally { refreshCooldown() }
     }
   }
 
@@ -210,7 +223,7 @@ internal class ApplePackController(
           mutable.update { it.copy(error = ApplePackError.EMPTY) }
           return@launch
         }
-        val result = repository.generate(targets, snapshot.options, refresh) { progress ->
+        val result = repository.generate(targets, snapshot.options, retryIncomplete = refresh) { progress ->
           mutable.update { it.copy(progress = progress) }
         }
         val bytes = repository.cacheBytes()
@@ -224,13 +237,14 @@ internal class ApplePackController(
         mutable.update { it.copy(error = failure.uiError()) }
         android.util.Log.w("KeiHomeAppleIcons", "Apple icon generation failed", failure)
       } finally {
-        mutable.update { it.copy(busy = false, progress = null) }
+        mutable.update { it.copy(busy = false, progress = null, retryAtMillis = repository.retryAtMillis()) }
         if (reloadRequested) load() else refreshCapabilities()
       }
     }
   }
 
   fun cancel() { work?.cancel(); search?.cancel(); mutable.update { it.copy(searching = false, previewing = false) } }
+  fun refreshCooldown() { mutable.update { it.copy(retryAtMillis = repository.retryAtMillis()) } }
   fun closeSearch() {
     search?.cancel(); currentPreviewJob?.cancel()
     mutable.update { it.copy(searching = false, previewing = false, preview = null, currentPreview = null) }
@@ -261,7 +275,7 @@ internal class ApplePackController(
           val preview = repository.cachedPreview(app, options)
           val value = when {
             preview == null -> AppleDarkCapability.UNKNOWN
-            preview.dark == null -> AppleDarkCapability.MISSING
+            preview.dark == null -> if (preview.limited) AppleDarkCapability.MISSING else AppleDarkCapability.SHARED
             else -> AppleDarkCapability.INDEPENDENT
           }
           known[app] = value
@@ -273,7 +287,8 @@ internal class ApplePackController(
 
   private fun Exception.uiError(): ApplePackError = when (this) {
     is ApplePackSizeException -> ApplePackError.SIZE
-    is AppleRequestException -> if (status == 429) ApplePackError.LIMITED else ApplePackError.NETWORK
+    is AppleRequestException -> if (status == 429 || retryAtMillis > System.currentTimeMillis())
+      ApplePackError.LIMITED else ApplePackError.NETWORK
     is IOException -> ApplePackError.NETWORK
     else -> ApplePackError.GENERATION
   }

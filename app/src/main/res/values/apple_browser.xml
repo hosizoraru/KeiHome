@@ -2,6 +2,9 @@
 <resources>
     <string name="apple_filter_missing_dark">Missing independent dark</string>
     <string name="apple_missing_dark_badge">Cached icon has no independent dark variant</string>
+    <string name="apple_missing_dark_badge_compact">Dark artwork pending</string>
+    <string name="apple_mapping_accessibility">%1$s maps to %2$s. Package: %3$s</string>
+    <string name="apple_mapping_package_accessibility">%1$s. Package: %2$s</string>
     <string name="apple_mapping_transfer">Mapping import and export</string>
     <string name="apple_mapping_export">Export manual mappings…</string>
     <string name="apple_mapping_import">Import manual mappings…</string>

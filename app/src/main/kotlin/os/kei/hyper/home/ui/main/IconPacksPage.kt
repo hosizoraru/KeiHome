@@ -328,6 +328,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   var expanded by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
+  val generated = pack.source is IconPackSource.Generated
   val native = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS
   val previewAppearance = if (native) IconPackAppearance.SYSTEM else appearance
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
@@ -355,14 +356,17 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
       FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         PackInlineAction(stringResource(when {
           importing -> R.string.icon_pack_importing
+          nativeId != null && generated -> R.string.icon_pack_native_update
           nativeId != null -> R.string.icon_pack_native_open
           else -> R.string.icon_pack_native_import
         }), onClick = {
-          if (nativeId == null) onImport() else {
+          // Generated packs retain their source ID while their content and native theme record change.
+          if (nativeId == null || generated) onImport() else {
             openFailed = runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(nativeId)) }.isFailure
           }
-        }, enabled = nativeId != null || (enabled && (card.matchedApps > 0 ||
-          pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)))
+        }, enabled = if (generated) enabled && !importing && card.matchedApps > 0
+          else nativeId != null || (enabled && (card.matchedApps > 0 ||
+            pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)))
         TextButton(stringResource(if (expanded) R.string.icon_pack_hide_details else R.string.icon_pack_details),
           onClick = { expanded = !expanded })
       }

@@ -108,10 +108,10 @@ internal fun SettingsContent(
     R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
-  val autoApply = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
-  val installedIconsOnly = matches(SettingsSection.APP, R.string.pack_action_settings,
+  val autoApply = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
+  val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
-  val rememberMenus = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
+  val rememberMenus = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
     R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
@@ -242,7 +242,8 @@ internal fun SettingsContent(
         stringResource(R.string.polish_settings_previews),
         modifier = Modifier.semantics { heading() },
       )
-      PreviewPreferences(preferences.showIconPreviews, onPreviewsChange, onClearIconCache, previews, clear)
+      PreviewPreferences(preferences.showIconPreviews, onPreviewsChange, onClearIconCache, previews,
+        clear && section != SettingsSection.CACHE)
     }
     if (about || aboutPackage || aboutApi) {
       if (section != SettingsSection.ABOUT) SmallTitle(

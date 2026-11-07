@@ -32,10 +32,12 @@ import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Layers
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
   APP("app", R.string.settings_app_section, R.string.settings_app_summary),
+  PACKS("pack-actions", R.string.pack_action_settings, R.string.pack_action_settings_summary),
   GUIDE("setup", R.string.setup_title, R.string.setup_replay_summary),
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
   CACHE("cache", R.string.settings_cache_section, R.string.settings_cache_summary),
@@ -55,6 +57,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         SettingsSection.entries.forEach { section ->
           val icon = when (section) {
             SettingsSection.APP -> MiuixIcons.Settings
+            SettingsSection.PACKS -> MiuixIcons.Theme
             SettingsSection.GUIDE -> MiuixIcons.Info
             SettingsSection.HOOK -> MiuixIcons.Layers
             SettingsSection.CACHE -> MiuixIcons.Refresh

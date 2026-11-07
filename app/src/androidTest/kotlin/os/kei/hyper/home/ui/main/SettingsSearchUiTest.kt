@@ -132,6 +132,8 @@ class SettingsSearchUiTest {
       rule.runOnIdle { section.value = SettingsSection.HOOK }
       rule.onNodeWithText(title).assertDoesNotExist()
       rule.runOnIdle { section.value = SettingsSection.APP }
+      rule.onNodeWithText(title).assertDoesNotExist()
+      rule.runOnIdle { section.value = SettingsSection.PACKS }
       rule.onNodeWithText(title).assertExists()
       rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOn().performClick()
       rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOff()

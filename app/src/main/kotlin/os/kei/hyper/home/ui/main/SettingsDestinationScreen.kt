@@ -10,12 +10,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,6 +37,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -57,6 +61,9 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     else -> license?.title
   }
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
+  var actionHeight by remember { mutableIntStateOf(0) }
+  val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
+  val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales) {
@@ -78,11 +85,20 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
         } })
     }
+  }, floatingActionButton = {
+    if (section == SettingsSection.CACHE) PageActionFab(
+      stringResource(R.string.polish_clear_previews), MiuixIcons.Delete,
+      onHeightChanged = { actionHeight = it },
+      modifier = Modifier.testTag("settings.cache.clear"), onClick = {
+        model.clearPreviewCache()
+        cacheRefresh++
+        android.widget.Toast.makeText(context, R.string.polish_previews_cleared, android.widget.Toast.LENGTH_SHORT).show()
+      })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection).verticalScroll(rememberScrollState())
         .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() + 24.dp)) {
+          bottom = insets.calculateBottomPadding() + if (section == SettingsSection.CACHE) actionBottomPadding else 24.dp)) {
         when {
           license != null -> LicenseDocument(license.asset)
           component != null -> ThirdPartyComponentDetails(component, onNavigate)

@@ -1,7 +1,6 @@
 package os.kei.hyper.home.ui.main
 
 import android.content.Intent
-import android.net.Uri
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -30,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -56,6 +57,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -73,6 +75,9 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   var refresh by remember { mutableIntStateOf(0) }
   var stats by remember { mutableStateOf(0L to 0) }
   var confirmClear by remember { mutableStateOf(false) }
+  var exporting by remember { mutableStateOf(false) }
+  var actionHeight by remember { mutableIntStateOf(0) }
+  val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val hours = when (rangeIndex) { 0 -> 3L; 1 -> 6L; 2 -> 12L; 3 -> 24L
     else -> customHours.toLongOrNull()?.takeIf { it in 1..168 } ?: 0L }
   LaunchedEffect(hours, refresh) {
@@ -90,10 +95,34 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
     }, actions = {
       IconButton(onClick = { refresh++ }) { Icon(MiuixIcons.Refresh, stringResource(R.string.refresh)) }
     })
+  }, floatingActionButton = {
+    PageActionFab(stringResource(R.string.logs_export), MiuixIcons.Share,
+      onHeightChanged = { actionHeight = it },
+      modifier = Modifier.testTag("settings.logs.export"), enabled = hours > 0, busy = exporting, onClick = {
+        val since = System.currentTimeMillis() - hours * 3_600_000
+        exporting = true
+        scope.launch {
+          try {
+            val file = withContext(Dispatchers.IO) { AppLogStore.export(context, since) }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+              type = "application/zip"
+              putExtra(Intent.EXTRA_STREAM, uri)
+              addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }, resources.getString(R.string.logs_export)))
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (_: Exception) {
+            Toast.makeText(context, R.string.logs_export_failed, Toast.LENGTH_SHORT).show()
+          } finally {
+            exporting = false
+          }
+        }
+      })
   }) { padding ->
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
       .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
-        bottom = padding.calculateBottomPadding() + 24.dp),
+        bottom = padding.calculateBottomPadding() + actionBottomPadding),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Card(Modifier.fillMaxWidth().clickable(
         onClickLabel = stringResource(R.string.logs_source), onClick = openFrameworkLogs),
@@ -159,26 +188,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
           summary = stringResource(R.string.logs_lines, stats.second), endActions = {
             Text(Formatter.formatShortFileSize(context, stats.first))
           })
-        BasicComponent(title = stringResource(R.string.logs_export), onClick = {
-          if (hours == 0L) {
-            Toast.makeText(context, R.string.logs_invalid_range, Toast.LENGTH_SHORT).show()
-            return@BasicComponent
-          }
-          scope.launch {
-            val since = System.currentTimeMillis() - hours * 3_600_000
-            val file = withContext(Dispatchers.IO) { runCatching { AppLogStore.export(context, since) }.getOrNull() }
-            if (file == null) Toast.makeText(context, R.string.logs_export_failed, Toast.LENGTH_SHORT).show()
-            else {
-              val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-              context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type = "application/zip"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-              }, resources.getString(R.string.logs_export)))
-            }
-          }
-        })
-        BasicComponent(title = stringResource(R.string.logs_clear), onClick = {
+        BasicComponent(title = stringResource(R.string.logs_clear), enabled = !exporting, onClick = {
           if (hours == 0L) Toast.makeText(context, R.string.logs_invalid_range, Toast.LENGTH_SHORT).show()
           else confirmClear = true
         })

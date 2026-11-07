@@ -12,12 +12,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -51,6 +55,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   val fallback = section == "fallback"
+  var actionHeight by remember { mutableIntStateOf(0) }
+  val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales, section) {
@@ -87,11 +93,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
             RefreshAction(model, 3)
           })
       }
-    }, floatingActionButton = { PackActionFab(model, 3, section) },
+    }, floatingActionButton = { PackActionFab(model, 3, section, onHeightChanged = { actionHeight = it }) },
   ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-        bottom = insets.calculateBottomPadding() + if (section == "coloros" || fallback) 100.dp else 24.dp)
+        bottom = insets.calculateBottomPadding() + if (section == "coloros" || fallback) actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)
       if (fallback) {
         Column(contentModifier.verticalScroll(rememberScrollState()).padding(padding),

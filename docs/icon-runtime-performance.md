@@ -37,7 +37,7 @@ remain intact; this change adds no native hook, timer or frame-rate vote.
   preserving older applied themes. Each new selector receives one coherent
   value, and unchanged publication emits no further notifications. The
   importer still admits the exact legacy templates.
-- `installed_icons_only` is a default-off MMKV preference under App settings.
+- `installed_icons_only` is a default-off MMKV preference under Settings > Icon pack actions.
   It restricts generated mappings and additions to the installed launcher
   targets. Original imported native resource trees are preserved. With it
   enabled, newly installed mapped apps may require an icon-pack update.

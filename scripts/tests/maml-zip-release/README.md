@@ -4,8 +4,9 @@ The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
 ring. The host test covers 9,095 exactly-once releases, initialization failures,
 out-of-order publication, single-attempt reservation races, ticket wraparound,
 saturation, worker recursion and eight concurrent producers. Run the same test
-with `-fsanitize=thread` for the concurrent ownership checks. Neither sanitizer
-run substitutes for Android interaction and frame-trace acceptance.
+under ASan/UBSan and TSan using the commands below. It also runs nine injected
+worker-priority scenarios. Neither sanitizer run substitutes for Android
+interaction and frame-trace acceptance.
 
 Run from the repository root. SDK binaries are local source fixtures, not
 redistributed project assets.
@@ -21,18 +22,55 @@ clang++ -std=c++17 -Wall -Wextra -Werror -O2 -Iapp/src/main/cpp \
   .artifacts/inputs/framework/librust_maml_sdk.so 0x4592b0
 /tmp/keihome-zip-profile-test \
   .artifacts/inputs/framework/maml/pandora-20261106/librust_maml_sdk.so 0x49d640
-
-clang++ -std=c++17 -Wall -Wextra -Werror -O1 -g \
-  -fsanitize=address,undefined -pthread -Iapp/src/main/cpp \
-  app/src/test/cpp/deferred_zip_release_test.cpp \
-  app/src/main/cpp/deferred_zip_release.cpp \
-  -o /tmp/keihome-zip-queue-test
-/tmp/keihome-zip-queue-test
 ```
 
-Repeat the queue command with `-fsanitize=thread` for concurrent ownership
-checks. The queue test covers 9,095 allocations, a blocked consumer/full queue,
-startup fallback, eight producers, recursion rejection and complete drain.
+Copyable queue/priority sanitizer commands (no SDK fixtures or Gradle needed):
+
+```sh
+(
+  set -eu
+  host_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/keihome-zip-priority.XXXXXX")
+  for sanitizer in address,undefined thread; do
+    case "$sanitizer" in
+      address,undefined) test_name=deferred_zip_release_asan ;;
+      thread) test_name=deferred_zip_release_tsan ;;
+    esac
+    clang++ -std=c++17 -Wall -Wextra -Werror -O1 -g \
+      "-fsanitize=$sanitizer" -pthread -Iapp/src/main/cpp \
+      app/src/test/cpp/deferred_zip_release_test.cpp \
+      app/src/main/cpp/deferred_zip_release.cpp \
+      -o "$host_test_dir/$test_name"
+    "$host_test_dir/$test_name"
+  done
+)
+```
+
+Each binary is invoked **without arguments**: there are no CLI case selectors.
+Both runs execute all nine scenarios below, followed by initialization-failure
+checks and the existing 9,095-allocation regression. The names are the exact
+`PriorityScenario` identifiers in the C++ test, not invented command-line flags.
+
+| Scenario identifier | Assertion coverage |
+| --- | --- |
+| `Hysteresis` | Remaining backlog 32 boosts 10 to 0; 9 retains 0; 8 restores 10; renewed pressure repeats the cycle. |
+| `GateOff` | Fixed nice 10 under pressure; no boosts or per-item priority calls. |
+| `ToggleGate` | Gate 0 restores 10 on the next active iteration even with 31 queued. |
+| `DeniedBoost` | Failed boost retains observed 10, records one failure, and disables all later transitions. |
+| `DeniedRestore` | Failed restore retains observed 0, records one failure, and disables retries. |
+| `ReadbackFailure` | A successful set followed by unknown readback records failure/unknown nice and disables transitions. |
+| `InitialDeniedSafe` | Initial failure with observed 10 permits the queue but disables transitions. |
+| `InitialDeniedNegative` | Initial failure with observed -10 rejects startup, including concurrent starters. |
+| `InitialDeniedUnknown` | Initial failure with unknown nice rejects startup, including concurrent starters. |
+
+The seven usable-worker scenarios each verify 65 releases exactly once,
+worker-only adapter calls, no negative requests, failure/boost counters and
+idle behavior. Priority adapters are injected; tests never change macOS
+process niceness. Each assertion failure causes a nonzero suite exit. The
+executable prints one aggregate success line, not individual case output.
+
+The 2026-11-07 command expansions, source hashes, captured stdout/stderr, exit
+codes and per-case assertion results are retained in
+`.artifacts/research/launcher-followup-20261107/priority-host-tests.log`.
 
 The two SDK tests each perform 328 checks. They include typed destructor
 callees, wrong-but-executable branch destinations, allocator import identity,

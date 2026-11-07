@@ -3,6 +3,7 @@
 #include <atomic>
 #include <assert.h>
 #include <chrono>
+#include <pthread.h>
 #include <stdio.h>
 #include <sys/wait.h>
 #include <thread>
@@ -113,6 +114,190 @@ const DeferredZipReleaseTestHooks kSemaphoreFailure{
     nullptr, nullptr, nullptr, 0, true, false};
 const DeferredZipReleaseTestHooks kWorkerFailure{
     nullptr, nullptr, nullptr, 0, false, true};
+
+enum class PriorityScenario {
+    Hysteresis, GateOff, ToggleGate, DeniedBoost, DeniedRestore, ReadbackFailure,
+    InitialDeniedSafe, InitialDeniedNegative, InitialDeniedUnknown,
+};
+PriorityScenario priority_scenario{};
+std::atomic<unsigned> priority_calls{0};
+std::atomic<int> priority_requests[16]{};
+std::atomic<int> simulated_nice{-10};
+pthread_t priority_caller{}, priority_worker{};
+std::atomic<size_t> pressure_step{0}, allowed_step{0}, idle_waits{0};
+std::atomic<bool> idle_after_drain{false};
+std::atomic<unsigned> pressure_seen[65]{};
+
+bool SetTestPriority(int requested, int* observed) {
+    assert(requested == 10 || requested == 0);
+    assert(!pthread_equal(priority_caller, pthread_self()));
+    const unsigned call = priority_calls.fetch_add(1);
+    assert(call < 16);
+    if (call == 0) priority_worker = pthread_self();
+    assert(pthread_equal(priority_worker, pthread_self()));
+    priority_requests[call] = requested;
+    const bool initial_failure = call == 0 && (
+            priority_scenario == PriorityScenario::InitialDeniedSafe ||
+            priority_scenario == PriorityScenario::InitialDeniedNegative ||
+            priority_scenario == PriorityScenario::InitialDeniedUnknown);
+    const bool denied = initial_failure ||
+            (requested == 0 && priority_scenario == PriorityScenario::DeniedBoost) ||
+            (call > 0 && requested == 10 &&
+             priority_scenario == PriorityScenario::DeniedRestore);
+    const bool unknown_boost = requested == 0 &&
+            priority_scenario == PriorityScenario::ReadbackFailure;
+    if (!denied) simulated_nice = requested;
+    *observed = priority_scenario == PriorityScenario::InitialDeniedUnknown || unknown_boost
+            ? INT32_MIN : simulated_nice.load();
+    return !denied && !unknown_boost;
+}
+void PressureRelease(void* raw) {
+    const size_t id = *static_cast<size_t*>(raw);
+    assert(id < 65 && pressure_seen[id].fetch_add(1) == 0);
+    const size_t step = pressure_step.fetch_add(1) + 1;
+    Await([step] { return allowed_step.load() >= step; });
+}
+void ObserveIdle(size_t credits) {
+    if (credits == 0) {
+        idle_waits.fetch_add(1);
+        if (ReadDeferredZipReleaseStats().completed == 65) idle_after_drain = true;
+    }
+}
+const DeferredZipReleaseTestHooks kPriorityHooks{
+    nullptr, nullptr, ObserveIdle, 0, false, false, SetTestPriority};
+
+void CheckPriorityChild(PriorityScenario scenario) {
+    priority_scenario = scenario;
+    priority_caller = pthread_self();
+    if (scenario == PriorityScenario::InitialDeniedSafe) simulated_nice = 10;
+    const bool gate_off = scenario == PriorityScenario::GateOff;
+    __atomic_store_n(&kh_zip_release_adaptive_priority_enabled,
+                     gate_off ? 0u : 1u, __ATOMIC_RELAXED);
+    SetDeferredZipReleaseTestHooks(&kPriorityHooks);
+    if (scenario == PriorityScenario::InitialDeniedNegative ||
+            scenario == PriorityScenario::InitialDeniedUnknown) {
+        // The failed initial request must not leave a usable inherited -10
+        // worker. Concurrent starters also wait for this startup decision.
+        std::thread starters[4];
+        for (auto& starter : starters)
+            starter = std::thread([] { assert(!StartDeferredZipRelease()); });
+        for (auto& starter : starters) starter.join();
+        const auto state = ReadDeferredZipReleaseStats();
+        assert(priority_calls == 1 && state.priority_failures == 1);
+        assert(state.requested_nice == 10);
+        assert(state.observed_nice == (scenario == PriorityScenario::InitialDeniedNegative
+                ? -10 : INT32_MIN));
+        assert(!TryDeferZipMetadata(&scenario, PressureRelease));
+        assert(state.queued == 0 && state.completed == 0);
+        return;
+    }
+    assert(StartDeferredZipRelease());
+    assert(priority_calls == 1 && priority_requests[0] == 10);
+    assert(ReadDeferredZipReleaseStats().observed_nice == 10);
+    Await([] { return idle_waits.load() != 0; });
+    const size_t idle_before = idle_waits.load();
+    // With no active iteration, changing the gate cannot trigger a syscall or
+    // wake the semaphore. No timer or elapsed-time assertion is involved.
+    for (size_t i = 0; i < 100; ++i) {
+        __atomic_store_n(&kh_zip_release_adaptive_priority_enabled, 0u, __ATOMIC_RELAXED);
+        __atomic_store_n(&kh_zip_release_adaptive_priority_enabled,
+                         gate_off ? 0u : 1u, __ATOMIC_RELAXED);
+    }
+    assert(priority_calls == 1 && idle_waits == idle_before);
+    assert(ReadDeferredZipReleaseStats().completed == 0);
+
+    size_t items[65];
+    for (size_t i = 0; i < 65; ++i) items[i] = i;
+    assert(TryDeferZipMetadata(&items[0], PressureRelease));
+    Await([] { return pressure_step.load() == 1; });
+    // Freeze the active release and establish a deterministic queued backlog.
+    for (size_t i = 1; i <= 33; ++i)
+        assert(TryDeferZipMetadata(&items[i], PressureRelease));
+    assert(ReadDeferredZipReleaseStats().pending == 33);
+    allowed_step = 1;
+    Await([] { return pressure_step.load() == 2; });
+    const bool stays_fixed = gate_off || scenario == PriorityScenario::InitialDeniedSafe;
+    if (stays_fixed) {
+        assert(priority_calls == 1 && simulated_nice == 10);
+    } else {
+        assert(priority_calls == 2 && priority_requests[1] == 0);
+        assert(simulated_nice == (scenario == PriorityScenario::DeniedBoost ? 10 : 0));
+    }
+    assert(ReadDeferredZipReleaseStats().pending == 32);
+    if (scenario == PriorityScenario::ToggleGate) {
+        __atomic_store_n(&kh_zip_release_adaptive_priority_enabled, 0u, __ATOMIC_RELAXED);
+        allowed_step = 2;
+        Await([] { return pressure_step.load() == 3; });
+        // Restore on the next active iteration despite still having 31 queued.
+        assert(ReadDeferredZipReleaseStats().pending == 31);
+        assert(priority_calls == 3 && priority_requests[2] == 10 && simulated_nice == 10);
+    }
+    allowed_step = 24;
+    Await([] { return pressure_step.load() == 25; });
+    assert(ReadDeferredZipReleaseStats().pending == 9);
+    if (scenario == PriorityScenario::Hysteresis ||
+            scenario == PriorityScenario::DeniedRestore)
+        assert(priority_calls == 2 && simulated_nice == 0);
+    allowed_step = 25;
+    Await([] { return pressure_step.load() == 26; });
+    assert(ReadDeferredZipReleaseStats().pending == 8);
+    if (scenario == PriorityScenario::Hysteresis ||
+            scenario == PriorityScenario::DeniedRestore) {
+        assert(priority_calls == 3 && priority_requests[2] == 10);
+        assert(simulated_nice == (scenario == PriorityScenario::DeniedRestore ? 0 : 10));
+    }
+
+    // Refill above the high watermark while the next callback is blocked.
+    // A failed adapter must never be retried, even under renewed pressure.
+    for (size_t i = 34; i < 65; ++i)
+        assert(TryDeferZipMetadata(&items[i], PressureRelease));
+    assert(ReadDeferredZipReleaseStats().pending == 39);
+    const unsigned before_refill = priority_calls.load();
+    allowed_step = 26;
+    Await([] { return pressure_step.load() == 27; });
+    if (scenario == PriorityScenario::Hysteresis) {
+        assert(priority_calls == before_refill + 1 && priority_requests[3] == 0);
+    } else {
+        assert(priority_calls == before_refill);
+    }
+    allowed_step = 65;
+    AwaitDrained();
+    Await([] { return idle_after_drain.load(); });
+    for (const auto& count : pressure_seen) assert(count == 1);
+    const auto final = ReadDeferredZipReleaseStats();
+    assert(final.queued == 65 && final.completed == 65 && final.fallback == 0);
+    assert(final.priority_failures == (
+            scenario == PriorityScenario::DeniedBoost ||
+            scenario == PriorityScenario::DeniedRestore ||
+            scenario == PriorityScenario::ReadbackFailure ||
+            scenario == PriorityScenario::InitialDeniedSafe ? 1u : 0u));
+    assert(final.priority_boosts == (scenario == PriorityScenario::Hysteresis ? 2u :
+            scenario == PriorityScenario::ToggleGate ||
+            scenario == PriorityScenario::DeniedRestore ? 1u : 0u));
+    const unsigned expected_calls = scenario == PriorityScenario::Hysteresis ? 5 :
+            scenario == PriorityScenario::ToggleGate ||
+            scenario == PriorityScenario::DeniedRestore ? 3 :
+            scenario == PriorityScenario::DeniedBoost ||
+            scenario == PriorityScenario::ReadbackFailure ? 2 : 1;
+    assert(priority_calls == expected_calls);
+    assert(final.requested_nice == (scenario == PriorityScenario::DeniedBoost ||
+            scenario == PriorityScenario::ReadbackFailure ? 0 : 10));
+    assert(final.observed_nice == (scenario == PriorityScenario::ReadbackFailure ? INT32_MIN :
+            scenario == PriorityScenario::DeniedRestore ? 0 : 10));
+    CheckReasons(final);
+}
+
+void CheckPriority(PriorityScenario scenario) {
+    const pid_t child = fork();
+    assert(child >= 0);
+    if (child == 0) {
+        CheckPriorityChild(scenario);
+        _exit(0);
+    }
+    int status = 0;
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
 
 void CheckInitializationFailure(const DeferredZipReleaseTestHooks& hooks) {
     // Fork before starting any threads so each failure gets a fresh queue.
@@ -257,6 +442,15 @@ void CheckConcurrentProducers() {
 }
 
 int main() {
+    CheckPriority(PriorityScenario::Hysteresis);
+    CheckPriority(PriorityScenario::GateOff);
+    CheckPriority(PriorityScenario::ToggleGate);
+    CheckPriority(PriorityScenario::DeniedBoost);
+    CheckPriority(PriorityScenario::DeniedRestore);
+    CheckPriority(PriorityScenario::ReadbackFailure);
+    CheckPriority(PriorityScenario::InitialDeniedSafe);
+    CheckPriority(PriorityScenario::InitialDeniedNegative);
+    CheckPriority(PriorityScenario::InitialDeniedUnknown);
     CheckInitializationFailure(kSemaphoreFailure);
     CheckInitializationFailure(kWorkerFailure);
     assert(!TryDeferZipMetadata(nullptr, Release));
@@ -287,5 +481,6 @@ int main() {
     CheckReasons(stats);
     printf("%zu allocations released exactly once; initialization failures, "
            "64 pending + 1 active, ticket wraparound, FIFO publication credits, "
-           "reservation contention and eight concurrent producers covered\n", kTotal);
+           "reservation contention and eight concurrent producers covered; "
+           "adaptive priority thresholds, gate, failure latch and idle behavior covered\n", kTotal);
 }

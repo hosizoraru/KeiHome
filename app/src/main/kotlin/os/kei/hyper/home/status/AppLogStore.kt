@@ -1,15 +1,20 @@
 package os.kei.hyper.home.status
 
 import android.content.Context
+import android.os.Build
 import android.os.Process
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.AppLocalStorage
+import os.kei.hyper.home.ui.main.loadAboutDeviceDetails
 import java.io.File
+import java.util.TimeZone
 
 /** App-process logcat archive. Hook-process logs remain in the framework's own log store. */
 object AppLogStore {
   enum class Level(val priority: Int) { VERBOSE(2), DEBUG(3), INFO(4), WARN(5), ERROR(6), OFF(7) }
 
   private const val RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+  private val exports = AppLogExportCache(retentionMillis = RETENTION_MS)
   private val lock = Any()
   private val logLine = Regex("^\\s*(\\d+\\.\\d+)\\s+\\d+\\s+\\d+\\s+([VDIWEF])\\s+.*")
   private var started = false
@@ -80,6 +85,36 @@ object AppLogStore {
   fun clear(context: Context, since: Long, until: Long = System.currentTimeMillis()): Int =
     archive(context).clear(since, until)
 
-  fun export(context: Context, since: Long, until: Long = System.currentTimeMillis()): File =
-    archive(context).export(since, until, File(context.cacheDir, "share/KeiHome-logs.zip"))
+  /** Runs on IO. Each returned ZIP keeps its own name and contents for subsequent sharing. */
+  fun export(context: Context, since: Long, until: Long = System.currentTimeMillis()): File {
+    val archive = archive(context)
+    return exports.export(File(context.cacheDir, "share"), BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE) {
+      archive.export(since, until, it, exportEnvironment(context))
+    }
+  }
+
+  /** Reuses About's property/one bounded Flutter asset probe, exclusively on the export IO path. */
+  private fun exportEnvironment(context: Context): String {
+    val collectedAt = System.currentTimeMillis()
+    val timeZone = TimeZone.getDefault()
+    val details = runCatching { loadAboutDeviceDetails(context) }.getOrNull()
+    val launcherPackage = "com.miui.home"
+    val launcher = runCatching { context.packageManager.getPackageInfo(launcherPackage, 0) }.getOrNull()
+    return AppLogExportEnvironment(
+      marketName = details?.marketName ?: Build.MODEL,
+      model = Build.MODEL,
+      codename = Build.DEVICE,
+      systemBuild = Build.VERSION.INCREMENTAL,
+      systemDisplay = Build.DISPLAY,
+      androidRelease = Build.VERSION.RELEASE,
+      androidSdk = Build.VERSION.SDK_INT,
+      launcherPackage = launcherPackage,
+      launcherVersionName = launcher?.versionName,
+      launcherVersionCode = launcher?.longVersionCode,
+      moduleVersionName = BuildConfig.VERSION_NAME,
+      moduleVersionCode = BuildConfig.VERSION_CODE,
+      rustVersion = details?.rustVersion,
+      flutterVersion = details?.flutterVersion,
+    ).render(collectedAt, timeZone)
+  }
 }

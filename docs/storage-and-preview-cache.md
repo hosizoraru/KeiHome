@@ -161,16 +161,59 @@ multiplying filename hours, avoiding overflow and incorrect selection around
 epoch zero. Narrow windows therefore do not read unrelated retained hourly logs.
 Individual timestamped records are still filtered inside each selected hour.
 Malformed records are ignored by stats/export and retained by clear. Inverted
-ranges return zero stats/removals and a README-only ZIP; a range with no matching
-records has the same empty result.
+ranges return zero stats/removals and a ZIP containing guidance and export-time
+environment metadata; a range with no matching records has the same empty result.
 
 Stats and export open stable file descriptors and capture their byte-length
 limits under the writer lock, then release that lock before streaming records.
 Later appends are beyond those limits; an already captured reader keeps its
 prior contents if clear replaces the pathname. Streams close on both success
 and failure, including snapshot acquisition or ZIP output failures. ZIP exports
-contain `README.txt` and only nonempty selected hourly logs; file export writes
-a temporary ZIP and atomically publishes it after completion.
+contain `README-KeiHome.txt`, `environment.txt` and only nonempty selected hourly
+logs; file export writes a temporary ZIP and atomically publishes it after
+completion. The README is explicitly application-supplied guidance, separate
+from captured and potentially untrusted log text.
+
+The log settings page leads with a clickable MIUIX source card directing Dock,
+icon and Hook issues to LSPosed. The App section and export action explicitly say
+App logs, with a visible note that they exclude LSPosed. App ZIPs are for App UI,
+settings and App-process failures. They never read or merge LSPosed logs or native
+feature logs; environment metadata does not turn them into a feature diagnostic trace.
+
+`AppLogStore.export` collects environment information on the existing export IO
+path, using About's existing market-name/property probe and bounded, exact-entry
+Flutter version read. There is no root command, APK-wide scan or startup probe.
+`environment.txt` records collection time with offset and timezone ID, market name,
+model/codename, system incremental/display builds, Android release/SDK, the
+`com.miui.home` package version name/code, module version name/code and available
+Rust/Flutter versions. Missing versions are explicit; optional runtime fields can
+be absent. Values are bounded and restricted to one line. The metadata explicitly
+describes the **export-time** environment, which can differ from the incident-time
+environment. No serial numbers or account identifiers are collected.
+
+App exports live in `cacheDir/share/` and use names such as
+`KeiHome-AppLogs-20261107-101530-123-v1.4.0-b0227.zip`. The timestamp uses local
+time, millisecond precision and `Locale.ROOT`; the numeric version series and the
+last four version-code digits identify the build iteration. Build metadata is
+omitted from filenames; malformed version series become `vunknown`. Names contain
+safe ASCII only. An atomic `createNewFile` reservation prevents overwriting an
+existing share. A same-name collision uses `File.createTempFile` with the same
+recognizable prefix and an additional numeric suffix. The archive's existing
+temporary-write/atomic-replace path publishes the ZIP into the reservation.
+Failed exports remove their reservation.
+
+Before each export, on IO, `AppLogExportCache` removes only owned ZIPs and abandoned
+archive temporary files **older than seven days** by modification time, including
+the legacy `KeiHome-logs.zip`. It preserves files at the age boundary, all recent
+shares, unrelated files, directories and symlinks. Active writers and their
+temporary files are excluded; successful completion refreshes the retention age.
+There is no count eviction that could remove a recently shared ZIP. This bounds
+retention by age during continued use, rather than imposing a byte/count cap on
+recent exports; no new exports means no further growth. Cleanup runs again at the
+next export. The sharing grace period is seven days; ACTION_SEND does not report
+when recipients finish reading, and Android can independently evict cache files.
+FileProvider and ACTION_SEND consume the returned file without renaming or a
+display-name override, so the URI, displayed filename and ZIP contents stay paired.
 
 Clear holds the writer lock while streaming retained records into sibling
 temporary files and atomically replacing affected hourly files. It uses no

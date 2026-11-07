@@ -7,9 +7,11 @@
     <string name="coloros_other_packs_summary">Fill gaps after the app’s own adaptations. Always enabled for ColorOS packs. Reapply after changing.</string>
     <string name="settings_log_section">Logs</string>
     <string name="settings_log_summary">Level, size, export and cleanup</string>
-    <string name="logs_source">Hook logs · LSPosed</string>
-    <string name="logs_scope">View module activity and Hook logs</string>
-    <string name="logs_app_note">For UI or settings issues, export app logs below. For module or launcher Hook issues, check LSPosed first.</string>
+    <string name="logs_function_title">Dock, icons and Hook issues</string>
+    <string name="logs_app_title">App logs (UI and settings)</string>
+    <string name="logs_source">Open LSPosed logs</string>
+    <string name="logs_scope">Export LSPosed logs for module and Hook runtime records.</string>
+    <string name="logs_app_note">Excludes LSPosed logs. Only for issues with the App UI, settings and the App itself.</string>
     <string name="logs_lsposed_unavailable">LSPosed Manager is unavailable</string>
     <string name="logs_level">Log level</string>
     <string name="logs_level_verbose">Verbose</string>
@@ -28,7 +30,7 @@
     <string name="logs_custom">Custom</string>
     <string name="logs_size">Log size</string>
     <string name="logs_lines">%1$d lines in this range</string>
-    <string name="logs_export">Share ZIP</string>
+    <string name="logs_export">Export App logs</string>
     <string name="logs_clear">Clear this range</string>
     <string name="logs_clear_confirm">Clear logs in the selected range?</string>
     <string name="logs_cancel">Cancel</string>

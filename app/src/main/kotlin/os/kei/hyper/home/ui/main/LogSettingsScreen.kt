@@ -4,12 +4,15 @@ import android.content.Intent
 import android.net.Uri
 import android.text.format.Formatter
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,9 +27,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -47,6 +54,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -87,14 +95,29 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
       .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
         bottom = padding.calculateBottomPadding() + 24.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        BasicComponent(title = stringResource(R.string.logs_source),
-          summary = stringResource(R.string.logs_scope), onClick = openFrameworkLogs,
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+      Card(Modifier.fillMaxWidth().clickable(
+        onClickLabel = stringResource(R.string.logs_source), onClick = openFrameworkLogs),
+        insideMargin = PaddingValues(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+          Icon(MiuixIcons.Info, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary)
+          Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.logs_function_title), modifier = Modifier.semantics { heading() },
+              style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.SemiBold))
+            Text(stringResource(R.string.logs_scope), style = MiuixTheme.textStyles.body2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Text(stringResource(R.string.logs_source), style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
+              color = MiuixTheme.colorScheme.primary)
+          }
+          Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.primary)
+        }
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
-        Text(stringResource(R.string.logs_app_note), style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          Text(stringResource(R.string.logs_app_title), modifier = Modifier.semantics { heading() },
+            style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.SemiBold))
+          Text(stringResource(R.string.logs_app_note), style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         OverlaySpinnerPreference(title = stringResource(R.string.logs_level),

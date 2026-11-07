@@ -143,7 +143,8 @@ class HourlyAppLogArchive(
   }
 
   /** Atomically publishes a ZIP to target, which must not replace an hourly log. */
-  fun export(since: Long, until: Long = clock(), target: File): File {
+  fun export(since: Long, until: Long = clock(), target: File,
+    environment: String = ENVIRONMENT_UNAVAILABLE): File {
     val canonicalTarget = target.canonicalFile
     require(canonicalTarget.parentFile != directory.canonicalFile || !LOG_NAME.matches(canonicalTarget.name)) {
       "Export target must not replace an hourly log"
@@ -153,7 +154,7 @@ class HourlyAppLogArchive(
       val parent = target.absoluteFile.parentFile
       if (!parent.isDirectory && !parent.mkdirs()) throw IOException("Cannot create $parent")
       withTemporaryFile(parent, ".${target.name}-") { temporary ->
-        temporary.outputStream().buffered().use { output -> writeZip(snapshot, since, until, output) }
+        temporary.outputStream().buffered().use { output -> writeZip(snapshot, since, until, environment, output) }
         Files.move(temporary.toPath(), target.toPath(),
           StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
       }
@@ -162,8 +163,9 @@ class HourlyAppLogArchive(
   }
 
   /** Finishes and flushes a ZIP, leaving the caller's output stream open, even on failure. */
-  fun exportTo(since: Long, until: Long = clock(), target: OutputStream) {
-    capture(since, until).use { snapshot -> writeZip(snapshot, since, until, target) }
+  fun exportTo(since: Long, until: Long = clock(), target: OutputStream,
+    environment: String = ENVIRONMENT_UNAVAILABLE) {
+    capture(since, until).use { snapshot -> writeZip(snapshot, since, until, environment, target) }
   }
 
   override fun close() = synchronized(lock) {
@@ -173,7 +175,7 @@ class HourlyAppLogArchive(
     }
   }
 
-  private fun writeZip(snapshot: Snapshot, since: Long, until: Long, target: OutputStream) {
+  private fun writeZip(snapshot: Snapshot, since: Long, until: Long, environment: String, target: OutputStream) {
     // ZipOutputStream must be closed to release its deflater; the supplied stream is borrowed.
     val borrowed = object : FilterOutputStream(target) {
       override fun write(bytes: ByteArray, offset: Int, length: Int) = out.write(bytes, offset, length)
@@ -183,9 +185,18 @@ class HourlyAppLogArchive(
       val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss 'UTC'", Locale.ROOT).apply {
         timeZone = TimeZone.getTimeZone("UTC")
       }
-      zip.putNextEntry(ZipEntry("README.txt"))
-      zip.write(("KeiHome app-process logs. Hook-process logs are stored by the framework.\n" +
-        "Range: ${date.format(Date(since))} to ${date.format(Date(until))}\n").toByteArray(Charsets.UTF_8))
+      zip.putNextEntry(ZipEntry("README-KeiHome.txt"))
+      zip.write(("KeiHome App log export - guidance supplied by KeiHome, not captured log text.\n" +
+        "Only App-process logs for App UI, settings and App-process failures are included.\n" +
+        "For Dock, icons and other module/Hook feature issues, export LSPosed logs instead.\n" +
+        "This ZIP does not read or include LSPosed logs or native feature logs.\n" +
+        "environment.txt describes the environment at export time, not a feature diagnostic trace.\n" +
+        "It may differ from the environment when the incident occurred.\n" +
+        "Range: ${date.format(Date(since))} to ${date.format(Date(until))} (inclusive)\n")
+        .toByteArray(Charsets.UTF_8))
+      zip.closeEntry()
+      zip.putNextEntry(ZipEntry("environment.txt"))
+      zip.write(environment.toByteArray(Charsets.UTF_8))
       zip.closeEntry()
       snapshot.files.forEach { file ->
         var entryStarted = false
@@ -315,6 +326,8 @@ class HourlyAppLogArchive(
   }
 
   private companion object {
+    const val ENVIRONMENT_UNAVAILABLE =
+      "Export-time environment was not collected by this archive caller; incident environment is unknown.\n"
     const val HOUR_MILLIS = 3_600_000L
     val LOG_NAME = Regex("[0-9]+\\.log")
   }

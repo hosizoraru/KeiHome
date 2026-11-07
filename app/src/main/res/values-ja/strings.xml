@@ -7,9 +7,11 @@
     <string name="coloros_other_packs_summary">アプリ本来の対応を優先し、未対応分を補完します。ColorOS では常に有効。変更後は再適用してください。</string>
     <string name="settings_log_section">ログ</string>
     <string name="settings_log_summary">レベル、容量、共有、削除</string>
-    <string name="logs_source">フックログ · LSPosed</string>
-    <string name="logs_scope">モジュールの動作とフックログを確認</string>
-    <string name="logs_app_note">画面や設定の問題は下のアプリログを共有。モジュールやランチャーのフック問題は先に LSPosed を確認してください。</string>
+    <string name="logs_function_title">Dock・アイコン・フックの不具合</string>
+    <string name="logs_app_title">App ログ（画面と設定）</string>
+    <string name="logs_source">LSPosed ログを開く</string>
+    <string name="logs_scope">モジュールとフックの実行記録を含む LSPosed ログをエクスポートしてください。</string>
+    <string name="logs_app_note">LSPosed ログは含みません。App の画面・設定など、App 自体の不具合にのみ使用します。</string>
     <string name="logs_lsposed_unavailable">LSPosed Manager を開けません</string>
     <string name="logs_level">ログレベル</string>
     <string name="logs_level_verbose">詳細</string>
@@ -28,7 +30,7 @@
     <string name="logs_custom">カスタム</string>
     <string name="logs_size">ログ容量</string>
     <string name="logs_lines">この期間の %1$d 行</string>
-    <string name="logs_export">ZIP を共有</string>
+    <string name="logs_export">App ログをエクスポート</string>
     <string name="logs_clear">この期間を削除</string>
     <string name="logs_clear_confirm">選択した期間のログを削除しますか？</string>
     <string name="logs_cancel">キャンセル</string>

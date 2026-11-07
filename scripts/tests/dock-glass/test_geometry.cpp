@@ -94,10 +94,12 @@ void NativePositionFixtures() {
 }
 
 void NarrowAndMissingBounds() {
-    // 18dp padding shrinks to 8dp edge clearance without moving any icon.
+    // Full five-item plates use the content edges; 279 still has 7.9dp of ink clearance.
     Rect(ComputeDockGlassGeometry(300, 40, 5, 5, 80), 0, 300, 8, 72, 28);
     Rect(ComputeDockGlassGeometry(280, 40, 5, 5, 80), 0, 280, 8, 72, 28);
-    Hidden(ComputeDockGlassGeometry(279, 40, 5, 5, 80));
+    Rect(ComputeDockGlassGeometry(279, 40, 5, 5, 80), 0, 279, 8, 72, 28);
+    Rect(ComputeDockGlassGeometry(200, 40, 5, 5, 80), 0, 200, 8, 72, 28);
+    Hidden(ComputeDockGlassGeometry(199, 40, 5, 5, 80));
     // Packed-layout envelope exactly fits the permitted content bounds.
     Rect(ComputeDockGlassGeometry(96, 40, 2, 5, 80), 8, 88, 8, 72, 28);
     Hidden(ComputeDockGlassGeometry(95, 40, 2, 5, 80));
@@ -111,6 +113,88 @@ void NarrowAndMissingBounds() {
     Hidden(ComputeDockGlassGeometry(16, 1, 1, 5, 80));
     Hidden(ComputeDockGlassGeometry(400, 56, 1, 5, 16));
     Rect(ComputeDockGlassGeometry(400, 56, 1, 5, 17), 154, 246, 8, 9, 0.5);
+}
+
+void FiveItemContentClearance() {
+    // Authored distributed centers are 40,120,200,280,360 at C=400.
+    // Each row gives the measured outer ink bounds independently of plate math.
+    struct Fixture { double width, cell, ink, first, last; bool fits; };
+    constexpr Fixture fixtures[] = {
+        {400, 100, 80, 0, 400, true},
+        {400, 100, 56, 12, 388, true},
+        {400, 100, 64, 8, 392, true},
+        {400, 100, 64.5, 7.75, 392.25, true},
+        {400, 100, 65, 7.5, 392.5, true},
+        {400, 100, 72, 4, 396, true},
+        {400, 100, 79.5, 0.25, 399.75, true},
+        {400, 100, 80.5, -0.25, 400.25, false},
+        {400, 100, 100, -10, 410, false},
+        {300, 40, 40, 10, 290, true},
+        {280, 40, 40, 8, 272, true},
+        {279, 40, 40, 7.9, 271.1, true},
+        {200, 100, 40, 0, 200, true},
+        {200, 40, 40, 0, 200, true},
+        {199, 40, 40, -0.1, 199.1, false},
+    };
+    for (const auto& f : fixtures) {
+        CHECK(f.fits == (f.first >= 0 && f.last <= f.width));
+        const auto g = ComputeDockGlassGeometry(f.width, f.cell, 5, 5, 80,
+                                               std::nullopt, f.ink);
+        if (g.visible != f.fits) {
+            std::fprintf(stderr, "five-item C=%g cell=%g ink=%g bounds=[%g,%g]: "
+                         "visible=%d expected=%d\n", f.width, f.cell, f.ink,
+                         f.first, f.last, g.visible, f.fits);
+        }
+        CHECK(g.visible == f.fits);
+        if (f.fits) {
+            Rect(g, 0, f.width, 8, 72, 28);
+            CHECK(g.left <= f.first && g.right >= f.last);
+        } else {
+            Hidden(g);
+        }
+        // Elderly has four distributed slots. A fifth center is beyond C;
+        // accepting 0dp clearance must never clamp or repack that fifth icon.
+        Hidden(ComputeDockGlassGeometry(f.width, f.cell, 5, 4, 80,
+                                        std::nullopt, f.ink));
+    }
+    // A one-to-four item packed envelope retains the exact inclusive 8dp rule.
+    for (int maximum : {4, 5}) {
+        for (int count = 1; count <= 4; ++count) {
+            const double width = count < maximum ? count * 40 + 16 : 224;
+            Rect(ComputeDockGlassGeometry(width, 40, count, maximum, 80),
+                 8, width - 8, 8, 72, count == 1 ? 20 : 28);
+            Hidden(ComputeDockGlassGeometry(width - 0.5, 40, count, maximum, 80));
+            Hidden(ComputeDockGlassGeometry(count * 40, 40, count, maximum, 80));
+        }
+    }
+    // The new horizontal admission must still run all malformed/vertical guards.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+    for (double bad : {0.0, -1.0, nan, inf, -inf}) {
+        Hidden(ComputeDockGlassGeometry(bad, 100, 5, 5, 120, {}, 80, 20));
+        Hidden(ComputeDockGlassGeometry(400, bad, 5, 5, 120, {}, 80, 20));
+        Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, bad, {}, 80, 20));
+        Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 120, {}, bad, 20));
+    }
+    Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 120, {}, 101, 20));
+    for (double bad : {-1.0, nan, inf, -inf, 52.001}) {
+        Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 120, {}, 80, bad));
+    }
+    for (int bad : {0, -1, 6, std::numeric_limits<int>::max()}) {
+        Hidden(ComputeDockGlassGeometry(400, 100, bad, 5, 120, {}, 80, 20));
+        Hidden(ComputeDockGlassGeometry(400, 100, 5, bad, 120, {}, 80, 20));
+    }
+    // Exercise the newly admitted zero-clearance case through every corner policy.
+    for (unsigned style = 0; style <= 4; ++style) {
+        for (double native_radius : {0.0, 44.0}) {
+            const uint32_t options = style | (style == 4 ? 12u << 9u : 0);
+            const double radius = style == 4 ? 12 :
+                    style == 1 && native_radius == 0 ? 20 : 32;
+            Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, 60, 80, 20,
+                                          false, 20, native_radius, options),
+                 0, 400, 2, 118, radius);
+        }
+    }
 }
 
 void RadiusRules() {
@@ -187,10 +271,12 @@ void PaintedIconEnvelope() {
          54, 346, 8, 72, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 4, 5, 80, std::nullopt, 56),
          8, 392, 8, 72, 28);
-    // Ink at the 8dp edge is valid; one extra dp cannot be hidden by clipping.
+    // Full-five ink may occupy the old 8dp inset, through the content edge.
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 64),
          0, 400, 8, 72, 28);
-    Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 65));
+    Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 65),
+         0, 400, 8, 72, 28);
+    Hidden(ComputeDockGlassGeometry(400, 100, 5, 5, 80, std::nullopt, 81));
     for (double bad : {0.0, -1.0, 101.0,
                        std::numeric_limits<double>::quiet_NaN(),
                        std::numeric_limits<double>::infinity(),
@@ -208,7 +294,8 @@ void PaintedIconEnvelope() {
                     const double center = count < maximum
                             ? 200 + (i - (count - 1) / 2.0) * cell
                             : (i + 0.5) * (400.0 / maximum);
-                    fits = fits && center - 28 >= 8 && center + 28 <= 392;
+                    const double edge = count == 5 && maximum == 5 ? 0 : 8;
+                    fits = fits && center - 28 >= edge && center + 28 <= 400 - edge;
                     if (g.visible) CHECK(g.left <= center - 28 && g.right >= center + 28);
                 }
                 CHECK(g.visible == fits);
@@ -352,7 +439,8 @@ void CountChangesAndEnvelopeSweep() {
                                     : (i + 0.5) * width / max_count;
                             if (i == 0) first = center - cell / 2;
                             last = center + cell / 2;
-                            fits = fits && center - cell / 2 >= 8 && last <= width - 8;
+                            const double edge = count == 5 && max_count == 5 ? 0 : 8;
+                            fits = fits && center - cell / 2 >= edge && last <= width - edge;
                         }
                         CHECK(g.visible == fits);
                         if (!fits) { Hidden(g); ++hidden; continue; }
@@ -380,6 +468,7 @@ void CountChangesAndEnvelopeSweep() {
 } // namespace
 
 int main() {
+    FiveItemContentClearance();
     for(uint32_t style=0;style<=4;++style)
         for(uint32_t padding : {0u,6u,18u,32u})
             for(int count=1;count<=5;++count) {

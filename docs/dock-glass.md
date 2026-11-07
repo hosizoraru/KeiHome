@@ -285,3 +285,39 @@ row; this check establishes Dock placement, not a redesign of vendor workspace
 spacing. These are simulated configurations on one AVD, not physical-device
 or universal landscape acceptance. See
 `.artifacts/research/dock-material-20261105/geometry-device/expanded-layout.json`.
+
+## Five-slot containment regression (2026-11-07)
+
+The full five-slot plate already spans the native content width, but the older
+painted-envelope guard still required 8 dp of unused space at both edges before
+reaching that branch. Valid layouts with 0..8 dp clearance therefore returned
+the original transparent decoration. This depends on the native layout, icon
+size and display density; it is not a phone-model or launcher-version rule.
+
+For exactly five items in a native five-slot Dock, both the pure geometry model
+and the linked ARM64 bridge now require painted-icon containment instead of
+the spare 8 dp margin. Counts one through four retain the original margin and
+geometry. Non-finite, negative, out-of-bounds and elderly four-slot overflow
+inputs remain rejected. The patch changes no icon positions, hit targets,
+material fields, animation owners or native parsing contracts.
+
+The previous header and archived Release 226 native payload both reject the
+new exact-edge regression. The corrected model passes 39,347 ASan/UBSan checks;
+the linked production ARM64 renderer passes 3,411 cases. Source evidence and
+the device acceptance receipt are retained under
+`.artifacts/research/dock-five-9226-20261107/`.
+
+On the 9226 Phone AVD, five icons remained visible while the old glass plate
+disappeared after changing density from 480 to 560. The screenshot
+`five-density560-before.png` records this reproduction. The App-only log ZIPs
+supplied by users do not contain this native geometry state. The separate
+LSPosed archive confirms glass-hook activation and settings acknowledgement;
+it must not be treated as an exact measurement of the painted edge clearance.
+
+The patched Release restores glass in that same five-icon/density560 scene.
+Removing the owned fifth probe retains the four-icon glass; resetting density
+to the original 480 retains the original Dock order. Launcher identity stays
+`25336/25317/8968548` through those ordinary layout changes and App log export.
+The earlier native development activation is recorded separately. The original
+8593 launcher was subsequently restored by cover installation; its native Dock
+and label hooks are active. No physical-device acceptance is claimed here.

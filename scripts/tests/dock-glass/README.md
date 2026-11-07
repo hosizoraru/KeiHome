@@ -20,9 +20,12 @@ python3 scripts/tests/dock-glass/test_refresh.py --elf PATH_TO_RELEASE_SO --repo
 python3 scripts/tests/dock-glass/test_glass_scope.py --elf PATH_TO_RELEASE_SO --report /tmp/dock-glass-scope.json
 ```
 
-The current suites execute 2,785 render cases, 175 mode/curve cases, 470 refresh, and 593 glass ownership/radius
-cases across the five saved source fixtures. They authenticate the payload from
-the supplied ELF rather than a separately assembled approximation.
+The renderer executes 3,411 cases, including 579 five-slot clearance regressions:
+inclusive zero clearance, fractional boundaries, negative overflow, and unchanged
+one-to-four/elderly behavior. The pure geometry suite runs 39,347 ASan/UBSan
+checks. Mode/curve, refresh and glass ownership/radius have separate execution
+suites. They authenticate the payload from the supplied ELF rather than a
+separately assembled approximation.
 
 `test_profile.cpp` is a standalone render profile/mutation runner. Compile it
 with `dock_glass_profile.cpp`, `launcher_label_profile.cpp`, and
@@ -81,7 +84,7 @@ preference application, and performance require separate AVD acceptance.
 The ownership suite also executes both native task-radius return observation and
 the inlined flight-radius join against linked production instructions. It checks
 exact primitive writes, native frame-load replay, ownership counters, preserved
-registers, and tail transfers. Config: 456 bytes; copied payload: 4,168 bytes.
+registers, and tail transfers. Config: 456 bytes; copied payload: 4,512 bytes.
 
 The render suite also executes the native unlock wrapper construction against
 linked production instructions. It checks the 48-byte widget, source-owned

@@ -85,7 +85,8 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
           heap_high=1, array_cid=89, nzcv=0xa0000000,
           icon_top=8.0, no_word=False, cell_height=80.0,
           suppress_field=0, suppress=False, enum_index=None,
-          ignore_tag=IGNORE_POINTER,corner_style=0,curve_enabled=1,native_card_radius=0.0):
+          ignore_tag=IGNORE_POINTER,corner_style=0,curve_enabled=1,native_card_radius=0.0,
+          expected_horizontal=None):
     """Execute copied production bytes; only authored roots/config are replaced.
 
     Return True for the constructed graph, False for an untouched native tail,
@@ -325,6 +326,9 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
         assert (mat+31,8,0) not in values
     left = num(ref(pos + 19) + 7)
     right = C - num(ref(pos + 27) + 7)
+    if expected_horizontal is not None:
+        assert math.isclose(left, expected_horizontal[0], abs_tol=1e-10), active_case
+        assert math.isclose(right, expected_horizontal[1], abs_tol=1e-10), active_case
     # Top and bottom have separate Double identities even when numerically equal.
     assert ref(pos + 23) != ref(pos + 31)
     native_icon_top = (max(0, ((w - 20 if width_flag else cell_height) - ink_width) / 2)
@@ -347,6 +351,8 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     centers = [C / 2 + (i - (count - 1) / 2) * w if count < M else (i + 0.5) * (C / M) for i in range(count)]
     first = centers[0] - ink_width / 2
     last = centers[-1] + ink_width / 2
+    clearance = 0 if count == M == 5 else 8
+    assert first >= clearance and last <= C - clearance, 'invalid painted envelope admitted'
     for center in centers:
         assert left <= center - ink_width / 2 and right >= center + ink_width / 2, 'painted icon clipped'
     if (corner_style&7)==3 and count!=5 and native_radius>0:
@@ -432,6 +438,76 @@ def test_failure(kind, value, traceback):
     sys.__excepthook__(kind, value, traceback)
 sys.excepthook = test_failure
 cases = recents_cases
+# Literal ink bounds are independent of the production header/assembly formula.
+# The first case is the exact new boundary: five 80dp icons touch C=400 at 0dp.
+# setup executes linked ARM64 and checks every reference, allocation and inset.
+five_item_cases = 0
+five_item_fixtures = (
+    # C, cell, ink, first painted left, last painted right, visible
+    (400, 100, 80, 0, 400, True),
+    (400, 100, 79.5, 0.25, 399.75, True),
+    (400, 100, 72, 4, 396, True),
+    (400, 100, 65, 7.5, 392.5, True),
+    (400, 100, 64.5, 7.75, 392.25, True),
+    (400, 100, 64, 8, 392, True),
+    (400, 100, 56, 12, 388, True),
+    (300, 40, 40, 10, 290, True),
+    (280, 40, 40, 8, 272, True),
+    (279, 40, 40, 7.9, 271.1, True),
+    (200, 100, 40, 0, 200, True),
+    (200, 40, 40, 0, 200, True),
+    (199, 40, 40, -0.1, 199.1, False),
+    (400, 100, 80.5, -0.25, 400.25, False),
+    (400, 100, 100, -10, 410, False),
+)
+for C, cell, ink, first, last, visible in five_item_fixtures:
+    assert visible == (first >= 0 and last <= C)
+    for mode in range(4):
+        for native in (False, True):
+            for width_flag in (False, True):
+                for elderly in (False, True):
+                    expected = visible and not elderly
+                    assert setup(count=5, elderly=elderly, C=C, H=160,
+                                 w=cell, ink_width=ink, icon_top=20, mode=mode,
+                                 native=native, width_flag=width_flag,
+                                 expected_horizontal=(0, C)) == expected, active_case
+                    five_item_cases += 1
+# Packed one-to-four and full elderly four retain the exact 8dp boundary.
+for elderly in (False, True):
+    for count in range(1, 5):
+        C = 224 if elderly and count == 4 else count * 40 + 16
+        assert setup(count=count, elderly=elderly, C=C, w=40,
+                     expected_horizontal=(8, C - 8)), active_case
+        assert not setup(count=count, elderly=elderly, C=C - 0.5, w=40), active_case
+        assert not setup(count=count, elderly=elderly, C=count * 40, w=40), active_case
+        five_item_cases += 3
+# At zero horizontal clearance, malformed roots/metrics must still fall back
+# without publishing allocations. Positive overflow is never clipped to fit.
+for field in ('C', 'H', 'w', 'ink_width'):
+    for bad in (0., -1., float('nan'), float('inf'), -float('inf')):
+        fixture = dict(count=5, w=100, ink_width=80, H=160, icon_top=20)
+        fixture[field] = bad
+        assert not setup(**fixture), active_case
+        five_item_cases += 1
+for bad in (-1., float('nan'), float('inf'), -float('inf'), 92.001):
+    assert not setup(count=5, w=100, ink_width=80, H=160, icon_top=bad), active_case
+    five_item_cases += 1
+for bad in (0., -1., 101., float('nan'), float('inf'), -float('inf')):
+    assert not setup(count=5, C=200, w=100, ink_width=bad, H=160), active_case
+    five_item_cases += 1
+for count in (0, -1, 6, (1 << 30) - 1):
+    assert not setup(count=count, w=100, ink_width=80, H=160), active_case
+    five_item_cases += 1
+for style in range(5):
+    for mode in range(4):
+        for no_word in (False, True):
+            options = style | (12 << 9 if style == 4 else 0)
+            assert setup(count=5, w=100, ink_width=80, H=160, icon_top=20,
+                         mode=mode, no_word=no_word, corner_style=options,
+                         q8=60 * 256, native_card_radius=44,
+                         expected_horizontal=(0, 400)), active_case
+            five_item_cases += 1
+cases += five_item_cases
 # Disabled gate delegates to the original bit; enabled gate forces insertion.
 for enabled in (0, 1, 2):
     for native in (False, True):
@@ -458,7 +534,7 @@ for field in ('C', 'H', 'w'):
     for bad in (float('nan'), float('inf'), -float('inf'), -1.0, 0.0):
         assert not setup(**{field: bad})
         cases += 1
-for C, H, w, count in ((16, 80, 1, 1), (35, 80, 20, 1), (279, 80, 40, 5), (400, 80, 100, 5)):
+for C, H, w, count in ((16, 80, 1, 1), (35, 80, 20, 1), (199, 80, 40, 5), (400, 80, 100, 5)):
     assert not setup(C=C, H=H, w=w, count=count)
     cases += 1
 for name, field in (('grid', None), ('device', None), ('grid', 19), ('rx', 19), ('inner', 19), ('grow', 15), ('mode_controller', None), ('mode_controller', 107), ('mode_rx', 19), ('config', 107)):
@@ -568,7 +644,9 @@ for bad in (0.0, -1.0, 101.0, float('nan'), float('inf'), -float('inf')):
     cases += 1
 assert setup(count=5, w=100, ink_width=64)
 cases += 1
-assert not setup(count=5, w=100, ink_width=65)
+assert setup(count=5, w=100, ink_width=65)
+cases += 1
+assert not setup(count=5, w=100, ink_width=81)
 cases += 1
 # Q8 floor, fractional values, adaptation, dimension caps and invalid fallback.
 for q8 in (0, 1, 8 * 256, 20 * 256, 28 * 256, 36 * 256, 40 * 256, 40 * 256 + 128, 200 * 256, 65536, 65537, 4294967295):
@@ -848,6 +926,8 @@ for bit in range(20):
         cases+=1
 
 report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=456, arena_bytes={'rounded_glass':384,'recents_glass':400,'other':368}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'one native UnlockAnimWidget scopes one IgnorePointer and leaves native background outside', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
+report['five_item_clearance_cases'] = five_item_cases
+report['coverage'].append('full-capacity five: inclusive zero-clearance ink, old 8dp boundary, negative overflow, unchanged one-to-four and elderly rejection')
 if args.report:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

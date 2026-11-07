@@ -63,17 +63,16 @@ struct DockGlassGeometry {
     const double ink_inset = (cell_width - ink_width) / 2.0;
     first_left += ink_inset;
     last_right -= ink_inset;
-    // A plate cannot contain these painted bounds and maintain its edge inset.
-    // In particular, do not recenter/squeeze a fifth icon in elderly mode.
+    // A full five-slot Dock can paint within 8 dp of its content edge.
+    // Its plate spans that content; require containment rather than spare room.
+    const double plate_edge = count == 5 && max_count == 5 ? 0.0 : kEdge;
     if (!std::isfinite(first_left) || !std::isfinite(last_right) ||
-        first_left < kEdge || last_right > content_width - kEdge ||
+        first_left < plate_edge || last_right > content_width - plate_edge ||
         last_right <= first_left) {
         return {};
     }
 
-    // Full five-item layout needs the whole native content width. Keep the
-    // existing icon fit guard and all <=4 geometry unchanged.
-    const double plate_edge = count == 5 ? 0.0 : kEdge;
+    // Keep existing padding and all <=4 geometry unchanged.
     double left = std::max(plate_edge, first_left - kPadding);
     double right = std::min(content_width - plate_edge, last_right + kPadding);
     if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};

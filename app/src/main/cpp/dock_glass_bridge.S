@@ -340,6 +340,12 @@ kh_dock_background:
     fsub d4, d4, d20              // last painted right
     dock_finite d3
     dock_finite d4
+    cmp w2, #5
+    b.ne .Ldock_ink_edge_ready
+    cmp w12, #5
+    b.ne .Ldock_ink_edge_ready
+    fmov d6, xzr                 // full five-slot plate: require ink containment
+.Ldock_ink_edge_ready:
     fcmp d3, d6
     b.lt .Ldock_original
     fsub d7, d0, d6

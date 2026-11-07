@@ -111,7 +111,7 @@ internal fun currentIconPackSource(
       val art = pack.builtinKey == "coloros-${style.artworkKey}-art-on"
       if (pack.builtinKey !in setOf("coloros-${style.artworkKey}-art-on",
           "coloros-${style.artworkKey}-art-off") || colorOsTitle(style, art) != title) null else pack
-    }.singleOrNull()
+    }.distinctBy { it.id }.singleOrNull()
 }
 
 internal fun iconPackCardData(pack: IconPackDescriptor, targets: List<IconPackComponent>): IconPackCardData {

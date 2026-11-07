@@ -45,4 +45,19 @@ class IconPackSourceTest {
       state(emptyMap(), mapOf("old" to "coloros:classic:SYSTEM:old-asset-hash")),
       emptyMap()) { _, _ -> "Classic ART+" })
   }
+
+  @Test fun historicalAssetHashesOfTheSameSchemeDoNotCreateAnAmbiguousSource() {
+    val previous = "coloros:classic:SYSTEM:old-asset-hash:system-fallback-v1:DEFAULT"
+    val history = state(mapOf(variant to "new", previous to "previous"),
+      mapOf("previous" to previous))
+    val recovered = currentIconPackSource("old", "Classic ART+", history,
+      mapOf("old" to false)) { _, art -> if (art) "Classic ART+" else "Classic" }
+    assertEquals(original, recovered?.id)
+    assertEquals(pack.builtinKey, recovered?.builtinKey)
+
+    val differentMode = history.copy(nativeAssociations =
+      history.nativeAssociations + ("coloros:classic:DARK:old-asset-hash" to "dark"))
+    assertNull(currentIconPackSource("old", "Classic ART+", differentMode,
+      mapOf("old" to false)) { _, art -> if (art) "Classic ART+" else "Classic" })
+  }
 }

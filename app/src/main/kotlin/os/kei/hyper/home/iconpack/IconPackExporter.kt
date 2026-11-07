@@ -8,7 +8,6 @@ import java.io.File
 import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CancellationException
 import os.kei.hyper.home.data.SystemIconFallback
@@ -76,12 +75,12 @@ internal class IconPackExporter(private val context: Context, private val limits
   fun export(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
     sizePx: Int, systemFallback: SystemIconFallback? = null,
-    systemAppNameMatching: Boolean = false, colorOsFallback: IconPackDescriptor? = null, check: () -> Unit,
+    systemAppNameMatching: Boolean = false, colorOsFallback: IconPackDescriptor? = null,
+    installedOnly: Boolean = false, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
-    // ColorOS provides an offline mapping independent of installed APKs. Carry it
-    // into the native pack so a later installation can resolve its artwork immediately.
-    val candidates = targets + if (pack.colorOsProfile != null)
+    // Offline ColorOS mappings also cover future installs unless generation is scoped to targets.
+    val candidates = targets + if (installedOnly) emptyList() else if (pack.colorOsProfile != null)
       pack.entries.mapNotNull { it.component } else colorOsFallback?.entries.orEmpty().mapNotNull { it.component }
     if (candidates.distinct().size > minOf(5000, limits.maxEntries / 2))
       throw IconPackException("Export target limit exceeded")
@@ -93,7 +92,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val sharedActivities = normalized.filter { it.className != null }.groupBy { it.className }
       .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
     if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
-      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, check)
+      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly, check)
     }
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
@@ -147,9 +146,7 @@ internal class IconPackExporter(private val context: Context, private val limits
             if (previous != null && previous != hash) throw IconPackException("Native icon filename collision: $name")
             if (previous != null) return
             names[name] = hash
-            zip.putNextEntry(ZipEntry("res/drawable-xxhdpi/$name.png").apply { time = 0 })
-            zip.write(png)
-            zip.closeEntry()
+            ImageArchiveZip.writeBytes(zip, "res/drawable-xxhdpi/$name.png", png, check = check)
           }
           for ((pkg, group) in normalized.groupBy { it.packageName }) {
             check()
@@ -239,10 +236,9 @@ internal class IconPackExporter(private val context: Context, private val limits
             }
           }
           if (systemFallback != null) {
-            zip.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
-            zip.write(SystemIconFallbackManifest(systemFallback, systemNames, systemAppNameMatching,
-              pack.colorOsProfile == null && colorOsFallback != null).encode())
-            zip.closeEntry()
+            ImageArchiveZip.writeBytes(zip, SystemIconFallbackManifest.PATH,
+              SystemIconFallbackManifest(systemFallback, systemNames, systemAppNameMatching,
+                pack.colorOsProfile == null && colorOsFallback != null).encode(), check = check)
           }
         }
         } finally { nativeAdaptationTargets += renderer.nativeAdaptationTargets; mask?.recycle() }
@@ -269,7 +265,7 @@ internal class IconPackExporter(private val context: Context, private val limits
    * Keep every byte and resource qualifier; targets report known exact names, not an allowlist. */
   private fun exportNativeModule(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
-    systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, check: () -> Unit,
+    systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean, check: () -> Unit,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -282,7 +278,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val originalNames = index.entries.mapNotNull { it.nativeName }.toSet()
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
-          systemFallback ?: SystemIconFallback.DEFAULT, size, check)
+          systemFallback ?: SystemIconFallback.DEFAULT, size, installedOnly, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, check); null }
       val verified = if (systemFallback == null && colorOsFallback == null) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
@@ -301,17 +297,19 @@ internal class IconPackExporter(private val context: Context, private val limits
 
   /** Add only uncovered names; supplied native animations, night trees and artwork stay authoritative. */
   private fun appendColorOsFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
-    fallback: IconPackDescriptor, style: SystemIconFallback, size: Int, check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
+    fallback: IconPackDescriptor, style: SystemIconFallback, size: Int, installedOnly: Boolean,
+    check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
     require(fallback.colorOsProfile != null && fallback.format == IconPackFormat.CLASSIC_ZIP)
     val protected = java.util.zip.ZipFile(archive).use { source ->
       covered + nativeFallbackProtectedNames(source.entries().asSequence().map { it.name })
     }
     val missing = targets.filter { it.packageName !in protected && it.className !in protected }
-    val day = export(fallback, missing, false, size, style, check = check)
+    if (installedOnly && missing.isEmpty()) return emptySet<String>() to emptySet<IconPackComponent>()
+    val day = export(fallback, missing, false, size, style, installedOnly = installedOnly, check = check)
     var night: IconPackExportResult? = null
     val copy = File.createTempFile("native-coloros-fallback-", ".zip", archive.parentFile)
     try {
-      night = export(fallback, missing, true, size, style, check = check)
+      night = export(fallback, missing, true, size, style, installedOnly = installedOnly, check = check)
       val additions = linkedMapOf<String, ByteArray>()
       val systemNames = linkedSetOf<String>()
       java.util.zip.ZipFile(day.archive).use { light ->
@@ -346,20 +344,16 @@ internal class IconPackExporter(private val context: Context, private val limits
           source.entries().asSequence().forEach { entry ->
             check()
             if (entry.name == SystemIconFallbackManifest.PATH) return@forEach
-            output.putNextEntry(ZipEntry(entry.name).apply { time = entry.time })
-            if (!entry.isDirectory) source.getInputStream(entry).use { it.copyTo(output) }
-            output.closeEntry()
+            ImageArchiveZip.copyEntry(output, source, entry, check = check)
           }
           for ((path, bytes) in additions) {
             check()
             require(source.getEntry(path) == null) { "Fallback would overwrite supplied artwork: $path" }
-            output.putNextEntry(ZipEntry(path).apply { time = 0 })
-            output.write(bytes); output.closeEntry()
+            ImageArchiveZip.writeBytes(output, path, bytes, check = check)
           }
-          output.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
-          output.write(SystemIconFallbackManifest(style, systemNames + previous?.names.orEmpty(),
-            previous?.nameMatching == true, colorOsFallback = true).encode())
-          output.closeEntry()
+          ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
+            SystemIconFallbackManifest(style, systemNames + previous?.names.orEmpty(),
+              previous?.nameMatching == true, colorOsFallback = true).encode(), check = check)
         }
       }
       copy.copyTo(archive, overwrite = true)
@@ -411,27 +405,22 @@ internal class IconPackExporter(private val context: Context, private val limits
           source.entries().asSequence().forEach { entry ->
             check()
             if (entry.name == SystemIconFallbackManifest.PATH) return@forEach
-            output.putNextEntry(ZipEntry(entry.name).apply { time = entry.time })
-            if (!entry.isDirectory) source.getInputStream(entry).use { it.copyTo(output) }
-            output.closeEntry()
+            ImageArchiveZip.copyEntry(output, source, entry, check = check)
           }
           for ((name, bytes) in additions) {
             for (prefix in listOf("", "nightmode/")) {
               val path = "${prefix}res/drawable-xxhdpi/$name.png"
               require(source.getEntry(path) == null)
-              output.putNextEntry(ZipEntry(path).apply { time = 0 })
-              output.write(bytes); output.closeEntry()
+              ImageArchiveZip.writeBytes(output, path, bytes, check = check)
             }
             for ((path, data) in NativeDayNightIcon.entries(name, bytes, bytes)) {
               if (!path.startsWith("fancy_icons/")) continue
               require(source.getEntry(path) == null)
-              output.putNextEntry(ZipEntry(path).apply { time = 0 })
-              output.write(data); output.closeEntry()
+              ImageArchiveZip.writeBytes(output, path, data, check = check)
             }
           }
-          output.putNextEntry(ZipEntry(SystemIconFallbackManifest.PATH).apply { time = 0 })
-          output.write(SystemIconFallbackManifest(style, additions.keys).encode())
-          output.closeEntry()
+          ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
+            SystemIconFallbackManifest(style, additions.keys).encode(), check = check)
         }
       }
       check(copy.renameTo(archive)) { "Cannot publish native fallback copy" }

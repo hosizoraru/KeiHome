@@ -23,6 +23,7 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.data.SystemIconFallback
@@ -49,14 +50,15 @@ internal object IconPackHandoffs {
   suspend fun prepare(context: Context, repository: IconPackRepository, previews: IconPackPreviewRepository,
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
-    systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false): IconPackHandoff {
+    systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
+    installedOnly: Boolean = false): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
     val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
-      colorOsForOtherPacks = colorOsForOtherPacks)
+      colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly)
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -67,7 +69,8 @@ internal object IconPackHandoffs {
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
             repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback,
-              systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks)
+              systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
+              installedOnly = installedOnly)
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
@@ -87,9 +90,7 @@ internal object IconPackHandoffs {
                     if (night && entry.name == SystemIconFallbackManifest.PATH) return@forEach
                     val name = if (night) "nightmode/${entry.name}" else entry.name
                     if (name in dynamic) return@forEach
-                    output.putNextEntry(ZipEntry(name).apply { time = 0 })
-                    zip.getInputStream(entry).use { it.copyTo(output) }
-                    output.closeEntry()
+                    ImageArchiveZip.copyEntry(output, zip, entry, name, time = 0) { current.ensureActive() }
                   }
                 }
               }
@@ -124,9 +125,7 @@ internal object IconPackHandoffs {
                         else NativeDayNightIcon.entries(name, dayBytes, nightBytes)
                         for ((path, bytes) in generated) {
                           if (!path.startsWith("fancy_icons/")) continue
-                          output.putNextEntry(ZipEntry(path).apply { time = 0 })
-                          output.write(bytes)
-                          output.closeEntry()
+                          ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
                         }
                       }
                   }
@@ -134,9 +133,7 @@ internal object IconPackHandoffs {
               }
               for ((path, bytes) in dynamic) {
                 current.ensureActive()
-                output.putNextEntry(ZipEntry(path).apply { time = 0 })
-                output.write(bytes)
-                output.closeEntry()
+                ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
               }
             }
           }
@@ -153,59 +150,54 @@ internal object IconPackHandoffs {
           (targets + exports.flatMap { it.exportedTargets } + exports.flatMap { it.skippedTargets.map { skip -> skip.component } })
             .mapTo(linkedSetOf()) { it.flattened },
           NativeIconAdaptations(context).read(nativeTargets) { caller.ensureActive() },
+          installedOnly = installedOnly,
         )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
-        ZipOutputStream(target.outputStream()).use { output ->
-          output.putNextEntry(ZipEntry("description.xml").apply { time = 0 })
-          val title = xml(pack.displayName)
-          val author = xml(pack.description.author ?: "Original icon pack authors")
-          output.write(("<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-            "<MIUI-Theme><title>$title</title><author>$author</author><designer>$author</designer>" +
-            "<version>1.0</version><uiVersion>13</uiVersion>" +
-            "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
-          output.closeEntry()
-          output.putNextEntry(ZipEntry("icons").apply { time = 0 })
-          // Keep provenance inside the icons module so a badge compares the applied
-          // bytes with the current source, rather than an un-applied library import.
-          val nested = ZipOutputStream(object : java.io.FilterOutputStream(output) {
-            override fun write(bytes: ByteArray, offset: Int, length: Int) { output.write(bytes, offset, length) }
-            override fun close() { flush() }
-          })
-          nested.use { stamped ->
+        val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
+        try {
+          ZipOutputStream(stampedIcons.outputStream()).use { stamped ->
             ZipFile(icons).use { archive ->
               archive.entries().asSequence().filterNot {
                 it.isDirectory || it.name == IconBuildInventory.SOURCE_PATH ||
                   it.name == IconBuildInventory.NAMES_PATH || it.name == IconGenerationManifest.PATH
               }.forEach { entry ->
-                stamped.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
-                archive.getInputStream(entry).use { it.copyTo(stamped) }
-                stamped.closeEntry()
+                ImageArchiveZip.copyEntry(stamped, archive, entry, time = 0) { caller.ensureActive() }
               }
             }
-            stamped.putNextEntry(ZipEntry(IconBuildInventory.SOURCE_PATH).apply { time = 0 })
-            stamped.write(IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8))
-            stamped.closeEntry()
-            stamped.putNextEntry(ZipEntry(IconGenerationManifest.PATH).apply { time = 0 })
-            stamped.write(generation.encode()); stamped.closeEntry()
+            ImageArchiveZip.writeBytes(stamped, IconBuildInventory.SOURCE_PATH,
+              IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8)) { caller.ensureActive() }
+            ImageArchiveZip.writeBytes(stamped, IconGenerationManifest.PATH, generation.encode()) { caller.ensureActive() }
           }
-          output.closeEntry()
-          // Themes crops previews to a portrait phone frame, including icons-only components.
-          val cover = Bitmap.createBitmap(400, 860, Bitmap.Config.ARGB_8888)
-          try {
-            val canvas = Canvas(cover)
-            canvas.drawColor(Color.rgb(242, 243, 246))
-            canvas.drawRect(200f, 0f, 400f, 860f, Paint().apply { color = Color.rgb(35, 36, 40) })
-            val lightArtwork = if (sourceAppearance.sourceDarkMode(false)) artwork?.dark else artwork?.light
-            val darkArtwork = if (sourceAppearance.sourceDarkMode(true)) artwork?.dark else artwork?.light
-            lightArtwork?.let { canvas.drawBitmap(it, 28f, 358f, null) }
-            val nightPaint = if (sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) nightDimmingPaint() else null
-            darkArtwork?.let { canvas.drawBitmap(it, 228f, 358f, nightPaint) }
-            output.putNextEntry(ZipEntry("preview/preview_icons_0.png").apply { time = 0 })
-            check(cover.compress(Bitmap.CompressFormat.PNG, 100, output))
+          ZipOutputStream(target.outputStream()).use { output ->
+            output.putNextEntry(ZipEntry("description.xml").apply { time = 0 })
+            val title = xml(pack.displayName)
+            val author = xml(pack.description.author ?: "Original icon pack authors")
+            output.write(("<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+              "<MIUI-Theme><title>$title</title><author>$author</author><designer>$author</designer>" +
+              "<version>1.0</version><uiVersion>13</uiVersion>" +
+              "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
             output.closeEntry()
-          } finally { cover.recycle() }
-        }
+            ImageArchiveZip.writeFile(output, "icons", stampedIcons) { caller.ensureActive() }
+            // Themes crops previews to a portrait phone frame, including icons-only components.
+            val cover = Bitmap.createBitmap(400, 860, Bitmap.Config.ARGB_8888)
+            try {
+              val canvas = Canvas(cover)
+              canvas.drawColor(Color.rgb(242, 243, 246))
+              canvas.drawRect(200f, 0f, 400f, 860f, Paint().apply { color = Color.rgb(35, 36, 40) })
+              val lightArtwork = if (sourceAppearance.sourceDarkMode(false)) artwork?.dark else artwork?.light
+              val darkArtwork = if (sourceAppearance.sourceDarkMode(true)) artwork?.dark else artwork?.light
+              lightArtwork?.let { canvas.drawBitmap(it, 28f, 358f, null) }
+              val nightPaint = if (sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) nightDimmingPaint() else null
+              darkArtwork?.let { canvas.drawBitmap(it, 228f, 358f, nightPaint) }
+              val png = java.io.ByteArrayOutputStream().use { buffer ->
+                check(cover.compress(Bitmap.CompressFormat.PNG, 100, buffer))
+                buffer.toByteArray()
+              }
+              ImageArchiveZip.writeBytes(output, "preview/preview_icons_0.png", png) { caller.ensureActive() }
+            } finally { cover.recycle() }
+          }
+        } finally { stampedIcons.delete() }
         IconPackHandoff(token, target, pack.id, pack.displayName, when (pack.format) {
           os.kei.hyper.home.iconpack.IconPackFormat.INSTALLED_APK,
           os.kei.hyper.home.iconpack.IconPackFormat.APK -> "CONVERTED_APK"
@@ -272,7 +264,6 @@ internal object IconPackHandoffs {
         ZipOutputStream(archive.outputStream()).use { output ->
           zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
             current.ensureActive()
-            output.putNextEntry(ZipEntry(entry.name).apply { time = 0 })
             if (entry.name.startsWith("res/drawable-xxhdpi/") && entry.name.endsWith(".png")) {
               val bitmap = zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
                 ?: error("Cannot decode exported icon")
@@ -280,11 +271,14 @@ internal object IconPackHandoffs {
                 val dimmed = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
                 try {
                   Canvas(dimmed).drawBitmap(bitmap, 0f, 0f, paint)
-                  check(dimmed.compress(Bitmap.CompressFormat.PNG, 100, output))
+                  val bytes = java.io.ByteArrayOutputStream().use { buffer ->
+                    check(dimmed.compress(Bitmap.CompressFormat.PNG, 100, buffer))
+                    buffer.toByteArray()
+                  }
+                  ImageArchiveZip.writeBytes(output, entry.name, bytes) { current.ensureActive() }
                 } finally { dimmed.recycle() }
               } finally { bitmap.recycle() }
-            } else zip.getInputStream(entry).use { it.copyTo(output) }
-            output.closeEntry()
+            } else ImageArchiveZip.copyEntry(output, zip, entry, time = 0) { current.ensureActive() }
           }
         }
       }

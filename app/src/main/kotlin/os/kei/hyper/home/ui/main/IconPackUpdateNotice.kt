@@ -12,7 +12,10 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   targets: List<IconPackComponent>, fallback: SystemIconFallback,
   systemPackages: Set<String>, nameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
   nativeAdaptations: Map<String, String> = emptyMap(),
+  installedOnly: Boolean = false,
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
+  if (source.generation?.schemaVersion == 1 ||
+    (source.generation?.installedOnly ?: false) != installedOnly) return true
   val effectiveNameMatching = nameMatching &&
     pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
   if (source.buildSource != null && source.buildSource != IconBuildInventory.sourceIdentity(

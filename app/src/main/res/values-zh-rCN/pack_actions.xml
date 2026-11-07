@@ -8,6 +8,8 @@
   <string name="pack_action_settings">图标包与操作</string>
   <string name="pack_auto_apply">生成后自动应用</string>
   <string name="pack_auto_apply_summary">安装或更新图标包后，通过系统主题自动应用并返回。</string>
+  <string name="pack_installed_icons_only">仅为已安装应用生成图标</string>
+  <string name="pack_installed_icons_only_summary">减小生成包体积，新装应用后可能需更新。默认关闭，保留离线覆盖；原生导入资源不裁剪。</string>
   <string name="pack_remember_menus">记住菜单选择</string>
   <string name="pack_remember_menus_summary">下次启动恢复应用列表的查看范围、筛选和排序。</string>
   <string name="pack_action_update">更新图标包</string>

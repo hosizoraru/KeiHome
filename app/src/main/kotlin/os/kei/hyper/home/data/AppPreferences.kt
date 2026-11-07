@@ -45,6 +45,7 @@ internal data class AppPreferencesState(
   val pagerGesture: AppPagerGesture = AppPagerGesture.IOS_LIKE,
   val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
   val autoApplyIconPack: Boolean = true,
+  val installedIconsOnly: Boolean = false,
   val rememberMenuSelections: Boolean = true,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
@@ -72,6 +73,7 @@ internal class AppPreferences private constructor(context: Context) {
       ?: AppColorMode.FOLLOW_ICONS,
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
     autoApplyIconPack = preferences.getBoolean("auto_apply_icons", true),
+    installedIconsOnly = preferences.getBoolean("installed_icons_only", false),
     rememberMenuSelections = preferences.getBoolean("remember_menus", true),
     pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
       ?: AppPagerGesture.IOS_LIKE,
@@ -114,6 +116,11 @@ internal class AppPreferences private constructor(context: Context) {
   fun setAutoApplyIconPack(value: Boolean) {
     preferences.edit().putBoolean("auto_apply_icons", value).apply()
     state.update { it.copy(autoApplyIconPack = value) }
+  }
+
+  fun setInstalledIconsOnly(value: Boolean) {
+    preferences.edit().putBoolean("installed_icons_only", value).apply()
+    state.update { it.copy(installedIconsOnly = value) }
   }
 
   fun setRememberMenuSelections(value: Boolean) {

@@ -102,7 +102,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh)
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode,
     model.preferences::setShowIconPreviews, { model.clearPreviewCache(); cacheRefresh++ }, model.preferences::setPageUserScroll,
-    model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack, model::setRememberMenuSelections,
+    model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack,
+    model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
     model.preferences::setTopBarBlur, splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
     themeEffects, framework, model::setPreserveSystemMaterials, query, section,
     onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },

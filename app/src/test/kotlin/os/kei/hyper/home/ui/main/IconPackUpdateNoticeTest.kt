@@ -81,6 +81,61 @@ class IconPackUpdateNoticeTest {
     assertTrue(iconPackNeedsUpdate(updatedPack, applied, listOf(newTarget), SystemIconFallback.DEFAULT, emptySet()))
   }
 
+  @Test fun legacyGenerationNeedsOneUpdateThenClearsForEitherSelectedScope() {
+    val legacy = IconGenerationManifest.decode(
+      "KeiHomeIconGeneration1\ntarget\t${target.flattened}\n".toByteArray(Charsets.UTF_8))
+    val applied = source.copy(generation = legacy)
+    for (installedOnly in listOf(false, true)) {
+      assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), installedOnly = installedOnly))
+      val updated = applied.copy(generation = IconGenerationManifest.decode(
+        legacy.copy(schemaVersion = 2, installedOnly = installedOnly).encode()))
+      assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), installedOnly = installedOnly))
+    }
+  }
+
+  @Test fun changingInstalledOnlyInEitherDirectionNeedsOneUpdateThenClears() {
+    for (previous in listOf(false, true)) {
+      val manifest = IconGenerationManifest(considered = setOf(target.flattened), installedOnly = previous)
+      val applied = source.copy(generation = manifest)
+      assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), installedOnly = previous))
+      assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), installedOnly = !previous))
+      val updated = applied.copy(generation = IconGenerationManifest.decode(
+        manifest.copy(installedOnly = !previous).encode()))
+      assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), installedOnly = !previous))
+    }
+  }
+
+  @Test fun inventoryWithoutGenerationKeepsDefaultScopeButUpdatesWhenInstalledOnlyIsEnabled() {
+    val applied = source.copy(nativeNames = setOf(target.packageName))
+    assertFalse(needed(applied))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), installedOnly = true))
+    val updated = applied.copy(generation = IconGenerationManifest(installedOnly = true))
+    assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), installedOnly = true))
+  }
+
+  @Test fun installedOnlyStillDetectsANewlyInstalledMappedTargetAndClearsAfterGeneration() {
+    val newTarget = IconPackComponent("os.test.new", "os.test.new.Main")
+    val original = pack.copy(entries = pack.entries + entry.copy(key = "new", component = newTarget))
+    val manifest = IconGenerationManifest(considered = setOf(target.flattened), installedOnly = true)
+    val applied = source.copy(generation = manifest)
+    assertFalse(iconPackNeedsUpdate(original, applied, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), installedOnly = true))
+    val installedTargets = listOf(target, newTarget)
+    assertTrue(iconPackNeedsUpdate(original, applied, installedTargets, SystemIconFallback.DEFAULT,
+      emptySet(), installedOnly = true))
+    val updated = applied.copy(generation = IconGenerationManifest.decode(
+      manifest.copy(considered = manifest.considered + newTarget.flattened).encode()))
+    assertFalse(iconPackNeedsUpdate(original, updated, installedTargets, SystemIconFallback.DEFAULT,
+      emptySet(), installedOnly = true))
+  }
+
   @Test fun officialAdaptationChangesReopenTheAppliedGenerationWithoutReactingToUnchangedPixels() {
     val applied = source.copy(nativeNames = setOf(target.packageName), generation = IconGenerationManifest(
       nativeAdaptations = mapOf(target.flattened to "none")))

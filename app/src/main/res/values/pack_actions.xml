@@ -8,6 +8,8 @@
   <string name="pack_action_settings">Icon pack actions</string>
   <string name="pack_auto_apply">Apply after generation</string>
   <string name="pack_auto_apply_summary">Automatically apply installed or updated icons through system Themes, then return.</string>
+  <string name="pack_installed_icons_only">Only generate icons for installed apps</string>
+  <string name="pack_installed_icons_only_summary">Reduces generated artwork; newly installed apps may need an update. Off by default to retain offline coverage. Original native imports are preserved.</string>
   <string name="pack_remember_menus">Remember menu choices</string>
   <string name="pack_remember_menus_summary">Restore the Apps scope, filters and sort order on the next launch.</string>
   <string name="pack_action_update">Update icons</string>

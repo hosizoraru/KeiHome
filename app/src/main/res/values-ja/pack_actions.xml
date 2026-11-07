@@ -8,6 +8,8 @@
   <string name="pack_action_settings">アイコンパックと操作</string>
   <string name="pack_auto_apply">生成後に自動適用</string>
   <string name="pack_auto_apply_summary">インストールや更新後、システムテーマで自動適用して戻ります。</string>
+  <string name="pack_installed_icons_only">インストール済みアプリのアイコンのみ生成</string>
+  <string name="pack_installed_icons_only_summary">生成する画像を減らします。新規アプリは更新が必要な場合があります。初期設定はオフで未導入アプリも対象です。ネイティブ形式の元のリソースは保持します。</string>
   <string name="pack_remember_menus">メニューの選択を記憶</string>
   <string name="pack_remember_menus_summary">次回起動時にアプリ一覧の範囲、フィルター、並び順を復元します。</string>
   <string name="pack_action_update">アイコンを更新</string>

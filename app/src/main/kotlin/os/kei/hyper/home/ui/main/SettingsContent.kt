@@ -47,6 +47,7 @@ internal fun SettingsContent(
   onPageUserScrollChange: (Boolean) -> Unit,
   onPagerGestureChange: (os.kei.hyper.home.data.AppPagerGesture) -> Unit,
   onAutoApplyChange: (Boolean) -> Unit,
+  onInstalledIconsOnlyChange: (Boolean) -> Unit,
   onRememberMenusChange: (Boolean) -> Unit,
   onTopBarBlurChange: (os.kei.hyper.home.data.AppTopBarBlur) -> Unit,
   splash: ThemeEffectsUiState,
@@ -108,6 +109,8 @@ internal fun SettingsContent(
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
   val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
+  val installedIconsOnly = matches(SettingsSection.APP, R.string.pack_action_settings,
+    R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
   val rememberMenus = matches(SettingsSection.APP, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
@@ -123,7 +126,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, rememberMenus,
+    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -207,12 +210,15 @@ internal fun SettingsContent(
         }
       }
     }
-    if (autoApply || rememberMenus) {
+    if (autoApply || installedIconsOnly || rememberMenus) {
       SmallTitle(stringResource(R.string.pack_action_settings))
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         if (autoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
           summary = stringResource(R.string.pack_auto_apply_summary), checked = preferences.autoApplyIconPack,
           onCheckedChange = onAutoApplyChange)
+        if (installedIconsOnly) SwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
+          summary = stringResource(R.string.pack_installed_icons_only_summary), checked = preferences.installedIconsOnly,
+          onCheckedChange = onInstalledIconsOnlyChange)
         if (rememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
           summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
           onCheckedChange = onRememberMenusChange)

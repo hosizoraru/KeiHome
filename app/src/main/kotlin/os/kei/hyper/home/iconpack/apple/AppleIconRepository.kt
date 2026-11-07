@@ -75,7 +75,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     val saved = settings.getString(mappingKey(target.packageName, options), null)
     if (saved == "-") return null
     if (saved != null) return runCatching { JSONObject(saved).match() }.getOrNull()
-    return AppleSystemMappings.defaultFor(target, options.platform)
+    return AppleSystemMappings.defaultFor(target, options)
   }
 
   fun custom(target: AppleAppTarget, options: AppleIconOptions): Boolean =

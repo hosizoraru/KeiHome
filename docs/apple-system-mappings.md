@@ -92,3 +92,58 @@ the effective storefront, so results from different regions are not mixed.
 See the research `acceptance.json` for the final APK, device identities,
 instrumentation results and actual UI acceptance. Source inspection and desktop
 API responses alone are not device acceptance.
+
+## Additional static presets, 2026-11-08
+
+This checkpoint adds fifteen mobile Apple roles: Books, Home, Apple Store
+(retail), Research, Podcasts, Reminders, Stocks, Shortcuts, Measure, Magnifier,
+Tips, Support, Preview, Freeform, and Maps. Exact English, Simplified/Traditional
+Chinese, and Japanese names are accepted where appropriate. Generic role
+matching still requires an Android system app. These mobile IDs are not used
+as substitutes for unverified macOS artwork.
+
+New exact OEM mappings:
+
+| Android product | Apple product |
+| --- | --- |
+| AI Scanner (`com.xiaomi.scanner`) | Preview |
+| Duokan (`com.duokan.reader`) | Apple Books |
+| Xiaomi Shop (`com.xiaomi.shop`) | Apple Store, distinct from App Store |
+| Xiaomi Health Research (`com.mi.healthresearch`) | Apple Research |
+| Xiaomi Speaker (`com.xiaomi.mico`) | Home |
+| Google Find Hub (`com.google.android.apps.adm`) | Find My |
+| Xiaomi Storage (`com.xiaomi.station`) | Files; genuine Finder for macOS |
+| Xiaomi mini-game hub (`com.xiaomi.tinygame`) | Games |
+
+Mi Home (`com.xiaomi.smarthome`) deliberately has **no automatic Home mapping**,
+including the Chinese name. Users may search for its own App Store product or
+choose Home manually. Its existing custom mapping/exclusion is preserved.
+Unrelated products such as Themes, Security, Xiaomi Community, roaming services,
+earphone utilities, and migration tools are not forced into superficially
+similar Apple roles.
+
+Ten additional exact same-product bindings cover Google, Drive, Photos, Docs,
+Sheets, Slides, Translate, Outlook, OneDrive, and Edge. A known Google Photos
+package wins over an Android label such as "Photos"; it does not become Apple
+Photos simply because it is preinstalled.
+
+For automatic presets only, known empty CN responses for Google, Translate,
+Research, Spotify, and ChatGPT select their verified US source. Other countries
+and saved manual storefronts are preserved. This is a preset source hint, not a
+general cross-region retry loop.
+
+Apple identities were checked using bounded official iTunes lookup batches;
+Maps and Preview also have official listings:
+[Maps](https://apps.apple.com/us/app/apple-maps/id915056765),
+[Preview](https://apps.apple.com/us/app/preview/id536344167).
+No independent dark variant is invented when a source intentionally shares
+artwork. Existing completed caches remain reusable.
+
+Retained inventory evaluation increases iOS/iPadOS matches from 21 to 22 of
+61 AVD targets, and from 32 to 42 of 187 physical-device targets. This is a
+mapping count, not a claim that every live artwork request succeeded.
+Evidence and final device acceptance:
+`.artifacts/research/apple-preinstalled-20261108/acceptance.json`.
+
+Calendar and Clock retain their existing static mappings. Dynamic date,
+language-sensitive calendar artwork, and clock hands are explicitly deferred.

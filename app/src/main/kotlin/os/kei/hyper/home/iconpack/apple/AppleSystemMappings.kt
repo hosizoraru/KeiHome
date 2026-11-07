@@ -38,6 +38,21 @@ internal object AppleSystemMappings {
     "tv" to app("1174078549", "Apple TV", "com.apple.tv"),
     "games" to app("6744464675", "Apple Games", "com.apple.games"),
     "music" to music,
+    "books" to app("364709193", "Apple Books", "com.apple.iBooks"),
+    "home" to app("1110145103", "Home", "com.apple.Home"),
+    "retail" to app("375380948", "Apple Store", "com.apple.store.Jolly"),
+    "research" to app("1463884356", "Apple Research", "com.apple.Research"),
+    "podcasts" to app("525463029", "Apple Podcasts", "com.apple.podcasts"),
+    "reminders" to app("1108187841", "Reminders", "com.apple.reminders"),
+    "stocks" to app("1069512882", "Stocks", "com.apple.stocks"),
+    "shortcuts" to app("915249334", "Shortcuts", "is.workflow.my.app"),
+    "measure" to app("1383426740", "Measure", "com.apple.measure"),
+    "magnifier" to app("1563316278", "Magnifier", "com.apple.Magnifier"),
+    "tips" to app("1069509450", "Tips", "com.apple.tips"),
+    "support" to app("1130498044", "Apple Support", "com.apple.supportapp"),
+    "preview" to app("536344167", "Preview", "com.apple.Preview"),
+    "freeform" to app("6443742539", "Freeform", "com.apple.freeform"),
+    "maps" to app("915056765", "Apple Maps", "com.apple.Maps"),
   )
   private val roleAliases = mapOf(
     "browser" to listOf("浏览器", "browser", "網頁瀏覽器", "ブラウザ", "Safari"),
@@ -67,6 +82,21 @@ internal object AppleSystemMappings {
     "games" to listOf("游戏中心", "遊戲中心", "games", "game center", "Apple Games", "ゲーム", "ゲームセンター"),
     "music" to listOf("音乐", "音樂", "music", "ミュージック", "Apple Music"),
     "settings" to listOf("设置", "設定", "settings", "システム設定", "Apple Settings"),
+    "books" to listOf("图书", "圖書", "阅读", "閱讀", "多看阅读", "Books", "Apple Books", "ブック"),
+    "home" to listOf("家庭", "智能家居", "Home", "Apple Home", "ホーム"),
+    "retail" to listOf("小米商城", "Apple Store", "苹果零售店", "蘋果零售店"),
+    "research" to listOf("小米健康研究", "健康研究", "Apple Research"),
+    "podcasts" to listOf("播客", "Podcasts", "Apple Podcasts", "ポッドキャスト"),
+    "reminders" to listOf("提醒事项", "提醒事項", "待办", "待辦", "待办事项", "Reminders", "リマインダー"),
+    "stocks" to listOf("股票", "股市", "Stocks", "株価"),
+    "shortcuts" to listOf("快捷指令", "自动化", "自動化", "Shortcuts", "ショートカット"),
+    "measure" to listOf("测量", "測量", "测距仪", "測距儀", "Measure", "計測"),
+    "magnifier" to listOf("放大器", "放大镜", "放大鏡", "Magnifier", "拡大鏡"),
+    "tips" to listOf("玩机技巧", "使用技巧", "提示", "Tips", "ヒント"),
+    "support" to listOf("客户支持", "客户服务", "售后服务", "Apple Support", "Support", "サポート"),
+    "preview" to listOf("AI扫描", "文档扫描", "文件预览", "预览", "預覽", "Preview", "プレビュー"),
+    "freeform" to listOf("无边记", "無邊記", "白板", "自由画布", "Freeform", "フリーボード"),
+    "maps" to listOf("地图", "地圖", "Maps", "Apple Maps", "地図"),
   ).flatMap { (role, aliases) -> aliases.map { AppleIconPolicy.normalize(it) to role } }.toMap()
   // These exact products may be user-installed; generic labels still require a system app.
   private val exactRoles = mapOf(
@@ -111,6 +141,14 @@ internal object AppleSystemMappings {
     "com.miui.videoplayer" to "tv",
     "com.miui.video" to "tv",
     "com.xiaomi.gamecenter" to "games",
+    "com.xiaomi.mico" to "home",
+    "com.duokan.reader" to "books",
+    "com.xiaomi.shop" to "retail",
+    "com.mi.healthresearch" to "research",
+    "com.xiaomi.scanner" to "preview",
+    "com.google.android.apps.adm" to "findmy",
+    "com.xiaomi.station" to "files",
+    "com.xiaomi.tinygame" to "games",
   )
   private val products = mapOf(
     "com.apple.android.music" to music,
@@ -126,7 +164,26 @@ internal object AppleSystemMappings {
     "com.whatsapp" to AppleAppMatch("310633997", "WhatsApp Messenger", "WhatsApp", "net.whatsapp.WhatsApp"),
     "com.spotify.music" to AppleAppMatch("324684580", "Spotify", "Spotify", "com.spotify.client"),
     "com.tencent.mm" to AppleAppMatch("414478124", "WeChat", "Tencent", "com.tencent.xin"),
+    "com.google.android.googlequicksearchbox" to AppleAppMatch("284815942", "Google", "Google", "com.google.GoogleMobile"),
+    "com.google.android.apps.docs" to AppleAppMatch("507874739", "Google Drive", "Google", "com.google.Drive"),
+    "com.google.android.apps.photos" to AppleAppMatch("962194608", "Google Photos", "Google", "com.google.photos"),
+    "com.google.android.apps.docs.editors.docs" to AppleAppMatch("842842640", "Google Docs", "Google", "com.google.Docs"),
+    "com.google.android.apps.docs.editors.sheets" to AppleAppMatch("842849113", "Google Sheets", "Google", "com.google.Sheets"),
+    "com.google.android.apps.docs.editors.slides" to AppleAppMatch("879478102", "Google Slides", "Google", "com.google.Slides"),
+    "com.google.android.apps.translate" to AppleAppMatch("414706506", "Google Translate", "Google", "com.google.Translate"),
+    "com.microsoft.office.outlook" to AppleAppMatch("951937596", "Microsoft Outlook", "Microsoft", "com.microsoft.Office.Outlook"),
+    "com.microsoft.skydrive" to AppleAppMatch("477537958", "Microsoft OneDrive", "Microsoft", "com.microsoft.skydrive"),
+    "com.microsoft.emmx" to AppleAppMatch("1288723196", "Microsoft Edge", "Microsoft", "com.microsoft.msedge"),
   )
+
+  // Verified CN responses omitted these products. This affects automatic presets
+  // only; saved manual mappings retain their own storefront.
+  private val cnSourceFallbacks = setOf("284815942", "414706506", "1463884356", "324684580", "6448311069")
+
+  fun defaultFor(target: AppleAppTarget, options: AppleIconOptions): AppleAppMatch? =
+    defaultFor(target, options.platform)?.let {
+      if (options.country == "cn" && it.id in cnSourceFallbacks) it.copy(country = "us") else it
+    }
 
   fun defaultFor(target: AppleAppTarget, platform: ApplePlatform): AppleAppMatch? {
     if (platform == ApplePlatform.MACOS) {

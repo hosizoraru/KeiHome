@@ -94,7 +94,8 @@ class AppleIconPolicyTest {
 
   @Test fun offlineSystemSearchIsConservative() {
     assertEquals("system_appstore", AppleSystemMappings.localSearch("Apple App Store", ApplePlatform.IOS).single().id)
-    assertTrue(AppleSystemMappings.localSearch("Apple Store", ApplePlatform.IOS).isEmpty())
+    assertEquals("375380948", AppleSystemMappings.localSearch("Apple Store", ApplePlatform.IOS).single().id)
+    assertTrue(AppleSystemMappings.localSearch("Apple Store deals", ApplePlatform.IOS).isEmpty())
     assertTrue(AppleSystemMappings.localSearch("Music downloader", ApplePlatform.MACOS).isEmpty())
   }
 

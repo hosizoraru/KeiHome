@@ -286,7 +286,7 @@ class AppleSystemMappingsTest {
     assertEquals("1069512134",
       AppleSystemMappings.localSearch(" Ｖｏｉｃｅ　Ｍｅｍｏｓ ", ApplePlatform.IOS).single().id)
     for (term in listOf("Password recovery", "Find My Phone Pro", "Wallet rewards", "TV remote",
-      "Games downloader", "Super Siri", "Feedback Collector", "Apple Store")) {
+      "Games downloader", "Super Siri", "Feedback Collector", "Apple Store deals")) {
       for (platform in ApplePlatform.entries) {
         assertTrue("$term / $platform", AppleSystemMappings.localSearch(term, platform).isEmpty())
         assertNull("$term / $platform", AppleSystemMappings.defaultFor(

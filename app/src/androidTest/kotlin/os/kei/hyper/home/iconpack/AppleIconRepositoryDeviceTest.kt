@@ -207,6 +207,32 @@ class AppleIconRepositoryDeviceTest {
     }
   }
 
+  @Test fun miHomeStaysUnmappedUnlessTheUserChoosesAnAppleProduct() = fixture { repo, _, dir, name ->
+    val home = AppleAppTarget("com.xiaomi.smarthome", "米家", true)
+    assertNull(repo.match(home, options))
+    assertNull(repo.match(home.copy(system = false), options))
+    val chosen = AppleAppMatch("1110145103", "Home", "Apple", "com.apple.Home", country = "jp")
+    repo.setMatch(home, options, chosen)
+    val reopened = AppleIconRepository(context, AppleIconClient(Server(), 0), dir, name)
+    assertEquals(chosen, reopened.match(home, options.copy(country = "cn")))
+    repo.resetMatch(home, options)
+    assertNull(reopened.match(home, options))
+  }
+
+  @Test fun automaticStorefrontHintsNeverReplaceManualChoicesOrExclusions() = fixture { repo, _, _, _ ->
+    val google = AppleAppTarget("com.google.android.googlequicksearchbox", "Google", true)
+    val cn = options.copy(country = "cn")
+    val automatic = checkNotNull(repo.match(google, cn))
+    assertEquals("us", automatic.country)
+    val manual = automatic.copy(country = "cn")
+    repo.setMatch(google, cn, manual)
+    assertEquals(manual, repo.match(google, cn))
+    repo.setMatch(google, cn, null)
+    assertNull(repo.match(google, cn))
+    repo.resetMatch(google, cn)
+    assertEquals(automatic, repo.match(google, cn))
+  }
+
   @Test fun onlineAndCachedSearchResultsCarryTheirSelectedStorefrontWithoutArtworkRequests() = fixture { repo, server, root, _ ->
     val japaneseOptions = options.copy(country = "jp")
     val result = repo.search("Test player", japaneseOptions).single()

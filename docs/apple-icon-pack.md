@@ -1,6 +1,6 @@
 # Apple icon pack
 
-Checkpoint: 2026-11-07. The source is available at Icon packs > Available icon
+Checkpoint: 2026-11-08. The source is available at Icon packs > Available icon
 packs > Apple. This implements static light/dark artwork; Clear and Tint remain
 research, not advertised runtime effects.
 
@@ -20,6 +20,20 @@ research, not advertised runtime effects.
   light/dark preview, manual replacement, automatic restoration and explicit
   exclusion. Overrides are saved separately for each platform, including apps
   without automatic matches.
+- Matched icons opens a separate gallery of the resolved installed-app mappings,
+  with Android package, automatic/custom origin, Apple destination, storefront
+  and light/dark previews. Missing dark resources are labelled explicitly.
+- Custom mappings includes all launchable apps, including unmatched/excluded
+  entries. Both browsers support local search, sorting, filtering, a storefront
+  filter and a floating refresh action. Sort/filter use the same MIUIX top-bar
+  cascading menus as the Apps page, not a control card inside the list.
+  Refresh rereads installed apps and local
+  resources; it does not refresh every remote icon.
+- The editor shows the existing mapping before searching. Its storefront is
+  independent of the global default and is saved with each manual choice.
+  Presets include US/CN/JP/HK/TW/GB/CA/KR; other ISO two-letter regions can be
+  entered. A valid region code does not guarantee catalog/product availability.
+  Different storefronts can coexist in one generated pack.
 
 Apple Music Classical is a valid user-selected replacement for an unrelated
 Android music player. It is not automatically assigned to an arbitrary app just
@@ -71,6 +85,11 @@ App-owned options and overrides use MMKV. Artwork lives in app-private
 - SHA-256-addressed PNG blobs; identical image content is stored once.
 - Request identity distinguishes region, platform, resolution, corners, appearance
   and source template/revision.
+- Publication schema 2 qualifies artwork/resource identities by Apple product and
+  effective storefront. An identical product ID from two regions cannot reuse
+  the other region's provenance. Content-identical PNG blobs are still shared.
+  Legacy choices without a country inherit the global region. Schema 1 archives
+  restore only in their recorded region and migrate during regeneration.
 - Search/metadata records are bounded. Image cache has a 256 MiB eviction budget.
 - Atomic publication points to a content-addressed static ZIP. A small previous
   generation is retained; old generations are pruned.
@@ -82,6 +101,10 @@ App-owned options and overrides use MMKV. Artwork lives in app-private
   images can restore previews/rebuilds offline, even after metadata removal.
 - Generation metadata includes source digest so previews and normal theme-update
   checks can distinguish changed generated content under the stable Apple source.
+- Browsers read published archives and local metadata only. Full remote previews
+  are fetched on an explicit editor action. Sampled thumbnail decoding runs on IO
+  and uses a shared, bounded 8 MiB bitmap cache, keyed by immutable image path and
+  requested pixel size. Row preview space is reserved to avoid loading jumps.
 
 The existing icon renderer/exporter/native import and fallback policies handle
 the resulting pack. The new source does not bypass the installed-only export
@@ -104,3 +127,10 @@ not physical Android acceptance or proof of every store product's availability.
 
 Evidence and the final signed-release receipt:
 `.artifacts/research/apple-pack-20261107/acceptance.json`.
+
+The browser/storefront checkpoint adds `AppleMappingBrowserTest` and expands the
+repository tests to cover per-mapping regions, same-ID regional separation,
+country persistence, cache-only misses and offline legacy migration. The current
+suite passed 728 JVM tests and 24 repository instrumentation tests. Device/UI
+acceptance and the matching signed release are recorded separately in
+`.artifacts/research/apple-browser-20261108/acceptance.json`.

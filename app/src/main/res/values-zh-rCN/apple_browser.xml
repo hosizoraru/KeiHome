@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apple_matched_title">已匹配图标</string>
+    <string name="apple_matched_intro">按当前平台、分辨率和圆角预览映射。点按应用可修改映射或获取缺失的预览；修改后需重新生成并应用。</string>
+    <string name="apple_mapping_manage_summary">当前预览、替换与排除，按应用选择商店地区</string>
+    <string name="apple_browser_search">搜索应用、包名或 Apple 映射</string>
+    <string name="apple_browser_filter">筛选</string>
+    <string name="apple_browser_sort">排序</string>
+    <string name="apple_browser_count">显示 %1$d 项 · 已映射 %2$d / %3$d 个应用</string>
+    <string name="apple_browser_empty">没有符合条件的应用，可以调整筛选或刷新列表。</string>
+    <string name="apple_no_cached_preview">暂无本地预览，点按可主动获取。</string>
+    <string name="apple_refresh_mappings">刷新列表</string>
+    <string name="apple_filter_all">全部</string>
+    <string name="apple_filter_mapped">已映射</string>
+    <string name="apple_filter_unmapped">未映射</string>
+    <string name="apple_filter_custom">自定义选择</string>
+    <string name="apple_automatic">自动映射</string>
+    <string name="apple_excluded">不使用 Apple 图标</string>
+    <string name="apple_filter_cross_region">跨地区映射</string>
+    <string name="apple_filter_system">系统应用</string>
+    <string name="apple_filter_user">第三方应用</string>
+    <string name="apple_sort_name">应用名称（升序）</string>
+    <string name="apple_sort_name_desc">应用名称（降序）</string>
+    <string name="apple_sort_package">应用包名</string>
+    <string name="apple_sort_apple">Apple 应用名称</string>
+    <string name="apple_sort_region">商店地区代码</string>
+    <string name="apple_sort_custom">自定义选择优先</string>
+    <string name="apple_region_filter_all">不限地区</string>
+    <string name="apple_current_mapping">当前映射</string>
+    <string name="apple_get_current_preview">获取当前预览</string>
+    <string name="apple_search_region">搜索商店地区</string>
+    <string name="apple_search_region_note">仅用于本次搜索，并随选中的映射保存；不会改动其他应用或全局地区。</string>
+    <string name="apple_region_custom">其他地区…</string>
+    <string name="apple_region_code">两位地区代码，例如 DE、SG</string>
+    <string name="apple_region_apply">使用此地区代码</string>
+    <string name="apple_region_invalid">请输入有效的两位 ISO 地区代码；不同地区的商店资源可能不同。</string>
+</resources>

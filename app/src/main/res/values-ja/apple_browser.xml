@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apple_matched_title">一致したアイコン</string>
+    <string name="apple_matched_intro">現在のプラットフォーム・解像度・形状でプレビューします。アプリをタップして変更や未取得のプレビューを読み込めます。変更後は再生成して適用してください。</string>
+    <string name="apple_mapping_manage_summary">現在のプレビュー、置き換え、除外、アプリ別のストア地域</string>
+    <string name="apple_browser_search">アプリ・パッケージ・Apple の対応先を検索</string>
+    <string name="apple_browser_filter">絞り込み</string>
+    <string name="apple_browser_sort">並び順</string>
+    <string name="apple_browser_count">表示 %1$d 件 · 対応 %2$d / %3$d アプリ</string>
+    <string name="apple_browser_empty">条件に一致するアプリがありません。絞り込みを変えるか、一覧を更新してください。</string>
+    <string name="apple_no_cached_preview">ローカルのプレビューがありません。タップして取得できます。</string>
+    <string name="apple_refresh_mappings">一覧を更新</string>
+    <string name="apple_filter_all">すべて</string>
+    <string name="apple_filter_mapped">対応あり</string>
+    <string name="apple_filter_unmapped">未対応</string>
+    <string name="apple_filter_custom">カスタム設定</string>
+    <string name="apple_automatic">自動対応</string>
+    <string name="apple_excluded">Apple アイコンを使わない</string>
+    <string name="apple_filter_cross_region">別のストア地域</string>
+    <string name="apple_filter_system">システムアプリ</string>
+    <string name="apple_filter_user">ユーザーアプリ</string>
+    <string name="apple_sort_name">アプリ名（昇順）</string>
+    <string name="apple_sort_name_desc">アプリ名（降順）</string>
+    <string name="apple_sort_package">パッケージ名</string>
+    <string name="apple_sort_apple">Apple アプリ名</string>
+    <string name="apple_sort_region">ストア地域コード</string>
+    <string name="apple_sort_custom">カスタム設定を優先</string>
+    <string name="apple_region_filter_all">すべての地域</string>
+    <string name="apple_current_mapping">現在の対応先</string>
+    <string name="apple_get_current_preview">現在のプレビューを取得</string>
+    <string name="apple_search_region">検索するストア地域</string>
+    <string name="apple_search_region_note">この検索と選んだ対応先に保存します。他のアプリや全体の地域は変わりません。</string>
+    <string name="apple_region_custom">その他の地域…</string>
+    <string name="apple_region_code">2 文字の地域コード（DE、SG など）</string>
+    <string name="apple_region_apply">この地域コードを使用</string>
+    <string name="apple_region_invalid">有効な 2 文字の ISO 地域コードを入力してください。提供内容は地域により異なります。</string>
+</resources>

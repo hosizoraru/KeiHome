@@ -14,8 +14,8 @@
     <string name="apple_region_jp">Japan</string>
     <string name="apple_region_hk">Hong Kong</string>
     <string name="apple_mappings">Custom mappings</string>
-    <string name="apple_mapping_count">%1$d of %2$d installed apps mapped · tap to edit</string>
-    <string name="apple_mapping_intro">Confirmed products and suitable system apps are mapped automatically. Tap any app to search for another Apple icon, including Apple Music or Classical. Manual choices take priority and are saved per platform. Changes take effect after generating and applying the pack.</string>
+    <string name="apple_mapping_count">%1$d of %2$d installed apps mapped · tap to preview</string>
+    <string name="apple_mapping_intro">Tap an app to preview, replace or exclude its Apple icon. Manual choices take priority and save the storefront per app and platform, so different regions can be mixed. Changes take effect after generating and applying the pack.</string>
     <string name="apple_ipad_note">iPadOS uses App Store artwork shared with iOS. Search results are limited to apps available for iPad.</string>
     <string name="apple_options_pending">There are pending changes. Generate incrementally to update the pack.</string>
     <string name="apple_download_cache">Downloaded artwork</string>

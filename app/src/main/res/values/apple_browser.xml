@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apple_matched_title">Matched icons</string>
+    <string name="apple_matched_intro">Preview current mappings with the selected platform, size and corners. Tap an app to edit or fetch a missing preview. Mapping changes take effect after generating and applying the pack.</string>
+    <string name="apple_mapping_manage_summary">Current previews, replacements, exclusions and per-app storefronts</string>
+    <string name="apple_browser_search">Search apps, packages or Apple mappings</string>
+    <string name="apple_browser_filter">Filter</string>
+    <string name="apple_browser_sort">Sort order</string>
+    <string name="apple_browser_count">%1$d shown · %2$d / %3$d apps mapped</string>
+    <string name="apple_browser_empty">No apps match these filters. Try another filter or refresh the list.</string>
+    <string name="apple_no_cached_preview">No local preview. Tap to fetch it.</string>
+    <string name="apple_refresh_mappings">Refresh list</string>
+    <string name="apple_filter_all">All apps</string>
+    <string name="apple_filter_mapped">Mapped</string>
+    <string name="apple_filter_unmapped">Unmapped</string>
+    <string name="apple_filter_custom">Custom choices</string>
+    <string name="apple_automatic">Automatic</string>
+    <string name="apple_excluded">Excluded</string>
+    <string name="apple_filter_cross_region">Other storefronts</string>
+    <string name="apple_filter_system">System apps</string>
+    <string name="apple_filter_user">User apps</string>
+    <string name="apple_sort_name">App name (A–Z)</string>
+    <string name="apple_sort_name_desc">App name (Z–A)</string>
+    <string name="apple_sort_package">Package name</string>
+    <string name="apple_sort_apple">Apple app name</string>
+    <string name="apple_sort_region">Storefront code</string>
+    <string name="apple_sort_custom">Custom choices first</string>
+    <string name="apple_region_filter_all">All storefronts</string>
+    <string name="apple_current_mapping">Current mapping</string>
+    <string name="apple_get_current_preview">Fetch current preview</string>
+    <string name="apple_search_region">Search storefront</string>
+    <string name="apple_search_region_note">Used for this search and saved with the selected mapping. Other apps and the global storefront stay unchanged.</string>
+    <string name="apple_region_custom">Other region…</string>
+    <string name="apple_region_code">Two-letter region code, e.g. DE or SG</string>
+    <string name="apple_region_apply">Use this region code</string>
+    <string name="apple_region_invalid">Enter a valid two-letter ISO region code. Store availability varies by region.</string>
+</resources>

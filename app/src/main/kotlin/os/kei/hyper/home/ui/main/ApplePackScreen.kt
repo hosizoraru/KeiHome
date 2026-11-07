@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
@@ -23,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +42,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import java.util.Locale
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,6 +89,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   val main = section == "apple"
   val search = section == "apple-search"
+  val matchedOnly = section == "apple-matched"
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   var actionHeight by remember { mutableIntStateOf(0) }
@@ -91,6 +97,19 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val nativeBusy = packs.nativeImporting != null
   val enabled = !state.busy && !state.loading && !nativeBusy
   var filter by rememberSaveable(section) { mutableStateOf("") }
+  var filterName by rememberSaveable(section) { mutableStateOf(AppleMappingFilter.ALL.name) }
+  var sortName by rememberSaveable(section) { mutableStateOf(AppleMappingSort.NAME.name) }
+  var regionFilter by rememberSaveable(section) { mutableStateOf("") }
+  val locale = LocalConfiguration.current.locales[0]
+  val mappingFilter = AppleMappingFilter.entries.firstOrNull { it.name == filterName } ?: AppleMappingFilter.ALL
+  val mappingSort = AppleMappingSort.entries.firstOrNull { it.name == sortName } ?: AppleMappingSort.NAME
+  val browserRows by produceState(emptyList<AppleMappingRow>(), state.rows, filter, mappingFilter,
+    mappingSort, state.options.country, regionFilter, matchedOnly, locales) {
+    value = withContext(Dispatchers.Default) {
+      appleMappingRows(state.rows, filter, mappingFilter, mappingSort, state.options.country,
+        regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')))
+    }
+  }
   var query by rememberSaveable(state.editing?.packageName, state.options.platform) {
     mutableStateOf(state.editing?.label.orEmpty())
   }
@@ -98,8 +117,17 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val keyboard = LocalSoftwareKeyboardController.current
   fun searchNow() { focus.clearFocus(); keyboard?.hide(); controller.search(query) }
   val listState = rememberLazyListState()
+  val uiScope = rememberCoroutineScope()
+  fun browserChanged() {
+    focus.clearFocus(); keyboard?.hide()
+    uiScope.launch { listState.scrollToItem(0) }
+  }
   LaunchedEffect(search, state.previewing, state.preview) {
-    if (search && (state.previewing || state.preview != null)) listState.animateScrollToItem(3)
+    if (search && (state.previewing || state.preview != null)) {
+      val index = listState.layoutInfo.totalItemsCount - state.candidates.size -
+        (if (state.error != null) 1 else 0) - 1
+      if (index >= 0) listState.animateScrollToItem(index)
+    }
   }
   LaunchedEffect(controller, section) { controller.load() }
   LaunchedEffect(search, state.editing) { if (search && state.editing == null) onBack() }
@@ -114,28 +142,39 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(if (main) R.string.apple_pack_title
-        else if (search) R.string.apple_choose_icon else R.string.apple_mappings),
+        else if (search) R.string.apple_choose_icon
+        else if (matchedOnly) R.string.apple_matched_title else R.string.apple_mappings),
         scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-        navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) } })
+        navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) } },
+        actions = {
+          if (!main && !search) {
+            AppleMappingFilterMenu(mappingFilter, regionFilter, state.rows.mapNotNull {
+              it.app?.country ?: if (it.app != null) state.options.country else null
+            }.distinct().sorted(), matchedOnly,
+              onFilter = { filterName = it.name; browserChanged() },
+              onRegion = { regionFilter = it; browserChanged() })
+            AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
+          }
+        })
     }
   }, floatingActionButton = {
-    if (main || search) PageActionFab(
-      label = stringResource(if (search) R.string.apple_search else if (state.pack == null)
-        R.string.apple_generate else R.string.apple_generate_incremental),
+    PageActionFab(
+      label = stringResource(if (search) R.string.apple_search else if (!main) R.string.apple_refresh_mappings
+        else if (state.pack == null) R.string.apple_generate else R.string.apple_generate_incremental),
       icon = if (search) MiuixIcons.Search else MiuixIcons.Refresh,
-      onClick = { if (search) searchNow() else controller.generate() },
+      onClick = { if (search) searchNow() else if (main) controller.generate() else controller.load() },
       modifier = Modifier.testTag("apple.action"),
-      enabled = enabled && (!search || query.isNotBlank()),
-      busy = if (search) state.searching else state.busy,
+      enabled = enabled && (!search || query.isNotBlank() && !state.searching && !state.previewing),
+      busy = if (search) state.searching else state.busy || state.loading,
       onHeightChanged = { actionHeight = it })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       LazyColumn(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), state = listState,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() + if (main || search)
-            maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp) else 24.dp),
+          bottom = insets.calculateBottomPadding() +
+            maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (main) {
           item("intro") { PackInfoCard(stringResource(R.string.apple_intro)) }
@@ -155,20 +194,21 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 items = listOf("Rounded", "Original").map { DropdownItem(text = it) },
                 selectedIndex = state.options.corners.ordinal,
                 onSelectedIndexChange = { controller.options(state.options.copy(corners = AppleCorners.entries[it])) })
-              OverlaySpinnerPreference(title = stringResource(R.string.apple_region), enabled = enabled,
-                items = listOf(stringResource(R.string.apple_region_us), stringResource(R.string.apple_region_cn),
-                  stringResource(R.string.apple_region_jp), stringResource(R.string.apple_region_hk)).map { DropdownItem(text = it) },
-                selectedIndex = listOf("us", "cn", "jp", "hk").indexOf(state.options.country),
-                onSelectedIndexChange = { controller.options(state.options.copy(country = listOf("us", "cn", "jp", "hk")[it])) })
+              AppleStorefrontPreference(state.options.country, enabled) {
+                controller.options(state.options.copy(country = it))
+              }
             }
           }
           item("appearance") { IconPackAppearancePreference(prefs.iconPackAppearance,
             model.preferences::setIconPackAppearance, enabled, compact = true) }
           item("mappings") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.apple_mappings),
+              BasicComponent(title = stringResource(R.string.apple_matched_title),
                 summary = stringResource(R.string.apple_mapping_count, state.rows.count { it.app != null }, state.rows.size),
-                onClick = { onNavigate("apple-mappings") })
+                enabled = enabled, onClick = { onNavigate("apple-matched") })
+              BasicComponent(title = stringResource(R.string.apple_mappings),
+                summary = stringResource(R.string.apple_mapping_manage_summary),
+                enabled = enabled, onClick = { onNavigate("apple-mappings") })
             }
           }
           if (state.options.platform == ApplePlatform.IPADOS) item("ipad-note") {
@@ -217,23 +257,44 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
         } else if (!search) {
-          item("intro") { PackInfoCard(stringResource(R.string.apple_mapping_intro)) }
-          item("filter") {
-            InputField(query = filter, onQueryChange = { filter = it }, onSearch = {}, expanded = false,
-              onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_filter_apps))
+          item("intro") {
+            PackInfoCard(stringResource(if (matchedOnly) R.string.apple_matched_intro else R.string.apple_mapping_intro))
           }
-          val needle = filter.trim().lowercase(java.util.Locale.ROOT)
-          items(state.rows.filter { needle.isBlank() || it.target.label.lowercase(java.util.Locale.ROOT).contains(needle) ||
-            it.target.packageName.contains(needle) }, key = { it.target.packageName }, contentType = { "mapping" }) { row ->
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = row.target.label,
-                summary = row.target.packageName + "\n" + (row.app?.name ?: stringResource(R.string.apple_unmatched)) +
-                  if (row.custom) " · " + stringResource(R.string.apple_custom) else "",
-                enabled = enabled, onClick = { controller.edit(row.target); onNavigate("apple-search") })
-            }
+          item("filter") {
+            InputField(query = filter, onQueryChange = { filter = it },
+              onSearch = { focus.clearFocus(); keyboard?.hide() }, expanded = false,
+              onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
+          }
+          item("count") {
+            Text(stringResource(R.string.apple_browser_count, browserRows.size, state.rows.count { it.app != null }, state.rows.size),
+              Modifier.padding(horizontal = 12.dp), style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+          appleMappingCards(browserRows, state, controller, enabled) { row ->
+            focus.clearFocus(); keyboard?.hide()
+            controller.edit(row.target); onNavigate("apple-search")
           }
         } else {
           item("intro") { PackInfoCard(stringResource(R.string.apple_search_intro, state.editing?.label.orEmpty())) }
+          val current = state.rows.firstOrNull { it.target.packageName == state.editing?.packageName }
+          if (current?.app != null) item("current-mapping") {
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              BasicComponent(title = stringResource(R.string.apple_current_mapping),
+                summary = "${current.app.name} · ${appleRegionName(current.app.country ?: state.options.country, locale)}")
+              state.currentPreview?.let { AppleArtworkPair(it, compact = true) }
+              if (state.currentPreview == null) BasicComponent(title = stringResource(R.string.apple_get_current_preview),
+                summary = stringResource(R.string.apple_no_cached_preview), enabled = enabled && !state.previewing,
+                onClick = { focus.clearFocus(); keyboard?.hide()
+                  controller.preview(current.app.copy(country = current.app.country ?: state.options.country)) })
+            }
+          }
+          item("search-region") {
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              AppleStorefrontPreference(state.searchCountry, enabled, search = true, onCountryChange = {
+                focus.clearFocus(); keyboard?.hide(); controller.searchCountry(it)
+              })
+            }
+          }
           item("query") {
             InputField(query = query, onQueryChange = { query = it.take(100) },
               onSearch = { searchNow() }, expanded = false, onExpandedChange = {},
@@ -262,20 +323,25 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
           state.preview?.let { preview -> item("preview") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = preview.app.name, summary = preview.app.publisher)
-              Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light))
-                AppleArtworkThumb(preview.dark ?: preview.light, stringResource(
-                  if (preview.dark == null) R.string.apple_preview_same else R.string.apple_preview_dark))
-              }
+              BasicComponent(title = preview.app.name,
+                summary = "${preview.app.publisher} · ${appleRegionName(preview.app.country ?: state.searchCountry, locale)}")
+              AppleArtworkPair(preview)
               BasicComponent(title = stringResource(R.string.apple_use_mapping),
                 onClick = { controller.mapping(preview.app); onBack() })
             }
           } }
           items(state.candidates, key = { it.id }, contentType = { "candidate" }) { app ->
+            val cached by produceState<os.kei.hyper.home.iconpack.apple.AppleArtworkPreview?>(null,
+              app, state.options, state.previewRevision) {
+              value = try { controller.cachedPreview(app) }
+              catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+              catch (_: Exception) { null }
+            }
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = app.name, summary = "${app.publisher}\n${app.bundleId} · ${app.id}",
-                enabled = enabled, onClick = { focus.clearFocus(); keyboard?.hide(); controller.preview(app) })
+              BasicComponent(title = app.name, summary = "${app.publisher}\n${app.bundleId} · ${app.id}\n" +
+                appleRegionName(app.country ?: state.searchCountry, locale),
+                enabled = enabled && !state.previewing, onClick = { focus.clearFocus(); keyboard?.hide(); controller.preview(app) })
+              cached?.let { AppleArtworkPair(it, compact = true) }
             }
           }
           if (state.searched && state.candidates.isEmpty()) item("empty") {
@@ -297,20 +363,32 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
 }
 
 @Composable
-private fun AppleArtworkThumb(file: java.io.File, label: String) {
-  val sizePx = with(LocalDensity.current) { 76.dp.roundToPx() }
+internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.dp, dark: Boolean = false) {
+  val sizePx = with(LocalDensity.current) { size.roundToPx() }
   val image by produceState<ImageBitmap?>(null, file, sizePx) {
     value = withContext(Dispatchers.IO) {
+      val key = "${file.path}:$sizePx"
+      ApplePreviewImages.cache.get(key)?.let { return@withContext it }
       val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
       android.graphics.BitmapFactory.decodeFile(file.path, bounds)
       var sample = 1
       while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= sizePx) sample *= 2
       android.graphics.BitmapFactory.decodeFile(file.path,
         android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
+        ?.also { ApplePreviewImages.cache.put(key, it) }
     }
   }
   Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.size(76.dp)) { image?.let { Image(it, label, Modifier.fillMaxSize()) } }
-    Text(label, style = MiuixTheme.textStyles.footnote1)
+    Box(Modifier.size(size).background(if (dark) Color(0xff25262a) else Color(0xfff2f2f2),
+      RoundedCornerShape(12.dp))) { image?.let { Image(it, label, Modifier.fillMaxSize()) } }
+    Text(label, style = MiuixTheme.textStyles.footnote1, maxLines = 2,
+      overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+      textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+  }
+}
+
+private object ApplePreviewImages {
+  val cache = object : android.util.LruCache<String, ImageBitmap>(8 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
   }
 }

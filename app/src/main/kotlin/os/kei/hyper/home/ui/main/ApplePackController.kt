@@ -39,6 +39,9 @@ internal data class ApplePackUiState(
   val pendingChanges: Boolean = false,
   val previewing: Boolean = false,
   val preview: AppleArtworkPreview? = null,
+  val currentPreview: AppleArtworkPreview? = null,
+  val searchCountry: String = "us",
+  val previewRevision: Int = 0,
 )
 
 /** Owned by HomeViewModel, so navigation and recomposition cannot restart a download. */
@@ -51,10 +54,11 @@ internal class ApplePackController(
   val state = mutable.asStateFlow()
   private var work: Job? = null
   private var search: Job? = null
+  private var currentPreviewJob: Job? = null
 
   fun load() {
     if (mutable.value.loading || mutable.value.busy) return
-    mutable.update { it.copy(loading = true) }
+    mutable.update { it.copy(loading = true, error = null) }
     scope.launch {
       try {
         val targets = repository.targets()
@@ -63,7 +67,8 @@ internal class ApplePackController(
         val bytes = repository.cacheBytes()
         val pending = repository.needsGeneration(targets, mutable.value.options)
         mutable.update { value -> value.copy(loading = false, rows = rows(targets, value.options),
-          pack = pack, publishedOptions = published, cacheBytes = bytes, pendingChanges = pending) }
+          pack = pack, publishedOptions = published, cacheBytes = bytes, pendingChanges = pending,
+          previewRevision = value.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (_: Exception) { mutable.update { it.copy(loading = false, error = ApplePackError.GENERATION) } }
     }
@@ -81,9 +86,33 @@ internal class ApplePackController(
 
   fun edit(target: AppleAppTarget) {
     search?.cancel()
+    currentPreviewJob?.cancel()
+    val snapshot = mutable.value
+    val current = snapshot.rows.firstOrNull { it.target.packageName == target.packageName }?.app
     mutable.update { it.copy(editing = target, candidates = emptyList(), searching = false, searched = false,
-      error = null, preview = null, previewing = false) }
+      error = null, preview = null, currentPreview = null, previewing = false,
+      searchCountry = current?.country ?: it.options.country) }
+    if (current != null) currentPreviewJob = scope.launch {
+      try {
+        val preview = repository.cachedPreview(current, snapshot.options)
+        mutable.update { it.copy(currentPreview = preview) }
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (_: Exception) { /* Explicit preview remains available if the local cache is missing. */ }
+    }
   }
+
+  fun searchCountry(country: String) {
+    if (mutable.value.searchCountry == country || mutable.value.busy) return
+    search?.cancel()
+    mutable.update { it.copy(searchCountry = country, candidates = emptyList(), preview = null,
+      searched = false, searching = false, previewing = false, error = null) }
+  }
+
+  suspend fun cachedPreview(row: AppleMappingRow): AppleArtworkPreview? =
+    row.app?.let { repository.cachedPreview(it, mutable.value.options) }
+
+  suspend fun cachedPreview(app: AppleAppMatch): AppleArtworkPreview? =
+    repository.cachedPreview(app, mutable.value.options)
 
   fun search(query: String) {
     val snapshot = mutable.value
@@ -93,7 +122,7 @@ internal class ApplePackController(
       preview = null, previewing = false) }
     search = scope.launch {
       try {
-        val candidates = repository.search(query, snapshot.options)
+        val candidates = repository.search(query, snapshot.options.copy(country = snapshot.searchCountry))
         mutable.update { it.copy(searching = false, searched = true, candidates = candidates) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { mutable.update { it.copy(searching = false, error = failure.uiError()) } }
@@ -104,7 +133,8 @@ internal class ApplePackController(
     val snapshot = mutable.value
     val target = snapshot.editing ?: return
     if (snapshot.busy) return
-    if (reset) repository.resetMatch(target, snapshot.options) else repository.setMatch(target, snapshot.options, app)
+    if (reset) repository.resetMatch(target, snapshot.options) else repository.setMatch(target, snapshot.options,
+      app?.copy(country = app.country ?: snapshot.searchCountry))
     mutable.update { it.copy(rows = rows(it.rows.map { row -> row.target }, it.options), result = null, error = null,
       pendingChanges = true, preview = null) }
   }
@@ -118,7 +148,8 @@ internal class ApplePackController(
       try {
         val preview = repository.preview(app, options)
         val bytes = repository.cacheBytes()
-        mutable.update { it.copy(preview = preview, previewing = false, cacheBytes = bytes) }
+        mutable.update { it.copy(preview = preview, previewing = false, cacheBytes = bytes,
+          previewRevision = it.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { mutable.update { it.copy(previewing = false, error = failure.uiError()) } }
     }
@@ -128,7 +159,7 @@ internal class ApplePackController(
     if (mutable.value.busy || mutable.value.searching || mutable.value.previewing) return
     mutable.update { it.copy(busy = true) }
     work = scope.launch {
-      try { repository.clearDownloads(); mutable.update { it.copy(cacheBytes = 0) }
+      try { repository.clearDownloads(); mutable.update { it.copy(cacheBytes = 0, previewRevision = it.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { mutable.update { it.copy(error = failure.uiError()) }
       } finally { mutable.update { it.copy(busy = false) } }
@@ -154,7 +185,8 @@ internal class ApplePackController(
         }
         val bytes = repository.cacheBytes()
         mutable.update { it.copy(pack = result.pack, result = result,
-          publishedOptions = snapshot.options, cacheBytes = bytes, pendingChanges = result.failed > 0) }
+          publishedOptions = snapshot.options, cacheBytes = bytes, pendingChanges = result.failed > 0,
+          previewRevision = it.previewRevision + 1) }
         onGenerated()
         onReady?.invoke(result.pack)
       } catch (cancelled: CancellationException) { throw cancelled
@@ -166,7 +198,10 @@ internal class ApplePackController(
   }
 
   fun cancel() { work?.cancel(); search?.cancel(); mutable.update { it.copy(searching = false, previewing = false) } }
-  fun closeSearch() { search?.cancel(); mutable.update { it.copy(searching = false, previewing = false, preview = null) } }
+  fun closeSearch() {
+    search?.cancel(); currentPreviewJob?.cancel()
+    mutable.update { it.copy(searching = false, previewing = false, preview = null, currentPreview = null) }
+  }
 
   private fun rows(targets: List<AppleAppTarget>, options: AppleIconOptions) =
     targets.map { AppleMappingRow(it, repository.match(it, options), repository.custom(it, options)) }

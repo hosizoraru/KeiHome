@@ -14,8 +14,8 @@
     <string name="apple_region_jp">日本</string>
     <string name="apple_region_hk">中国香港</string>
     <string name="apple_mappings">自定义映射</string>
-    <string name="apple_mapping_count">已映射 %1$d / %2$d 个已安装应用 · 点按编辑</string>
-    <string name="apple_mapping_intro">已确认的同款应用和适合的系统应用会自动映射。点按任意应用，可搜索并指定 Apple Music、古典乐等其他图标。手动选择优先，并按平台保存；生成并应用图标包后生效。</string>
+    <string name="apple_mapping_count">已映射 %1$d / %2$d 个已安装应用 · 点按预览</string>
+    <string name="apple_mapping_intro">点按应用可预览、替换或排除 Apple 图标。手动选择优先，并按应用和平台保存商店地区，支持混用不同地区。生成并应用图标包后生效。</string>
     <string name="apple_ipad_note">iPadOS 使用商店与 iOS 共用的图标资源；主动搜索时只列出支持 iPad 的应用。</string>
     <string name="apple_options_pending">有待生成的更改，请增量生成以更新图标包。</string>
     <string name="apple_download_cache">已下载图标缓存</string>

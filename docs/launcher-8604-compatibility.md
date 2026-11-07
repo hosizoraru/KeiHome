@@ -63,3 +63,32 @@ active-queue rejection and unrelated callback failures remain visible.
 Six focused concurrency/lifetime tests exercise these distinctions.
 The failed activation remains recorded and is not counted as process-stable
 acceptance; subsequent Java hot reload and setting changes require a new receipt.
+
+## Accepted checkpoint
+
+Release `1.4.0+g59ea509.b0226` (`104000226`), signed with KeiOS Release:
+
+- The exact 8604 APK was installed over the Phone AVD launcher. The final module
+  reports ready/connected, with actual Dock glass and native icon effects.
+- Dock OFF/ON advances revision 2 then 3, with matching native acknowledgements.
+  Monet ON reaches the system setting and renders on the desktop; it is restored
+  OFF. Light/dark mode and display sleep/wake also complete.
+- The final Java update and a subsequent same-APK replacement restore fresh
+  runtimes while preserving Launcher `5737/start8675688`, system_server
+  `29043/start8668563`, and SystemUI `2258/start8671481`. Settings and display
+  tests preserve these identities too. The post-fix crash buffer has no new
+  fatal entry during this bounded run.
+- Source checks cover six retained versions. Selection graph checks and linked
+  tests pass; Dock has 128 structural/rejection checks and seven isolated
+  root-relation checks per fixture. Final linked payload checks include 686
+  label cases, 35 mode cases with 8604 metadata, and the Dock render suite.
+  The six retirement unit tests, Release assembly and Release lint pass.
+- The original launcher 8593 was restored by cover installation, with no
+  uninstall or data clearing. Its actual native builder `0x14a359c`, matching
+  loaded APK path, ready/connected state, and Dock acknowledgement were checked.
+  SystemUI and system_server remain unchanged through restoration.
+
+Native payload changes need a one-time new launcher process to load the updated
+machine code. API 102 Java reload and normal preference changes do not require
+that development activation. This checkpoint makes no physical REDMI acceptance
+claim or performance-improvement claim.

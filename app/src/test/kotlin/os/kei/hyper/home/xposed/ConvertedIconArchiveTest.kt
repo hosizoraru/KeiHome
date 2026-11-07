@@ -123,19 +123,38 @@ class ConvertedIconArchiveTest {
     val path = "$fancy/manifest.xml"
     val canonical = String(entries.getValue(path), Charsets.UTF_8)
     for (manifest in listOf(
-      canonical.replace("settings/system/keihome_maml_fg_hex", "settings/secure/other"),
+      canonical.replace("settings/system/keihome_maml_palette_state", "settings/secure/other"),
       canonical.replace("content://settings", "content://foreign"),
       canonical.replace("updateInterval=\"-1\"", "updateInterval=\"0\""),
       canonical.replace("queryAtStart=\"true\"", "queryAtStart=\"false\""),
       canonical.replace("column=\"value\"", "column=\"name\""),
       canonical.replace("row=\"0\"", "row=\"1\""),
-      canonical.replace("type=\"int\"", "type=\"string\""),
+      canonical.replace("type=\"double\"", "type=\"string\""),
       canonical.replace("tintmode=\"5\"", "tintmode=\"3\""),
-      canonical.replace("@palette_fg", "@foreign"),
+      canonical.replace("#palette_state", "#foreign"),
       canonical.replace("bg.png", "../bg.png"),
       canonical.replace("</Icon>", "<Script>anything</Script></Icon>"),
       canonical + "\n",
-    )) rejects(zip(entries + (path to manifest.toByteArray())))
+    )) {
+      assertNotEquals(canonical, manifest)
+      rejects(zip(entries + (path to manifest.toByteArray())))
+    }
+  }
+
+  @Test fun acceptsAtomicAndLegacyScalarPaletteArchivesWithCompactOrExpandedFallbacks() {
+    val light = NativeIconPngFixtures.rgba()
+    val dark = NativeIconPngFixtures.rgba { _, _ -> 128 }
+    for (legacyScalar in listOf(false, true)) for (expanded in listOf(false, true)) {
+      for (night in listOf(light, dark)) {
+        val entries = NativePaletteIcon.entries("com.example", light, night,
+          NativeIconPngFixtures.mask(), NativeIconPngFixtures.indexedMask(),
+          legacyExpanded = expanded, legacyScalarBinders = legacyScalar)
+        withArchive(zip(entries)) { file ->
+          ConvertedIconArchive.inspect(file, "CONVERTED_CLASSIC_ZIP")
+          ConvertedIconArchive.inspect(file, "CONVERTED_APK")
+        }
+      }
+    }
   }
 
   @Test fun paletteRequiresBothValidatedMasksAndExactFallbackCopies() {

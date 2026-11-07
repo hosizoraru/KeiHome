@@ -30,8 +30,11 @@ internal object GeneratedNativeIconValidator {
       }
     }
     if ("${root}mask.png" in actualPaths) {
-      require(matches(NativePaletteIcon.entries(name, light, dark,
-        bytes("${root}mask.png"), bytes("${root}bg.png"), legacyExpanded = legacyExpanded))) {
+      require(listOf(false, true).any { legacyScalar ->
+        matches(NativePaletteIcon.entries(name, light, dark,
+          bytes("${root}mask.png"), bytes("${root}bg.png"), legacyExpanded = legacyExpanded,
+          legacyScalarBinders = legacyScalar))
+      }) {
         "Incomplete or noncanonical generated palette icon: $name"
       }
       return

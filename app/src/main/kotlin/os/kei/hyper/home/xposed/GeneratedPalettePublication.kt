@@ -19,11 +19,15 @@ internal object GeneratedPalettePublication {
     if (!nativeAcknowledged) return Result.NATIVE_UNAVAILABLE
     if (!isCurrent()) return Result.SELECTION_CHANGED
     fun hex(color: Int) = "#" + color.toUInt().toString(16).padStart(8, '0').uppercase(Locale.ROOT)
-    // Settings has no multi-key transaction. Seed both colors before the first enable notification.
-    val targets = if (colors == null) listOf(NativePaletteIcon.ENABLED_KEY to "0") else listOf(
+    // Older applied themes still observe the scalar keys. New themes observe only the
+    // final packed write, so a color/enable change arrives as one indivisible value.
+    val targets = if (colors == null) listOf(
+      NativePaletteIcon.ENABLED_KEY to "0", NativePaletteIcon.STATE_KEY to "0",
+    ) else listOf(
       NativePaletteIcon.FOREGROUND_KEY to hex(colors.foreground),
       NativePaletteIcon.BACKGROUND_KEY to hex(colors.background),
       NativePaletteIcon.ENABLED_KEY to "1",
+      NativePaletteIcon.STATE_KEY to NativePaletteIcon.packedState(colors.foreground, colors.background).toString(),
     )
     var changed = false
     for ((key, value) in targets) {
@@ -31,9 +35,11 @@ internal object GeneratedPalettePublication {
       if (store.read(key) == value) continue
       if (!isCurrent()) return Result.SELECTION_CHANGED
       if (!store.write(key, value)) {
-        if (isCurrent() && store.read(NativePaletteIcon.ENABLED_KEY) != "0" && isCurrent() &&
-          store.write(NativePaletteIcon.ENABLED_KEY, "0") && isCurrent()) {
-          store.notifyChanged(NativePaletteIcon.ENABLED_KEY)
+        for (disableKey in listOf(NativePaletteIcon.STATE_KEY, NativePaletteIcon.ENABLED_KEY)) {
+          if (isCurrent() && store.read(disableKey) != "0" && isCurrent() &&
+            store.write(disableKey, "0") && isCurrent()) {
+            store.notifyChanged(disableKey)
+          }
         }
         return Result.WRITE_FAILED
       }

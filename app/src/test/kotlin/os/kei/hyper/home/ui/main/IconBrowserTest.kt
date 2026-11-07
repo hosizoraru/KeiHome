@@ -7,6 +7,21 @@ import os.kei.hyper.home.iconpack.*
 import java.io.File
 
 class IconBrowserTest {
+  @Test fun generatedPaletteDiscoveryPreservesAtomicAndLegacyMonetAccess() {
+    val day = NativeIconPngFixtures.rgba()
+    for (legacy in listOf(false, true)) for (expanded in listOf(false, true)) {
+      val entries = NativePaletteIcon.entries("os.demo.icon", day, day,
+        NativeIconPngFixtures.mask(), NativeIconPngFixtures.mask(),
+        legacyExpanded = expanded, legacyScalarBinders = legacy)
+      val xml = entries.getValue("fancy_icons/os.demo.icon/manifest.xml").toString(Charsets.UTF_8)
+      assertTrue(isGeneratedPaletteSelector(xml))
+      assertFalse(colorOsPaletteLocked(true, setOf("os.demo.icon")))
+    }
+    val ordinary = NativeDayNightIcon.entries("os.demo.icon", day, day)
+      .getValue("fancy_icons/os.demo.icon/manifest.xml").toString(Charsets.UTF_8)
+    assertFalse(isGeneratedPaletteSelector(ordinary))
+    assertFalse(isGeneratedPaletteSelector("<Image src=\"keihome_maml_palette_state.png\" />"))
+  }
   @Test fun selectedSystemFallbackIsPreviewedButDoesNotClaimPackRedrawOrApkMonochrome() {
     val source = source().copy(systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT,
       setOf("os.demo.covered")))

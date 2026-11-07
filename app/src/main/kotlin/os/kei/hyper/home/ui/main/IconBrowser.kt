@@ -15,6 +15,10 @@ import os.kei.hyper.home.status.SystemIconThemeReport
 
 internal typealias IconBrowserOptions = os.kei.hyper.home.data.IconBrowserOptions
 internal fun colorOsPaletteLocked(ordinary: Boolean, paletteNames: Set<String>?) = ordinary && paletteNames.isNullOrEmpty()
+internal fun isGeneratedPaletteSelector(xml: String): Boolean =
+  (xml.contains("keihome_maml_enabled") && xml.contains("keihome_maml_fg_hex")) ||
+    (xml.contains("content://settings/system/keihome_maml_palette_state") &&
+      xml.contains("name=\"palette_state\" type=\"double\""))
 internal data class IconBrowserSource(val revision: String, val pack: IconPackDescriptor,
   val entries: Map<String, IconPackEntry>, val paletteNames: Set<String>, val dynamicNames: Set<String>,
   val nightNames: Set<String> = emptySet(), val systemFallback: SystemIconFallbackManifest? = null,
@@ -83,9 +87,10 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
           differs("fancy_icons/$name/day.png", "fancy_icons/$name/night.png")) nights += name
         val manifest = zip.getEntry("fancy_icons/$name/manifest.xml") ?: return@forEach
         val xml = zip.getInputStream(manifest).use { String(it.readNBytes(256 * 1024)) }
-        if (xml.contains("keihome_maml_enabled") && xml.contains("keihome_maml_fg_hex") &&
+        val paletteBindings = isGeneratedPaletteSelector(xml)
+        if (paletteBindings &&
           zip.getEntry("fancy_icons/$name/mask.png") != null) palettes += name
-        if (!xml.contains("src=\"day.png\"") || !xml.contains("src=\"night.png\"")) dynamic += name
+        if (!paletteBindings && (!xml.contains("src=\"day.png\"") || !xml.contains("src=\"night.png\""))) dynamic += name
       }
     }
     IconBrowserSource(key, pack, pack.entries.mapNotNull { e -> e.nativeName?.let { it to e } }.toMap(),

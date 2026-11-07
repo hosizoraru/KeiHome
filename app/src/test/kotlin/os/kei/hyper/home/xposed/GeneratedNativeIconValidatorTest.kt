@@ -25,21 +25,24 @@ class GeneratedNativeIconValidatorTest {
       // This manifest is fixed independently of the generator's compatibility flag.
       validate(legacyEntries(palette))
     }
+    validate(scalarCompactEntries())
   }
 
   @Test fun differentArtworkRetainsThePreviousExactManifestAndBothAssets() {
     for (palette in listOf(false, true)) {
       val entries = entries(palette, dark)
-      assertArrayEquals(legacyManifest(palette).toByteArray(), entries.getValue(manifestPath))
+      if (!palette) assertArrayEquals(legacyManifest(false).toByteArray(), entries.getValue(manifestPath))
       assertArrayEquals(light, entries.getValue("$root/day.png"))
       assertArrayEquals(dark, entries.getValue("$root/night.png"))
       validate(entries)
+      if (palette) validate(entries + (manifestPath to legacyManifest(true).toByteArray()))
     }
   }
 
   @Test fun rejectsNoncanonicalXmlInBothCompactAndLegacyTemplates() {
     for (palette in listOf(false, true)) {
-      for (entries in listOf(entries(palette, light), legacyEntries(palette))) {
+      for (entries in listOf(entries(palette, light), entries(palette, dark), legacyEntries(palette)) +
+        if (palette) listOf(scalarCompactEntries()) else emptyList()) {
         val canonical = entries.getValue(manifestPath).toString(Charsets.UTF_8)
         val alternatives = listOf(
           "<Icon><Image src=\"day.png\" /></Icon>",
@@ -53,15 +56,31 @@ class GeneratedNativeIconValidatorTest {
           canonical.replace("settings/system/", "settings/secure/"),
           canonical.replace("updateInterval=\"-1\"", "updateInterval=\"0\""),
           canonical.replace("queryAtStart=\"true\"", "queryAtStart=\"false\""),
-          canonical.replace("type=\"int\"", "type=\"string\""),
+          canonical.replace(if ("type=\"double\"" in canonical) "type=\"double\"" else "type=\"int\"", "type=\"string\""),
           canonical.replace("tintmode=\"5\"", "tintmode=\"3\""),
-          canonical.replace("#palette_enabled", "0"),
+          canonical.replace(if ("#palette_state" in canonical) "#palette_state" else "#palette_enabled", "0"),
         ) else listOf(canonical.replace("visibility=", "alpha="))
         for (manifest in alternatives) {
           assertNotEquals(canonical, manifest)
           rejects(entries + (manifestPath to manifest.toByteArray()))
         }
       }
+    }
+  }
+
+  @Test fun rejectsAlteredAtomicStateLayoutAndTintExpressions() {
+    val entries = entries(true, dark)
+    val canonical = entries.getValue(manifestPath).toString(Charsets.UTF_8)
+    for (manifest in listOf(
+      canonical.replace("281474976710656", "140737488355328"),
+      canonical.replace("int((#palette_state%16777216)/65536)", "int(#palette_state/65536)"),
+      canonical.replace("argb(255,", "argb(128,"),
+      canonical.replace("tint=\"argb", "tintExp=\"argb"),
+      canonical.replace("keihome_maml_palette_state", "untrusted_state"),
+      canonical.replace("type=\"double\"", "type=\"float\""),
+    )) {
+      assertNotEquals(canonical, manifest)
+      rejects(entries + (manifestPath to manifest.toByteArray()))
     }
   }
 
@@ -92,6 +111,12 @@ class GeneratedNativeIconValidatorTest {
       manifestPath to legacyManifest(palette).toByteArray(),
       "$root/night.png" to light.copyOf(),
     )
+
+  private fun scalarCompactEntries(): Map<String, ByteArray> = entries(true, light) + (manifestPath to
+    legacyManifest(true)
+      .replace("(1-#palette_enabled)*(1-#__darkmode)", "(1-#palette_enabled)")
+      .replace("  <Image x=\"0\" y=\"0\" w=\"2\" h=\"2\" src=\"night.png\" visibility=\"(1-#palette_enabled)*#__darkmode\" />\n", "")
+      .toByteArray())
 
   private fun validate(entries: Map<String, ByteArray>) {
     GeneratedNativeIconValidator.validate(name, entries.keys) { path, limit ->

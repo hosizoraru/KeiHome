@@ -75,6 +75,34 @@ class AppleBundledArtworkDeviceTest {
     assertArrayEquals(expected, corrected.light.readBytes())
   }
 
+  @Test fun cameraHasIndependentOfflineVariantsAcrossIOSPlatformsAndResolutions() = fixture { repo, root, _ ->
+    val camera = AppleAppMatch("1584216193", "Camera", "Apple", "com.apple.camera")
+    // Simulate the standard, appearance-insensitive metadata retained by the older app.
+    File(root, "metadata").mkdirs()
+    val key = AppleIconPolicy.key("art:ios:us:${camera.id}")
+    File(root, "metadata/$key.json").writeText(JSONObject()
+      .put("template", "https://is1-ssl.mzstatic.com/image/thumb/Placeholder.mill/{w}x{h}{c}.{f}")
+      .put("time", System.currentTimeMillis()).put("fallback", true).put("limited", true).toString())
+    for (platform in listOf(ApplePlatform.IOS, ApplePlatform.IPADOS)) {
+      for (size in listOf(256, 512, 1024)) {
+        val pair = requireNotNull(repo.cachedPreview(camera, options.copy(platform = platform, resolution = size)))
+        val dark = requireNotNull(pair.dark)
+        assertFalse(pair.light.readBytes().contentEquals(dark.readBytes()))
+        val lightImage = BitmapFactory.decodeFile(pair.light.path)
+        val darkImage = BitmapFactory.decodeFile(dark.path)
+        try {
+          assertEquals(size, lightImage.width)
+          assertEquals(size, darkImage.width)
+          assertTrue(Color.red(lightImage.getPixel(size / 2, size / 32)) >
+            Color.red(darkImage.getPixel(size / 2, size / 32)) + 50)
+        } finally {
+          lightImage.recycle()
+          darkImage.recycle()
+        }
+      }
+    }
+  }
+
   @Test fun cancelledMetadataRefreshDoesNotPublishAnOfflineReplacement() = fixture(true) { repo, root, _ ->
     val target = AppleAppTarget("com.example.photos", "Photos", true)
     repo.setMatch(target, options, AppleAppMatch("1584215428", "Photos", "Apple"))

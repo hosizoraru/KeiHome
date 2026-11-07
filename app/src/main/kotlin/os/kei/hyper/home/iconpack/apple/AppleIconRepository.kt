@@ -442,6 +442,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       "1146562112" -> "safari"
       "1584215428" -> "photos"
       "1232058109" -> "files"
+      "1584216193" -> "camera"
       else -> null
     }
     else -> null

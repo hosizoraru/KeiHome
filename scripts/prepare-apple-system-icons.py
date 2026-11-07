@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("app/src/main/assets/apple-system-icons"))
     parser.add_argument("--music-snapshot", type=Path)
     parser.add_argument("--music-original-snapshot", type=Path)
+    parser.add_argument("--camera-snapshot", type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     specs = [
@@ -63,18 +64,24 @@ def main():
                         sourcePlatform=source, sourceCatalogSha256=catalog_hash, sourceName=name,
                         nativeAppearance=1 if appearance == "dark" else 0,
                         sourcePngSha256=sha(png), sha256=sha(out), bytes=out.stat().st_size, resolution=1024))
-        for corners, snapshot in [("rounded", args.music_snapshot), ("original", args.music_original_snapshot)]:
+        for role, app_id, corners, snapshot in [
+            ("music", "1108187390", "rounded", args.music_snapshot),
+            ("music", "1108187390", "original", args.music_original_snapshot),
+            ("camera", "1584216193", "rounded", args.camera_snapshot),
+        ]:
             if snapshot is None:
                 continue
             report = json.loads((snapshot / "report.json").read_text())
-            assert report["resolution"] == 1024 and "1108187390" in report["apps"]
+            assert report["resolution"] == 1024 and app_id in report["apps"]
+            if role == "camera":
+                assert report["corners"] == "rounded" and report["independentDark"] is True
             for appearance in ["light", "dark"]:
-                png = snapshot / f"1108187390-{appearance}.png"
-                out = args.output / f"music-ios{'-original' if corners == 'original' else ''}-{appearance}.webp"
+                png = snapshot / f"{app_id}-{appearance}.png"
+                out = args.output / f"{role}-ios{'-original' if corners == 'original' else ''}-{appearance}.webp"
                 subprocess.run(["cwebp", "-quiet", "-lossless", "-exact", "-z", "6",
                                 str(png), "-o", str(out)], check=True)
-                records.append(dict(file=out.name, role="music", platform="ios", appearance=appearance,
-                    corners=corners, sourcePlatform="Apple App Store CDN", appId="1108187390",
+                records.append(dict(file=out.name, role=role, platform="ios", appearance=appearance,
+                    corners=corners, sourcePlatform="Apple App Store CDN", appId=app_id,
                     sourceReportSha256=sha(snapshot / "report.json"), sourcePngSha256=sha(png),
                     sha256=sha(out), bytes=out.stat().st_size, resolution=1024))
     manifest = dict(schema=2, attribution="Artwork copyright Apple Inc. No Apple affiliation.",

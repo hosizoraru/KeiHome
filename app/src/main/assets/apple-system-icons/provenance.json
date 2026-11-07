@@ -339,6 +339,34 @@
       "sha256": "74495cd0acdd582104d36dd08ddba65662fb6fa6b907a8615c126492af5e7c48",
       "bytes": 41750,
       "resolution": 1024
+    },
+    {
+      "file": "camera-ios-light.webp",
+      "role": "camera",
+      "platform": "ios",
+      "appearance": "light",
+      "corners": "rounded",
+      "sourcePlatform": "Apple App Store CDN",
+      "appId": "1584216193",
+      "sourceReportSha256": "fdfa30d0938b23d16d39e91e8f3ce6ba158d66a47ee214e73217f5936a4585ee",
+      "sourcePngSha256": "97025a1ba5bfc4a63873a2ac774a7fb510d50c3011e98273d98315bb13dd033d",
+      "sha256": "5693c1900d8a8fef5ce3161e6f53960b1e01a2502deb1771bd49151b35218821",
+      "bytes": 310840,
+      "resolution": 1024
+    },
+    {
+      "file": "camera-ios-dark.webp",
+      "role": "camera",
+      "platform": "ios",
+      "appearance": "dark",
+      "corners": "rounded",
+      "sourcePlatform": "Apple App Store CDN",
+      "appId": "1584216193",
+      "sourceReportSha256": "fdfa30d0938b23d16d39e91e8f3ce6ba158d66a47ee214e73217f5936a4585ee",
+      "sourcePngSha256": "7089e79af991e08bfc1dba549b571b65af63e256e1e94474fa1bca02595c261c",
+      "sha256": "4e1c04338ecdc2bd6ef29bc89647e38130815014572716339a8653a0a72d82a1",
+      "bytes": 302216,
+      "resolution": 1024
     }
   ]
 }

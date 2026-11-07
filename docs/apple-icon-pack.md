@@ -183,3 +183,23 @@ storefronts, and invalid-import non-mutation. Actual AVD checks exercised docume
 save/open, corrected previews and the missing-dark filter.
 Final signed Release and process identities are recorded in
 `.artifacts/research/apple-artwork-correctness-20261108/acceptance.json`.
+
+## Camera dark fallback (2026-11-08)
+
+Camera does support an independent dark icon. The previous missing-dark badge
+described the locally obtained raster, not Apple's complete artwork. Its
+verified `iconArtwork` `.mill` template supplies distinct 1024px light/dark
+images with `Icon.ApSiOS01`; the `bb`/Original endpoint returns identical pixels.
+The rounded pair is now bundled as a lossless offline fallback for iOS/iPadOS.
+All previously verified images are retained, bringing the bundle to 26 images.
+Bundled revision invalidation also applies to Camera, replacing the old
+single-appearance publication and preview without discarding unrelated caches.
+No rounded artwork is substituted for an Original request.
+
+Reproduction inputs are retained under
+`.artifacts/inputs/apple/camera-ios-snapshot`; pass that directory using
+`--camera-snapshot` when preparing the bundled artwork. Source requests, raw and
+decoded fingerprints, device tests and final acceptance are recorded under
+`.artifacts/research/apple-camera-20261108/`. The focused device suite passed
+29 tests, including Camera's offline iOS/iPadOS variants at 256/512/1024px
+with legacy limited metadata.

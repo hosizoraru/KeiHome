@@ -26,6 +26,7 @@ import os.kei.hyper.home.iconpack.NativeDayNightIcon
 import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
+import os.kei.hyper.home.iconpack.apple.AppleDynamicIconArchive
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
@@ -79,7 +80,8 @@ internal object IconPackHandoffs {
         }
         withContext(Dispatchers.IO) {
           val current = currentCoroutineContext()
-          val dynamic = colorOsDynamicEntries(pack, targets, sourceAppearance) { current.ensureActive() }
+          val dynamic = colorOsDynamicEntries(pack, targets, sourceAppearance) { current.ensureActive() } +
+            AppleDynamicIconArchive.entries(pack, targets, installedOnly, sourceAppearance) { current.ensureActive() }
           File.createTempFile("paired-icons-", ".zip", context.cacheDir).also { paired ->
             merged = paired
             ZipOutputStream(paired.outputStream()).use { output ->

@@ -47,6 +47,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   private val mutex = Mutex()
   private val publicationLock = Any()
   private val archives = IconPackArchive()
+  private val dynamicArtwork = AppleDynamicArtwork(context)
   private var descriptorCache: Pair<String, IconPackDescriptor>? = null
   private val bundledRevision by lazy {
     context.assets.open("apple-system-icons/provenance.json").use { AppleIconPolicy.digest(it.readBytes()) }
@@ -149,7 +150,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   suspend fun preview(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean = false): AppleArtworkPreview = mutex.withLock {
     withContext(Dispatchers.IO) {
       val effective = options.forApp(app)
-      val pair = (if (!refresh && !app.id.startsWith("system_")) previousPair(app, effective, readPublication()) else null)
+      val pair = (if (AppleDynamicArtwork.kind(app, effective) != null) dynamicPair(app, effective) else null)
+        ?: (if (!refresh && !app.id.startsWith("system_")) previousPair(app, effective, readPublication()) else null)
         ?: checkNotNull(pair(app, effective, refresh, forceImages = refresh))
       if (refresh) settings.putBoolean("updated.${app.artworkId(effective)}", true)
       pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
@@ -162,7 +164,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     withContext(Dispatchers.IO) {
       try {
         val effective = options.forApp(app)
-        val pair = previousPair(app, effective, readPublication())
+        val pair = (if (AppleDynamicArtwork.kind(app, effective) != null) dynamicPair(app, effective) else null)
+          ?: previousPair(app, effective, readPublication())
           ?: pair(app, effective, refresh = false, cacheOnly = true) ?: return@withContext null
         pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
         AppleArtworkPreview(app, pair.light, pair.dark, isLimitedMetadata(app, effective))
@@ -182,6 +185,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         assignments.values.any { settings.getBoolean("updated.$it", false) } ||
         record.optJSONObject("options")?.toString() != options.json().toString() ||
         record.optString("bundled") != bundledRevision ||
+        record.optString("dynamic") != dynamicRevision(targets, options) ||
         record.optJSONObject("mappings")?.toString() != JSONObject(assignments).toString()
     }
 
@@ -275,6 +279,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       if (assignments.isEmpty()) throw firstError ?: IOException("No Apple artwork")
       currentCoroutineContext().ensureActive()
       val identity = JSONObject().put("schema", 2).put("options", options.json()).put("bundled", bundledRevision)
+        .put("dynamic", dynamicRevision(targets, options))
         .put("mappings", JSONObject(assignments.toSortedMap()))
         .put("artwork", JSONObject(resolved.toSortedMap().mapValues { (_, pair) ->
           "${pair.light.name}:${pair.dark?.name.orEmpty()}"
@@ -307,6 +312,11 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
               zip.png("res/drawable-nodpi/apple_${pair.id}.png", pair.light)
               pair.dark?.let { zip.png("res/drawable-night-nodpi/apple_${pair.id}.png", it) }
             }
+            val dynamic = selected.mapNotNull { (target, app) ->
+              AppleDynamicArtwork.kind(app, options)?.takeIf { target.packageName in assignments }
+                ?.let { target.packageName to (it to assignments.getValue(target.packageName)) }
+            }.toMap()
+            AppleDynamicIconArchive.write(zip, dynamic, options, dynamicArtwork)
           }
           archives.inspect(temp, File(generated, "nested-unused"))
           check(temp.renameTo(archive)) { "Cannot publish Apple archive" }
@@ -332,11 +342,33 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   private data class PairFiles(val id: String, val light: File, val dark: File?, val reused: Boolean,
     val stale: Boolean = false)
 
+  private fun dynamicRevision(targets: List<AppleAppTarget>, options: AppleIconOptions): String =
+    if (targets.any { target -> match(target, options)?.let { AppleDynamicArtwork.kind(it, options) } != null })
+      dynamicArtwork.revision else ""
+
+  private fun dynamicPair(app: AppleAppMatch, options: AppleIconOptions): PairFiles? {
+    val kind = AppleDynamicArtwork.kind(app, options) ?: return null
+    val snapshot = dynamicArtwork.snapshot(kind, options)
+    images.mkdirs()
+    fun save(bytes: ByteArray): File {
+      val file = File(images, "${AppleIconPolicy.digest(bytes)}.png")
+      if (!file.isFile) {
+        val atomic = AtomicFile(file)
+        val output = atomic.startWrite()
+        try { output.write(bytes); atomic.finishWrite(output)
+        } catch (failure: Throwable) { atomic.failWrite(output); throw failure }
+      }
+      return file
+    }
+    return PairFiles(app.artworkId(options), save(snapshot.first), save(snapshot.second), true)
+  }
+
   private fun metadataFile(app: AppleAppMatch, options: AppleIconOptions) =
     File(metadata, "${AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")}.json")
 
   private fun isLimitedMetadata(app: AppleAppMatch, options: AppleIconOptions): Boolean =
-    readJson(metadataFile(app, options))?.optBoolean("limited") == true
+    AppleDynamicArtwork.kind(app, options) == null &&
+      readJson(metadataFile(app, options))?.optBoolean("limited") == true
 
   private fun saveMetadata(app: AppleAppMatch, options: AppleIconOptions, art: AppleArtwork) {
     val old = readJson(metadataFile(app, options))
@@ -358,6 +390,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     val pending = apps.distinctBy { it.artworkId(options.forApp(it)) }.filter { app ->
       val effective = options.forApp(app)
       when {
+        AppleDynamicArtwork.kind(app, effective) != null -> false
         app.id.startsWith("system_") -> false
         !refresh && bundledRole(app, effective) != null -> false
         refresh -> true
@@ -400,6 +433,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     allowPending: Boolean = false): PairFiles? {
     if (!allowPending && settings.getBoolean("updated.${app.artworkId(options)}", false)) return null
     val publishedOptions = record?.optJSONObject("options") ?: return null
+    if (AppleDynamicArtwork.kind(app, options) != null &&
+      record.optString("dynamic") != dynamicArtwork.revision) return null
     if (publishedOptions.optString("platform") != options.platform.name ||
       publishedOptions.optInt("resolution") != options.resolution ||
       publishedOptions.optString("corners") != options.corners.name) return null
@@ -445,6 +480,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   private suspend fun pair(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean,
     cacheOnly: Boolean = false, metadataReady: Boolean = false, forceImages: Boolean = false): PairFiles? {
+    if (AppleDynamicArtwork.kind(app, options) != null) return dynamicPair(app, options)
     if (app.id.startsWith("system_")) return systemIcon(app, options)
     val key = AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")
     val metaFile = File(metadata, "$key.json")

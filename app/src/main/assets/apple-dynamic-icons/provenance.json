@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "sources": {
+    "clock": {
+      "catalog": "/Library/Developer/CoreSimulator/Volumes/iOS_24C5037i/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.3.simruntime/Contents/Resources/RuntimeRoot/Applications/ClockAngel.app/Assets.car",
+      "sha256": "b64e58199a9f4f4bd198d5cab019c97062b5c039ce4a92e252d35eb6cac49dfd"
+    },
+    "calendar": {
+      "catalog": "/Library/Developer/CoreSimulator/Volumes/iOS_24C5037i/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.3.simruntime/Contents/Resources/RuntimeRoot/Applications/MobileCal.app/Assets.car",
+      "sha256": "a9775609b63c66e13b5d0ee30c67c779410404467317a9648bac8385342c0ba1"
+    }
+  },
+  "notes": "Calendar uses the native background with locale-aware live text; clock uses native dial/hand layers. Android performs no Apple private API calls. Original preserves these native assets' own contour; no Apple font is redistributed.",
+  "images": {
+    "ios.clock.base.light": {
+      "path": "images/0a7e10d36df2081ecbdb83c0a173442c90486f24de33a9460f511645414ce110.webp",
+      "sha256": "0a7e10d36df2081ecbdb83c0a173442c90486f24de33a9460f511645414ce110",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 228154,
+      "sourceRotationDegrees": null
+    },
+    "ios.clock.hour.light": {
+      "path": "images/fdeac477fca8a8cd6bcec50d4b4e0d1d2eff0e972a547c5d73649502049c7291.webp",
+      "sha256": "fdeac477fca8a8cd6bcec50d4b4e0d1d2eff0e972a547c5d73649502049c7291",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 6572,
+      "sourceRotationDegrees": 306
+    },
+    "ios.clock.minute.light": {
+      "path": "images/f5409af0e3e452dd45a25765dbfc4234ce4804752bd73e268ef63625d92ad4d2.webp",
+      "sha256": "f5409af0e3e452dd45a25765dbfc4234ce4804752bd73e268ef63625d92ad4d2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 8978,
+      "sourceRotationDegrees": 54
+    },
+    "ios.clock.second.light": {
+      "path": "images/cfb6ca42475a290ecfec06c5da91f47e44d74cb13b97d55ed296d23202c8c152.webp",
+      "sha256": "cfb6ca42475a290ecfec06c5da91f47e44d74cb13b97d55ed296d23202c8c152",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 113778,
+      "sourceRotationDegrees": 180
+    },
+    "ios.clock.base.dark": {
+      "path": "images/49453b9a633fe5f67d9cf9c4f6fe0a8c2b2a58bac30e3136e08ecbfd672c5eff.webp",
+      "sha256": "49453b9a633fe5f67d9cf9c4f6fe0a8c2b2a58bac30e3136e08ecbfd672c5eff",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 274942,
+      "sourceRotationDegrees": null
+    },
+    "ios.clock.hour.dark": {
+      "path": "images/ed6858d713c92526b337d2de238816b6ff7ae61b120bc5d7420ecd40d38ab0de.webp",
+      "sha256": "ed6858d713c92526b337d2de238816b6ff7ae61b120bc5d7420ecd40d38ab0de",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 5784,
+      "sourceRotationDegrees": 306
+    },
+    "ios.clock.minute.dark": {
+      "path": "images/401865da81421f4e01d8eb7716150a7f2b28a0a0421fc838b8222e74375f6bbf.webp",
+      "sha256": "401865da81421f4e01d8eb7716150a7f2b28a0a0421fc838b8222e74375f6bbf",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 7692,
+      "sourceRotationDegrees": 54
+    },
+    "ios.clock.second.dark": {
+      "path": "images/579de8882938790523cb19d3fcb9dfee99be1b71ce6ffd394e7bd10cd51920de.webp",
+      "sha256": "579de8882938790523cb19d3fcb9dfee99be1b71ce6ffd394e7bd10cd51920de",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 118780,
+      "sourceRotationDegrees": 180
+    },
+    "ios.calendar.base.light": {
+      "path": "images/41e529b5fd890204e1ec3f3785acf8851776e9c95fd4f25f39cc3eceba587374.webp",
+      "sha256": "41e529b5fd890204e1ec3f3785acf8851776e9c95fd4f25f39cc3eceba587374",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 94784,
+      "sourceRotationDegrees": null
+    },
+    "ios.calendar.base.dark": {
+      "path": "images/a11ec994e5fa3f40560ef34269cc472acd39015f73d5b2198231ae1cba434e2a.webp",
+      "sha256": "a11ec994e5fa3f40560ef34269cc472acd39015f73d5b2198231ae1cba434e2a",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 113924,
+      "sourceRotationDegrees": null
+    },
+    "ipados.clock.base.light": {
+      "path": "images/0a7e10d36df2081ecbdb83c0a173442c90486f24de33a9460f511645414ce110.webp",
+      "sha256": "0a7e10d36df2081ecbdb83c0a173442c90486f24de33a9460f511645414ce110",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 228154,
+      "sourceRotationDegrees": null
+    },
+    "ipados.clock.hour.light": {
+      "path": "images/fdeac477fca8a8cd6bcec50d4b4e0d1d2eff0e972a547c5d73649502049c7291.webp",
+      "sha256": "fdeac477fca8a8cd6bcec50d4b4e0d1d2eff0e972a547c5d73649502049c7291",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 6572,
+      "sourceRotationDegrees": 306
+    },
+    "ipados.clock.minute.light": {
+      "path": "images/f5409af0e3e452dd45a25765dbfc4234ce4804752bd73e268ef63625d92ad4d2.webp",
+      "sha256": "f5409af0e3e452dd45a25765dbfc4234ce4804752bd73e268ef63625d92ad4d2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 8978,
+      "sourceRotationDegrees": 54
+    },
+    "ipados.clock.second.light": {
+      "path": "images/cfb6ca42475a290ecfec06c5da91f47e44d74cb13b97d55ed296d23202c8c152.webp",
+      "sha256": "cfb6ca42475a290ecfec06c5da91f47e44d74cb13b97d55ed296d23202c8c152",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 113778,
+      "sourceRotationDegrees": 180
+    },
+    "ipados.clock.base.dark": {
+      "path": "images/49453b9a633fe5f67d9cf9c4f6fe0a8c2b2a58bac30e3136e08ecbfd672c5eff.webp",
+      "sha256": "49453b9a633fe5f67d9cf9c4f6fe0a8c2b2a58bac30e3136e08ecbfd672c5eff",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 274942,
+      "sourceRotationDegrees": null
+    },
+    "ipados.clock.hour.dark": {
+      "path": "images/ed6858d713c92526b337d2de238816b6ff7ae61b120bc5d7420ecd40d38ab0de.webp",
+      "sha256": "ed6858d713c92526b337d2de238816b6ff7ae61b120bc5d7420ecd40d38ab0de",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 5784,
+      "sourceRotationDegrees": 306
+    },
+    "ipados.clock.minute.dark": {
+      "path": "images/401865da81421f4e01d8eb7716150a7f2b28a0a0421fc838b8222e74375f6bbf.webp",
+      "sha256": "401865da81421f4e01d8eb7716150a7f2b28a0a0421fc838b8222e74375f6bbf",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 7692,
+      "sourceRotationDegrees": 54
+    },
+    "ipados.clock.second.dark": {
+      "path": "images/579de8882938790523cb19d3fcb9dfee99be1b71ce6ffd394e7bd10cd51920de.webp",
+      "sha256": "579de8882938790523cb19d3fcb9dfee99be1b71ce6ffd394e7bd10cd51920de",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 118780,
+      "sourceRotationDegrees": 180
+    },
+    "ipados.calendar.base.light": {
+      "path": "images/41e529b5fd890204e1ec3f3785acf8851776e9c95fd4f25f39cc3eceba587374.webp",
+      "sha256": "41e529b5fd890204e1ec3f3785acf8851776e9c95fd4f25f39cc3eceba587374",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 94784,
+      "sourceRotationDegrees": null
+    },
+    "ipados.calendar.base.dark": {
+      "path": "images/a11ec994e5fa3f40560ef34269cc472acd39015f73d5b2198231ae1cba434e2a.webp",
+      "sha256": "a11ec994e5fa3f40560ef34269cc472acd39015f73d5b2198231ae1cba434e2a",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 113924,
+      "sourceRotationDegrees": null
+    }
+  }
+}

@@ -10,6 +10,7 @@ import java.io.IOException
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -54,6 +55,8 @@ class AppleIconRepositoryDeviceTest {
     var identicalDark = false
     var catalogLimited = false
     var tagDarkPng = false
+    var storefrontArtwork = false
+    var lightColor: Int? = null
     var suspendId: String? = null
     val suspended = CompletableDeferred<Unit>()
     override suspend fun get(url: String): ByteArray {
@@ -63,13 +66,15 @@ class AppleIconRepositoryDeviceTest {
         if (catalogLimited) throw AppleRequestException(429)
         val id = java.net.URI(url).path.substringAfterLast('/')
         if (id == suspendId) { suspended.complete(Unit); awaitCancellation() }
-        val art = JSONObject().put("url", "https://is1-ssl.mzstatic.com/image/thumb/r$revision/$id/{w}x{h}{c}.{f}")
+        val country = java.net.URI(url).path.substringAfter("/catalog/").substringBefore('/')
+        val region = if (storefrontArtwork) "$country/" else ""
+        val art = JSONObject().put("url", "https://is1-ssl.mzstatic.com/image/thumb/r$revision/$region$id/{w}x{h}{c}.{f}")
         val attributes = JSONObject().put("name", "Test Music").put("platformAttributes",
           JSONObject().put("ios", JSONObject().put("iconArtwork", art)))
         return JSONObject().put("data", JSONArray().put(JSONObject().put("id", id)
           .put("attributes", attributes))).toString().toByteArray()
       }
-      if ("itunes.apple.com/lookup" in url) {
+      if ("itunes.apple.com/lookup" in url || "itunes.apple.com/search" in url) {
         return JSONObject().put("results", JSONArray().put(JSONObject()
           .put("trackId", "123456789").put("trackName", "Music").put("artistName", "Publisher")
           .put("kind", "software").put("supportedDevices", JSONArray().put("iPhone").put("iPad"))
@@ -79,7 +84,7 @@ class AppleIconRepositoryDeviceTest {
       val size = Regex("/(256|512|1024)x").find(url)!!.groupValues[1].toInt()
       val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
       bitmap.eraseColor(if ("appearance=dark" in url && !identicalDark) Color.BLACK
-        else if ("/r2/" in url) Color.GREEN else Color.WHITE)
+        else lightColor ?: if ("/jp/" in url) Color.RED else if ("/r2/" in url) Color.GREEN else Color.WHITE)
       return try {
         val png = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
         if (!tagDarkPng || "appearance=dark" !in url) png else {
@@ -130,13 +135,210 @@ class AppleIconRepositoryDeviceTest {
     assertEquals(0L, repo.cacheBytes())
     assertEquals(first, repo.match(target, options))
     server.requests.clear(); server.offline = true
-    val preview = repo.preview(first, options)
+    val preview = checkNotNull(repo.cachedPreview(first, options))
     assertTrue(preview.light.isFile)
     assertNotNull(preview.dark)
     assertTrue(server.requests.isEmpty())
     val rebuilt = repo.generate(listOf(target), options) {}
     assertTrue(rebuilt.unchanged); assertTrue(server.requests.isEmpty())
     assertTrue(repo.cacheBytes() > 0)
+  }
+
+  @Test fun sameAppleIdInTwoStorefrontsPublishesDistinctResourcesAndRestoresEachOffline() = fixture { repo, server, _, _ ->
+    server.storefrontArtwork = true
+    val second = target.copy(packageName = "test.android.japanese")
+    val japanese = first.copy(country = "jp")
+    repo.setMatch(target, options, first.copy(country = "us"))
+    repo.setMatch(second, options, japanese)
+    val result = repo.generate(listOf(target, second), options) {}
+    assertEquals(2, result.mapped)
+    assertEquals(6, server.requests.size)
+    assertTrue(server.requests.any { "/catalog/us/apps/${first.id}" in it })
+    assertTrue(server.requests.any { "/catalog/jp/apps/${first.id}" in it })
+    assertFalse(repo.needsGeneration(listOf(target, second), options))
+    ZipFile((result.pack.source as IconPackSource.Generated).file).use { zip ->
+      val manifest = JSONObject(zip.getInputStream(zip.getEntry("apple-source-manifest.json")).bufferedReader().readText())
+      assertEquals(2, manifest.getInt("schema"))
+      assertEquals("${first.id}_us", manifest.getJSONObject("mappings").getString(target.packageName))
+      assertEquals("${first.id}_jp", manifest.getJSONObject("mappings").getString(second.packageName))
+      assertTrue(zip.getInputStream(zip.getEntry("appfilter.xml")).bufferedReader().readText()
+        .contains("drawable=\"apple_${first.id}_jp\""))
+      assertEquals(4, zip.entries().asSequence().count { it.name.endsWith(".png") })
+    }
+    repo.clearDownloads()
+    server.requests.clear(); server.offline = true
+    val us = checkNotNull(repo.cachedPreview(first, options))
+    val jp = checkNotNull(repo.cachedPreview(japanese, options.copy(country = "cn")))
+    assertPixel(Color.WHITE, us.light)
+    assertPixel(Color.RED, jp.light)
+    assertNotEquals(us.light, jp.light)
+    assertNotNull(jp.dark)
+    assertTrue(server.requests.isEmpty())
+    assertTrue(repo.generate(listOf(target, second), options) {}.unchanged)
+    assertTrue(server.requests.isEmpty())
+  }
+
+  @Test fun manualStorefrontPersistsAcrossReopeningAndGlobalCountryChangesWithLegacyJsonSupport() = fixture { repo, _, dir, name ->
+    val japanese = first.copy(country = "jp")
+    repo.setMatch(target, options, japanese)
+    val reopened = AppleIconRepository(context, AppleIconClient(Server(), 0), dir, name)
+    assertEquals(japanese, reopened.match(target, options.copy(country = "cn")))
+    val storage = AppLocalStorage.open(context, name)
+    val key = "mapping.${options.platform.name}.${target.packageName}"
+    assertEquals("jp", JSONObject(storage.getString(key, null)!!).getString("country"))
+    val legacy = JSONObject().put("id", first.id).put("name", first.name)
+      .put("publisher", first.publisher).put("bundleId", first.bundleId)
+    storage.putString(key, legacy.toString())
+    assertEquals(first, reopened.match(target, options))
+    legacy.put("country", JSONObject.NULL)
+    storage.putString(key, legacy.toString())
+    assertEquals(first, reopened.match(target, options))
+    repo.setMatch(target, options, first)
+    assertEquals(first, reopened.match(target, options))
+    for (country in listOf("gb", "ca", "tw", "kr")) {
+      val app = first.copy(country = country)
+      repo.setMatch(target, options, app)
+      assertEquals(app, reopened.match(target, options.copy(country = "hk")))
+    }
+  }
+
+  @Test fun onlineAndCachedSearchResultsCarryTheirSelectedStorefrontWithoutArtworkRequests() = fixture { repo, server, root, _ ->
+    val japaneseOptions = options.copy(country = "jp")
+    val result = repo.search("Test player", japaneseOptions).single()
+    assertEquals("jp", result.country)
+    assertEquals(1, server.requests.size)
+    assertTrue(server.requests.single().contains("country=jp"))
+    assertEquals(result, repo.search("Test player", japaneseOptions).single())
+    // Older search caches lack the new optional field, but their cache key proves the storefront.
+    val searchFile = File(root, "downloads/metadata").listFiles()!!.single()
+    val legacy = JSONObject(searchFile.readText())
+    legacy.getJSONArray("apps").getJSONObject(0).remove("country")
+    searchFile.writeText(legacy.toString())
+    assertEquals("jp", repo.search("Test player", japaneseOptions).single().country)
+    assertEquals(1, server.requests.size)
+  }
+
+  @Test fun regionOnlyMappingChangeInvalidatesPublicationAndCannotRetainPixelsFromOldStorefront() = fixture { repo, server, _, _ ->
+    server.storefrontArtwork = true
+    repo.setMatch(target, options, first)
+    val old = repo.generate(listOf(target), options) {}
+    val japanese = first.copy(country = "jp")
+    repo.setMatch(target, options, japanese)
+    assertTrue(repo.needsGeneration(listOf(target), options))
+    server.requests.clear(); server.offline = true
+    assertNull(repo.cachedPreview(japanese, options))
+    assertTrue(server.requests.isEmpty())
+    val failure = runCatching { repo.generate(listOf(target), options) {} }.exceptionOrNull()
+    assertTrue(failure is IOException)
+    assertEquals(old.pack.source, repo.descriptor()?.source)
+    assertTrue(repo.needsGeneration(listOf(target), options))
+    server.requests.clear(); server.offline = false
+    val changed = repo.generate(listOf(target), options) {}
+    assertFalse(changed.unchanged)
+    assertEquals(0, changed.reused)
+    assertEquals(3, server.requests.size)
+    assertNotEquals(old.pack.source, changed.pack.source)
+    assertPixel(Color.RED, checkNotNull(repo.cachedPreview(japanese, options)).light)
+    assertFalse(repo.needsGeneration(listOf(target), options))
+  }
+
+  @Test fun sharedCdnUrlDoesNotReuseAnotherStorefrontsCachedPixels() = fixture { repo, server, _, _ ->
+    val us = repo.preview(first, options)
+    assertPixel(Color.WHITE, us.light)
+    server.lightColor = Color.RED
+    val japanese = first.copy(country = "jp")
+    val jp = repo.preview(japanese, options)
+    assertPixel(Color.RED, jp.light)
+    assertEquals(6, server.requests.size)
+    server.requests.clear(); server.offline = true
+    assertPixel(Color.WHITE, checkNotNull(repo.cachedPreview(first, options)).light)
+    assertPixel(Color.RED, checkNotNull(repo.cachedPreview(japanese, options)).light)
+    assertTrue(server.requests.isEmpty())
+  }
+
+  @Test fun explicitStorefrontSurvivesGlobalCountryChangeAndStandardLookupFallback() = fixture { repo, server, _, _ ->
+    server.catalogLimited = true
+    val korean = first.copy(country = "kr")
+    repo.setMatch(target, options, korean)
+    repo.generate(listOf(target), options.copy(country = "gb")) {}
+    assertTrue(server.requests.any { "/catalog/kr/apps/${first.id}" in it })
+    assertTrue(server.requests.any { "itunes.apple.com/lookup" in it && "country=kr" in it })
+    server.requests.clear(); server.offline = true
+    assertNotNull(repo.cachedPreview(korean, options.copy(country = "tw")))
+    val result = repo.generate(listOf(target), options.copy(country = "ca")) {}
+    assertEquals(1, result.reused)
+    assertTrue(server.requests.isEmpty())
+    assertFalse(repo.needsGeneration(listOf(target), options.copy(country = "ca")))
+  }
+
+  @Test fun legacyPublicationOnlyRestoresItsRecordedCountryAndMigratesOfflineToRegionResources() = fixture { repo, server, root, _ ->
+    repo.setMatch(target, options, first)
+    val initial = repo.generate(listOf(target), options) {}
+    val currentFile = File(root, "current.json")
+    val legacy = JSONObject(currentFile.readText())
+    val resourceId = "${first.id}_us"
+    val artwork = legacy.getJSONObject("artwork")
+    artwork.put(first.id, artwork.remove(resourceId))
+    legacy.getJSONObject("mappings").put(target.packageName, first.id)
+    legacy.put("schema", 1).remove("digest")
+    val createdAt = legacy.remove("createdAt")
+    val digest = AppleIconPolicy.key(legacy.toString())
+    val legacyZip = File(root, "generated/$digest.zip")
+    ZipFile((initial.pack.source as IconPackSource.Generated).file).use { original ->
+      ZipOutputStream(legacyZip.outputStream().buffered()).use { output ->
+        for (entry in original.entries().asSequence()) {
+          val name = entry.name.replace("apple_$resourceId", "apple_${first.id}")
+          val data = when (name) {
+            "apple-source-manifest.json" -> legacy.toString().toByteArray()
+            "appfilter.xml" -> original.getInputStream(entry).bufferedReader().use { it.readText() }
+              .replace("apple_$resourceId", "apple_${first.id}").toByteArray()
+            else -> original.getInputStream(entry).use { it.readBytes() }
+          }
+          output.putNextEntry(ZipEntry(name)); output.write(data); output.closeEntry()
+        }
+      }
+    }
+    legacy.put("digest", digest).put("createdAt", createdAt)
+    currentFile.writeText(legacy.toString())
+    repo.clearDownloads()
+    server.requests.clear(); server.offline = true
+    assertTrue(repo.needsGeneration(listOf(target), options))
+    assertNull(repo.cachedPreview(first.copy(country = "gb"), options))
+    assertPixel(Color.WHITE, checkNotNull(repo.cachedPreview(first, options)).light)
+    val migrated = repo.generate(listOf(target), options) {}
+    assertEquals(1, migrated.reused)
+    assertFalse(migrated.unchanged)
+    assertNotEquals(legacyZip, (migrated.pack.source as IconPackSource.Generated).file)
+    assertEquals(2, JSONObject(currentFile.readText()).getInt("schema"))
+    assertFalse(repo.needsGeneration(listOf(target), options))
+    assertTrue(server.requests.isEmpty())
+    repo.clearDownloads()
+    assertNotNull(repo.cachedPreview(first.copy(country = "us"), options.copy(country = "tw")))
+    assertNull(repo.cachedPreview(first, options.copy(country = "gb")))
+    assertTrue(server.requests.isEmpty())
+  }
+
+  @Test fun cacheOnlyPreviewMissesNeverRequestEvenWithMissingOrCorruptCachedImages() = fixture { repo, server, root, _ ->
+    assertNull(repo.cachedPreview(first, options))
+    assertTrue(server.requests.isEmpty())
+    repo.preview(first, options)
+    server.requests.clear()
+    assertNotNull(repo.cachedPreview(first, options))
+    assertNull(repo.cachedPreview(first, options.copy(resolution = 512)))
+    assertNull(repo.cachedPreview(first.copy(country = "jp"), options))
+    assertNull(repo.cachedPreview(first.copy(id = "987654321"), options))
+    assertTrue(server.requests.isEmpty())
+    File(root, "downloads/images").listFiles()!!.forEach { it.writeText("broken") }
+    assertNull(repo.cachedPreview(first, options))
+    assertTrue(server.requests.isEmpty())
+    repo.clearDownloads()
+    assertNull(repo.cachedPreview(first, options))
+    assertTrue(server.requests.isEmpty())
+  }
+
+  private fun assertPixel(expected: Int, file: File) {
+    val bitmap = checkNotNull(BitmapFactory.decodeFile(file.path))
+    try { assertEquals(expected, bitmap.getPixel(0, 0)) } finally { bitmap.recycle() }
   }
 
   @Test fun metadataRefreshFetchesOnlyChangedImagesAndPreservesKnownArtworkOnFailure() = fixture { repo, server, _, _ ->

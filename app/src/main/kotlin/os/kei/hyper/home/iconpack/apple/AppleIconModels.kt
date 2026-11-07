@@ -20,9 +20,12 @@ internal data class AppleIconOptions(
 ) {
   init {
     require(resolution in listOf(256, 512, 1024))
-    require(country in listOf("us", "cn", "jp", "hk"))
+    require(country.matches(Regex("[a-z]{2}")))
   }
   val key: String get() = "${platform.name}:$resolution:${corners.name}:$country"
+
+  fun forApp(app: AppleAppMatch): AppleIconOptions =
+    app.country?.let { copy(country = it) } ?: this
 }
 
 internal data class AppleAppTarget(val packageName: String, val label: String, val system: Boolean)
@@ -32,8 +35,14 @@ internal data class AppleAppMatch(
   val name: String,
   val publisher: String,
   val bundleId: String = "",
+  val country: String? = null,
 ) {
-  init { require(id.matches(Regex("[0-9]{6,12}|system_(appstore|settings|music|safari|finder)"))) }
+  init {
+    require(id.matches(Regex("[0-9]{6,12}|system_(appstore|settings|music|safari|finder)")))
+    require(country == null || country.matches(Regex("[a-z]{2}")))
+  }
+
+  fun artworkId(options: AppleIconOptions): String = "${id}_${country ?: options.country}"
 }
 
 internal data class AppleArtwork(

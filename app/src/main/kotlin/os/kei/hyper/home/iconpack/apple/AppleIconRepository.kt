@@ -98,7 +98,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       val file = File(metadata, AppleIconPolicy.key("search:${options.platform}:${options.country}:" +
         term.trim().lowercase(java.util.Locale.ROOT)) + ".json")
       readJson(file)?.takeIf { System.currentTimeMillis() - it.optLong("time") in 0..AppleIconPolicy.SEARCH_TTL_MS }
-        ?.let { cached -> return@withContext cached.getJSONArray("apps").matches() }
+        ?.let { cached -> return@withContext cached.getJSONArray("apps").matches()
+          .map { it.copy(country = options.country) } }
       val result = client.search(term, options)
       writeJson(file, JSONObject().put("time", System.currentTimeMillis())
         .put("apps", JSONArray(result.map { it.json() })))
@@ -116,19 +117,37 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   suspend fun preview(app: AppleAppMatch, options: AppleIconOptions): AppleArtworkPreview = mutex.withLock {
     withContext(Dispatchers.IO) {
-      val pair = (if (!app.id.startsWith("system_")) previousPair(app.id, options, readPublication()) else null)
-        ?: pair(app, options, refresh = false)
+      val effective = options.forApp(app)
+      val pair = (if (!app.id.startsWith("system_")) previousPair(app, effective, readPublication()) else null)
+        ?: checkNotNull(pair(app, effective, refresh = false))
       pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
       AppleArtworkPreview(app, pair.light, pair.dark)
+    }
+  }
+
+  /** Reads local caches and the published archive only; a miss never starts a request. */
+  suspend fun cachedPreview(app: AppleAppMatch, options: AppleIconOptions): AppleArtworkPreview? = mutex.withLock {
+    withContext(Dispatchers.IO) {
+      try {
+        val effective = options.forApp(app)
+        val pair = previousPair(app, effective, readPublication())
+          ?: pair(app, effective, refresh = false, cacheOnly = true) ?: return@withContext null
+        pruneImages(listOfNotNull(pair.light, pair.dark).toSet())
+        AppleArtworkPreview(app, pair.light, pair.dark)
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (_: Exception) { null }
     }
   }
 
   suspend fun needsGeneration(targets: List<AppleAppTarget>, options: AppleIconOptions): Boolean =
     withContext(Dispatchers.IO) {
       val record = readPublication() ?: return@withContext true
-      val assignments = targets.mapNotNull { target -> match(target, options)?.let { target.packageName to it.id } }
+      val assignments = targets.mapNotNull { target ->
+        match(target, options)?.let { target.packageName to it.artworkId(options) }
+      }
         .toMap().toSortedMap()
-      record.optJSONObject("options")?.toString() != options.json().toString() ||
+      record.optInt("schema") != 2 ||
+        record.optJSONObject("options")?.toString() != options.json().toString() ||
         record.optString("bundled") != bundledRevision ||
         record.optJSONObject("mappings")?.toString() != JSONObject(assignments).toString()
     }
@@ -176,14 +195,16 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       for ((index, item) in selected.withIndex()) {
         currentCoroutineContext().ensureActive()
         val (target, app) = item
+        val effective = options.forApp(app)
+        val artworkId = app.artworkId(effective)
         progress(AppleGenerationProgress(index, selected.size, target.label))
         try {
-          val pair = resolved[app.id] ?: (
-            if (!refresh && !app.id.startsWith("system_")) previousPair(app.id, options, previous) else null
-          ).let { cached -> cached ?: pair(app, options, refresh) }.also {
+          val pair = resolved[artworkId] ?: (
+            if (!refresh && !app.id.startsWith("system_")) previousPair(app, effective, previous) else null
+          ).let { cached -> cached ?: checkNotNull(pair(app, effective, refresh)) }.also {
             sourceBytes += it.light.length() + (it.dark?.length() ?: 0L)
             if (sourceBytes > 300L * 1024 * 1024) throw ApplePackSizeException()
-            resolved[app.id] = it
+            resolved[artworkId] = it
             if (it.reused) reused++
           }
           assignments[target.packageName] = pair.id
@@ -192,9 +213,10 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           if (failure is ApplePackSizeException) throw failure
           failed++
           if (firstError == null) firstError = failure
-          val oldId = previous?.optJSONObject("mappings")?.optString(target.packageName)
-          val retained = oldId?.takeIf { it.isNotEmpty() }?.let {
-            resolved[it] ?: previousPair(it, options, previous)
+          val oldApp = previous?.optJSONObject("mappings")?.optString(target.packageName)
+            ?.let { publishedApp(it, previous) }?.takeIf { it.country == effective.country }
+          val retained = oldApp?.let {
+            resolved[it.artworkId(effective)] ?: previousPair(it, effective, previous)
           }
           if (retained != null) {
             if (retained.id !in resolved) {
@@ -209,7 +231,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }
       if (assignments.isEmpty()) throw firstError ?: IOException("No Apple artwork")
       currentCoroutineContext().ensureActive()
-      val identity = JSONObject().put("schema", 1).put("options", options.json()).put("bundled", bundledRevision)
+      val identity = JSONObject().put("schema", 2).put("options", options.json()).put("bundled", bundledRevision)
         .put("mappings", JSONObject(assignments.toSortedMap()))
         .put("artwork", JSONObject(resolved.toSortedMap().mapValues { (_, pair) ->
           "${pair.light.name}:${pair.dark?.name.orEmpty()}"
@@ -266,10 +288,20 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   private data class PairFiles(val id: String, val light: File, val dark: File?, val reused: Boolean,
     val stale: Boolean = false)
 
-  private suspend fun previousPair(id: String, options: AppleIconOptions, record: JSONObject?): PairFiles? {
-    if (record?.optJSONObject("options")?.toString() != options.json().toString()) return null
-    if (id == "1108187390" && record.optString("bundled") != bundledRevision) return null
-    if (!id.matches(Regex("[0-9]{6,12}|system_(appstore|settings|music|safari|finder)"))) return null
+  private suspend fun previousPair(app: AppleAppMatch, options: AppleIconOptions, record: JSONObject?): PairFiles? {
+    val publishedOptions = record?.optJSONObject("options") ?: return null
+    if (publishedOptions.optString("platform") != options.platform.name ||
+      publishedOptions.optInt("resolution") != options.resolution ||
+      publishedOptions.optString("corners") != options.corners.name) return null
+    if ((app.id == "1108187390" || app.id.startsWith("system_")) &&
+      record.optString("bundled") != bundledRevision) return null
+    val resourceId = app.artworkId(options)
+    // Legacy resources have no storefront suffix; only their recorded global country is proven.
+    val id = when (record.optInt("schema", 1)) {
+      1 -> app.id.takeIf { publishedOptions.optString("country") == options.country } ?: return null
+      2 -> resourceId
+      else -> return null
+    }
     val oldDigest = record.optString("digest")
     if (!oldDigest.matches(Regex("[0-9a-f]{64}"))) return null
     val paths = record.optJSONObject("artwork")?.optString(id)?.split(':') ?: return null
@@ -296,13 +328,14 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         require(validPng(file, options.resolution))
         return file
       }
-      PairFiles(id, restore(paths[0], false), paths[1].takeIf { it.isNotEmpty() }?.let { restore(it, true) }, true)
+      PairFiles(resourceId, restore(paths[0], false), paths[1].takeIf { it.isNotEmpty() }?.let { restore(it, true) }, true)
     } catch (cancelled: CancellationException) { throw cancelled
     } catch (_: Exception) { null }
   }
 
-  private suspend fun pair(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean): PairFiles {
-    if (app.id.startsWith("system_")) return systemIcon(app, options)
+  private suspend fun pair(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean,
+    cacheOnly: Boolean = false): PairFiles? {
+    if (app.id.startsWith("system_")) return systemIcon(app, options, cacheOnly)
     val key = AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")
     val metaFile = File(metadata, "$key.json")
     val cached = readJson(metaFile)?.let {
@@ -310,7 +343,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         it.optBoolean("fallback"), it.optBoolean("limited")) }.getOrNull()
     }
     val bundledMusic = app.id == "1108187390" && options.platform != ApplePlatform.MACOS
-    if (bundledMusic && cached == null && !refresh) return systemIcon(app, options)
+    if (bundledMusic && cached == null && !refresh) return systemIcon(app, options, cacheOnly)
+    if (cacheOnly && cached == null) return null
     var stale = false
     val art = if (cached != null && !refresh) cached else {
       try {
@@ -325,13 +359,14 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { (cached ?: throw failure).also { stale = true } }
     }
-    if (bundledMusic && art.limited) return systemIcon(app, options).copy(stale = true)
+    if (bundledMusic && art.limited) return systemIcon(app, options, cacheOnly)?.copy(stale = true)
     val lightUrl = AppleIconPolicy.rendition(art.template, options, false)
     val darkUrl = AppleIconPolicy.rendition(art.template, options, true)
-    val light = image(lightUrl, options.resolution)
-    val dark = image(darkUrl, options.resolution)
+    val light = image(lightUrl, options, cacheOnly) ?: return null
+    val dark = image(darkUrl, options, cacheOnly) ?: return null
     val distinct = distinctPixels(light.first, dark.first)
-    return PairFiles(app.id, light.first, dark.first.takeIf { distinct }, light.second && dark.second, stale || art.limited)
+    return PairFiles(app.artworkId(options), light.first, dark.first.takeIf { distinct },
+      light.second && dark.second, stale || art.limited)
   }
 
   private fun distinctPixels(light: File, dark: File): Boolean {
@@ -347,8 +382,10 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     }.also { writeJson(comparison, JSONObject().put("distinct", it)) }
   }
 
-  private suspend fun image(url: String, size: Int): Pair<File, Boolean> {
-    val index = File(metadata, "url-${AppleIconPolicy.key(url)}.json")
+  private suspend fun image(url: String, options: AppleIconOptions, cacheOnly: Boolean): Pair<File, Boolean>? {
+    val size = options.resolution
+    // A shared CDN URL is not evidence that two storefronts supplied the same artwork.
+    val index = File(metadata, "url-${AppleIconPolicy.key("${options.country}:$url")}.json")
     val previous = readJson(index)?.optString("digest")
     if (previous?.matches(Regex("[0-9a-f]{64}")) == true) {
       val existing = File(images, "$previous.png")
@@ -358,6 +395,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         return existing to true
       }
     }
+    if (cacheOnly) return null
     val bytes = client.image(url)
     val digest = AppleIconPolicy.digest(bytes)
     val file = File(images, "$digest.png")
@@ -371,9 +409,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     return file to false
   }
 
-  private fun systemIcon(app: AppleAppMatch, options: AppleIconOptions): PairFiles {
+  private fun systemIcon(app: AppleAppMatch, options: AppleIconOptions, cacheOnly: Boolean = false): PairFiles? {
     // Apple has no App Store listing for App Store itself. Provenanced native renders ship locally.
-    fun render(dark: Boolean): Pair<File, Boolean> {
+    fun render(dark: Boolean): Pair<File, Boolean>? {
       val mode = if (dark) "dark" else "light"
       val platform = if (options.platform == ApplePlatform.MACOS) "macos" else "ios"
       val role = if (app.id == "1108187390") "music" else app.id.removePrefix("system_")
@@ -394,6 +432,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           return file to true
         }
       }
+      if (cacheOnly) return null
       images.mkdirs()
       val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IOException("Missing system image")
       val file: File
@@ -413,9 +452,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       } finally { source.recycle() }
       return file to false
     }
-    val light = render(false)
-    val dark = render(true)
-    return PairFiles(app.id, light.first, dark.first.takeIf { distinctPixels(light.first, it) },
+    val light = render(false) ?: return null
+    val dark = render(true) ?: return null
+    return PairFiles(app.artworkId(options), light.first, dark.first.takeIf { distinctPixels(light.first, it) },
       light.second && dark.second)
   }
 
@@ -444,9 +483,16 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     private fun AppleIconOptions.json() = JSONObject().put("platform", platform.name).put("resolution", resolution)
       .put("corners", corners.name).put("country", country)
     private fun AppleAppMatch.json() = JSONObject().put("id", id).put("name", name)
-      .put("publisher", publisher).put("bundleId", bundleId)
+      .put("publisher", publisher).put("bundleId", bundleId).put("country", country)
     private fun JSONObject.match() = AppleAppMatch(getString("id"), getString("name"),
-      optString("publisher"), optString("bundleId"))
+      optString("publisher"), optString("bundleId"), optString("country").takeIf { it.isNotEmpty() && it != "null" })
+    private fun publishedApp(id: String, record: JSONObject): AppleAppMatch? = runCatching {
+      when (record.optInt("schema", 1)) {
+        1 -> AppleAppMatch(id, "", "", country = record.getJSONObject("options").getString("country"))
+        2 -> AppleAppMatch(id.substringBeforeLast('_'), "", "", country = id.substringAfterLast('_'))
+        else -> null
+      }
+    }.getOrNull()
     private fun JSONArray.matches(): List<AppleAppMatch> = (0 until length()).map { getJSONObject(it).match() }
     private fun readJson(file: File): JSONObject? = runCatching {
       val atomic = AtomicFile(file)

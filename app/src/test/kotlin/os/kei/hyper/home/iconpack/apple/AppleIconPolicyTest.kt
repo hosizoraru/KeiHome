@@ -39,6 +39,35 @@ class AppleIconPolicyTest {
     assertThrows(IllegalArgumentException::class.java) { AppleIconOptions(country = "../") }
     assertThrows(IllegalArgumentException::class.java) { AppleAppMatch("../file", "", "") }
     assertThrows(IllegalArgumentException::class.java) { AppleAppMatch("system_phone", "", "") }
+    assertThrows(IllegalArgumentException::class.java) { AppleAppMatch("123456789", "", "", country = "../") }
+    assertThrows(IllegalArgumentException::class.java) { AppleAppMatch("123456789", "", "", country = "") }
+  }
+
+  @Test fun storefrontOverridesResolveIndependentlyOfGlobalOptionsAndArtworkIdentity() {
+    val global = AppleIconOptions(country = "us")
+    val legacy = AppleAppMatch("123456789", "App", "Publisher")
+    val japanese = legacy.copy(country = "jp")
+    assertNull(legacy.country)
+    assertEquals("us", global.forApp(legacy).country)
+    assertEquals("jp", global.forApp(japanese).country)
+    assertEquals(global.copy(country = "jp"), global.forApp(japanese))
+    assertNotEquals(legacy.artworkId(global), japanese.artworkId(global))
+    assertEquals(japanese.artworkId(global), japanese.artworkId(global.copy(country = "cn")))
+    assertEquals(legacy.artworkId(global), legacy.copy(country = "us").artworkId(global))
+  }
+
+  @Test fun customTwoLetterStorefrontsAreAcceptedForOptionsAndMappings() {
+    listOf("gb", "ca", "tw", "kr").forEach { country ->
+      val options = AppleIconOptions(country = country)
+      val app = AppleAppMatch("123456789", "App", "Publisher", country = country)
+      assertEquals(country, options.country)
+      assertEquals(country, AppleIconOptions().forApp(app).country)
+      assertTrue(app.artworkId(options).endsWith("_$country"))
+    }
+    listOf("GB", "g", "gbr", "1a", " g").forEach { country ->
+      assertThrows(IllegalArgumentException::class.java) { AppleIconOptions(country = country) }
+      assertThrows(IllegalArgumentException::class.java) { AppleAppMatch("123456789", "", "", country = country) }
+    }
   }
 
   @Test fun systemStoresMapToAppStoreAndNeverAppleRetailStore() {

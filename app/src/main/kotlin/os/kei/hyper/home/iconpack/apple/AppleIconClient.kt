@@ -106,24 +106,25 @@ internal class AppleIconClient(private val transport: AppleIconTransport = Apple
         val id = row.optString("trackId")
         if (id.matches(Regex("[0-9]{6,12}"))) add(AppleAppMatch(id,
           row.optString("trackName").take(200), row.optString("artistName").take(200),
-          row.optString("bundleId").take(200)))
+          row.optString("bundleId").take(200), country = options.country))
       }
     }.distinctBy { it.id }
   }
 
   suspend fun artwork(app: AppleAppMatch, options: AppleIconOptions): AppleArtwork {
+    val effective = options.forApp(app)
     // The storefront groups iPhone and iPad artwork under ios. iPad eligibility comes from search.
     val additional = if (options.platform == ApplePlatform.MACOS) "mac" else "iphone"
     try {
-      val body = metadataRequest("https://apps.apple.com/api/apps/v1/catalog/${options.country}/apps/${app.id}?" +
+      val body = metadataRequest("https://apps.apple.com/api/apps/v1/catalog/${effective.country}/apps/${app.id}?" +
         query(mapOf("platform" to "web", "additionalPlatforms" to additional, "extend" to "iconArtwork",
           "fields[apps]" to "name,artwork,iconArtwork", "l" to "en-US")))
-      return parseArtwork(body, app, options, System.currentTimeMillis())
+      return parseArtwork(body, app, effective, System.currentTimeMillis())
     } catch (cancelled: CancellationException) { throw cancelled
     } catch (_: Exception) {
       val body = metadataRequest("https://itunes.apple.com/lookup?" +
-        query(mapOf("id" to app.id, "country" to options.country)))
-      return parseStandardArtwork(body, app, options, System.currentTimeMillis())
+        query(mapOf("id" to app.id, "country" to effective.country)))
+      return parseStandardArtwork(body, app, effective, System.currentTimeMillis())
     }
   }
 

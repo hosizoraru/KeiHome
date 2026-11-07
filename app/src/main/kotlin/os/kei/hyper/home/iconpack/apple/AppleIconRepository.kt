@@ -74,6 +74,27 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     settings.putString(mappingKey(target.packageName, options), app?.json()?.toString() ?: "-")
   }
 
+  suspend fun exportMappings(): ByteArray = mutex.withLock {
+    withContext(Dispatchers.IO) {
+      AppleMappingTransfer.encode(AppleMappingTransfer.savedChoices(settings.allKeys().orEmpty(),
+        { settings.getString(it, null) }, options().country))
+    }
+  }
+
+  suspend fun importMappings(bytes: ByteArray): Int = mutex.withLock {
+    withContext(Dispatchers.IO) {
+      // Validate the complete merge and prepare every value before the first preference write.
+      val plan = AppleMappingTransfer.importWrites(bytes, settings.allKeys().orEmpty(),
+        { settings.getString(it, null) }, options().country)
+      for (values in plan.writes.values) {
+        val editor = settings.edit()
+        values.forEach { (key, value) -> editor.putString(key, value) }
+        check(editor.commit()) { "Could not save Apple mappings" }
+      }
+      plan.count
+    }
+  }
+
   fun resetMatch(target: AppleAppTarget, options: AppleIconOptions) {
     settings.remove(mappingKey(target.packageName, options))
   }
@@ -293,7 +314,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     if (publishedOptions.optString("platform") != options.platform.name ||
       publishedOptions.optInt("resolution") != options.resolution ||
       publishedOptions.optString("corners") != options.corners.name) return null
-    if ((app.id == "1108187390" || app.id.startsWith("system_")) &&
+    if (bundledRole(app, options) != null &&
       record.optString("bundled") != bundledRevision) return null
     val resourceId = app.artworkId(options)
     // Legacy resources have no storefront suffix; only their recorded global country is proven.
@@ -335,15 +356,15 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   private suspend fun pair(app: AppleAppMatch, options: AppleIconOptions, refresh: Boolean,
     cacheOnly: Boolean = false): PairFiles? {
-    if (app.id.startsWith("system_")) return systemIcon(app, options, cacheOnly)
+    if (app.id.startsWith("system_")) return systemIcon(app, options)
     val key = AppleIconPolicy.key("art:${options.platform.attribute}:${options.country}:${app.id}")
     val metaFile = File(metadata, "$key.json")
     val cached = readJson(metaFile)?.let {
       runCatching { AppleArtwork(app, it.getString("template"), it.getLong("time"),
         it.optBoolean("fallback"), it.optBoolean("limited")) }.getOrNull()
     }
-    val bundledMusic = app.id == "1108187390" && options.platform != ApplePlatform.MACOS
-    if (bundledMusic && cached == null && !refresh) return systemIcon(app, options, cacheOnly)
+    val bundled = bundledRole(app, options) != null
+    if (bundled && cached == null && !refresh) return systemIcon(app, options)
     if (cacheOnly && cached == null) return null
     var stale = false
     val art = if (cached != null && !refresh) cached else {
@@ -357,9 +378,13 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
             .put("fallback", it.fallback).put("limited", it.limited))
         }
       } catch (cancelled: CancellationException) { throw cancelled
-      } catch (failure: Exception) { (cached ?: throw failure).also { stale = true } }
+      } catch (failure: Exception) {
+        if (failure is kotlinx.coroutines.CancellationException) throw failure
+        if (cached == null && bundled) return systemIcon(app, options)?.copy(stale = true)
+        (cached ?: throw failure).also { stale = true }
+      }
     }
-    if (bundledMusic && art.limited) return systemIcon(app, options, cacheOnly)?.copy(stale = true)
+    if (bundled && art.limited) return systemIcon(app, options)?.copy(stale = true)
     val lightUrl = AppleIconPolicy.rendition(art.template, options, false)
     val darkUrl = AppleIconPolicy.rendition(art.template, options, true)
     val light = image(lightUrl, options, cacheOnly) ?: return null
@@ -409,12 +434,25 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     return file to false
   }
 
-  private fun systemIcon(app: AppleAppMatch, options: AppleIconOptions, cacheOnly: Boolean = false): PairFiles? {
+  private fun bundledRole(app: AppleAppMatch, options: AppleIconOptions): String? = when {
+    app.id.startsWith("system_") -> app.id.removePrefix("system_")
+    app.id == "1108187390" -> "music"
+    app.id == "1146562112" && options.platform == ApplePlatform.MACOS -> "safari"
+    options.platform != ApplePlatform.MACOS && options.corners == AppleCorners.ROUNDED -> when (app.id) {
+      "1146562112" -> "safari"
+      "1584215428" -> "photos"
+      "1232058109" -> "files"
+      else -> null
+    }
+    else -> null
+  }
+
+  private fun systemIcon(app: AppleAppMatch, options: AppleIconOptions): PairFiles? {
     // Apple has no App Store listing for App Store itself. Provenanced native renders ship locally.
     fun render(dark: Boolean): Pair<File, Boolean>? {
       val mode = if (dark) "dark" else "light"
       val platform = if (options.platform == ApplePlatform.MACOS) "macos" else "ios"
-      val role = if (app.id == "1108187390") "music" else app.id.removePrefix("system_")
+      val role = bundledRole(app, options) ?: return null
       val original = if (role == "music" && platform == "ios" && options.corners == AppleCorners.ORIGINAL) "-original" else ""
       val bytes = context.assets.open("apple-system-icons/$role-$platform$original-$mode.webp").use {
         val bytes = it.readNBytes(AppleIconPolicy.MAX_RESPONSE + 1)
@@ -432,7 +470,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           return file to true
         }
       }
-      if (cacheOnly) return null
+      // Local asset decoding is safe for cache-only browsing after a bundled-artwork update.
       images.mkdirs()
       val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IOException("Missing system image")
       val file: File

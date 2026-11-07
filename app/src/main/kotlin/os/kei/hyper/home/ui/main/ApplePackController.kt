@@ -4,6 +4,9 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -18,9 +21,12 @@ import os.kei.hyper.home.iconpack.apple.AppleIconOptions
 import os.kei.hyper.home.iconpack.apple.AppleIconRepository
 import os.kei.hyper.home.iconpack.apple.AppleRequestException
 import os.kei.hyper.home.iconpack.apple.ApplePackSizeException
+import os.kei.hyper.home.iconpack.apple.AppleMappingTransfer
 
 internal enum class ApplePackError { NETWORK, LIMITED, EMPTY, GENERATION, SIZE }
-internal data class AppleMappingRow(val target: AppleAppTarget, val app: AppleAppMatch?, val custom: Boolean)
+internal enum class AppleDarkCapability { UNKNOWN, INDEPENDENT, MISSING }
+internal data class AppleMappingRow(val target: AppleAppTarget, val app: AppleAppMatch?, val custom: Boolean,
+  val darkCapability: AppleDarkCapability = AppleDarkCapability.UNKNOWN)
 internal data class ApplePackUiState(
   val options: AppleIconOptions,
   val loading: Boolean = false,
@@ -55,9 +61,12 @@ internal class ApplePackController(
   private var work: Job? = null
   private var search: Job? = null
   private var currentPreviewJob: Job? = null
+  private var capabilitiesJob: Job? = null
+  private var reloadRequested = false
 
   fun load() {
-    if (mutable.value.loading || mutable.value.busy) return
+    if (mutable.value.loading || mutable.value.busy) { reloadRequested = true; return }
+    reloadRequested = false
     mutable.update { it.copy(loading = true, error = null) }
     scope.launch {
       try {
@@ -66,11 +75,15 @@ internal class ApplePackController(
         val published = repository.publishedOptions()
         val bytes = repository.cacheBytes()
         val pending = repository.needsGeneration(targets, mutable.value.options)
-        mutable.update { value -> value.copy(loading = false, rows = rows(targets, value.options),
+        val options = mutable.value.options
+        val snapshot = resolvedRows(rows(targets, options), options)
+        mutable.update { value -> value.copy(loading = false,
+          rows = if (value.options == options) snapshot else value.rows,
           pack = pack, publishedOptions = published, cacheBytes = bytes, pendingChanges = pending,
           previewRevision = value.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (_: Exception) { mutable.update { it.copy(loading = false, error = ApplePackError.GENERATION) } }
+      if (reloadRequested) load()
     }
   }
   fun refreshTargetsIfLoaded() { if (mutable.value.rows.isNotEmpty()) load() }
@@ -82,6 +95,7 @@ internal class ApplePackController(
     mutable.update { it.copy(options = options, rows = rows(it.rows.map { row -> row.target }, options),
       result = null, error = null, candidates = emptyList(), searched = false, searching = false,
       pendingChanges = true, preview = null, previewing = false) }
+    refreshCapabilities()
   }
 
   fun edit(target: AppleAppTarget) {
@@ -114,6 +128,15 @@ internal class ApplePackController(
   suspend fun cachedPreview(app: AppleAppMatch): AppleArtworkPreview? =
     repository.cachedPreview(app, mutable.value.options)
 
+  suspend fun exportMappings(): ByteArray = repository.exportMappings()
+
+  suspend fun importMappings(input: java.io.InputStream): Int {
+    val count = withContext(Dispatchers.IO) { repository.importMappings(AppleMappingTransfer.read(input)) }
+    mutable.update { it.copy(pendingChanges = true, result = null) }
+    load()
+    return count
+  }
+
   fun search(query: String) {
     val snapshot = mutable.value
     if (snapshot.busy || snapshot.editing == null || query.trim().length !in 1..100) return
@@ -137,6 +160,7 @@ internal class ApplePackController(
       app?.copy(country = app.country ?: snapshot.searchCountry))
     mutable.update { it.copy(rows = rows(it.rows.map { row -> row.target }, it.options), result = null, error = null,
       pendingChanges = true, preview = null) }
+    refreshCapabilities()
   }
 
   fun preview(app: AppleAppMatch) {
@@ -150,6 +174,7 @@ internal class ApplePackController(
         val bytes = repository.cacheBytes()
         mutable.update { it.copy(preview = preview, previewing = false, cacheBytes = bytes,
           previewRevision = it.previewRevision + 1) }
+        refreshCapabilities()
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { mutable.update { it.copy(previewing = false, error = failure.uiError()) } }
     }
@@ -159,10 +184,15 @@ internal class ApplePackController(
     if (mutable.value.busy || mutable.value.searching || mutable.value.previewing) return
     mutable.update { it.copy(busy = true) }
     work = scope.launch {
-      try { repository.clearDownloads(); mutable.update { it.copy(cacheBytes = 0, previewRevision = it.previewRevision + 1) }
+      try { repository.clearDownloads(); mutable.update { it.copy(cacheBytes = 0,
+          rows = it.rows.map { row -> row.copy(darkCapability = AppleDarkCapability.UNKNOWN) },
+          previewRevision = it.previewRevision + 1) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { mutable.update { it.copy(error = failure.uiError()) }
-      } finally { mutable.update { it.copy(busy = false) } }
+      } finally {
+        mutable.update { it.copy(busy = false) }
+        if (reloadRequested) load() else refreshCapabilities()
+      }
     }
   }
 
@@ -193,7 +223,10 @@ internal class ApplePackController(
       } catch (failure: Exception) {
         mutable.update { it.copy(error = failure.uiError()) }
         android.util.Log.w("KeiHomeAppleIcons", "Apple icon generation failed", failure)
-      } finally { mutable.update { it.copy(busy = false, progress = null) } }
+      } finally {
+        mutable.update { it.copy(busy = false, progress = null) }
+        if (reloadRequested) load() else refreshCapabilities()
+      }
     }
   }
 
@@ -205,6 +238,38 @@ internal class ApplePackController(
 
   private fun rows(targets: List<AppleAppTarget>, options: AppleIconOptions) =
     targets.map { AppleMappingRow(it, repository.match(it, options), repository.custom(it, options)) }
+
+  private fun refreshCapabilities() {
+    capabilitiesJob?.cancel()
+    val snapshot = mutable.value
+    capabilitiesJob = scope.launch {
+      val resolved = resolvedRows(snapshot.rows, snapshot.options)
+      mutable.update { if (it.options == snapshot.options && it.rows == snapshot.rows) it.copy(rows = resolved) else it }
+    }
+  }
+
+  private suspend fun resolvedRows(rows: List<AppleMappingRow>, options: AppleIconOptions): List<AppleMappingRow> =
+    withContext(Dispatchers.IO) {
+      // Preview reads can validate image files. Probe at most 128 distinct local pairs per snapshot.
+      val known = mutableMapOf<AppleAppMatch, AppleDarkCapability>()
+      rows.map { row ->
+        ensureActive()
+        val app = row.app
+        val capability = if (app == null) AppleDarkCapability.UNKNOWN else known[app] ?: if (known.size >= 128) {
+          AppleDarkCapability.UNKNOWN
+        } else {
+          val preview = repository.cachedPreview(app, options)
+          val value = when {
+            preview == null -> AppleDarkCapability.UNKNOWN
+            preview.dark == null -> AppleDarkCapability.MISSING
+            else -> AppleDarkCapability.INDEPENDENT
+          }
+          known[app] = value
+          value
+        }
+        row.copy(darkCapability = capability)
+      }
+    }
 
   private fun Exception.uiError(): ApplePackError = when (this) {
     is ApplePackSizeException -> ApplePackError.SIZE

@@ -55,4 +55,23 @@ class AppleMappingBrowserTest {
     assertEquals(listOf("app.z", "app.a", "app.b", "app.c"), browse(sort = AppleMappingSort.APPLE_NAME))
     assertEquals(listOf("app.b", "app.z", "app.a", "app.c"), browse(sort = AppleMappingSort.CUSTOM_FIRST))
   }
+
+  @Test fun missingDarkIncludesOnlyResolvedMappingsWithoutAnIndependentDarkVariant() {
+    val cached = rows.map {
+      it.copy(darkCapability = if (it.target.packageName == "app.z") AppleDarkCapability.MISSING
+        else AppleDarkCapability.INDEPENDENT)
+    }
+    assertEquals(listOf("app.z"), appleMappingRows(cached, "", AppleMappingFilter.MISSING_DARK,
+      AppleMappingSort.NAME, "us").map { it.target.packageName })
+    assertTrue(appleMappingRows(rows, "", AppleMappingFilter.MISSING_DARK, AppleMappingSort.NAME, "us").isEmpty())
+    val unmapped = rows.map { it.copy(darkCapability = AppleDarkCapability.MISSING) }
+    assertEquals(listOf("app.a", "app.z"), appleMappingRows(unmapped, "", AppleMappingFilter.MISSING_DARK,
+      AppleMappingSort.NAME, "us").map { it.target.packageName })
+  }
+
+  @Test fun missingDarkComposesWithGalleryRegionSearchAndSort() {
+    val cached = rows.map { it.copy(darkCapability = AppleDarkCapability.MISSING) }
+    assertEquals(listOf("app.z"), appleMappingRows(cached, "apple", AppleMappingFilter.MISSING_DARK,
+      AppleMappingSort.PACKAGE, "us", region = "jp", matchedOnly = true).map { it.target.packageName })
+  }
 }

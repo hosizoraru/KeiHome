@@ -165,7 +165,7 @@ internal class AppleIconClient(private val transport: AppleIconTransport = Apple
       val template = artwork.getString("url")
       AppleIconPolicy.rendition(template, options, false)
       return AppleArtwork(app.copy(name = attributes.optString("name", app.name)), template, now,
-        fallback = extended == null)
+        fallback = extended == null, limited = extended == null)
     }
 
     internal fun parseStandardArtwork(body: ByteArray, app: AppleAppMatch, options: AppleIconOptions,

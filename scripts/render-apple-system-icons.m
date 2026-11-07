@@ -31,10 +31,11 @@ int main(int argc, const char **argv) {
     [[NSFileManager defaultManager] createDirectoryAtPath:directory
       withIntermediateDirectories:YES attributes:nil error:&error];
     BOOL iosSource = [@(argv[6]) isEqualToString:@"ios-source"];
-    for (int appearance = 1; appearance <= 2; appearance++) {
+    // IconFoundation uses 0/default and 1/dark, unlike UIUserInterfaceStyle's 1/2.
+    for (int appearance = 0; appearance <= 1; appearance++) {
       NSString *look = iosSource
-        ? (appearance == 2 ? @"UIAppearanceDark" : @"UIAppearanceLight")
-        : (appearance == 2 ? @"NSAppearanceNameDarkAqua" : @"NSAppearanceNameAqua");
+        ? (appearance == 1 ? @"UIAppearanceDark" : @"UIAppearanceLight")
+        : (appearance == 1 ? @"NSAppearanceNameDarkAqua" : @"NSAppearanceNameAqua");
       id stack = [catalog iconLayerStackWithName:@(argv[2]) scaleFactor:1 deviceIdiom:0
         deviceSubtype:0 displayGamut:1 appearanceName:look locale:nil];
       id image = [stack _IF_ImageWithSize:CGSizeMake(1024, 1024) scale:1
@@ -49,7 +50,7 @@ int main(int argc, const char **argv) {
       CGContextDrawImage(bitmap, CGRectMake(0, 0, 1024, 1024), [image CGImage]);
       CGImageRef rendered = CGBitmapContextCreateImage(bitmap);
       NSString *name = [NSString stringWithFormat:@"%s-%s-%s.png", argv[5], argv[3],
-        appearance == 2 ? "dark" : "light"];
+        appearance == 1 ? "dark" : "light"];
       NSURL *url = [NSURL fileURLWithPath:[directory stringByAppendingPathComponent:name]];
       CGImageDestinationRef destination = CGImageDestinationCreateWithURL(
         (__bridge CFURLRef)url, CFSTR("public.png"), 1, NULL);

@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="apple_filter_missing_dark">独立したダークアイコンなし</string>
+    <string name="apple_missing_dark_badge">キャッシュ済みアイコンに独立したダーク版はありません</string>
+    <string name="apple_mapping_transfer">マッピングのインポートとエクスポート</string>
+    <string name="apple_mapping_export">手動マッピングをエクスポート…</string>
+    <string name="apple_mapping_import">手動マッピングをインポート…</string>
+    <string name="apple_mapping_exported">除外設定と未インストールのアプリを含む、3 つのプラットフォームの手動マッピングをエクスポートしました。</string>
+    <string name="apple_mapping_imported">%1$d 件の手動設定をインポートし、パッケージ名とプラットフォームが一致する設定を置き換えました。変更を使用するには、パックを生成して適用してください。</string>
+    <string name="apple_mapping_export_failed">手動マッピングをエクスポートできませんでした。保存先を確認して再試行してください。</string>
+    <string name="apple_mapping_import_failed">マッピングをインポートできませんでした。有効な KeiHome マッピング JSON ファイル（2 MiB、10,000 件以内）を選択してください。無効または未対応のファイルは保存前に拒否されます。</string>
+    <string name="apple_mapping_transfer_done">完了</string>
     <string name="apple_matched_title">一致したアイコン</string>
     <string name="apple_matched_intro">現在のプラットフォーム・解像度・形状でプレビューします。アプリをタップして変更や未取得のプレビューを読み込めます。変更後は再生成して適用してください。</string>
     <string name="apple_mapping_manage_summary">現在のプレビュー、置き換え、除外、アプリ別のストア地域</string>

@@ -35,6 +35,13 @@ def main():
         ("finder", Path("/System/Library/CoreServices/Finder.app/Contents/Resources/Assets.car"),
          "Finder", "macos-source", ["macos"]),
     ]
+    applications = args.ios_settings_catalog.parent.parent
+    for role, bundle, name in [("photos", "Photos", "AppIcon"),
+                                ("safari", "MobileSafari", "AppIconUpdated"),
+                                ("files", "Files", "AppIcon")]:
+        catalog = applications / f"{bundle}.app/Assets.car"
+        if catalog.is_file():
+            specs.append((role, catalog, name, "ios-source", ["ios"]))
     records = []
     with tempfile.TemporaryDirectory(prefix="keihome-apple-system-") as directory:
         temp = Path(directory)
@@ -54,6 +61,7 @@ def main():
                                     str(png), "-o", str(out)], check=True)
                     records.append(dict(file=out.name, role=role, platform=platform, appearance=appearance,
                         sourcePlatform=source, sourceCatalogSha256=catalog_hash, sourceName=name,
+                        nativeAppearance=1 if appearance == "dark" else 0,
                         sourcePngSha256=sha(png), sha256=sha(out), bytes=out.stat().st_size, resolution=1024))
         for corners, snapshot in [("rounded", args.music_snapshot), ("original", args.music_original_snapshot)]:
             if snapshot is None:
@@ -69,7 +77,7 @@ def main():
                     corners=corners, sourcePlatform="Apple App Store CDN", appId="1108187390",
                     sourceReportSha256=sha(snapshot / "report.json"), sourcePngSha256=sha(png),
                     sha256=sha(out), bytes=out.stat().st_size, resolution=1024))
-    manifest = dict(schema=1, attribution="Artwork copyright Apple Inc. No Apple affiliation.",
+    manifest = dict(schema=2, attribution="Artwork copyright Apple Inc. No Apple affiliation.",
         encoding="Static 8-bit sRGB target; WebP lossless with exact transparent pixels.",
         appStoreIOS="Apple's macOS App Store layered artwork rendered with the native iOS presentation.",
         images=records)

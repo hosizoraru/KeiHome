@@ -34,7 +34,7 @@ class AppleIconRepositoryDeviceTest {
       JSONObject(it.bufferedReader().readText())
     }
     val records = manifest.getJSONArray("images")
-    assertEquals(18, records.length())
+    assertEquals(24, records.length())
     for (i in 0 until records.length()) {
       val record = records.getJSONObject(i)
       val bytes = context.assets.open("apple-system-icons/${record.getString("file")}").use { it.readBytes() }

@@ -36,7 +36,7 @@ import java.text.Collator
 import java.util.Locale
 
 internal enum class AppleMappingFilter {
-  ALL, MAPPED, UNMAPPED, CUSTOM, AUTOMATIC, EXCLUDED, CROSS_REGION, SYSTEM, USER
+  ALL, MAPPED, UNMAPPED, CUSTOM, AUTOMATIC, EXCLUDED, CROSS_REGION, SYSTEM, USER, MISSING_DARK
 }
 
 internal enum class AppleMappingSort { NAME, NAME_DESC, PACKAGE, APPLE_NAME, REGION, CUSTOM_FIRST }
@@ -89,6 +89,7 @@ internal val AppleMappingFilter.label: Int get() = when (this) {
   AppleMappingFilter.CROSS_REGION -> R.string.apple_filter_cross_region
   AppleMappingFilter.SYSTEM -> R.string.apple_filter_system
   AppleMappingFilter.USER -> R.string.apple_filter_user
+  AppleMappingFilter.MISSING_DARK -> R.string.apple_filter_missing_dark
 }
 
 internal val AppleMappingSort.label: Int get() = when (this) {
@@ -124,6 +125,7 @@ internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter
         AppleMappingFilter.CROSS_REGION -> row.app?.country?.let { it != country } == true
         AppleMappingFilter.SYSTEM -> row.target.system
         AppleMappingFilter.USER -> !row.target.system
+        AppleMappingFilter.MISSING_DARK -> row.app != null && row.darkCapability == AppleDarkCapability.MISSING
       } &&
       (needle.isEmpty() || listOfNotNull(row.target.label, row.target.packageName, row.app?.name,
         row.app?.publisher, row.app?.bundleId, row.app?.id, row.app?.let { it.country ?: country })
@@ -177,6 +179,9 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
         row.app?.let { app ->
           Text("${app.name} · ${appleRegionName(app.country ?: state.options.country, LocalConfiguration.current.locales[0])}",
             style = MiuixTheme.textStyles.body2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+          if (row.darkCapability == AppleDarkCapability.MISSING) {
+            MetadataPill(stringResource(R.string.apple_missing_dark_badge), MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
           val cached = preview
           Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
             if (cached != null) AppleArtworkPair(cached, compact = true) else {

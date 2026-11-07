@@ -134,3 +134,52 @@ country persistence, cache-only misses and offline legacy migration. The current
 suite passed 728 JVM tests and 24 repository instrumentation tests. Device/UI
 acceptance and the matching signed release are recorded separately in
 `.artifacts/research/apple-browser-20261108/acceptance.json`.
+
+## Appearance correction and portable mappings (2026-11-08)
+
+The native IconFoundation export API uses appearance `0` for default/light and
+`1` for dark. These values differ from UIKit's `UIUserInterfaceStyle` enum.
+The former exporter passed `1/2`, which put dark artwork in some light slots.
+The renderer and provenance now record the corrected contract. Regenerated
+native resources invalidate affected published pairs by bundled revision;
+unrelated downloaded images and storefront mappings remain reusable.
+Cache-only previews may decode bundled assets locally after an update without
+making network requests.
+
+The bundle now includes genuine Photos, Safari and Files catalog renders from
+the installed iOS Simulator runtime, used as offline alternatives for Rounded
+iOS/iPadOS options. There are 24 bundled images including the existing Music
+snapshots. App Store's iOS presentation still uses the macOS layered catalog
+rendered through IconFoundation; its provenance does not claim an iPhone catalog
+extraction. This is a bounded static resource set, not a new runtime renderer.
+
+Live Apple responses confirmed the automatic mapping IDs' expected bundle IDs.
+They also exposed a separate limitation: ordinary iTunes raster URLs can ignore
+appearance, and `bb`/Original output can lack a distinct dark variant even when
+the platform's rounded template provides one. Catalog fallbacks are now marked
+limited so a transient HTTP 429 cannot replace cached complete metadata.
+Distinct pixels demonstrate an independent variant; they do not prove
+equivalence to every iOS release or represent Liquid Glass.
+
+Both mapping browsers expose document import/export in the top menu. Schema 1
+JSON includes manual replacements and exclusions on all three platforms,
+uninstalled package names and per-mapping storefronts. It excludes downloaded
+images, cache paths and other app settings. Import validates the complete UTF-8
+document before writing, merges by package/platform, and preserves unrelated
+choices. Bounds are 2 MiB and 10,000 choices; duplicate keys/choices, unknown
+platforms and malformed values are rejected. Android's document picker handles
+storage access without a new broad-storage permission.
+
+The top filter menu includes "Missing independent dark icon"; matching rows
+carry an explanatory badge. Capability inspection is local and cancellable,
+limited to 128 distinct pairs per snapshot. Missing/uninspected cache entries
+remain unknown and are not treated as proven missing dark variants. This does
+not start a bulk network refresh. Explicit metadata refresh remains available.
+
+Validation: 745 JVM tests, 33 repository/resource/client device tests and Release lint.
+The device tests cover offline cold bundled previews, incorrect legacy
+publication slots, actual MMKV transfer across all platforms, exclusions and
+storefronts, and invalid-import non-mutation. Actual AVD checks exercised document
+save/open, corrected previews and the missing-dark filter.
+Final signed Release and process identities are recorded in
+`.artifacts/research/apple-artwork-correctness-20261108/acceptance.json`.

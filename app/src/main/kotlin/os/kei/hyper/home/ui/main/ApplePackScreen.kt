@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
@@ -43,6 +46,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.Dialog
+import java.io.IOException
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,6 +68,7 @@ import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
@@ -73,6 +81,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -94,8 +104,39 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val backdrop = rememberKeiHomeBlurBackdrop()
   var actionHeight by remember { mutableIntStateOf(0) }
   val context = LocalContext.current
+  val resources = LocalResources.current
+  val uiScope = rememberCoroutineScope()
+  var transferring by remember { mutableStateOf(false) }
+  var transferMessage by rememberSaveable { mutableStateOf<String?>(null) }
+  val exportMappings = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    if (uri == null) transferring = false else uiScope.launch {
+      try {
+        withContext(Dispatchers.IO) {
+          val bytes = controller.exportMappings()
+          (context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("Cannot open document"))
+            .use { it.write(bytes) }
+        }
+        transferMessage = resources.getString(R.string.apple_mapping_exported)
+      } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
+      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+      } finally { transferring = false }
+    }
+  }
+  val importMappings = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    if (uri == null) transferring = false else uiScope.launch {
+      try {
+        val count = withContext(Dispatchers.IO) {
+          (context.contentResolver.openInputStream(uri) ?: throw IOException("Cannot open document"))
+            .use { controller.importMappings(it) }
+        }
+        transferMessage = resources.getString(R.string.apple_mapping_imported, count)
+      } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
+      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_import_failed)
+      } finally { transferring = false }
+    }
+  }
   val nativeBusy = packs.nativeImporting != null
-  val enabled = !state.busy && !state.loading && !nativeBusy
+  val enabled = !state.busy && !state.loading && !nativeBusy && !transferring
   var filter by rememberSaveable(section) { mutableStateOf("") }
   var filterName by rememberSaveable(section) { mutableStateOf(AppleMappingFilter.ALL.name) }
   var sortName by rememberSaveable(section) { mutableStateOf(AppleMappingSort.NAME.name) }
@@ -117,7 +158,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val keyboard = LocalSoftwareKeyboardController.current
   fun searchNow() { focus.clearFocus(); keyboard?.hide(); controller.search(query) }
   val listState = rememberLazyListState()
-  val uiScope = rememberCoroutineScope()
   fun browserChanged() {
     focus.clearFocus(); keyboard?.hide()
     uiScope.launch { listState.scrollToItem(0) }
@@ -155,6 +195,31 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               onFilter = { filterName = it.name; browserChanged() },
               onRegion = { regionFilter = it; browserChanged() })
             AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
+          }
+          if (!search) {
+            val transferActions = DropdownEntry(items = listOf(
+              DropdownItem(text = stringResource(R.string.apple_mapping_export), enabled = enabled, onClick = {
+                transferring = true
+                try {
+                  exportMappings.launch("keihome-apple-manual-mappings-" +
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm")) + ".json")
+                } catch (_: Exception) {
+                  transferring = false
+                  transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+                }
+              }),
+              DropdownItem(text = stringResource(R.string.apple_mapping_import), enabled = enabled, onClick = {
+                transferring = true
+                try { importMappings.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                } catch (_: Exception) {
+                  transferring = false
+                  transferMessage = resources.getString(R.string.apple_mapping_import_failed)
+                }
+              }),
+            ))
+            OverlayIconCascadingDropdownMenu(entries = listOf(transferActions)) {
+              Icon(MiuixIcons.More, stringResource(R.string.apple_mapping_transfer))
+            }
           }
         })
     }
@@ -357,6 +422,15 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             ApplePackError.SIZE -> R.string.apple_error_size
           }))
         } }
+      }
+    }
+  }
+  transferMessage?.let { message ->
+    Dialog(onDismissRequest = { transferMessage = null }) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Text(message, Modifier.padding(20.dp), style = MiuixTheme.textStyles.body1)
+        BasicComponent(title = stringResource(R.string.apple_mapping_transfer_done),
+          onClick = { transferMessage = null })
       }
     }
   }

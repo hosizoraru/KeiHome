@@ -21,6 +21,55 @@ import org.junit.rules.TemporaryFolder
 class IconPackArchiveTest {
   @get:Rule val temporary = TemporaryFolder()
 
+  /** Opt-in coverage for a local report without committing third-party artwork. */
+  @Test fun suppliedNativeArchiveImportsAndCopiesWithoutChangingItsPayload() {
+    val path = System.getenv("KEIHOME_TEST_ICON_ARCHIVE")
+    org.junit.Assume.assumeTrue(path != null)
+    val source = File(requireNotNull(path))
+    val index = inspect(source)
+    assertEquals(IconPackFormat.MIUI_ICONS, index.format)
+    assertTrue(index.entries.isNotEmpty())
+    val originalHash = sha256(source)
+    val store = IconPackStore(temporary.newFolder())
+    val imported = source.inputStream().use { store.import(it, source.name) }
+    val repeated = source.inputStream().use { store.import(it, "renamed.zip") }
+    assertFalse(imported.alreadyPresent)
+    assertTrue(repeated.alreadyPresent)
+    assertEquals(imported.record.id, repeated.record.id)
+    val output = temporary.newFile()
+    val copied = IconPackArchive().copyNativeModule(imported.record, output, temporary.newFile())
+    assertEquals(index.entries.map { it.nativeName }, copied.entries.map { it.nativeName })
+    assertEquals(originalHash, sha256(output))
+    assertEquals(originalHash, sha256(source))
+    println("Native archive entries=${index.entries.size} notices=${index.notices} sha256=$originalHash")
+  }
+
+  @Test fun standaloneModuleKeepsDirectoryEntriesMamlAndOpaqueFancyAssets() {
+    val manifest = ("<Icon version='2' useVariableUpdater='DateTime'>" +
+      "<VariableBinders><BroadcastBinder action='android.intent.action.DATE_CHANGED'/></VariableBinders>" +
+      "<Var name='night'><![CDATA[ifelse(#value,1,0)]]></Var>" +
+      "<Image src='common.png'/><Image src='dark.png'/></Icon>").toByteArray()
+    // Asset filenames need not reveal their encoding; native MAML owns their decoding.
+    val opaqueAsset = "RIFF\u0004\u0000\u0000\u0000WEBP".toByteArray()
+    val native = zip(
+      "fancy_icons/" to byteArrayOf(), "fancy_icons/org.example.Calendar/" to byteArrayOf(),
+      "fancy_icons/org.example.Calendar/manifest.xml" to manifest,
+      "fancy_icons/org.example.Calendar/common.png" to png,
+      "fancy_icons/org.example.Calendar/dark.png" to opaqueAsset,
+      "res/drawable-xxhdpi/org.example.png" to png,
+      "transform_config.xml" to "<IconTransform><ScaleX>1.0</ScaleX></IconTransform>".toByteArray())
+    val store = IconPackStore(temporary.newFolder())
+    val record = store.import(native.inputStream(), "icons.zip").record
+    val output = temporary.newFile()
+    val index = IconPackArchive().copyNativeModule(record, output, temporary.newFile())
+    assertEquals(IconPackFormat.MIUI_ICONS, index.format)
+    assertEquals(setOf("org.example", "org.example.Calendar"), index.entries.map { it.nativeName }.toSet())
+    assertTrue(IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED in index.notices)
+    assertArrayEquals(native, output.readBytes())
+    assertArrayEquals(manifest, IconPackArchive.readEntry(output, "fancy_icons/org.example.Calendar/manifest.xml", 4096))
+    assertArrayEquals(opaqueAsset, IconPackArchive.readEntry(output, "fancy_icons/org.example.Calendar/dark.png", 4096))
+  }
+
   @Test fun nativeNightPrefixSelectsItsOwnArtworkAndKeepsOriginalBytes() {
     val index = inspect(file(zip("res/drawable-xxhdpi/org.example.png" to png,
       "nightmode/res/drawable-xxhdpi/org.example.png" to png)))

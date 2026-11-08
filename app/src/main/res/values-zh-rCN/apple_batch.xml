@@ -21,7 +21,7 @@
     <string name="apple_batch_results">上次批量匹配结果</string>
     <string name="apple_batch_results_running">本批已完成结果</string>
     <string name="apple_batch_result_summary">已尝试 %1$d · 已匹配 %2$d · 待确认 %3$d
-未命中 %4$d · 失败 %5$d · 本批未处理 %6$d</string>
+未命中 %4$d · 失败 %5$d · 未纳入本批 %6$d</string>
     <string name="apple_batch_show_recent">查看最近尝试</string>
     <string name="apple_batch_show_review">查看待确认候选</string>
     <string name="apple_batch_review_intro">这些已保存候选需要你确认。请先预览再选择；主动搜索前不会重新请求。</string>

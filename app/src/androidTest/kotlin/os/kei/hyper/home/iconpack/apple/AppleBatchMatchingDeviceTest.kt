@@ -2,6 +2,7 @@ package os.kei.hyper.home.iconpack.apple
 
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.io.IOException
 import java.net.URI
 import java.net.URLDecoder
 import java.util.UUID
@@ -31,6 +32,7 @@ class AppleBatchMatchingDeviceTest {
     lateinit var cacheRoot: File
     var suspendTerm: String? = null
     var resume: CompletableDeferred<Unit>? = null
+    var cancellationAsIo = false
     val suspended = CompletableDeferred<Unit>()
     override suspend fun get(url: String): ByteArray {
       requests += url
@@ -43,7 +45,11 @@ class AppleBatchMatchingDeviceTest {
       val term = query["term"] ?: "LookupById"
       if (term == suspendTerm) {
         suspended.complete(Unit)
-        resume?.await() ?: awaitCancellation()
+        try { resume?.await() ?: awaitCancellation() }
+        catch (cancelled: kotlinx.coroutines.CancellationException) {
+          if (cancellationAsIo) throw IOException("Socket closed during cancellation")
+          throw cancelled
+        }
       }
       val results = JSONArray()
       if (!empty) repeat(if (ambiguous) 2 else 1) { index ->
@@ -155,6 +161,7 @@ class AppleBatchMatchingDeviceTest {
   @Test fun cancellationKeepsCompletedMappingsAndDoesNotMarkInflightSearchAsMissing() = fixture { repo, server, open ->
     val targets = List(3, ::target)
     server.suspendTerm = targets[1].label
+    server.cancellationAsIo = true
     kotlinx.coroutines.coroutineScope {
       val job = launch { repo.autoMatch(targets, options) { _, _ -> } }
       server.suspended.await()

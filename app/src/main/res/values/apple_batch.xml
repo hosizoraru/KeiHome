@@ -21,7 +21,7 @@
     <string name="apple_batch_results">Latest batch results</string>
     <string name="apple_batch_results_running">Batch results so far</string>
     <string name="apple_batch_result_summary">Attempted %1$d · Matched %2$d · Confirm %3$d
-No match %4$d · Failed %5$d · Not processed in this batch %6$d</string>
+No match %4$d · Failed %5$d · Outside this batch %6$d</string>
     <string name="apple_batch_show_recent">View recent attempts</string>
     <string name="apple_batch_show_review">Review candidates</string>
     <string name="apple_batch_review_intro">These saved candidates need your confirmation. Preview one before choosing; no new search runs until you request it.</string>

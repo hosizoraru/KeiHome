@@ -184,6 +184,8 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           }
         } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
+          // Closing a cancelled HTTP connection can surface as an IOException.
+          currentCoroutineContext().ensureActive()
           if (failure !is IOException && failure !is JSONException) throw failure
           val cooldown = maxOf(client.retryAtMillis(), (failure as? AppleRequestException)?.retryAtMillis ?: 0L)
           saveAttempt(target, options, AppleMatchAttempt(AppleMatchAttemptStatus.FAILED, time,

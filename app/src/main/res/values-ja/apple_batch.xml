@@ -21,7 +21,7 @@
     <string name="apple_batch_results">前回の一括照合結果</string>
     <string name="apple_batch_results_running">今回の処理済み結果</string>
     <string name="apple_batch_result_summary">試行%1$d · 一致%2$d · 確認待ち%3$d
-一致なし%4$d · 失敗%5$d · 今回未処理%6$d</string>
+一致なし%4$d · 失敗%5$d · 今回の対象外%6$d</string>
     <string name="apple_batch_show_recent">最近の照合を表示</string>
     <string name="apple_batch_show_review">確認待ちの候補を表示</string>
     <string name="apple_batch_review_intro">保存済み候補を確認してください。プレビュー後に選択できます。検索を実行するまで再取得しません。</string>

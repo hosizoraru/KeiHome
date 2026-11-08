@@ -118,7 +118,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
       if (fallback) {
         Column(contentModifier.verticalScroll(rememberScrollState()).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          SystemIconFallbackCard(model)
+          SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
           IconPackRefreshFeedback(model)
         }
       } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate)

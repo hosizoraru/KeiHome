@@ -238,7 +238,8 @@ internal class IconPackExporter(private val context: Context, private val limits
           if (systemFallback != null) {
             ImageArchiveZip.writeBytes(zip, SystemIconFallbackManifest.PATH,
               SystemIconFallbackManifest(systemFallback, systemNames, systemAppNameMatching,
-                pack.colorOsProfile == null && colorOsFallback != null).encode(), check = check)
+                pack.colorOsProfile == null && colorOsFallback != null,
+                perfectSource = systemRenderer?.perfectSourceHash).encode(), check = check)
           }
         }
         } finally { nativeAdaptationTargets += renderer.nativeAdaptationTargets; mask?.recycle() }
@@ -353,7 +354,10 @@ internal class IconPackExporter(private val context: Context, private val limits
           }
           ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
             SystemIconFallbackManifest(style, systemNames + previous?.names.orEmpty(),
-              previous?.nameMatching == true, colorOsFallback = true).encode(), check = check)
+              previous?.nameMatching == true, colorOsFallback = true,
+              perfectSource = previous?.perfectSource ?: style.perfectStyle?.let {
+                os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback.sourceHash(context, it)
+              }).encode(), check = check)
         }
       }
       copy.copyTo(archive, overwrite = true)
@@ -420,7 +424,7 @@ internal class IconPackExporter(private val context: Context, private val limits
             }
           }
           ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
-            SystemIconFallbackManifest(style, additions.keys).encode(), check = check)
+            SystemIconFallbackManifest(style, additions.keys, perfectSource = renderer.perfectSourceHash).encode(), check = check)
         }
       }
       check(copy.renameTo(archive)) { "Cannot publish native fallback copy" }

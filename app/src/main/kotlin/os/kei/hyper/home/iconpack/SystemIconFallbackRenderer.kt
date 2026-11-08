@@ -14,6 +14,7 @@ import android.graphics.drawable.LayerDrawable
 import java.io.File
 import java.util.zip.ZipInputStream
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
 
 /**
  * Native system artwork, never inferred from a package-name prefix. Third-party applications
@@ -33,10 +34,11 @@ internal class SystemIconFallbackRenderer(
           it.readNBytes(4097).toString(Charsets.UTF_8).trim())
       }
       SystemIconFallback.BOUNDLESS -> null
+      else -> defaultShape
     }
   }
   private val preset by lazy {
-    if (style == SystemIconFallback.DEFAULT) emptyMap() else {
+    if (style == SystemIconFallback.DEFAULT || style.isPerfect) emptyMap() else {
       buildMap {
         context.assets.open("system-icon-fallback/${style.name.lowercase()}.zip").use { stream ->
           ZipInputStream(stream).use { zip ->
@@ -54,6 +56,8 @@ internal class SystemIconFallbackRenderer(
     }
   }
 
+  val perfectSourceHash: String? by lazy { style.perfectStyle?.let { PerfectSystemFallback.sourceHash(context, it) } }
+
   fun isSystem(target: IconPackComponent): Boolean {
     val app = if (apps.containsKey(target.packageName)) apps[target.packageName] else {
       try {
@@ -69,6 +73,11 @@ internal class SystemIconFallbackRenderer(
     check()
     if (!isSystem(target) || live(target)) return null
     val names = listOfNotNull(target.className, target.packageName).distinct()
+    style.perfectStyle?.let { selected ->
+      PerfectSystemFallback.icon(context, selected, names, requireNotNull(perfectSourceHash))?.let { artwork ->
+        return renderPerfect(artwork.layers, size, check)
+      }
+    }
     names.firstNotNullOfOrNull { preset[it] }?.let {
       return renderBitmap(it, size, shape, check)
     }
@@ -96,6 +105,32 @@ internal class SystemIconFallbackRenderer(
       readSource(File("/product/media/theme/miui_mod_icons", "$name.png"))
     } ?: return null
     return renderBitmap(data, size, defaultShape, check)
+  }
+
+  private fun renderPerfect(layers: List<ByteArray>, size: Int, check: () -> Unit): Bitmap {
+    require(layers.size in 1..2)
+    require(size in 1..2048)
+    val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    try {
+      val bounds = Rect(0, 0, size, size)
+      val canvas = Canvas(result)
+      defaultShape?.let { canvas.clipPath(it.pathForBounds(bounds)) }
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+      layers.forEach { bytes ->
+        check()
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        require(options.outWidth in 1..8192 && options.outHeight == options.outWidth)
+        options.inJustDecodeBounds = false
+        options.inSampleSize = 1
+        val decodedSize = maxOf(size, 512).coerceAtMost(2048)
+        while (options.outWidth / options.inSampleSize > decodedSize) options.inSampleSize *= 2
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888
+        val source = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options))
+        try { canvas.drawBitmap(source, null, bounds, paint) } finally { source.recycle() }
+      }
+      return result
+    } catch (failure: Throwable) { result.recycle(); throw failure }
   }
 
   private fun rawAdaptive(target: IconPackComponent): AdaptiveIconDrawable? {

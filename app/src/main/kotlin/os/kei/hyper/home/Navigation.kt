@@ -113,7 +113,8 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     }
     entry<SettingsRoute>(swipeDismiss = swipe) { route ->
       SettingsDestinationScreen(model, route.section,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings)
+        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings,
+        onOpenPackSection = ::open)
     }
   }
 }

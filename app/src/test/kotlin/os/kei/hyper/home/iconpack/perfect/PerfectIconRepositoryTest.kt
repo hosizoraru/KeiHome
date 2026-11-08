@@ -75,6 +75,13 @@ class PerfectIconRepositoryTest {
     val http = Http(zip(files))
     val repo get() = PerfectIconRepository(root, http, settings, now = { time }, limits = limits)
     fun update(comment: String? = "1".repeat(40)) { http.bytes = zip(files, comment) }
+    fun fallbackStyle() {
+      files["icons/com.miui.gallery/0.png"] = png(2)
+      files["icons/com.miui.gallery/1.png"] = png(3)
+      files["themes/HyperOS4/icons/com.miui.gallery/0.png"] = png(2)
+      files["themes/HyperOS4/icons/com.miui.gallery/1.png"] = png(6)
+      update()
+    }
     fun dynamic(id: String, style: String = "default", tint: Int = 1) {
       val prefix = "themes/$style/layer_animating_icons/$id/"
       files[prefix + "config.xml"] = """<Config><Variable name="layer0" value="0"/></Config>""".toByteArray()
@@ -83,6 +90,74 @@ class PerfectIconRepositoryTest {
       files[prefix + "0/fancy/image.png"] = png(tint)
       files[prefix + "original.dat"] = byteArrayOf(0, 2, 3, -1)
     }
+  }
+
+  @Test fun fallbackUsesLocalStyleLayersAndSharesVerifiedBlobCacheWithoutNetwork() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.fallbackStyle()
+    val repo = f.repo
+    val catalog = repo.catalog(refresh = true)!!
+    f.http.calls.clear()
+    f.http.intercept = { throw IOException("No network permitted for fallback") }
+    assertEquals(catalog.sourceHash, repo.fallbackSourceHash("HyperOS4"))
+    val first = requireNotNull(repo.fallbackIcon("HyperOS4", listOf("missing.component", "com.miui.gallery")))
+    assertEquals(2, first.layers.size)
+    assertArrayEquals(f.files.getValue("icons/com.miui.gallery/0.png"), first.layers[0])
+    assertArrayEquals(f.files.getValue("themes/HyperOS4/icons/com.miui.gallery/1.png"), first.layers[1])
+    val cached = File(f.root, "blobs").listFiles()!!.first { it.readBytes().contentEquals(first.layers[1]) }
+    cached.writeBytes(byteArrayOf(0))
+    val repaired = requireNotNull(repo.fallbackIcon("HyperOS4", listOf("com.miui.gallery")))
+    assertArrayEquals(first.layers[1], repaired.layers[1])
+    assertNull(repo.fallbackIcon("HyperOS4", listOf("unknown.package")))
+    assertTrue(f.http.calls.isEmpty())
+    assertTrue(File(f.root, "generated").listFiles().isNullOrEmpty())
+  }
+
+  @Test fun fallbackPlansFollowLocalSnapshotChangesAndRejectMixedSourceGeneration() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.fallbackStyle()
+    val repo = f.repo
+    val old = repo.catalog(refresh = true)!!
+    requireNotNull(repo.fallbackIcon("HyperOS4", listOf("com.miui.gallery"), old.sourceHash))
+    f.files["themes/HyperOS4/icons/com.miui.gallery/1.png"] = png(44)
+    f.files["themes/Extra/icons/com.miui.gallery/0.png"] = png(2)
+    f.files["themes/Extra/icons/com.miui.gallery/1.png"] = png(45)
+    f.update("2".repeat(40))
+    f.time += 5000
+    val updated = repo.catalog(refresh = true)!!
+    assertNotEquals(old.sourceHash, updated.sourceHash)
+    val fresh = requireNotNull(repo.fallbackIcon("HyperOS4", listOf("com.miui.gallery"), updated.sourceHash))
+    assertArrayEquals(png(44), fresh.layers[1])
+    val extra = requireNotNull(repo.fallbackIcon("Extra", listOf("com.miui.gallery")))
+    assertArrayEquals(png(45), extra.layers[1])
+    assertTrue(runCatching { repo.fallbackIcon("HyperOS4", listOf("com.miui.gallery"), old.sourceHash) }.isFailure)
+  }
+
+  @Test fun missingFallbackResourcesFailWithoutFetchingOrInventingAStyle() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.fallbackStyle()
+    val repo = f.repo
+    assertTrue(runCatching { repo.fallbackSourceHash("HyperOS4") }.isFailure)
+    assertTrue(f.http.calls.isEmpty())
+    repo.catalog(refresh = true)
+    f.http.calls.clear()
+    assertTrue(runCatching { repo.fallbackIcon("Uncached", listOf("com.miui.gallery")) }.isFailure)
+    assertTrue(f.http.calls.isEmpty())
+  }
+
+  @Test fun fallbackRetainsLayerPairsAndHonorsFlatStyleOverrides() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.fallbackStyle()
+    f.files["themes/Flat/icons/com.miui.gallery.png"] = png(11)
+    f.update()
+    val repo = f.repo
+    repo.catalog(refresh = true)
+    val layered = requireNotNull(repo.fallbackIcon("HyperOS4", listOf("com.miui.gallery")))
+    assertEquals(2, layered.layers.size)
+    assertArrayEquals(png(6), layered.layers.last())
+    val flat = requireNotNull(repo.fallbackIcon("Flat", listOf("com.miui.gallery")))
+    assertEquals(1, flat.layers.size)
+    assertArrayEquals(png(11), flat.layers.single())
   }
 
   @Test fun nativeShapeChangesRebuildDerivedOutputsWithoutDownloadingTheSourceAgain() = runBlocking {

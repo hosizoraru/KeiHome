@@ -18,6 +18,56 @@ See [source and implementation provenance](perfect-icons-provenance.md) for the
 independent evidence boundary, prior reference history and resource-rights scope.
 Neither upstream installation scripts nor another project's packer are executed.
 
+## System application fallback
+
+After a repository snapshot is downloaded, Icon completion and fallback offers
+`Perfect Icons · HyperOS4` for system applications not covered by the selected
+pack. The default-off **Extra Perfect Icons styles** switch exposes the other
+locally available artwork styles. Collapsing the choices retains an already
+selected extra style instead of silently changing the user's configuration.
+If resources are removed, the saved choice remains visible with a download
+entry; generation requires local resources rather than silently fetching them.
+
+This fallback reads verified source layers or a supplied flat PNG, uses the
+destination stock mask, and emits static artwork through the existing exporter.
+System frontends retain the existing compatibility descriptors with
+`frameRate="0"` and no settings-provider binders; the new source does not add
+animation timers or a new runtime refresh mechanism. Native
+clock/calendar exclusions and the existing explicit-artwork, official
+adaptation and ColorOS precedence remain intact. An unmatched system app can
+continue through the default HyperOS fallback.
+
+The source snapshot, bounded two-style plan cache and content-addressed image
+cache are reused. No network request or extra full publication is made by the
+fallback renderer. Export pins the source hash, rejecting a concurrent source
+change instead of mixing snapshots. Manifest versions 5–8 record that hash
+alongside the selected style; versions 1–4 remain byte-compatible. Updating the
+local repository can therefore invalidate applied fallback resources, while
+unchanged sources and previously considered targets do not continually request
+another update.
+
+### Device checkpoint
+
+The independent-writer/fallback checkpoint is recorded in
+`.artifacts/research/perfect-independent-20261109/acceptance.json`.
+On HyperOS Phone AVD 8593, the default and expanded dropdowns, retained extra
+selection, source-page jump, local preview and local generation were exercised.
+Generation reported 51 static and 5 original dynamic entries; these figures
+describe the actual generated archive, not all repository assets.
+
+A deliberately sparse owned test pack was imported and applied with HyperOS4
+fallback. The applied module recorded manifest v5, the selected style and full
+source hash, with 57 fallback names. The Settings icon was rendered on the
+actual desktop; the test pack's explicit original PNG remained byte-identical.
+The original ColorOS Classic ART+ theme was then restored: all 4,019 original
+PNG entries matched their pre-test hashes. Owned QA imports and native theme
+resources were removed. Launcher, SystemUI and system_server identities were
+preserved; no native payload activation or physical-device test was performed.
+
+The checkpoint ran 990 JVM tests (984 passed, 6 skipped) and passed 6 AVD instrumentation tests,
+including source admission and end-to-end fallback export. These do not claim
+acceptance of every upstream dynamic animation or every OEM device.
+
 ## Workflow
 
 1. Explicitly sync the complete upstream repository snapshot. A single streamed

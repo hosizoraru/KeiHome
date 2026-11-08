@@ -42,7 +42,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBack: () -> Unit,
-  onNavigate: (String) -> Unit) {
+  onNavigate: (String) -> Unit, onOpenPackSection: (String) -> Unit) {
   if (route == SettingsSection.ABOUT.route || route == "about/environment") {
     AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
       focusEnvironment = route == "about/environment")
@@ -103,7 +103,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           license != null -> LicenseDocument(license.asset)
           component != null -> ThirdPartyComponentDetails(component, onNavigate)
           route == "notices" -> ThirdPartyNotices(onNavigate)
-          else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh)
+          else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
+            onOpenPerfectIcons = onOpenPackSection)
         }
       }
     }

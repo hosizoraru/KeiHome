@@ -147,6 +147,87 @@ class IconPackUpdateNoticeTest {
       nativeAdaptations = mapOf("os.other.app" to "a".repeat(64))))
   }
 
+  @Test fun perfectStyleChangesRequireRegeneration() {
+    val selected = SystemIconFallback.perfect("HyperOS4")
+    val applied = source.copy(nativeNames = setOf(target.packageName),
+      systemFallback = SystemIconFallbackManifest(selected, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet()))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target),
+      SystemIconFallback.perfect("Material You"), emptySet()))
+    assertTrue(needed(applied))
+    assertTrue(iconPackNeedsUpdate(pack, source.copy(nativeNames = setOf(target.packageName),
+      systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, emptySet())),
+      listOf(target), selected, emptySet()))
+  }
+
+  @Test fun perfectArchiveChangeRequiresUpdateEvenForCoveredOrUnknownInventory() {
+    val selected = SystemIconFallback.perfect("HyperOS4")
+    val previous = "a".repeat(64)
+    val current = "b".repeat(64)
+    for (names in listOf(setOf(target.packageName), null)) {
+      val applied = source.copy(nativeNames = names, systemFallback =
+        SystemIconFallbackManifest(selected, emptySet(), perfectSource = previous))
+      assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet(),
+        perfectSource = previous))
+      assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet(),
+        perfectSource = current))
+      val updated = applied.copy(systemFallback = applied.systemFallback!!.copy(perfectSource = current))
+      assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), selected, emptySet(),
+        perfectSource = current))
+      assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet()))
+    }
+  }
+
+  @Test fun localPerfectSourceAddsProvenanceToLegacyAppliedFallbacks() {
+    val selected = SystemIconFallback.perfect("HyperOS4")
+    for (manifest in listOf(null, SystemIconFallbackManifest(selected, emptySet()))) {
+      val applied = source.copy(nativeNames = setOf(target.packageName), systemFallback = manifest)
+      assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet()))
+      assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet(),
+        perfectSource = "a".repeat(64)))
+    }
+  }
+
+  @Test fun nativeFallbacksIgnorePerfectSourceChanges() {
+    for (fallback in SystemIconFallback.entries) {
+      val applied = source.copy(nativeNames = setOf(target.packageName),
+        systemFallback = SystemIconFallbackManifest(fallback, emptySet()))
+      assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), fallback, emptySet(),
+        perfectSource = "b".repeat(64)))
+    }
+  }
+
+  @Test fun perfectSystemTargetsRespectCompletedInventoryWithoutRepeatedUpdates() {
+    val selected = SystemIconFallback.perfect("HyperOS4")
+    val unmapped = pack.copy(entries = emptyList())
+    for (considered in listOf(emptySet(), setOf(target.flattened))) {
+      val applied = source.copy(entries = emptyMap(),
+        systemFallback = SystemIconFallbackManifest(selected, emptySet()),
+        generation = IconGenerationManifest(considered = considered))
+      var attempts = 0
+      assertEquals(considered.isEmpty(), iconPackNeedsUpdate(unmapped, applied, listOf(target), selected,
+        setOf(target.packageName)) { attempts++; true })
+      assertEquals(if (considered.isEmpty()) 1 else 0, attempts)
+      assertFalse(iconPackNeedsUpdate(unmapped, applied, listOf(target), selected,
+        setOf(target.packageName)) { false })
+      assertFalse(iconPackNeedsUpdate(unmapped, applied, listOf(target), selected, emptySet()))
+      val updated = applied.copy(nativeNames = setOf(target.packageName))
+      assertFalse(iconPackNeedsUpdate(unmapped, updated, listOf(target), selected,
+        setOf(target.packageName)) { fail("Covered Perfect target must not be retried"); true })
+    }
+  }
+
+  @Test fun perfectConsideredUserTargetsRetainTheirExistingUpdateBehavior() {
+    val selected = SystemIconFallback.perfect("HyperOS4")
+    val applied = source.copy(generation = IconGenerationManifest(considered = setOf(target.flattened)),
+      systemFallback = SystemIconFallbackManifest(selected, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), selected, emptySet()) {
+      fail("Previously considered user target must not be retried"); true
+    })
+    assertTrue(iconPackNeedsUpdate(pack, applied.copy(generation = null),
+      listOf(target), selected, emptySet()))
+  }
+
   @Test fun ordinaryColorOsCanUseItsActualFallbackPaletteWithoutEnablingInspiration() {
     assertTrue(colorOsPaletteLocked(true, null))
     assertTrue(colorOsPaletteLocked(true, emptySet()))

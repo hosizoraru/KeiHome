@@ -71,7 +71,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val sort by model.packSort.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
   val needsUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
-  val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId)
+  val pending = pendingNativeApplication(state, runtime.report?.iconTheme?.localId, preferences.systemIconFallback)
   var query by rememberSaveable(section) { mutableStateOf("") }
   val activeTheme = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme
@@ -100,9 +100,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             }
             val applied = source?.systemFallback
             add(if (applied != null) stringResource(R.string.system_fallback_applied,
-              stringResource(systemFallbackLabel(applied.style)), applied.names.size)
+              systemFallbackName(applied.style), applied.names.size)
             else stringResource(R.string.pack_completion_selected,
-              stringResource(systemFallbackLabel(preferences.systemIconFallback))))
+              systemFallbackName(preferences.systemIconFallback)))
           }
           SystemIconThemeCard(runtime, badges) { model.refresh(3) }
         }
@@ -117,20 +117,23 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
           stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
         item("completion") {
-          PackCompletionCard(needsUpdate, pending, state.nativeImporting != null) { onNavigate("fallback") }
+          PackNavigationCard(stringResource(R.string.pack_completion_title),
+            stringResource(if (pending != null) R.string.pack_pending_apply_hint
+              else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
+            { onNavigate("fallback") })
         }
       }
       "library" -> {
         item("builtin") { PackNavigationCard(stringResource(R.string.pack_builtin),
           stringResource(R.string.pack_builtin_summary), { onNavigate("builtin") }) }
+        item("perfect") { PackNavigationCard(stringResource(R.string.perfect_icons_title),
+          stringResource(R.string.perfect_icons_library_summary), { onNavigate("perfect") }) }
+        item("apple") { PackNavigationCard(stringResource(R.string.apple_pack_title),
+          stringResource(R.string.apple_pack_summary), { onNavigate("apple") }) }
         item("installed") { PackNavigationCard(stringResource(R.string.pack_installed),
           stringResource(R.string.pack_installed_summary), { onNavigate("installed") }) }
         item("imported") { PackNavigationCard(stringResource(R.string.pack_imported),
           stringResource(R.string.pack_imported_summary), { onNavigate("imported") }) }
-        item("apple") { PackNavigationCard(stringResource(R.string.apple_pack_title),
-          stringResource(R.string.apple_pack_summary), { onNavigate("apple") }) }
-        item("perfect") { PackNavigationCard(stringResource(R.string.perfect_icons_title),
-          stringResource(R.string.perfect_icons_library_summary), { onNavigate("perfect") }) }
       }
       "builtin" -> {
         item("coloros") { PackNavigationCard("ColorOS", stringResource(R.string.pack_coloros_summary),

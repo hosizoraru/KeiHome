@@ -2,6 +2,8 @@ package os.kei.hyper.home.ui.main
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackFormat
@@ -54,5 +56,19 @@ class IconPackCatalogSortTest {
     listOf("FAILED", "UNSUPPORTED", "UNCERTAIN", "IMPORTING").forEach {
       assertEquals(null, pendingNativeApplication(ready.copy(nativeResult = receipt.copy(status = it)), "old"))
     }
+  }
+
+  @Test fun changingFallbackDoesNotApplyAnOutdatedPendingConversion() {
+    val hyper = os.kei.hyper.home.data.SystemIconFallback.perfect("HyperOS4")
+    val other = os.kei.hyper.home.data.SystemIconFallback.perfect("HyperOS3")
+    val receipt = os.kei.hyper.home.status.NativeIconImportReport("token", 0,
+      hyper.sourceId("source"), "IMPORTED", "new")
+    val ready = state.copy(nativeResult = receipt)
+    assertEquals(receipt, pendingNativeApplication(ready, "old", hyper))
+    assertNull(pendingNativeApplication(ready, "old", other))
+    assertNull(pendingNativeApplication(ready, "old", os.kei.hyper.home.data.SystemIconFallback.DEFAULT))
+    val legacy = ready.copy(nativeResult = receipt.copy(sourceId = "source"))
+    assertNotNull(pendingNativeApplication(legacy, "old", os.kei.hyper.home.data.SystemIconFallback.DEFAULT))
+    assertNull(pendingNativeApplication(legacy, "old", hyper))
   }
 }

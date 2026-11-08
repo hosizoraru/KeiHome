@@ -32,9 +32,14 @@ internal data class IconPacksUiState(
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,
 )
 
-/** An imported component still needs native application; another conversion cannot finish that step. */
-internal fun pendingNativeApplication(state: IconPacksUiState, activeId: String?) =
-  state.nativeResult?.takeIf { activeId != null && it.imported && it.localId != activeId }
+/** Reuse an imported component only while its fallback choice still matches the requested one. */
+internal fun pendingNativeApplication(state: IconPacksUiState, activeId: String?,
+  fallback: SystemIconFallback? = null) =
+  state.nativeResult?.takeIf {
+    activeId != null && it.imported && it.localId != activeId &&
+      (fallback == null || it.sourceId == fallback.sourceId(it.sourceId) ||
+        (fallback == SystemIconFallback.DEFAULT && it.sourceId == SystemIconFallback.baseSourceId(it.sourceId)))
+  }
 
 internal fun activeCatalogPackId(activeId: String?, state: IconPacksUiState): String? {
   if (activeId == null) return null

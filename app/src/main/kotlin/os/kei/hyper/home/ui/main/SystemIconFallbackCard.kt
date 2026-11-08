@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -21,29 +22,68 @@ import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.SystemIconFallback
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-internal fun systemFallbackLabel(style: SystemIconFallback): Int = when (style) {
-  SystemIconFallback.DEFAULT -> R.string.system_fallback_default
-  SystemIconFallback.CLASSIC -> R.string.system_fallback_classic
-  SystemIconFallback.BOUNDLESS -> R.string.system_fallback_boundless
+@Composable
+internal fun systemFallbackName(style: SystemIconFallback): String = when (style) {
+  SystemIconFallback.DEFAULT -> stringResource(R.string.system_fallback_default)
+  SystemIconFallback.CLASSIC -> stringResource(R.string.system_fallback_classic)
+  SystemIconFallback.BOUNDLESS -> stringResource(R.string.system_fallback_boundless)
+  else -> stringResource(R.string.system_fallback_perfect, requireNotNull(style.perfectStyle))
 }
 
+internal fun systemFallbackChoices(
+  bundled: List<SystemIconFallback>,
+  downloadedStyles: List<String>,
+  expanded: Boolean,
+  selected: SystemIconFallback,
+): List<SystemIconFallback> = buildList {
+  addAll(bundled)
+  val downloaded = downloadedStyles.mapNotNull {
+    runCatching { SystemIconFallback.perfect(it) }.getOrNull()
+  }.distinct()
+  val hyperOs4 = SystemIconFallback.perfect(SystemIconFallback.DEFAULT_PERFECT_STYLE)
+  if (hyperOs4 in downloaded) add(hyperOs4)
+  if (expanded) addAll(downloaded)
+  // Keep the saved choice visible even after collapsing or removing its local resources.
+  add(selected)
+}.distinct()
+
+internal fun perfectFallbackResourceRoute(selected: SystemIconFallback, downloadedStyles: List<String>): String =
+  if ((selected.perfectStyle ?: SystemIconFallback.DEFAULT_PERFECT_STYLE) in downloadedStyles)
+    "perfect-sources" else "perfect"
+
 @Composable
-internal fun SystemIconFallbackCard(model: HomeViewModel) {
+internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((String) -> Unit)? = null) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val apps by model.apps.collectAsStateWithLifecycle()
   val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
-  val choices = model.preferences.systemIconFallbackChoices
+  val perfect by model.perfectPacks.state.collectAsStateWithLifecycle()
+  LaunchedEffect(model, perfect.clearingCache) {
+    if (!perfect.clearingCache) model.perfectPacks.load()
+  }
+  val downloadedStyles = perfect.catalog?.styles.orEmpty()
+  val choices = systemFallbackChoices(model.preferences.systemIconFallbackChoices, downloadedStyles,
+    preferences.perfectFallbackExpanded, preferences.systemIconFallback)
+  val resourceRoute = perfectFallbackResourceRoute(preferences.systemIconFallback, downloadedStyles)
+  val resourcesAvailable = resourceRoute == "perfect-sources"
+  val missingResources = preferences.systemIconFallback.let {
+    if (it.isPerfect) it.perfectStyle !in downloadedStyles
+    else it !in model.preferences.systemIconFallbackChoices
+  }
   val pack = model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents)
   val busy = state.nativeImporting != null
   val result = state.nativeResult?.takeIf { pack != null &&
@@ -52,10 +92,24 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
     Column {
       OverlaySpinnerPreference(title = stringResource(R.string.system_fallback_title),
         summary = stringResource(R.string.system_fallback_summary),
-        items = choices.map { DropdownItem(text = stringResource(systemFallbackLabel(it))) },
+        items = choices.map { DropdownItem(text = systemFallbackName(it)) },
         selectedIndex = choices.indexOf(preferences.systemIconFallback).coerceAtLeast(0),
         onSelectedIndexChange = { model.setSystemIconFallback(choices[it]) },
         enabled = !busy, modifier = Modifier.testTag("icon-packs.system-fallback"))
+      SwitchPreference(title = stringResource(R.string.system_fallback_perfect_expanded_title),
+        summary = stringResource(R.string.system_fallback_perfect_expanded_summary),
+        checked = preferences.perfectFallbackExpanded, enabled = !busy,
+        onCheckedChange = model.preferences::setPerfectFallbackExpanded,
+        modifier = Modifier.testTag("icon-packs.perfect-fallback-expanded"))
+      BasicComponent(title = stringResource(if (resourcesAvailable)
+        R.string.system_fallback_perfect_source_title else R.string.system_fallback_perfect_download_title),
+        summary = stringResource(if (resourcesAvailable)
+          R.string.system_fallback_perfect_source_summary else R.string.system_fallback_perfect_download_summary),
+        enabled = onOpenPerfectIcons != null,
+        onClick = { onOpenPerfectIcons?.invoke(resourceRoute) },
+        endActions = { Icon(MiuixIcons.Basic.ArrowRight, null,
+          tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+        modifier = Modifier.testTag("icon-packs.perfect-fallback-resources"))
       SwitchPreference(title = stringResource(R.string.system_name_matching_title),
         summary = stringResource(R.string.system_name_matching_summary),
         checked = preferences.systemAppNameMatching, enabled = !busy,
@@ -74,11 +128,11 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
               if (applied != null) MetadataPill(stringResource(R.string.system_fallback_applied,
-                stringResource(systemFallbackLabel(applied.style)), applied.names.size), MiuixTheme.colorScheme.primary)
+                systemFallbackName(applied.style), applied.names.size), MiuixTheme.colorScheme.primary)
               source?.generation?.colorOsPackages?.size?.let { count ->
                 if (count > 0) MetadataPill(stringResource(R.string.coloros_fallback_applied, count), MiuixTheme.colorScheme.primary)
               }
-              if (pendingNativeApplication(state, runtime.report?.iconTheme?.localId) != null) {
+              if (pendingNativeApplication(state, runtime.report?.iconTheme?.localId, preferences.systemIconFallback) != null) {
                 MetadataPill(stringResource(R.string.pack_pending_apply), MiuixTheme.colorScheme.primary)
               } else if (updateNeeded) {
                 val description = stringResource(R.string.pack_update_available)
@@ -101,6 +155,13 @@ internal fun SystemIconFallbackCard(model: HomeViewModel) {
         }
         Text(stringResource(R.string.system_fallback_update_note),
           style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        if (missingResources && !perfect.loading) {
+          Text(stringResource(if (preferences.systemIconFallback.isPerfect)
+            R.string.system_fallback_perfect_unavailable else R.string.system_fallback_resources_unavailable,
+            systemFallbackName(preferences.systemIconFallback)),
+            modifier = Modifier.testTag("icon-packs.system-fallback-unavailable"),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
         if (pack == null && !state.loading && state.scanned &&
           runtime.report?.iconTheme?.source == os.kei.hyper.home.status.SystemIconThemeReport.Source.THEME) {
           Text(stringResource(R.string.system_fallback_source_needed),

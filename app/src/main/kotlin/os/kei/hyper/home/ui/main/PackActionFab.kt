@@ -30,7 +30,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   val busy = state.nativeImporting != null
   // Read the observed report before the early return so a later source discovery shows the FAB.
   val activeSource = runtime.report?.iconTheme?.localId
-  val pending = if (update) pendingNativeApplication(state, activeSource) else null
+  val pending = if (update) pendingNativeApplication(state, activeSource, preferences.systemIconFallback) else null
   val context = LocalContext.current
   if ((!update && !generate && !(page == 2 && inspiration)) ||
     (update && (activeSource == null ||

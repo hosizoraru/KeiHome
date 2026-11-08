@@ -50,6 +50,76 @@ class PerfectIconRepository internal constructor(
   private val blobsDir get() = File(root, "blobs")
   private val outputDir get() = File(root, "generated")
   private val previewDir get() = File(root, "previews")
+  // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
+  private var fallbackIndex: FallbackIndex? = null
+
+  private data class FallbackIndex(
+    val stamp: String,
+    val snapshot: Snapshot,
+    val entries: Map<String, PerfectIconSourceEntry>,
+    val plans: LinkedHashMap<String, PerfectIconPlan> = linkedMapOf(),
+  )
+
+  internal data class FallbackIcon(val layers: List<ByteArray>)
+
+  /** Local, hash-checked static artwork only; never invokes the network or changes pack options. */
+  internal suspend fun fallbackIcon(style: String, names: List<String>, expectedSourceHash: String? = null): FallbackIcon? = withContext(ioDispatcher) {
+    mutex.withLock {
+      val index = fallbackIndex(style)
+      require(expectedSourceHash == null || expectedSourceHash == index.snapshot.sourceHash) {
+        "Perfect Icons source changed during generation; retry with the current local resources"
+      }
+      val plan = index.plans.getOrPut(style) {
+        fun branch(prefix: String) = index.snapshot.entries.filter { it.path.startsWith("$prefix/") }.map {
+          PerfectIconBlob(it.path.removePrefix("$prefix/"), it.sha, it.size, it.path)
+        }
+        PerfectIconFormat.plan(branch("icons"), branch("themes/$style/icons"), emptyList(), emptyList(),
+          PerfectIconOptions(style, installedOnly = false, dynamic = false), emptySet())
+      }
+      while (index.plans.size > 2) index.plans.remove(index.plans.keys.first())
+      val blobs = names.asSequence().filter(PerfectIconFormat::id).mapNotNull { name ->
+        plan.files["res/drawable-xxhdpi/$name.png"]?.let { return@mapNotNull listOf(it) }
+        val layers = (0..1).mapNotNull { plan.files["res/drawable-xxhdpi/$name/$it.png"] }
+        layers.takeIf { it.size == 2 }
+      }.firstOrNull() ?: return@withLock null
+      val coroutine = currentCoroutineContext()
+      var zip: ZipFile? = null
+      var extracted = false
+      try {
+        FallbackIcon(blobs.map { blob ->
+          coroutine.ensureActive()
+          val bytes = if (cachedBlob(blob)) blobFile(blob.sha).readBytes() else {
+            val source = zip ?: ZipFile(archive(index.snapshot), Charsets.UTF_8).also { zip = it }
+            sourceBytes(source, blob, requireNotNull(index.entries[blob.source])).also {
+              atomic(blobFile(blob.sha), it) { coroutine.ensureActive() }
+              extracted = true
+            }
+          }
+          PerfectIconFormat.png(bytes, square = true)
+          bytes
+        }).also { if (extracted) trimBlobs(blobs.mapTo(hashSetOf()) { it.sha }) }
+      } finally { zip?.close() }
+    }
+  }
+
+  internal suspend fun fallbackSourceHash(style: String): String = withContext(ioDispatcher) {
+    mutex.withLock { fallbackIndex(style).snapshot.sourceHash }
+  }
+
+  private fun fallbackIndex(style: String): FallbackIndex {
+    PerfectIconFormat.style(style)
+    val attributes = Files.readAttributes(snapshotFile.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
+    val stamp = "${attributes.fileKey()}:${attributes.lastModifiedTime()}:${attributes.size()}"
+    val index = fallbackIndex?.takeIf { it.stamp == stamp } ?: run {
+      val snapshot = localSnapshot() ?: throw IOException("Perfect Icons local resources are unavailable")
+      FallbackIndex(stamp, snapshot, snapshot.entries.associateBy { it.path }).also { fallbackIndex = it }
+    }
+    require(style in index.snapshot.styles) { "Perfect Icons style is unavailable: $style" }
+    require(archive(index.snapshot).isFile && archive(index.snapshot).length() == index.snapshot.archiveBytes) {
+      "Perfect Icons local source archive is unavailable"
+    }
+    return index
+  }
 
   fun options(): PerfectIconOptions = runCatching {
     val json = JSONObject(settings.read("options") ?: return PerfectIconOptions())

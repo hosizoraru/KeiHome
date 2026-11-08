@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_perfect_community_summary">Community artwork for completing app icons. Sync a snapshot explicitly, then choose a style and generate locally.</string>
+  <string name="pack_perfect_community_title">About the community resources</string>
+  <string name="pack_perfect_community_detail">Perfect Icons Completion Project collects icon artwork contributed by the community. KeiHome uses a local snapshot to complete matching app icons or generate a native icon ZIP. Available styles and coverage depend on that snapshot. Opening this page only reads local data; Sync repository starts a download.</string>
+  <string name="pack_perfect_author">Icon resource project author</string>
+  <string name="pack_perfect_packer_reference">Historical packaging reference. KeiHome generates its own native ZIPs; this link is provided for attribution.</string>
+  <string name="pack_local_catalog_loading">Reading local snapshot details</string>
+  <string name="pack_apple_local_loading">Reading local mappings and saved pack</string>
+  <string name="pack_apple_list_loading">Preparing the app list</string>
+  <string name="pack_apple_local_refreshing">Refreshing local mappings; loaded content stays available</string>
+  <string name="pack_apple_list_refreshing">Updating the list; showing previous results</string>
+</resources>

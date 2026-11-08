@@ -46,7 +46,8 @@ internal enum class SettingsSection(val route: String, @param:StringRes val titl
 }
 
 @Composable
-internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit) {
+internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit,
+  onOpenPerfectIcons: ((String) -> Unit)? = null) {
   var query by rememberSaveable { mutableStateOf("") }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
@@ -88,14 +89,15 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
         }
       }
-      SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate)
+      SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
+        onOpenPerfectIcons = onOpenPerfectIcons)
     }
   }
 }
 
 @Composable
 internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSection?, query: String = "",
-  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0) {
+  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
   val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
@@ -122,6 +124,6 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     LaunchedEffect(model, lifecycle) {
       lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeFallbackResources() }
     }
-    SystemIconFallbackCard(model)
+    SystemIconFallbackCard(model, onOpenPerfectIcons)
   }
 }

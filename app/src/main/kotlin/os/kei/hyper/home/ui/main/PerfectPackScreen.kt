@@ -4,6 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.text.format.DateFormat
 import android.text.format.Formatter
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +19,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -75,10 +79,15 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
+  var localLoadRequested by remember(vm) { mutableStateOf(false) }
+  val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
-  LaunchedEffect(vm) { vm.perfectPacks.load() }
+  LaunchedEffect(vm) {
+    vm.perfectPacks.load()
+    localLoadRequested = true
+  }
   LaunchedEffect(vm, lifecycle, locales) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       coroutineScope { launch { vm.observePage(3, locales) } }
@@ -131,7 +140,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             state.generating -> R.string.perfect_icons_generating
             state.refreshing -> R.string.perfect_icons_syncing
             state.clearingCache -> R.string.perfect_icons_clearing_cache
-            state.loading -> R.string.perfect_icons_loading
+            localLoading -> R.string.perfect_icons_loading
             state.error != null -> R.string.perfect_icons_attention
             catalog?.upToDate == true -> R.string.perfect_icons_up_to_date
             state.pack != null -> R.string.perfect_icons_ready
@@ -139,7 +148,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             else -> R.string.perfect_icons_catalog_missing
           }),
           summary = if (catalog != null) stringResource(R.string.perfect_icons_preview_style, style)
-            else stringResource(R.string.perfect_icons_library_summary),
+            else stringResource(if (localLoading) R.string.pack_local_catalog_loading
+              else R.string.pack_perfect_community_summary),
           details = emptyList(),
           tone = when {
             state.error != null -> StatusTone.ERROR
@@ -150,7 +160,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           onOpen = { onNavigate("perfect-sources") },
           actionLabel = stringResource(R.string.perfect_icons_sources_storage),
           footer = catalog?.let { catalogSummary(it) },
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
             .testTag("icon-packs.perfect.status"),
           badgeContent = if (catalog == null) null else { color ->
             MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
@@ -163,12 +173,12 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
               })
           },
         )
-        if (catalog == null || busy || state.error != null || cooling) {
-          Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (catalog == null || busy || localLoading || state.error != null || cooling) {
+          Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              if (state.catalog == null && !state.busy) Text(stringResource(R.string.perfect_icons_sync_first),
+              if (state.catalog == null && !state.busy && !localLoading) Text(stringResource(R.string.perfect_icons_sync_first),
                 style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              if (state.busy) {
+              if (state.busy || localLoading) {
                 val progress = state.progress
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
                   progress = progress?.takeIf { it.total > 0 }?.let {
@@ -193,6 +203,12 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                 style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
             }
           }
+        }
+      }
+      item("purpose") {
+        Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+          BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
+            summary = stringResource(R.string.pack_perfect_community_summary))
         }
       }
       item("options") {
@@ -297,29 +313,43 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
   val context = LocalContext.current
   val uri = LocalUriHandler.current
   val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
-  LaunchedEffect(vm) { vm.perfectPacks.load() }
+  var localLoadRequested by remember(vm) { mutableStateOf(false) }
+  val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
+  LaunchedEffect(vm) {
+    vm.perfectPacks.load()
+    localLoadRequested = true
+  }
   PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack) {
     item("snapshot") {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        state.catalog?.let { catalog ->
-          BasicComponent(title = stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount),
-            summary = catalogSummary(catalog))
-          val commit = catalog.revision.matches(Regex("[0-9a-f]{40}"))
-          val label = stringResource(if (commit) R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-          val fullHash = catalog.revision.ifEmpty { catalog.sourceHash }
-          PerfectHash(label, fullHash) { copyPerfectRevision(context, fullHash, label) }
-          if (commit && catalog.sourceHash.isNotBlank() && catalog.sourceHash != catalog.revision) {
-            val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
-            PerfectHash(hashLabel, catalog.sourceHash) {
-              copyPerfectRevision(context, catalog.sourceHash, hashLabel)
-            }
+        Crossfade(targetState = state.catalog, animationSpec = tween(180), label = "perfect-local-snapshot") { snapshot ->
+          Column {
+            snapshot?.let { catalog ->
+              BasicComponent(title = stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount),
+                summary = catalogSummary(catalog))
+              val commit = catalog.revision.matches(Regex("[0-9a-f]{40}"))
+              val label = stringResource(if (commit) R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
+              val fullHash = catalog.revision.ifEmpty { catalog.sourceHash }
+              PerfectHash(label, fullHash) { copyPerfectRevision(context, fullHash, label) }
+              if (commit && catalog.sourceHash.isNotBlank() && catalog.sourceHash != catalog.revision) {
+                val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
+                PerfectHash(hashLabel, catalog.sourceHash) {
+                  copyPerfectRevision(context, catalog.sourceHash, hashLabel)
+                }
+              }
+              BasicComponent(title = stringResource(R.string.perfect_icons_downloaded_at),
+                summary = perfectSyncTime(catalog.downloadedAt))
+              BasicComponent(title = stringResource(R.string.perfect_icons_source_size),
+                summary = Formatter.formatFileSize(context, catalog.archiveBytes))
+            } ?: BasicComponent(title = stringResource(if (localLoading) R.string.perfect_icons_loading
+                else R.string.perfect_icons_catalog_missing),
+              summary = stringResource(if (localLoading) R.string.pack_local_catalog_loading
+                else R.string.perfect_icons_sync_first))
           }
-          BasicComponent(title = stringResource(R.string.perfect_icons_downloaded_at),
-            summary = perfectSyncTime(catalog.downloadedAt))
-          BasicComponent(title = stringResource(R.string.perfect_icons_source_size),
-            summary = Formatter.formatFileSize(context, catalog.archiveBytes))
-        } ?: BasicComponent(title = stringResource(R.string.perfect_icons_catalog_missing),
-          summary = stringResource(R.string.perfect_icons_sync_first))
+        }
+        if (localLoading) {
+          LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+        }
         state.result?.let { result ->
           BasicComponent(title = stringResource(R.string.perfect_icons_output),
             summary = stringResource(R.string.perfect_icons_output_detail, result.file.name, result.revision))
@@ -350,11 +380,15 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
         BasicComponent(title = stringResource(R.string.perfect_icons_sources),
           summary = stringResource(R.string.perfect_icons_attribution))
+        BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
+          summary = stringResource(R.string.pack_perfect_community_detail))
         BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
           summary = "pzcn/Perfect-Icons-Completion-Project",
           onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") })
+        BasicComponent(title = stringResource(R.string.pack_perfect_author),
+          summary = "pzcn", onClick = { uri.openUri("https://github.com/pzcn") })
         BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
-          summary = "YifePlayte/PerfectIconsPacker",
+          summary = "YifePlayte/PerfectIconsPacker\n${stringResource(R.string.pack_perfect_packer_reference)}",
           onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
         BasicComponent(title = stringResource(R.string.perfect_icons_limits),
           summary = stringResource(R.string.perfect_icons_limits_summary))

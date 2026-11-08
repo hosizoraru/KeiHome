@@ -259,7 +259,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
         preferences.state.map { Triple(it.systemAppNameMatching, it.colorOsForOtherPacks,
           it.installedIconsOnly) }.distinctUntilChanged(),
-        packageInventoryRevision) { _, _, _, _, _ -> Unit }.collectLatest {
+        packageInventoryRevision) { _, _, _, _, _ -> Unit }
+        .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
           if (iconPacks.value.nativeImporting != null) return@withContext false
@@ -271,6 +272,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
               android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
           }.mapTo(hashSetOf()) { it.packageName }
           val fallback = preferences.state.value.systemIconFallback
+          val perfectSource = if (fallback.isPerfect)
+            os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application).catalog()?.sourceHash else null
           val nameMatching = preferences.state.value.systemAppNameMatching &&
             pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
           val caller = currentCoroutineContext()
@@ -284,7 +287,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             caller.ensureActive()
           }
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
-            installedOnly = preferences.state.value.installedIconsOnly) {
+            installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled

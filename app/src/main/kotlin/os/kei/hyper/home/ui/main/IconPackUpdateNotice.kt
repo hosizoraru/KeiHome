@@ -13,6 +13,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   systemPackages: Set<String>, nameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
   nativeAdaptations: Map<String, String> = emptyMap(),
   installedOnly: Boolean = false,
+  perfectSource: String? = null,
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   if (source.generation?.schemaVersion == 1 ||
     (source.generation?.installedOnly ?: false) != installedOnly) return true
@@ -21,6 +22,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if (source.buildSource != null && source.buildSource != IconBuildInventory.sourceIdentity(
       pack.copy(id = fallback.sourceId(pack.id)))) return true
   if (source.systemFallback != null && source.systemFallback.style != fallback) return true
+  if (fallback.isPerfect && perfectSource != null && source.systemFallback?.perfectSource != perfectSource) return true
   if ((source.systemFallback?.colorOsFallback == true) !=
     (colorOsForOtherPacks && pack.colorOsProfile == null)) return true
   if (pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS &&
@@ -31,6 +33,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   val components = pack.entries.mapNotNull { it.component }.toSet()
   return targets.any { target ->
     val aliases = listOfNotNull(target.className, target.packageName)
+    val perfect = fallback.isPerfect && target.packageName in systemPackages
     if (aliases.any { it in names } || target.flattened in source.generation?.considered.orEmpty() ||
       pack.colorOsProfile?.source(target)?.requiresLiveIcon == true) false else {
       val mapped = target in components || IconPackComponent(target.packageName) in components
@@ -38,7 +41,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
         ColorOsFallbackRenderer.dynamicReason(target.packageName, null) == null &&
         target.packageName != "com.xiaomi.calendar"
       val nativeFallback = target.packageName in systemPackages && aliases.any { it in source.entries }
-      (mapped || colorOs || nativeFallback || (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
+      (mapped || colorOs || nativeFallback || perfect || (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
     }
   }
 }

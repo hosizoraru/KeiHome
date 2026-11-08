@@ -131,7 +131,10 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
       val activeComponent by remember(model) {
         model.runtime.map { it.report?.iconTheme?.localId }.distinctUntilChanged()
       }.collectAsStateWithLifecycle(initialValue = null)
-      val pendingApply = pendingNativeApplication(packState, activeComponent) != null
+      val fallback by remember(model) {
+        model.preferences.state.map { it.systemIconFallback }.distinctUntilChanged()
+      }.collectAsStateWithLifecycle(initialValue = os.kei.hyper.home.data.SystemIconFallback.DEFAULT)
+      val pendingApply = pendingNativeApplication(packState, activeComponent, fallback) != null
       val updateLabel = stringResource(R.string.pack_update_available)
       IosLiquidGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
         onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null,
@@ -180,7 +183,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                 DesktopPage(model)
                 RefreshFeedback(model, 5)
               }
-              4 -> SettingsRootPage(model, onOpenSettingsSection)
+              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection)
             }
           }
         }

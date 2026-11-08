@@ -1,6 +1,8 @@
 package os.kei.hyper.home.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import com.tencent.mmkv.MMKV
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -50,6 +52,7 @@ internal data class AppPreferencesState(
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
+  val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
   val colorOsForOtherPacks: Boolean = false,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
@@ -58,13 +61,22 @@ internal data class AppPreferencesState(
   val monetInspiration: Boolean? = null,
 )
 
-internal class AppPreferences private constructor(context: Context) {
-  private val preferences = AppDisplayStorage.open(context)
-  val systemIconFallbackChoices = context.assets.list("system-icon-fallback").orEmpty().toSet().let { assets ->
-    SystemIconFallback.entries.filter { it == SystemIconFallback.DEFAULT || "${it.name.lowercase()}.zip" in assets }
-  }
+internal class AppPreferences internal constructor(
+  private val preferences: SharedPreferences,
+  val systemIconFallbackChoices: List<SystemIconFallback>,
+) {
+  private constructor(context: Context) : this(
+    AppDisplayStorage.open(context),
+    context.assets.list("system-icon-fallback").orEmpty().toSet().let { assets ->
+      SystemIconFallback.entries.filter { it == SystemIconFallback.DEFAULT || "${it.name.lowercase()}.zip" in assets }
+    },
+  )
   val state: StateFlow<AppPreferencesState>
     field = MutableStateFlow(read())
+  // MMKV cannot enumerate typed values through SharedPreferences.getAll().
+  private fun storedKeys(): Collection<String> =
+    if (preferences is MMKV) preferences.allKeys().orEmpty().asList() else preferences.all.keys
+
   private fun read() = AppPreferencesState(
     appearance = AppAppearance.entries.firstOrNull {
       it.name == preferences.getString("appearance", null)
@@ -83,16 +95,18 @@ internal class AppPreferences private constructor(context: Context) {
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
     } ?: IconPackAppearance.SYSTEM,
-    systemIconFallback = SystemIconFallback.entries.firstOrNull {
-      it.name == preferences.getString("system_icon_fallback", null) && it in systemIconFallbackChoices
+    systemIconFallback = preferences.getString("system_icon_fallback", null)?.let { name ->
+      runCatching { SystemIconFallback.valueOf(name) }.getOrNull()
+        ?.takeIf { it.isPerfect || it in systemIconFallbackChoices }
     } ?: SystemIconFallback.DEFAULT,
+    perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     colorOsForOtherPacks = preferences.getBoolean("coloros_other_packs", false),
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
       it.name == preferences.getString("color_os_style", null)
     } ?: ColorOsStyle.CLASSIC,
     colorOsArtPlus = preferences.getBoolean("color_os_art", true),
-    colorOsComponents = preferences.allKeys().orEmpty().filter { it.startsWith("coloros_component_") }
+    colorOsComponents = storedKeys().filter { it.startsWith("coloros_component_") }
       .associate { it.removePrefix("coloros_component_") to preferences.getBoolean(it, false) },
     monetInspiration = if (preferences.contains("monet_inspiration"))
       preferences.getBoolean("monet_inspiration", false) else null,
@@ -126,7 +140,7 @@ internal class AppPreferences private constructor(context: Context) {
   fun setRememberMenuSelections(value: Boolean) {
     preferences.edit().apply {
       putBoolean("remember_menus", value)
-      if (!value) preferences.allKeys().orEmpty()
+      if (!value) storedKeys()
         .filter { it.startsWith("browser_") || it.startsWith("pack_sort_") }.forEach(::remove)
     }.apply()
     state.update { it.copy(rememberMenuSelections = value) }
@@ -182,9 +196,15 @@ internal class AppPreferences private constructor(context: Context) {
   }
 
   fun setSystemIconFallback(value: SystemIconFallback) {
-    require(value in systemIconFallbackChoices)
+    require(SystemIconFallback.valueOf(value.name) == value &&
+      (value in systemIconFallbackChoices || value.isPerfect))
     preferences.edit().putString("system_icon_fallback", value.name).apply()
     state.update { it.copy(systemIconFallback = value) }
+  }
+
+  fun setPerfectFallbackExpanded(value: Boolean) {
+    preferences.edit().putBoolean("perfect_fallback_expanded", value).apply()
+    state.update { it.copy(perfectFallbackExpanded = value) }
   }
 
   fun setSystemAppNameMatching(value: Boolean) {

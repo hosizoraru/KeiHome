@@ -108,3 +108,29 @@ restart is necessary for these Kotlin-only changes. The acceptance receipt
 records actual screenshots, settings toggles and service responsiveness.
 Host tests do not establish universal ROM compatibility or eliminate the
 possibility of failures in OEM code or native libraries.
+
+### November 8 checkpoint
+
+- All 821 JVM tests and Release lint passed. The focused material/splash/
+  preference suite contains 84 tests, including 13 guard/lifecycle tests.
+- Signed Release `1.5.0+g30f20b3.b0284` (`105000284`) uses the KeiOS Release
+  certificate. Its packaged native library is byte-identical to build 280.
+- Initial API 102 Java reload preserved Launcher 19914, SystemUI 9840 and
+  system-server 8726, including their parent/start identities.
+- Subsequent gesture interaction did **not** pass uninterrupted-process
+  acceptance: SystemUI 9840 exited with ANR at 10:32:19.792. The recorded
+  input channel was `miui-aosp-back`, waiting 5001 ms for a MotionEvent UP.
+  Its full Java stack was unavailable. This is not evidence attributing the
+  stall to any particular hook or module.
+- Android automatically started SystemUI 29427. No process/device restart
+  was forced. After ordinary unlock, material compatibility was restored to
+  its original ON setting; splash adaptation also remained ON.
+- On that recovered generation the control center opened through the system
+  command entry, all three process identities remained unchanged, and an
+  accessibility service dump returned in 0.58 seconds. Volume-panel display
+  was attempted but not visually confirmed; audio levels were restored.
+
+The receipt therefore records **partial device acceptance**, not an
+unqualified SystemUI stability fix. Gesture-path ANR and the earlier AVD
+Watchdog remain unresolved. No other module was installed/disabled, and no
+physical-device acceptance is claimed.

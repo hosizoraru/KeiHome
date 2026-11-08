@@ -15,7 +15,7 @@
     <string name="apple_mapping_transfer_done">Done</string>
     <string name="apple_matched_title">Matched icons</string>
     <string name="apple_matched_intro">Preview current mappings with the selected platform, size and corners. Tap an app to edit or fetch a missing preview. Mapping changes take effect after generating and applying the pack.</string>
-    <string name="apple_mapping_manage_summary">Current previews, replacements, exclusions and per-app storefronts</string>
+    <string name="apple_mapping_manage_summary">Batch matching, previews, replacements and per-app storefronts</string>
     <string name="apple_browser_search">Search apps, packages or Apple mappings</string>
     <string name="apple_browser_filter">Filter</string>
     <string name="apple_browser_sort">Sort order</string>

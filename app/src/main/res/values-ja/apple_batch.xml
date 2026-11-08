@@ -1,0 +1,28 @@
+<resources>
+    <string name="apple_batch_next">次の%1$d件を自動照合</string>
+    <string name="apple_batch_match_selected">選択分を照合（%1$d/%2$d）</string>
+    <string name="apple_batch_enter_selection">照合するアプリを選択</string>
+    <string name="apple_batch_exit_selection">選択を終了</string>
+    <string name="apple_batch_select_visible">照合可能な表示結果を選択（%1$d）</string>
+    <string name="apple_batch_clear_selection">選択を解除</string>
+    <string name="apple_batch_select_app">%1$sを選択</string>
+    <string name="apple_batch_filter_recent">最近の照合</string>
+    <string name="apple_batch_filter_review">確認待ちの候補</string>
+    <string name="apple_batch_status_matched">自動照合済み</string>
+    <string name="apple_batch_status_review">確認待ち · 候補%1$d件</string>
+    <string name="apple_batch_status_unmatched">最近の照合で一致なし</string>
+    <string name="apple_batch_status_failed">ネットワークエラー</string>
+    <string name="apple_batch_attempt_time">照合日時 %1$s</string>
+    <string name="apple_batch_attempt_retry">%1$sに照合 · %2$s以降に再試行可能</string>
+    <string name="apple_batch_intro">現在の結果で%1$d件を照合可能。1回最大10件。一致なし・確認待ちは7日間再試行しません。通信失敗は表示日時以降に再試行できます。確認待ちの項目を開くと候補を選べます。</string>
+    <string name="apple_batch_selection_count">%1$d件を選択 · 今回%2$d件を処理</string>
+    <string name="apple_batch_progress">照合中 %1$d/%2$d</string>
+    <string name="apple_batch_cancel">停止して完了分を保持</string>
+    <string name="apple_batch_results">前回の一括照合結果</string>
+    <string name="apple_batch_results_running">今回の処理済み結果</string>
+    <string name="apple_batch_result_summary">試行%1$d · 一致%2$d · 確認待ち%3$d
+一致なし%4$d · 失敗%5$d · 今回未処理%6$d</string>
+    <string name="apple_batch_show_recent">最近の照合を表示</string>
+    <string name="apple_batch_show_review">確認待ちの候補を表示</string>
+    <string name="apple_batch_review_intro">保存済み候補を確認してください。プレビュー後に選択できます。検索を実行するまで再取得しません。</string>
+</resources>

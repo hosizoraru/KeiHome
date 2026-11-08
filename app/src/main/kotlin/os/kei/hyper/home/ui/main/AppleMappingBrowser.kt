@@ -22,12 +22,15 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -35,10 +38,13 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.apple.AppleArtworkPreview
+import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
+import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.iconpack.apple.AppleDynamicArtwork
 import os.kei.hyper.home.iconpack.NativeAppleDynamicIcon
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -53,7 +59,8 @@ import java.text.Collator
 import java.util.Locale
 
 internal enum class AppleMappingFilter {
-  ALL, MAPPED, UNMAPPED, CUSTOM, AUTOMATIC, EXCLUDED, CROSS_REGION, SYSTEM, USER, MISSING_DARK
+  ALL, MAPPED, UNMAPPED, CUSTOM, AUTOMATIC, EXCLUDED, CROSS_REGION, SYSTEM, USER, MISSING_DARK,
+  RECENTLY_TRIED, NEEDS_REVIEW
 }
 
 internal enum class AppleMappingSort { NAME, NAME_DESC, PACKAGE, APPLE_NAME, REGION, CUSTOM_FIRST }
@@ -107,6 +114,8 @@ internal val AppleMappingFilter.label: Int get() = when (this) {
   AppleMappingFilter.SYSTEM -> R.string.apple_filter_system
   AppleMappingFilter.USER -> R.string.apple_filter_user
   AppleMappingFilter.MISSING_DARK -> R.string.apple_filter_missing_dark
+  AppleMappingFilter.RECENTLY_TRIED -> R.string.apple_batch_filter_recent
+  AppleMappingFilter.NEEDS_REVIEW -> R.string.apple_batch_filter_review
 }
 
 internal val AppleMappingSort.label: Int get() = when (this) {
@@ -120,18 +129,20 @@ internal val AppleMappingSort.label: Int get() = when (this) {
 
 internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter: AppleMappingFilter,
   sort: AppleMappingSort, country: String, region: String = "", matchedOnly: Boolean = false,
-  locale: Locale = Locale.getDefault()): List<AppleMappingRow> {
+  locale: Locale = Locale.getDefault(), now: Long = System.currentTimeMillis()): List<AppleMappingRow> {
   val needle = query.trim().lowercase(Locale.ROOT)
   val comparator = Collator.getInstance(locale)
+  fun regionOf(row: AppleMappingRow): String? =
+    row.app?.let { it.country ?: country } ?: row.attempt?.country
   fun text(row: AppleMappingRow) = when (sort) {
     AppleMappingSort.PACKAGE -> row.target.packageName
     AppleMappingSort.APPLE_NAME -> row.app?.name.orEmpty()
-    AppleMappingSort.REGION -> row.app?.let { it.country ?: country }.orEmpty()
+    AppleMappingSort.REGION -> regionOf(row).orEmpty()
     else -> row.target.label
   }
   return rows.filter { row ->
     (!matchedOnly || row.app != null) &&
-      (region.isEmpty() || row.app?.let { it.country ?: country } == region) &&
+      (region.isEmpty() || regionOf(row) == region) &&
       when (filter) {
         AppleMappingFilter.ALL -> true
         AppleMappingFilter.MAPPED -> row.app != null
@@ -144,9 +155,14 @@ internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter
         AppleMappingFilter.USER -> !row.target.system
         AppleMappingFilter.MISSING_DARK -> row.app != null &&
           row.darkCapability in listOf(AppleDarkCapability.MISSING, AppleDarkCapability.SHARED)
+        AppleMappingFilter.RECENTLY_TRIED -> row.attempt?.let {
+          now - it.attemptedAt in 0..AppleAutoMatchPolicy.HISTORY_TTL_MS
+        } == true
+        AppleMappingFilter.NEEDS_REVIEW -> row.app == null && !row.custom &&
+          row.attempt?.status == AppleMatchAttemptStatus.REVIEW
       } &&
       (needle.isEmpty() || listOfNotNull(row.target.label, row.target.packageName, row.app?.name,
-        row.app?.publisher, row.app?.bundleId, row.app?.id, row.app?.let { it.country ?: country })
+        row.app?.publisher, row.app?.bundleId, row.app?.id, regionOf(row))
         .any { needle in it.lowercase(Locale.ROOT) })
   }.sortedWith { a, b ->
     val priority = when (sort) {
@@ -168,9 +184,15 @@ internal fun appleRegionName(country: String, locale: Locale = Locale.getDefault
   return if (name == code) code else "$name · $code"
 }
 
+internal fun appleBatchSelectable(row: AppleMappingRow, now: Long): Boolean =
+  row.app == null && !row.custom && (row.attempt?.retryAt ?: 0L) <= now
+
 internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state: ApplePackUiState,
   controller: ApplePackController, enabled: Boolean,
-  currentPreviewProvider: AppleCurrentThemePreviewProvider? = null, onSelect: (AppleMappingRow) -> Unit) {
+  currentPreviewProvider: AppleCurrentThemePreviewProvider? = null,
+  selectionMode: Boolean = false, selectedPackages: Set<String> = emptySet(),
+  selectablePackages: Set<String> = emptySet(), onToggleSelection: (String) -> Unit = {},
+  onSelect: (AppleMappingRow) -> Unit) {
   if (rows.isEmpty()) item("no-mapping-results", contentType = "message") {
     PackInfoCard(stringResource(R.string.apple_browser_empty))
   }
@@ -181,7 +203,12 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
       catch (_: Exception) { null }
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp),
-      onClick = { if (enabled) onSelect(row) }) {
+      onClick = {
+        if (enabled) {
+          if (!selectionMode) onSelect(row)
+          else if (row.target.packageName in selectablePackages) onToggleSelection(row.target.packageName)
+        }
+      }) {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val app = row.app
         val mappingDescription = if (app != null) {
@@ -189,15 +216,27 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
         } else {
           stringResource(R.string.apple_mapping_package_accessibility, row.target.label, row.target.packageName)
         }
-        Row(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = mappingDescription },
+        Row(Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text(row.target.label, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
-            maxLines = 2, overflow = TextOverflow.Ellipsis)
-          if (app != null) {
-            Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(18.dp),
-              tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-            Text(app.name, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
+          if (selectionMode) {
+            val selectionDescription = stringResource(R.string.apple_batch_select_app, row.target.label)
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+              Checkbox(state = if (row.target.packageName in selectedPackages) ToggleableState.On else ToggleableState.Off,
+                onClick = { onToggleSelection(row.target.packageName) },
+                modifier = Modifier.semantics { contentDescription = selectionDescription },
+                enabled = enabled && row.target.packageName in selectablePackages)
+            }
+          }
+          Row(Modifier.weight(1f).clearAndSetSemantics { contentDescription = mappingDescription },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(row.target.label, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
               maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (app != null) {
+              Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(18.dp),
+                tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+              Text(app.name, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
           }
         }
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -226,6 +265,23 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
               MiuixTheme.colorScheme.onSurfaceSecondary,
               Modifier.clearAndSetSemantics { contentDescription = missingDarkDescription })
           }
+          row.attempt?.let { attempt ->
+            val label = when (attempt.status) {
+              AppleMatchAttemptStatus.MATCHED -> stringResource(R.string.apple_batch_status_matched)
+              AppleMatchAttemptStatus.REVIEW -> stringResource(R.string.apple_batch_status_review, attempt.candidates.size)
+              AppleMatchAttemptStatus.NO_MATCH -> stringResource(R.string.apple_batch_status_unmatched)
+              AppleMatchAttemptStatus.FAILED -> stringResource(R.string.apple_batch_status_failed)
+            }
+            if (!row.custom && (app == null || attempt.status == AppleMatchAttemptStatus.MATCHED))
+              MetadataPill(label, if (attempt.status == AppleMatchAttemptStatus.MATCHED ||
+                attempt.status == AppleMatchAttemptStatus.REVIEW)
+                  MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary)
+            if (app == null && !row.custom) {
+              val regionDescription = appleRegionName(attempt.country, LocalConfiguration.current.locales[0])
+              MetadataPill(attempt.country.uppercase(Locale.ROOT), MiuixTheme.colorScheme.onSurfaceSecondary,
+                Modifier.clearAndSetSemantics { contentDescription = regionDescription })
+            }
+          }
         }
         if (app != null) {
           if (currentPreviewProvider != null) {
@@ -247,6 +303,19 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
         } else if (currentPreviewProvider != null) {
           ComparisonHeading(stringResource(R.string.apple_preview_current_theme))
           AppleCurrentThemeArtwork(row.target.label, row.target.packageName, currentPreviewProvider)
+        }
+        row.attempt?.let { attempt ->
+          val context = LocalContext.current
+          val date = java.util.Date(attempt.attemptedAt)
+          val attempted = android.text.format.DateFormat.getDateFormat(context).format(date) + " · " +
+            android.text.format.DateFormat.getTimeFormat(context).format(date)
+          val retryDate = java.util.Date(attempt.retryAt)
+          val retry = android.text.format.DateFormat.getDateFormat(context).format(retryDate) + " · " +
+            android.text.format.DateFormat.getTimeFormat(context).format(retryDate)
+          Text(if (app == null && !row.custom && attempt.retryAt > System.currentTimeMillis())
+            stringResource(R.string.apple_batch_attempt_retry, attempted, retry)
+          else stringResource(R.string.apple_batch_attempt_time, attempted),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
       }
     }

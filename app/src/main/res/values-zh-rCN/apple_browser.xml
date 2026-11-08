@@ -15,7 +15,7 @@
     <string name="apple_mapping_transfer_done">完成</string>
     <string name="apple_matched_title">已匹配图标</string>
     <string name="apple_matched_intro">按当前平台、分辨率和圆角预览映射。点按应用可修改映射或获取缺失的预览；修改后需重新生成并应用。</string>
-    <string name="apple_mapping_manage_summary">当前预览、替换与排除，按应用选择商店地区</string>
+    <string name="apple_mapping_manage_summary">批量匹配、预览与替换，按应用选择商店地区</string>
     <string name="apple_browser_search">搜索应用、包名或 Apple 映射</string>
     <string name="apple_browser_filter">筛选</string>
     <string name="apple_browser_sort">排序</string>

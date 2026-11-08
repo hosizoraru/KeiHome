@@ -1,0 +1,28 @@
+<resources>
+    <string name="apple_batch_next">Auto-match next batch (%1$d)</string>
+    <string name="apple_batch_match_selected">Match selected (%1$d/%2$d)</string>
+    <string name="apple_batch_enter_selection">Select apps to match</string>
+    <string name="apple_batch_exit_selection">Finish selecting</string>
+    <string name="apple_batch_select_visible">Select eligible results (%1$d)</string>
+    <string name="apple_batch_clear_selection">Clear selection</string>
+    <string name="apple_batch_select_app">Select %1$s</string>
+    <string name="apple_batch_filter_recent">Recently tried</string>
+    <string name="apple_batch_filter_review">Needs confirmation</string>
+    <string name="apple_batch_status_matched">Auto-matched</string>
+    <string name="apple_batch_status_review">Confirm %1$d candidates</string>
+    <string name="apple_batch_status_unmatched">No recent match</string>
+    <string name="apple_batch_status_failed">Network request failed</string>
+    <string name="apple_batch_attempt_time">Tried %1$s</string>
+    <string name="apple_batch_attempt_retry">Tried %1$s · Retry from %2$s</string>
+    <string name="apple_batch_intro">%1$d eligible apps in these results; up to 10 per batch. No-match and confirmation-pending entries are skipped for 7 days. Retry network failures as indicated. Open pending entries to review candidates.</string>
+    <string name="apple_batch_selection_count">%1$d selected · %2$d in this batch</string>
+    <string name="apple_batch_progress">Matching %1$d/%2$d</string>
+    <string name="apple_batch_cancel">Stop batch · Keep completed matches</string>
+    <string name="apple_batch_results">Latest batch results</string>
+    <string name="apple_batch_results_running">Batch results so far</string>
+    <string name="apple_batch_result_summary">Attempted %1$d · Matched %2$d · Confirm %3$d
+No match %4$d · Failed %5$d · Not processed in this batch %6$d</string>
+    <string name="apple_batch_show_recent">View recent attempts</string>
+    <string name="apple_batch_show_review">Review candidates</string>
+    <string name="apple_batch_review_intro">These saved candidates need your confirmation. Preview one before choosing; no new search runs until you request it.</string>
+</resources>

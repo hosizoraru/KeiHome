@@ -320,3 +320,42 @@ The [dynamic acceptance receipt](../.artifacts/research/apple-dynamic-20261108/a
 records the final artifact, normal-install/API 102 identity gate, screenshots,
 background lifecycle sample and restored user state separately. These are AVD
 checks, with no physical-device or general performance claim.
+
+
+## Incremental third-party matching
+
+The custom-mapping browser offers a ten-target batch action and selection of
+unmapped, non-excluded apps. A batch uses the **currently selected storefront**;
+manual mappings retain their individual storefronts. System presets, exclusions
+and existing manual or automatic assignments are not overwritten. Batch matching
+searches the store directly, bypassing the manual editor's local system-preset
+suggestions, and does not fetch icon images. Artwork fetching remains the separate
+incremental generation/preview operation with its existing caches and backoff.
+
+Names are normalized for Unicode compatibility, case, spacing and benign
+punctuation. A unique exact bundle identifier takes precedence; otherwise a
+unique exact normalized title is required. Editions such as Pro, Lite and HD are
+not discarded, substrings are not sufficient, and duplicate exact-title products
+remain review candidates. These rules are conservative suggestions, not proof of
+publisher identity; every saved automatic result can still be edited or excluded.
+
+Each completed attempt is saved immediately in MMKV by platform, storefront,
+package and launcher label. Untried targets precede expired retries. Review and
+no-match results are skipped for seven days, with up to five local candidates for
+review; users can open the ordinary editor and search manually at any time.
+Network failures are not classified as misses. A failure stops the current batch,
+uses the API's persistent retry deadline (or a 15-minute failure retry interval),
+and leaves untouched targets for the next batch. There is no background retry
+job or loop. Cancellation retains completed mappings and leaves the in-flight
+search eligible for a subsequent explicit batch.
+
+Recent history is bounded to 2,000 records. Successful mappings are stored
+separately and survive history pruning and download-cache cleanup. Mapping export
+includes automatic assignments; importing them makes them explicit choices,
+retaining their storefront and the usual manual-override priority. Browser
+refresh does not erase history or force network requests. A new label, platform
+or storefront creates an independent search history, while an existing mapping
+remains available until the user changes or resets it.
+
+Device results for this checkpoint are recorded separately in
+`.artifacts/research/apple-batch-matching-20261108/acceptance.json`.

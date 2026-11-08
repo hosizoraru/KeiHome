@@ -15,7 +15,7 @@
     <string name="apple_mapping_transfer_done">完了</string>
     <string name="apple_matched_title">一致したアイコン</string>
     <string name="apple_matched_intro">現在のプラットフォーム・解像度・形状でプレビューします。アプリをタップして変更や未取得のプレビューを読み込めます。変更後は再生成して適用してください。</string>
-    <string name="apple_mapping_manage_summary">現在のプレビュー、置き換え、除外、アプリ別のストア地域</string>
+    <string name="apple_mapping_manage_summary">一括照合、プレビュー、置き換え、アプリ別のストア地域</string>
     <string name="apple_browser_search">アプリ・パッケージ・Apple の対応先を検索</string>
     <string name="apple_browser_filter">絞り込み</string>
     <string name="apple_browser_sort">並び順</string>

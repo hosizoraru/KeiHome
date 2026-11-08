@@ -6,6 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import os.kei.hyper.home.iconpack.apple.AppleAppMatch
 import os.kei.hyper.home.iconpack.apple.AppleAppTarget
+import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
+import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
+import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 
 class AppleMappingBrowserTest {
   private val rows = listOf(
@@ -79,5 +82,33 @@ class AppleMappingBrowserTest {
     val shared = rows.map { it.copy(darkCapability = AppleDarkCapability.SHARED) }
     assertEquals(listOf("app.a", "app.z"), appleMappingRows(shared, "", AppleMappingFilter.MISSING_DARK,
       AppleMappingSort.NAME, "us").map { it.target.packageName })
+  }
+
+  @Test fun reviewFilterExcludesResolvedMappingsAndManualExclusions() {
+    val attempt = AppleMatchAttempt(AppleMatchAttemptStatus.REVIEW, System.currentTimeMillis(),
+      System.currentTimeMillis() + 60_000, "cn", listOf(rows[0].app!!))
+    val candidates = rows.map { it.copy(attempt = attempt) }
+    val review = appleMappingRows(candidates, "", AppleMappingFilter.NEEDS_REVIEW,
+      AppleMappingSort.NAME, "us")
+    assertEquals(listOf("app.c"), review.map { it.target.packageName })
+    assertEquals(review, appleMappingRows(candidates, "", AppleMappingFilter.NEEDS_REVIEW,
+      AppleMappingSort.NAME, "us", region = "cn"))
+    assertTrue(appleMappingRows(candidates, "", AppleMappingFilter.NEEDS_REVIEW,
+      AppleMappingSort.NAME, "us", matchedOnly = true).isEmpty())
+  }
+
+  @Test fun recentFilterUsesSevenDayWindowAndRecordedStorefrontForUnmappedRows() {
+    val time = System.currentTimeMillis()
+    val recent = rows[3].copy(attempt = AppleMatchAttempt(AppleMatchAttemptStatus.NO_MATCH,
+      time - 1_000, time + 60_000, "cn"))
+    val old = rows[1].copy(attempt = AppleMatchAttempt(AppleMatchAttemptStatus.NO_MATCH,
+      time - AppleAutoMatchPolicy.HISTORY_TTL_MS - 60_000, time - 60_000, "us"))
+    val all = listOf(recent, old, rows[0])
+    assertEquals(listOf(recent), appleMappingRows(all, "", AppleMappingFilter.RECENTLY_TRIED,
+      AppleMappingSort.NAME, "us"))
+    assertEquals(listOf(recent), appleMappingRows(all, "", AppleMappingFilter.RECENTLY_TRIED,
+      AppleMappingSort.NAME, "us", region = "cn"))
+    assertTrue(appleMappingRows(all, "", AppleMappingFilter.RECENTLY_TRIED,
+      AppleMappingSort.NAME, "us", region = "us").isEmpty())
   }
 }

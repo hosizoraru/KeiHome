@@ -196,7 +196,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val keyboard = LocalSoftwareKeyboardController.current
   fun searchNow() { focus.clearFocus(); keyboard?.hide(); controller.search(query) }
   val listState = rememberLazyListState()
-  fun browserChanged() {
+  fun browserChanged(resetSelection: Boolean = false) {
+    if (resetSelection) selecting = false
     focus.clearFocus(); keyboard?.hide()
     uiScope.launch { listState.scrollToItem(0) }
   }
@@ -236,8 +237,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             AppleMappingFilterMenu(mappingFilter, regionFilter, state.rows.mapNotNull {
               it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
             }.distinct().sorted(), matchedOnly,
-              onFilter = { filterName = it.name; browserChanged() },
-              onRegion = { regionFilter = it; browserChanged() })
+              onFilter = { filterName = it.name; browserChanged(resetSelection = true) },
+              onRegion = { regionFilter = it; browserChanged(resetSelection = true) })
             AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
           }
           if (!search) {
@@ -264,7 +265,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               DropdownItem(text = stringResource(R.string.apple_mapping_export), enabled = enabled, onClick = {
                 transferring = true
                 try {
-                  exportMappings.launch("keihome-apple-manual-mappings-" +
+                  exportMappings.launch("keihome-apple-mappings-" +
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm")) + ".json")
                 } catch (_: Exception) {
                   transferring = false
@@ -441,11 +442,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                   result.review, result.unmatched, result.failed, result.skipped))
               BasicComponent(title = stringResource(R.string.apple_batch_show_recent), onClick = {
                 filterName = AppleMappingFilter.RECENTLY_TRIED.name
-                browserChanged()
+                browserChanged(resetSelection = true)
               })
               if (result.review > 0) BasicComponent(title = stringResource(R.string.apple_batch_show_review), onClick = {
                 filterName = AppleMappingFilter.NEEDS_REVIEW.name
-                browserChanged()
+                browserChanged(resetSelection = true)
               })
             }
           } }

@@ -88,4 +88,10 @@
   <string name="perfect_icons_force_download">Force download latest resources</string>
   <string name="perfect_icons_force_download_confirm">This downloads the entire latest repository snapshot again, even if the local copy is up to date. The download may exceed 600 MB and needs additional temporary storage. Use Wi-Fi when possible. Your existing resources remain available if the download fails; the current theme will not be applied or changed.</string>
   <string name="perfect_icons_force_download_proceed">Download again</string>
+  <string name="perfect_icons_storage_count">%1$d icons · %2$s</string>
+  <string name="perfect_icons_storage_empty">Use the floating download action to get a full snapshot. Opening this page only reads local data.</string>
+  <string name="perfect_icons_file_details">Version &amp; file details</string>
+  <string name="perfect_icons_file_details_summary">Full revision, checksum, download time and generated file</string>
+  <string name="perfect_icons_copy_revision">Copy revision</string>
+  <string name="perfect_icons_copy_checksum">Copy checksum</string>
 </resources>

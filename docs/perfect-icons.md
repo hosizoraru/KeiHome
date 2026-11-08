@@ -209,3 +209,11 @@ when resources have not yet been downloaded. Progress and errors stay visible
 on this page, with measured space reserved below the list for the floating action.
 EN, Simplified Chinese and Japanese use the same flow. Acceptance evidence is
 recorded in `.artifacts/research/perfect-force-sync-20261109/acceptance.json`.
+
+Source & Storage uses the shared status-card layout, with local icon count,
+archive size and a copyable short revision in pills. The full revision, checksum,
+download timestamp and generated filename are available in a MIUIX WindowDialog.
+Cache size sits alongside its cleanup action; source attribution has its own
+local subpage. The full-download confirmation also uses MIUIX WindowDialog,
+with native title/summary layout and equal-width cancel/primary buttons.
+Opening the page never starts a download.

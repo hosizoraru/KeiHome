@@ -88,4 +88,10 @@
   <string name="perfect_icons_force_download">最新リソースを強制ダウンロード</string>
   <string name="perfect_icons_force_download_confirm">ローカルのリソースが最新でも、リポジトリ全体を再ダウンロードします。600 MB を超える通信と追加の一時保存領域が必要になる場合があります。Wi-Fi の利用をおすすめします。失敗した場合は既存のリソースを保持し、現在のテーマは変更しません。</string>
   <string name="perfect_icons_force_download_proceed">再ダウンロードする</string>
+  <string name="perfect_icons_storage_count">%1$d 個のアイコン · %2$s</string>
+  <string name="perfect_icons_storage_empty">フローティングボタンから完全なスナップショットを取得できます。この画面を開くだけでは通信しません。</string>
+  <string name="perfect_icons_file_details">バージョンとファイルの詳細</string>
+  <string name="perfect_icons_file_details_summary">完全なリビジョン、チェックサム、取得日時と生成ファイル</string>
+  <string name="perfect_icons_copy_revision">リビジョンをコピー</string>
+  <string name="perfect_icons_copy_checksum">チェックサムをコピー</string>
 </resources>

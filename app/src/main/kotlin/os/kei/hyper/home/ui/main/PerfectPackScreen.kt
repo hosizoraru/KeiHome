@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.text.format.DateFormat
 import android.text.format.Formatter
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -62,6 +61,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Refresh
@@ -311,15 +311,15 @@ private fun copyPerfectRevision(context: android.content.Context, revision: Stri
 }
 
 @Composable
-internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
+internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
   val context = LocalContext.current
-  val uri = LocalUriHandler.current
   val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
   var localLoadRequested by remember(vm) { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
   var confirmDownload by remember { mutableStateOf(false) }
+  var showDetails by remember { mutableStateOf(false) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
@@ -340,66 +340,66 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
         busy = state.refreshing, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.force-download"))
     }) {
-    if (state.refreshing || state.error != null || cooling) item("sync-progress") {
-      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-        if (state.refreshing) {
-          LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
-          BasicComponent(title = stringResource(R.string.perfect_icons_syncing),
-            summary = state.progress?.let {
+    item("snapshot") {
+      val catalog = state.catalog
+      StatusOverviewCard(
+        title = stringResource(when {
+          state.refreshing -> R.string.perfect_icons_syncing
+          localLoading -> R.string.perfect_icons_loading
+          state.error != null -> R.string.perfect_icons_attention
+          catalog != null -> R.string.perfect_icons_catalog_ready
+          else -> R.string.perfect_icons_catalog_missing
+        }),
+        summary = if (catalog != null) catalogSummary(catalog) else stringResource(
+          if (localLoading) R.string.pack_local_catalog_loading else R.string.perfect_icons_storage_empty),
+        details = emptyList(),
+        tone = when {
+          state.error != null -> StatusTone.ERROR
+          catalog == null || busy -> StatusTone.WARNING
+          else -> StatusTone.READY
+        },
+        onRefresh = {}, onOpen = {
+          if (catalog != null) showDetails = true
+          else if (!busy && !cooling && !localLoading) confirmDownload = true
+        },
+        actionLabel = stringResource(if (catalog != null) R.string.perfect_icons_file_details
+          else R.string.perfect_icons_force_download),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
+          .testTag("icon-packs.perfect.storage-status"),
+        badgeContent = if (catalog == null) null else { color ->
+          MetadataPill(stringResource(R.string.perfect_icons_storage_count, catalog.iconCount,
+            Formatter.formatFileSize(context, catalog.archiveBytes)), color)
+          val revision = catalog.revision.ifEmpty { catalog.sourceHash }
+          val label = stringResource(R.string.perfect_icons_revision)
+          MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+            Modifier.clickable(onClickLabel = label) { copyPerfectRevision(context, revision, label) })
+        })
+    }
+    if (localLoading || state.refreshing || state.error != null || cooling) item("sync-progress") {
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (localLoading || state.refreshing) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text(state.progress?.let {
               if (it.label == "source.download") stringResource(R.string.perfect_icons_download_progress,
                 Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
               else stringResource(R.string.perfect_icons_verifying)
-            })
-        }
-        state.error?.let { BasicComponent(title = stringResource(R.string.perfect_icons_error),
-          summary = stringResource(perfectErrorResource(it))) }
-        if (cooling) BasicComponent(title = stringResource(R.string.perfect_icons_error_cooldown),
-          summary = stringResource(R.string.perfect_icons_cooldown_detail,
-            DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))))
-      }
-    }
-    item("snapshot") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Crossfade(targetState = state.catalog, animationSpec = tween(180), label = "perfect-local-snapshot") { snapshot ->
-          Column {
-            snapshot?.let { catalog ->
-              BasicComponent(title = stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount),
-                summary = catalogSummary(catalog))
-              val commit = catalog.revision.matches(Regex("[0-9a-f]{40}"))
-              val label = stringResource(if (commit) R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-              val fullHash = catalog.revision.ifEmpty { catalog.sourceHash }
-              PerfectHash(label, fullHash) { copyPerfectRevision(context, fullHash, label) }
-              if (commit && catalog.sourceHash.isNotBlank() && catalog.sourceHash != catalog.revision) {
-                val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
-                PerfectHash(hashLabel, catalog.sourceHash) {
-                  copyPerfectRevision(context, catalog.sourceHash, hashLabel)
-                }
-              }
-              BasicComponent(title = stringResource(R.string.perfect_icons_downloaded_at),
-                summary = perfectSyncTime(catalog.downloadedAt))
-              BasicComponent(title = stringResource(R.string.perfect_icons_source_size),
-                summary = Formatter.formatFileSize(context, catalog.archiveBytes))
-            } ?: BasicComponent(title = stringResource(if (localLoading) R.string.perfect_icons_loading
-                else R.string.perfect_icons_catalog_missing),
-              summary = stringResource(if (localLoading) R.string.pack_local_catalog_loading
-                else R.string.perfect_icons_sync_first))
+            } ?: stringResource(R.string.perfect_icons_loading), style = MiuixTheme.textStyles.footnote1)
           }
-        }
-        if (localLoading) {
-          LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
-        }
-        state.result?.let { result ->
-          BasicComponent(title = stringResource(R.string.perfect_icons_output),
-            summary = stringResource(R.string.perfect_icons_output_detail, result.file.name, result.revision))
+          state.error?.let { Text(stringResource(perfectErrorResource(it)),
+            color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.footnote1) }
+          if (cooling) Text(stringResource(R.string.perfect_icons_cooldown_detail,
+            DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))),
+            style = MiuixTheme.textStyles.footnote1)
         }
       }
     }
     item("cache") {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_icons_cache),
-          summary = Formatter.formatFileSize(context, state.cacheBytes))
         BasicComponent(title = stringResource(R.string.perfect_icons_clear_cache),
           summary = stringResource(R.string.perfect_icons_clear_cache_summary),
+          endActions = { MetadataPill(Formatter.formatFileSize(context, state.cacheBytes),
+            MiuixTheme.colorScheme.primary) },
           enabled = !busy && state.cacheBytes > 0, onClick = vm.perfectPacks::clearDownloads,
           modifier = Modifier.testTag("icon-packs.perfect.clear-cache"))
         if (state.clearingCache) LinearProgressIndicator(Modifier.fillMaxWidth()
@@ -408,31 +408,51 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
           BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
             Formatter.formatFileSize(context, bytes)))
         }
-        state.error?.takeIf { it == PerfectPackError.CACHE || it == PerfectPackError.LOCAL }?.let {
-          BasicComponent(title = stringResource(R.string.perfect_icons_error),
-            summary = stringResource(perfectErrorResource(it)))
-        }
       }
     }
-    item("credits") {
+    item("details") {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        BasicComponent(title = stringResource(R.string.perfect_icons_file_details),
+          summary = stringResource(R.string.perfect_icons_file_details_summary),
+          enabled = state.catalog != null, onClick = { showDetails = true },
+          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
+          modifier = Modifier.testTag("icon-packs.perfect.file-details"))
         BasicComponent(title = stringResource(R.string.perfect_icons_sources),
-          summary = stringResource(R.string.perfect_icons_attribution))
-        BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
-          summary = stringResource(R.string.pack_perfect_community_detail))
-        BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
-          summary = "pzcn/Perfect-Icons-Completion-Project",
-          onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") })
-        BasicComponent(title = stringResource(R.string.pack_perfect_author),
-          summary = "pzcn", onClick = { uri.openUri("https://github.com/pzcn") })
-        BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
-          summary = "YifePlayte/PerfectIconsPacker\n${stringResource(R.string.pack_perfect_packer_reference)}",
-          onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
-        BasicComponent(title = stringResource(R.string.perfect_icons_limits),
-          summary = stringResource(R.string.perfect_icons_limits_summary))
+          summary = "pzcn / Perfect-Icons-Completion-Project",
+          onClick = { onNavigate("perfect-credits") },
+          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
+          modifier = Modifier.testTag("icon-packs.perfect.credits"))
       }
     }
   }
+  val catalog = state.catalog
+  val revisionLabel = stringResource(R.string.perfect_icons_revision)
+  val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
+  WindowDialog(show = showDetails, title = stringResource(R.string.perfect_icons_file_details),
+    onDismissRequest = { showDetails = false }) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      catalog?.let {
+        Text(stringResource(R.string.perfect_icons_downloaded_at) + "\n" + perfectSyncTime(it.downloadedAt),
+          style = MiuixTheme.textStyles.body2)
+        Text(revisionLabel + "\n" + it.revision.ifEmpty { it.sourceHash },
+          style = MiuixTheme.textStyles.footnote1)
+        Text(hashLabel + "\n" + it.sourceHash, style = MiuixTheme.textStyles.footnote1)
+      }
+      state.result?.let { result ->
+        Text(stringResource(R.string.perfect_icons_output) + "\n" + result.file.name,
+          style = MiuixTheme.textStyles.footnote1)
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(stringResource(R.string.perfect_icons_copy_revision), enabled = catalog != null,
+          onClick = { catalog?.let { copyPerfectRevision(context, it.revision.ifEmpty { it.sourceHash }, revisionLabel) } },
+          modifier = Modifier.weight(1f))
+        TextButton(stringResource(R.string.perfect_icons_copy_checksum), enabled = catalog != null,
+          onClick = { catalog?.let { copyPerfectRevision(context, it.sourceHash, hashLabel) } },
+          modifier = Modifier.weight(1f))
+      }
+    }
+  }
+
   WindowDialog(show = confirmDownload,
     title = stringResource(R.string.perfect_icons_force_download),
     summary = stringResource(R.string.perfect_icons_force_download_confirm),
@@ -451,11 +471,27 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun PerfectHash(label: String, hash: String, onCopy: () -> Unit) {
-  Column(Modifier.fillMaxWidth().clickable(onClickLabel = label, onClick = onCopy).padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Text(label, style = MiuixTheme.textStyles.body1)
-    Text(hash, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+internal fun PerfectPackCreditsScreen(onBack: () -> Unit) {
+  val uri = LocalUriHandler.current
+  PerfectSubpage(stringResource(R.string.perfect_icons_sources), onBack) {
+    item("credits") {
+      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        BasicComponent(title = stringResource(R.string.perfect_icons_sources),
+          summary = stringResource(R.string.perfect_icons_attribution))
+        BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
+          summary = stringResource(R.string.pack_perfect_community_detail))
+        BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
+          summary = "pzcn/Perfect-Icons-Completion-Project",
+          onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") })
+        BasicComponent(title = stringResource(R.string.pack_perfect_author),
+          summary = "pzcn", onClick = { uri.openUri("https://github.com/pzcn") })
+        BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
+          summary = "YifePlayte/PerfectIconsPacker\n${stringResource(R.string.pack_perfect_packer_reference)}",
+          onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
+        BasicComponent(title = stringResource(R.string.perfect_icons_limits),
+          summary = stringResource(R.string.perfect_icons_limits_summary))
+      }
+    }
   }
 }
 

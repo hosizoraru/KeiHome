@@ -178,6 +178,8 @@ internal fun PerfectSubpage(
   onRefresh: (() -> Unit)? = null,
   refreshEnabled: Boolean = true,
   actions: @Composable RowScope.() -> Unit = {},
+  floatingActionButton: @Composable () -> Unit = {},
+  bottomSpacing: androidx.compose.ui.unit.Dp = 24.dp,
   content: LazyListScope.() -> Unit,
 ) {
   val behavior = MiuixScrollBehavior()
@@ -196,12 +198,12 @@ internal fun PerfectSubpage(
           }
         })
     }
-  }) { padding ->
+  }, floatingActionButton = floatingActionButton) { padding ->
     LazyColumn(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .nestedScroll(behavior.nestedScrollConnection),
       contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
-        bottom = padding.calculateBottomPadding() + 24.dp),
+        bottom = padding.calculateBottomPadding() + bottomSpacing),
       content = content)
   }
 }

@@ -208,13 +208,13 @@ internal class PerfectPackController(
     }
   }
 
-  fun refreshCatalog() {
+  fun refreshCatalog(forceDownload: Boolean = false) {
     if (!canStart()) return
     mutableState.update { it.copy(refreshing = true, clearedBytes = null, error = null) }
     scope.launch {
       try {
         val catalog = withContext(Dispatchers.IO) {
-          repository.catalog(refresh = true) { progress ->
+          repository.catalog(refresh = true, forceDownload = forceDownload) { progress ->
             mutableState.update { it.copy(progress = progress) }
           }
         }

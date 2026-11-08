@@ -341,6 +341,35 @@ class PerfectIconRepositoryTest {
     assertEquals(2, f.http.calls.size)
   }
 
+  @Test fun forcedDownloadSkipsValidatorAndReplacesSnapshotOnlyAfterValidation() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val initial = f.repo.catalog(true)!!
+    f.time += 5000
+    val downloaded = f.repo.catalog(refresh = true, forceDownload = true)!!
+    assertTrue(f.http.calls.last().second.isEmpty())
+    assertEquals(initial.sourceHash, downloaded.sourceHash)
+    assertEquals(f.time, downloaded.downloadedAt)
+    assertTrue(downloaded.upToDate)
+    f.http.bytes = "invalid archive".toByteArray()
+    rejectedSuspend { f.repo.catalog(refresh = true, forceDownload = true) }
+    assertEquals(downloaded, f.repo.catalog())
+    val source = File(f.root, "source").listFiles()!!.single()
+    assertEquals(downloaded.archiveBytes, source.length())
+  }
+
+  @Test fun forcedDownloadRespectsCooldownAndNeverDeletesUsableSourceOnNetworkFailure() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val initial = f.repo.catalog(true)
+    f.http.status = 429
+    f.http.headers = mapOf("Retry-After" to "120")
+    rejectedSuspend { f.repo.catalog(refresh = true, forceDownload = true) }
+    val requests = f.http.calls.size
+    repeat(3) { rejectedSuspend { f.repo.catalog(refresh = true, forceDownload = true) } }
+    assertEquals(requests, f.http.calls.size)
+    assertEquals(initial, f.repo.catalog())
+    assertTrue(f.repo.generate(PerfectIconOptions(dynamic = false), setOf("com.miui.gallery")) {}.mapped > 0)
+  }
+
   @Test fun sameSizeDamagedSnapshotDoesNotSendConditionalValidatorAndIsRepaired() = runBlocking {
     val f = Fixture(temporary.newFolder())
     val first = f.repo.catalog(refresh = true)!!

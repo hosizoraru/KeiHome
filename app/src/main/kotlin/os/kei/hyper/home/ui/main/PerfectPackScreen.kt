@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -112,7 +113,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
           actions = {
-            IconButton(onClick = vm.perfectPacks::refreshCatalog, enabled = !busy && !cooling) {
+            IconButton(onClick = { vm.perfectPacks.refreshCatalog() }, enabled = !busy && !cooling) {
               Icon(MiuixIcons.Refresh, stringResource(R.string.perfect_icons_refresh))
             }
           },
@@ -315,11 +316,45 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
   val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
   var localLoadRequested by remember(vm) { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
+  var confirmDownload by remember { mutableStateOf(false) }
+  var actionHeight by remember { mutableIntStateOf(0) }
+  val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
+  val cooling = state.retryAtMillis > System.currentTimeMillis()
   LaunchedEffect(vm) {
     vm.perfectPacks.load()
     localLoadRequested = true
   }
-  PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack) {
+  LaunchedEffect(state.retryAtMillis) {
+    val remaining = state.retryAtMillis - System.currentTimeMillis()
+    if (remaining > 0) delay(remaining)
+    vm.perfectPacks.updateCooldown()
+  }
+  PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack,
+    bottomSpacing = actionBottom,
+    floatingActionButton = {
+      PageActionFab(stringResource(R.string.perfect_icons_force_download), MiuixIcons.Refresh,
+        onClick = { confirmDownload = true }, enabled = !busy && !cooling,
+        busy = state.refreshing, onHeightChanged = { actionHeight = it },
+        modifier = Modifier.testTag("icon-packs.perfect.force-download"))
+    }) {
+    if (state.refreshing || state.error != null || cooling) item("sync-progress") {
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (state.refreshing) {
+          LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+          BasicComponent(title = stringResource(R.string.perfect_icons_syncing),
+            summary = state.progress?.let {
+              if (it.label == "source.download") stringResource(R.string.perfect_icons_download_progress,
+                Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
+              else stringResource(R.string.perfect_icons_verifying)
+            })
+        }
+        state.error?.let { BasicComponent(title = stringResource(R.string.perfect_icons_error),
+          summary = stringResource(perfectErrorResource(it))) }
+        if (cooling) BasicComponent(title = stringResource(R.string.perfect_icons_error_cooldown),
+          summary = stringResource(R.string.perfect_icons_cooldown_detail,
+            DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))))
+      }
+    }
     item("snapshot") {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
         Crossfade(targetState = state.catalog, animationSpec = tween(180), label = "perfect-local-snapshot") { snapshot ->
@@ -393,6 +428,18 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
         BasicComponent(title = stringResource(R.string.perfect_icons_limits),
           summary = stringResource(R.string.perfect_icons_limits_summary))
       }
+    }
+  }
+  if (confirmDownload) Dialog(onDismissRequest = { confirmDownload = false }) {
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      BasicComponent(title = stringResource(R.string.perfect_icons_force_download),
+        summary = stringResource(R.string.perfect_icons_force_download_confirm))
+      BasicComponent(title = stringResource(R.string.logs_cancel), onClick = { confirmDownload = false })
+      BasicComponent(title = stringResource(R.string.perfect_icons_force_download_proceed),
+        enabled = !busy && !cooling, onClick = {
+          confirmDownload = false
+          vm.perfectPacks.refreshCatalog(forceDownload = true)
+        }, modifier = Modifier.testTag("icon-packs.perfect.confirm-download"))
     }
   }
 }

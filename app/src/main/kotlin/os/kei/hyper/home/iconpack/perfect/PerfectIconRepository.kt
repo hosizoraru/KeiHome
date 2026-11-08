@@ -139,11 +139,12 @@ class PerfectIconRepository internal constructor(
 
   suspend fun catalog(
     refresh: Boolean = false,
+    forceDownload: Boolean = false,
     progress: (PerfectIconProgress) -> Unit = {},
   ): PerfectIconCatalog? = withContext(ioDispatcher) {
     mutex.withLock {
       val old = localSnapshot()
-      if (refresh) refresh(old, progress).catalog else old?.catalog
+      if (refresh) refresh(old, progress, forceDownload).catalog else old?.catalog
     }
   }
 
@@ -369,7 +370,8 @@ class PerfectIconRepository internal constructor(
     snapshot
   }.getOrNull()
 
-  private suspend fun refresh(old: Snapshot?, progress: (PerfectIconProgress) -> Unit): Snapshot {
+  private suspend fun refresh(old: Snapshot?, progress: (PerfectIconProgress) -> Unit,
+    forceDownload: Boolean): Snapshot {
     val coroutine = currentCoroutineContext()
     sourceDir.mkdirs()
     val temporary = File(sourceDir, ".${UUID.randomUUID()}.part")
@@ -379,7 +381,7 @@ class PerfectIconRepository internal constructor(
       val time = now()
       if (retryAtMillis() > time) throw PerfectIconCooldownException(retryAtMillis())
       // A 304 cannot repair disk corruption. Only offer a validator for verified local bytes.
-      val reusable = old?.takeIf { snapshot ->
+      val reusable = old?.takeUnless { forceDownload }?.takeIf { snapshot ->
         progress(PerfectIconProgress(0, 0, "source.verify"))
         try {
           val digest = MessageDigest.getInstance("SHA-256")

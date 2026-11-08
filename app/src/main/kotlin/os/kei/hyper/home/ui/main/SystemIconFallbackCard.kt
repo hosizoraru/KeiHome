@@ -59,10 +59,6 @@ internal fun systemFallbackChoices(
   add(selected)
 }.distinct()
 
-internal fun perfectFallbackResourceRoute(selected: SystemIconFallback, downloadedStyles: List<String>): String =
-  if ((selected.perfectStyle ?: SystemIconFallback.DEFAULT_PERFECT_STYLE) in downloadedStyles)
-    "perfect-sources" else "perfect"
-
 @Composable
 internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((String) -> Unit)? = null) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
@@ -78,8 +74,8 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
   val downloadedStyles = perfect.catalog?.styles.orEmpty()
   val choices = systemFallbackChoices(model.preferences.systemIconFallbackChoices, downloadedStyles,
     preferences.perfectFallbackExpanded, preferences.systemIconFallback)
-  val resourceRoute = perfectFallbackResourceRoute(preferences.systemIconFallback, downloadedStyles)
-  val resourcesAvailable = resourceRoute == "perfect-sources"
+  val resourcesAvailable = (preferences.systemIconFallback.perfectStyle
+    ?: SystemIconFallback.DEFAULT_PERFECT_STYLE) in downloadedStyles
   val missingResources = preferences.systemIconFallback.let {
     if (it.isPerfect) it.perfectStyle !in downloadedStyles
     else it !in model.preferences.systemIconFallbackChoices
@@ -106,7 +102,7 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
         summary = stringResource(if (resourcesAvailable)
           R.string.system_fallback_perfect_source_summary else R.string.system_fallback_perfect_download_summary),
         enabled = onOpenPerfectIcons != null,
-        onClick = { onOpenPerfectIcons?.invoke(resourceRoute) },
+        onClick = { onOpenPerfectIcons?.invoke("perfect-sources") },
         endActions = { Icon(MiuixIcons.Basic.ArrowRight, null,
           tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
         modifier = Modifier.testTag("icon-packs.perfect-fallback-resources"))

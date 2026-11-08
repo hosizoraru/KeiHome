@@ -85,4 +85,7 @@
   <string name="perfect_icons_result_dynamic">Dynamic %1$d</string>
   <string name="perfect_icons_result_extracted">Extracted locally %1$d</string>
   <string name="perfect_icons_result_reused">Reused %1$d</string>
+  <string name="perfect_icons_force_download">Force download latest resources</string>
+  <string name="perfect_icons_force_download_confirm">This downloads the entire latest repository snapshot again, even if the local copy is up to date. The download may exceed 600 MB and needs additional temporary storage. Use Wi-Fi when possible. Your existing resources remain available if the download fails; the current theme will not be applied or changed.</string>
+  <string name="perfect_icons_force_download_proceed">Download again</string>
 </resources>

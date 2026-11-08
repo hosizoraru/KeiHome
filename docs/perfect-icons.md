@@ -192,3 +192,20 @@ The 2026-11-09 UI acceptance checkpoint is recorded separately in
 exact signed build, AVD screenshots, menu/search behavior, font-scale restoration
 and process continuity. This layout change does not modify the source downloader,
 conversion pipeline, generated theme or native Hook payload.
+
+## Explicit full download
+
+The Source & Storage page has a floating “Force download latest resources”
+action. A confirmation explains the full repository transfer (potentially over
+600 MB), temporary disk space and preservation of the active theme. Cancel
+performs no network work. Confirm skips the local ETag and source rehash but
+still observes the existing cooldown, validates the complete downloaded ZIP
+and publishes its pointer atomically before retiring older source bytes.
+Failure retains the previous usable snapshot. Normal synchronization remains
+conditional. Neither action applies a generated theme.
+
+The system-app fallback resource entry always opens Source & Storage, including
+when resources have not yet been downloaded. Progress and errors stay visible
+on this page, with measured space reserved below the list for the floating action.
+EN, Simplified Chinese and Japanese use the same flow. Acceptance evidence is
+recorded in `.artifacts/research/perfect-force-sync-20261109/acceptance.json`.

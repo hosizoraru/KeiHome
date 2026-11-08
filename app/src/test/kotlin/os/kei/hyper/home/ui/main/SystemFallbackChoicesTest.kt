@@ -54,16 +54,4 @@ class SystemFallbackChoicesTest {
         true, originOs))
   }
 
-  @Test fun resourceEntryOpensDownloadPageWithoutTheRelevantLocalStyle() {
-    assertEquals("perfect", perfectFallbackResourceRoute(SystemIconFallback.DEFAULT, emptyList()))
-    assertEquals("perfect", perfectFallbackResourceRoute(SystemIconFallback.DEFAULT, listOf("OriginOS")))
-    assertEquals("perfect", perfectFallbackResourceRoute(originOs, listOf("HyperOS4")))
-  }
-
-  @Test fun resourceEntryOpensSourceInfoForTheRelevantDownloadedStyle() {
-    assertEquals("perfect-sources",
-      perfectFallbackResourceRoute(SystemIconFallback.DEFAULT, listOf("HyperOS4")))
-    assertEquals("perfect-sources", perfectFallbackResourceRoute(originOs, listOf("OriginOS")))
-    assertEquals("perfect-sources", perfectFallbackResourceRoute(hyperOs4, listOf("HyperOS4")))
-  }
 }

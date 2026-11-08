@@ -160,6 +160,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     iconPacksDirty = true
     viewModelScope.launch { readIconPacks() }
   }
+  internal val perfectPacks = PerfectPackController(application, viewModelScope,
+    os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application), packRepository) {
+    iconPacksDirty = true
+    viewModelScope.launch { readIconPacks() }
+  }
   val iconPacks: StateFlow<IconPacksUiState>
     field = MutableStateFlow(IconPacksUiState())
   val framework: StateFlow<FrameworkUiState>
@@ -478,6 +483,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   internal suspend fun appleDownloadCacheBytes(): Long = appleRepository.cacheBytes()
+  internal suspend fun perfectDownloadCacheBytes(): Long = perfectPacks.cacheBytes()
 
   internal fun previewCacheBytes(): Long =
     previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes()

@@ -74,6 +74,12 @@ internal val thirdPartyComponents = listOf(
     "https://github.com/Kyant0/AndroidLiquidGlass", kind = AttributionKind.SOURCE),
   ThirdPartyComponent("back-gesture", "MiuiBackGestureHook", R.string.notices_role_native,
     "https://github.com/wxxsfxyzm/MiuiBackGestureHook", kind = AttributionKind.SOURCE),
+  ThirdPartyComponent("perfect-icons", "Perfect Icons Completion Project", R.string.notices_role_perfect_icons,
+    "https://github.com/pzcn/Perfect-Icons-Completion-Project", licenseKeys = emptyList(),
+    kind = AttributionKind.SOURCE),
+  ThirdPartyComponent("perfect-packer", "PerfectIconsPacker", R.string.notices_role_perfect_packer,
+    "https://github.com/YifePlayte/PerfectIconsPacker", licenseKeys = emptyList(),
+    kind = AttributionKind.SOURCE),
   ThirdPartyComponent("lsplt", "LSPlt", R.string.notices_role_history,
     "https://github.com/LSPosed/LSPlt", listOf("lsplt"), kind = AttributionKind.HISTORY),
 )

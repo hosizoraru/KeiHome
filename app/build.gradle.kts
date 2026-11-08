@@ -142,6 +142,7 @@ dependencies {
 
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
+  testImplementation(libs.jvm.json)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.libxposed.api)
 

@@ -50,6 +50,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  if (section == "perfect") {
+    PerfectPackScreen(model, onBack, onNavigate)
+    return
+  }
+  if (section == "perfect-preview") {
+    PerfectPackPreviewScreen(model, onBack)
+    return
+  }
+  if (section == "perfect-sources") {
+    PerfectPackSourcesScreen(model, onBack)
+    return
+  }
   if (section in setOf("apple", "apple-mappings", "apple-matched", "apple-search")) {
     ApplePackScreen(model, section, onBack, onNavigate)
     return

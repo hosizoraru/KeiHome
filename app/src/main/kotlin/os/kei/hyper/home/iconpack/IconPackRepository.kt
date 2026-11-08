@@ -144,6 +144,31 @@ internal class IconPackRepository(
     } catch (failure: Exception) { IconPackImportResult.Failure(failure.message ?: "Icon pack could not be imported") }
   }
 
+  /** Internal publication path; document imports continue to require a granted content URI. */
+  suspend fun importPerfectPublication(file: File, displayName: String = "Perfect Icons.zip"): IconPackImportResult = withContext(worker) {
+    val caller = currentCoroutineContext()
+    try {
+      val owned = File(application.filesDir, "perfect-icons/generated").canonicalFile
+      require(file.canonicalFile.parentFile == owned &&
+        java.nio.file.Files.isRegularFile(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+        file.name.startsWith("perfect-") && file.extension == "zip") {
+        "Expected a completed Perfect Icons publication"
+      }
+      caller.ensureActive()
+      require(displayName.length in 1..256 && displayName.none { it.code < 32 })
+      val stored = file.inputStream().use { input ->
+        store.import(input, displayName, Build.VERSION.SDK_INT, { caller.ensureActive() })
+      }
+      require(stored.record.format == IconPackFormat.MIUI_ICONS) {
+        "Expected a standalone Perfect Icons module"
+      }
+      IconPackImportResult.Success(load(stored.record) { caller.ensureActive() }, stored.alreadyPresent)
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (failure: Exception) {
+      IconPackImportResult.Failure(failure.message ?: "Generated icon pack could not be imported")
+    }
+  }
+
   /** Classic/APK export is a static snapshot of one mode. Native imports preserve the entire
    * original icons module, including night/animation resources. Neither path applies the pack. */
   suspend fun exportNativeIcons(

@@ -1,0 +1,6 @@
+<resources>
+    <string name="cache_perfect_downloads">Perfect Icons download cache</string>
+    <string name="cache_perfect_manage_hint">Manage downloaded resources in Available icon packs → Perfect Icons Completion Project.</string>
+    <string name="notices_role_perfect_icons">Online artwork source. Downloaded on request rather than bundled in this APK; artwork remains credited to its original authors.</string>
+    <string name="notices_role_perfect_packer">Reference for the HyperOS native layered icon format and theme assembly. KeiHome independently implements integration without executing the project’s installation scripts.</string>
+</resources>

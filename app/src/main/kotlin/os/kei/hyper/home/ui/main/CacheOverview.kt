@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Date
 
 private data class CacheSample(val disk: DiskCacheUsage, val memory: Long, val capturedAt: Long,
-  val appleBytes: Long)
+  val appleBytes: Long, val perfectBytes: Long)
 
 @Composable
 internal fun CacheOverview(model: HomeViewModel, refreshKey: Int) {
@@ -50,7 +50,7 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int) {
       sample = withContext(Dispatchers.IO) {
         val job = currentCoroutineContext()
         CacheSample(measureDiskCache(context.cacheDir) { job.ensureActive() }, model.previewCacheBytes(),
-          System.currentTimeMillis(), model.appleDownloadCacheBytes())
+          System.currentTimeMillis(), model.appleDownloadCacheBytes(), model.perfectDownloadCacheBytes())
       }
       reading = false
     }
@@ -65,7 +65,7 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int) {
         current == null || !current.disk.complete -> stringResource(R.string.cache_incomplete)
         else -> stringResource(R.string.cache_measured_at, DateFormat.getTimeFormat(context).format(Date(current.capturedAt)))
       }, onClick = { refresh++ },
-      endActions = { Text(current?.let { size(it.disk.total + it.appleBytes) } ?: "—", color = MiuixTheme.colorScheme.primary) })
+      endActions = { Text(current?.let { size(it.disk.total + it.appleBytes + it.perfectBytes) } ?: "—", color = MiuixTheme.colorScheme.primary) })
     if (current != null) {
       listOf(
         CacheBucket.CURRENT_ICONS to R.string.cache_current_icons,
@@ -79,6 +79,9 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int) {
       BasicComponent(title = stringResource(R.string.apple_download_cache),
         summary = stringResource(R.string.apple_cache_manage_hint),
         endActions = { Text(size(current.appleBytes), color = MiuixTheme.colorScheme.onSurfaceSecondary) })
+      BasicComponent(title = stringResource(R.string.cache_perfect_downloads),
+        summary = stringResource(R.string.cache_perfect_manage_hint),
+        endActions = { Text(size(current.perfectBytes), color = MiuixTheme.colorScheme.onSurfaceSecondary) })
       BasicComponent(title = stringResource(R.string.cache_memory), summary = stringResource(R.string.cache_memory_summary),
         endActions = { Text(size(current.memory), color = MiuixTheme.colorScheme.onSurfaceSecondary) })
     }

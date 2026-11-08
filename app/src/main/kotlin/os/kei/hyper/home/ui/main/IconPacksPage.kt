@@ -129,6 +129,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           stringResource(R.string.pack_imported_summary), { onNavigate("imported") }) }
         item("apple") { PackNavigationCard(stringResource(R.string.apple_pack_title),
           stringResource(R.string.apple_pack_summary), { onNavigate("apple") }) }
+        item("perfect") { PackNavigationCard(stringResource(R.string.perfect_icons_title),
+          stringResource(R.string.perfect_icons_library_summary), { onNavigate("perfect") }) }
       }
       "builtin" -> {
         item("coloros") { PackNavigationCard("ColorOS", stringResource(R.string.pack_coloros_summary),
@@ -414,7 +416,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
 
 @Composable
 internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, repository: IconPackPreviewRepository,
-  appearance: IconPackAppearance, modifier: Modifier, compact: Boolean = false) {
+  appearance: IconPackAppearance, modifier: Modifier, compact: Boolean = false, distinctOnly: Boolean = false) {
   val configuration = LocalConfiguration.current.toString()
   val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration, compact) {
     produceState<IconPackPreviews?>(null) { value = repository.load(pack, entry, if (compact) 96 else 144) }
@@ -429,7 +431,9 @@ internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, reposi
     } else null
   }
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    listOf(light to false, dark to true).forEach { (bitmap, isDark) ->
+    val appearances = if (distinctOnly && entry.light == entry.dark) listOf(light to false)
+      else listOf(light to false, dark to true)
+    appearances.forEach { (bitmap, isDark) ->
       Box(Modifier.size(if (compact) 32.dp else 50.dp).clip(RoundedCornerShape(if (compact) 8.dp else 12.dp))
         .background(if (isDark) Color(0xff232428) else Color(0xfff0f1f4)), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),

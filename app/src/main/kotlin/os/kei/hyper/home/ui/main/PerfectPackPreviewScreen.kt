@@ -116,7 +116,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
             }
             pack?.let { current ->
               current.entries.firstOrNull { !it.quietSnapshot && it.light != null }?.let { sample ->
-                PackIconPair(current, sample, 58.dp, 3.dp, distinctOnly = true)
+                PackIconPair(current, sample, vm.packPreviews, IconPackAppearance.SYSTEM,
+                  Modifier.width(58.dp), distinctOnly = true)
               }
             }
           }

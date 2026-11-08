@@ -179,3 +179,70 @@ An initial preflight probe timed out during host build load; after the build,
 the SystemUI main thread was observed in normal epoll wait and a complete
 health preflight passed. Failed preflights did not install an APK and their
 evidence was retained separately.
+
+## Follow-up: calendar rules and folder-cover snapshots
+
+The follow-up evidence is under
+`.artifacts/research/native-zip-20261108/followup/acceptance.json`.
+This checkpoint changes a development repair tool and an optional repaired
+resource archive; it does not change the module's native or Java runtime.
+The already accepted signed Release remains `1.5.0+gd9460fb.b0308`.
+
+### Calendar weekday correction is specific to the supplied artwork
+
+Both retained Rust MAML runtimes publish `day_of_week` as Sunday=1 through
+Saturday=7. The supplied archive's `calendar_bg_1.png` through
+`calendar_bg_7.png` instead contain Monday through Sunday. Its two calendar
+manifests use `#day_of_week-1==0` to select image 1, producing Monday artwork
+on Sunday. This is an authored expression/artwork mismatch, not an import
+rewrite or evidence that the native weekday variable needs a global patch.
+
+`scripts/repair-native-calendar-weekdays.py` requires the caller to explicitly
+confirm Monday-first artwork and select calendar packages. It recognizes only
+the complete paired seven-predicate layout used by this source, rejects
+incomplete/ambiguous layouts, preserves every other entry, and never overwrites
+the input or an existing output. It is not an automatic import transformation:
+unrelated themes can intentionally use different weekday artwork conventions.
+
+For this source:
+
+```bash
+python3 scripts/repair-native-calendar-weekdays.py \
+  /Users/voyager/Downloads/icons.zip \
+  .artifacts/research/native-zip-20261108/followup/icons-calendar-fixed.zip \
+  --calendar-package com.android.calendar \
+  --calendar-package com.xiaomi.calendar \
+  --confirm-monday-first-artwork
+```
+
+The repaired archive changes only these two manifests' 14 weekday predicates
+each. Date expressions, light/dark conditions, hands, images, and other
+animations remain intact. Read-back of the actually applied system archive
+matched all 2,496 source files against the repaired archive. Phone AVD
+screenshots on Sunday November 8 show the correct Sunday/date artwork in both
+appearances and the clock hands advancing. Seven-day predicate coverage and
+archive preservation are covered by four Python regression tests; no device
+clock was changed to simulate the other six days.
+
+### Folder covers remain a separate native cache limitation
+
+The follow-up reproduced a dark-to-light switch where the expanded folder's
+icons were already light but its unopened cover retained dark thumbnails.
+Opening and closing the folder updated that cover. Disassembly distinguishes
+`MamlIconCache.getSnapshot` / `prepareSnapshotSync` and
+`FolderIconGetxController.prepareMamlIconSnapshot` /
+`updateMamlIconSnapshot` from the live icon content. This localizes the
+observed lag to the cover snapshot path; it does not prove the complete
+invalidation cause or a safe universal fix.
+
+No polling, repeated theme application, forced activity reconstruction, or
+global cache bypass was introduced to mask that issue. The stale-cover case
+remains unresolved and must not be described as fixed by the calendar repair
+or ZIP import support. A future native correction needs to authenticate the
+snapshot ownership/disposal and post-render timing contracts.
+
+Acceptance used only `emulator-5580`; Launcher PID 9500, system_server 8660,
+and SystemUI 9494 retained their original parent/start identities. The existing
+ColorOS Classic ART+ theme and dark mode were restored afterward. No physical
+device, core-process restart, APK reinstall, or native activation was used in
+this follow-up.

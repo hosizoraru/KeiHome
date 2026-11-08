@@ -15,6 +15,7 @@ import java.lang.reflect.Modifier
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.WeakHashMap
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.data.ThemeEffectsPreferences
@@ -30,9 +31,12 @@ internal class SystemUiThemeCompatibilityRuntime(
 ) {
   private val lifecycle = ThemeCompatibilityLifecycle()
   private val workers = mutableListOf<Thread>()
+  private val diagnosticQueue = ArrayBlockingQueue<Pair<String, Throwable>>(8)
+  private val diagnosticsScheduled = AtomicBoolean()
   private val scheduled = Collections.newSetFromMap(IdentityHashMap<ClassLoader, Boolean>())
   private val handles = mutableListOf<XposedInterface.HookHandle>()
-  private val preferenceLock = Any()
+  private val installing = mutableSetOf<Pair<Method, String>>()
+  private val preferencesInitializing = AtomicBoolean()
   private val enabled = AtomicBoolean()
   private val splashEnabled = AtomicBoolean(SplashAppearancePreferences.DEFAULT)
   private val materialRevision = AtomicLong(1L)
@@ -42,26 +46,26 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val sliderRevisions = WeakHashMap<Any, Long>()
   private val pendingTiles = WeakHashMap<Any, WeakReference<Any>>()
   private val tileOwners = WeakHashMap<Any, WeakReference<Any>>()
-  private val refreshFailureLogged = AtomicBoolean()
   private val restoredLogged = AtomicBoolean()
-  private val firstMaterialCall = AtomicBoolean()
+  private val preferenceGuard = optionalGuard("material preference")
+  private val splashPreferenceGuard = optionalGuard("splash preference")
   @Volatile private var preferences: SharedPreferences? = null
   @Volatile private var splashPreferences: SharedPreferences? = null
   private val splashPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == null || key == SplashAppearancePreferences.KEY) {
       if (lifecycle.enter()) try {
-        splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
-        xposed.log(Log.INFO, "KeiHomeSplash", "Neutral splash adaptation: ${splashEnabled.get()}")
+        splashEnabled.set(splashPreferenceGuard.run(false) {
+          prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT)
+        })
       } finally { lifecycle.leave() }
     }
   }
   private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == null || key == ThemeEffectsPreferences.KEY) {
       if (lifecycle.enter()) try {
-        val selected = prefs.getBoolean(ThemeEffectsPreferences.KEY, false)
+        val selected = preferenceGuard.run(false) { prefs.getBoolean(ThemeEffectsPreferences.KEY, false) }
         if (enabled.getAndSet(selected) != selected) materialRevision.incrementAndGet()
         restoredLogged.set(false)
-        xposed.log(Log.INFO, TAG, "Preserve system materials: ${enabled.get()}")
       } finally { lifecycle.leave() }
     }
   }
@@ -81,12 +85,15 @@ internal class SystemUiThemeCompatibilityRuntime(
     oldHooks.filter { it.id?.startsWith(REFRESH_ID_PREFIX) == true && it.id != LOADER_ID }.forEach {
       replace(it.executable as Method, requireNotNull(it.id), XposedInterface.Hooker { chain -> chain.proceed() })
     }
+    val loaderGuard = optionalGuard("plugin scheduling")
     replace(createLoader, LOADER_ID, XposedInterface.Hooker { chain ->
       if (!lifecycle.enter()) chain.proceed() else try {
         val result = chain.proceed()
-        val info = appInfo.get(chain.thisObject) as? ApplicationInfo
-        if (result is ClassLoader && info?.packageName == PLUGIN_PACKAGE) {
-          scheduleProfile(result, info.sourceDir)
+        loaderGuard.run(Unit) {
+          val info = appInfo.get(chain.thisObject) as? ApplicationInfo
+          if (result is ClassLoader && info?.packageName == PLUGIN_PACKAGE) {
+            scheduleProfile(result, info.sourceDir)
+          }
         }
         result
       } finally { lifecycle.leave() }
@@ -97,9 +104,11 @@ internal class SystemUiThemeCompatibilityRuntime(
         val prefs = xposed.getRemotePreferences(SplashAppearancePreferences.GROUP)
         prefs.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
         splashPreferences = prefs
-        splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
-        SplashBackgroundRuntime(xposed, classLoader, lifecycle, splashEnabled, ::replace).install()
-      } catch (failure: Exception) {
+        splashPreferenceListener.onSharedPreferenceChanged(prefs, SplashAppearancePreferences.KEY)
+        SplashBackgroundRuntime(xposed, classLoader, lifecycle, splashEnabled, ::replace,
+          ::reportOptionalFailure).install()
+      } catch (failure: Throwable) {
+        recoverableSystemUiFailure(failure)
         xposed.log(Log.WARN, "KeiHomeSplash", "Native splash profile unavailable; keeping system behavior", failure)
       }
       // On hot reload the plugin already exists. Read the host's live loader,
@@ -131,20 +140,17 @@ internal class SystemUiThemeCompatibilityRuntime(
       )
       val profile = profiles.material
       xposed.log(Log.INFO, TAG, "SystemUI profile descriptors: " + if (profiles.restored) "restored" else "resolved")
+      val materialGuard = optionalGuard("material capability")
       replace(profile.themedGate, MATERIAL_ID, XposedInterface.Hooker { chain ->
         if (!lifecycle.enter()) chain.proceed() else try {
           val original = chain.proceed()
-          val inspectFirstCall = firstMaterialCall.compareAndSet(false, true)
-          if (!inspectFirstCall && (original != false || !enabled.get())) original else {
+          if (original != false || !enabled.get()) original else materialGuard.run(original) {
             val context = chain.getArg(0) as Context
             val capable = profile.capabilityGate.invoke(null, profile.capabilityArgument(context)) as Boolean
-            if (inspectFirstCall) xposed.log(Log.INFO, TAG,
-              "Material gate observed: native=$original capability=$capable enabled=${enabled.get()}")
-            if (original == false && enabled.get() && capable && restoredLogged.compareAndSet(false, true)) {
-              xposed.log(Log.INFO, TAG,
-                "Restored theme-limited material; native=false capability=true; theme identity unchanged")
+            if (capable && restoredLogged.compareAndSet(false, true)) {
+              Log.i(TAG, "Restored theme-limited material; native=false capability=true; theme identity unchanged")
             }
-            if (original == false && enabled.get()) capable else original
+            if (enabled.get()) capable else original
           }
         } finally { lifecycle.leave() }
       })
@@ -179,7 +185,7 @@ internal class SystemUiThemeCompatibilityRuntime(
           profile.updateThemeResources.invoke(owner)
           children.filterNotNull().forEach { profile.dispatchMaterialModeChanged.invoke(it, mode) }
           controlCenterRevisions[owner] = revision
-          xposed.log(Log.INFO, TAG, "Control center materials refreshed at native start; revision=$revision")
+          Log.i(TAG, "Control center materials refreshed at native start; revision=$revision")
         }
       }
     })
@@ -252,68 +258,111 @@ internal class SystemUiThemeCompatibilityRuntime(
   }
 
   /** OEM calls finish first. Only our optional refresh can fail without escaping. */
-  private fun afterNative(action: (XposedInterface.Chain) -> Unit) = XposedInterface.Hooker { chain ->
-    if (!lifecycle.enter()) chain.proceed() else try {
-      val result = chain.proceed()
-      refreshOnMainThread { action(chain) }
-      result
-    } finally { lifecycle.leave() }
+  private fun afterNative(action: (XposedInterface.Chain) -> Unit): XposedInterface.Hooker {
+    val guard = optionalGuard("material refresh")
+    return XposedInterface.Hooker { chain ->
+      if (!lifecycle.enter()) chain.proceed() else try {
+        val result = chain.proceed()
+        refreshOnMainThread(guard) { action(chain) }
+        result
+      } finally { lifecycle.leave() }
+    }
   }
 
-  private fun beforeNative(action: (XposedInterface.Chain) -> Unit) = XposedInterface.Hooker { chain ->
-    if (!lifecycle.enter()) chain.proceed() else try {
-      refreshOnMainThread { action(chain) }
-      chain.proceed()
-    } finally { lifecycle.leave() }
+  private fun beforeNative(action: (XposedInterface.Chain) -> Unit): XposedInterface.Hooker {
+    val guard = optionalGuard("material refresh")
+    return XposedInterface.Hooker { chain ->
+      if (!lifecycle.enter()) chain.proceed() else try {
+        refreshOnMainThread(guard) { action(chain) }
+        chain.proceed()
+      } finally { lifecycle.leave() }
+    }
   }
 
-  private fun refreshOnMainThread(action: () -> Unit) {
+  private fun refreshOnMainThread(guard: SystemUiHookGuard, action: () -> Unit) {
     if (Looper.myLooper() != Looper.getMainLooper()) return
-    try { action() } catch (failure: Exception) {
-      if (refreshFailureLogged.compareAndSet(false, true)) {
-        xposed.log(Log.WARN, TAG, "Optional material refresh unavailable", failure)
+    guard.run(Unit, action)
+  }
+
+  private fun optionalGuard(feature: String) = SystemUiHookGuard { failure ->
+    reportOptionalFailure(feature, failure)
+  }
+
+  private fun reportOptionalFailure(feature: String, failure: Throwable) {
+    // This can run under a framework listener lock. Only local logging/enqueueing here.
+    Log.w(TAG, "Optional SystemUI $feature disabled until reload; keeping native behavior", failure)
+    if (diagnosticQueue.offer(feature to failure)) flushDiagnostics()
+  }
+
+  private fun flushDiagnostics() {
+    if (!diagnosticsScheduled.compareAndSet(false, true)) return
+    try {
+      launchOwned {
+        try {
+          while (true) {
+            val (feature, failure) = diagnosticQueue.poll() ?: break
+            try {
+              xposed.log(Log.WARN, TAG, "Optional $feature disabled until reload; keeping native behavior", failure)
+            } catch (reportFailure: Throwable) {
+              recoverableSystemUiFailure(reportFailure)
+              Log.w(TAG, "Framework diagnostic delivery unavailable", reportFailure)
+            }
+          }
+        } finally {
+          diagnosticsScheduled.set(false)
+          if (diagnosticQueue.isNotEmpty()) flushDiagnostics()
+        }
       }
+    } catch (reportFailure: Throwable) {
+      diagnosticsScheduled.set(false)
+      recoverableSystemUiFailure(reportFailure)
     }
   }
 
   private fun installVolumeRefresh(profile: VolumeMaterialRefreshProfile) {
-    replace(profile.show, VOLUME_REFRESH_ID, XposedInterface.Hooker { chain ->
-      if (!lifecycle.enter()) chain.proceed() else try {
-        val owner = chain.thisObject
-        val revision = materialRevision.get()
-        // showH runs on the native main Handler. Its own reInit branch waits
-        // until the dialog is neither showing nor animating before rebuilding.
-        if (owner != null && volumeRevisions[owner] != revision) {
-          try {
-            profile.reinitializeFlag.setBoolean(owner, true)
-            volumeRevisions[owner] = revision
-          } catch (failure: ReflectiveOperationException) {
-            xposed.log(Log.WARN, TAG, "Volume material refresh unavailable", failure)
-          }
-        }
-        chain.proceed()
-      } finally { lifecycle.leave() }
+    replace(profile.show, VOLUME_REFRESH_ID, beforeNative { chain ->
+      val owner = chain.thisObject ?: return@beforeNative
+      val revision = materialRevision.get()
+      // The native showH reInit branch waits until the dialog is not animating.
+      if (volumeRevisions[owner] != revision) {
+        profile.reinitializeFlag.setBoolean(owner, true)
+        volumeRevisions[owner] = revision
+      }
     })
     xposed.log(Log.INFO, TAG, "Volume materials refresh at the native next-show boundary")
   }
 
-  private fun initializePreferences() = synchronized(preferenceLock) {
-    if (preferences != null) return@synchronized
-    val prefs = xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP)
-    prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
-    preferences = prefs
-    enabled.set(prefs.getBoolean(ThemeEffectsPreferences.KEY, false))
+  private fun initializePreferences() {
+    if (!preferencesInitializing.compareAndSet(false, true)) return
+    try {
+      if (preferences != null) return
+      // Acquiring the initial remote snapshot may use Binder; hold no module monitor.
+      val prefs = xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP)
+      prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
+      preferences = prefs
+      preferenceListener.onSharedPreferenceChanged(prefs, ThemeEffectsPreferences.KEY)
+    } finally {
+      preferencesInitializing.set(false)
+    }
   }
 
   /** No parsing, provider access or waiting on a configuration/UI callback. */
   private fun launchOwned(action: () -> Unit) {
     if (!lifecycle.enter()) return
-    val thread = Thread({
-      try { action() }
-      catch (failure: Throwable) {
-        xposed.log(Log.WARN, TAG, "Material compatibility unavailable; keeping native behavior", failure)
-      } finally { lifecycle.leave() }
-    }, "KeiHomeMaterialProfile").apply { isDaemon = true }
+    val thread = try {
+      Thread({
+        try {
+          android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+          action()
+        } catch (failure: Throwable) {
+          recoverableSystemUiFailure(failure)
+          Log.w(TAG, "Material compatibility unavailable; keeping native behavior", failure)
+        } finally { lifecycle.leave() }
+      }, "KeiHomeMaterialProfile").apply { isDaemon = true }
+    } catch (failure: Throwable) {
+      lifecycle.leave()
+      throw failure
+    }
     synchronized(workers) {
       workers.removeAll { it.state == Thread.State.TERMINATED }
       workers += thread
@@ -325,27 +374,46 @@ internal class SystemUiThemeCompatibilityRuntime(
     }
   }
 
-  fun retire(saveState: () -> Unit): Boolean = lifecycle.retire(
-    workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
-  ) {
-    preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
-    splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
-    try { saveState() } catch (failure: Throwable) {
-      preferences?.registerOnSharedPreferenceChangeListener(preferenceListener)
-      splashPreferences?.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
-      throw failure
+  fun retire(saveState: () -> Unit): Boolean {
+    val retired = lifecycle.retire(
+      workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
+    ) {
+      try {
+        preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
+        saveState()
+      } catch (failure: Throwable) {
+        preferences?.registerOnSharedPreferenceChangeListener(preferenceListener)
+        splashPreferences?.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
+        throw failure
+      }
+      preferences = null
+      splashPreferences = null
     }
-    preferences = null
-    splashPreferences = null
+    if (!retired) {
+      // A callback rejected during a failed retirement must not leave live settings stale.
+      preferences?.let { preferenceListener.onSharedPreferenceChanged(it, null) }
+      splashPreferences?.let { splashPreferenceListener.onSharedPreferenceChanged(it, null) }
+    }
+    return retired
   }
 
   private fun replace(method: Method, id: String, hooker: XposedInterface.Hooker) {
-    synchronized(handles) {
-      val previous = handles.singleOrNull { it.id == id && it.executable == method }
+    val key = method to id
+    val previous = synchronized(handles) {
+      if (!installing.add(key)) return
+      handles.singleOrNull { it.id == id && it.executable == method }
+    }
+    try {
+      // Hook publication belongs to the framework; do not hold our handle monitor.
       val installed = if (previous == null) xposed.hook(method).setId(id).intercept(hooker)
         else previous.replaceHook(hooker)
-      handles.remove(previous)
-      handles += installed
+      synchronized(handles) {
+        handles.remove(previous)
+        handles += installed
+      }
+    } finally {
+      synchronized(handles) { installing.remove(key) }
     }
   }
 
@@ -383,17 +451,29 @@ internal class ThemeCompatibilityLifecycle {
 
   fun leave() = synchronized(lock) { check(active > 0); active-- }
 
-  fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean = synchronized(lock) {
-    if (retired) return@synchronized true
-    if (retiring || active != 0 || !workersStopped()) return@synchronized false
-    retiring = true
+  fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean {
+    synchronized(lock) {
+      if (retired) return true
+      if (retiring || active != 0) return false
+      retiring = true
+    }
+    var complete = false
     try {
+      if (!workersStopped()) return false
+      // Framework listener removal can wait for a Binder callback which calls enter().
+      // Close admission first, then clean up without holding the admission monitor.
       saveState()
-      retired = true
-      true
-    } catch (_: Throwable) {
-      false
-    } finally { retiring = false }
+      complete = true
+      return true
+    } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+      return false
+    } finally {
+      synchronized(lock) {
+        if (complete) retired = true
+        retiring = false
+      }
+    }
   }
 }
 

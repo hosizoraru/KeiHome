@@ -17,10 +17,10 @@ internal class SplashBackgroundRuntime(
   private val lifecycle: ThemeCompatibilityLifecycle,
   private val enabled: AtomicBoolean,
   private val replace: (Method, String, XposedInterface.Hooker) -> Unit,
+  private val reportFailure: (String, Throwable) -> Unit,
 ) {
   private data class Request(val context: Context, val drawer: Any, val protectedSurface: Boolean)
   private val request = ThreadLocal<Request>()
-  private val failureLogged = AtomicBoolean()
   private val appliedLogged = AtomicBoolean()
 
   fun install() {
@@ -58,12 +58,16 @@ internal class SplashBackgroundRuntime(
       }
       return false
     }
+    val requestGuard = guard("request")
     replace(make, "$PREFIX.request", XposedInterface.Hooker { chain ->
-      if (!lifecycle.enter()) chain.proceed() else {
+      if (!enabled.get() || !lifecycle.enter()) chain.proceed() else {
         val previous = request.get()
         try {
-          request.set(Request(chain.getArg(0) as Context, requireNotNull(chain.thisObject),
-            (chain.getArg(2) as Int) == 4 || snapshot.get(chain.getArg(1)) != null))
+          val current = requestGuard.run<Request?>(null) {
+            Request(chain.getArg(0) as Context, requireNotNull(chain.thisObject),
+              (chain.getArg(2) as Int) == 4 || snapshot.get(chain.getArg(1)) != null)
+          }
+          if (current == null) request.remove() else request.set(current)
           chain.proceed()
         } finally {
           if (previous == null) request.remove() else request.set(previous)
@@ -90,17 +94,18 @@ internal class SplashBackgroundRuntime(
     xposed.log(Log.INFO, TAG, "Native Shell splash background profile ready; enabled=${enabled.get()}")
   }
 
-  private fun nativeResult(action: (Any?) -> Any?) = XposedInterface.Hooker { chain ->
-    if (!lifecycle.enter()) chain.proceed() else try {
-      val original = chain.proceed()
-      if (!enabled.get()) original else try { action(original) }
-      catch (failure: Exception) {
-        if (failureLogged.compareAndSet(false, true)) {
-          xposed.log(Log.WARN, TAG, "Splash adaptation unavailable; keeping native result", failure)
-        }
-        original
-      }
-    } finally { lifecycle.leave() }
+  private fun nativeResult(action: (Any?) -> Any?): XposedInterface.Hooker {
+    val guard = guard("color")
+    return XposedInterface.Hooker { chain ->
+      if (!lifecycle.enter()) chain.proceed() else try {
+        val original = chain.proceed()
+        if (!enabled.get()) original else guard.run(original) { action(original) }
+      } finally { lifecycle.leave() }
+    }
+  }
+
+  private fun guard(feature: String) = SystemUiHookGuard { failure ->
+    reportFailure("splash $feature", failure)
   }
 
   private fun adapt(context: Context, color: Int): Int {
@@ -108,7 +113,7 @@ internal class SplashBackgroundRuntime(
       Configuration.UI_MODE_NIGHT_YES
     val adapted = SplashBackgroundPolicy.adapt(color, night)
     if (adapted != color && appliedLogged.compareAndSet(false, true)) {
-      xposed.log(Log.INFO, TAG,
+      Log.i(TAG,
         "Adapted neutral splash ${context.packageName}: ${color.toUInt().toString(16)} -> ${adapted.toUInt().toString(16)}")
     }
     return adapted

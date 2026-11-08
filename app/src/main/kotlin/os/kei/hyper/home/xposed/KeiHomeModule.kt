@@ -129,7 +129,12 @@ class KeiHomeModule : XposedModule() {
   ) {
     val runtime = SystemUiThemeCompatibilityRuntime(this, loader)
     systemUiTheme = runtime
-    runtime.install(oldHooks)
+    try {
+      runtime.install(oldHooks)
+    } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+      android.util.Log.w("KeiHomeMaterial", "SystemUI adaptation unavailable; keeping native behavior", failure)
+    }
   }
 
   private fun findSystemUiClassLoader(preferred: List<ClassLoader>): ClassLoader? =

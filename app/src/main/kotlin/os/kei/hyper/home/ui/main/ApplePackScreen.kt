@@ -325,20 +325,19 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           bottom = insets.calculateBottomPadding() +
             maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (state.retryAtMillis > 0) item("request-cooldown") {
+        if (search && state.retryAtMillis > 0) item("request-cooldown") {
           PackInfoCard(stringResource(R.string.apple_cooldown_summary,
             android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
         }
-        if (!search && state.batchRunning) item("batch-progress") {
-          val progress = state.batchProgress
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            BasicComponent(title = stringResource(R.string.apple_batch_progress, progress?.done ?: 0, progress?.total ?: 0),
-              summary = progress?.label?.takeIf { it.isNotBlank() })
-            BasicComponent(title = stringResource(R.string.apple_batch_cancel), onClick = controller::cancelBatch)
-          }
-        }
         if (main) {
-          item("intro") { PackInfoCard(stringResource(R.string.apple_intro)) }
+          item("intro") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              PackInfoCard(stringResource(R.string.apple_intro))
+              if (state.retryAtMillis > 0) PackInfoCard(stringResource(R.string.apple_cooldown_summary,
+                android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
+              if (state.batchRunning) AppleBatchProgressCard(state, controller::cancelBatch)
+            }
+          }
           item("options") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               OverlaySpinnerPreference(title = stringResource(R.string.apple_platform), enabled = enabled,
@@ -420,14 +419,21 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
         } else if (!search) {
           item("intro") {
-            PackInfoCard(stringResource(if (matchedOnly) R.string.apple_matched_intro else R.string.apple_mapping_intro))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              PackInfoCard(stringResource(if (matchedOnly) R.string.apple_matched_intro else R.string.apple_mapping_intro))
+              if (state.retryAtMillis > 0) PackInfoCard(stringResource(R.string.apple_cooldown_summary,
+                android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
+            }
           }
           if (batchBrowser) item("batch-guidance") {
-            PackInfoCard(stringResource(R.string.apple_batch_intro, visibleEligible.size) +
-              if (selecting) "\n" + stringResource(R.string.apple_batch_selection_count,
-                selectedVisible.size, selectedBatch.size) else "")
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              PackInfoCard(stringResource(R.string.apple_batch_intro, visibleEligible.size) +
+                if (selecting) "\n" + stringResource(R.string.apple_batch_selection_count,
+                  selectedVisible.size, selectedBatch.size) else "")
+              if (state.batchRunning) AppleBatchProgressCard(state, controller::cancelBatch)
+            }
           }
-          if (batchBrowser) state.batchResult?.let { result -> item("batch-result") {
+          if (batchBrowser) state.batchResult?.takeIf { !state.batchRunning }?.let { result -> item("batch-result") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(if (state.batchRunning) R.string.apple_batch_results_running
                 else R.string.apple_batch_results),
@@ -599,6 +605,16 @@ internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.
     Text(label, style = MiuixTheme.textStyles.footnote1, maxLines = 2,
       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
       textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+  }
+}
+
+@Composable
+private fun AppleBatchProgressCard(state: ApplePackUiState, onCancel: () -> Unit) {
+  val progress = state.batchProgress
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    BasicComponent(title = stringResource(R.string.apple_batch_progress, progress?.done ?: 0, progress?.total ?: 0),
+      summary = progress?.label?.takeIf { it.isNotBlank() })
+    BasicComponent(title = stringResource(R.string.apple_batch_cancel), onClick = onCancel)
   }
 }
 

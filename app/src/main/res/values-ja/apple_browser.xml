@@ -6,11 +6,11 @@
     <string name="apple_mapping_accessibility">%1$s の対応先は %2$s。パッケージ：%3$s</string>
     <string name="apple_mapping_package_accessibility">%1$s。パッケージ：%2$s</string>
     <string name="apple_mapping_transfer">マッピングのインポートとエクスポート</string>
-    <string name="apple_mapping_export">手動マッピングをエクスポート…</string>
-    <string name="apple_mapping_import">手動マッピングをインポート…</string>
-    <string name="apple_mapping_exported">除外設定と未インストールのアプリを含む、3 つのプラットフォームの手動マッピングをエクスポートしました。</string>
-    <string name="apple_mapping_imported">%1$d 件の手動設定をインポートし、パッケージ名とプラットフォームが一致する設定を置き換えました。変更を使用するには、パックを生成して適用してください。</string>
-    <string name="apple_mapping_export_failed">手動マッピングをエクスポートできませんでした。保存先を確認して再試行してください。</string>
+    <string name="apple_mapping_export">マッピング設定をエクスポート…</string>
+    <string name="apple_mapping_import">マッピング設定をインポート…</string>
+    <string name="apple_mapping_exported">除外設定と未インストールのアプリを含む、3 つのプラットフォームに保存された自動・手動マッピングをエクスポートしました。</string>
+    <string name="apple_mapping_imported">%1$d 件を手動マッピングとして保存し、パッケージ名とプラットフォームが一致する設定を置き換えました。変更を使用するには、パックを生成して適用してください。</string>
+    <string name="apple_mapping_export_failed">マッピング設定をエクスポートできませんでした。保存先を確認して再試行してください。</string>
     <string name="apple_mapping_import_failed">マッピングをインポートできませんでした。有効な KeiHome マッピング JSON ファイル（2 MiB、10,000 件以内）を選択してください。無効または未対応のファイルは保存前に拒否されます。</string>
     <string name="apple_mapping_transfer_done">完了</string>
     <string name="apple_matched_title">一致したアイコン</string>

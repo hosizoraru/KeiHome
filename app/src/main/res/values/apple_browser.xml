@@ -6,11 +6,11 @@
     <string name="apple_mapping_accessibility">%1$s maps to %2$s. Package: %3$s</string>
     <string name="apple_mapping_package_accessibility">%1$s. Package: %2$s</string>
     <string name="apple_mapping_transfer">Mapping import and export</string>
-    <string name="apple_mapping_export">Export manual mappings…</string>
-    <string name="apple_mapping_import">Import manual mappings…</string>
-    <string name="apple_mapping_exported">Manual mappings exported for all three platforms, including exclusions and uninstalled apps.</string>
-    <string name="apple_mapping_imported">Imported %1$d manual choices. Matching package and platform choices were replaced. Generate and apply the pack to use the changes.</string>
-    <string name="apple_mapping_export_failed">Could not export manual mappings. Check the destination and try again.</string>
+    <string name="apple_mapping_export">Export mapping scheme…</string>
+    <string name="apple_mapping_import">Import mapping scheme…</string>
+    <string name="apple_mapping_exported">Saved automatic and manual mappings exported for all three platforms, including exclusions and uninstalled apps.</string>
+    <string name="apple_mapping_imported">Imported %1$d mappings as manual choices, replacing matching package and platform choices. Generate and apply the pack to use the changes.</string>
+    <string name="apple_mapping_export_failed">Could not export the mapping scheme. Check the destination and try again.</string>
     <string name="apple_mapping_import_failed">Could not import mappings. Choose a valid KeiHome mapping JSON file (up to 2 MiB, 10,000 choices). Invalid or unsupported files are rejected before saving.</string>
     <string name="apple_mapping_transfer_done">Done</string>
     <string name="apple_matched_title">Matched icons</string>

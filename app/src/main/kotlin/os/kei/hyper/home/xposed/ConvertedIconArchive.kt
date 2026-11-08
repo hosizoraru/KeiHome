@@ -13,10 +13,12 @@ import org.w3c.dom.Node
 import os.kei.hyper.home.iconpack.GeneratedIconPng
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
-/** Approves converted static PNG pairs with optional canonical local MAML, never opaque MTZs. */
+/** Scoped proofs for generated icons or validated local visual modules, never opaque MTZs. */
 internal object ConvertedIconArchive {
   const val MAX_BYTES = 256L * 1024 * 1024
-  private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")
+  const val LOCAL_NATIVE = "LOCAL_NATIVE_ICONS"
+  private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP", LOCAL_NATIVE)
+  fun supportsOrigin(origin: String): Boolean = origin in origins
   private const val DOTTED_NAME = "[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+"
   private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$DOTTED_NAME\\.png")
   private val fancyIconName = Regex("fancy_icons/($DOTTED_NAME)/(manifest\\.xml|day\\.png|night\\.png|mask\\.png|bg\\.png|" +
@@ -67,7 +69,7 @@ internal object ConvertedIconArchive {
                 require(copied == entry.size)
               } }
               require(digest(nested) == hashes)
-              validateIcons(nested)
+              if (origin == LOCAL_NATIVE) LocalNativeIconValidator.validate(nested) else validateIcons(nested)
             } finally { check(nested.delete()) { "Could not remove converted validation copy" } }
             icons = hashes
           }

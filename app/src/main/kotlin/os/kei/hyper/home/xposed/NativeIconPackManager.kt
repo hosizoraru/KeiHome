@@ -59,7 +59,7 @@ internal object NativeIconPackManager {
     val retainedStagePath: String? = null,
     /** Null for native imports; converted imports keep their success even if approval fails. */
     val convertedReady: Boolean? = null,
-    /** Present only after static-PNG validation and successful native converted registration. */
+    /** Present only after origin-specific archive validation and native proof registration. */
     val convertedProof: ConvertedIconArchive.Proof? = null,
   )
 

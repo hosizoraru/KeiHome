@@ -325,7 +325,7 @@ internal object ConvertedImportProofReceipt {
   }
 
   private fun valid(proof: ConvertedIconArchive.Proof): Boolean =
-    proof.origin in setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP") &&
+    ConvertedIconArchive.supportsOrigin(proof.origin) &&
       listOf(proof.archive, proof.icons).all {
         it.sha1.matches(Regex("[0-9a-f]{40}")) && it.sha256.matches(Regex("[0-9a-f]{64}"))
       }

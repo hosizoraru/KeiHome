@@ -273,7 +273,7 @@ internal data class ConvertedIconValidationRegistration(
     require(localId.length in 1..128 && localId.isNotBlank() && localId.none(Char::isISOControl)) {
       "Invalid converted local ID"
     }
-    require(proof.origin == "CONVERTED_APK" || proof.origin == "CONVERTED_CLASSIC_ZIP")
+    require(ConvertedIconArchive.supportsOrigin(proof.origin))
     require(listOf(proof.archive, proof.icons).all {
       HEX_40.matches(it.sha1) && HEX_64.matches(it.sha256)
     }) { "Invalid converted import digests" }

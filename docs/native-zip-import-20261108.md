@@ -94,11 +94,11 @@ light/dark transitions. This exposed a failure **after successful import**:
   `/data/system/theme/icons` remained
   `b1b6c7c428918497a99a177dbfc84e0d1c99d5c04955d79fc27778b400ffcb19`.
 
-Source inspection distinguishes the paths: `IconPackHandoffs.prepare` assigns
+At that baseline, source inspection distinguished the paths: `IconPackHandoffs.prepare` assigned
 `CONVERTED_APK`/`CONVERTED_CLASSIC_ZIP` only to generated APK/classic-ZIP
 conversions. Native MIUI modules retain their resources and have no converted
 origin. `ConvertedIconArchive` intentionally accepts only validated generated
-resources, not arbitrary native MAML. Thus this sample does not receive that
+resources, not arbitrary native MAML. Thus this sample did not receive that
 converted-resource approval and remains subject to normal native rights checks.
 This explains the current path without proving the original reporting user's
 failure has the same cause.
@@ -113,3 +113,67 @@ Evidence is in `.artifacts/research/native-zip-20261108/day-night/`, including
 the Apply log excerpt, provider identity, source/active archive hash comparison,
 screenshots, and `acceptance.json`. The temporary baseline archive was removed
 after its hash comparison; the existing active theme did not need restoration.
+
+## Local visual-module adaptation
+
+Standalone `MIUI_ICONS` imports now use the distinct `LOCAL_NATIVE_ICONS`
+origin. Full MTZ themes retain their existing handling. Origin alone is not an
+approval: both native resource registration and subsequent application retain
+the existing caller, user, token, resource/parent association, file identity,
+and SHA-1/SHA-256 verification.
+
+`LocalNativeIconValidator` checks the standalone archive with the original
+ZIP/CRC/expansion/path/XML limits, then admits only local PNG/WebP artwork,
+bounded transform XML, and the supported visual MAML vocabulary. This includes
+day/night image selectors, date updates, visual animation commands, and a small
+set of clock/configuration broadcasts. File/network/provider binders, external
+references, arbitrary commands, store metadata and other theme components do
+not qualify. The module's appended Settings-based selectors qualify only if
+they exactly match the existing generated templates. PNG chunks and static
+WebP containers are validated by content even when a filename is misleading.
+
+This is an import-time check on existing workers, not a new renderer or a
+per-frame task. No native payload, OEM version gate, global rights override,
+new service, polling loop, or wallpaper/Monet policy was added.
+
+### AVD acceptance
+
+The signed development Release 304 passed normal API 102 Java reload with
+the same Launcher, SystemUI, system_server and Themes identities. Its native
+payload was identical to formal Release 296.
+
+Updating the imported sample through its existing catalog action then:
+
+- Completed native application automatically, with no purchase/download step.
+- Changed the active component to `0c81b00d-1eec-4936-9ffb-a05b7518a94d`,
+  title `KeiHome-import-probe.zip`.
+- Preserved all 2,496 original files byte-for-byte in the actually applied icons
+  archive, including all supplied MAML.
+- Updated desktop and Dock artwork through dark -> light -> dark -> light.
+- Kept light artwork after opening Settings from its actual Dock icon and
+  returning Home.
+- Showed correct light artwork inside the system-tools folder.
+
+There is a remaining native cache boundary: the large folder's unopened cover
+initially retained its old dark thumbnails after a light-mode switch. Opening
+the folder refreshed them; subsequent light/dark transitions updated the cover.
+The initial unopened-cover case is **not fixed by this application adaptation**.
+No periodic redraw or forced Launcher restart was added to hide it.
+
+The original ColorOS Classic ART+ component was reapplied through native Themes
+after testing, and dark mode was restored. No physical device was used.
+Final clean-build version and receipts are recorded in
+`.artifacts/research/native-zip-20261108/local-apply/acceptance.json`.
+
+### Validation
+
+87 focused JVM tests passed, including the supplied archive, existing generated
+conversion/registration/receipt cases, visual-MAML admission, malformed images,
+unknown origins, external references, nonvisual commands, inappropriate
+broadcasts, store metadata, and tampered generated Settings binders. Signed
+Release assembly and `lintRelease` passed.
+
+An initial preflight probe timed out during host build load; after the build,
+the SystemUI main thread was observed in normal epoll wait and a complete
+health preflight passed. Failed preflights did not install an APK and their
+evidence was retained separately.

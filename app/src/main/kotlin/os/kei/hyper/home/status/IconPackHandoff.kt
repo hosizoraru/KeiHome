@@ -204,6 +204,8 @@ internal object IconPackHandoffs {
           os.kei.hyper.home.iconpack.IconPackFormat.INSTALLED_APK,
           os.kei.hyper.home.iconpack.IconPackFormat.APK -> "CONVERTED_APK"
           os.kei.hyper.home.iconpack.IconPackFormat.CLASSIC_ZIP -> "CONVERTED_CLASSIC_ZIP"
+          os.kei.hyper.home.iconpack.IconPackFormat.MIUI_ICONS ->
+            os.kei.hyper.home.xposed.ConvertedIconArchive.LOCAL_NATIVE
           else -> null
         })
       }

@@ -231,7 +231,7 @@ internal class ConvertedIconGrants(
       repeat(rows.length()) { index ->
         val row = rows.getJSONObject(index)
         val origin = row.getString("origin")
-        require(origin == "CONVERTED_APK" || origin == "CONVERTED_CLASSIC_ZIP")
+        require(ConvertedIconArchive.supportsOrigin(origin))
         fun hash(key: String, length: Int): String = row.getString(key).also {
           require(it.matches(Regex("[0-9a-f]{$length}")))
         }

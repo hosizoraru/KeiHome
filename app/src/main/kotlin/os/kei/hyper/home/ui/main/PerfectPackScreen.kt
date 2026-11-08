@@ -66,7 +66,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
@@ -433,22 +433,19 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
       }
     }
   }
-  OverlayDialog(show = confirmDownload,
+  WindowDialog(show = confirmDownload,
     title = stringResource(R.string.perfect_icons_force_download),
+    summary = stringResource(R.string.perfect_icons_force_download_confirm),
     onDismissRequest = { confirmDownload = false }) {
-    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-      Text(stringResource(R.string.perfect_icons_force_download_confirm),
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
-          modifier = Modifier.weight(1f))
-        TextButton(stringResource(R.string.perfect_icons_force_download_proceed),
-          enabled = confirmDownload && !busy && !cooling, onClick = {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      TextButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
+        modifier = Modifier.weight(1f))
+      TextButton(stringResource(R.string.perfect_icons_force_download_proceed),
+        enabled = confirmDownload && !busy && !cooling, onClick = {
           confirmDownload = false
           vm.perfectPacks.refreshCatalog(forceDownload = true)
-          }, colors = ButtonDefaults.textButtonColorsPrimary(),
-          modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
-      }
+        }, colors = ButtonDefaults.textButtonColorsPrimary(),
+        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
     }
   }
 }

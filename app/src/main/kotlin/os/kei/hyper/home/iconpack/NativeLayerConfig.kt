@@ -1,6 +1,6 @@
 package os.kei.hyper.home.iconpack
 
-/** The bounded native Config schema used by PerfectIconsPacker, not executable MAML. */
+/** Bounded reader for the native Config data carried by source layer resources, not MAML. */
 internal data class NativeLayerConfig(
   val layers: List<String>,
   val quietOnly: Set<String>,

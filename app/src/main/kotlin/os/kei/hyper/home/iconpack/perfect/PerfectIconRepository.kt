@@ -25,6 +25,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 
 /** One explicit conditional codeload request per refresh; generation is entirely local. */
 class PerfectIconRepository internal constructor(
@@ -34,11 +35,13 @@ class PerfectIconRepository internal constructor(
   private val now: () -> Long = System::currentTimeMillis,
   private val limits: PerfectIconZipLimits = PerfectIconZipLimits(),
   private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+  private val nativeMask: () -> String? = { null },
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
     PerfectIconUrlConnection(),
     MmkvSettings(context.applicationContext),
+    nativeMask = { NativeAdaptiveIconMask.load()?.pathData },
   )
 
   private val mutex = locks.getOrPut(root.absolutePath) { Mutex() }
@@ -115,7 +118,8 @@ class PerfectIconRepository internal constructor(
       }
       coroutine.ensureActive()
       PerfectIconFormat.validate(plan) { blob -> coroutine.ensureActive(); blobFile(blob.sha).readBytes() }
-      val file = publish(snapshot, options, plan)
+      val transform = HyperOs4IconModule.transform(plan.dynamicIds.isNotEmpty(), nativeMask())
+      val file = publish(snapshot, options, plan, transform)
       trimBlobs(unique.map { it.sha }.toSet())
       PerfectIconResult(file, (plan.staticIds + plan.dynamicIds).size, plan.staticIds.size,
         plan.dynamicIds.size, extracted, reused, snapshot.revision)
@@ -130,7 +134,8 @@ class PerfectIconRepository internal constructor(
       val snapshot = localSnapshot() ?: throw IOException("Refresh the Perfect Icons repository before previewing")
       val style = options.style.ifEmpty { "default" }
       require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
-      val identity = "preview-v1\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit"
+      val mask = nativeMask()
+      val identity = "${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit"
       val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
       val destination = File(previewDir, "preview-${snapshot.sourceHash.take(12)}-$key.zip")
       val proof = File(previewDir, "${destination.name}.sha256")
@@ -192,7 +197,8 @@ class PerfectIconRepository internal constructor(
           return requireNotNull(files[blob.sha]).readBytes()
         }
         PerfectIconFormat.validate(plan, ::read)
-        writeArchive(destination, options, plan, maxFile = MAX_PREVIEW_FILE, read = ::read)
+        writeArchive(destination, plan, HyperOs4IconModule.transform(plan.dynamicIds.isNotEmpty(), mask),
+          maxFile = MAX_PREVIEW_FILE, read = ::read)
         val hash = previewHash(destination)
         atomic(proof, hash.toByteArray(Charsets.US_ASCII)) { coroutine.ensureActive() }
         // Preview retention never touches generated publications or shared blob-cache entries.
@@ -398,16 +404,17 @@ class PerfectIconRepository internal constructor(
     }
   }
 
-  private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan): File {
+  private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan, transform: ByteArray): File {
     outputDir.mkdirs()
     val identity = buildString {
+      append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
       append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
     }
     val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
     val destination = File(outputDir, "perfect-${snapshot.sourceHash.take(12)}-$key.zip")
-    writeArchive(destination, options, plan) { blob -> blobFile(blob.sha).readBytes() }
+    writeArchive(destination, plan, transform) { blob -> blobFile(blob.sha).readBytes() }
     // Imports own an independent copy. Keep the new publication and two prior usable outputs.
     outputDir.listFiles().orEmpty().filter { it != destination && it.name.startsWith("perfect-") && it.extension == "zip" }
       .sortedByDescending { it.lastModified() }.drop(2).forEach { it.delete() }
@@ -416,15 +423,15 @@ class PerfectIconRepository internal constructor(
 
   private suspend fun writeArchive(
     destination: File,
-    options: PerfectIconOptions,
     plan: PerfectIconPlan,
+    transform: ByteArray,
     maxFile: Long = Long.MAX_VALUE,
     read: (PerfectIconBlob) -> ByteArray,
   ) {
     val temporary = File(destination.parentFile, ".${UUID.randomUUID()}.part")
     val coroutine = currentCoroutineContext()
     val generated = mapOf(
-      "transform_config.xml" to PerfectIconFormat.transform(options.dynamic),
+      "transform_config.xml" to transform,
     )
     try {
       FileOutputStream(temporary).use { output ->

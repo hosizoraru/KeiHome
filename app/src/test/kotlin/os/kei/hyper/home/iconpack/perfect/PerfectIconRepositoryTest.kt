@@ -85,6 +85,44 @@ class PerfectIconRepositoryTest {
     }
   }
 
+  @Test fun nativeShapeChangesRebuildDerivedOutputsWithoutDownloadingTheSourceAgain() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    var mask = "M 0 0 L 100 0 L 100 100 Z"
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, nativeMask = { mask })
+    repo.catalog(refresh = true)
+    val options = PerfectIconOptions(dynamic = true)
+    val first = repo.generate(options, setOf("third.party")) {}
+    val firstPreview = repo.previewArchive(options)
+    mask = "M 0 0 L 100 100 L 0 100 Z"
+    val second = repo.generate(options, setOf("third.party")) {}
+    val secondPreview = repo.previewArchive(options)
+    assertNotEquals(first.file, second.file)
+    assertNotEquals(firstPreview, secondPreview)
+    assertEquals(1, f.http.calls.size)
+    ZipFile(second.file).use { zip ->
+      val xml = zip.getInputStream(zip.getEntry("transform_config.xml")).reader().readText()
+      assertTrue(xml.contains(mask))
+      assertTrue(xml.contains("name=\"UseDynamicIcon\" value=\"false\""))
+    }
+  }
+
+  @Test fun dynamicFlagDescribesSelectedResourcesRatherThanTheRequestedOption() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.dynamic("com.miui.gallery")
+    f.update()
+    val repo = f.repo
+    repo.catalog(refresh = true)
+    val partial = repo.generate(PerfectIconOptions(), setOf("third.party")) {}
+    val full = repo.generate(PerfectIconOptions(installedOnly = false), emptySet()) {}
+    for ((result, expected) in listOf(partial to false, full to true)) {
+      ZipFile(result.file).use { zip ->
+        val xml = zip.getInputStream(zip.getEntry("transform_config.xml")).reader().readText()
+        assertTrue(xml.contains("name=\"UseDynamicIcon\" value=\"$expected\""))
+      }
+    }
+    assertEquals(1, f.http.calls.size)
+  }
+
   @Test fun localCatalogAndMissingSnapshotGenerationNeverUseNetwork() = runBlocking {
     val f = Fixture(temporary.newFolder())
     assertNull(f.repo.catalog())

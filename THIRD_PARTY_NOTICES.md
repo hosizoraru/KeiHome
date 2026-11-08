@@ -1,5 +1,19 @@
 # Third-party notices
 
+## Perfect Icons resources and historical research
+
+Perfect Icons source resources are acquired on demand from
+<https://github.com/pzcn/Perfect-Icons-Completion-Project>. The individual graphics
+and source resources retain their authors' rights; this is not an executable
+dependency or an inferred blanket asset license.
+
+PerfectIconsPacker (<https://github.com/YifePlayte/PerfectIconsPacker>, GPL-3.0)
+was an earlier format research reference. It is retained as historical research
+in the app's acknowledgements, not as a bundled, build or runtime dependency.
+Current native configuration output is independently specified from retained
+native/source data. See `docs/perfect-icons-provenance.md` for the implementation
+boundary and the limits of that statement.
+
 The in-App notices catalog groups the resolved dependency graph by project and
 provides upstream links and offline license texts. Exact resolved coordinates
 and versions for each build are generated into

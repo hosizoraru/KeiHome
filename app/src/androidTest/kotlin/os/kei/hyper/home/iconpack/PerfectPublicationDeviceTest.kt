@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import os.kei.hyper.home.iconpack.perfect.HyperOs4IconModule
 
 class PerfectPublicationDeviceTest {
   private fun fixture(test: suspend (IconPackRepository, File) -> Unit) = runBlocking {
@@ -28,7 +29,7 @@ class PerfectPublicationDeviceTest {
     finally { root.deleteRecursively() }
   }
 
-  private fun writePack(file: File) {
+  private fun writePack(file: File, transform: ByteArray? = null) {
     file.parentFile?.mkdirs()
     val bitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
     val pixels = try {
@@ -39,12 +40,32 @@ class PerfectPublicationDeviceTest {
       }
     } finally { bitmap.recycle() }
     ZipOutputStream(file.outputStream()).use { zip ->
+      if (transform != null) {
+        zip.putNextEntry(ZipEntry("transform_config.xml"))
+        zip.write(transform)
+        zip.closeEntry()
+      }
       for (layer in 0..1) {
         zip.putNextEntry(ZipEntry("res/drawable-xxhdpi/com.sample.perfect/$layer.png"))
         zip.write(pixels)
         zip.closeEntry()
       }
     }
+  }
+
+  @Test fun independentModuleWithTheActualStockMaskIsAdmitted() = fixture { repository, files ->
+    val mask = requireNotNull(NativeAdaptiveIconMask.load()) { "The acceptance target must expose its original stock shape" }
+    val file = File(files, "perfect-icons/generated/perfect-stock-shape.zip")
+    writePack(file, HyperOs4IconModule.transform(false, mask.pathData))
+    val result = repository.importPerfectPublication(file)
+    assertTrue(result.toString(), result is IconPackImportResult.Success)
+    assertEquals(1, (result as IconPackImportResult.Success).pack.entries.size)
+  }
+
+  @Test fun independentModuleWithoutACustomMaskIsAdmitted() = fixture { repository, files ->
+    val file = File(files, "perfect-icons/generated/perfect-native-default.zip")
+    writePack(file, HyperOs4IconModule.transform(false, null))
+    assertTrue(repository.importPerfectPublication(file) is IconPackImportResult.Success)
   }
 
   @Test fun ownedPublicationImportsWithoutRelaxingTheDocumentUriBoundary() = fixture { repository, files ->

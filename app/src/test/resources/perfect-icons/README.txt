@@ -25,7 +25,9 @@ actual static pairs and calendar/clock manifests without vendoring PNG assets.
 Set KEIHOME_TEST_PERFECT_SAMPLE to a directory containing the small real music
 layer module (config.xml and layer folders) to exercise positive real admission.
 
-Format reference:
-https://github.com/YifePlayte/PerfectIconsPacker/blob/54412bbf3ceb75fe3663de5327d0da1132bbba76/docs/THEME_FORMAT.md
-Assembler reference:
-https://github.com/YifePlayte/PerfectIconsPacker/blob/54412bbf3ceb75fe3663de5327d0da1132bbba76/app/src/main/java/io/github/perfecticons/domain/assemble/ThemeAssembler.kt
+Current destination evidence and the source/input boundary:
+docs/perfect-icons-provenance.md
+
+The previous revision of this README recorded PerfectIconsPacker's format and
+assembler as research references. That history remains in Git and in the
+provenance document; these are not current build/runtime inputs or test oracles.

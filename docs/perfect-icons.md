@@ -2,10 +2,21 @@
 
 KeiHome offers this source under Available icon packs. Resources come from
 [Perfect Icons Completion Project](https://github.com/pzcn/Perfect-Icons-Completion-Project).
-The native data format and assembly behavior were researched against
-[PerfectIconsPacker](https://github.com/YifePlayte/PerfectIconsPacker).
-KeiHome implements the integration independently and does not run either
-project's Root-module installation scripts.
+The destination is the HyperOS 4 native theme loader. Repository names such as
+`HyperOS3` and `HyperOS4` select artwork only, not OS compatibility. The app's
+minimum Android API level remains 37; native host contracts still determine
+whether the installed launcher is supported.
+
+Current output configuration is owned by `HyperOs4IconModule`. Its stock shape
+comes from the destination product theme through `NativeAdaptiveIconMask`, not
+one research device's path. Dynamic loading is enabled only when the generated
+module actually includes dynamic resources. The contract revision and shape
+participate in publication and preview identity; the complete source snapshot
+and content-addressed resources are reused.
+
+See [source and implementation provenance](perfect-icons-provenance.md) for the
+independent evidence boundary, prior reference history and resource-rights scope.
+Neither upstream installation scripts nor another project's packer are executed.
 
 ## Workflow
 

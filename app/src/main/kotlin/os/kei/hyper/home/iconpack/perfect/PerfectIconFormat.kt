@@ -21,10 +21,9 @@ internal data class PerfectIconPlan(
   val dynamicIds: Set<String>,
 )
 
-/**
- * Independent implementation of the public resource layout, not PerfectIconsPacker code.
- * https://github.com/YifePlayte/PerfectIconsPacker/blob/main/docs/THEME_FORMAT.md
- * https://github.com/YifePlayte/PerfectIconsPacker/blob/main/docs/CUSTOMIZATION.md
+/** Source-data paths and bounded validation for the pzcn repository snapshot.
+ * Static layers and resource selection are specified from retained source inputs in
+ * docs/perfect-icons-provenance.md; native destination configuration lives separately.
  */
 internal object PerfectIconFormat {
   const val MAX_BLOB = 32 * 1024 * 1024
@@ -215,13 +214,4 @@ internal object PerfectIconFormat {
     }
   }
 
-  // Field names/root follow THEME_FORMAT.md. Mask data comes from the local stock icons
-  // research fixture, not packer code: .artifacts/research/system-icon-fallback/stock-icons.zip.
-  fun transform(dynamic: Boolean): ByteArray = """<?xml version="1.0" encoding="UTF-8"?>
-<IconTransform>
-  <Config name="SupportLayerIcon" value="true"/>
-  <Config name="UseDynamicIcon" value="$dynamic"/>
-  <Config name="ConfigIconMask" value="M 0 42.7 C 0 27.7 0 20.3 2.9 14.6 C 5.5 9.5 9.5 5.5 14.6 2.9 C 20.3 0 27.7 0 42.7 0 L 57.3 0 C 72.3 0 79.7 0 85.4 2.9 C 90.5 5.5 94.5 9.5 97.1 14.6 C 100 20.3 100 27.7 100 42.7 V 57.3 C 100 72.3 100 79.7 97.1 85.4 C 94.5 90.5 90.5 94.5 85.4 97.1 C 79.7 100 72.3 100 57.3 100 H 42.7 C 27.7 100 20.3 100 14.6 97.1 C 9.5 94.5 5.5 90.5 2.9 85.4 C 0 79.7 0 72.3 0 57.3 L 0 42.7 Z"/>
-</IconTransform>
-""".toByteArray(Charsets.UTF_8)
 }

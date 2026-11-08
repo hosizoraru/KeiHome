@@ -58,12 +58,72 @@ KeiMi goes beyond callback cleanup:
   delayed tail policy; the older September audit described that policy as
   a proposal, so that dated audit must not be read as the current source.
 
-KeiHome does not currently contain the equivalent cross-generation DEX
-retirement queue or collection diagnostics. Its DexKit descriptor cache
-reduces repeated JNI initialization, but a cache hit is not proof that an
-earlier module loader/native library has been unloaded.
+KeiHome now has its own loader ledger and retirement maintenance owner,
+described below. It deliberately does not copy KeiMi's DEX-close queue or
+its GC-hint policy. Its DexKit descriptor cache reduces repeated JNI
+initialization, but a cache hit is not proof that an earlier module
+loader/native library has been unloaded.
 
-## Follow-up evidence boundary
+## Implemented handoff and maintenance
+
+`ModuleReloadState` wraps the existing host payload in a versioned
+`Object[]`. It reads older plain-loader/null handoffs as before, rejects
+missing/corrupt history in a recognized new envelope, and refuses to
+export its own loader, a child of it, or a module runtime object.
+
+`RetiredGenerationLedger` transfers only exact bootstrap arrays, strings,
+boxed longs and exact `WeakReference` instances. It bounds labels to 96
+characters and pending records to 16. Failed export leaves the imported
+history uncommitted, so a retry at 15 pending entries is still possible.
+Concurrent retirement requests reject promptly. Repeated successful
+retirement exports the same accepted envelope.
+
+The journal reports `pending`, `weakCleared` and `oldestAgeMs`, using the
+same process's monotonic clock. Weak clearing is **not** reported as DEX
+close, native unload, completed ART GC or reduced PSS. At the pending cap,
+reload rejects before stopping the current runtime. Cleared references
+are pruned on the next lifecycle event; there is no periodic collector.
+
+After adoption, the successor performs one finite maintenance task:
+
+- Inspect Parcel's two creator caches for keys belonging to retired
+  loaders, under the platform's common cache lock. Report them as
+  `parcelBucketsDeferred`; **do not delete them**. AOSP resolves creators
+  outside that lock and later writes into the bucket, so locking only
+  during deletion does not prove an in-flight decoder has finished.
+- Snapshot at most 1,024 receiver/service registration locations from the
+  current application's and system context's LoadedApk registries.
+- Outside the registry locks, materialize only Throwable backtraces that
+  actually contain a retired loader's Class frames. Preserve receiver and
+  connection registrations. Skip overridden stack-trace getters and
+  module-defined Throwable instances. Verify whether the backtrace still
+  holds the old frames afterward.
+- Unsupported platform layouts or remaining roots are reported; optional
+  cache hygiene cannot invalidate an otherwise completed handoff.
+
+Cache locks run on the successor's maintenance worker, **not** the
+framework/Binder reload callback and not under runtime admission locks.
+The worker has a platform context loader, no loop or timer, and exits
+after one bounded batch. Before retiring that generation, wait at most
+300 ms for it; if it is still active, reject before stopping the runtime.
+Do not interrupt it to force success or carry its Runnable/Thread into
+the next generation.
+
+The Launcher Java/native path is excluded. Existing native generations,
+leases and code patches are unchanged. KeiHome does not register its own
+ConnectivityManager network callbacks in these runtimes; no generic
+network cache sweep or host callback unregistration was added.
+
+Related sources:
+
+- [Parcel creator lookup and caching](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/os/Parcel.java).
+- [LoadedApk registration maps](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/app/LoadedApk.java).
+- MiuiBackGestureHook `a471042` reference checkout:
+  `HotReloadHookRuntime.onHotReloading`. Its refusal to retire during live
+  gesture/native work informed the admission ordering, rather than
+  transferring its gesture/session-specific saved state.
+
+## Acceptance and remaining evidence boundary
 
 Before adding explicit DEX-close logic, identify the actual surviving module
 loaders/DEX by content and inspect their external roots in each live host.
@@ -76,8 +136,31 @@ introduce periodic GC just to make a generation counter reach zero.
 Unregistration errors also need an explicit outcome: thread exit alone
 does not certify that the platform released the listener.
 
-The new Themes concurrency regression and shared lifecycle tests pass on
-the JVM. No APK was installed, no GC requested, and no device process was
-restarted for this source-audit checkpoint. The prior SystemUI gesture ANR
-and AVD Watchdog remain unresolved; see
+66 focused JVM tests cover the neutral wire format, corruption, cap/retry,
+concurrent admission, platform-cache preservation, owner drain and finite
+maintenance shutdown. See the receipt for the final count.
+
+On HyperOS AVD and Xiaomi 17 Pro, an independent app_process loaded a tiny
+fixture into an isolated DexClassLoader. The probe executed production
+`materializeOwnedTrace`: owned frame present before, result 1, owned
+frame absent afterward; an unrelated host Throwable was unchanged.
+This establishes that operation on the actual ART builds, not actual
+collection of a whole module generation. No GC was requested.
+
+The initial Debug deployment passed normal Java/API 102 identity checks.
+The opt-in continuous-reload instrumentation then failed before entering
+its test method: ActivityManager killed the target for a ContentProvider
+publication timeout. The AVD also recorded a system_server pre-Watchdog.
+There was no new retirement/adoption record proving those requested
+rounds ran. Preserve this as a blocked live stress test, not a passing
+reload or evidence that cache maintenance caused the timeout.
+
+The implementation was subsequently tightened to move platform cache
+work to the successor worker. Consult
+`.artifacts/research/api102-retirement-20261108/acceptance.json` for exact
+build/install scope, evidence and limitations. The physical phone was
+used only for the isolated ART probe, without APK installation or
+changes to its loaded hooks.
+
+The prior SystemUI gesture ANR and AVD Watchdog remain unresolved; see
 [SystemUI hook safety](systemui-hook-safety.md).

@@ -9,13 +9,22 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import android.util.Log
+import os.kei.hyper.home.BuildConfig
 
 class KeiHomeModule : XposedModule() {
   private var launcherRefresh: LauncherIconRefreshRuntime? = null
   private var themeIconImport: ThemeIconImportRuntime? = null
   private var systemUiTheme: SystemUiThemeCompatibilityRuntime? = null
+  private var processName: String = ""
+  private val reloadState = ModuleReloadState(
+    requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
+    ModulePlatformRoots::release,
+    { message -> log(Log.INFO, "KeiHomeRetirement", message) },
+  )
 
-  override fun onModuleLoaded(param: ModuleLoadedParam) = Unit
+  override fun onModuleLoaded(param: ModuleLoadedParam) {
+    processName = param.processName
+  }
 
   override fun onPackageLoaded(param: PackageLoadedParam) {
     if (!param.isFirstPackage) return
@@ -42,32 +51,33 @@ class KeiHomeModule : XposedModule() {
   }
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
-    systemUiTheme?.let { runtime ->
-      return runtime.retire { param.setSavedInstanceState(runtime.classLoader) }
-    }
-    themeIconImport?.let { runtime ->
-      return runtime.retire { param.setSavedInstanceState(runtime.classLoader) }
-    }
-    val runtime = launcherRefresh ?: return true
-    return runtime.retire {
-      try {
-        param.setSavedInstanceState(null)
-      } catch (failure: Throwable) {
-        log(Log.WARN, "KeiHomeIconRefresh", "Could not save reload state", failure)
-        throw failure
+    if (processName.substringBefore(':') == "com.miui.home") return true
+    return reloadState.retire(param::setSavedInstanceState) { publish ->
+      val ui = systemUiTheme
+      val themes = themeIconImport
+      val server = launcherRefresh
+      when {
+        ui != null -> ui.retire { publish(ui.classLoader) }
+        themes != null -> themes.retire { publish(themes.classLoader) }
+        server != null -> server.retire { publish(null) }
+        else -> { publish(null); true }
       }
     }
   }
 
   override fun onHotReloaded(param: HotReloadedParam) {
+    processName = param.processName
+    if (processName.substringBefore(':') == "com.miui.home") return
+    val savedState = reloadState.restore(param.savedInstanceState)
     if (!param.isSystemServer) {
       if (param.processName.substringBefore(':') == SystemUiThemeCompatibilityRuntime.PACKAGE_NAME) {
         val loader = findSystemUiClassLoader(
           param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader } +
-            listOfNotNull(param.savedInstanceState as? ClassLoader),
+            listOfNotNull(savedState as? ClassLoader),
         )
         if (loader != null) installSystemUiThemeHooks(loader, param.oldHookHandles)
         else log(Log.WARN, "KeiHomeSystemUiTheme", "SystemUI class loader unavailable after reload")
+        reloadState.startMaintenance()
         return
       }
       if (param.processName.substringBefore(':') == ThemeIconImportRuntime.PACKAGE_NAME) {
@@ -77,7 +87,7 @@ class KeiHomeModule : XposedModule() {
             .invoke(null) as? android.app.Application
           app?.takeIf { it.packageName == ThemeIconImportRuntime.PACKAGE_NAME }?.classLoader
         }.getOrNull()
-        val preferred = listOfNotNull(param.savedInstanceState as? ClassLoader) +
+        val preferred = listOfNotNull(savedState as? ClassLoader) +
           param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader } +
           listOfNotNull(applicationLoader, Thread.currentThread().contextClassLoader, javaClass.classLoader)
         val loader = preferred.distinct().firstOrNull {
@@ -86,6 +96,7 @@ class KeiHomeModule : XposedModule() {
         if (loader != null) installThemeImportHooks(loader, param.oldHookHandles)
         else log(Log.WARN, "KeiHomeThemeImport", "Themes class loader unavailable after reload")
       }
+      reloadState.startMaintenance()
       return
     }
 
@@ -96,10 +107,10 @@ class KeiHomeModule : XposedModule() {
         } catch (_: Throwable) {
           null
         }
-      } + listOfNotNull(param.savedInstanceState?.javaClass?.classLoader),
+      } + listOfNotNull(savedState?.javaClass?.classLoader),
     )
     if (loader != null) {
-      installSystemServerHooks(loader, param.savedInstanceState, param.oldHookHandles, true)
+      installSystemServerHooks(loader, savedState, param.oldHookHandles, true)
     } else {
       param.oldHookHandles.forEach {
         try {
@@ -111,6 +122,7 @@ class KeiHomeModule : XposedModule() {
       log(Log.WARN, "KeiHomeIconRefresh", "System-server class loader unavailable")
       launcherRefresh = LauncherIconRefreshRuntime(this)
     }
+    reloadState.startMaintenance()
   }
 
   private fun installThemeImportHooks(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList(),

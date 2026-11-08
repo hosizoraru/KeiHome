@@ -1,10 +1,12 @@
 """Fresh API 102 acknowledgements must survive LSPosed log rotation."""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import patch
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 spec = importlib.util.spec_from_file_location(
     "keihome_avd_deploy", Path(__file__).resolve().parents[1] / "deploy-hyperos-avd.py"
 )

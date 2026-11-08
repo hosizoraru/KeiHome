@@ -164,3 +164,15 @@ changes to its loaded hooks.
 
 The prior SystemUI gesture ANR and AVD Watchdog remain unresolved; see
 [SystemUI hook safety](systemui-hook-safety.md).
+
+### Follow-up: Provider startup and resumed stress acceptance
+
+The historical blocked run above is retained. The
+[publication-timeout investigation](provider-publication-timeout-20261108.md)
+adds kernel mmap-wait evidence, startup phase logging, deferred ProfileInstaller
+initialization and an explicit ART preparation/health gate for development
+instrumentation. Subsequent AVD runs entered all four device tests and completed
+two rounds on each of the three Java hosts. Their machine-readable receipt is
+`.artifacts/research/provider-timeout-20261108/acceptance.json`.
+These passing same-process handoffs do not certify collection/unmapping of
+every old generation or resolve the initiating cause of the earlier kernel stall.

@@ -12,6 +12,7 @@ import re
 import shlex
 import subprocess
 import time
+from hyperos_avd_health import check_health
 
 ROOT = Path(__file__).resolve().parents[1]
 SERIAL = "emulator-5580"
@@ -98,6 +99,7 @@ def main():
     args.evidence.mkdir(parents=True, exist_ok=True)
     if "KeiOS_HyperOS4_Phone" not in adb("emu", "avd", "name").splitlines():
         raise RuntimeError("The selected serial is not the authorized HyperOS AVD")
+    check_health(args.evidence)
     sdk = next(line.split("=", 1)[1] for line in (ROOT / "local.properties").read_text().splitlines()
                if line.startswith("sdk.dir="))
     aapt = Path(sdk) / "build-tools/37.0.0/aapt2"

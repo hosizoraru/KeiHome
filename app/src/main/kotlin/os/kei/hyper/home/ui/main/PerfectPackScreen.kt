@@ -149,7 +149,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           onRefresh = { if (!busy && !cooling) vm.perfectPacks.refreshCatalog() },
           onOpen = { onNavigate("perfect-sources") },
           actionLabel = stringResource(R.string.perfect_icons_sources_storage),
-          environmentSummary = catalog?.let { catalogSummary(it) },
+          footer = catalog?.let { catalogSummary(it) },
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag("icon-packs.perfect.status"),
           badgeContent = if (catalog == null) null else { color ->

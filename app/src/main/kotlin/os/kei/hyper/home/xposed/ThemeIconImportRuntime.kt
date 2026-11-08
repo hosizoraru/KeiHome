@@ -309,27 +309,12 @@ internal class ThemeIconImportRuntime(
 
 /** Counts hook callbacks and delegated Binder calls; commit closes admission atomically. */
 internal class ThemeIconImportGate {
-  private val lock = Any()
-  private var active = 0
-  private var retiring = false
-  private var retired = false
+  private val lifecycle = ThemeCompatibilityLifecycle()
 
-  fun enter(): Boolean = synchronized(lock) {
-    if (retiring || retired) false else { active++; true }
-  }
+  fun enter(): Boolean = lifecycle.enter()
 
-  fun leave() = synchronized(lock) { check(active > 0); active-- }
+  fun leave() = lifecycle.leave()
 
-  fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean = synchronized(lock) {
-    if (retired) return@synchronized true
-    if (retiring || active != 0 || !workersStopped()) return@synchronized false
-    retiring = true
-    try {
-      saveState()
-      retired = true
-      true
-    } catch (_: Throwable) {
-      false
-    } finally { retiring = false }
-  }
+  fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean =
+    lifecycle.retire(workersStopped, saveState)
 }

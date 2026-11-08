@@ -1,5 +1,8 @@
 package os.kei.hyper.home.xposed
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -58,5 +61,28 @@ class ThemeIconImportGateTest {
     gate.leave()
     assertTrue(gate.retire(workersStopped = { !alive }) {})
     assertFalse(gate.enter())
+  }
+
+  @Test fun binderAdmissionReturnsWhileStateExportWaitsForAnExternalOwner() {
+    val gate = ThemeIconImportGate()
+    val exporting = CountDownLatch(1)
+    val release = CountDownLatch(1)
+    val executor = Executors.newFixedThreadPool(2)
+    try {
+      val retirement = executor.submit<Boolean> {
+        gate.retire {
+          exporting.countDown()
+          check(release.await(5, TimeUnit.SECONDS))
+        }
+      }
+      assertTrue(exporting.await(5, TimeUnit.SECONDS))
+      assertFalse(executor.submit<Boolean> { gate.enter() }.get(3, TimeUnit.SECONDS))
+      release.countDown()
+      assertTrue(retirement.get(5, TimeUnit.SECONDS))
+      assertFalse(gate.enter())
+    } finally {
+      release.countDown()
+      executor.shutdownNow()
+    }
   }
 }

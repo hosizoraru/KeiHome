@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,7 +33,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -47,6 +47,7 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -55,6 +56,7 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -64,6 +66,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 
 @Composable
 internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
@@ -430,16 +433,22 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
       }
     }
   }
-  if (confirmDownload) Dialog(onDismissRequest = { confirmDownload = false }) {
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      BasicComponent(title = stringResource(R.string.perfect_icons_force_download),
-        summary = stringResource(R.string.perfect_icons_force_download_confirm))
-      BasicComponent(title = stringResource(R.string.logs_cancel), onClick = { confirmDownload = false })
-      BasicComponent(title = stringResource(R.string.perfect_icons_force_download_proceed),
-        enabled = !busy && !cooling, onClick = {
+  OverlayDialog(show = confirmDownload,
+    title = stringResource(R.string.perfect_icons_force_download),
+    onDismissRequest = { confirmDownload = false }) {
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+      Text(stringResource(R.string.perfect_icons_force_download_confirm),
+        color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
+          modifier = Modifier.weight(1f))
+        TextButton(stringResource(R.string.perfect_icons_force_download_proceed),
+          enabled = confirmDownload && !busy && !cooling, onClick = {
           confirmDownload = false
           vm.perfectPacks.refreshCatalog(forceDownload = true)
-        }, modifier = Modifier.testTag("icon-packs.perfect.confirm-download"))
+          }, colors = ButtonDefaults.textButtonColorsPrimary(),
+          modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
+      }
     }
   }
 }

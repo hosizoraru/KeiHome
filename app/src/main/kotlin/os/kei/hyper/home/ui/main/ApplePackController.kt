@@ -23,11 +23,16 @@ import os.kei.hyper.home.iconpack.apple.AppleRequestException
 import os.kei.hyper.home.iconpack.apple.ApplePackSizeException
 import os.kei.hyper.home.iconpack.apple.AppleMappingTransfer
 import os.kei.hyper.home.iconpack.apple.AppleStorefrontPolicy
+import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
+import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
+import os.kei.hyper.home.iconpack.apple.AppleBatchProgress
+import os.kei.hyper.home.iconpack.apple.AppleBatchResult
 
 internal enum class ApplePackError { NETWORK, LIMITED, EMPTY, GENERATION, SIZE }
 internal enum class AppleDarkCapability { UNKNOWN, INDEPENDENT, SHARED, MISSING }
 internal data class AppleMappingRow(val target: AppleAppTarget, val app: AppleAppMatch?, val custom: Boolean,
-  val darkCapability: AppleDarkCapability = AppleDarkCapability.UNKNOWN)
+  val darkCapability: AppleDarkCapability = AppleDarkCapability.UNKNOWN,
+  val attempt: AppleMatchAttempt? = null)
 internal data class ApplePackUiState(
   val options: AppleIconOptions,
   val loading: Boolean = false,
@@ -50,6 +55,9 @@ internal data class ApplePackUiState(
   val currentPreview: AppleArtworkPreview? = null,
   val searchCountry: String = options.country,
   val previewRevision: Int = 0,
+  val batchRunning: Boolean = false,
+  val batchProgress: AppleBatchProgress? = null,
+  val batchResult: AppleBatchResult? = null,
 )
 
 /** Owned by HomeViewModel, so navigation and recomposition cannot restart a download. */
@@ -98,7 +106,7 @@ internal class ApplePackController(
     repository.setOptions(options)
     mutable.update { it.copy(options = options, rows = rows(it.rows.map { row -> row.target }, options),
       result = null, error = null, candidates = emptyList(), searched = false, searching = false,
-      pendingChanges = true, preview = null, previewing = false) }
+      pendingChanges = true, preview = null, previewing = false, batchResult = null) }
     refreshCapabilities()
   }
 
@@ -107,10 +115,14 @@ internal class ApplePackController(
     currentPreviewJob?.cancel()
     val snapshot = mutable.value
     val current = snapshot.rows.firstOrNull { it.target.packageName == target.packageName }?.app
-    searchCountryExplicit = current?.country != null
-    mutable.update { it.copy(editing = target, candidates = emptyList(), searching = false, searched = false,
+    val attempt = repository.matchAttempt(target, snapshot.options)
+      ?.takeIf { current == null && it.status == AppleMatchAttemptStatus.REVIEW }
+    searchCountryExplicit = current?.country != null || attempt != null
+    mutable.update { it.copy(editing = target, candidates = attempt?.candidates.orEmpty(),
+      searching = false, searched = attempt != null,
       error = null, preview = null, currentPreview = null, previewing = false,
-      searchCountry = AppleStorefrontPolicy.searchCountry(target.label, it.options.country, current?.country)) }
+      searchCountry = attempt?.country ?:
+        AppleStorefrontPolicy.searchCountry(target.label, it.options.country, current?.country)) }
     if (current != null) currentPreviewJob = scope.launch {
       try {
         val preview = repository.cachedPreview(current, snapshot.options)
@@ -209,6 +221,34 @@ internal class ApplePackController(
     }
   }
 
+  fun autoMatch(packageNames: Set<String>? = null) {
+    val snapshot = mutable.value
+    if (snapshot.busy || snapshot.loading || snapshot.retryAtMillis > System.currentTimeMillis()) return
+    search?.cancel()
+    currentPreviewJob?.cancel()
+    capabilitiesJob?.cancel()
+    mutable.update { it.copy(busy = true, batchRunning = true, batchProgress = null,
+      batchResult = null, searching = false, previewing = false, error = null) }
+    work = scope.launch {
+      try {
+        val result = repository.autoMatch(snapshot.rows.map { it.target }, snapshot.options, packageNames) { progress, partial ->
+          mutable.update { it.copy(batchProgress = progress, batchResult = partial) }
+        }
+        mutable.update { it.copy(batchResult = result) }
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (failure: Exception) { mutable.update { it.copy(error = failure.uiError()) }
+      } finally {
+        mutable.update { it.copy(busy = false, batchRunning = false, batchProgress = null,
+          rows = rows(it.rows.map { row -> row.target }, it.options),
+          pendingChanges = it.pendingChanges || (it.batchResult?.matched ?: 0) > 0,
+          retryAtMillis = repository.retryAtMillis()) }
+        if (reloadRequested) load() else refreshCapabilities()
+      }
+    }
+  }
+
+  fun cancelBatch() { if (mutable.value.batchRunning) work?.cancel() }
+
   fun generate(refresh: Boolean = false, onReady: ((IconPackDescriptor) -> Unit)? = null) {
     if (mutable.value.busy || mutable.value.loading) return
     search?.cancel()
@@ -251,7 +291,8 @@ internal class ApplePackController(
   }
 
   private fun rows(targets: List<AppleAppTarget>, options: AppleIconOptions) =
-    targets.map { AppleMappingRow(it, repository.match(it, options), repository.custom(it, options)) }
+    targets.map { AppleMappingRow(it, repository.match(it, options), repository.custom(it, options),
+      attempt = repository.matchAttempt(it, options)) }
 
   private fun refreshCapabilities() {
     capabilitiesJob?.cancel()

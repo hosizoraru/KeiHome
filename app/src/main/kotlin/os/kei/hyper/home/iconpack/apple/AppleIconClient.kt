@@ -176,9 +176,9 @@ internal class AppleIconClient(private val transport: AppleIconTransport = Apple
     } catch (_: Exception) { /* Persistence failure must not hide the typed HTTP failure. */ }
   }
 
-  suspend fun search(term: String, options: AppleIconOptions): List<AppleAppMatch> {
+  suspend fun search(term: String, options: AppleIconOptions, allowIdLookup: Boolean = true): List<AppleAppMatch> {
     require(term.trim().length in 1..100)
-    val direct = term.trim().matches(Regex("[0-9]{6,12}"))
+    val direct = allowIdLookup && term.trim().matches(Regex("[0-9]{6,12}"))
     val body = metadataRequest("https://itunes.apple.com/${if (direct) "lookup" else "search"}?" + query(mapOf(
       (if (direct) "id" else "term") to term.trim(), "country" to options.country,
       "entity" to options.platform.entity, "limit" to "20",

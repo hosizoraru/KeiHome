@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import os.kei.hyper.home.data.AppLocalStorage
 import os.kei.hyper.home.iconpack.IconPackArchive
@@ -45,6 +46,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
   private val generated = File(root, "generated")
   private val publication = File(root, "current.json")
   private val mutex = Mutex()
+  private val matchingMutex = Mutex()
   private val publicationLock = Any()
   private val archives = IconPackArchive()
   private val dynamicArtwork = AppleDynamicArtwork(context)
@@ -76,7 +78,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     val saved = settings.getString(mappingKey(target.packageName, options), null)
     if (saved == "-") return null
     if (saved != null) return runCatching { JSONObject(saved).match() }.getOrNull()
-    return AppleSystemMappings.defaultFor(target, options)
+    return AppleSystemMappings.defaultFor(target, options) ?: runCatching {
+      settings.getString(automaticKey(target.packageName, options), null)?.let { JSONObject(it).match() }
+    }.getOrNull()
   }
 
   fun custom(target: AppleAppTarget, options: AppleIconOptions): Boolean =
@@ -88,8 +92,17 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   suspend fun exportMappings(): ByteArray = mutex.withLock {
     withContext(Dispatchers.IO) {
-      AppleMappingTransfer.encode(AppleMappingTransfer.savedChoices(settings.allKeys().orEmpty(),
-        { settings.getString(it, null) }, options().country))
+      val options = options()
+      val automatic = settings.allKeys().orEmpty().filter { it.startsWith("automatic.") }.mapNotNull { key ->
+        runCatching {
+          val parts = key.split('.', limit = 3)
+          val app = JSONObject(checkNotNull(settings.getString(key, null))).match()
+          AppleTransferredMapping(parts[2], ApplePlatform.valueOf(parts[1]), app.country ?: options.country, app)
+        }.getOrNull()
+      }
+      AppleMappingTransfer.encode(AppleMappingTransfer.merge(automatic,
+        AppleMappingTransfer.savedChoices(settings.allKeys().orEmpty(),
+          { settings.getString(it, null) }, options.country)))
     }
   }
 
@@ -109,6 +122,93 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   fun resetMatch(target: AppleAppTarget, options: AppleIconOptions) {
     settings.remove(mappingKey(target.packageName, options))
+    settings.remove(automaticKey(target.packageName, options))
+  }
+
+  /** History is scoped to the searched storefront and label; changing either starts a new queue. */
+  fun matchAttempt(target: AppleAppTarget, options: AppleIconOptions): AppleMatchAttempt? = runCatching {
+    val raw = settings.getString(attemptKey(target, options), null) ?: return null
+    require(raw.length <= 16_384)
+    val value = JSONObject(raw)
+    require(value.getInt("schema") == 1)
+    val candidates = value.getJSONArray("candidates")
+    require(candidates.length() <= 5)
+    val time = value.getLong("time")
+    val retry = value.getLong("retry")
+    require(time > 0 && retry >= time && retry - time <= AppleAutoMatchPolicy.HISTORY_TTL_MS)
+    AppleMatchAttempt(AppleMatchAttemptStatus.valueOf(value.getString("status")), time, retry,
+      options.country, candidates.matches())
+  }.getOrNull()
+
+  suspend fun autoMatch(targets: List<AppleAppTarget>, options: AppleIconOptions,
+    packageNames: Set<String>? = null, progress: (AppleBatchProgress, AppleBatchResult) -> Unit):
+    AppleBatchResult = matchingMutex.withLock {
+    withContext(Dispatchers.IO) {
+      val now = System.currentTimeMillis()
+      val eligible = targets.distinctBy { it.packageName }.filter {
+        (packageNames == null || it.packageName in packageNames) &&
+          !custom(it, options) && match(it, options) == null
+      }
+      // Untried apps always precede expired retries, including when a selection spans many batches.
+      val queue = eligible.filter { (matchAttempt(it, options)?.retryAt ?: 0L) <= now }
+        .sortedWith(compareBy<AppleAppTarget> { matchAttempt(it, options) != null }
+          .thenBy { matchAttempt(it, options)?.attemptedAt ?: 0L })
+        .take(AppleAutoMatchPolicy.BATCH_SIZE)
+      var result = AppleBatchResult(skipped = eligible.size - queue.size)
+      progress(AppleBatchProgress(0, queue.size, ""), result)
+      for (target in queue) {
+        currentCoroutineContext().ensureActive()
+        if (client.retryAtMillis() > System.currentTimeMillis()) break
+        progress(AppleBatchProgress(result.attempted, queue.size, target.label), result)
+        val time = System.currentTimeMillis()
+        try {
+          val query = AppleAutoMatchPolicy.query(target.label)
+          val candidates = if (query.isEmpty()) emptyList() else search(query, options, includePresets = false)
+          currentCoroutineContext().ensureActive()
+          val chosen = AppleAutoMatchPolicy.choose(target, candidates)
+          val status = when {
+            chosen != null -> AppleMatchAttemptStatus.MATCHED
+            candidates.isNotEmpty() -> AppleMatchAttemptStatus.REVIEW
+            else -> AppleMatchAttemptStatus.NO_MATCH
+          }
+          // A manual choice made while a request was running always wins.
+          if (!custom(target, options) && match(target, options) == null) {
+            if (chosen != null) settings.putString(automaticKey(target.packageName, options), chosen.json().toString())
+            saveAttempt(target, options, AppleMatchAttempt(status, time,
+              time + AppleAutoMatchPolicy.HISTORY_TTL_MS, options.country,
+              if (chosen != null) listOf(chosen) else AppleAutoMatchPolicy.reviewCandidates(target, candidates)))
+            result = result.copy(attempted = result.attempted + 1,
+              matched = result.matched + if (chosen != null) 1 else 0,
+              review = result.review + if (status == AppleMatchAttemptStatus.REVIEW) 1 else 0,
+              unmatched = result.unmatched + if (status == AppleMatchAttemptStatus.NO_MATCH) 1 else 0)
+          }
+        } catch (cancelled: CancellationException) { throw cancelled
+        } catch (failure: Exception) {
+          if (failure !is IOException && failure !is JSONException) throw failure
+          val cooldown = maxOf(client.retryAtMillis(), (failure as? AppleRequestException)?.retryAtMillis ?: 0L)
+          saveAttempt(target, options, AppleMatchAttempt(AppleMatchAttemptStatus.FAILED, time,
+            (if (cooldown > time) cooldown else time + 15 * 60_000L)
+              .coerceAtMost(time + AppleAutoMatchPolicy.HISTORY_TTL_MS), options.country))
+          result = result.copy(attempted = result.attempted + 1, failed = result.failed + 1)
+          progress(AppleBatchProgress(result.attempted, queue.size, target.label), result)
+          // An outage is not evidence that every remaining app has no counterpart.
+          break
+        }
+        progress(AppleBatchProgress(result.attempted, queue.size, target.label), result)
+      }
+      result
+    }
+  }
+
+  private fun saveAttempt(target: AppleAppTarget, options: AppleIconOptions, attempt: AppleMatchAttempt) {
+    settings.putString(attemptKey(target, options), JSONObject().put("schema", 1)
+      .put("time", attempt.attemptedAt).put("retry", attempt.retryAt).put("status", attempt.status.name)
+      .put("candidates", JSONArray(attempt.candidates.map { it.json() })).toString())
+    // Keep a bounded recent history. Durable successful mappings live separately and are not pruned.
+    val keys = settings.allKeys().orEmpty().filter { it.startsWith("attempt.") }
+    if (keys.size > 2_000) keys.sortedBy {
+      runCatching { JSONObject(settings.getString(it, null).orEmpty()).optLong("time") }.getOrDefault(0L)
+    }.take(keys.size - 2_000).forEach { settings.remove(it) }
   }
 
   suspend fun targets(): List<AppleAppTarget> = withContext(Dispatchers.IO) {
@@ -123,16 +223,20 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }.sortedBy { it.label.lowercase(java.util.Locale.ROOT) }
   }
 
-  suspend fun search(term: String, options: AppleIconOptions): List<AppleAppMatch> = mutex.withLock {
+  suspend fun search(term: String, options: AppleIconOptions, includePresets: Boolean = true): List<AppleAppMatch> = mutex.withLock {
     withContext(Dispatchers.IO) {
-      AppleSystemMappings.localSearch(term, options.platform).takeIf { it.isNotEmpty() }
+      AppleSystemMappings.localSearch(term, options.platform).takeIf { includePresets && it.isNotEmpty() }
         ?.let { return@withContext it.map { app -> app.copy(country = options.country) } }
-      val file = File(metadata, AppleIconPolicy.key("search:${options.platform}:${options.country}:" +
+      // Numeric launcher labels are names; the manual editor may intentionally look up a store ID.
+      val namespace = if (!includePresets && term.trim().matches(Regex("[0-9]{6,12}"))) "search-name" else "search"
+      val file = File(metadata, AppleIconPolicy.key("$namespace:${options.platform}:${options.country}:" +
         term.trim().lowercase(java.util.Locale.ROOT)) + ".json")
       readJson(file)?.takeIf { System.currentTimeMillis() - it.optLong("time") in 0..AppleIconPolicy.SEARCH_TTL_MS }
-        ?.let { cached -> return@withContext cached.getJSONArray("apps").matches()
-          .map { it.copy(country = options.country) } }
-      val result = client.search(term, options)
+        ?.let { cached ->
+          try { return@withContext cached.getJSONArray("apps").matches().map { it.copy(country = options.country) } }
+          catch (_: JSONException) { file.delete() }
+        }
+      val result = client.search(term, options, allowIdLookup = includePresets)
       writeJson(file, JSONObject().put("time", System.currentTimeMillis())
         .put("apps", JSONArray(result.map { it.json() })))
       result
@@ -657,6 +761,10 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   companion object {
     private fun mappingKey(pkg: String, options: AppleIconOptions) = "mapping.${options.platform.name}.$pkg"
+    private fun automaticKey(pkg: String, options: AppleIconOptions) = "automatic.${options.platform.name}.$pkg"
+    private fun attemptKey(target: AppleAppTarget, options: AppleIconOptions) =
+      "attempt.${options.platform.name}.${options.country}." +
+        AppleIconPolicy.key("${target.packageName}:${target.label}")
     private fun AppleIconOptions.json() = JSONObject().put("platform", platform.name).put("resolution", resolution)
       .put("corners", corners.name).put("country", country)
     private fun AppleAppMatch.json() = JSONObject().put("id", id).put("name", name)

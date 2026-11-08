@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,11 +30,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
+import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InputField
@@ -46,8 +50,12 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private val IconPackEntry.quietSnapshot: Boolean
+  get() = (light as? IconPackArtwork.Archive)?.snapshot == true ||
+    (dark as? IconPackArtwork.Archive)?.snapshot == true
 
 @Composable
 internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
@@ -66,47 +74,71 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
   val pack = preview.pack?.takeIf {
     preview.options == state.options && preview.sourceHash == state.catalog?.sourceHash
   }
+  val filters = listOf(R.string.perfect_icons_preview_all, R.string.perfect_icons_preview_static,
+    R.string.perfect_icons_preview_dynamic_filter, R.string.perfect_icons_preview_dark)
+  val visible = remember(pack, query, filter, labels) {
+    val search = query.trim()
+    pack?.entries.orEmpty().filter { entry ->
+      (search.isEmpty() || listOfNotNull(entry.nativeName, entry.component?.packageName,
+        entry.component?.className, entry.key, labels[entry.nativeName ?: entry.component?.packageName ?: entry.key])
+        .any { it.contains(search, ignoreCase = true) }) &&
+        when (filter) {
+          1 -> !entry.quietSnapshot
+          2 -> entry.quietSnapshot
+          3 -> entry.dark != null && entry.dark != entry.light
+          else -> true
+        }
+    }
+  }
   LaunchedEffect(vm, state.options, state.catalog?.sourceHash, state.busy) {
     if (!state.busy && state.catalog != null) vm.perfectPacks.loadPreview()
   }
   PerfectSubpage(stringResource(R.string.perfect_icons_preview_title), onBack,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
-    refreshEnabled = !state.busy && state.catalog != null) {
+    refreshEnabled = !state.busy && state.catalog != null,
+    actions = {
+      OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = filters.mapIndexed { index, label ->
+        DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
+      }))) {
+        Icon(MiuixIcons.Filter, stringResource(R.string.perfect_icons_preview_filter),
+          tint = if (filter == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+      }
+    }) {
     item("style") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_icons_preview_style, style),
-          summary = stringResource(R.string.perfect_icons_preview_summary))
-        if (preview.loading) LinearProgressIndicator(Modifier.fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 8.dp))
-        if (state.catalog == null || preview.failed) BasicComponent(
-          title = stringResource(R.string.perfect_icons_error),
-          summary = stringResource(if (state.catalog == null) R.string.perfect_icons_error_catalog
-            else R.string.perfect_icons_preview_error))
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(style, style = MiuixTheme.textStyles.subtitle)
+              Text(stringResource(R.string.perfect_icons_preview_count, visible.size, pack?.entries?.size ?: 0),
+                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              MetadataPill(stringResource(filters[filter.coerceIn(filters.indices)]), MiuixTheme.colorScheme.primary)
+            }
+            pack?.let { current ->
+              current.entries.firstOrNull { !it.quietSnapshot && it.light != null }?.let { sample ->
+                PackIconPair(current, sample, 58.dp, 3.dp, distinctOnly = true)
+              }
+            }
+          }
+          Text(stringResource(R.string.perfect_icons_preview_note), style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+      }
+      if (preview.loading || state.catalog == null || preview.failed) {
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+          if (preview.loading) LinearProgressIndicator(Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp))
+          if (state.catalog == null || preview.failed) BasicComponent(
+            title = stringResource(R.string.perfect_icons_error),
+            summary = stringResource(if (state.catalog == null) R.string.perfect_icons_error_catalog
+              else R.string.perfect_icons_preview_error))
+        }
       }
     }
     item("search") {
       InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
         onExpandedChange = {}, label = stringResource(R.string.perfect_icons_preview_search),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
-    }
-    item("filter") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        OverlaySpinnerPreference(title = stringResource(R.string.perfect_icons_preview_filter),
-          items = listOf(R.string.perfect_icons_preview_all, R.string.perfect_icons_preview_light,
-            R.string.perfect_icons_preview_dark).map { DropdownItem(text = stringResource(it)) },
-          selectedIndex = filter, onSelectedIndexChange = { filter = it })
-      }
-    }
-    val visible = pack?.entries.orEmpty().filter { entry ->
-      (query.isBlank() || listOfNotNull(entry.nativeName, entry.component?.packageName,
-        entry.component?.className, entry.key, labels[entry.nativeName ?: entry.component?.packageName ?: entry.key])
-        .any { it.contains(query.trim(), ignoreCase = true) }) &&
-        (filter == 0 || if (filter == 1) entry.light != null else entry.dark != null && entry.dark != entry.light)
-    }
-    item("count") {
-      Text(stringResource(R.string.perfect_icons_preview_count, visible.size, pack?.entries?.size ?: 0),
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     if (pack != null) {
       items(visible, key = { it.key }) { entry ->
@@ -121,9 +153,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
               Text(label ?: identity, style = MiuixTheme.textStyles.body1)
               if (label != null) Text(identity, style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              val snapshot = listOfNotNull(entry.light, entry.dark)
-                .any { it is IconPackArtwork.Archive && it.snapshot }
-              MetadataPill(stringResource(if (snapshot) R.string.perfect_icons_preview_snapshot
+              MetadataPill(stringResource(if (entry.quietSnapshot) R.string.perfect_icons_preview_snapshot
                 else R.string.perfect_icons_preview_static), MiuixTheme.colorScheme.onSurfaceSecondary)
               if (entry.dark != null && entry.dark != entry.light)
                 MetadataPill(stringResource(R.string.perfect_icons_preview_dark),
@@ -146,6 +176,7 @@ internal fun PerfectSubpage(
   onBack: () -> Unit,
   onRefresh: (() -> Unit)? = null,
   refreshEnabled: Boolean = true,
+  actions: @Composable RowScope.() -> Unit = {},
   content: LazyListScope.() -> Unit,
 ) {
   val behavior = MiuixScrollBehavior()
@@ -158,6 +189,7 @@ internal fun PerfectSubpage(
           IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) }
         },
         actions = {
+          actions()
           if (onRefresh != null) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
             Icon(MiuixIcons.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
           }

@@ -79,4 +79,6 @@
   <string name="perfect_icons_preview_empty">No examples match the current search and filter</string>
   <string name="perfect_icons_preview_snapshot">Dynamic · quiet preview</string>
   <string name="perfect_icons_preview_static">Static artwork</string>
+  <string name="perfect_icons_preview_note">Up to 24 local samples; dynamic icons use still snapshots.</string>
+  <string name="perfect_icons_preview_dynamic_filter">Dynamic snapshots</string>
 </resources>

@@ -123,58 +123,75 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
       top = padding.calculateTopPadding() + 8.dp,
       bottom = padding.calculateBottomPadding() + actionBottom)) {
       item("status") {
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(when {
-              state.generating -> R.string.perfect_icons_generating
-              state.refreshing -> R.string.perfect_icons_syncing
-              state.clearingCache -> R.string.perfect_icons_clearing_cache
-              state.loading -> R.string.perfect_icons_loading
-              state.error != null -> R.string.perfect_icons_attention
-              state.catalog?.upToDate == true -> R.string.perfect_icons_up_to_date
-              state.pack != null -> R.string.perfect_icons_ready
-              state.catalog != null -> R.string.perfect_icons_catalog_ready
-              else -> R.string.perfect_icons_catalog_missing
-            }), style = MiuixTheme.textStyles.body1)
-            state.catalog?.let { catalog ->
-              MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount),
-                MiuixTheme.colorScheme.primary)
-              val revision = catalog.revision.ifEmpty { catalog.sourceHash }
-              val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
-                R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-              MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)),
-                MiuixTheme.colorScheme.onSurfaceSecondary,
-                Modifier.testTag("icon-packs.perfect.revision").clickable(onClickLabel = copyLabel) {
-                  copyPerfectRevision(context, revision, copyLabel)
-                })
-              Text(catalogSummary(catalog), style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-            if (state.catalog == null && !state.busy) Text(stringResource(R.string.perfect_icons_sync_first),
-              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            if (state.busy) {
-              val progress = state.progress
-              LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
-                progress = progress?.takeIf { it.total > 0 }?.let {
-                  (it.done.toFloat() / it.total).coerceIn(0f, 1f)
-                })
-              progress?.let {
-                Text(when (it.label) {
-                  "source.download" -> stringResource(R.string.perfect_icons_download_progress,
-                    Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
-                  "source.verify" -> stringResource(R.string.perfect_icons_verifying)
-                  else -> stringResource(R.string.perfect_icons_progress,
-                    it.done.coerceAtLeast(0), it.total.coerceAtLeast(0))
-                }, style = MiuixTheme.textStyles.footnote2)
-                if (!it.label.startsWith("source.") && it.label.isNotBlank()) Text(it.label.take(160),
-                  style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        val catalog = state.catalog
+        val style = state.options.style.takeUnless { it.isBlank() || it == "default" }
+          ?: stringResource(R.string.perfect_icons_style_default)
+        StatusOverviewCard(
+          title = stringResource(when {
+            state.generating -> R.string.perfect_icons_generating
+            state.refreshing -> R.string.perfect_icons_syncing
+            state.clearingCache -> R.string.perfect_icons_clearing_cache
+            state.loading -> R.string.perfect_icons_loading
+            state.error != null -> R.string.perfect_icons_attention
+            catalog?.upToDate == true -> R.string.perfect_icons_up_to_date
+            state.pack != null -> R.string.perfect_icons_ready
+            catalog != null -> R.string.perfect_icons_catalog_ready
+            else -> R.string.perfect_icons_catalog_missing
+          }),
+          summary = if (catalog != null) stringResource(R.string.perfect_icons_preview_style, style)
+            else stringResource(R.string.perfect_icons_library_summary),
+          details = emptyList(),
+          tone = when {
+            state.error != null -> StatusTone.ERROR
+            catalog == null || busy -> StatusTone.WARNING
+            else -> StatusTone.READY
+          },
+          onRefresh = { if (!busy && !cooling) vm.perfectPacks.refreshCatalog() },
+          onOpen = { onNavigate("perfect-sources") },
+          actionLabel = stringResource(R.string.perfect_icons_sources_storage),
+          environmentSummary = catalog?.let { catalogSummary(it) },
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag("icon-packs.perfect.status"),
+          badgeContent = if (catalog == null) null else { color ->
+            MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
+            val revision = catalog.revision.ifEmpty { catalog.sourceHash }
+            val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
+              R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
+            MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+              Modifier.testTag("icon-packs.perfect.revision").clickable(onClickLabel = copyLabel) {
+                copyPerfectRevision(context, revision, copyLabel)
+              })
+          },
+        )
+        if (catalog == null || busy || state.error != null || cooling) {
+          Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              if (state.catalog == null && !state.busy) Text(stringResource(R.string.perfect_icons_sync_first),
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              if (state.busy) {
+                val progress = state.progress
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
+                  progress = progress?.takeIf { it.total > 0 }?.let {
+                    (it.done.toFloat() / it.total).coerceIn(0f, 1f)
+                  })
+                progress?.let {
+                  Text(when (it.label) {
+                    "source.download" -> stringResource(R.string.perfect_icons_download_progress,
+                      Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
+                    "source.verify" -> stringResource(R.string.perfect_icons_verifying)
+                    else -> stringResource(R.string.perfect_icons_progress,
+                      it.done.coerceAtLeast(0), it.total.coerceAtLeast(0))
+                  }, style = MiuixTheme.textStyles.footnote2)
+                  if (!it.label.startsWith("source.") && it.label.isNotBlank()) Text(it.label.take(160),
+                    style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                }
               }
+              state.error?.let { Text(stringResource(perfectErrorResource(it)),
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error) }
+              if (cooling) Text(stringResource(R.string.perfect_icons_cooldown_detail,
+                DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))),
+                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
             }
-            state.error?.let { Text(stringResource(perfectErrorResource(it)),
-              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error) }
-            if (cooling) Text(stringResource(R.string.perfect_icons_cooldown_detail,
-              DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))),
-              style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
         }
       }

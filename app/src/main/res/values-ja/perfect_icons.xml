@@ -79,4 +79,6 @@
   <string name="perfect_icons_preview_empty">検索と絞り込みに一致する例はありません</string>
   <string name="perfect_icons_preview_snapshot">動的アイコン · 静止プレビュー</string>
   <string name="perfect_icons_preview_static">静的アイコン</string>
+  <string name="perfect_icons_preview_note">最大 24 件のローカルサンプル。動的アイコンは静止画像で表示します。</string>
+  <string name="perfect_icons_preview_dynamic_filter">動的アイコンの静止画像</string>
 </resources>

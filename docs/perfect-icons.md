@@ -26,13 +26,20 @@ aliases are created. The selected theme overrides the base static icon pair;
 selected-theme dynamic resources override the corresponding common dynamic
 directory as a complete unit.
 
-The main page groups repository status, count/revision pills, successful-sync
-time, style/target options and the generated pack. The separate Preview page
+The main page reuses the app's semantic status card, including its large right
+status symbol, one count/revision pill per row, selected style and successful-sync
+time. The revision pill still copies the complete revision; the rest of the card
+opens Source and storage rather than starting a download. Loading, errors and
+cooldown details remain visible in a separate card when relevant. The separate Preview page
 samples up to 24 icons from the **currently selected** style, even when the
 last generated pack used another style. It reads only local resources, resolves
 installed application labels, supports search and filtering, and identifies
-dynamic quiet snapshots. Shared day/night artwork is displayed once; an
-independent night resource is shown separately. Previewing never publishes
+dynamic quiet snapshots. Its compact summary shows a real local sample on the
+right, the current visible/total sample counts and active filter. Filtering lives
+in the top-bar menu: all samples, static icons, dynamic snapshots, or independent
+dark resources. Search and filtering work together without network access.
+Shared day/night artwork is displayed once; an independent night resource is
+shown separately. Previewing never publishes
 or imports a new pack.
 
 Source attribution, copyable complete commit/checksum, original download time,
@@ -118,3 +125,9 @@ optional `perfectOnline=true` instrumentation arguments for the complete,
 previously downloaded real archive. It does not silently download 567 MiB
 during routine suites. Snapshot transfer, extraction and preview counters in
 the receipt are distinct from installed-app and mapping counts.
+
+The 2026-11-09 UI acceptance checkpoint is recorded separately in
+`.artifacts/research/perfect-preview-20261109/acceptance.json`, including the
+exact signed build, AVD screenshots, menu/search behavior, font-scale restoration
+and process continuity. This layout change does not modify the source downloader,
+conversion pipeline, generated theme or native Hook payload.

@@ -772,6 +772,8 @@ internal fun StatusOverviewCard(
   environmentSummary: String? = null,
   modifier: Modifier = Modifier,
   badges: List<String> = emptyList(),
+  badgeContent: (@Composable ColumnScope.(Color) -> Unit)? = null,
+  actionLabel: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
   val dark = LocalKeiHomeDarkTheme.current
@@ -806,7 +808,7 @@ internal fun StatusOverviewCard(
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .semantics { this.onClick(label = refreshLabel, action = null) },
+      .semantics { this.onClick(label = actionLabel ?: refreshLabel, action = null) },
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
     onClick = onOpen ?: onRefresh,
@@ -852,12 +854,13 @@ internal fun StatusOverviewCard(
           modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
           style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
           maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (badges.isNotEmpty()) {
+        if (badges.isNotEmpty() || badgeContent != null) {
           Column(
             modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 112.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
           ) {
-            badges.forEach { MetadataPill(it, accentColor) }
+            if (badgeContent != null) badgeContent(accentColor)
+            else badges.forEach { MetadataPill(it, accentColor) }
           }
         }
         if (details.isNotEmpty()) {

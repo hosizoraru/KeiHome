@@ -79,4 +79,6 @@
   <string name="perfect_icons_preview_empty">没有符合当前搜索和筛选条件的示例</string>
   <string name="perfect_icons_preview_snapshot">动态图标 · 静态快照</string>
   <string name="perfect_icons_preview_static">静态图标</string>
+  <string name="perfect_icons_preview_note">最多 24 个本地样例；动态图标仅显示静态快照。</string>
+  <string name="perfect_icons_preview_dynamic_filter">动态快照</string>
 </resources>

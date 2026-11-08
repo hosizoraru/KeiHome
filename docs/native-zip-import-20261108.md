@@ -128,7 +128,9 @@ bounded transform XML, and the supported visual MAML vocabulary. This includes
 day/night image selectors, date updates, visual animation commands, and a small
 set of clock/configuration broadcasts. File/network/provider binders, external
 references, arbitrary commands, store metadata and other theme components do
-not qualify. The module's appended Settings-based selectors qualify only if
+not qualify. Computed image paths must use verified local string variables or
+the supported pure-expression grammar; indirect absolute paths, unknown string
+functions and unverified image variables are rejected. The module's appended Settings-based selectors qualify only if
 they exactly match the existing generated templates. PNG chunks and static
 WebP containers are validated by content even when a filename is misleading.
 
@@ -167,7 +169,7 @@ Final clean-build version and receipts are recorded in
 
 ### Validation
 
-87 focused JVM tests passed, including the supplied archive, existing generated
+88 focused JVM tests passed, including the supplied archive, existing generated
 conversion/registration/receipt cases, visual-MAML admission, malformed images,
 unknown origins, external references, nonvisual commands, inappropriate
 broadcasts, store metadata, and tampered generated Settings binders. Signed

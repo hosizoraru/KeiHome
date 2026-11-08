@@ -24,6 +24,7 @@ class LocalNativeIconValidatorTest {
       "<BroadcastBinder action='android.intent.action.DATE_CHANGED'/></VariableBinders>" +
       "<ExternalCommands><Trigger action='back_home_finish'><FrameRateCommand rate='120'/>" +
       "<AnimationCommand target='progress' command='play(0,800)'/>" +
+      "<VariableCommand name='progress' expression='0' delay='200'/>" +
       "<FrameRateCommand rate='0' delay='800'/></Trigger></ExternalCommands>" +
       "<Var name='progress'><VariableAnimation><AniFrame time='0' value='0'/></VariableAnimation></Var>" +
       "<Image src='common.png' visibility='!#__darkmode'/><Image src='dark.png' visibility='#__darkmode'/></Icon>"
@@ -59,6 +60,25 @@ class LocalNativeIconValidatorTest {
     for (path in listOf("rights.xml", "description.xml", "lockscreen/manifest.xml", "wallpaper/a.png")) {
       assertThrows(Exception::class.java) {
         ConvertedIconArchive.inspect(archive(module() + (path to png)), ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun rejectsIndirectExternalPathsAndUnverifiedImageVariables() {
+    for (body in listOf(
+      "<Var name='asset' type='string' expression=\"'/data/secret'\"/><Image srcExp='@asset'/>",
+      "<Var name='asset' type='string' expression=\"substr('relative/file.png',8)\"/><Image srcExp='@asset'/>",
+      "<Var name='asset' type='string' expression='eval(#value)'/><Image srcExp='@asset'/>",
+      "<Var name='asset' type='string' expression='@external'/><Image srcExp='@asset'/>",
+      "<Var name='asset' type='string' expression=\"'common.png'\" value=\"'/data/secret'\"/><Image srcExp='@asset'/>",
+      "<Image srcExp='@unverified'/>",
+      "<VariableCommand name='asset' expression=\"'/data/secret'\"/>",
+      "<VariableCommand name='asset' expression='0' value=\"'/data/secret'\"/>",
+      "<Image src=\"'/data/secret'\"/>",
+    )) {
+      assertThrows("Must reject $body", Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(module("<Icon>$body</Icon>")),
+          ConvertedIconArchive.LOCAL_NATIVE)
       }
     }
   }

@@ -26,6 +26,11 @@ internal object LocalNativeIconValidator {
     "android.intent.action.TIME_SET", "android.intent.action.TIMEZONE_CHANGED",
     "android.intent.action.DATE_CHANGED", "android.intent.action.LOCALE_CHANGED",
   )
+  private val localPath = Regex("[A-Za-z0-9_./-]*")
+  private val quoted = Regex("'([^']*)'|\"([^\"]*)\"")
+  private val pureFunctions = setOf("ifelse", "eq", "ne", "gt", "ge", "lt", "le",
+    "and", "or", "not", "min", "max", "abs", "int", "round", "floor", "ceil")
+
   fun validate(file: File) {
     // Reuse ZIP bounds, CRC, traversal/duplicate checks, and bounded XML parsing.
     val unused = File.createTempFile("keihome-local-icons-", ".tmp", file.parentFile)
@@ -61,7 +66,13 @@ internal object LocalNativeIconValidator {
               if (failure !is IconPackException && failure !is IllegalArgumentException) throw failure
               // Our own appended palette selectors may use Settings binders, but
               // only their exact generated template and complete resources qualify.
-              GeneratedNativeIconValidator.validate(parts[1], paths, ::read)
+              try {
+                GeneratedNativeIconValidator.validate(parts[1], paths, ::read)
+              } catch (verification: Exception) {
+                if (verification is InterruptedException) throw verification
+                failure.addSuppressed(verification)
+                throw IllegalArgumentException("Ineligible local icon manifest: $path", failure)
+              }
             }
           }
           (path.startsWith("res/") || path.startsWith("nightmode/res/") || path.startsWith("fancy_icons/")) &&
@@ -75,6 +86,8 @@ internal object LocalNativeIconValidator {
 
   private fun xml(bytes: ByteArray, transform: Boolean) {
     var root: String? = null
+    val stringVariables = mutableSetOf<String>()
+    val imageVariables = mutableSetOf<String>()
     BoundedPackXml.read(bytes, limits, start = { tag, attrs, depth ->
       if (depth == 1) root = tag
       require(tag in if (transform) transformTags else visualTags) { "Unsupported local icon element: $tag" }
@@ -88,8 +101,46 @@ internal object LocalNativeIconValidator {
       if (tag == "BroadcastBinder") require(attrs.keys == setOf("action") && attrs["action"] in clockActions) {
         "Unsupported local icon broadcast binding"
       }
+      if (tag == "Var" || tag == "VariableCommand") {
+        attrs["expression"]?.let(::expression)
+        if (tag == "Var" && attrs["type"] == "string") {
+          require(attrs.keys.all { it in setOf("name", "type", "expression") }) {
+            "Unsupported local image variable attributes"
+          }
+          require(!attrs["expression"].isNullOrBlank()) { "Missing local image variable expression" }
+          stringVariables += requireNotNull(attrs["name"])
+        }
+        if (tag == "VariableCommand") {
+          require(attrs.keys.all { it in setOf("name", "expression", "delay") } &&
+            !attrs["expression"].isNullOrBlank()) { "Unsupported local variable command" }
+          attrs["delay"]?.let(::expression)
+        }
+      }
+      if (tag == "Image" || tag == "DateTime") {
+        attrs["src"]?.let { require(localPath.matches(it) && !it.startsWith('/')) { "Nonlocal image source" } }
+        attrs["srcExp"]?.let {
+          if (it.matches(Regex("@[A-Za-z_][A-Za-z0-9_]*"))) imageVariables += it.drop(1)
+          else expression(it)
+        }
+      }
     })
     require(root == if (transform) "IconTransform" else "Icon") { "Unexpected local icon root" }
+    require(stringVariables.containsAll(imageVariables)) { "Unverified computed image source" }
+  }
+
+  private fun expression(value: String) {
+    val arithmetic = quoted.replace(value) { match ->
+      val path = match.groups[1]?.value ?: requireNotNull(match.groups[2]).value
+      require(localPath.matches(path) && !path.startsWith('/') && !path.contains("..")) {
+        "Nonlocal image expression literal"
+      }
+      "0"
+    }
+    require(arithmetic.matches(Regex("[\\sA-Za-z0-9_#.()+*/%<>=!&|?:,\\-]*"))) {
+      "Unsupported local image expression"
+    }
+    require(Regex("\\b([A-Za-z_][A-Za-z0-9_]*)\\s*\\(").findAll(arithmetic)
+      .all { it.groupValues[1] in pureFunctions }) { "Unsupported local expression function" }
   }
 
   private fun image(bytes: ByteArray) {

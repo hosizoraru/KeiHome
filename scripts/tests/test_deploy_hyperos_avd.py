@@ -19,6 +19,37 @@ ACK = "[os.kei.hyper.home] System-server icon refresh hooks installed"
 
 
 class ModuleLogDeltaTest(unittest.TestCase):
+    def test_process_discovery_reads_full_names_only_for_matching_comm_candidates(self):
+        calls = []
+
+        def root(command, timeout=45):
+            calls.append(command)
+            if command.startswith("for f in /proc/"):
+                return "18\n17"
+            if command.endswith("/cmdline"):
+                return "com.android.systemui\0"
+            pid = int(command.split("/proc/")[1].split("/")[0])
+            return f"{pid} (ndroid.systemui) S 1 " + "0 " * 17 + str(pid * 10)
+
+        with patch.object(deploy, "root", side_effect=root), patch.object(deploy, "adb") as adb:
+            self.assertEqual({"pid": 17, "parent": 1, "start": 170},
+                             deploy.process("com.android.systemui"))
+            adb.assert_not_called()
+        self.assertIn("ndroid.systemui", calls[0])
+        self.assertTrue(all("/17/" in call or "/18/" in call for call in calls[1:]))
+
+    def test_truncated_comm_collision_cannot_identify_another_app_as_systemui(self):
+        def root(command, timeout=45):
+            if command.startswith("for f in /proc/"):
+                return "19"
+            if command.endswith("/cmdline"):
+                return "other.ndroid.systemui\0"
+            raise AssertionError("A colliding comm must not reach the identity read")
+
+        with patch.object(deploy, "root", side_effect=root), patch.object(deploy.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "Expected a live"):
+                deploy.process("com.android.systemui")
+
     def delta(self, before, replies):
         def respond(command):
             self.assertIn(command, replies, command)

@@ -115,6 +115,15 @@ interaction is healthy. These checks are admission filters, not a substitute
 for real interactions or proof that every thread is unblocked. They neither
 restart a process nor repair a failed device.
 
+Deployment identity lookup also avoids a system-wide `pidof` cmdline scan.
+The kernel evidence includes a diagnostic reader blocked in
+`proc_pid_cmdline_read` -> `access_remote_vm` -> mmap locking. Deployment now
+discovers candidates through `/proc/*/comm`, checks full cmdlines only for
+those candidates, and preserves the original PID/parent/start-tick checks.
+Truncated comm collisions are rejected; a blocked candidate read has a deadline
+and stops deployment. This avoids letting an unrelated process's mmap wait
+stall the entire identity lookup; it does not repair that process.
+
 With matching signed Debug and test APKs already installed, run:
 
 ```bash

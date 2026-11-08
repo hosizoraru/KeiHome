@@ -23,8 +23,8 @@ def adb(*args, timeout=45):
     return subprocess.check_output(["adb", "-s", SERIAL, *args], text=True, timeout=timeout).strip()
 
 
-def root(command):
-    return adb("shell", "su", "-c", shlex.quote(command))
+def root(command, timeout=45):
+    return adb("shell", "su", "-c", shlex.quote(command), timeout=timeout)
 
 
 def module_log_positions():
@@ -52,14 +52,26 @@ def module_log_delta(before):
 
 def process(name):
     for attempt in range(12):
-        raw = adb("shell", "pidof", name)
+        # pidof scans unrelated cmdlines, whose reads can wait on their mmap locks.
+        # Discover candidates through task comm without touching those mappings.
+        suffix = shlex.quote(name[-15:])
+        raw = root(
+            'for f in /proc/[0-9]*/comm; do '
+            'IFS= read -r n < "$f" 2>/dev/null || continue; '
+            f'if [ "$n" = {suffix} ]; then '
+            'p=${f#/proc/}; printf "%s\\n" "${p%/comm}"; fi; done',
+            timeout=5,
+        )
         candidates = []
         for value in raw.split():
             if not value.isdigit():
                 continue
             pid = int(value)
             try:
-                stat = root(f"cat /proc/{pid}/stat")
+                # comm is truncated; confirm full names for candidates only.
+                if root(f"cat /proc/{pid}/cmdline", timeout=5).split("\0", 1)[0] != name:
+                    continue
+                stat = root(f"cat /proc/{pid}/stat", timeout=3)
                 fields = stat[stat.rfind(")") + 2:].split()
                 if len(fields) <= 19 or fields[0] == "Z":
                     continue
@@ -69,11 +81,11 @@ def process(name):
                     "start": int(fields[19]),
                 })
             except (subprocess.CalledProcessError, ValueError, IndexError):
-                # A debugger/crash_dump clone can disappear between pidof and /proc.
+                # A debugger/crash_dump clone can disappear between these reads.
                 continue
         if candidates:
             # The live application has the oldest start tick; transient debugger
-            # clones are newer. This is evidence-based selection, not pidof order.
+            # clones are newer. Do not select by directory enumeration order.
             return min(candidates, key=lambda item: item["start"])
         if attempt < 11:
             time.sleep(0.25)

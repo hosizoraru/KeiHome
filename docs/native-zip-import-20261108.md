@@ -76,3 +76,40 @@ Obtain the precise failing stage, installed KeiHome version, and error text.
 Local file selection/catalog failures need App logs; system Themes import,
 application, or Hook failures need LSPosed logs. Do not attribute an unobserved
 failure to MAML or relax archive safety limits without reproducing the rejection.
+
+## Follow-up: actual application and day/night test
+
+The user subsequently authorized applying this sample on the Phone AVD to test
+light/dark transitions. This exposed a failure **after successful import**:
+
+- The system Themes detail page opened, but pressing Apply did not activate the
+  imported component.
+- Themes logged `downloadRights failed, serverResponseCode=408`, the message
+  "you have not purchased this theme", and
+  `Fail to buy resource because of empty product ID`.
+- Its online authorization flow subsequently returned code 402 with a
+  download-frequency warning. Further Apply attempts were stopped.
+- The active provider continued reporting ColorOS Classic ART+, component
+  `ba3bd1e5-d7b6-4f79-9b16-59a8c9568eac`. SHA-256 of
+  `/data/system/theme/icons` remained
+  `b1b6c7c428918497a99a177dbfc84e0d1c99d5c04955d79fc27778b400ffcb19`.
+
+Source inspection distinguishes the paths: `IconPackHandoffs.prepare` assigns
+`CONVERTED_APK`/`CONVERTED_CLASSIC_ZIP` only to generated APK/classic-ZIP
+conversions. Native MIUI modules retain their resources and have no converted
+origin. `ConvertedIconArchive` intentionally accepts only validated generated
+resources, not arbitrary native MAML. Thus this sample does not receive that
+converted-resource approval and remains subject to normal native rights checks.
+This explains the current path without proving the original reporting user's
+failure has the same cause.
+
+No DRM behavior, origin marker, or safety admission was overridden to force a
+successful test. Since the sample never became active, its desktop day/night,
+folder, and foreground/background transitions remain **not tested**, rather
+than passed or failed. All four recorded host process identities stayed
+unchanged, and night mode remained enabled.
+
+Evidence is in `.artifacts/research/native-zip-20261108/day-night/`, including
+the Apply log excerpt, provider identity, source/active archive hash comparison,
+screenshots, and `acceptance.json`. The temporary baseline archive was removed
+after its hash comparison; the existing active theme did not need restoration.

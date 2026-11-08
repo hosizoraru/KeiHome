@@ -1,5 +1,8 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
@@ -14,19 +17,28 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.apple.AppleArtworkPreview
+import os.kei.hyper.home.iconpack.apple.AppleDynamicArtwork
+import os.kei.hyper.home.iconpack.NativeAppleDynamicIcon
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -157,7 +169,8 @@ internal fun appleRegionName(country: String, locale: Locale = Locale.getDefault
 }
 
 internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state: ApplePackUiState,
-  controller: ApplePackController, enabled: Boolean, onSelect: (AppleMappingRow) -> Unit) {
+  controller: ApplePackController, enabled: Boolean,
+  currentPreviewProvider: AppleCurrentThemePreviewProvider? = null, onSelect: (AppleMappingRow) -> Unit) {
   if (rows.isEmpty()) item("no-mapping-results", contentType = "message") {
     PackInfoCard(stringResource(R.string.apple_browser_empty))
   }
@@ -201,6 +214,11 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
             app != null -> R.string.apple_automatic
             else -> R.string.apple_filter_unmapped
           }), MiuixTheme.colorScheme.onSurfaceSecondary)
+          app?.let { AppleDynamicArtwork.kind(it, state.options) }?.let { kind ->
+            MetadataPill(stringResource(if (kind == NativeAppleDynamicIcon.Kind.CLOCK)
+              R.string.apple_dynamic_clock else R.string.apple_dynamic_calendar),
+              MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
           if (app != null && row.darkCapability in listOf(AppleDarkCapability.MISSING, AppleDarkCapability.SHARED)) {
             val shared = row.darkCapability == AppleDarkCapability.SHARED
             val missingDarkDescription = stringResource(if (shared) R.string.apple_shared_dark_badge else R.string.apple_missing_dark_badge)
@@ -210,13 +228,25 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
           }
         }
         if (app != null) {
-          val cached = preview
-          Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
-            if (cached != null) AppleArtworkPair(cached, compact = true) else {
-              Text(stringResource(R.string.apple_no_cached_preview),
-                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (currentPreviewProvider != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                ComparisonHeading(stringResource(R.string.apple_preview_current_theme))
+                AppleCurrentThemeArtwork(row.target.label, row.target.packageName, currentPreviewProvider)
+              }
+              Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                ComparisonHeading(stringResource(R.string.apple_preview_comparison_apple))
+                AppleCachedArtwork(preview, comparison = true)
+              }
             }
+          } else AppleCachedArtwork(preview)
+          if (AppleDynamicArtwork.kind(app, state.options) != null) {
+            Text(stringResource(R.string.apple_dynamic_preview_note), style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
+        } else if (currentPreviewProvider != null) {
+          ComparisonHeading(stringResource(R.string.apple_preview_current_theme))
+          AppleCurrentThemeArtwork(row.target.label, row.target.packageName, currentPreviewProvider)
         }
       }
     }
@@ -224,17 +254,87 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
 }
 
 @Composable
-internal fun AppleArtworkPair(preview: AppleArtworkPreview, compact: Boolean = false) {
+private fun ComparisonHeading(label: String) {
+  Text(label, style = MiuixTheme.textStyles.footnote1,
+    color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 2, textAlign = TextAlign.Center)
+}
+
+@Composable
+private fun AppleCachedArtwork(preview: AppleArtworkPreview?, comparison: Boolean = false) {
+  Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
+    if (preview != null) AppleArtworkPair(preview, compact = true,
+      iconSize = if (comparison) 44.dp else 56.dp) else {
+      Text(stringResource(R.string.apple_no_cached_preview), textAlign = TextAlign.Center,
+        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+  }
+}
+
+@Composable
+private fun AppleCurrentThemeArtwork(label: String, packageName: String, provider: AppleCurrentThemePreviewProvider) {
+  key(packageName, provider) {
+    val loaded by produceState<Pair<Boolean, AppleCurrentThemePreview?>>(false to null) {
+      value = true to loadPreviewOrEmptyCurrent { provider.load(packageName) }
+    }
+    Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
+      val preview = loaded.second
+      if (!loaded.first) {
+        CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+      } else if (preview == null) {
+        Text(stringResource(R.string.apple_preview_current_unavailable), textAlign = TextAlign.Center,
+          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      } else {
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+          CurrentThemeThumb(preview.light, label, stringResource(if (preview.dark == null)
+            R.string.apple_preview_current_shared else R.string.apple_preview_light), Modifier.weight(1f))
+          preview.dark?.let {
+            CurrentThemeThumb(it, label, stringResource(R.string.apple_preview_dark), Modifier.weight(1f), dark = true)
+          }
+        }
+      }
+    }
+  }
+}
+
+private suspend fun loadPreviewOrEmptyCurrent(load: suspend () -> AppleCurrentThemePreview?): AppleCurrentThemePreview? =
+  try { load() }
+  catch (cancelled: CancellationException) { throw cancelled }
+  catch (failure: Exception) {
+    android.util.Log.w("KeiHomeApple", "Applied theme preview is temporarily unavailable", failure)
+    null
+  }
+
+@Composable
+private fun CurrentThemeThumb(bitmap: android.graphics.Bitmap, appLabel: String, caption: String,
+  modifier: Modifier, dark: Boolean = false) {
+  val description = stringResource(R.string.apple_preview_current_accessibility, appLabel, caption)
+  Column(modifier, horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Box(Modifier.size(44.dp).background(
+      if (dark) Color(0xff16171b) else Color(0xfff2f3f7), RoundedCornerShape(12.dp)),
+      contentAlignment = Alignment.Center) {
+      val image = remember(bitmap) { bitmap.asImageBitmap() }
+      Image(image, description, Modifier.size(44.dp))
+    }
+    Text(caption, style = MiuixTheme.textStyles.footnote2, textAlign = TextAlign.Center,
+      color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+  }
+}
+
+@Composable
+internal fun AppleArtworkPair(preview: AppleArtworkPreview, compact: Boolean = false,
+  iconSize: Dp = if (compact) 56.dp else 76.dp) {
   Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
       AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
-        if (compact) 56.dp else 76.dp)
+        iconSize)
     }
     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
       AppleArtworkThumb(preview.dark ?: preview.light,
         stringResource(if (preview.dark == null)
           if (preview.limited) R.string.apple_dark_pending else R.string.apple_preview_same else R.string.apple_preview_dark),
-        if (compact) 56.dp else 76.dp, dark = true)
+        iconSize, dark = true)
     }
   }
 }

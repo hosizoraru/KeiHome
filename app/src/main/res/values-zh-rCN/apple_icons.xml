@@ -2,7 +2,7 @@
 <resources>
     <string name="apple_pack_title">Apple 图标包</string>
     <string name="apple_pack_summary">Apple 深浅色图标 · 按应用自定义映射</string>
-    <string name="apple_intro">为已匹配的应用生成静态图标包，同时获取深浅色资源；没有独立深色资源的应用会保留原画，不添加持续运行的图标渲染器。</string>
+    <string name="apple_intro">为已匹配的应用生成 Apple 图标。iOS / iPadOS 日历和时钟随系统时间动态更新，其余图标保持静态；没有独立深色资源时保留共用原画。</string>
     <string name="apple_platform">平台</string>
     <string name="apple_resolution">源图分辨率</string>
     <string name="apple_resolution_summary">建议 512 / 1024 px，256 px 可能较模糊。</string>

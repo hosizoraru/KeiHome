@@ -23,6 +23,8 @@ apps. Manual mappings and exclusions take precedence.
 | TV | Mi Video |
 | Siri | Both XiaoAI packages |
 | Games | Game center |
+| Calendar | Calendar; native live template on iOS/iPadOS selections |
+| Clock | Clock; native live template on iOS/iPadOS selections |
 
 The mobile Siri preset uses App Store ID `6758482875`, bundle
 `com.apple.SiriApp`. Its black-orb native artwork comes from the iOS runtime's
@@ -32,8 +34,9 @@ products.
 
 Phone and Contacts can share one Android package. Package-based mappings use the
 actual launcher activity label to choose the role; they do not promise two
-independent icons for activities sharing one package. Dynamic Calendar/Clock
-rendering remains outside this batch.
+independent icons for activities sharing one package. Calendar/Clock now have a
+bounded mobile dynamic path; their generation tests and pending actual launcher
+acceptance are distinguished below.
 
 ## Resource evidence
 
@@ -145,5 +148,54 @@ mapping count, not a claim that every live artwork request succeeded.
 Evidence and final device acceptance:
 `.artifacts/research/apple-preinstalled-20261108/acceptance.json`.
 
-Calendar and Clock retain their existing static mappings. Dynamic date,
-language-sensitive calendar artwork, and clock hands are explicitly deferred.
+## Native Calendar/Clock and current-theme comparison, 2026-11-08
+
+Calendar (`1108185179`) and Clock (`1584215688`) retain their product mappings
+and now opt into two canonical live kinds for iOS/iPadOS selections. This does
+not enable dynamic rendering for every Apple mapping or use mobile resources
+for macOS.
+
+The native layers come from iOS 27.3 Simulator `MobileCal` and `ClockAngel`
+CoreUI catalogs, with source hashes and extraction provenance under
+`app/src/main/assets/apple-dynamic-icons/`. Twenty records share ten deduplicated
+lossless images, totalling **973,388 image bytes**. Calendar uses blank native
+backgrounds; Clock uses native dials and full-canvas transparent hands normalized
+offline. No Apple font is redistributed.
+
+The templates have `frameRate="0"`. Calendar uses `DateTime.Minute` and localized
+`EEEE`/`d`; Clock uses `DateTime.Second`, with second-aware hour/minute positions.
+They add no settings binders or module-owned periodic timers. The native updater
+still schedules the necessary ticks. Dynamic layers are at most 512px; a
+1024px browsing snapshot is downsampled to 512px for native fallback handoff.
+Template/resource admission is finite and strict, not a general MAML interpreter.
+
+Apple previews are moment-in-time snapshots using the system language, default
+time zone and current date/time. The Calendar text uses Android system fonts,
+not pixel-identical SF typography. Neither a static browser snapshot nor its
+fallback represents a continuously running preview of the live icon.
+
+Cards now compare the resolved current theme with the Apple destination. The
+current-theme side shows one icon when only one rendition is available or both
+appearances are pixel-identical, and two for distinct decoded appearances.
+It reads a complete, revision-matched applied
+archive, with a **2 MiB result cache and at most two concurrent loads**. It does
+not substitute APK artwork when the current themed image cannot be established.
+An existing live-MAML icon cannot be previewed by this reader and is explicitly
+unavailable; the Apple side may still display its labelled snapshot. Existing
+download caches, per-mapping storefronts, overrides and exclusions remain intact.
+
+The current implementation passes 788 unit tests and 44/44 focused device tests
+(35 dynamic/repository and nine preview tests), including `ConvertedIconArchive`
+inspection of 1024px-preview / 512px-handoff resources. The current-theme
+comparison screenshot is accepted and actual Clock seconds advance.
+Settled Phone AVD screens verify Chinese, English and Japanese weekdays,
+light/dark artwork, and natural midnight from November 8 / Sunday to November 9 /
+Monday. Midnight and the separate light/dark toggle preserve the same launcher
+PID. Global locale changes caused graceful native exits and slow cold startup;
+those transitions are explicitly separate from the normal-install/API 102 gate.
+Time-zone rendering has injected device-test coverage, without a live
+time-zone-switch claim. See
+[the dynamic acceptance receipt](../.artifacts/research/apple-dynamic-20261108/acceptance.json)
+for the final artifact, lifecycle sample, identity gate and restored state.
+Detailed source, update and preview bounds are in
+[Apple icon pack](apple-icon-pack.md#native-calendar-and-clock-2026-11-08).

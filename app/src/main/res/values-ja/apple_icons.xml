@@ -2,7 +2,7 @@
 <resources>
     <string name="apple_pack_title">Apple アイコンパック</string>
     <string name="apple_pack_summary">Apple のライト・ダークアイコンと個別の割り当て</string>
-    <string name="apple_intro">対応済みアプリの静的アイコンパックを生成します。ライトとダークを一緒に取得し、専用のダーク画像がない場合は元の画像を保持します。常時描画は行いません。</string>
+    <string name="apple_intro">対応済みアプリの Apple アイコンを生成します。iOS / iPadOS のカレンダーと時計はシステム時刻に合わせて更新し、他のアイコンは静止画のままです。専用のダーク画像がない場合は共通の原画を保持します。</string>
     <string name="apple_platform">プラットフォーム</string>
     <string name="apple_resolution">元画像の解像度</string>
     <string name="apple_resolution_summary">512 / 1024 px を推奨。256 px はぼやける場合があります。</string>

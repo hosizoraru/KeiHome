@@ -1,0 +1,7 @@
+<resources>
+    <string name="apple_preview_current_theme">当前主题</string>
+    <string name="apple_preview_comparison_apple">Apple</string>
+    <string name="apple_preview_current_shared">当前图标</string>
+    <string name="apple_preview_current_unavailable">当前主题预览暂不可用</string>
+    <string name="apple_preview_current_accessibility">当前主题中%1$s的图标 · %2$s</string>
+</resources>

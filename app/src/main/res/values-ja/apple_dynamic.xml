@@ -1,0 +1,5 @@
+<resources>
+    <string name="apple_dynamic_calendar">動的カレンダー</string>
+    <string name="apple_dynamic_clock">動的時計</string>
+    <string name="apple_dynamic_preview_note">カレンダーと時計のプレビューは現在時刻のスナップショットです。実際のアイコンはホームアプリの言語、日付、時刻、タイムゾーンに合わせて更新します。</string>
+</resources>

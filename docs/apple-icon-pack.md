@@ -5,8 +5,10 @@ shared-versus-incomplete dark-resource presentation, and incremental batch/backo
 policy are documented in [Apple system mappings](apple-system-mappings.md).
 
 Checkpoint: 2026-11-08. The source is available at Icon packs > Available icon
-packs > Apple. This implements static light/dark artwork; Clear and Tint remain
-research, not advertised runtime effects.
+packs > Apple. Ordinary mappings use static light/dark artwork. Mobile Calendar
+and Clock additionally have bounded native-layer dynamic templates, described
+below; their actual launcher acceptance is still in progress. Clear and Tint
+remain research, not advertised runtime effects.
 
 ## Selection and mapping
 
@@ -27,6 +29,12 @@ research, not advertised runtime effects.
 - Matched icons opens a separate gallery of the resolved installed-app mappings,
   with Android package, automatic/custom origin, Apple destination, storefront
   and light/dark previews. Missing dark resources are labelled explicitly.
+- Mapping cards compare the current applied theme with the Apple destination.
+  The current-theme side shows one image when only one rendition is available
+  or decoded day/night pixels are equal, and two when they differ.
+  This does not infer support from filenames alone.
+  Missing, unreadable or live-MAML-only current artwork is labelled unavailable;
+  it is not silently replaced with the original APK icon.
 - Custom mappings includes all launchable apps, including unmatched/excluded
   entries. Both browsers support local search, sorting, filtering, a storefront
   filter and a floating refresh action. Sort/filter use the same MIUIX top-bar
@@ -53,18 +61,22 @@ HTTP success alone is not considered dark support: decoded pixels are compared.
 No artificial dark overlay is presented as an official dark icon.
 
 Requests are user-driven, serialized and cancellable, with at least 3.5 seconds
-between metadata requests. There is no background polling or per-icon renderer.
+between metadata requests. Retrieval adds no background polling or per-icon
+network worker. Ordinary generated mappings remain static; only the two dynamic
+products below opt into native MAML.
 HTTPS hosts and redirect destinations are checked, bodies/dimensions/URLs bounded,
 and downloaded images decoded before publication. A failed/cancelled generation
 retains the last valid pack and completed downloads; partial failures are visible.
-Explicit “Check Apple icon updates” refreshes metadata and fetches only missing
-or changed content. Opening a screen does not fetch the whole pack.
+“Complete missing resources” retries incomplete entries while retaining complete
+cached pairs. “Refresh artwork for this app” explicitly refreshes one mapping.
+Both respect server backoff. Opening a screen does not fetch the whole pack.
 
 ## Small bundled source
 
-`app/src/main/assets/apple-system-icons/` contains 18 lossless WebP snapshots,
-approximately 3.8 MiB, for five families: App Store, Settings, Apple Music,
-Safari and Finder. Platform availability differs. Attribution, source provenance,
+`app/src/main/assets/apple-system-icons/` contains 38 lossless WebP snapshots,
+10,691,322 image bytes (approximately 10.2 MiB), including App Store, Settings,
+Apple Music, Safari, Finder and verified mobile system products. Platform
+availability differs. Attribution, source provenance,
 decoded-pixel digests and the capture/render recipe are recorded in
 `provenance.json` and `scripts/prepare-apple-system-icons.py`.
 
@@ -73,7 +85,8 @@ Apple's macOS App Store layered artwork using Apple's native iOS presentation.
 It is not claimed to be a full-resolution extraction from the attached iPhone.
 Physical-device icon retrieval was limited in resolution; the Simulator supplies
 other verified layered assets. The generated files are static snapshots, not a
-live Liquid Glass renderer on Android.
+live Liquid Glass renderer on Android. The separate native Calendar/Clock layer
+bundle is documented below.
 
 Bundled originals cap real source resolution at 1024; selected output sizes never
 imply that an unavailable higher-resolution original was recovered. Unavailable
@@ -95,7 +108,8 @@ App-owned options and overrides use MMKV. Artwork lives in app-private
   Legacy choices without a country inherit the global region. Schema 1 archives
   restore only in their recorded region and migrate during regeneration.
 - Search/metadata records are bounded. Image cache has a 256 MiB eviction budget.
-- Atomic publication points to a content-addressed static ZIP. A small previous
+- Atomic publication points to a content-addressed ZIP with static artwork and,
+  for the two supported kinds, a bounded dynamic-layer index. A small previous
   generation is retained; old generations are pruned.
 - ZIP image entries use STORED. No new MAML, Binder-query manifest, timer or
   perpetual rendering instance is generated for these ordinary static images.
@@ -109,6 +123,12 @@ App-owned options and overrides use MMKV. Artwork lives in app-private
   are fetched on an explicit editor action. Sampled thumbnail decoding runs on IO
   and uses a shared, bounded 8 MiB bitmap cache, keyed by immutable image path and
   requested pixel size. Row preview space is reserved to avoid loading jumps.
+- Current-theme comparisons use a separate 2 MiB bitmap-result LRU and at most
+  two concurrent loads on IO. The provider is recreated when the applied source,
+  palette, preview generation or configuration changes. Only a complete applied
+  theme with a matching source revision is used. An unavailable result is cached
+  too; opening or scrolling this comparison does not start network retrieval or
+  instantiate a live MAML renderer.
 
 The existing icon renderer/exporter/native import and fallback policies handle
 the resulting pack. The new source does not bypass the installed-only export
@@ -120,7 +140,8 @@ setting, native theme receipts or the user's selected fallback policy.
 matching. `AppleIconRepositoryDeviceTest` exercises linked Android decoding,
 archive parsing, deterministic generation, cache reuse, failure/cancellation
 preservation, metadata throttling fallback, digest corruption, offline restoration,
-platform-specific overrides, original-corner behavior and all 18 bundled images.
+platform-specific overrides, original-corner behavior and the then-bundled 18
+images in the initial checkpoint.
 
 The checkpoint passed 721 JVM tests, 15 targeted Android instrumentation tests
 and Release lint. Actual Phone AVD screenshots establish online Apple Music
@@ -207,3 +228,95 @@ decoded fingerprints, device tests and final acceptance are recorded under
 `.artifacts/research/apple-camera-20261108/`. The focused device suite passed
 29 tests, including Camera's offline iOS/iPadOS variants at 256/512/1024px
 with legacy limited metadata.
+
+## Native Calendar and Clock (2026-11-08)
+
+The mobile Apple Calendar (`1108185179`) and Clock (`1584215688`) selections now
+carry native-layer dynamic resources for iOS/iPadOS. macOS does not enter this
+live path or receive mobile artwork as a substitute. The supported dynamic
+schema has exactly two kinds, `CALENDAR` and `CLOCK`; other Apple selections
+continue to produce static images. This is not general support for imported
+MAML, arbitrary Apple widgets or an iOS Liquid Glass renderer.
+
+### Layer provenance and bounds
+
+`app/src/main/assets/apple-dynamic-icons/provenance.json` records the actual
+iOS 27.3 Simulator CoreUI sources: `MobileCal.app/Assets.car` for blank Calendar
+backgrounds and `ClockAngel.app/Assets.car` for clock dials and separate alpha
+hand layers. Its **20 platform/part/appearance records reference 10 deduplicated
+lossless WebP images totalling 973,388 image bytes**, excluding the manifest.
+The iOS/iPadOS records share identical content where appropriate.
+
+The manifest retains source-catalog hashes, image hashes, dimensions and original
+hand rotations. The extraction recipe is
+`scripts/prepare-apple-dynamic-icons.py` with
+`scripts/render-apple-dynamic-icons.m`. Clock hands were normalized to vertical
+offline from the measured 306/54/180-degree source positions; Android does no
+runtime angle calibration or Apple private API invocation. Calendar backgrounds
+contain no baked weekday/date, and clock dials contain no baked hands. Original
+uses the supplied layers' own contour rather than reconstructing hidden artwork.
+
+Live layer dimensions are capped at 512px, including when a user selects 1024px
+previews. Clock has a day/night dial and three full-canvas hands per appearance;
+Calendar has a day/night background pair. Preview snapshots retain the selected
+256/512/1024px resolution. Native handoff downsamples a 1024px fallback snapshot
+to 512px, separately from the live layer group. Compressed source layers have
+their own 2 MiB LRU; this is separate from both browser bitmap caches.
+
+### Updates, localization and previews
+
+- Calendar uses native `DateTime.Minute`, with natural `EEEE` weekday and `d`
+  date formatting. Weekday/date follow the runtime's locale and default time
+  zone; there is no table of hardcoded weekday translations.
+- Clock uses native `DateTime.Second`. The hour and minute angles include the
+  smaller units; seconds advance by the native second update rather than a
+  continuous sweep animation.
+- Both templates keep `frameRate="0"` and add no settings binders, application
+  polling loops or module-owned periodic timers. The native DateTime updater
+  supplies the scheduled date/time ticks; zero frame rate does not mean no
+  updates or zero rendering cost.
+- Fixed light/dark, system-following appearance and night DIM use a finite set
+  of canonical templates. Import validation checks the exact template and local
+  asset schema; it does not execute caller-provided expressions or scripts.
+
+The Apple pane and ordinary fallback resources are **snapshots** captured using
+the device's system language, default time zone and time at rendering. They do
+not tick continuously in the browser and can become stale; a captured clock
+position or date is not evidence that the installed live icon is frozen.
+Calendar uses Android system `sans-serif-medium`/`sans-serif-light` typography;
+no Apple SF font is bundled and pixel-identical SF layout is not claimed.
+
+The current-theme pane cannot play arbitrary live MAML. Such an icon is marked
+unavailable instead of presenting its static fallback as the actual animated
+theme. The Apple pane can still show its separately generated snapshot, with
+the dynamic-preview explanation. A missing live comparison is not proof that
+the generated dynamic archive lacks its layers.
+
+### Verification boundary
+
+The implementation checkpoint passes **788 unit tests** and **44/44 focused
+device tests** (35 dynamic/repository and nine current-theme preview tests).
+These include `ConvertedIconArchive` inspection with 1024px preview snapshots
+and 512px handoff resources. The actual current-theme comparison screenshot has
+been accepted, and Clock seconds have been observed advancing on the launcher.
+Settled HyperOS Phone AVD screens also confirm the live Calendar weekday in
+Chinese, English and Japanese, and distinct light/dark Calendar and Clock art.
+Natural midnight changes November 8 / Sunday to November 9 / Monday without
+regeneration or a launcher process change. The separate light/dark switch also
+preserves that launcher identity. Automatic time, Asia/Singapore, Chinese and
+dark mode are restored after the test.
+The observed clock scene requests draws at roughly one-second intervals while
+visible. A five-second settled background sample contains no draw request from
+that scene; this is a bounded lifecycle check, not a zero-cost or battery claim.
+
+Changing the global system locale caused graceful native launcher exits and
+roughly 30--40 seconds of cold startup in this AVD. Early transition screenshots
+were rejected; the locale results use settled screens. No stable-PID claim is
+made across those global configuration changes. Time-zone rendering is covered
+by injected device tests; switching the live launcher's time zone was not part
+of this checkpoint.
+
+The [dynamic acceptance receipt](../.artifacts/research/apple-dynamic-20261108/acceptance.json)
+records the final artifact, normal-install/API 102 identity gate, screenshots,
+background lifecycle sample and restored user state separately. These are AVD
+checks, with no physical-device or general performance claim.

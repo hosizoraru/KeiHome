@@ -1,0 +1,5 @@
+<resources>
+    <string name="apple_dynamic_calendar">动态日历</string>
+    <string name="apple_dynamic_clock">动态时钟</string>
+    <string name="apple_dynamic_preview_note">日历、时钟预览为当前时刻的快照；实际图标随桌面语言、日期、时间及时区更新。</string>
+</resources>

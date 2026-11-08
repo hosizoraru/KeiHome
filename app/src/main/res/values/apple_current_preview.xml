@@ -1,0 +1,7 @@
+<resources>
+    <string name="apple_preview_current_theme">Current theme</string>
+    <string name="apple_preview_comparison_apple">Apple</string>
+    <string name="apple_preview_current_shared">Current icon</string>
+    <string name="apple_preview_current_unavailable">Current theme preview unavailable</string>
+    <string name="apple_preview_current_accessibility">Current theme icon for %1$s · %2$s</string>
+</resources>

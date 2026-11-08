@@ -1,0 +1,5 @@
+<resources>
+    <string name="apple_dynamic_calendar">Dynamic calendar</string>
+    <string name="apple_dynamic_clock">Dynamic clock</string>
+    <string name="apple_dynamic_preview_note">Calendar and Clock previews are snapshots. Live icons follow the launcher language, date, time and time zone.</string>
+</resources>

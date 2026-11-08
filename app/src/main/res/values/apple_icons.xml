@@ -2,7 +2,7 @@
 <resources>
     <string name="apple_pack_title">Apple icon pack</string>
     <string name="apple_pack_summary">Apple light and dark artwork · per-app mappings</string>
-    <string name="apple_intro">Build a static pack for matched apps. Light and dark artwork are fetched together; apps without a separate dark icon keep their original artwork. No continuous icon renderer is added.</string>
+    <string name="apple_intro">Build Apple icons for matched apps. iOS / iPadOS Calendar and Clock update with system time; other icons remain static. Apps without separate dark artwork keep the shared original.</string>
     <string name="apple_platform">Platform</string>
     <string name="apple_resolution">Source image resolution</string>
     <string name="apple_resolution_summary">512/1024 px recommended; 256 px may look soft.</string>

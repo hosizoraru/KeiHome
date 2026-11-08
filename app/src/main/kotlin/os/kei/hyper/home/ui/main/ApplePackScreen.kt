@@ -91,6 +91,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   onNavigate: (String) -> Unit) {
   val controller = model.applePacks
   val state by controller.state.collectAsStateWithLifecycle()
+  val currentPreviewProvider = rememberAppleCurrentThemePreviewProvider(model)
   val packs by model.iconPacks.collectAsStateWithLifecycle()
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
@@ -346,7 +347,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               Modifier.padding(horizontal = 12.dp), style = MiuixTheme.textStyles.footnote2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
-          appleMappingCards(browserRows, state, controller, enabled) { row ->
+          appleMappingCards(browserRows, state, controller, enabled,
+            currentPreviewProvider = currentPreviewProvider) { row ->
             focus.clearFocus(); keyboard?.hide()
             controller.edit(row.target); onNavigate("apple-search")
           }

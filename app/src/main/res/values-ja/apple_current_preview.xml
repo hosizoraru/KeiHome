@@ -1,0 +1,7 @@
+<resources>
+    <string name="apple_preview_current_theme">現在のテーマ</string>
+    <string name="apple_preview_comparison_apple">Apple</string>
+    <string name="apple_preview_current_shared">現在のアイコン</string>
+    <string name="apple_preview_current_unavailable">現在のテーマをプレビューできません</string>
+    <string name="apple_preview_current_accessibility">現在のテーマの%1$sのアイコン · %2$s</string>
+</resources>

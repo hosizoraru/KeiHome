@@ -325,7 +325,8 @@ private fun themeEffectsTargetStatus(target: FrameworkTarget?): Int = when {
 @Composable
 internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepository,
   appearance: IconPackAppearance, nativeId: String?, current: Boolean, importing: Boolean, enabled: Boolean,
-  result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit) {
+  result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit,
+  metadataContent: @Composable (() -> Unit)? = null) {
   val context = LocalContext.current
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   var expanded by rememberSaveable(card.pack.id) { mutableStateOf(false) }
@@ -343,6 +344,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         MetadataPill(if (version == null) source else "$source · $version", MiuixTheme.colorScheme.onSurfaceSecondary)
         if (current) MetadataPill(stringResource(R.string.icon_pack_current),
           MiuixTheme.colorScheme.primary)
+        metadataContent?.invoke()
       }
       Text(stringResource(R.string.icon_pack_coverage, pack.entries.size, card.matchedApps),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)

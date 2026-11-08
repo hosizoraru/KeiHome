@@ -79,7 +79,7 @@ internal val thirdPartyComponents = listOf(
     kind = AttributionKind.SOURCE),
   ThirdPartyComponent("perfect-packer", "PerfectIconsPacker", R.string.notices_role_perfect_packer,
     "https://github.com/YifePlayte/PerfectIconsPacker", licenseKeys = emptyList(),
-    kind = AttributionKind.SOURCE),
+    kind = AttributionKind.HISTORY),
   ThirdPartyComponent("lsplt", "LSPlt", R.string.notices_role_history,
     "https://github.com/LSPosed/LSPlt", listOf("lsplt"), kind = AttributionKind.HISTORY),
 )

@@ -2,5 +2,5 @@
     <string name="cache_perfect_downloads">完美图标下载缓存</string>
     <string name="cache_perfect_manage_hint">可在“可用图标包 → 完美图标补全计划”中管理下载资源。</string>
     <string name="notices_role_perfect_icons">在线图标资源来源，按需下载，不随本 APK 内置；图标作品归原作者所有。</string>
-    <string name="notices_role_perfect_packer">HyperOS 原生分层图标格式与主题组装的参考项目。KeiHome 独立实现接入，不执行其安装脚本。</string>
+    <string name="notices_role_perfect_packer">早期接入时的格式研究参考，不属于内置、构建或运行依赖。当前原生输出另有独立说明；保留此项用于如实记录研究历史。</string>
 </resources>

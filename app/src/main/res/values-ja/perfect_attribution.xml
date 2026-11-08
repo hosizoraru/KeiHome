@@ -2,5 +2,5 @@
     <string name="cache_perfect_downloads">Perfect Icons のダウンロードキャッシュ</string>
     <string name="cache_perfect_manage_hint">「利用可能なアイコンパック → Perfect Icons Completion Project」で管理できます。</string>
     <string name="notices_role_perfect_icons">オンラインのアイコン素材提供元です。APK に同梱せず、必要に応じて取得します。素材の権利は各作者に帰属します。</string>
-    <string name="notices_role_perfect_packer">HyperOS のネイティブなレイヤーアイコン形式とテーマ構成の参考プロジェクトです。KeiHome は独自に実装し、インストールスクリプトを実行しません。</string>
+    <string name="notices_role_perfect_packer">初期実装時の形式調査の参考です。同梱・ビルド・実行時の依存ではありません。現在のネイティブ出力は別途記録し、この項目は調査履歴として残しています。</string>
 </resources>

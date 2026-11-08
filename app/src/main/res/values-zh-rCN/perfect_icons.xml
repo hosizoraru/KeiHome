@@ -49,7 +49,7 @@
   <string name="perfect_icons_limits">原生图标支持范围</string>
   <string name="perfect_icons_limits_summary">仅在源资源提供时支持深色图标。动态效果取决于资源内容和桌面支持。生成的图标包需另行操作才能应用。</string>
   <string name="perfect_icons_sources">来源与署名</string>
-  <string name="perfect_icons_attribution">图标作品版权归原作者所有，资源来自 pzcn/Perfect-Icons-Completion-Project。打包参考 YifePlayte/PerfectIconsPacker（GPL-3.0），图标资源保留原有权利。</string>
+  <string name="perfect_icons_attribution">图标资源来自 pzcn/Perfect-Icons-Completion-Project，版权归各原作者。KeiHome 按 HyperOS 4 原生格式独立生成模块，早期研究参考另行列出。</string>
   <string name="perfect_icons_source_icons">图标资源仓库</string>
   <string name="perfect_icons_source_packer">参考打包器仓库</string>
   <string name="perfect_icons_up_to_date">仓库已是最新</string>
@@ -81,4 +81,8 @@
   <string name="perfect_icons_preview_static">静态图标</string>
   <string name="perfect_icons_preview_note">最多 24 个本地样例；动态图标仅显示静态快照。</string>
   <string name="perfect_icons_preview_dynamic_filter">动态快照</string>
+  <string name="perfect_icons_result_static">静态 %1$d 项</string>
+  <string name="perfect_icons_result_dynamic">动态 %1$d 项</string>
+  <string name="perfect_icons_result_extracted">本地提取 %1$d 项</string>
+  <string name="perfect_icons_result_reused">复用 %1$d 项</string>
 </resources>

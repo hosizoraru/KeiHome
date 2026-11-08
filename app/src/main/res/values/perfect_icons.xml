@@ -49,7 +49,7 @@
   <string name="perfect_icons_limits">Native icon support</string>
   <string name="perfect_icons_limits_summary">Dark icons are available only when supplied by the source. Dynamic behavior depends on source resources and launcher support. Applying the generated pack requires a separate action.</string>
   <string name="perfect_icons_sources">Sources and attribution</string>
-  <string name="perfect_icons_attribution">Icon artwork belongs to its original authors and comes from pzcn/Perfect-Icons-Completion-Project. Packaging references YifePlayte/PerfectIconsPacker (GPL-3.0); the artwork retains its original rights.</string>
+  <string name="perfect_icons_attribution">Icon artwork comes from pzcn/Perfect-Icons-Completion-Project and retains its original rights. KeiHome independently generates the native module for HyperOS 4. Historical research references are listed separately.</string>
   <string name="perfect_icons_source_icons">Icon resource repository</string>
   <string name="perfect_icons_source_packer">Reference packer repository</string>
   <string name="perfect_icons_up_to_date">Repository is up to date</string>
@@ -81,4 +81,8 @@
   <string name="perfect_icons_preview_static">Static artwork</string>
   <string name="perfect_icons_preview_note">Up to 24 local samples; dynamic icons use still snapshots.</string>
   <string name="perfect_icons_preview_dynamic_filter">Dynamic snapshots</string>
+  <string name="perfect_icons_result_static">Static %1$d</string>
+  <string name="perfect_icons_result_dynamic">Dynamic %1$d</string>
+  <string name="perfect_icons_result_extracted">Extracted locally %1$d</string>
+  <string name="perfect_icons_result_reused">Reused %1$d</string>
 </resources>

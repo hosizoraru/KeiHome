@@ -228,23 +228,33 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         state.pack?.let { card ->
           Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.result?.let { result ->
-              Text(stringResource(R.string.perfect_icons_result_detail, result.staticCount,
-                result.dynamicCount, result.downloaded, result.reused),
-                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-            if (state.generatedOptions != null && state.generatedOptions != state.options) {
-              MetadataPill(stringResource(R.string.perfect_icons_options_changed), MiuixTheme.colorScheme.primary)
-              Text(stringResource(R.string.perfect_icons_options_changed_summary),
-                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
             val sourceId = prefs.systemIconFallback.sourceId(card.pack.id)
             val activeId = runtime.report?.iconTheme?.localId
             IconPackCard(card, vm.packPreviews, prefs.iconPackAppearance,
               packs.nativeAssociations[sourceId], card.pack.id == activeCatalogPackId(activeId, packs),
               packs.nativeImporting == sourceId, ready && !busy,
               packs.nativeResult?.takeIf { it.sourceId == sourceId },
-              onImport = { vm.importNativeIconPack(card.pack) }, onRecheck = vm::recheckNativeIconImport)
+              onImport = { vm.importNativeIconPack(card.pack) }, onRecheck = vm::recheckNativeIconImport,
+              metadataContent = {
+                state.result?.let { result ->
+                  listOf(
+                    R.string.perfect_icons_result_static to result.staticCount,
+                    R.string.perfect_icons_result_dynamic to result.dynamicCount,
+                    R.string.perfect_icons_result_extracted to result.downloaded,
+                    R.string.perfect_icons_result_reused to result.reused,
+                  ).forEach { (label, count) ->
+                    MetadataPill(stringResource(label, count), MiuixTheme.colorScheme.onSurfaceSecondary)
+                  }
+                }
+                if (state.generatedOptions != null && state.generatedOptions != state.options) {
+                  Column(Modifier.fillMaxWidth().padding(top = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    MetadataPill(stringResource(R.string.perfect_icons_options_changed), MiuixTheme.colorScheme.primary)
+                    Text(stringResource(R.string.perfect_icons_options_changed_summary),
+                      style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                  }
+                }
+              })
             packs.nativeResult?.takeIf { it.sourceId == sourceId && it.imported && it.localId != activeId }
               ?.let { NativeThemeLink(it, autoApply = false, enabled = !busy) }
           }

@@ -217,3 +217,7 @@ Cache size sits alongside its cleanup action; source attribution has its own
 local subpage. The full-download confirmation also uses MIUIX WindowDialog,
 with native title/summary layout and equal-width cancel/primary buttons.
 Opening the page never starts a download.
+
+Before the first snapshot exists, the action and confirmation use first-download
+wording. With a usable snapshot, the same entry explicitly offers a forced
+re-download. Both paths require confirmation and share the validated transfer.

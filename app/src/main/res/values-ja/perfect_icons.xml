@@ -94,4 +94,6 @@
   <string name="perfect_icons_file_details_summary">完全なリビジョン、チェックサム、取得日時と生成ファイル</string>
   <string name="perfect_icons_copy_revision">リビジョンをコピー</string>
   <string name="perfect_icons_copy_checksum">チェックサムをコピー</string>
+  <string name="perfect_icons_download_resources">リソースをダウンロード</string>
+  <string name="perfect_icons_download_confirm">リポジトリ全体を取得するため、600 MB を超える通信と追加の一時保存領域が必要になる場合があります。Wi-Fi の利用をおすすめします。ダウンロード後もアイコンパックは自動適用されず、現在のテーマは変わりません。</string>
 </resources>

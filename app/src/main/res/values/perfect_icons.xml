@@ -94,4 +94,6 @@
   <string name="perfect_icons_file_details_summary">Full revision, checksum, download time and generated file</string>
   <string name="perfect_icons_copy_revision">Copy revision</string>
   <string name="perfect_icons_copy_checksum">Copy checksum</string>
+  <string name="perfect_icons_download_resources">Download resources</string>
+  <string name="perfect_icons_download_confirm">The full repository snapshot may exceed 600 MB and needs additional temporary storage. Use Wi-Fi when possible. Downloading does not apply an icon pack or change your current theme.</string>
 </resources>

@@ -94,4 +94,6 @@
   <string name="perfect_icons_file_details_summary">查看完整版本、校验值、下载时间和生成文件</string>
   <string name="perfect_icons_copy_revision">复制版本号</string>
   <string name="perfect_icons_copy_checksum">复制校验值</string>
+  <string name="perfect_icons_download_resources">下载资源</string>
+  <string name="perfect_icons_download_confirm">将下载完整仓库快照，下载可能超过 600 MB，且需要额外临时存储空间，建议使用 Wi-Fi。下载后不会自动应用图标包，也不会更改当前主题。</string>
 </resources>

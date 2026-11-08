@@ -323,6 +323,9 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
+  val hasSource = state.catalog != null
+  val downloadLabel = stringResource(if (hasSource) R.string.perfect_icons_force_download
+    else R.string.perfect_icons_download_resources)
   LaunchedEffect(vm) {
     vm.perfectPacks.load()
     localLoadRequested = true
@@ -335,7 +338,7 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
   PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack,
     bottomSpacing = actionBottom,
     floatingActionButton = {
-      PageActionFab(stringResource(R.string.perfect_icons_force_download), MiuixIcons.Refresh,
+      PageActionFab(downloadLabel, MiuixIcons.Refresh,
         onClick = { confirmDownload = true }, enabled = !busy && !cooling,
         busy = state.refreshing, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.force-download"))
@@ -362,8 +365,8 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
           if (catalog != null) showDetails = true
           else if (!busy && !cooling && !localLoading) confirmDownload = true
         },
-        actionLabel = stringResource(if (catalog != null) R.string.perfect_icons_file_details
-          else R.string.perfect_icons_force_download),
+        actionLabel = if (catalog != null) stringResource(R.string.perfect_icons_file_details)
+          else downloadLabel,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
           .testTag("icon-packs.perfect.storage-status"),
         badgeContent = if (catalog == null) null else { color ->
@@ -454,13 +457,14 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
   }
 
   WindowDialog(show = confirmDownload,
-    title = stringResource(R.string.perfect_icons_force_download),
-    summary = stringResource(R.string.perfect_icons_force_download_confirm),
+    title = downloadLabel,
+    summary = stringResource(if (hasSource) R.string.perfect_icons_force_download_confirm
+      else R.string.perfect_icons_download_confirm),
     onDismissRequest = { confirmDownload = false }) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       TextButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
         modifier = Modifier.weight(1f))
-      TextButton(stringResource(R.string.perfect_icons_force_download_proceed),
+      TextButton(if (hasSource) stringResource(R.string.perfect_icons_force_download_proceed) else downloadLabel,
         enabled = confirmDownload && !busy && !cooling, onClick = {
           confirmDownload = false
           vm.perfectPacks.refreshCatalog(forceDownload = true)

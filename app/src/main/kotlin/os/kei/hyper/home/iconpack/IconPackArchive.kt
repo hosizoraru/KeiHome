@@ -198,45 +198,85 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
 
   private fun nativeIndex(file: File, paths: Set<String>, part: IconArchivePart, check: () -> Unit): IconPackArchiveIndex {
     val variants = linkedMapOf<String, MutableList<IconArchiveVariant>>()
+    val staticLayers = linkedMapOf<Pair<String, Boolean>, MutableList<List<IconArchiveVariant>>>()
+    val snapshots = linkedMapOf<Pair<String, Boolean>, IconPackArtwork.Archive>()
     val animated = linkedSetOf<String>()
     val notices = linkedSetOf<IconPackNotice>()
     ZipFile(file).use { zip ->
+      fun variant(path: String, qualifiers: IconResourceQualifiers): IconArchiveVariant {
+        val header = zip.getInputStream(zip.getEntry(path)).use { it.readNBytes(24) }
+        if (!pngHeader(header)) throw IconPackException("Invalid native PNG header: $path")
+        if (qualifiers.unsupported.isNotEmpty()) notices += IconPackNotice.UNSUPPORTED_RESOURCE_QUALIFIERS
+        return IconArchiveVariant(path, qualifiers)
+      }
+      fun descriptor(path: String): Boolean {
+        var root = ""
+        var children = 0
+        BoundedPackXml.read(readEntry(file, path, 64 * 1024, check), limits, check,
+          start = { name, _, depth -> if (depth == 1) root = name else children++ })
+        return root == "Icon" && children > 0
+      }
       for (path in paths) {
         check()
         val night = path.startsWith("nightmode/")
         val pieces = path.removePrefix("nightmode/").split('/')
-        if (pieces.size == 3 && pieces[0] == "res" && pieces[1].substringBefore('-') == "drawable" && path.endsWith(".png")) {
-          val name = pieces[2].removeSuffix(".png")
-          if (!nativeName(name)) continue
-          val header = zip.getInputStream(zip.getEntry(path)).use { it.readNBytes(24) }
-          if (!pngHeader(header)) throw IconPackException("Invalid native PNG header: $path")
+        if (pieces.size in 3..4 && pieces[0] == "res" && pieces[1].substringBefore('-') == "drawable") {
           val parsed = IconResourceQualifiers.parse(pieces[1]) ?: continue
           val qualifiers = if (night) parsed.copy(night = IconNightMode.DARK) else parsed
-          variants.getOrPut(name) { mutableListOf() } += IconArchiveVariant(path, qualifiers)
-          if (qualifiers.unsupported.isNotEmpty()) notices += IconPackNotice.UNSUPPORTED_RESOURCE_QUALIFIERS
+          if (pieces.size == 3 && path.endsWith(".png")) {
+            val name = pieces[2].removeSuffix(".png")
+            if (nativeName(name)) variants.getOrPut(name) { mutableListOf() } += variant(path, qualifiers)
+          } else if (pieces.size == 4 && pieces[3] == "0.png" && nativeName(pieces[2])) {
+            val foreground = path.removeSuffix("0.png") + "1.png"
+            // A partial source is never a flat icon and never borrows an inferred background.
+            if (foreground !in paths) continue
+            val key = pieces[2] to (qualifiers.night == IconNightMode.DARK)
+            val groups = staticLayers.getOrPut(key) { mutableListOf(mutableListOf(), mutableListOf()) }
+            groups[0] = groups[0] + variant(path, qualifiers)
+            groups[1] = groups[1] + variant(foreground, qualifiers)
+          }
+        }
+        if (pieces.size == 3 && pieces[0] == "layer_animating_icons" &&
+          pieces[2] == "config.xml" && nativeName(pieces[1])) {
+          val config = try {
+            NativeLayerConfig.parse(readEntry(file, path, 64 * 1024, check), limits, check)
+          } catch (_: IconPackException) { continue }
+          val base = path.removeSuffix("config.xml")
+          val qualifiers = IconResourceQualifiers("drawable-nodpi",
+            night = if (night) IconNightMode.DARK else IconNightMode.ANY, densityDpi = 0)
+          val rootQuiet = base + "quiet/quietImage.png"
+          val quietPaths = config.layers.map { base + it + "/quiet/quietImage.png" }
+          val manifests = config.layers.map { base + it + "/fancy/manifest.xml" }
+          val groups = when {
+            rootQuiet in paths -> listOf(listOf(variant(rootQuiet, qualifiers)))
+            quietPaths.all { it in paths } -> quietPaths.map { listOf(variant(it, qualifiers)) }
+            else -> emptyList()
+          }
+          val known = groups.isNotEmpty() || manifests.any { it in paths && descriptor(it) }
+          if (known || groups.isNotEmpty()) animated += pieces[1]
+          if (groups.isNotEmpty()) snapshots[pieces[1] to night] = IconPackArtwork.Archive(
+            groups.flatten(), part, layers = if (groups.size > 1) groups else emptyList(), snapshot = true)
         }
         val dynamicName = when {
           pieces.size == 3 && pieces[0] == "fancy_icons" && pieces[2] == "manifest.xml" -> pieces[1]
           pieces.size == 4 && pieces[0] == "animating_icons" && pieces[2] == "fancy" && pieces[3] == "manifest.xml" -> pieces[1]
-          pieces.size == 5 && pieces[0] == "layer_animating_icons" && pieces[3] == "fancy" && pieces[4] == "manifest.xml" -> {
-            val config = (if (night) "nightmode/" else "") + "layer_animating_icons/${pieces[1]}/config.xml"
-            if (config in paths && declaresLayer(file, config, pieces[2], check)) pieces[1] else null
-          }
           else -> null
         }
-        if (dynamicName != null && nativeName(dynamicName)) {
-          var root = ""
-          var children = 0
-          BoundedPackXml.read(readEntry(file, path, 64 * 1024, check), limits, check,
-            start = { name, _, depth -> if (depth == 1) root = name else children++ })
-          if (root == "Icon" && children > 0) animated += dynamicName
-        }
+        if (dynamicName != null && nativeName(dynamicName) && descriptor(path)) animated += dynamicName
       }
     }
     if (animated.isNotEmpty()) notices += IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED
-    val entries = (variants.keys + animated).map { name ->
-      val artwork = variants[name]?.let { IconPackArtwork.Archive(it.toList(), part) }
-      IconPackEntry(name, nativeName = name, light = artwork, dark = artwork)
+    fun artwork(name: String, night: Boolean): IconPackArtwork.Archive? {
+      snapshots[name to night]?.let { return it }
+      staticLayers[name to night]?.let { return IconPackArtwork.Archive(it.flatten(), part, layers = it) }
+      val candidates = variants[name]?.filter { night || it.qualifiers.night != IconNightMode.DARK }.orEmpty()
+      if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return null
+      return candidates.takeIf { it.isNotEmpty() }?.let { IconPackArtwork.Archive(it, part) }
+    }
+    val names = variants.keys + staticLayers.keys.map { it.first } + animated
+    val entries = names.map { name ->
+      val light = artwork(name, false)
+      IconPackEntry(name, nativeName = name, light = light, dark = artwork(name, true) ?: light)
     }
     return IconPackArchiveIndex(IconPackFormat.MIUI_ICONS, entries, notices = notices)
   }
@@ -251,16 +291,6 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     val width = buffer.getInt(16)
     val height = buffer.getInt(20)
     return width in 1..8192 && height in 1..8192 && width.toLong() * height <= 32L * 1024 * 1024
-  }
-
-  private fun declaresLayer(file: File, path: String, layer: String, check: () -> Unit): Boolean {
-    var validRoot = false
-    var declared = false
-    BoundedPackXml.read(readEntry(file, path, 64 * 1024, check), limits, check, start = { name, attrs, depth ->
-      if (depth == 1) validRoot = name == "Config"
-      if (name == "Variable" && attrs["name"].orEmpty().matches(Regex("layer[0-9]+")) && attrs["value"] == layer) declared = true
-    })
-    return validRoot && declared
   }
 
   private fun description(file: File, check: () -> Unit): IconPackDescription {

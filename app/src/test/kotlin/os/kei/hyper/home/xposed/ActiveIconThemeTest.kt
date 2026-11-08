@@ -180,6 +180,39 @@ class ActiveIconThemeTest {
     assertEquals(setOf("com.sample.classic"), result.coveredPackages)
   }
 
+  @Test fun staticLayersRequireBothImagesAndDoNotImplyNightArtwork() {
+    archive(active, mapOf(
+      "res/drawable-xxhdpi/com.sample.layers/0.png" to png(),
+      "res/drawable-xxhdpi/com.sample.layers/1.png" to png(),
+      "res/drawable-xxhdpi/com.sample.half/0.png" to png(),
+      "res/drawable-xxhdpi/com.sample.bad/0.png" to png(),
+      "res/drawable-xxhdpi/com.sample.bad/1.png" to "not an image".toByteArray(),
+    ))
+    val report = reader().describe()
+    assertTrue(report.complete)
+    assertEquals(1, report.resourceCount)
+    assertEquals(0, report.nightResourceCount)
+    assertEquals(setOf("com.sample.layers"),
+      reader().snapshot(setOf("com.sample.layers", "com.sample.half", "com.sample.bad")).coveredPackages)
+  }
+
+  @Test fun extractedStaticLayersFollowTheSameCompletePairRule() {
+    mod.mkdirs()
+    File(mod, "res/drawable-xxhdpi/com.sample.layers").apply {
+      mkdirs()
+      File(this, "0.png").writeBytes(png())
+      File(this, "1.png").writeBytes(png())
+    }
+    File(mod, "res/drawable-xxhdpi/com.sample.half").apply {
+      mkdirs()
+      File(this, "0.png").writeBytes(png())
+    }
+    val report = reader().describe()
+    assertTrue(report.complete)
+    assertEquals(1, report.resourceCount)
+    assertEquals(0, report.nightResourceCount)
+  }
+
   @Test fun stockAndModDoNotOverrideNativeSourceGates() {
     archive(active, mapOf("res/drawable/com.sample.active.png" to png()))
     archive(stock, mapOf("res/drawable/com.sample.stock.png" to png()))

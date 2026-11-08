@@ -229,20 +229,20 @@ internal class IconPackRenderer(private val context: Context) {
           }
         }
         is IconPackArtwork.Archive -> {
-          val selected = selectArchiveVariant(artwork.variants, dark,
-            context.resources.displayMetrics.densityDpi, Build.VERSION.SDK_INT) ?: return null
-          if (!selected.isRaster) throw IconPackException("Uncompiled drawable XML requires an APK resource table")
-          val bytes = when (val source = pack.source) {
-            is IconPackSource.Builtin -> source.record.read(selected.path, 16 * 1024 * 1024, check)
-            is IconPackSource.Generated ->
-              IconPackArchive.readEntry(source.file, selected.path, 16 * 1024 * 1024, check)
-            is IconPackSource.Imported -> {
-              val file = if (artwork.part == IconArchivePart.ICONS) source.record.iconsFile else source.record.originalFile
-              IconPackArchive.readEntry(file ?: throw IconPackException("Missing icons module"), selected.path, 16 * 1024 * 1024, check)
+          ArchiveLayerRenderer.render(artwork, dark, context.resources.displayMetrics.densityDpi,
+            Build.VERSION.SDK_INT, sizePx, check) { selected ->
+            val bytes = when (val source = pack.source) {
+              is IconPackSource.Builtin -> source.record.read(selected.path, 16 * 1024 * 1024, check)
+              is IconPackSource.Generated ->
+                IconPackArchive.readEntry(source.file, selected.path, 16 * 1024 * 1024, check)
+              is IconPackSource.Imported -> {
+                val file = if (artwork.part == IconArchivePart.ICONS) source.record.iconsFile else source.record.originalFile
+                IconPackArchive.readEntry(file ?: throw IconPackException("Missing icons module"), selected.path, 16 * 1024 * 1024, check)
+              }
+              else -> throw IconPackException("Missing archive source")
             }
-            else -> throw IconPackException("Missing archive source")
+            bitmap({ bytes.inputStream() }, sizePx, check)
           }
-          bitmap({ bytes.inputStream() }, sizePx, check)
         }
       }
     }

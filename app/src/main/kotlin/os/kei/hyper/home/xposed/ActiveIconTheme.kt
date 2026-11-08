@@ -195,6 +195,11 @@ internal class ActiveIconTheme(
       val entry = entries.nextElement()
       if (entry.isDirectory || entry.size <= 0) continue
       val resource = resource(entry.name, allowFlat = false) ?: continue
+      if (resource.staticCompanion != null) {
+        val companion = zip.getEntry(resource.staticCompanion) ?: continue
+        if (companion.isDirectory || companion.size < 24 ||
+          !zip.getInputStream(companion).use { png(it.readNBytes(24)) }) continue
+      }
       if (resource.descriptor) {
         if (entry.size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
         descriptorBytes += entry.size
@@ -252,6 +257,13 @@ internal class ActiveIconTheme(
         val relativePath = root.relativize(path).joinToString("/")
         val resource = resource(relativePath, allowFlat = true)
           ?: return FileVisitResult.CONTINUE
+        if (resource.staticCompanion != null) {
+          val companion = root.resolve(resource.staticCompanion)
+          if (!Files.isRegularFile(companion, java.nio.file.LinkOption.NOFOLLOW_LINKS) ||
+            !Files.newInputStream(companion).use { png(it.readNBytes(24)) }) {
+            return FileVisitResult.CONTINUE
+          }
+        }
         if (resource.descriptor) {
           if (attrs.size() > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
           descriptorBytes += attrs.size()
@@ -289,7 +301,8 @@ internal class ActiveIconTheme(
     it.startsWith("drawable-") && "night" in it.split('-')
   }
 
-  private data class Resource(val name: String, val descriptor: Boolean, val layer: String? = null, val prefix: String = "") {
+  private data class Resource(val name: String, val descriptor: Boolean, val layer: String? = null,
+    val prefix: String = "", val staticCompanion: String? = null) {
     val layerConfig get() = "${prefix}layer_animating_icons/$name/config.xml"
   }
 
@@ -306,6 +319,12 @@ internal class ActiveIconTheme(
     }
     if (staticName?.endsWith(".png") == true) {
       return Resource(staticName.removeSuffix(".png"), descriptor = false)
+    }
+    if (parts.size == 4 && parts[0] == "res" &&
+      (parts[1] == "drawable" || parts[1].startsWith("drawable-")) && parts[3] == "0.png") {
+      // The pair is background/foreground, not day/night. A half-pair is not coverage.
+      return Resource(parts[2], descriptor = false,
+        staticCompanion = prefix + parts.take(3).joinToString("/") + "/1.png")
     }
     return when {
       parts.size == 3 && parts[0] == "fancy_icons" && parts[2] == "manifest.xml" ->

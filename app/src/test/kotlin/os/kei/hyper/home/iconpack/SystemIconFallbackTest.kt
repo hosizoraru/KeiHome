@@ -52,10 +52,12 @@ class SystemIconFallbackTest {
       "fancy_icons/com.android.camera/unrecognized.blob",
       "animating_icons/com.miui.gallery/quiet/den480/quietImage.png",
       "com.android.documentsui.png",
+      "res/drawable-xxhdpi/com.example.layered/0.png",
+      "nightmode/res/drawable-xxhdpi/com.example.layered/1.png",
       "icon_mask.png", "res/raw/com.other.xml",
     ))
     assertEquals(setOf("com.android.settings", "com.miui.notes", "com.android.camera", "com.miui.gallery",
-      "com.android.documentsui"), names)
+      "com.android.documentsui", "com.example.layered"), names)
     assertFalse("com.android.settings.other" in names)
   }
 }

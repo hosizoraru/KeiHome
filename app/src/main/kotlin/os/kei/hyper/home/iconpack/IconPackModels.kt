@@ -132,6 +132,10 @@ internal sealed interface IconPackArtwork {
   data class Archive(
     val variants: List<IconArchiveVariant>,
     val part: IconArchivePart = IconArchivePart.ORIGINAL,
+    /** Back-to-front groups of density variants, never light/dark pairs. */
+    val layers: List<List<IconArchiveVariant>> = emptyList(),
+    /** Quiet snapshot of a dynamic icon; does not imply animated preview support. */
+    val snapshot: Boolean = false,
   ) : IconPackArtwork
 }
 

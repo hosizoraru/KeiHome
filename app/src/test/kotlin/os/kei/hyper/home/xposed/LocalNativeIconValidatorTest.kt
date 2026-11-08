@@ -125,6 +125,35 @@ class LocalNativeIconValidatorTest {
     assertEquals(hash, ConvertedIconArchive.digest(file))
   }
 
+  @Test fun admitsBoundedNativeLayerFlagsAndMaskGeometry() {
+    val transform = """<IconTransform>
+      <Config name="SupportLayerIcon" value="true"/>
+      <Config name="UseDynamicIcon" value="false"/>
+      <Config name="ConfigIconMask" value="M 0 10 C 0 0 10 0 10 0 H 90 V 90 L 0 90 Z"/>
+      </IconTransform>"""
+    ConvertedIconArchive.inspect(archive(module() + ("transform_config.xml" to transform.toByteArray())),
+      ConvertedIconArchive.LOCAL_NATIVE)
+  }
+
+  @Test fun rejectsUnknownNativeSettingsAndUnboundedOrMalformedMasks() {
+    for (setting in listOf(
+      """<Config name="Execute" value="true"/>""",
+      """<Config name="UseDynamicIcon" value="1"/>""",
+      """<Config name="ConfigIconMask" value="content://settings"/>""",
+      """<Config name="ConfigIconMask" value="M 0 0 C 1 2 Z"/>""",
+      """<Config name="ConfigIconMask" value="M 0 0 L 1e309 2 Z"/>""",
+      """<Config name="ConfigIconMask" value="M 0 0 L 999999 2 Z"/>""",
+      """<Config name="ConfigIconMask" value="M 0 0 L 1 2"/>""",
+      """<Config name="ConfigIconMask" value="M 0 0 ${"L 1 2 ".repeat(257)}Z"/>""",
+    )) {
+      val transform = "<IconTransform>$setting</IconTransform>"
+      assertTrue(runCatching {
+        ConvertedIconArchive.inspect(archive(module() + ("transform_config.xml" to transform.toByteArray())),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }.isFailure)
+    }
+  }
+
   private fun module(xml: String = selector) = linkedMapOf(
     "res/drawable-xxhdpi/com.example.png" to png,
     "${root}manifest.xml" to xml.toByteArray(), "${root}common.png" to png, "${root}dark.png" to png,

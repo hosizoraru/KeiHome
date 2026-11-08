@@ -21,7 +21,7 @@ internal object LocalNativeIconValidator {
     "VariableAnimation", "AniFrame", "ExternalCommands", "Trigger", "VariableCommand",
     "FrameRateCommand", "AnimationCommand", "FolmeCommand", "FolmeState", "FolmeConfig",
   )
-  private val transformTags = setOf("IconTransform", "ScaleX", "ScaleY", "PointsMapping", "Point")
+  private val transformTags = setOf("IconTransform", "ScaleX", "ScaleY", "PointsMapping", "Point", "Config")
   private val clockActions = setOf(
     "android.intent.action.TIME_SET", "android.intent.action.TIMEZONE_CHANGED",
     "android.intent.action.DATE_CHANGED", "android.intent.action.LOCALE_CHANGED",
@@ -49,9 +49,11 @@ internal object LocalNativeIconValidator {
         }
         return bytes
       }
+      val layered = LocalLayerIconValidator.validate(paths, ::read, ::image)
       for (path in paths) {
         if (Thread.currentThread().isInterrupted) throw InterruptedException("Local icon inspection interrupted")
         when {
+          path in layered -> Unit
           path == IconBuildInventory.SOURCE_PATH -> IconBuildInventory.decodeSource(read(path, 4096))
           path == IconGenerationManifest.PATH -> IconGenerationManifest.decode(read(path, 1024 * 1024))
           path == SystemIconFallbackManifest.PATH -> SystemIconFallbackManifest.decode(read(path, 1024 * 1024))
@@ -95,6 +97,17 @@ internal object LocalNativeIconValidator {
         it.contains("://") || it.contains("content:", true) || it.contains("file:", true) ||
           it.contains('\\') || it.contains("..") || it.trimStart().startsWith('/')
       }) { "External local icon reference" }
+      if (tag == "Config") {
+        require(transform && depth == 2 && attrs.keys == setOf("name", "value")) {
+          "Unsupported local transform configuration"
+        }
+        when (attrs["name"]) {
+          "SupportLayerIcon", "UseDynamicIcon" ->
+            require(attrs["value"] in setOf("true", "false"))
+          "ConfigIconMask" -> maskPath(requireNotNull(attrs["value"]))
+          else -> error("Unsupported local transform setting")
+        }
+      }
       if (tag == "Icon") require(attrs["useVariableUpdater"].let { it == null || it == "DateTime" }) {
         "Unsupported local icon updater"
       }
@@ -126,6 +139,34 @@ internal object LocalNativeIconValidator {
     })
     require(root == if (transform) "IconTransform" else "Icon") { "Unexpected local icon root" }
     require(stringVariables.containsAll(imageVariables)) { "Unverified computed image source" }
+  }
+
+  /** Bounded SVG geometry, not a general expression, URI, or executable configuration. */
+  private fun maskPath(value: String) {
+    require(value.length in 1..4096)
+    val token = Regex("[MLHVCSQTZmlhvcsqtz]|[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
+    val tokens = token.findAll(value).map { it.value }.toList()
+    require(tokens.joinToString("") == value.filterNot { it.isWhitespace() || it == ',' })
+    require(tokens.firstOrNull() in setOf("M", "m") && tokens.lastOrNull() in setOf("Z", "z"))
+    val arity = mapOf('M' to 2, 'L' to 2, 'H' to 1, 'V' to 1, 'C' to 6,
+      'S' to 4, 'Q' to 4, 'T' to 2, 'Z' to 0)
+    var index = 0
+    var segments = 0
+    while (index < tokens.size) {
+      val command = tokens[index++].singleOrNull()?.uppercaseChar()
+      val count = arity[command] ?: error("Invalid icon mask command")
+      if (count == 0) continue
+      var groups = 0
+      while (index < tokens.size && tokens[index].first() !in "MLHVCSQTZmlhvcsqtz") {
+        require(index + count <= tokens.size && ++segments <= 256)
+        repeat(count) {
+          val coordinate = tokens[index++].toDoubleOrNull()
+          require(coordinate != null && coordinate.isFinite() && coordinate in -1000.0..1000.0)
+        }
+        groups++
+      }
+      require(groups > 0)
+    }
   }
 
   private fun expression(value: String) {

@@ -180,15 +180,33 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
-    /** Android's declared monochrome layer is independent of the pack's colored artwork. */
+    /** Native image pairs need both a closed program and matching two-tone pixel geometry. */
     fun themedLayers(entry: IconPackEntry, sizePx: Int, check: () -> Unit): Pair<Bitmap, Bitmap>? {
+      val native = entry.light as? IconPackArtwork.Archive
+      if (native?.palettePair == true) {
+        val source = pack.source as? IconPackSource.Imported ?: return null
+        val file = if (native.part == IconArchivePart.ICONS) source.record.iconsFile else source.record.originalFile
+        return NativeMamlMonet.read(entry, check) { path ->
+          IconPackArchive.readEntry(file ?: throw IconPackException("Missing icons module"),
+            path, 4 * 1024 * 1024, check)
+        }?.use { artwork ->
+          val foreground = Bitmap.createScaledBitmap(artwork.foreground, sizePx, sizePx, true)
+          val background = Bitmap.createScaledBitmap(artwork.background, sizePx, sizePx, true)
+          // ScaledBitmap may return its input; ownership must outlive Artwork.close().
+          (if (foreground === artwork.foreground) foreground.copy(Bitmap.Config.ARGB_8888, false) else foreground) to
+            (if (background === artwork.background) background.copy(Bitmap.Config.ARGB_8888, false) else background)
+        }
+      }
       val artwork = entry.artwork(dark) as? IconPackArtwork.Resource ?: return null
       val session = android ?: return null
       val id = session.drawableId(artwork.drawable)
       if (id == 0) return null
       validateDrawable(session.resources, id, DrawableBudget(), 0, check)
-      val drawable = session.resources.getDrawable(id, null).mutate() as? AdaptiveIconDrawable ?: return null
-      if (drawable.monochrome == null) return null
+      val original = session.resources.getDrawable(id, null).mutate() as? AdaptiveIconDrawable ?: return null
+      val drawable = if (original.monochrome != null) original else {
+        if (!AndroidPaletteIcon.foreground(session.resources, id, check)) return null
+        AdaptiveIconDrawable(original.background, original.foreground, original.foreground)
+      }
       drawable.setBounds(0, 0, sizePx, sizePx)
       val background = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
       try {

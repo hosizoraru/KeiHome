@@ -214,3 +214,8 @@ adaptive source, so rounded adaptive artwork is not clipped a second time.
 The AVD Lawnicons resource was inspected in both modes: it remained rounded
 and its exported corners were transparent. Ordinary PNG, vector, native MAML
 and unknown resources do not use this clipping path.
+
+Large native MTZ imports, proven image-pair Monet conversion, explicitly
+palette-linked APK resources and active theme labels are documented in
+[native-monet-import.md](native-monet-import.md). Source programs outside those
+proofs retain their original native resources.

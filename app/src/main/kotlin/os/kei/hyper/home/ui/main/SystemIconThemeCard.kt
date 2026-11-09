@@ -24,5 +24,6 @@ internal fun SystemIconThemeCard(
   } else stringResource(if (available) R.string.icon_pack_inventory_incomplete else R.string.icon_pack_waiting_system)
   StatusOverviewCard(title = stringResource(R.string.icon_pack_active), summary = name,
     footer = footer, tone = if (theme?.complete == true && available) StatusTone.READY else StatusTone.WARNING,
-    details = emptyList(), onRefresh = onRefresh, badges = badges)
+    details = emptyList(), onRefresh = onRefresh,
+    badges = listOfNotNull(theme?.version?.let { stringResource(R.string.icon_pack_version_label, it) }) + badges)
 }

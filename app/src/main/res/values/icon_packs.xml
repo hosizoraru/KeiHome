@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="icon_pack_version_unspecified">Version not provided</string>
+    <string name="icon_pack_version_label">Version %1$s</string>
     <string name="icon_pack_native_eligibility_failed">Imported, but local icon support is not ready. Expand details to retry the update.</string>
     <string name="navigation_icon_packs">Icon packs</string>
     <string name="pack_monet_summary">Themed icons, color schemes, and palette settings.</string>

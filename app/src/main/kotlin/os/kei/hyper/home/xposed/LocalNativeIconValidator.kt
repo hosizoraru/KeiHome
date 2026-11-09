@@ -56,6 +56,8 @@ internal object LocalNativeIconValidator {
           path in layered -> Unit
           path == IconBuildInventory.SOURCE_PATH -> IconBuildInventory.decodeSource(read(path, 4096))
           path == IconGenerationManifest.PATH -> IconGenerationManifest.decode(read(path, 1024 * 1024))
+          path == os.kei.hyper.home.iconpack.IconThemeMetadata.PATH ->
+            requireNotNull(os.kei.hyper.home.iconpack.IconThemeMetadata.decode(read(path, 4096)))
           path == SystemIconFallbackManifest.PATH -> SystemIconFallbackManifest.decode(read(path, 1024 * 1024))
           path == "transform_config.xml" -> xml(read(path, limits.maxXmlBytes.toLong()), transform = true)
           path.startsWith("fancy_icons/") && path.endsWith("/manifest.xml") -> {

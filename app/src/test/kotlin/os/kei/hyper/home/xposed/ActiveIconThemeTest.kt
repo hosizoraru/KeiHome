@@ -9,10 +9,13 @@ import java.util.zip.ZipOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import os.kei.hyper.home.iconpack.IconThemeMetadata
+import os.kei.hyper.home.status.SystemIconThemeReport
 
 class ActiveIconThemeTest {
   @get:Rule val temporary = TemporaryFolder()
@@ -54,17 +57,141 @@ class ActiveIconThemeTest {
 
   @Test fun manySmallDescriptorsMayExceedOneMiBButStillHaveABoundedAggregate() {
     val xml = ("<Icon><Image/><!--" + " ".repeat(4096) + "--></Icon>").toByteArray()
-    archive(active, (0..299).associate { "fancy_icons/com.sample.icon$it/manifest.xml" to xml })
+    archive(active, (0..299).associate { "fancy_icons/com.sample.icon$it/manifest.xml" to xml } +
+      mapOf("description.xml" to description("Original source", "2.4")))
     assertTrue(300L * xml.size > 1024 * 1024)
     assertTrue(reader().describe().complete)
     assertEquals(300, reader().describe().resourceCount)
     val bounded = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = 299L * xml.size)
-    assertFalse(bounded.describe().complete)
+    val partial = bounded.describe()
+    assertFalse(partial.complete)
+    assertEquals(SystemIconThemeReport.Source.THEME, partial.source)
+    assertEquals("Original source", partial.title)
+    assertEquals("2.4", partial.version)
     assertTrue(bounded.snapshot(setOf("com.sample.icon0")).coveredPackages.isEmpty())
+  }
+
+  @Test fun descriptorBudgetKeepsStampedLabelsButNeverPublishesPartialCoverage() {
+    val xml = descriptor()
+    archive(active, linkedMapOf(
+      "res/drawable/com.sample.first.png" to png(),
+      "nightmode/res/drawable/com.sample.first.png" to png(),
+      "fancy_icons/com.sample.first/manifest.xml" to xml,
+      "fancy_icons/com.sample.second/manifest.xml" to xml,
+      "res/drawable/com.sample.later.png" to png(),
+      "description.xml" to description("Generic handoff", "1"),
+      // Metadata is deliberately last: labels must be read before the scan stops.
+      IconThemeMetadata.PATH to IconThemeMetadata("Actual MTZ title", "2026.11", "Artist").encode(),
+    ))
+    val index = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = xml.size.toLong())
+    val report = index.describe()
+    assertEquals(SystemIconThemeReport.Source.THEME, report.source)
+    assertEquals("Actual MTZ title", report.title)
+    assertEquals("2026.11", report.version)
+    assertEquals(active.absolutePath, report.archivePath)
+    assertFalse(report.complete)
+    assertEquals(0, report.resourceCount)
+    assertEquals(0, report.nightResourceCount)
+    assertEquals(report, SystemIconThemeReport.decode(report.encode()))
+    val snapshot = index.snapshot(setOf("com.sample.first", "com.sample.second", "com.sample.later"),
+      allowStockFallback = true, modEnabled = true)
+    assertFalse(snapshot.complete)
+    assertTrue(snapshot.coveredPackages.isEmpty())
+  }
+
+  @Test fun entryAndIndividualDescriptorBoundsAlsoRetainKnownSourceAndLabels() {
+    archive(active, mapOf(
+      "res/drawable/com.sample.first.png" to png(),
+      "fancy_icons/com.sample.large/manifest.xml" to ByteArray(65_537) { 32 },
+      IconThemeMetadata.PATH to IconThemeMetadata("Bounded source", "3").encode(),
+    ))
+    for (index in listOf(reader(), reader(maxEntries = 1))) {
+      val report = index.describe()
+      assertEquals(SystemIconThemeReport.Source.THEME, report.source)
+      assertEquals("Bounded source", report.title)
+      assertEquals("3", report.version)
+      assertFalse(report.complete)
+      val snapshot = index.snapshot(setOf("com.sample.first"))
+      assertFalse(snapshot.complete)
+      assertTrue(snapshot.coveredPackages.isEmpty())
+    }
+    assertFalse(ActiveIconTheme(active, stock, mod, maxArchiveBytes = active.length() - 1).describe().complete)
+    assertNull(ActiveIconTheme(active, stock, mod, maxArchiveBytes = active.length() - 1).describe().title)
+  }
+
+  @Test fun partialInventoriesRemainCachedUntilInvalidationOrSourceChange() {
+    fun entries(title: String, version: String) = mapOf(
+      "fancy_icons/com.sample.first/manifest.xml" to descriptor(),
+      "fancy_icons/com.sample.second/manifest.xml" to descriptor(),
+      IconThemeMetadata.PATH to IconThemeMetadata(title, version).encode(),
+    )
+    archive(active, entries("One", "1"), noCompression = true)
+    val index = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = descriptor().size.toLong())
+    val before = index.describe()
+    assertFalse(before.complete)
+    val modified = Files.getLastModifiedTime(active.toPath())
+    val size = active.length()
+    archive(active, entries("Two", "2"), noCompression = true)
+    assertEquals(size, active.length())
+    Files.setLastModifiedTime(active.toPath(), modified)
+    assertEquals(before, index.describe())
+    index.invalidate()
+    val after = index.describe()
+    assertFalse(after.complete)
+    assertEquals("Two", after.title)
+    assertEquals("2", after.version)
+    assertNotEquals(before.revision, after.revision)
+    archive(active, entries("New", "3"), noCompression = true)
+    Files.setLastModifiedTime(active.toPath(), FileTime.fromMillis(modified.toMillis() + 10_000))
+    assertEquals("New", index.describe().title)
+  }
+
+  @Test fun partialTimeInventoryDoesNotPublishTargetsSeenBeforeTheBudgetStop() {
+    val dynamic = os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
+    val entries = dynamic.entries("sample.calendar.Main", os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind.CALENDAR,
+      mapOf("day.png" to png().copyOf(33), "night.png" to png().copyOf(33)))
+    archive(active, entries + mapOf("fancy_icons/sample.later/manifest.xml" to descriptor()))
+    val budget = entries.filterKeys { it.endsWith("manifest.xml") }.values.sumOf { it.size.toLong() }
+    val index = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = budget)
+    assertFalse(index.describe().complete)
+    assertTrue(index.timeIconPackages(setOf("sample.calendar"), mapOf("sample.calendar" to setOf(".Main"))).isEmpty())
+  }
+
+  @Test fun displayMetadataFallsBackPerFieldToBoundedOriginalDescription() {
+    val original = description("Original title", "2.7")
+    val cases = listOf(
+      null to ("Original title" to "2.7"),
+      "not metadata".toByteArray() to ("Original title" to "2.7"),
+      ByteArray(4097) to ("Original title" to "2.7"),
+      IconThemeMetadata(null, "4").encode() to ("Original title" to "4"),
+      IconThemeMetadata("Stamped", null).encode() to ("Stamped" to "2.7"),
+    )
+    for ((stamped, expected) in cases) {
+      archive(active, mapOf("description.xml" to original) +
+        (stamped?.let { mapOf(IconThemeMetadata.PATH to it) } ?: emptyMap()))
+      val report = reader().describe()
+      assertTrue(report.complete)
+      assertEquals(SystemIconThemeReport.Source.THEME, report.source)
+      assertEquals(expected.first, report.title)
+      assertEquals(expected.second, report.version)
+    }
+    archive(active, mapOf("description.xml" to description("t".repeat(121), "v".repeat(81))))
+    val bounded = reader().describe()
+    assertEquals("t".repeat(120), bounded.title)
+    assertEquals("v".repeat(80), bounded.version)
+    for (badDescription in listOf(ByteArray(65_537), "<MIUI-Theme><title>broken".toByteArray(),
+      "<!DOCTYPE MIUI-Theme [<!ENTITY x SYSTEM 'file:///unread'>]><MIUI-Theme><title>&x;</title></MIUI-Theme>".toByteArray())) {
+      archive(active, mapOf("description.xml" to badDescription))
+      val report = reader().describe()
+      assertTrue(report.complete)
+      assertNull(report.title)
+      assertNull(report.version)
+    }
   }
 
   @Test fun directoryDescriptorBudgetSupportsLargeCollectionsAndStillRejectsOverflow() {
     val xml = ("<Icon><Image/><!--" + " ".repeat(4096) + "--></Icon>").toByteArray()
+    archive(active, mapOf(IconThemeMetadata.PATH to IconThemeMetadata("Applied icons", "8").encode()))
     repeat(300) { i ->
       File(mod, "fancy_icons/com.sample.icon$i/manifest.xml").apply {
         parentFile.mkdirs()
@@ -73,8 +200,15 @@ class ActiveIconThemeTest {
     }
     assertTrue(reader().describe().complete)
     assertEquals(300, reader().describe().resourceCount)
-    assertFalse(ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = 299L * xml.size)
-      .describe().complete)
+    val bounded = ActiveIconTheme(active, stock, mod, maxDescriptorsTotal = 299L * xml.size)
+    val report = bounded.describe()
+    assertFalse(report.complete)
+    assertEquals(SystemIconThemeReport.Source.THEME, report.source)
+    assertEquals("Applied icons", report.title)
+    assertEquals("8", report.version)
+    val snapshot = bounded.snapshot(setOf("com.sample.icon0"), modEnabled = true)
+    assertFalse(snapshot.complete)
+    assertTrue(snapshot.coveredPackages.isEmpty())
   }
 
   @Test fun timeRefreshTargetsOnlyCanonicalTemplatesAndExactComponentOwners() {
@@ -332,8 +466,9 @@ class ActiveIconThemeTest {
     assertTrue(index.snapshot(packages, modEnabled = true).coveredPackages.isEmpty())
   }
 
-  private fun archive(file: File, entries: Map<String, ByteArray>) {
+  private fun archive(file: File, entries: Map<String, ByteArray>, noCompression: Boolean = false) {
     ZipOutputStream(file.outputStream()).use { zip ->
+      if (noCompression) zip.setLevel(0)
       for ((name, bytes) in entries) {
         zip.putNextEntry(ZipEntry(name).apply { time = 0 })
         zip.write(bytes)
@@ -343,6 +478,8 @@ class ActiveIconThemeTest {
   }
 
   private fun descriptor() = "<Icon><Image src='bg.png'/></Icon>".toByteArray()
+  private fun description(title: String, version: String) =
+    "<MIUI-Theme><title>$title</title><version>$version</version></MIUI-Theme>".toByteArray()
 
   // Only header recognition is in scope; pixel decoding remains the launcher's responsibility.
   private fun png(): ByteArray = byteArrayOf(

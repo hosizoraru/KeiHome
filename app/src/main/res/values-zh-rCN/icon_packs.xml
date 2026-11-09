@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="icon_pack_version_unspecified">未提供版本</string>
+    <string name="icon_pack_version_label">版本 %1$s</string>
     <string name="navigation_icon_packs">图标包</string>
     <string name="pack_monet_summary">主题图标、取色方案与配色设置。</string>
     <string name="icon_pack_active">桌面正在使用</string>

@@ -16,11 +16,13 @@ internal data class SystemIconThemeReport(
   val localId: String? = null,
   val nativeHash: String? = null,
   val previewKey: String? = null,
+  val version: String? = null,
 ) {
   enum class Source { DEFAULT, THEME, UNAVAILABLE }
 
   fun encode(): String = listOf(source.name, text(title), text(archivePath), resourceCount,
-    nightResourceCount, complete, text(revision), text(localId), text(nativeHash), text(previewKey)).joinToString(":")
+    nightResourceCount, complete, text(revision), text(localId), text(nativeHash), text(previewKey),
+    text(version)).joinToString(":")
 
   companion object {
     private fun text(value: String?) = Base64.getEncoder().encodeToString(value.orEmpty().toByteArray())
@@ -28,10 +30,11 @@ internal data class SystemIconThemeReport(
 
     fun decode(value: String?): SystemIconThemeReport? = try {
       val fields = value?.split(':')
-      if (fields == null || fields.size !in setOf(7, 9, 10)) null else SystemIconThemeReport(
+      if (fields == null || fields.size !in setOf(7, 9, 10, 11)) null else SystemIconThemeReport(
         Source.valueOf(fields[0]), read(fields[1]), read(fields[2]), fields[3].toInt(),
         fields[4].toInt(), fields[5].toBooleanStrict(), read(fields[6]).orEmpty(),
         fields.getOrNull(7)?.let(::read), fields.getOrNull(8)?.let(::read), fields.getOrNull(9)?.let(::read),
+        fields.getOrNull(10)?.let(::read),
       ).takeIf { it.resourceCount >= 0 && it.nightResourceCount in 0..it.resourceCount }
     } catch (_: IllegalArgumentException) { null }
   }

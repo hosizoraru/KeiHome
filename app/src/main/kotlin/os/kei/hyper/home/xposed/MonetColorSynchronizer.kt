@@ -1,5 +1,7 @@
 package os.kei.hyper.home.xposed
 
+import os.kei.hyper.home.status.withIdentity
+
 import android.content.Context
 import android.content.SharedPreferences
 import android.database.ContentObserver
@@ -204,12 +206,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)
-        inventory.copy(source = when (identity?.default) {
-          true -> SystemIconThemeReport.Source.DEFAULT
-          false -> SystemIconThemeReport.Source.THEME
-          null -> SystemIconThemeReport.Source.UNAVAILABLE
-        }, title = identity?.title, localId = identity?.localId, nativeHash = identity?.hash,
-          previewKey = CurrentIconSnapshotPublisher.publish(context, inventory, isCurrent)
+        inventory.withIdentity(
+          identity?.title, identity?.localId, identity?.default, identity?.hash).copy(
+          previewKey = CurrentIconSnapshotPublisher.publish(context, inventory, isCurrent, request.userId)
             ?.takeIf { isCurrent() && iconTheme.describe().revision == inventory.revision })
       } else null,
       detail = if (state == NativeRuntimeState.UNAVAILABLE) {

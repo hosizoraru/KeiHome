@@ -24,12 +24,16 @@ import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
 import os.kei.hyper.home.iconpack.ImageArchiveZip
+import os.kei.hyper.home.iconpack.RawIconArchive
+import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.iconpack.apple.AppleDynamicIconArchive
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
+import os.kei.hyper.home.iconpack.IconThemeMetadata
+import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 import os.kei.hyper.home.iconpack.IconPackExportResult
 import os.kei.hyper.home.iconpack.NativeIconAdaptations
@@ -158,26 +162,29 @@ internal object IconPackHandoffs {
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
         val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
         try {
-          ZipOutputStream(stampedIcons.outputStream()).use { stamped ->
-            ZipFile(icons).use { archive ->
-              archive.entries().asSequence().filterNot {
-                it.isDirectory || it.name == IconBuildInventory.SOURCE_PATH ||
-                  it.name == IconBuildInventory.NAMES_PATH || it.name == IconGenerationManifest.PATH
-              }.forEach { entry ->
-                ImageArchiveZip.copyEntry(stamped, archive, entry, time = 0) { caller.ensureActive() }
-              }
-            }
-            ImageArchiveZip.writeBytes(stamped, IconBuildInventory.SOURCE_PATH,
-              IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8)) { caller.ensureActive() }
-            ImageArchiveZip.writeBytes(stamped, IconGenerationManifest.PATH, generation.encode()) { caller.ensureActive() }
-          }
+          fun metadata(value: String?, length: Int) =
+            value?.map { if (it.isISOControl()) ' ' else it }?.joinToString("")?.trim()?.take(length)?.takeIf { it.isNotEmpty() }
+          val stamps = linkedMapOf(
+            IconBuildInventory.SOURCE_PATH to IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8),
+            IconGenerationManifest.PATH to generation.encode(),
+            IconThemeMetadata.PATH to IconThemeMetadata(
+              metadata(pack.description.title ?: pack.displayName, 120),
+              metadata(pack.description.version ?: (pack.source as? IconPackSource.Installed)?.versionName, 80),
+              metadata(pack.description.author ?: pack.description.designer, 120),
+            ).encode(),
+          )
+          RawIconArchive.write(icons, stampedIcons,
+            includes = { it != IconBuildInventory.NAMES_PATH }, replacements = stamps,
+            check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
           ZipOutputStream(target.outputStream()).use { output ->
             output.putNextEntry(ZipEntry("description.xml").apply { time = 0 })
             val title = xml(pack.displayName)
             val author = xml(pack.description.author ?: "Original icon pack authors")
+            val designer = xml(pack.description.designer ?: pack.description.author ?: "Original icon pack authors")
+            val version = xml(pack.description.version ?: (pack.source as? IconPackSource.Installed)?.versionName ?: "1.0")
             output.write(("<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-              "<MIUI-Theme><title>$title</title><author>$author</author><designer>$author</designer>" +
-              "<version>1.0</version><uiVersion>13</uiVersion>" +
+              "<MIUI-Theme><title>$title</title><author>$author</author><designer>$designer</designer>" +
+              "<version>$version</version><uiVersion>13</uiVersion>" +
               "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
             output.closeEntry()
             ImageArchiveZip.writeFile(output, "icons", stampedIcons) { caller.ensureActive() }

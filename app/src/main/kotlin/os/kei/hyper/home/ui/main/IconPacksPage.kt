@@ -343,8 +343,11 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val installed = pack.source as? IconPackSource.Installed
         val source = stringResource(if (installed != null) R.string.icon_pack_installed else R.string.icon_pack_imported)
-        val version = installed?.versionName?.trim()?.takeIf { it.isNotEmpty() }?.take(24)
+        val version = (installed?.versionName ?: pack.description.version)?.trim()?.takeIf { it.isNotEmpty() }?.take(40)
         MetadataPill(if (version == null) source else "$source · $version", MiuixTheme.colorScheme.onSurfaceSecondary)
+        if (version == null && pack.source is IconPackSource.Imported && pack.format != IconPackFormat.APK) {
+          MetadataPill(stringResource(R.string.icon_pack_version_unspecified), MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
         if (current) MetadataPill(stringResource(R.string.icon_pack_current),
           MiuixTheme.colorScheme.primary)
         metadataContent?.invoke()

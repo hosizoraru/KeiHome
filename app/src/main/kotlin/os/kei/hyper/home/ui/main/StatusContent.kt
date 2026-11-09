@@ -150,6 +150,9 @@ internal fun StatusBody(
           Text(stringResource(R.string.icon_pack_active), style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
           Text(iconSource?.title ?: stringResource(R.string.status_unknown), style = MiuixTheme.textStyles.body1)
+          iconSource?.version?.let {
+            MetadataPill(stringResource(R.string.icon_pack_version_label, it), MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
         }
         MetadataPill(if (iconSource?.previewKey != null && coveredApps != null)
           stringResource(R.string.browser_dashboard_coverage, coveredApps) else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready else R.string.status_needs_verification),

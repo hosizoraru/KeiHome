@@ -9,6 +9,7 @@ import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipOutputStream
+import java.util.zip.ZipFile
 import kotlinx.coroutines.CancellationException
 import os.kei.hyper.home.data.SystemIconFallback
 
@@ -276,12 +277,13 @@ internal class IconPackExporter(private val context: Context, private val limits
     var success = false
     try {
       val index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check)
+      val paletteNames = appendNativeMonet(archive, index.entries, targets, check)
       val originalNames = index.entries.mapNotNull { it.nativeName }.toSet()
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
           systemFallback ?: SystemIconFallback.DEFAULT, size, installedOnly, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, check); null }
-      val verified = if (systemFallback == null && colorOsFallback == null) index else IconPackArchive(limits).inspect(archive, nested,
+      val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty()) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
       val names = verified.entries.mapNotNull { it.nativeName }.toSet()
       val covered = targets.filter { it.packageName in names || it.className in names }
@@ -289,11 +291,71 @@ internal class IconPackExporter(private val context: Context, private val limits
       check()
       success = true
       return IconPackExportResult(archive, verified.nativeIconsSha256!!, covered, skipped, names.size, darkMode,
-        preservesNativeResources = true, colorOsPackages = extra?.first.orEmpty(), nativeAdaptationTargets = extra?.second.orEmpty())
+        preservesNativeResources = true, colorOsPackages = extra?.first.orEmpty(),
+        nativeAdaptationTargets = extra?.second.orEmpty(), fallbackPaletteNames = paletteNames)
     } finally {
       nested.delete()
       if (!success) archive.delete()
     }
+  }
+
+  /** Add event-driven Monet only for closed, pixel-proven pairs used by installed targets.
+   * All other authored programs (including date/clock programs) are copied unchanged. */
+  private fun appendNativeMonet(
+    archive: File, entries: List<IconPackEntry>, targets: List<IconPackComponent>, check: () -> Unit,
+  ): Set<String> {
+    val candidates = entries.filter {
+      (it.light as? IconPackArtwork.Archive)?.palettePair == true &&
+        targets.any { target -> it.nativeName == target.packageName || it.nativeName == target.className }
+    }
+    if (candidates.isEmpty()) return emptySet()
+    val replacements = linkedMapOf<String, ByteArray>()
+    val replacedResources = hashSetOf<String>()
+    val paletteNames = linkedSetOf<String>()
+    var replacementBytes = 0L
+    fun png(bitmap: Bitmap): ByteArray {
+      check()
+      return ByteArrayOutputStream().also {
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Cannot encode native mask" }
+      }.toByteArray().also { check() }
+    }
+    ZipFile(archive).use { source ->
+      val paths = source.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
+      for (entry in candidates) {
+        check()
+        val name = requireNotNull(entry.nativeName)
+        val root = "fancy_icons/$name/"
+        val dayPath = (entry.light!! as IconPackArtwork.Archive).variants.single().path
+        val nightPath = (entry.dark!! as IconPackArtwork.Archive).variants.single().path
+        val originalPaths = setOf(root + "manifest.xml", dayPath, nightPath)
+        if (paths.any { it.startsWith(root) && it !in originalPaths }) continue
+        NativeMamlMonet.read(entry, check) { path ->
+          val item = source.getEntry(path) ?: throw IconPackException("Missing paired image")
+          if (item.size !in 1..4L * 1024 * 1024) byteArrayOf()
+          else source.getInputStream(item).use { it.readNBytes(4 * 1024 * 1024 + 1) }
+        }?.use { artwork ->
+          // The source is fancy-only. Do not duplicate its two PNGs into additional static trees.
+          val generated = NativePaletteIcon.entries(name, artwork.light, artwork.dark,
+            png(artwork.foreground), png(artwork.background)).filterKeys { it.startsWith(root) }
+          val bytes = generated.values.sumOf { it.size.toLong() }
+          if (replacementBytes + bytes > 64L * 1024 * 1024) return@use
+          replacementBytes += bytes
+          replacements.putAll(generated)
+          replacedResources += originalPaths
+          paletteNames += name
+        }
+      }
+      if (paletteNames.isEmpty()) return emptySet()
+      val stage = File.createTempFile("native-monet-", ".zip", archive.parentFile)
+      try {
+        RawIconArchive.write(archive, stage,
+          includes = { it !in replacedResources }, replacements = replacements,
+          check = check, maxOutputBytes = limits.maxInputBytes)
+        check()
+        if (!stage.renameTo(archive)) throw IconPackException("Cannot publish native Monet staging")
+      } finally { stage.delete() }
+    }
+    return paletteNames
   }
 
   /** Add only uncovered names; supplied native animations, night trees and artwork stay authoritative. */
@@ -341,26 +403,21 @@ internal class IconPackExporter(private val context: Context, private val limits
           SystemIconFallbackManifest.decode(source.getInputStream(entry).use { it.readBytes() })
         }
         require(previous == null || previous.style == style) { "Use the original pack to change a generated fallback" }
-        ZipOutputStream(LimitedOutput(copy.outputStream(), limits.maxInputBytes)).use { output ->
-          source.entries().asSequence().forEach { entry ->
-            check()
-            if (entry.name == SystemIconFallbackManifest.PATH) return@forEach
-            ImageArchiveZip.copyEntry(output, source, entry, check = check)
-          }
-          for ((path, bytes) in additions) {
-            check()
-            require(source.getEntry(path) == null) { "Fallback would overwrite supplied artwork: $path" }
-            ImageArchiveZip.writeBytes(output, path, bytes, check = check)
-          }
-          ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
+        for (path in additions.keys) {
+          check()
+          require(source.getEntry(path) == null) { "Fallback would overwrite supplied artwork: $path" }
+        }
+        RawIconArchive.write(archive, copy,
+          replacements = additions + (SystemIconFallbackManifest.PATH to
             SystemIconFallbackManifest(style, systemNames + previous?.names.orEmpty(),
               previous?.nameMatching == true, colorOsFallback = true,
               perfectSource = previous?.perfectSource ?: style.perfectStyle?.let {
                 os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback.sourceHash(context, it)
-              }).encode(), check = check)
-        }
+              }).encode()),
+          check = check, maxOutputBytes = limits.maxInputBytes)
       }
-      copy.copyTo(archive, overwrite = true)
+      check()
+      check(copy.renameTo(archive)) { "Cannot publish native ColorOS fallback copy" }
       val addedNames = nativeFallbackProtectedNames(additions.keys.asSequence())
       return (day.colorOsPackages + night.colorOsPackages).filterTo(linkedSetOf()) { it in addedNames } to
         (day.nativeAdaptationTargets + night.nativeAdaptationTargets).filterTo(linkedSetOf()) {
@@ -404,29 +461,26 @@ internal class IconPackExporter(private val context: Context, private val limits
     if (additions.isEmpty()) return
     val copy = File.createTempFile("native-fallback-", ".zip", archive.parentFile)
     try {
+      val resources = linkedMapOf<String, ByteArray>()
       java.util.zip.ZipFile(archive).use { source ->
-        ZipOutputStream(LimitedOutput(copy.outputStream(), limits.maxInputBytes)).use { output ->
-          source.entries().asSequence().forEach { entry ->
-            check()
-            if (entry.name == SystemIconFallbackManifest.PATH) return@forEach
-            ImageArchiveZip.copyEntry(output, source, entry, check = check)
+        for ((name, bytes) in additions) {
+          check()
+          for (prefix in listOf("", "nightmode/")) {
+            val path = "${prefix}res/drawable-xxhdpi/$name.png"
+            require(source.getEntry(path) == null)
+            resources[path] = bytes
           }
-          for ((name, bytes) in additions) {
-            for (prefix in listOf("", "nightmode/")) {
-              val path = "${prefix}res/drawable-xxhdpi/$name.png"
-              require(source.getEntry(path) == null)
-              ImageArchiveZip.writeBytes(output, path, bytes, check = check)
-            }
-            for ((path, data) in NativeDayNightIcon.entries(name, bytes, bytes)) {
-              if (!path.startsWith("fancy_icons/")) continue
-              require(source.getEntry(path) == null)
-              ImageArchiveZip.writeBytes(output, path, data, check = check)
-            }
+          for ((path, data) in NativeDayNightIcon.entries(name, bytes, bytes)) {
+            if (!path.startsWith("fancy_icons/")) continue
+            require(source.getEntry(path) == null)
+            resources[path] = data
           }
-          ImageArchiveZip.writeBytes(output, SystemIconFallbackManifest.PATH,
-            SystemIconFallbackManifest(style, additions.keys, perfectSource = renderer.perfectSourceHash).encode(), check = check)
         }
       }
+      resources[SystemIconFallbackManifest.PATH] =
+        SystemIconFallbackManifest(style, additions.keys, perfectSource = renderer.perfectSourceHash).encode()
+      RawIconArchive.write(archive, copy, replacements = resources,
+        check = check, maxOutputBytes = limits.maxInputBytes)
       check(copy.renameTo(archive)) { "Cannot publish native fallback copy" }
     } finally { copy.delete() }
   }

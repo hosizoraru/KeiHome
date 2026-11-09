@@ -17,6 +17,7 @@ import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
+import os.kei.hyper.home.iconpack.IconThemeMetadata
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 /**
@@ -59,7 +60,8 @@ internal class ActiveIconTheme(
   enum class Kind { MISSING, FILE, DIRECTORY, UNKNOWN }
 
   private data class Inventory(val names: Set<String>, val nightNames: Set<String> = emptySet(),
-    val title: String? = null, val timeNames: Map<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind> = emptyMap())
+    val title: String? = null, val timeNames: Map<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind> = emptyMap(),
+    val version: String? = null, val complete: Boolean = true)
   private data class Index(val stamp: SourceStamp, val revision: Long, val inventory: Inventory?) {
     val names get() = inventory?.names
   }
@@ -76,6 +78,7 @@ internal class ActiveIconTheme(
     val generation = revision.get()
     val active = index(activeIcons, directory = false, generation)
     val primary = if (active.stamp.kind == Kind.MISSING) index(stockIcons, directory = false, generation) else active
+    if (primary.inventory?.complete != true) return emptyMap()
     val names = primary.inventory?.timeNames ?: return emptyMap()
     return packages.mapNotNull { pkg ->
       val kind = names[pkg] ?: components[pkg].orEmpty().mapNotNull { component ->
@@ -92,9 +95,9 @@ internal class ActiveIconTheme(
     val active = index(activeIcons, directory = false, generation)
     val primary = if (active.stamp.kind == Kind.MISSING) index(stockIcons, directory = false, generation) else active
     val sources = listOf(primary, index(modIcons, directory = true, generation))
-    val complete = generation == revision.get() && sources.all { it.inventory != null }
-    val names = sources.flatMap { it.inventory?.names.orEmpty() }.toSet()
-    val nightNames = sources.flatMap { it.inventory?.nightNames.orEmpty() }.toSet()
+    val complete = generation == revision.get() && sources.all { it.inventory?.complete == true }
+    val names = if (complete) sources.flatMap { it.inventory?.names.orEmpty() }.toSet() else emptySet()
+    val nightNames = if (complete) sources.flatMap { it.inventory?.nightNames.orEmpty() }.toSet() else emptySet()
     return SystemIconThemeReport(
       source = when (active.stamp.kind) {
         Kind.MISSING -> SystemIconThemeReport.Source.DEFAULT
@@ -107,13 +110,14 @@ internal class ActiveIconTheme(
       nightResourceCount = if (complete) nightNames.size else 0,
       complete = complete,
       revision = sources.joinToString(";") { "${it.stamp.identity}:${it.stamp.size}:${it.stamp.modified}:$generation" },
+      version = primary.inventory?.version,
     )
   }
 
   /**
    * components maps each launcher package to its ActivityInfo.name values (full or relative).
    * A matching component protects its whole package because the existing Dart veto is package-keyed.
-   * Unknown/corrupt/oversized sources never contribute partial coverage.
+   * Unknown/corrupt/oversized or budget-limited sources never contribute partial coverage.
    *
    * The platform mod directory is immutable between theme generations: nested file edits must
    * call invalidate(). Archive replacements are also detected by inode, size and modification time.
@@ -133,7 +137,7 @@ internal class ActiveIconTheme(
     }
     if (modEnabled) sources += index(modIcons, directory = true, generation)
     val signature = Signature(generation, sources.map { it.stamp }, allowStockFallback, modEnabled)
-    if (generation != revision.get() || sources.any { it.names == null }) {
+    if (generation != revision.get() || sources.any { it.inventory?.complete != true }) {
       return Snapshot(signature, emptySet(), complete = false)
     }
     val names = sources.flatMap { it.names.orEmpty() }.toHashSet()
@@ -159,6 +163,7 @@ internal class ActiveIconTheme(
     } catch (_: IOException) { null
     } catch (_: SecurityException) { null
     } catch (_: IllegalArgumentException) { null }
+    // Cache stable budget-limited inventories too, avoiding repeated large scans.
     // Do not cache a partially replaced archive or a temporary read failure.
     val result = Index(sourceStamp, generation, names.takeIf { sourceStamp == stamp(file) })
     if (result.names != null && generation == revision.get()) cached[sourceStamp.path] = result
@@ -185,12 +190,24 @@ internal class ActiveIconTheme(
   }
 
   private fun readArchive(file: File): Inventory = ZipFile(file).use { zip ->
-    if (zip.size() > maxEntries) throw IOException("Icon pack entry limit")
+    // Read labels before any inventory budget can stop the scan. These are display data only.
+    val metadata = archiveMetadata(zip)
+    if (zip.size() > maxEntries) return@use Inventory(emptySet(), title = metadata.title,
+      version = metadata.version, complete = false)
     val result = linkedSetOf<String>()
     val night = linkedSetOf<String>()
     val time = linkedMapOf<String, os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon.Kind>()
     val entries = zip.entries()
     var descriptorBytes = 0L
+    var complete = true
+    fun reserveDescriptor(size: Long): Boolean {
+      if (size !in 1..MAX_DESCRIPTOR_BYTES || size > maxDescriptorsTotal - descriptorBytes) {
+        complete = false
+        return false
+      }
+      descriptorBytes += size
+      return true
+    }
     while (entries.hasMoreElements()) {
       val entry = entries.nextElement()
       if (entry.isDirectory || entry.size <= 0) continue
@@ -201,16 +218,12 @@ internal class ActiveIconTheme(
           !zip.getInputStream(companion).use { png(it.readNBytes(24)) }) continue
       }
       if (resource.descriptor) {
-        if (entry.size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
-        descriptorBytes += entry.size
-        if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
+        if (!reserveDescriptor(entry.size)) break
       }
       if (resource.layer != null) {
         val config = zip.getEntry(resource.layerConfig) ?: continue
         if (config.isDirectory || config.size <= 0) continue
-        if (config.size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon layer config limit")
-        descriptorBytes += config.size
-        if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
+        if (!reserveDescriptor(config.size)) break
         val declared = zip.getInputStream(config).use {
           declaresLayer(it.readNBytes(MAX_DESCRIPTOR_BYTES + 1), resource.layer)
         }
@@ -229,13 +242,25 @@ internal class ActiveIconTheme(
         if (isNightResource(entry.name)) night += resource.name
       }
     }
-    val title = zip.getEntry("description.xml")?.takeIf { it.size in 1..MAX_DESCRIPTOR_BYTES }?.let { entry ->
-      zip.getInputStream(entry).use { input ->
-        xmlRoot(input.readNBytes(MAX_DESCRIPTOR_BYTES + 1))?.getElementsByTagName("title")
-          ?.item(0)?.textContent?.trim()?.takeIf { it.isNotEmpty() }?.take(120)
-      }
+    Inventory(result, night, metadata.title, time, metadata.version, complete)
+  }
+
+  private fun archiveMetadata(zip: ZipFile): IconThemeMetadata {
+    val stamped = zip.getEntry(IconThemeMetadata.PATH)?.takeIf {
+      !it.isDirectory && it.size in 1..IconThemeMetadata.MAX_BYTES
+    }?.let { entry ->
+      zip.getInputStream(entry).use { IconThemeMetadata.decode(it.readNBytes(IconThemeMetadata.MAX_BYTES + 1)) }
     }
-    Inventory(result, night, title, time)
+    if (stamped?.title != null && stamped.version != null) return stamped
+    val description = zip.getEntry("description.xml")?.takeIf {
+      !it.isDirectory && it.size in 1..MAX_DESCRIPTOR_BYTES
+    }?.let { entry ->
+      zip.getInputStream(entry).use { xmlRoot(it.readNBytes(MAX_DESCRIPTOR_BYTES + 1)) }
+    }
+    fun label(tag: String, limit: Int) = description?.getElementsByTagName(tag)?.item(0)
+      ?.textContent?.trim()?.takeIf { it.isNotEmpty() }?.take(limit)
+    return IconThemeMetadata(stamped?.title ?: label("title", 120), stamped?.version ?: label("version", 80),
+      stamped?.author)
   }
 
   private fun readDirectory(file: File): Inventory {
@@ -244,15 +269,30 @@ internal class ActiveIconTheme(
     val night = linkedSetOf<String>()
     var visited = 0
     var descriptorBytes = 0L
+    var complete = true
+    fun reserveDescriptor(size: Long): Boolean {
+      if (size > MAX_DESCRIPTOR_BYTES || size > maxDescriptorsTotal - descriptorBytes) {
+        complete = false
+        return false
+      }
+      descriptorBytes += size
+      return true
+    }
     Files.walkFileTree(root, object : SimpleFileVisitor<Path>() {
       override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
-        if (++visited > maxEntries) throw IOException("Icon directory entry limit")
+        if (++visited > maxEntries) {
+          complete = false
+          return FileVisitResult.TERMINATE
+        }
         return if (root.relativize(dir).nameCount > 6) FileVisitResult.SKIP_SUBTREE
         else FileVisitResult.CONTINUE
       }
 
       override fun visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult {
-        if (++visited > maxEntries) throw IOException("Icon directory entry limit")
+        if (++visited > maxEntries) {
+          complete = false
+          return FileVisitResult.TERMINATE
+        }
         if (!attrs.isRegularFile || attrs.size() <= 0) return FileVisitResult.CONTINUE
         val relativePath = root.relativize(path).joinToString("/")
         val resource = resource(relativePath, allowFlat = true)
@@ -265,9 +305,7 @@ internal class ActiveIconTheme(
           }
         }
         if (resource.descriptor) {
-          if (attrs.size() > MAX_DESCRIPTOR_BYTES) throw IOException("Icon descriptor limit")
-          descriptorBytes += attrs.size()
-          if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
+          if (!reserveDescriptor(attrs.size())) return FileVisitResult.TERMINATE
         }
         if (resource.layer != null) {
           val config = root.resolve(resource.layerConfig)
@@ -275,9 +313,7 @@ internal class ActiveIconTheme(
             return FileVisitResult.CONTINUE
           }
           val size = Files.size(config)
-          if (size > MAX_DESCRIPTOR_BYTES) throw IOException("Icon layer config limit")
-          descriptorBytes += size
-          if (descriptorBytes > maxDescriptorsTotal) throw IOException("Icon descriptors total limit")
+          if (!reserveDescriptor(size)) return FileVisitResult.TERMINATE
           val declared = Files.newInputStream(config).use {
             declaresLayer(it.readNBytes(MAX_DESCRIPTOR_BYTES + 1), resource.layer)
           }
@@ -294,7 +330,7 @@ internal class ActiveIconTheme(
         return FileVisitResult.CONTINUE
       }
     })
-    return Inventory(result, night)
+    return Inventory(result, night, complete = complete)
   }
 
   private fun isNightResource(path: String) = path.startsWith("nightmode/") || path.split('/').any {

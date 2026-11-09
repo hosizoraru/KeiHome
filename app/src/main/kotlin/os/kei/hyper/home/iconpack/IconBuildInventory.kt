@@ -20,8 +20,10 @@ internal object IconBuildInventory {
   }
 
   fun sourceIdentity(pack: IconPackDescriptor): String = pack.id + "\n" + when (val source = pack.source) {
-    is IconPackSource.Installed -> "${source.packageName}:${source.versionCode}:${source.updatedAt}"
-    is IconPackSource.Imported -> source.record.id
+    is IconPackSource.Installed -> "${source.packageName}:${source.versionCode}:${source.updatedAt}:palette-apk-1"
+    is IconPackSource.Imported -> source.record.id + if (pack.format == IconPackFormat.APK) ":palette-apk-1" else if (pack.entries.any {
+      (it.light as? IconPackArtwork.Archive)?.palettePair == true
+    }) ":native-pair-1" else ""
     is IconPackSource.Builtin -> source.record.id
     is IconPackSource.Generated -> source.digest
   }

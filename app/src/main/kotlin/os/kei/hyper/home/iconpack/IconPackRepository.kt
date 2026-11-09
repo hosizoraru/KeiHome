@@ -2,6 +2,7 @@ package os.kei.hyper.home.iconpack
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -31,7 +32,8 @@ internal class IconPackRepository(
   private val android = AndroidIconPackResources(application, limits)
   private val importedCache = mutableMapOf<String, IconPackDescriptor>()
   private data class InstalledKey(val packageName: String, val version: Long, val updated: Long, val configuration: String)
-  private val installedCache = mutableMapOf<InstalledKey, AndroidIconPackIndex?>()
+  private data class InstalledPack(val index: AndroidIconPackIndex, val description: IconPackDescription)
+  private val installedCache = mutableMapOf<InstalledKey, InstalledPack?>()
   private var builtinCache: IconPackScanResult? = null
   private val builtinMutex = Mutex()
 
@@ -86,18 +88,21 @@ internal class IconPackRepository(
         val info = pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0))
         val key = InstalledKey(pkg, info.longVersionCode, info.lastUpdateTime, configuration)
         val cached = synchronized(installedCache) { installedCache.containsKey(key) to installedCache[key] }
-        val index = if (cached.first) cached.second else {
-          android.index(info, check = { caller.ensureActive() }).also { value ->
+        val pack = if (cached.first) cached.second else {
+          android.index(info, check = { caller.ensureActive() })?.let { index ->
+            InstalledPack(index, apkDescription(info, check = { caller.ensureActive() }))
+          }.also { value ->
             synchronized(installedCache) {
               installedCache.keys.removeAll { it.packageName == pkg }
               installedCache[key] = value
             }
           }
         }
-        if (index == null) continue
+        if (pack == null) continue
+        val index = pack.index
         packs += IconPackDescriptor("installed:$pkg", index.displayName, IconPackFormat.INSTALLED_APK,
           IconPackSource.Installed(pkg, info.longVersionCode, info.lastUpdateTime, info.versionName), index.entries,
-          notices = index.notices, directives = index.directives)
+          description = pack.description, notices = index.notices, directives = index.directives)
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { failures += IconPackFailure(pkg, failure.message ?: "Icon pack cannot be read") }
     }
@@ -211,10 +216,11 @@ internal class IconPackRepository(
     synchronized(importedCache) { importedCache[record.id]?.let { return it } }
     if (sha256(record.originalFile, check) != record.id) throw IconPackException("Stored archive checksum mismatch")
     val descriptor = if (record.format == IconPackFormat.APK) {
-      val index = android.index(android.archiveInfo(record.originalFile), record.originalFile, check)
+      val info = android.archiveInfo(record.originalFile)
+      val index = android.index(info, record.originalFile, check)
         ?: throw IconPackException("APK contains no supported appfilter")
       IconPackDescriptor(record.id, index.displayName, record.format, IconPackSource.Imported(record), index.entries,
-        notices = index.notices, directives = index.directives)
+        description = apkDescription(info, record.originalFile, check), notices = index.notices, directives = index.directives)
     } else {
       val scratch = File.createTempFile("icon-pack-index-", ".zip", application.cacheDir)
       try {
@@ -230,6 +236,32 @@ internal class IconPackRepository(
     check()
     synchronized(importedCache) { importedCache[record.id] = descriptor }
     return descriptor
+  }
+
+  private fun apkDescription(info: PackageInfo, file: File? = null, check: () -> Unit): IconPackDescription {
+    val author = try {
+      check()
+      val app = info.applicationInfo
+      if (app == null) null else {
+        val session = if (file == null) android.installed(app, false) else android.archive(file, false, info)
+        session.use {
+          val resources = session.resources
+          ApkIconPackAuthorMetadata.read(
+            readString = { key ->
+              resources.getIdentifier(key, "string", info.packageName).takeIf { it != 0 }?.let(resources::getString)
+            },
+            readCreator = { title ->
+              resources.getIdentifier("contributors", "xml", info.packageName).takeIf { it != 0 }?.let { id ->
+                resources.getXml(id).use { parser -> ApkIconPackAuthorMetadata.creator(parser, title, check) }
+              }
+            },
+            check = check,
+          )
+        }
+      }
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: Exception) { null }
+    return IconPackDescription(author = author)
   }
 
   companion object {

@@ -73,6 +73,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
   val prefs by vm.preferences.state.collectAsStateWithLifecycle()
   val guidanceNotes = listOf(
+    stringResource(R.string.perfect_icons_layer_rules),
     stringResource(R.string.pack_perfect_community_detail),
     stringResource(R.string.perfect_icons_style_summary),
     stringResource(R.string.perfect_icons_preview_summary),
@@ -271,6 +272,11 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                   ).forEach { (label, count) ->
                     MetadataPill(stringResource(label, count), MiuixTheme.colorScheme.onSurfaceSecondary)
                   }
+                  if (result.rejectedDynamic > 0) MetadataPill(
+                    stringResource(R.string.perfect_icons_layer_fallback, result.rejectedDynamic),
+                    MiuixTheme.colorScheme.primary)
+                  if (result.contract != os.kei.hyper.home.iconpack.perfect.PerfectIconRepository.LAYER_CONTRACT)
+                    MetadataPill(stringResource(R.string.perfect_icons_layer_regenerate), MiuixTheme.colorScheme.primary)
                 }
                 if (state.generatedOptions != null && state.generatedOptions != state.options) {
                   Column(Modifier.fillMaxWidth().padding(top = 6.dp),

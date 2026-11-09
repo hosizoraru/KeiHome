@@ -31,6 +31,8 @@ data class PerfectIconResult(
   val downloaded: Int,
   val reused: Int,
   val revision: String,
+  val rejectedDynamic: Int = 0,
+  val contract: String = PerfectIconRepository.LAYER_CONTRACT,
 )
 
 class PerfectIconCooldownException(val retryAt: Long) :

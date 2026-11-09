@@ -1,0 +1,5 @@
+<resources>
+    <string name="perfect_icons_layer_rules">静的レイヤーは背景と前景を重ね、動的レイヤーは日付・時計・天気などの元の設定とリソースを保持します。0、1 というファイル名はライト・ダークの区別ではありません。</string>
+    <string name="perfect_icons_layer_fallback">不完全なレイヤー %1$d 件を除外</string>
+    <string name="perfect_icons_layer_regenerate">新しいレイヤー規則で再生成してください</string>
+</resources>

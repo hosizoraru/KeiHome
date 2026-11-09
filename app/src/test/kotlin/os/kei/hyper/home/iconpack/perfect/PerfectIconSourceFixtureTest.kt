@@ -59,7 +59,7 @@ class PerfectIconSourceFixtureTest {
     val installed = setOf("com.miui.gallery", "com.android.settings", "com.android.calendar", "mark.via", "mark.via.Shell")
     val first = repo.generate(options, installed) {}
     assertEquals(3, first.mapped)
-    assertEquals(3, first.staticCount)
+    assertEquals(2, first.staticCount) // Calendar keeps a static fallback but is counted once as dynamic.
     assertEquals(1, first.dynamicCount)
     assertTrue(first.downloaded > 0)
     val before = requests

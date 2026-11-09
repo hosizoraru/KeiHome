@@ -42,6 +42,10 @@ internal data class NativeLayerConfig(
           name == "fancy_work" -> {
             if (value !in setOf("true", "false")) throw IconPackException("Invalid fancy_work")
           }
+          name.matches(Regex("use_(fancy_when_static|quiet_when_anim)_layer[0-7]")) -> {
+            // Keep legacy source mode selectors; do not reinterpret them as exclusive layers.
+            if (value !in setOf("true", "false")) throw IconPackException("Invalid native layer mode")
+          }
           name.matches(Regex("layer_only_(quiet|fancy)[0-7]")) -> {
             if (value !in setOf("true", "false")) throw IconPackException("Invalid quiet-layer flag")
             if (value == "true") {
@@ -55,7 +59,8 @@ internal data class NativeLayerConfig(
       if (slots.isEmpty() || slots.keys.toList() != (0 until slots.size).toList() ||
         slots.values.distinct().size != slots.size ||
         quietSlots.intersect(fancySlots).isNotEmpty() ||
-        variables.keys.filter { it.startsWith("layer_only_") }
+        variables.keys.filter { it.startsWith("layer_only_") || it.startsWith("use_fancy_when_static_layer") ||
+          it.startsWith("use_quiet_when_anim_layer") }
           .any { it.last().digitToInt() !in slots })
         throw IconPackException("Invalid native layer declarations")
       return NativeLayerConfig(slots.values.toList(),

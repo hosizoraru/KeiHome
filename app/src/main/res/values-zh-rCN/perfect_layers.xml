@@ -1,0 +1,5 @@
+<resources>
+    <string name="perfect_icons_layer_rules">静态分层按背景、前景叠加；动态分层保留日期、时钟、天气等原生资源及配置。分层文件名中的 0、1 不表示深浅色。</string>
+    <string name="perfect_icons_layer_fallback">跳过不完整分层 %1$d 项</string>
+    <string name="perfect_icons_layer_regenerate">分层识别已更新，建议重新生成</string>
+</resources>

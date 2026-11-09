@@ -198,6 +198,50 @@ class PerfectIconRepositoryTest {
     assertEquals(1, f.http.calls.size)
   }
 
+  @Test fun incompleteDynamicResourceKeepsExistingStaticArtAndCachedSource() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.dynamic("third.party")
+    f.files.remove("themes/default/layer_animating_icons/third.party/0/fancy/image.png")
+    f.update()
+    f.repo.catalog(refresh = true)
+    val first = f.repo.generate(PerfectIconOptions(), setOf("third.party")) {}
+    assertEquals(1, first.rejectedDynamic)
+    assertEquals(0, first.dynamicCount)
+    assertEquals(PerfectIconRepository.LAYER_CONTRACT, first.contract)
+    ZipFile(first.file).use { zip ->
+      assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/0.png"))
+      assertNull(zip.getEntry("layer_animating_icons/third.party/config.xml"))
+      val transform = zip.getInputStream(zip.getEntry("transform_config.xml")).reader().readText()
+      assertTrue(transform.contains("name=\"UseDynamicIcon\" value=\"false\""))
+    }
+    val calls = f.http.calls.size
+    val again = f.repo.generate(PerfectIconOptions(), setOf("third.party")) {}
+    assertEquals(first.file, again.file)
+    assertEquals(0, again.downloaded)
+    assertEquals(calls, f.http.calls.size)
+  }
+
+  @Test fun quietOnlyLayersAreStaticButRetainNativeDirectoryAdmission() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.dynamic("third.party")
+    f.files["themes/default/layer_animating_icons/third.party/config.xml"] =
+      "<Config><Variables><Variable name='layer0' value='0'/><Variable name='layer_only_quiet0' value='true'/></Variables></Config>".toByteArray()
+    f.files.remove("themes/default/layer_animating_icons/third.party/0/fancy/manifest.xml")
+    f.files.remove("themes/default/layer_animating_icons/third.party/0/fancy/image.png")
+    f.update()
+    f.repo.catalog(refresh = true)
+    val result = f.repo.generate(PerfectIconOptions(), setOf("third.party")) {}
+    assertEquals(0, result.rejectedDynamic)
+    assertEquals(0, result.dynamicCount)
+    assertEquals(1, result.staticCount)
+    assertEquals(1, result.mapped)
+    ZipFile(result.file).use { zip ->
+      assertNotNull(zip.getEntry("layer_animating_icons/third.party/config.xml"))
+      val transform = zip.getInputStream(zip.getEntry("transform_config.xml")).reader().readText()
+      assertTrue(transform.contains("name=\"UseDynamicIcon\" value=\"true\""))
+    }
+  }
+
   @Test fun localCatalogAndMissingSnapshotGenerationNeverUseNetwork() = runBlocking {
     val f = Fixture(temporary.newFolder())
     assertNull(f.repo.catalog())

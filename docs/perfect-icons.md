@@ -221,3 +221,17 @@ Opening the page never starts a download.
 Before the first snapshot exists, the action and confirmation use first-download
 wording. With a usable snapshot, the same entry explicitly offers a forced
 re-download. Both paths require confirmation and share the validated transfer.
+
+## Layer rule checkpoint (2026-11-09)
+
+Static background/foreground pairs remain native layers; `0.png` and `1.png` are not light/dark variants. Configured native layer resources are selected and validated independently from unconfigured resource folders. A valid configured theme group overrides its common counterpart as a complete group. Generation validates referenced local assets and preserves original native programs rather than manufacturing MAML for ordinary static artwork.
+
+Static and active-fancy classifications are exclusive for statistics even when both source representations are preserved in the output. A quiet-only configured group remains a static icon, while the native configured-directory admission flag stays enabled for it. Incomplete configured groups retain an available static alternative; the result exposes skipped-group counts. Changing layer rules invalidates preview/publication identity without downloading the source snapshot again, and older saved generation results show a regeneration reminder.
+
+The separate investigation of ThemeStore's application protocol is in [theme-apply-without-navigation.md](theme-apply-without-navigation.md). No alternative no-navigation apply mechanism is enabled by that investigation.
+
+The retained `fb8b5c9224510fedb653a7dceafdcb364b4e2263` snapshot has 22 artwork styles. All 20 HyperOS4 configured groups pass source dependency validation. Its exclusive counts are 2,445 static IDs and 20 configured dynamic IDs; the static alternatives for 19 of those dynamic IDs remain in the archive. These are resource IDs, not installed-app counts or a promise that every configured icon continuously animates. Other styles contain 18 incomplete groups in total: Hyper/HyperOSClassic have a flag for an undeclared weather layer, lrone lacks a declared weather layer, and luck7 lacks 15 referenced image assets. Available static alternatives are retained for those groups.
+
+Local auto-apply admission remains a separate, stricter execution boundary. A host test constructs native modules from each of the 20 original HyperOS4 groups and exercises the production admission validator. Clock, calendar and seven other groups pass; 11 complex or noncanonical groups remain outside that automatic admission policy. Source closure success does not authorize arbitrary MAML scripts, external data sources or commands. Such a generated archive can still require the existing native Themes workflow; this checkpoint does not broaden the execution whitelist to obtain a passing statistic.
+
+Legacy `use_fancy_when_static_layerN` and `use_quiet_when_anim_layerN` boolean fields are preserved and bounded against declared layers. Their names are not interpreted as exclusive quiet/fancy modes. Only the existing explicit `layer_only_quietN` / `layer_only_fancyN` rules provide that exclusivity.

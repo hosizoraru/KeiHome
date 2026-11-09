@@ -188,12 +188,14 @@ class PerfectIconRepository internal constructor(
         }
       }
       coroutine.ensureActive()
-      PerfectIconFormat.validate(plan) { blob -> coroutine.ensureActive(); blobFile(blob.sha).readBytes() }
-      val transform = HyperOs4IconModule.transform(plan.dynamicIds.isNotEmpty(), nativeMask())
-      val file = publish(snapshot, options, plan, transform)
+      val validated = PerfectIconFormat.validate(plan) { blob -> coroutine.ensureActive(); blobFile(blob.sha).readBytes() }
+      require(validated.files.isNotEmpty()) { "No complete Perfect Icons match the supplied installed IDs" }
+      val transform = HyperOs4IconModule.transform(usesLayerDirectory(validated), nativeMask())
+      val file = publish(snapshot, options, validated, transform)
       trimBlobs(unique.map { it.sha }.toSet())
-      PerfectIconResult(file, (plan.staticIds + plan.dynamicIds).size, plan.staticIds.size,
-        plan.dynamicIds.size, extracted, reused, snapshot.revision)
+      PerfectIconResult(file, (validated.staticIds + validated.dynamicIds).size, validated.staticIds.size,
+        validated.dynamicIds.size, extracted, reused, snapshot.revision,
+        rejectedDynamic = validated.rejectedDynamic.size)
     }
   }
 
@@ -206,7 +208,7 @@ class PerfectIconRepository internal constructor(
       val style = options.style.ifEmpty { "default" }
       require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
       val mask = nativeMask()
-      val identity = "${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit"
+      val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit"
       val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
       val destination = File(previewDir, "preview-${snapshot.sourceHash.take(12)}-$key.zip")
       val proof = File(previewDir, "${destination.name}.sha256")
@@ -267,8 +269,9 @@ class PerfectIconRepository internal constructor(
           coroutine.ensureActive()
           return requireNotNull(files[blob.sha]).readBytes()
         }
-        PerfectIconFormat.validate(plan, ::read)
-        writeArchive(destination, plan, HyperOs4IconModule.transform(plan.dynamicIds.isNotEmpty(), mask),
+        val validated = PerfectIconFormat.validate(plan, ::read)
+        require(validated.files.isNotEmpty()) { "No complete Perfect Icons are available for this preview" }
+        writeArchive(destination, validated, HyperOs4IconModule.transform(usesLayerDirectory(validated), mask),
           maxFile = MAX_PREVIEW_FILE, read = ::read)
         val hash = previewHash(destination)
         atomic(proof, hash.toByteArray(Charsets.US_ASCII)) { coroutine.ensureActive() }
@@ -476,10 +479,15 @@ class PerfectIconRepository internal constructor(
     }
   }
 
+  // Directory admission also covers quiet-only layers; it does not imply a running MAML program.
+  private fun usesLayerDirectory(plan: PerfectIconPlan): Boolean = plan.files.keys.any {
+    it.startsWith("layer_animating_icons/") && it.endsWith("/config.xml")
+  }
+
   private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan, transform: ByteArray): File {
     outputDir.mkdirs()
     val identity = buildString {
-      append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
+      append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
       append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
@@ -624,6 +632,7 @@ class PerfectIconRepository internal constructor(
   }
 
   companion object {
+    const val LAYER_CONTRACT = "keihome-perfect-layers-2"
     private const val MAX_PREVIEW_BYTES = 32L * 1024 * 1024
     private const val MAX_PREVIEW_FILE = MAX_PREVIEW_BYTES + 1024 * 1024
     private const val MAX_META = 32 * 1024 * 1024

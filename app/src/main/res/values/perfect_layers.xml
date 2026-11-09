@@ -1,0 +1,5 @@
+<resources>
+    <string name="perfect_icons_layer_rules">Static layers combine background and foreground artwork. Dynamic layers retain the source configuration for dates, clocks, weather and other effects. Layer filenames 0 and 1 do not mean light and dark icons.</string>
+    <string name="perfect_icons_layer_fallback">Skipped %1$d incomplete layer sets</string>
+    <string name="perfect_icons_layer_regenerate">Regenerate for updated layer rules</string>
+</resources>

@@ -18,6 +18,25 @@ class NativeMamlPairTest {
   private fun header() = java.nio.ByteBuffer.allocate(24).put(byteArrayOf(
     137.toByte(), 80, 78, 71, 13, 10, 26, 10)).putInt(13)
     .put("IHDR".toByteArray()).putInt(32).putInt(32).array()
+  @Test fun generatedZeroTickerPairsAndCompactImagesHaveSelectablePreviews() {
+    val day = header().copyOf(33)
+    val night = day.copyOf().apply { this[32] = 1 }
+    val resources = NativeDayNightIcon.entries("com.example.app", day, night)
+    val manifest = resources.getValue("fancy_icons/com.example.app/manifest.xml")
+    assertEquals(NativeMamlPair("day.png", "night.png"), NativeMamlPair.parse(manifest))
+    val parsed = inspect(archive(resources.toList())).entries.single()
+    assertPairPath(parsed.light, "fancy_icons/com.example.app/day.png")
+    assertPairPath(parsed.dark, "fancy_icons/com.example.app/night.png")
+    assertFalse((parsed.light as IconPackArtwork.Archive).snapshot)
+    val compact = NativeDayNightIcon.entries("com.example.app", day, day)
+      .getValue("fancy_icons/com.example.app/manifest.xml")
+    assertEquals(NativeMamlPair("day.png", "day.png"), NativeMamlPair.parse(compact))
+    for (changed in listOf(
+      manifest.toString(Charsets.UTF_8).replace("frameRate=\"0\"", "frameRate=\"60\""),
+      manifest.toString(Charsets.UTF_8).replace("src=\"night.png\"", "src=\"../night.png\""),
+      manifest.toString(Charsets.UTF_8).replace("</Icon>", "<Var name='extra' expression='#date'/></Icon>"),
+    )) assertNull(NativeMamlPair.parse(changed.toByteArray()))
+  }
   @Test fun recognizesCompleteSourceContractAndOrderIndependentXmlAttributes() {
     assertEquals(NativeMamlPair("iconBg_0.png", "iconBg_1.png"),
       NativeMamlPair.parse(source().toByteArray()))

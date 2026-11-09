@@ -50,6 +50,21 @@ def module_log_delta(before):
     return "\n".join(chunks)
 
 
+def java_reconciliation_complete(delta):
+    own = [line for line in delta.splitlines() if f"[{PACKAGE}," in line]
+    deferred = [line for line in own if "Hot reload deferred in " in line]
+    if deferred:
+        raise RuntimeError("API 102 handoff refused: " + "\n".join(deferred))
+    for host in ("system", "com.android.systemui"):
+        retirement = [line for line in own
+                      if f"({host})[{PACKAGE},KeiHomeRetirement," in line]
+        if not any(" retired pending=" in line for line in retirement):
+            return False
+        if not any(" adopted pending=" in line for line in retirement):
+            return False
+    return any("System-server icon refresh hooks installed" in line for line in own)
+
+
 def process(name):
     for attempt in range(12):
         # pidof scans unrelated cmdlines, whose reads can wait on their mmap locks.
@@ -142,15 +157,15 @@ def main():
     if "Success" not in result:
         raise RuntimeError(result)
     print(f"Installed {old_version} -> {new_version}", flush=True)
-    for _ in range(80):
+    reconciliation_deadline = time.monotonic() + 60
+    while time.monotonic() < reconciliation_deadline:
         delta = module_log_delta(logs)
-        if any(PACKAGE in line and "System-server icon refresh hooks installed" in line
-               for line in delta.splitlines()):
+        (args.evidence / "java-reload.log").write_text(delta)
+        if java_reconciliation_complete(delta):
             break
         time.sleep(0.25)
     else:
-        raise RuntimeError("No fresh API 102 Java reconciliation; native deployment stopped")
-    (args.evidence / "java-reload.log").write_text(delta)
+        raise RuntimeError("Incomplete system-server/SystemUI API 102 handoff; native deployment stopped")
     for name, identity in before.items():
         if process(name) != identity:
             raise RuntimeError(f"{name} changed during APK installation/hot reload")

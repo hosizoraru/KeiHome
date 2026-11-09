@@ -15,10 +15,33 @@ spec.loader.exec_module(deploy)
 
 OLD = "/data/adb/lspd/log/modules_old.log"
 NEW = "/data/adb/lspd/log/modules_new.log"
-ACK = "[os.kei.hyper.home] System-server icon refresh hooks installed"
+ACK = "[os.kei.hyper.home,KeiHomeIconRefresh,x] System-server icon refresh hooks installed"
 
 
 class ModuleLogDeltaTest(unittest.TestCase):
+    def handoff(self, host, event):
+        return f"({host})[os.kei.hyper.home,KeiHomeRetirement,x] {event} pending=0"
+
+    def test_system_server_ack_cannot_hide_systemui_refusal(self):
+        delta = (ACK + "\n(com.android.systemui)[os.kei.hyper.home,KeiHomeRetirement,x] "
+                 "Hot reload deferred in com.android.systemui: unregister observer")
+        with self.assertRaisesRegex(RuntimeError, "handoff refused"):
+            deploy.java_reconciliation_complete(delta)
+
+    def test_requires_both_retirement_and_adoption_for_each_critical_host(self):
+        rows = [ACK]
+        for host in ("system", "com.android.systemui"):
+            for event in ("retired", "adopted"):
+                self.assertFalse(deploy.java_reconciliation_complete("\n".join(rows)))
+                rows.append(self.handoff(host, event))
+        self.assertTrue(deploy.java_reconciliation_complete("\n".join(rows)))
+
+    def test_other_module_acknowledgements_cannot_confirm_our_handoff(self):
+        rows = [ACK] + [self.handoff(host, event).replace("os.kei.hyper.home", "another.module")
+                        for host in ("system", "com.android.systemui")
+                        for event in ("retired", "adopted")]
+        self.assertFalse(deploy.java_reconciliation_complete("\n".join(rows)))
+
     def test_process_discovery_reads_full_names_only_for_matching_comm_candidates(self):
         calls = []
 

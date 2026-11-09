@@ -99,7 +99,9 @@ def check_health(evidence, runner=subprocess.run):
         report["systemUiMainStates"] = states
         if states == ["D", "D"]:
             raise RuntimeError("SystemUI main thread remains in uninterruptible kernel wait")
-        image = probe("display", ["exec-out", "screencap", "-d", DISPLAY, "-p"], 8)
+        # Full-resolution PNG encoding exceeded 8s on a responsive AVD under host load.
+        # Keep the independent renderer/main-thread/failure checks strict.
+        image = probe("display", ["exec-out", "screencap", "-d", DISPLAY, "-p"], 15)
         report["displaySize"] = png_size(image)
         (evidence / "preflight.png").write_bytes(image)
         clock = probe("clock", ["shell", "date +%s; cat /proc/uptime"], 3).split()

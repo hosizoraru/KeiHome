@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome 通过 LSPosed API 102 工作。请在管理器中启用模块，并按需授权作用域；尚未配置好也可以继续浏览。</string>
     <string name="setup_service_connected">框架服务已连接</string>
     <string name="setup_service_disconnected">框架服务暂未连接</string>
-    <string name="setup_activation_note">服务连接与作用域授权不等于 Hook 已加载。进入应用后，请在状态页确认桌面的实际连接情况。</string>
+    <string name="setup_activation_note">首次启用模块并确认作用域后，建议重启系统一次。后续更新和受支持的设置使用 API 102 自动热重载。服务连接与作用域授权不等于 Hook 已加载，请在状态页确认桌面的实际连接情况。</string>
     <string name="setup_icons_title">选择喜欢的图标方案</string>
     <string name="setup_icons_body">保留系统图标，也能体验自动深浅色。更换图标包与 Monet 都是可选项，浏览后可返回这里继续。</string>
     <string name="setup_native_icons_title">系统内置图标：激活后自动跟随深浅色</string>

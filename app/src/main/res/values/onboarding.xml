@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome uses LSPosed API 102. Enable the module in your manager and grant the scopes needed by the features you use. You can continue even if setup is incomplete.</string>
     <string name="setup_service_connected">Framework service connected</string>
     <string name="setup_service_disconnected">Framework service not connected yet</string>
-    <string name="setup_activation_note">A granted scope and a connected service do not guarantee that hooks are running. Check the Status page for the actual launcher connection.</string>
+    <string name="setup_activation_note">After first enabling the module and confirming its scope, restart the system once as recommended. Later updates and supported settings use API 102 automatic hot reload. A connected service and granted scope do not mean hooks are loaded; check Status for the actual launcher connection.</string>
     <string name="setup_icons_title">Choose an icon style</string>
     <string name="setup_icons_body">Keep system icons for automatic light/dark behavior. Extra packs and Monet are optional; return here after exploring.</string>
     <string name="setup_native_icons_title">System icons follow light/dark mode after activation</string>

@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome は LSPosed API 102 を使用します。管理アプリでモジュールを有効にし、必要なスコープを許可してください。未完了でも先に進めます。</string>
     <string name="setup_service_connected">フレームワークに接続済み</string>
     <string name="setup_service_disconnected">フレームワークに未接続</string>
-    <string name="setup_activation_note">サービスの接続やスコープの許可だけでは Hook の動作は保証されません。実際のホームアプリとの接続は「状態」で確認できます。</string>
+    <string name="setup_activation_note">初めてモジュールを有効にしてスコープを確認した後は、システムを一度再起動することをおすすめします。以降の更新と対応設定には API 102 の自動ホットリロードを使用します。サービスの接続やスコープの許可は Hook の読み込み完了を意味しません。「状態」で実際のホームアプリとの接続を確認してください。</string>
     <string name="setup_icons_title">好みのアイコンを選ぶ</string>
     <string name="setup_icons_body">標準アイコンのままでも明暗に自動追従します。追加パックや Monet は任意で、確認後はここに戻って続けられます。</string>
     <string name="setup_native_icons_title">標準アイコンは有効化後に明暗へ自動追従</string>

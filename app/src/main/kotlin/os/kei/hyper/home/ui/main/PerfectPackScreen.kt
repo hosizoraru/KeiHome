@@ -251,7 +251,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             checked = state.options.dynamic, enabled = !busy,
             onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(dynamic = it)) })
           SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
-            summary = stringResource(R.string.perfect_icons_static_night_summary),
+            summary = stringResource(if (state.options.staticNight) R.string.perfect_icons_night_enabled
+              else R.string.perfect_icons_night_disabled),
             checked = state.options.staticNight, enabled = !busy,
             onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) },
             modifier = Modifier.testTag("icon-packs.perfect.static-night"))
@@ -269,6 +270,10 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
               packs.nativeResult?.takeIf { it.sourceId == sourceId },
               onImport = { vm.importNativeIconPack(card.pack) }, onRecheck = vm::recheckNativeIconImport,
               metadataContent = {
+                state.generatedOptions?.let { generated ->
+                  MetadataPill(stringResource(if (generated.staticNight) R.string.perfect_icons_night_mode_derived
+                    else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
+                }
                 state.result?.let { result ->
                   listOf(
                     R.string.perfect_icons_result_static to result.staticCount,

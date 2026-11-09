@@ -52,6 +52,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 private val IconPackEntry.quietSnapshot: Boolean
   get() = (light as? IconPackArtwork.Archive)?.snapshot == true ||
@@ -113,9 +114,12 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
               Text(stringResource(R.string.perfect_icons_preview_count, visible.size, pack?.entries?.size ?: 0),
                 style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
               MetadataPill(stringResource(filters[filter.coerceIn(filters.indices)]), MiuixTheme.colorScheme.primary)
+              MetadataPill(stringResource(if (state.options.staticNight) R.string.perfect_icons_night_mode_derived
+                else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
             }
             pack?.let { current ->
-              current.entries.firstOrNull { !it.quietSnapshot && it.light != null }?.let { sample ->
+              (items.firstOrNull { !it.quietSnapshot && it.dark != null && it.dark != it.light }
+                ?: items.firstOrNull { !it.quietSnapshot && it.light != null })?.let { sample ->
                 PackIconPair(current, sample, vm.packPreviews, IconPackAppearance.SYSTEM,
                   Modifier.width(58.dp), distinctOnly = true)
               }
@@ -123,7 +127,14 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
           }
           Text(stringResource(R.string.perfect_icons_preview_note), style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          Text(stringResource(R.string.perfect_icons_preview_options_scope),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
+        SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
+          summary = stringResource(if (state.options.staticNight) R.string.perfect_icons_night_enabled
+            else R.string.perfect_icons_night_disabled),
+          checked = state.options.staticNight, enabled = !state.busy,
+          onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) })
       }
       if (preview.loading || state.catalog == null || preview.failed) {
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {

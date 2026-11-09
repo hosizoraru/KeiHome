@@ -198,6 +198,7 @@ internal class PerfectPackController(
     scope.launch {
       try {
         withContext(Dispatchers.IO) { repository.setOptions(options) }
+        mutablePreview.value = PerfectPackPreviewState()
         mutableState.update { it.copy(options = options) }
       } catch (cancelled: CancellationException) {
         throw cancelled

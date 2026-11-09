@@ -714,6 +714,39 @@ class PerfectIconRepositoryTest {
     }
   }
 
+  @Test fun staticNightPreviewTogglesBackToOriginalWithoutChangingPublicationOrRefetchingSource() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    var renders = 0
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      staticRenderer = { _, _, check -> check(); renders++; PerfectStaticPair(png(30), png(40)) })
+    repo.catalog(refresh = true)
+    val original = PerfectIconOptions("default", dynamic = false)
+    repo.setOptions(original)
+    val published = repo.generate(original, setOf("third.party")) {}.file
+    val publishedBytes = published.readBytes()
+    val settings = f.settings.values.toMap()
+    val off = repo.previewArchive(original)
+    val on = repo.previewArchive(original.copy(staticNight = true))
+    assertNotEquals(off, on)
+    ZipFile(off).use { zip ->
+      assertNull(zip.getEntry("fancy_icons/third.party/manifest.xml"))
+      assertArrayEquals(png(5), zip.getInputStream(
+        zip.getEntry("res/drawable-xxhdpi/third.party/0.png")).readBytes())
+    }
+    ZipFile(on).use { zip ->
+      assertArrayEquals(png(40), zip.getInputStream(
+        zip.getEntry("fancy_icons/third.party/night.png")).readBytes())
+    }
+    val rendered = renders
+    assertTrue(rendered > 0)
+    assertEquals(off, repo.previewArchive(original))
+    assertEquals(on, repo.previewArchive(original.copy(staticNight = true)))
+    assertEquals(rendered, renders)
+    assertEquals(settings, f.settings.values)
+    assertArrayEquals(publishedBytes, published.readBytes())
+    assertEquals(1, f.http.calls.size)
+  }
+
   @Test fun previewUsesCurrentStyleWithoutChangingPublishedArchiveSettingsOrBlobCache() = runBlocking {
     val f = Fixture(temporary.newFolder())
     f.files["themes/HyperOS4/icons/com.miui.gallery/0.png"] = png(8)

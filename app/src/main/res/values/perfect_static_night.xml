@@ -3,4 +3,9 @@
     <string name="perfect_icons_static_night">Static icon light/dark adaptation</string>
     <string name="perfect_icons_static_night_summary">Generate a dark gradient from static layers; keep original dynamic resources. May increase icon loading overhead.</string>
     <string name="perfect_icons_static_night_note">Optional derived dark artwork, not an original dark variant or Monet. Layered backgrounds use a dark gradient; flat artwork is only dimmed. Cached results are reused. Generate and apply again after changing this option.</string>
+    <string name="perfect_icons_night_mode_original">Original resources</string>
+    <string name="perfect_icons_night_mode_derived">Additional dark adaptation</string>
+    <string name="perfect_icons_night_disabled">Keep original layers and native dynamics. No extra dark artwork is generated for static icons.</string>
+    <string name="perfect_icons_night_enabled">Generate dark artwork for eligible static icons; keep native dynamics. May increase loading overhead.</string>
+    <string name="perfect_icons_preview_options_scope">Preview follows current options, not the last generated or applied pack. Generate and apply again after changing options.</string>
 </resources>

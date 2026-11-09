@@ -104,6 +104,28 @@ class ImageArchiveZipTest {
     ZipFile(copied).use { assertEntry(it, "nightmode/day.png", png, ZipEntry.STORED) }
   }
 
+  @Test fun nativeRewritesPreserveCompressedImagesWithoutExpandingTheWholeModule() {
+    val pixels = ByteArray(128_000) { (it % 7).toByte() }
+    val original = archive { output ->
+      output.putNextEntry(ZipEntry("fancy_icons/org.example/icon.png"))
+      output.write(pixels)
+      output.closeEntry()
+      ImageArchiveZip.writeBytes(output, "stored.png", pixels)
+    }
+    val copied = archive { output ->
+      ZipFile(original).use { source ->
+        source.entries().asSequence().forEach {
+          ImageArchiveZip.copyEntry(output, source, it, preserveMethod = true)
+        }
+      }
+    }
+    ZipFile(copied).use { zip ->
+      assertEntry(zip, "fancy_icons/org.example/icon.png", pixels, ZipEntry.DEFLATED)
+      assertEntry(zip, "stored.png", pixels, ZipEntry.STORED)
+    }
+    assertTrue(copied.length() < pixels.size + 2048)
+  }
+
   @Test fun missingCopyMetadataUsesStreamingCrcInsteadOfBufferingPayload() {
     val bytes = ByteArray(100_003) { it.toByte() }
     val source = archive { ImageArchiveZip.writeBytes(it, "day.png", bytes) }

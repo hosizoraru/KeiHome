@@ -75,7 +75,10 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     return native.copy(nativeIconsSha256 = sha256(file, checkCancelled))
   }
 
-  private class Budget(var entries: Int = 0, var bytes: Long = 0)
+  // Final resources share one budget across both levels. Only the exact outer icons
+  // container is excluded; its bytes still count against that level's expansion cap.
+  // Validation thus reads at most maxExpandedBytes + min(maxInputBytes, maxExpandedBytes).
+  private class Budget(var entries: Int = 0, var resourceBytes: Long = 0)
 
   private fun validate(
     file: File, budget: Budget, allowIconsModule: Boolean, checkCancelled: () -> Unit,
@@ -88,6 +91,10 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
       val directories = linkedSetOf<String>()
       val entries = zip.entries()
       val buffer = ByteArray(32 * 1024)
+      var expandedBytes = 0L
+      // inspect() gives compiled APKs precedence, including APKs with an icons entry.
+      val nestedModule = allowIconsModule &&
+        !(zip.getEntry("AndroidManifest.xml")?.isDirectory == false && zip.getEntry("resources.arsc")?.isDirectory == false)
       while (entries.hasMoreElements()) {
         checkCancelled()
         val entry = entries.nextElement()
@@ -100,9 +107,11 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
           throw IconPackException("Unsupported ZIP compression")
         }
         val entryLimit = if (allowIconsModule && entry.name == "icons") limits.maxInputBytes else limits.maxEntryBytes
+        val intermediate = nestedModule && entry.name == "icons" && !entry.isDirectory
         if (entry.size < 0 || entry.size > entryLimit || entry.compressedSize < 0 ||
           entry.size > maxOf(1, entry.compressedSize) * limits.maxCompressionRatio ||
-          entry.size > limits.maxExpandedBytes - budget.bytes
+          entry.size > limits.maxExpandedBytes - expandedBytes ||
+          (!intermediate && entry.size > limits.maxExpandedBytes - budget.resourceBytes)
         ) throw IconPackException("Archive expansion limit exceeded")
         var actual = 0L
         val crc = CRC32()
@@ -112,8 +121,11 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
             val count = input.read(buffer)
             if (count < 0) break
             actual += count
-            budget.bytes += count
-            if (actual > entryLimit || actual > entry.size || budget.bytes > limits.maxExpandedBytes) {
+            expandedBytes += count
+            if (!intermediate) budget.resourceBytes += count
+            if (actual > entryLimit || actual > entry.size || expandedBytes > limits.maxExpandedBytes ||
+              budget.resourceBytes > limits.maxExpandedBytes
+            ) {
               throw IconPackException("Archive expansion limit exceeded")
             }
             crc.update(buffer, 0, count)
@@ -200,9 +212,31 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     val variants = linkedMapOf<String, MutableList<IconArchiveVariant>>()
     val staticLayers = linkedMapOf<Pair<String, Boolean>, MutableList<List<IconArchiveVariant>>>()
     val snapshots = linkedMapOf<Pair<String, Boolean>, IconPackArtwork.Archive>()
+    val pairedDarkFallbacks = linkedMapOf<String, IconPackArtwork.Archive>()
     val animated = linkedSetOf<String>()
     val notices = linkedSetOf<IconPackNotice>()
     ZipFile(file).use { zip ->
+      data class Manifest(val valid: Boolean, val pair: NativeMamlPair?)
+      val manifests = linkedMapOf<String, Manifest>()
+      fun manifest(path: String): Manifest {
+        check()
+        val bytes = zip.getInputStream(zip.getEntry(path)).use { input ->
+          input.readNBytes(64 * 1024 + 1).also {
+            if (it.size > 64 * 1024) throw IconPackException("Native manifest limit exceeded")
+          }
+        }
+        val key = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        manifests[key]?.let { return it }
+        var root = ""
+        var children = 0
+        BoundedPackXml.read(bytes, limits, check,
+          start = { name, _, depth -> if (depth == 1) root = name else children++ })
+        val pair = if (root == "Icon" && children <= 40) NativeMamlPair.parse(bytes, check) else null
+        return Manifest(root == "Icon" && children > 0, pair).also {
+          if (manifests.size >= 32) manifests.remove(manifests.keys.first())
+          manifests[key] = it
+        }
+      }
       fun variant(path: String, qualifiers: IconResourceQualifiers): IconArchiveVariant {
         val header = zip.getInputStream(zip.getEntry(path)).use { it.readNBytes(24) }
         if (!pngHeader(header)) throw IconPackException("Invalid native PNG header: $path")
@@ -210,11 +244,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         return IconArchiveVariant(path, qualifiers)
       }
       fun descriptor(path: String): Boolean {
-        var root = ""
-        var children = 0
-        BoundedPackXml.read(readEntry(file, path, 64 * 1024, check), limits, check,
-          start = { name, _, depth -> if (depth == 1) root = name else children++ })
-        return root == "Icon" && children > 0
+        return manifest(path).valid
       }
       for (path in paths) {
         check()
@@ -262,7 +292,24 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
           pieces.size == 4 && pieces[0] == "animating_icons" && pieces[2] == "fancy" && pieces[3] == "manifest.xml" -> pieces[1]
           else -> null
         }
-        if (dynamicName != null && nativeName(dynamicName) && descriptor(path)) animated += dynamicName
+        if (dynamicName != null && nativeName(dynamicName)) {
+          val descriptor = manifest(path)
+          val pair = descriptor.pair
+          val base = path.removeSuffix("manifest.xml")
+          if (pair != null && base + pair.light in paths && base + pair.dark in paths) {
+            for ((dark, image) in if (night) listOf(true to pair.dark)
+              else listOf(false to pair.light, true to pair.dark)) {
+              val qualifiers = IconResourceQualifiers("drawable-nodpi", densityDpi = 0,
+                night = if (dark) IconNightMode.DARK else IconNightMode.LIGHT)
+              val artwork = IconPackArtwork.Archive(
+                listOf(variant(base + image, qualifiers)), part, palettePair = true)
+              // Explicit night resources win over the day program's dark fallback,
+              // regardless of ZIP entry order. A night program never supplies light.
+              if (dark && !night) pairedDarkFallbacks[dynamicName] = artwork
+              else snapshots[dynamicName to dark] = artwork
+            }
+          } else if (descriptor.valid) animated += dynamicName
+        }
       }
     }
     if (animated.isNotEmpty()) notices += IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED
@@ -270,10 +317,10 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
       snapshots[name to night]?.let { return it }
       staticLayers[name to night]?.let { return IconPackArtwork.Archive(it.flatten(), part, layers = it) }
       val candidates = variants[name]?.filter { night || it.qualifiers.night != IconNightMode.DARK }.orEmpty()
-      if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return null
+      if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return pairedDarkFallbacks[name]
       return candidates.takeIf { it.isNotEmpty() }?.let { IconPackArtwork.Archive(it, part) }
     }
-    val names = variants.keys + staticLayers.keys.map { it.first } + animated
+    val names = variants.keys + staticLayers.keys.map { it.first } + snapshots.keys.map { it.first } + animated
     val entries = names.map { name ->
       val light = artwork(name, false)
       IconPackEntry(name, nativeName = name, light = light, dark = artwork(name, true) ?: light)

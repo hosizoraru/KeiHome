@@ -136,6 +136,8 @@ internal sealed interface IconPackArtwork {
     val layers: List<List<IconArchiveVariant>> = emptyList(),
     /** Quiet snapshot of a dynamic icon; does not imply animated preview support. */
     val snapshot: Boolean = false,
+    /** Closed image-only MAML pair; pixel validation is required before deriving Monet. */
+    val palettePair: Boolean = false,
   ) : IconPackArtwork
 }
 

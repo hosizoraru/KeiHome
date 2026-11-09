@@ -31,10 +31,11 @@ internal object ImageArchiveZip {
   /** Known ZIP size/CRC avoid a preliminary read. ZipOutputStream checks both as it writes. */
   fun copyEntry(
     output: ZipOutputStream, source: ZipFile, original: ZipEntry,
-    name: String = original.name, time: Long = original.time, check: () -> Unit = {},
+    name: String = original.name, time: Long = original.time,
+    preserveMethod: Boolean = false, check: () -> Unit = {},
   ) {
     check()
-    val stored = !original.isDirectory && alreadyCompressed(name)
+    val stored = !original.isDirectory && if (preserveMethod) original.method == ZipEntry.STORED else alreadyCompressed(name)
     val metadata = if (stored && (original.size < 0 || original.crc < 0))
       source.getInputStream(original).use { measure(it, check) }
     else original.size to original.crc

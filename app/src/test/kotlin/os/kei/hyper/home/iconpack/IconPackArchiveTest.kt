@@ -23,25 +23,38 @@ class IconPackArchiveTest {
 
   /** Opt-in coverage for a local report without committing third-party artwork. */
   @Test fun suppliedNativeArchiveImportsAndCopiesWithoutChangingItsPayload() {
-    val path = System.getenv("KEIHOME_TEST_ICON_ARCHIVE")
+    // Accept either a standalone icons ZIP or an MTZ containing the exact root icons.
+    val path = System.getenv("KEIHOME_TEST_ICON_ARCHIVE")?.takeIf { it.isNotBlank() }
     org.junit.Assume.assumeTrue(path != null)
     val source = File(requireNotNull(path))
-    val index = inspect(source)
-    assertEquals(IconPackFormat.MIUI_ICONS, index.format)
-    assertTrue(index.entries.isNotEmpty())
+    assertTrue("KEIHOME_TEST_ICON_ARCHIVE must point to a readable file", source.isFile && source.canRead())
+    val nested = temporary.newFile()
     val originalHash = sha256(source)
+    val index = IconPackArchive().inspect(source, nested)
+    assertTrue(index.format in setOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ))
+    assertTrue(index.entries.isNotEmpty())
+    val nativeHash = sha256(if (index.format == IconPackFormat.MIUI_MTZ) nested else source)
+    assertEquals(nativeHash, index.nativeIconsSha256)
     val store = IconPackStore(temporary.newFolder())
     val imported = source.inputStream().use { store.import(it, source.name) }
     val repeated = source.inputStream().use { store.import(it, "renamed.zip") }
     assertFalse(imported.alreadyPresent)
     assertTrue(repeated.alreadyPresent)
     assertEquals(imported.record.id, repeated.record.id)
+    assertEquals(index.format, imported.record.format)
+    assertEquals(originalHash, sha256(imported.record.originalFile))
+    assertEquals(nativeHash, imported.record.nativeIconsSha256)
+    if (index.format == IconPackFormat.MIUI_MTZ) {
+      assertEquals(nativeHash, sha256(requireNotNull(imported.record.iconsFile)))
+    }
     val output = temporary.newFile()
     val copied = IconPackArchive().copyNativeModule(imported.record, output, temporary.newFile())
+    assertEquals(IconPackFormat.MIUI_ICONS, copied.format)
     assertEquals(index.entries.map { it.nativeName }, copied.entries.map { it.nativeName })
-    assertEquals(originalHash, sha256(output))
+    assertEquals(nativeHash, sha256(output))
     assertEquals(originalHash, sha256(source))
-    println("Native archive entries=${index.entries.size} notices=${index.notices} sha256=$originalHash")
+    println("Native archive format=${index.format} entries=${index.entries.size} notices=${index.notices} " +
+      "sourceSha256=$originalHash nativeSha256=$nativeHash")
   }
 
   @Test fun standaloneModuleKeepsDirectoryEntriesMamlAndOpaqueFancyAssets() {
@@ -192,7 +205,7 @@ class IconPackArchiveTest {
     assertThrows(IOException::class.java) { inspect(file(bytes)) }
   }
 
-  @Test fun enforcesEntryExpansionAndSharedNestedBudgets() {
+  @Test fun enforcesEntryExpansionAndSharedNestedEntryBudget() {
     val archive = file(zip("res/drawable/org.example.png" to png, "extra" to ByteArray(2048)))
     assertThrows(IOException::class.java) { inspect(archive, IconPackLimits(maxEntries = 1)) }
     assertThrows(IOException::class.java) { inspect(archive, IconPackLimits(maxEntryBytes = 1024)) }
@@ -200,7 +213,96 @@ class IconPackArchiveTest {
     val inner = zip("res/drawable/org.example.png" to png)
     val mtz = file(zip("icons" to inner))
     assertThrows(IOException::class.java) { inspect(mtz, IconPackLimits(maxEntries = 1)) }
-    assertThrows(IOException::class.java) { inspect(mtz, IconPackLimits(maxExpandedBytes = inner.size.toLong() + png.size - 1)) }
+    assertThrows(IOException::class.java) { inspect(mtz, IconPackLimits(maxExpandedBytes = inner.size.toLong() - 1)) }
+  }
+
+  @Test fun nestedContainerDoesNotConsumeFinalResourceBudgetAndHandoffStaysLossless() {
+    val padding = ByteArray(4096)
+    val extra = ByteArray(64)
+    val inner = zip("res/drawable/org.example.png" to png, "opaque" to padding)
+    val outer = zip("icons" to inner, "extra" to extra)
+    val cap = (png.size + padding.size + extra.size).toLong()
+    assertTrue(inner.size + extra.size <= cap)
+    assertTrue(inner.size + extra.size + png.size + padding.size > cap)
+    val limits = IconPackLimits(maxExpandedBytes = cap, maxEntryBytes = padding.size.toLong())
+    val store = IconPackStore(temporary.newFolder(), limits)
+    val record = store.import(outer.inputStream(), "bounded.mtz").record
+    val output = temporary.newFile()
+    val index = IconPackArchive(limits).copyNativeModule(record, output, temporary.newFile())
+    assertEquals(IconPackFormat.MIUI_MTZ, record.format)
+    assertEquals(IconPackFormat.MIUI_ICONS, index.format)
+    assertArrayEquals(outer, record.originalFile.readBytes())
+    assertArrayEquals(inner, requireNotNull(record.iconsFile).readBytes())
+    assertArrayEquals(inner, output.readBytes())
+  }
+
+  @Test fun outerPayloadAndInnerResourcesStillShareOneFinalResourceBudget() {
+    val padding = ByteArray(4096)
+    val extra = ByteArray(64)
+    val cap = (png.size + padding.size + extra.size).toLong()
+    val limits = IconPackLimits(maxExpandedBytes = cap, maxEntryBytes = padding.size + 1L)
+    fun outer(innerPadding: ByteArray, outerExtra: ByteArray) = file(zip(
+      "icons" to zip("res/drawable/org.example.png" to png, "opaque" to innerPadding),
+      "extra" to outerExtra))
+    assertEquals(IconPackFormat.MIUI_MTZ, inspect(outer(padding, extra), limits).format)
+    // Each level fits on its own: the combined final resources must still reject one extra byte.
+    assertThrows(IOException::class.java) { inspect(outer(padding, ByteArray(extra.size + 1)), limits) }
+    assertThrows(IOException::class.java) { inspect(outer(ByteArray(padding.size + 1), extra), limits) }
+    assertThrows(IOException::class.java) { inspect(outer(ByteArray(cap.toInt()), byteArrayOf()),
+      limits.copy(maxEntryBytes = cap)) }
+  }
+
+  @Test fun intermediateExemptionIsExactAndDoesNotApplyToApkOrInnerPayloads() {
+    val inner = zip("res/drawable/org.example.png" to png)
+    val cap = inner.size.toLong()
+    val limits = IconPackLimits(maxExpandedBytes = cap)
+    assertEquals(IconPackFormat.MIUI_MTZ, inspect(file(zip("icons" to inner)), limits).format)
+    for (name in listOf("icons.zip", "assets/icons")) {
+      assertThrows(IOException::class.java) { inspect(file(zip(
+        "res/drawable/org.example.png" to png, name to inner)), limits) }
+    }
+    assertThrows(IOException::class.java) { inspect(file(zip("icons" to inner,
+      "AndroidManifest.xml" to byteArrayOf(3), "resources.arsc" to byteArrayOf(2))), limits) }
+    // An inner entry named icons is an ordinary opaque resource, never another exempt container.
+    val nested = zip("res/drawable/org.example.png" to png, "icons" to ByteArray(4096))
+    assertTrue(nested.size < 4096)
+    assertThrows(IOException::class.java) { inspect(file(zip("icons" to nested)),
+      limits.copy(maxExpandedBytes = 4096)) }
+  }
+
+  @Test fun nestedContainersRetainInputRatioCrcAndCancellationChecks() {
+    val inner = zip("res/drawable/org.example.png" to png)
+    val source = file(zip("icons" to inner))
+    val largerInner = zip(*(0..19).map { "res/drawable/org.example$it.png" to png }.toTypedArray())
+    val smallerOuter = zip("icons" to largerInner)
+    assertTrue(smallerOuter.size < largerInner.size - 1)
+    assertThrows(IOException::class.java) { inspect(file(smallerOuter),
+      IconPackLimits(maxInputBytes = largerInner.size - 1L)) }
+    val outerRatioFailure = assertThrows(IconPackException::class.java) {
+      inspect(file(zip("icons" to ByteArray(8192))), IconPackLimits(maxCompressionRatio = 2))
+    }
+    assertEquals("Archive expansion limit exceeded", outerRatioFailure.message)
+    val ratioBomb = zip("res/drawable/org.example.png" to png, "opaque" to ByteArray(8192))
+    val innerRatioFailure = assertThrows(IconPackException::class.java) {
+      inspect(file(zip("icons" to ratioBomb, stored = true)), IconPackLimits(maxCompressionRatio = 2))
+    }
+    assertEquals("Archive expansion limit exceeded", innerRatioFailure.message)
+    // Mutate only the outer central-directory CRC: its icons bytes remain a valid inner ZIP.
+    val corrupt = zip("icons" to inner)
+    val central = (0..corrupt.size - 4).first { i ->
+      corrupt[i] == 0x50.toByte() && corrupt[i + 1] == 0x4b.toByte() &&
+        corrupt[i + 2] == 0x01.toByte() && corrupt[i + 3] == 0x02.toByte()
+    }
+    corrupt[central + 16] = (corrupt[central + 16].toInt() xor 1).toByte()
+    assertThrows(IOException::class.java) { inspect(file(corrupt)) }
+    val staging = temporary.newFile()
+    var completedCopyChecks = 0
+    assertThrows(CancellationException::class.java) {
+      IconPackArchive().inspect(source, staging, checkCancelled = {
+        // Allow the copy loop's EOF check, then cancel at the first inner entry.
+        if (staging.length() == inner.size.toLong() && ++completedCopyChecks == 2) throw CancellationException()
+      })
+    }
   }
 
   @Test fun importIsAtomicDeduplicatedAndDoesNotTrustDisplayNames() {
@@ -239,9 +341,17 @@ class IconPackArchiveTest {
     IconPackArchive(limits).inspect(file, File(temporary.root, "nested-${System.nanoTime()}"))
   private fun file(bytes: ByteArray) = temporary.newFile().also { it.writeBytes(bytes) }
   private fun filter(name: String) = "<resources><item component='ComponentInfo{org.example/.Main}' drawable='$name'/></resources>".toByteArray()
-  private fun zip(vararg entries: Pair<String, ByteArray>) = ByteArrayOutputStream().also { output ->
+  private fun zip(vararg entries: Pair<String, ByteArray>, stored: Boolean = false) = ByteArrayOutputStream().also { output ->
     ZipOutputStream(output).use { zip ->
-      entries.forEach { (name, bytes) -> zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry() }
+      entries.forEach { (name, bytes) ->
+        zip.putNextEntry(ZipEntry(name).apply {
+          if (stored) {
+            method = ZipEntry.STORED; size = bytes.size.toLong(); compressedSize = size
+            crc = CRC32().also { it.update(bytes) }.value
+          }
+        })
+        zip.write(bytes); zip.closeEntry()
+      }
     }
   }.toByteArray()
   private val png = Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aH2kAAAAASUVORK5CYII=")

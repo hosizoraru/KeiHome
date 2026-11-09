@@ -1,3 +1,17 @@
 <resources>
     <string name="pack_system_appearance_note">With the module activated, keep the system Default, Classic or Boundless icon pack to let supported icons follow the system light/dark mode automatically. No extra icon pack import is needed.</string>
+    <string name="pack_guidance_title">Page guidance</string>
+    <string name="pack_guidance_done">Got it</string>
+    <string name="pack_guidance_collapse">Collapse guidance</string>
+    <string name="pack_guidance_expand">Expand guidance</string>
+    <string name="pack_guidance_expanded">Expanded</string>
+    <string name="pack_guidance_collapsed">Collapsed</string>
+    <string name="pack_guidance_author">Author: %1$s</string>
+    <string name="pack_guidance_designer">Designer: %1$s</string>
+    <string name="pack_action_apply_short">Apply</string>
+    <string name="pack_action_update_short">Update</string>
+    <string name="pack_action_import_short">Import</string>
+    <string name="pack_action_view_short">View</string>
+    <string name="pack_action_preparing_short">Preparing</string>
+    <string name="pack_action_importing_short">Importing</string>
 </resources>

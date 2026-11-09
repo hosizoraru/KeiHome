@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -64,6 +65,7 @@ internal fun SettingsContent(
   launcherGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
+  onCompactPackHintsChange: (Boolean) -> Unit = {},
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -112,6 +114,8 @@ internal fun SettingsContent(
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
   val rememberMenus = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
+  val compactPackHints = matches(SettingsSection.PACKS, R.string.pack_action_settings,
+    R.string.pack_compact_hints_title, R.string.pack_compact_hints_summary)
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
     R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
@@ -126,7 +130,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus,
+    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -210,7 +214,7 @@ internal fun SettingsContent(
         }
       }
     }
-    if (autoApply || installedIconsOnly || rememberMenus) {
+    if (autoApply || installedIconsOnly || rememberMenus || compactPackHints) {
       SmallTitle(stringResource(R.string.pack_action_settings))
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         if (autoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
@@ -222,6 +226,10 @@ internal fun SettingsContent(
         if (rememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
           summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
           onCheckedChange = onRememberMenusChange)
+        if (compactPackHints) SwitchPreference(title = stringResource(R.string.pack_compact_hints_title),
+          summary = stringResource(R.string.pack_compact_hints_summary), checked = preferences.compactPackHints,
+          onCheckedChange = onCompactPackHintsChange,
+          modifier = Modifier.testTag("settings.compact-pack-hints"))
       }
     }
     if (pageScroll || pagerMode) {

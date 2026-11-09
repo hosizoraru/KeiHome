@@ -1,3 +1,17 @@
 <resources>
     <string name="pack_system_appearance_note">モジュールを有効にすると、システム標準の「デフォルト」「クラシック」「バウンドレス」アイコンパックで、対応アイコンがシステムのライト・ダークモードに自動で追従します。追加のインポートは不要です。</string>
+    <string name="pack_guidance_title">使い方</string>
+    <string name="pack_guidance_done">閉じる</string>
+    <string name="pack_guidance_collapse">説明を折りたたむ</string>
+    <string name="pack_guidance_expand">説明を開く</string>
+    <string name="pack_guidance_expanded">展開済み</string>
+    <string name="pack_guidance_collapsed">折りたたみ済み</string>
+    <string name="pack_guidance_author">作者 %1$s</string>
+    <string name="pack_guidance_designer">デザイン %1$s</string>
+    <string name="pack_action_apply_short">適用</string>
+    <string name="pack_action_update_short">更新</string>
+    <string name="pack_action_import_short">インポート</string>
+    <string name="pack_action_view_short">表示</string>
+    <string name="pack_action_preparing_short">準備中</string>
+    <string name="pack_action_importing_short">インポート中</string>
 </resources>

@@ -12,6 +12,41 @@ class SystemFallbackPreferencesTest {
     assertFalse(preferences.state.value.perfectFallbackExpanded)
   }
 
+  @Test fun compactPackHintsDefaultOffWithoutWritingToLegacyPreferences() {
+    val store = Store(mutableMapOf("remember_menus" to false, "icon_previews" to false))
+    val before = store.values.toMap()
+    assertFalse(AppPreferencesState().compactPackHints)
+    assertFalse(store.open().state.value.compactPackHints)
+    assertEquals(before, store.values)
+  }
+
+  @Test fun compactPackHintsRestoreBothSavedChoicesWithoutOverwritingStorage() {
+    for (enabled in listOf(false, true)) {
+      val store = Store(mutableMapOf("compact_pack_hints" to enabled))
+      assertEquals(enabled, store.open().state.value.compactPackHints)
+      assertEquals(mapOf("compact_pack_hints" to enabled), store.values)
+    }
+  }
+
+  @Test fun compactPackHintsTogglePersistsAcrossInstancesAndPreservesOtherSettings() {
+    val store = Store(mutableMapOf(
+      "icon_previews" to false,
+      "remember_menus" to false,
+      "coloros_component_com.example.app" to true,
+      "system_icon_fallback" to SystemIconFallback.CLASSIC.name,
+    ))
+    val originalValues = store.values.toMap()
+    val originalState = store.open().state.value
+    var preferences = store.open()
+    for (enabled in listOf(true, false, true)) {
+      preferences.setCompactPackHints(enabled)
+      assertEquals(originalState.copy(compactPackHints = enabled), preferences.state.value)
+      assertEquals(originalValues + ("compact_pack_hints" to enabled), store.values)
+      preferences = store.open()
+      assertEquals(originalState.copy(compactPackHints = enabled), preferences.state.value)
+    }
+  }
+
   @Test fun legacySelectionsRestoreWhenBundledAndDegradeWithoutOverwritingSavedChoice() {
     for (fallback in SystemIconFallback.entries) {
       val store = Store(mutableMapOf("system_icon_fallback" to fallback.name))

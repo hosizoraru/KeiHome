@@ -1,3 +1,17 @@
 <resources>
     <string name="pack_system_appearance_note">模块激活后，使用系统内置的「默认」「经典」或「无界」图标包，支持的图标就会自动跟随系统深浅色，无需额外导入图标包。</string>
+    <string name="pack_guidance_title">使用说明</string>
+    <string name="pack_guidance_done">知道了</string>
+    <string name="pack_guidance_collapse">收起说明</string>
+    <string name="pack_guidance_expand">展开说明</string>
+    <string name="pack_guidance_expanded">已展开</string>
+    <string name="pack_guidance_collapsed">已收起</string>
+    <string name="pack_guidance_author">作者 %1$s</string>
+    <string name="pack_guidance_designer">设计 %1$s</string>
+    <string name="pack_action_apply_short">应用</string>
+    <string name="pack_action_update_short">更新</string>
+    <string name="pack_action_import_short">导入</string>
+    <string name="pack_action_view_short">查看</string>
+    <string name="pack_action_preparing_short">准备中</string>
+    <string name="pack_action_importing_short">导入中</string>
 </resources>

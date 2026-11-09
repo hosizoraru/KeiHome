@@ -1,6 +1,16 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
@@ -25,9 +35,16 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true) {
   val context = LocalContext.current
   val label = stringResource(if (autoApply) R.string.pack_action_view else R.string.pack_apply_native)
-  PackInlineAction(label, {
+  val open = {
     runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(requireNotNull(report.localId))) }
-  }, enabled = enabled)
+    Unit
+  }
+  if (autoApply) BasicComponent(title = stringResource(R.string.pack_action_view_short),
+    modifier = Modifier.semantics { contentDescription = label }, onClick = open, enabled = enabled, role = Role.Button,
+    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(18.dp)) })
+  else TextButton(stringResource(R.string.pack_action_apply_short), onClick = open, enabled = enabled,
+    modifier = Modifier.fillMaxWidth().padding(12.dp).semantics { contentDescription = label }, colors = ButtonDefaults.textButtonColorsPrimary())
 }
 
 @Composable

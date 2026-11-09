@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.text.format.DateFormat
 import android.text.format.Formatter
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -73,6 +72,16 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
   val prefs by vm.preferences.state.collectAsStateWithLifecycle()
+  val guidanceNotes = listOf(
+    stringResource(R.string.pack_perfect_community_detail),
+    stringResource(R.string.perfect_icons_style_summary),
+    stringResource(R.string.perfect_icons_preview_summary),
+    stringResource(R.string.perfect_icons_limits_summary),
+    stringResource(R.string.icon_pack_preview_note),
+    stringResource(R.string.icon_pack_appearance_scope_note),
+    stringResource(R.string.icon_pack_native_note),
+    stringResource(R.string.icon_pack_effects_note),
+  )
   val runtime by vm.runtime.collectAsStateWithLifecycle()
   val framework by vm.framework.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -116,6 +125,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
           actions = {
+            if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
             IconButton(onClick = { vm.perfectPacks.refreshCatalog() }, enabled = !busy && !cooling) {
               Icon(MiuixIcons.Refresh, stringResource(R.string.perfect_icons_refresh))
             }
@@ -209,11 +219,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           }
         }
       }
-      item("purpose") {
-        Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-          BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
-            summary = stringResource(R.string.pack_perfect_community_summary))
-        }
+      if (!prefs.compactPackHints) item("guidance") {
+        PackGuidanceCard(notes = guidanceNotes, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
       }
       item("options") {
         Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -221,7 +228,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             .filter { it.isNotBlank() && it != "default" }.distinct()
           val defaultStyle = stringResource(R.string.perfect_icons_style_default)
           OverlaySpinnerPreference(title = stringResource(R.string.perfect_icons_style),
-            summary = stringResource(R.string.perfect_icons_style_summary),
             items = styles.map { DropdownItem(text = it.ifEmpty { defaultStyle }) },
             selectedIndex = styles.indexOf(state.options.style.takeUnless { it == "default" }.orEmpty())
               .coerceAtLeast(0),
@@ -275,8 +281,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                   }
                 }
               })
-            packs.nativeResult?.takeIf { it.sourceId == sourceId && it.imported && it.localId != activeId }
-              ?.let { NativeThemeLink(it, autoApply = false, enabled = !busy) }
           }
         }
       }

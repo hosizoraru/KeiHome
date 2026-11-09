@@ -74,6 +74,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     MonetDestinationScreen(model, onBack)
     return
   }
+  val prefs by model.preferences.state.collectAsStateWithLifecycle()
   val fallback = section == "fallback"
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -107,6 +108,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
           } }, actions = {
+            if (prefs.compactPackHints) when (section) {
+              "installed", "imported" -> PackHelpAction(packListGuidance(prefs.iconPackAppearance) +
+                if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList())
+              "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack))
+            }
             if (section == "installed" || section == "imported") PackSortMenu(model) {
               scope.launch { list.scrollToItem(0) }
             }

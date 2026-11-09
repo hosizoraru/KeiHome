@@ -64,6 +64,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.apple.AppleCorners
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
@@ -108,6 +109,30 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val search = section == "apple-search"
   val matchedOnly = section == "apple-matched"
   val batchBrowser = !main && !search && !matchedOnly
+  val guidanceNotes = buildList {
+    if (main) {
+      add(stringResource(R.string.apple_intro))
+      add(stringResource(R.string.apple_source_note))
+      if (state.options.platform == ApplePlatform.IPADOS) add(stringResource(R.string.apple_ipad_note))
+      add(stringResource(R.string.apple_resolution_summary))
+      add(stringResource(R.string.apple_corners_summary))
+      if (state.options.corners == AppleCorners.ORIGINAL) add(stringResource(R.string.apple_original_note))
+      add(stringResource(R.string.icon_pack_appearance_preview_note))
+      add(stringResource(R.string.icon_pack_appearance_scope_note))
+      if (prefs.iconPackAppearance == IconPackAppearance.SYSTEM) {
+        add(stringResource(R.string.icon_pack_appearance_system_note))
+      }
+      if (prefs.iconPackAppearance == IconPackAppearance.DIM_AT_NIGHT) {
+        add(stringResource(R.string.icon_pack_appearance_dim_note))
+      }
+      add(stringResource(R.string.icon_pack_appearance_snapshot_note))
+      add(stringResource(R.string.icon_pack_effects_note))
+    } else if (search) {
+      add(stringResource(R.string.apple_search_intro, state.editing?.label.orEmpty()))
+    } else {
+      add(stringResource(if (matchedOnly) R.string.apple_matched_intro else R.string.apple_mapping_intro))
+    }
+  }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   var actionHeight by remember { mutableIntStateOf(0) }
@@ -246,6 +271,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) } },
         actions = {
+          if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
           if (!main && !search) {
             AppleMappingFilterMenu(mappingFilter, regionFilter, state.rows.mapNotNull {
               it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
@@ -354,14 +380,16 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
           }
         }
+        if (!prefs.compactPackHints) item("guidance") {
+          PackGuidanceCard(notes = guidanceNotes)
+        }
         if (main) {
-          item("intro") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              PackInfoCard(stringResource(R.string.apple_intro))
-              if (state.retryAtMillis > 0) PackInfoCard(stringResource(R.string.apple_cooldown_summary,
-                android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
-              if (state.batchRunning) AppleBatchProgressCard(state, controller::cancelBatch)
-            }
+          if (state.retryAtMillis > 0) item("cooldown") {
+            PackInfoCard(stringResource(R.string.apple_cooldown_summary,
+              android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
+          }
+          if (state.batchRunning) item("batch-progress") {
+            AppleBatchProgressCard(state, controller::cancelBatch)
           }
           item("options") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
@@ -370,12 +398,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 selectedIndex = state.options.platform.ordinal,
                 onSelectedIndexChange = { controller.options(state.options.copy(platform = ApplePlatform.entries[it])) })
               OverlaySpinnerPreference(title = stringResource(R.string.apple_resolution),
-                summary = stringResource(R.string.apple_resolution_summary), enabled = enabled,
+                enabled = enabled,
                 items = listOf("256 px", "512 px", "1024 px").map { DropdownItem(text = it) },
                 selectedIndex = listOf(256, 512, 1024).indexOf(state.options.resolution),
                 onSelectedIndexChange = { controller.options(state.options.copy(resolution = listOf(256, 512, 1024)[it])) })
               OverlaySpinnerPreference(title = stringResource(R.string.apple_corners), enabled = enabled,
-                summary = stringResource(R.string.apple_corners_summary),
                 items = listOf("Rounded", "Original").map { DropdownItem(text = it) },
                 selectedIndex = state.options.corners.ordinal,
                 onSelectedIndexChange = { controller.options(state.options.copy(corners = AppleCorners.entries[it])) })
@@ -396,13 +423,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 enabled = enabled, onClick = { onNavigate("apple-mappings") })
             }
           }
-          if (state.options.platform == ApplePlatform.IPADOS) item("ipad-note") {
-            PackInfoCard(stringResource(R.string.apple_ipad_note))
-          }
-          if (state.options.corners == AppleCorners.ORIGINAL) item("original-note") {
-            PackInfoCard(stringResource(R.string.apple_original_note))
-          }
-          item("source-note") { PackInfoCard(stringResource(R.string.apple_source_note)) }
           if (state.pack != null && (state.pendingChanges || state.publishedOptions != state.options)) item("pending-options") {
             PackInfoCard(stringResource(R.string.apple_options_pending))
           }
@@ -443,12 +463,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
         } else if (!search) {
-          item("intro") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              PackInfoCard(stringResource(if (matchedOnly) R.string.apple_matched_intro else R.string.apple_mapping_intro))
-              if (state.retryAtMillis > 0) PackInfoCard(stringResource(R.string.apple_cooldown_summary,
-                android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
-            }
+          if (state.retryAtMillis > 0) item("cooldown") {
+            PackInfoCard(stringResource(R.string.apple_cooldown_summary,
+              android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
           }
           if (batchBrowser) item("batch-guidance") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -497,7 +514,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
         } else {
-          item("intro") { PackInfoCard(stringResource(R.string.apple_search_intro, state.editing?.label.orEmpty())) }
           state.editing?.packageName?.let { packageName ->
             item("editing-package") {
               Text(packageName, Modifier.padding(horizontal = 12.dp),

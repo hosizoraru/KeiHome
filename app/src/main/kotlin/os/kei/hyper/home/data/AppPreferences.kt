@@ -59,6 +59,7 @@ internal data class AppPreferencesState(
   val colorOsArtPlus: Boolean = true,
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
   val monetInspiration: Boolean? = null,
+  val compactPackHints: Boolean = false,
 )
 
 internal class AppPreferences internal constructor(
@@ -110,6 +111,7 @@ internal class AppPreferences internal constructor(
       .associate { it.removePrefix("coloros_component_") to preferences.getBoolean(it, false) },
     monetInspiration = if (preferences.contains("monet_inspiration"))
       preferences.getBoolean("monet_inspiration", false) else null,
+    compactPackHints = preferences.getBoolean("compact_pack_hints", false),
   )
 
   fun setAppearance(value: AppAppearance) {
@@ -188,6 +190,11 @@ internal class AppPreferences internal constructor(
   fun setShowIconPreviews(value: Boolean) {
     preferences.edit().putBoolean("icon_previews", value).apply()
     state.update { it.copy(showIconPreviews = value) }
+  }
+
+  fun setCompactPackHints(value: Boolean) {
+    preferences.edit().putBoolean("compact_pack_hints", value).apply()
+    state.update { it.copy(compactPackHints = value) }
   }
 
   fun setIconPackAppearance(value: IconPackAppearance) {

@@ -79,8 +79,6 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
             PackIconPair(card.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f), compact = true)
           }
         }
-        Text(stringResource(if (inspiration) R.string.pack_inspiration_summary else R.string.pack_coloros_plain),
-          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
     if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,
@@ -95,7 +93,10 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
       }
     }
-    if (!inspiration || card == null || result != null) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    if (!inspiration && !preferences.compactPackHints)
+      PackGuidanceCard(colorOsPackGuidance(preferences.autoApplyIconPack))
+    if (card == null || result != null) Card(Modifier.fillMaxWidth(),
+      insideMargin = PaddingValues(if (result?.imported == true) 0.dp else 16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (card == null) Text(stringResource(R.string.pack_local_unavailable))
         if (result?.imported == true) {
@@ -107,9 +108,6 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
           if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck),
             onClick = model::recheckNativeIconImport)
         }
-        if (!inspiration) Text(stringResource(if (preferences.autoApplyIconPack) R.string.pack_action_hint_auto
-          else R.string.pack_action_hint_manual), style = MiuixTheme.textStyles.footnote2,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
   }

@@ -115,6 +115,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     staticScopeContent = { StaticScopeCard(model) },
+    onCompactPackHintsChange = model.preferences::setCompactPackHints,
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

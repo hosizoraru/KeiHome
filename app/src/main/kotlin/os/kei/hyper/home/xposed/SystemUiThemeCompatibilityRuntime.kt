@@ -51,6 +51,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val splashPreferenceGuard = optionalGuard("splash preference")
   @Volatile private var preferences: SharedPreferences? = null
   @Volatile private var splashPreferences: SharedPreferences? = null
+  private var appIconRuntime: SystemUiAppIconRuntime? = null
   private val splashPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == null || key == SplashAppearancePreferences.KEY) {
       if (lifecycle.enter()) try {
@@ -82,7 +83,10 @@ internal class SystemUiThemeCompatibilityRuntime(
     synchronized(handles) { handles.addAll(oldHooks) }
     // Release old module closures immediately while the new profile is resolving.
     // Callers retain the native decision during this short asynchronous handover.
-    oldHooks.filter { it.id?.startsWith(REFRESH_ID_PREFIX) == true && it.id != LOADER_ID }.forEach {
+    oldHooks.filter {
+      (it.id?.startsWith(REFRESH_ID_PREFIX) == true && it.id != LOADER_ID) ||
+        it.id?.startsWith("keihome.systemui.notification.") == true
+    }.forEach {
       replace(it.executable as Method, requireNotNull(it.id), XposedInterface.Hooker { chain -> chain.proceed() })
     }
     val loaderGuard = optionalGuard("plugin scheduling")
@@ -133,12 +137,29 @@ internal class SystemUiThemeCompatibilityRuntime(
       initializePreferences()
       val application = Class.forName("android.app.ActivityThread")
         .getDeclaredMethod("currentApplication").invoke(null) as? Application
+      val hostContext = application ?: runCatching {
+        val thread = Class.forName("android.app.ActivityThread")
+          .getDeclaredMethod("currentActivityThread").invoke(null)
+        thread.javaClass.getDeclaredMethod("getSystemContext")
+          .apply { isAccessible = true }.invoke(thread) as Context
+      }.getOrNull()
       val profiles = SystemUiProfilesCache.resolve(
         loader = loader,
         apkPath = apkPath,
-        directory = application?.codeCacheDir,
+        directory = hostContext?.codeCacheDir,
       )
       val profile = profiles.material
+      if (hostContext != null && appIconRuntime == null) {
+        try {
+          SystemUiAppIconRuntime(hostContext, loader, lifecycle, ::replace,
+            ::reportOptionalFailure,
+            report = { priority, tag, message -> xposed.log(priority, tag, message) },
+          ).also { appIconRuntime = it }.start()
+        } catch (failure: Throwable) {
+          recoverableSystemUiFailure(failure)
+          reportOptionalFailure("notification app icon install", failure)
+        }
+      }
       xposed.log(Log.INFO, TAG, "SystemUI profile descriptors: " + if (profiles.restored) "restored" else "resolved")
       val materialGuard = optionalGuard("material capability")
       replace(profile.themedGate, MATERIAL_ID, XposedInterface.Hooker { chain ->
@@ -379,6 +400,8 @@ internal class SystemUiThemeCompatibilityRuntime(
       workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
     ) {
       try {
+        check(appIconRuntime?.stop() != false) { "Notification icon runtime has not stopped" }
+        appIconRuntime = null
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
         saveState()
@@ -438,27 +461,51 @@ internal class SystemUiThemeCompatibilityRuntime(
   }
 }
 
-/** Admission closes only after hooks, preference callbacks and owned workers have drained. */
-internal class ThemeCompatibilityLifecycle {
-  private val lock = Any()
+/** Close admission before draining hooks, preference callbacks and owned installation work. */
+internal class ThemeCompatibilityLifecycle(
+  private val drainTimeoutMillis: Long = 1_000L,
+  private val isMainThread: () -> Boolean = {
+    Looper.getMainLooper()?.let { it == Looper.myLooper() } == true
+  },
+) {
+  private val lock = java.lang.Object()
   private var active = 0
   private var retiring = false
   private var retired = false
+
+  init { require(drainTimeoutMillis >= 0) }
 
   fun enter(): Boolean = synchronized(lock) {
     if (retiring || retired) false else { active++; true }
   }
 
-  fun leave() = synchronized(lock) { check(active > 0); active-- }
+  fun leave() = synchronized(lock) {
+    check(active > 0)
+    active--
+    if (active == 0) lock.notifyAll()
+  }
 
   fun retire(workersStopped: () -> Boolean = { true }, saveState: () -> Unit): Boolean {
     synchronized(lock) {
       if (retired) return true
-      if (retiring || active != 0) return false
+      if (retiring) return false
       retiring = true
     }
     var complete = false
     try {
+      synchronized(lock) {
+        if (active != 0) {
+          if (isMainThread()) return false
+          val timeoutNanos = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(drainTimeoutMillis)
+          val started = System.nanoTime()
+          while (active != 0) {
+            val remaining = timeoutNanos - (System.nanoTime() - started)
+            if (remaining <= 0) return false
+            // Release admission's monitor so existing callbacks and installs can leave.
+            lock.wait(remaining / 1_000_000L, (remaining % 1_000_000L).toInt())
+          }
+        }
+      }
       if (!workersStopped()) return false
       // Framework listener removal can wait for a Binder callback which calls enter().
       // Close admission first, then clean up without holding the admission monitor.

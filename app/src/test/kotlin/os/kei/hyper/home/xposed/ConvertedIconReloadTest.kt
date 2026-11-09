@@ -10,6 +10,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConvertedIconReloadTest {
+  @Test fun retirementWaitsForAnAlreadyAdmittedShortRegistration() {
+    val lifecycle = IconRefreshReloadLifecycle()
+    val entered = CountDownLatch(1)
+    val finish = CountDownLatch(1)
+    val worker = Thread {
+      lifecycle.withActiveRuntime { entered.countDown(); check(finish.await(2, TimeUnit.SECONDS)) }
+    }.apply { start() }
+    assertTrue(entered.await(2, TimeUnit.SECONDS))
+    val retiring = FutureTask {
+      lifecycle.retire({ true }, { true }, {}, {})
+    }
+    val handoff = Thread(retiring).apply { start() }
+    try {
+      val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1)
+      while (!lifecycle.retiring && System.nanoTime() < deadline) Thread.yield()
+      assertTrue(lifecycle.retiring)
+      assertThrows(IllegalStateException::class.java) { lifecycle.withActiveRuntime {} }
+      finish.countDown()
+      assertTrue(retiring.get(2, TimeUnit.SECONDS))
+      assertTrue(lifecycle.retired)
+    } finally {
+      finish.countDown()
+      worker.join(2_000)
+      handoff.join(2_000)
+    }
+  }
+
   @Test
   fun registrationMustFinishBeforeRetirementCanStopTheOldWorker() {
     val lifecycle = IconRefreshReloadLifecycle()

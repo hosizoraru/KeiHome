@@ -11,7 +11,7 @@ import org.junit.Test
 
 class SystemUiThemeCompatibilityTest {
   @Test fun activeCallbackRejectsReloadWithoutDisablingRuntime() {
-    val lifecycle = ThemeCompatibilityLifecycle()
+    val lifecycle = ThemeCompatibilityLifecycle(drainTimeoutMillis = 0, isMainThread = { false })
     assertTrue(lifecycle.enter())
     assertFalse(lifecycle.retire { error("Must not retire in-flight work") })
     lifecycle.leave()
@@ -111,5 +111,100 @@ class SystemUiThemeCompatibilityTest {
     } finally {
       executor.shutdownNow()
     }
+  }
+
+  @Test(timeout = 10_000) fun retirementClosesAdmissionAndWaitsForAsyncCallbackDrain() {
+    val admissionClosed = CountDownLatch(1)
+    val lifecycle = ThemeCompatibilityLifecycle(
+      drainTimeoutMillis = 5_000,
+      isMainThread = { admissionClosed.countDown(); false },
+    )
+    val callbackEntered = CountDownLatch(1)
+    val releaseCallback = CountDownLatch(1)
+    val callbackFinished = CountDownLatch(1)
+    val workersChecked = CountDownLatch(1)
+    val stateSaved = CountDownLatch(1)
+    val executor = Executors.newFixedThreadPool(2)
+    try {
+      val callback = executor.submit<Boolean> {
+        check(lifecycle.enter())
+        try {
+          callbackEntered.countDown()
+          check(releaseCallback.await(5, TimeUnit.SECONDS))
+          callbackFinished.countDown()
+          true
+        } finally {
+          lifecycle.leave()
+        }
+      }
+      assertTrue(callbackEntered.await(5, TimeUnit.SECONDS))
+      val retirement = executor.submit<Boolean> {
+        lifecycle.retire(workersStopped = {
+          assertEquals(0L, callbackFinished.count)
+          assertFalse(lifecycle.enter())
+          workersChecked.countDown()
+          true
+        }) { stateSaved.countDown() }
+      }
+      assertTrue(admissionClosed.await(5, TimeUnit.SECONDS))
+      assertFalse(lifecycle.enter())
+      assertFalse(lifecycle.retire { error("Must not retire twice concurrently") })
+      assertFalse(retirement.isDone)
+      assertEquals(1L, workersChecked.count)
+      assertEquals(1L, stateSaved.count)
+
+      releaseCallback.countDown()
+      assertTrue(callback.get(5, TimeUnit.SECONDS))
+      assertTrue(retirement.get(5, TimeUnit.SECONDS))
+      assertEquals(0L, workersChecked.count)
+      assertEquals(0L, stateSaved.count)
+      assertFalse(lifecycle.enter())
+    } finally {
+      releaseCallback.countDown()
+      executor.shutdownNow()
+    }
+  }
+
+  @Test(timeout = 10_000) fun callbackDrainTimeoutReopensAdmissionAndAllowsRetry() {
+    val lifecycle = ThemeCompatibilityLifecycle(
+      drainTimeoutMillis = 100,
+      isMainThread = { false },
+    )
+    val executor = Executors.newSingleThreadExecutor()
+    var workerChecks = 0
+    var saves = 0
+    assertTrue(lifecycle.enter())
+    try {
+      val retirement = executor.submit<Boolean> {
+        lifecycle.retire(workersStopped = { workerChecks++; true }) { saves++ }
+      }
+      assertFalse(retirement.get(5, TimeUnit.SECONDS))
+      assertEquals(0, workerChecks)
+      assertEquals(0, saves)
+      assertTrue(lifecycle.enter())
+      lifecycle.leave()
+    } finally {
+      lifecycle.leave()
+      executor.shutdownNow()
+    }
+    assertTrue(lifecycle.retire(workersStopped = { true }) {})
+    assertFalse(lifecycle.enter())
+  }
+
+  @Test(timeout = 10_000) fun mainThreadRefusesToWaitAndLeavesRuntimeUsable() {
+    val lifecycle = ThemeCompatibilityLifecycle(
+      drainTimeoutMillis = 60_000,
+      isMainThread = { true },
+    )
+    var workerChecks = 0
+    var saves = 0
+    assertTrue(lifecycle.enter())
+    assertFalse(lifecycle.retire(workersStopped = { workerChecks++; true }) { saves++ })
+    assertEquals(0, workerChecks)
+    assertEquals(0, saves)
+    assertTrue(lifecycle.enter())
+    lifecycle.leave()
+    lifecycle.leave()
+    assertTrue(lifecycle.retire {})
   }
 }

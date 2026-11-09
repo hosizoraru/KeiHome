@@ -61,6 +61,9 @@ class KeiHomeModule : XposedModule() {
         themes != null -> themes.retire { publish(themes.classLoader) }
         server != null -> server.retire { publish(null) }
         else -> { publish(null); true }
+      }.also { ready ->
+        if (!ready) log(Log.WARN, "KeiHomeRetirement",
+          "Hot reload deferred in $processName: callbacks or owned workers have not drained")
       }
     }
   }

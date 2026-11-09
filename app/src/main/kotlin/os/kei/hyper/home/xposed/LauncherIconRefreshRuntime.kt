@@ -158,6 +158,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val closingWorkers = RetiringIconRefreshThreads()
   private var hooksReady = false
   private lateinit var profile: ServerProfile
+  private var recentTaskLoader: ClassLoader? = null
+  private var recentTaskIcons: RecentTaskAppIconRuntime? = null
 
   @Volatile
   var service: Any? = null
@@ -205,6 +207,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     try {
       val resolved = ServerProfile.resolve(loader)
       profile = resolved
+      recentTaskLoader = loader
       val currentService = resolved.findExistingService(loader)
       if (currentService != null) {
         service = currentService
@@ -358,6 +361,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       iconPackImportMonitor.stop()
       frameworkManager.stop()
       stopRefreshWorker()
+      stopRecentTaskIcons()
       handles.forEach {
         try {
           it.unhook()
@@ -383,7 +387,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         iconPackImportMonitor.stop()
         true
       },
-      await = { awaitRetirement(deadline) },
+      await = { stopRecentTaskIcons() && awaitRetirement(deadline) },
       commit = {
         closingWorkers.pruneStopped()
         saveState()
@@ -413,6 +417,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
         service?.let { profile.context.get(it) } as? Context
       } ?: return
+      synchronized(lock) {
+        if (!lifecycle.retiring && !lifecycle.retired && recentTaskIcons == null) {
+          recentTaskLoader?.let { loader ->
+            recentTaskIcons = RecentTaskAppIconRuntime(xposed, loader, context).also { it.start() }
+          }
+        }
+      }
       try {
         handler?.let { frameworkManager.start(context, it) }
       } catch (failure: Exception) { logFailure("could not register framework entry", failure) }
@@ -422,6 +433,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)
     }
+  }
+
+  private fun stopRecentTaskIcons(): Boolean {
+    val runtime = synchronized(lock) { recentTaskIcons } ?: return true
+    if (!runtime.stop()) return false
+    synchronized(lock) { if (recentTaskIcons === runtime) recentTaskIcons = null }
+    return true
   }
 
   private fun removeOldHooks(
@@ -1055,7 +1073,7 @@ internal class PendingIconRefresh {
 }
 
 internal class IconRefreshReloadLifecycle {
-  val lock = Any()
+  val lock = java.lang.Object()
   private val retirement = ReentrantLock()
   var activeHooks = 0
   var activeJobs = 0
@@ -1069,7 +1087,7 @@ internal class IconRefreshReloadLifecycle {
     try {
       return block()
     } finally {
-      synchronized(lock) { activeHooks -= 1 }
+      synchronized(lock) { activeHooks -= 1; lock.notifyAll() }
     }
   }
 
@@ -1090,8 +1108,24 @@ internal class IconRefreshReloadLifecycle {
     if (!retirement.tryLock()) return false
     try {
       synchronized(lock) {
-        if (retired || retiring || activeHooks != 0) return false
+        if (retired || retiring) return false
         retiring = true
+        // Quiesce short in-flight callbacks instead of randomly rejecting reload
+        // whenever a package/configuration callback overlaps the framework request.
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(750)
+        while (activeHooks != 0) {
+          val left = deadline - System.nanoTime()
+          if (left <= 0 || Thread.currentThread().name == "main") {
+            retiring = false
+            return false
+          }
+          try { TimeUnit.NANOSECONDS.timedWait(lock, left) }
+          catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            retiring = false
+            return false
+          }
+        }
       }
       var validationRetired = false
       fun recover() {

@@ -24,6 +24,7 @@
     <string name="notices_role_libxposed">框架服务集成 · Apache 2.0</string>
     <string name="notices_role_materialkolor">壁纸取色与 Monet 配色 · Apache 2.0 / MIT</string>
     <string name="notices_role_serialization">二进制数据序列化 · Apache 2.0</string>
+    <string name="notices_role_zipflinger">ZIP 归档读取与复制 · Apache 2.0</string>
     <string name="notices_role_async">异步任务接口 · Apache 2.0</string>
     <string name="notices_role_annotations">注解与编译契约 · Apache 2.0</string>
     <string name="notices_role_cxx">原生 C++ 构建支持 · Apache 2.0 与 LLVM 例外</string>

@@ -118,6 +118,7 @@ dependencies {
   // Same pure color engine already used by MIUIX; also needed on our compile classpath.
   implementation(libs.material.color.utilities)
   implementation(libs.mmkv)
+  implementation(libs.zipflinger)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

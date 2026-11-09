@@ -24,6 +24,7 @@
     <string name="notices_role_libxposed">フレームワークのサービス連携 · Apache 2.0</string>
     <string name="notices_role_materialkolor">壁紙の色抽出と Monet 配色 · Apache 2.0 / MIT</string>
     <string name="notices_role_serialization">バイナリデータのシリアライズ · Apache 2.0</string>
+    <string name="notices_role_zipflinger">ZIP アーカイブの読み取りとコピー · Apache 2.0</string>
     <string name="notices_role_async">非同期タスクのインターフェース · Apache 2.0</string>
     <string name="notices_role_annotations">アノテーションとコンパイラの契約 · Apache 2.0</string>
     <string name="notices_role_cxx">ネイティブ C++ のビルド支援 · Apache 2.0 と LLVM 例外</string>

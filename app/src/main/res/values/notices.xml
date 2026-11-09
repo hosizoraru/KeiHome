@@ -25,6 +25,7 @@
     <string name="notices_role_libxposed">Framework service integration · Apache 2.0</string>
     <string name="notices_role_materialkolor">Wallpaper colors and Monet schemes · Apache 2.0 / MIT</string>
     <string name="notices_role_serialization">Binary data serialization · Apache 2.0</string>
+    <string name="notices_role_zipflinger">ZIP archive access and copying · Apache 2.0</string>
     <string name="notices_role_async">Asynchronous task contracts · Apache 2.0</string>
     <string name="notices_role_annotations">Annotations and compiler contracts · Apache 2.0</string>
     <string name="notices_role_cxx">Native C++ build support · Apache 2.0 with LLVM exceptions</string>

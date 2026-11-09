@@ -53,6 +53,31 @@ and are shown in their in-App component details:
 The libxposed API itself is a compile-only framework contract rather than a
 bundled implementation.
 
+## Zipflinger 9.5.1 and Android Tools Annotations 32.5.1
+
+KeiHome uses `com.android:zipflinger:9.5.1` for runtime ZIP archive access and
+entry copying. Its runtime dependency is
+`com.android.tools:annotations:32.5.1`. Both are Android Open Source Project
+components licensed under the Apache License, Version 2.0.
+
+Zipflinger source attribution: Copyright (C) 2019 The Android Open Source Project.
+The Android Tools Annotations NOTICE records:
+Copyright (c) 2005-2013, The Android Open Source Project.
+
+The full Apache 2.0 license is bundled as `assets/licenses/Apache-2.0.txt`.
+The complete, unmodified NOTICE from the Android Tools Annotations 32.5.1 JAR
+is retained as `assets/licenses/AndroidTools-NOTICE.txt`. Android Tools
+Annotations is attributed separately from JetBrains Annotations.
+
+- Zipflinger source and README:
+  <https://android.googlesource.com/platform/tools/base/+/mirror-goog-studio-main/zipflinger/README.md>
+- Zipflinger publication and runtime dependency declaration:
+  <https://dl.google.com/dl/android/maven2/com/android/zipflinger/9.5.1/zipflinger-9.5.1.pom>
+- Android Tools Annotations source:
+  <https://android.googlesource.com/platform/tools/base/+/mirror-goog-studio-main/annotations/>
+- Android Tools Annotations publication:
+  <https://dl.google.com/dl/android/maven2/com/android/tools/annotations/32.5.1/annotations-32.5.1.pom>
+
 ## libc++ build dependency
 
 The resolved native build support includes `dev.rikka.ndk.thirdparty:cxx`.

@@ -37,6 +37,7 @@ internal data class BundledLicense(val key: String, val title: String, val asset
 
 internal val bundledLicenses = listOf(
   BundledLicense("apache", "Apache 2.0", "licenses/Apache-2.0.txt"),
+  BundledLicense("android-tools-notice", "Android Tools · NOTICE", "licenses/AndroidTools-NOTICE.txt"),
   BundledLicense("dexkit-apache", "DexKit · Apache 2.0", "licenses/DexKit-Apache-2.0.txt"),
   BundledLicense("dexkit-lgpl", "DexKit · LGPL 3.0", "licenses/DexKit-LGPL-3.0.txt"),
   BundledLicense("dexkit-source", "DexKit · Source", "licenses/DexKit-SOURCE.txt"),

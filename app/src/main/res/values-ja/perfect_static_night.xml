@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_icons_static_night">静的アイコンのライト／ダーク対応</string>
+    <string name="perfect_icons_static_night_summary">静的レイヤーから暗いグラデーションを生成し、元の動的リソースは保持します。読み込み負荷が増える場合があります。</string>
+    <string name="perfect_icons_static_night_note">元の独立したダーク画像や Monet ではなく、派生した暗い外観です。レイヤー背景は暗いグラデーションに、一体画像は減光のみを適用します。生成結果は再利用されます。変更後は再生成して適用してください。</string>
+</resources>

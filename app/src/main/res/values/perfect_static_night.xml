@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_icons_static_night">Static icon light/dark adaptation</string>
+    <string name="perfect_icons_static_night_summary">Generate a dark gradient from static layers; keep original dynamic resources. May increase icon loading overhead.</string>
+    <string name="perfect_icons_static_night_note">Optional derived dark artwork, not an original dark variant or Monet. Layered backgrounds use a dark gradient; flat artwork is only dimmed. Cached results are reused. Generate and apply again after changing this option.</string>
+</resources>

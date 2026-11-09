@@ -7,6 +7,7 @@ data class PerfectIconOptions(
   val style: String = "",
   val installedOnly: Boolean = true,
   val dynamic: Boolean = true,
+  val staticNight: Boolean = false,
 )
 
 data class PerfectIconCatalog(

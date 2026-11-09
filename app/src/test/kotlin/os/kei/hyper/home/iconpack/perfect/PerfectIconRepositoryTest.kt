@@ -92,6 +92,91 @@ class PerfectIconRepositoryTest {
     }
   }
 
+  @Test fun optionalStaticNightReusesPairsAndOnlyRendersChangedSourceWithoutNetworkRepeats() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    var renders = 0
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      staticRenderer = { _, _, check -> check(); renders++; PerfectStaticPair(png(30), png(40)) })
+    repo.catalog(refresh = true)
+    assertFalse(repo.options().staticNight)
+    val options = PerfectIconOptions("default", staticNight = true)
+    repo.setOptions(options)
+    assertTrue(f.repo.options().staticNight)
+    val first = repo.generate(options, setOf("third.party")) {}
+    assertEquals(1, renders)
+    val calls = f.http.calls.size
+    val original = first.file.readBytes()
+    ZipFile(first.file).use { zip ->
+      assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/0.png"))
+      assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/1.png"))
+      assertNotNull(zip.getEntry("fancy_icons/third.party/night.png"))
+      val xml = zip.getInputStream(zip.getEntry("fancy_icons/third.party/manifest.xml")).reader().readText()
+      assertTrue(xml.contains("frameRate=\"0\""))
+      assertFalse(xml.contains("ContentProviderBinder"))
+    }
+    assertArrayEquals(original, repo.generate(options, setOf("third.party")) {}.file.readBytes())
+    assertEquals(1, renders)
+    assertEquals(calls, f.http.calls.size)
+    f.files["themes/default/icons/third.party/0.png"] = png(8)
+    f.update()
+    repo.catalog(refresh = true)
+    repo.generate(options, setOf("third.party")) {}
+    assertEquals(2, renders)
+    assertEquals(calls + 1, f.http.calls.size)
+  }
+
+  @Test fun corruptDerivedCacheAndNativeMaskChangesAreRebuiltLocally() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    var renders = 0
+    var mask: String? = null
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      nativeMask = { mask },
+      staticRenderer = { _, _, _ -> renders++; PerfectStaticPair(png(30), png(40)) })
+    repo.catalog(refresh = true)
+    val options = PerfectIconOptions("default", staticNight = true)
+    val first = repo.generate(options, setOf("third.party")) {}
+    File(f.root, "rendered-static-night").listFiles()!!.single().writeBytes(byteArrayOf(1, 2))
+    assertArrayEquals(first.file.readBytes(), repo.generate(options, setOf("third.party")) {}.file.readBytes())
+    assertEquals(2, renders)
+    mask = "M0,0 H100 V100 H0 Z"
+    val changed = repo.generate(options, setOf("third.party")) {}
+    assertNotEquals(first.file.name, changed.file.name)
+    assertEquals(3, renders)
+    assertEquals(1, f.http.calls.size)
+    assertTrue(repo.cacheBytes() > 0)
+  }
+
+  @Test fun staticNightNeverRewritesConfiguredNativeResources() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.dynamic("third.party", style = "common")
+    f.update()
+    val repo = PerfectIconRepository(f.root, f.http, f.settings,
+      staticRenderer = { _, _, _ -> error("Configured icons must not be rasterized") })
+    repo.catalog(refresh = true)
+    val result = repo.generate(PerfectIconOptions("default", staticNight = true), setOf("third.party")) {}
+    ZipFile(result.file).use { zip ->
+      assertNull(zip.getEntry("fancy_icons/third.party/manifest.xml"))
+      assertArrayEquals(f.files.getValue("themes/common/layer_animating_icons/third.party/config.xml"),
+        zip.getInputStream(zip.getEntry("layer_animating_icons/third.party/config.xml")).readBytes())
+    }
+    assertEquals(1, result.dynamicCount)
+  }
+
+  @Test fun failedStaticConversionKeepsPreviousPublicationAndCleansPartialOutput() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.repo.catalog(refresh = true)
+    val previous = f.repo.generate(PerfectIconOptions("default"), setOf("third.party")) {}
+    val bytes = previous.file.readBytes()
+    val repo = PerfectIconRepository(f.root, f.http, f.settings,
+      staticRenderer = { _, _, _ -> throw CancellationException("cancel rendering") })
+    try {
+      repo.generate(PerfectIconOptions("default", staticNight = true), setOf("third.party")) {}
+      fail("Expected cancellation")
+    } catch (_: CancellationException) { }
+    assertArrayEquals(bytes, previous.file.readBytes())
+    assertFalse(File(f.root, "generated").listFiles().orEmpty().any { it.extension == "part" })
+  }
+
   @Test fun fallbackUsesLocalStyleLayersAndSharesVerifiedBlobCacheWithoutNetwork() = runBlocking {
     val f = Fixture(temporary.newFolder())
     f.fallbackStyle()

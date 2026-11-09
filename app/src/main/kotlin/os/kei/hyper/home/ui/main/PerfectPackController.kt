@@ -142,6 +142,7 @@ internal class PerfectPackController(
               style = saved.optString("style"),
               installedOnly = saved.optBoolean("installedOnly", true),
               dynamic = saved.optBoolean("dynamic", true),
+              staticNight = saved.optBoolean("staticNight", false),
             )
             mutableState.update { it.copy(result = result, generatedOptions = generatedOptions) }
             val id = saved.optString("recordId")
@@ -336,6 +337,7 @@ internal class PerfectPackController(
       .put("reused", result.reused).put("revision", result.revision)
       .put("rejectedDynamic", result.rejectedDynamic).put("contract", result.contract)
       .put("style", options.style).put("installedOnly", options.installedOnly).put("dynamic", options.dynamic)
+      .put("staticNight", options.staticNight)
     check(storage.encode("last_generated", saved.toString()))
     storage.sync()
   }

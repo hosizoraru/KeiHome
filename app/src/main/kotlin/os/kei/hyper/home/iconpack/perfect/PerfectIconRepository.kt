@@ -5,6 +5,8 @@ import com.tencent.mmkv.MMKV
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FilterOutputStream
+import java.io.OutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -26,6 +28,33 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.GeneratedIconPng
+import os.kei.hyper.home.iconpack.NativeDayNightIcon
+
+/** Bounds compressed bytes too, including ZIP headers and the final central directory. */
+internal class PerfectIconOutputLimit(
+  output: OutputStream,
+  private val limit: Long,
+  private val check: () -> Unit = {},
+) : FilterOutputStream(output) {
+  private var count = 0L
+  init { require(limit >= 0) }
+  private fun reserve(size: Int) {
+    check()
+    if (size.toLong() > limit - count) throw IOException("Perfect Icons generated ZIP exceeds its size limit")
+  }
+  override fun write(value: Int) {
+    reserve(1)
+    out.write(value)
+    count++
+  }
+  override fun write(bytes: ByteArray, offset: Int, length: Int) {
+    if (offset < 0 || length < 0 || offset > bytes.size - length) throw IndexOutOfBoundsException()
+    reserve(length)
+    out.write(bytes, offset, length)
+    count += length
+  }
+}
 
 /** One explicit conditional codeload request per refresh; generation is entirely local. */
 class PerfectIconRepository internal constructor(
@@ -36,12 +65,14 @@ class PerfectIconRepository internal constructor(
   private val limits: PerfectIconZipLimits = PerfectIconZipLimits(),
   private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
   private val nativeMask: () -> String? = { null },
+  private val staticRenderer: ((List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
     PerfectIconUrlConnection(),
     MmkvSettings(context.applicationContext),
     nativeMask = { NativeAdaptiveIconMask.load()?.pathData },
+    staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check) },
   )
 
   private val mutex = locks.getOrPut(root.absolutePath) { Mutex() }
@@ -50,6 +81,7 @@ class PerfectIconRepository internal constructor(
   private val blobsDir get() = File(root, "blobs")
   private val outputDir get() = File(root, "generated")
   private val previewDir get() = File(root, "previews")
+  private val renderedDir get() = File(root, "rendered-static-night")
   // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
   private var fallbackIndex: FallbackIndex? = null
 
@@ -123,14 +155,16 @@ class PerfectIconRepository internal constructor(
 
   fun options(): PerfectIconOptions = runCatching {
     val json = JSONObject(settings.read("options") ?: return PerfectIconOptions())
-    PerfectIconOptions(json.getString("style"), json.getBoolean("installedOnly"), json.getBoolean("dynamic"))
+    PerfectIconOptions(json.getString("style"), json.getBoolean("installedOnly"), json.getBoolean("dynamic"),
+      json.optBoolean("staticNight", false))
       .also { PerfectIconFormat.style(it.style) }
   }.getOrDefault(PerfectIconOptions())
 
   fun setOptions(options: PerfectIconOptions) {
     PerfectIconFormat.style(options.style)
     settings.write("options", JSONObject().put("style", options.style)
-      .put("installedOnly", options.installedOnly).put("dynamic", options.dynamic).toString())
+      .put("installedOnly", options.installedOnly).put("dynamic", options.dynamic)
+      .put("staticNight", options.staticNight).toString())
   }
 
   // Old REST API cooldowns do not block the independent codeload source.
@@ -190,8 +224,12 @@ class PerfectIconRepository internal constructor(
       coroutine.ensureActive()
       val validated = PerfectIconFormat.validate(plan) { blob -> coroutine.ensureActive(); blobFile(blob.sha).readBytes() }
       require(validated.files.isNotEmpty()) { "No complete Perfect Icons match the supplied installed IDs" }
-      val transform = HyperOs4IconModule.transform(usesLayerDirectory(validated), nativeMask())
-      val file = publish(snapshot, options, validated, transform)
+      val mask = nativeMask()
+      val transform = HyperOs4IconModule.transform(usesLayerDirectory(validated) ||
+        (options.staticNight && staticNightInputs(validated).isNotEmpty()), mask)
+      val file = publish(snapshot, options, validated, transform, mask) { done, total ->
+        progress(PerfectIconProgress(done, total, "source.static-night"))
+      }
       trimBlobs(unique.map { it.sha }.toSet())
       PerfectIconResult(file, (validated.staticIds + validated.dynamicIds).size, validated.staticIds.size,
         validated.dynamicIds.size, extracted, reused, snapshot.revision,
@@ -208,7 +246,8 @@ class PerfectIconRepository internal constructor(
       val style = options.style.ifEmpty { "default" }
       require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
       val mask = nativeMask()
-      val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit"
+      val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit" +
+        if (options.staticNight) "\n${PerfectStaticNightRenderer.REVISION}" else ""
       val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
       val destination = File(previewDir, "preview-${snapshot.sourceHash.take(12)}-$key.zip")
       val proof = File(previewDir, "${destination.name}.sha256")
@@ -271,8 +310,9 @@ class PerfectIconRepository internal constructor(
         }
         val validated = PerfectIconFormat.validate(plan, ::read)
         require(validated.files.isNotEmpty()) { "No complete Perfect Icons are available for this preview" }
-        writeArchive(destination, validated, HyperOs4IconModule.transform(usesLayerDirectory(validated), mask),
-          maxFile = MAX_PREVIEW_FILE, read = ::read)
+        writeArchive(destination, validated, HyperOs4IconModule.transform(usesLayerDirectory(validated) ||
+          (options.staticNight && staticNightInputs(validated).isNotEmpty()), mask),
+          maxFile = MAX_PREVIEW_FILE, options = options, mask = mask, read = ::read)
         val hash = previewHash(destination)
         atomic(proof, hash.toByteArray(Charsets.US_ASCII)) { coroutine.ensureActive() }
         // Preview retention never touches generated publications or shared blob-cache entries.
@@ -314,7 +354,7 @@ class PerfectIconRepository internal constructor(
   }
 
   private fun clearable(file: File): Boolean = file.isFile &&
-    (file.parentFile == blobsDir || file.toPath().startsWith(previewDir.toPath()) ||
+    (file.parentFile == blobsDir || file.parentFile == renderedDir || file.toPath().startsWith(previewDir.toPath()) ||
       file.toPath().startsWith(File(root, "trees").toPath()) || file.name.endsWith(".part"))
 
   private data class Snapshot(
@@ -484,17 +524,113 @@ class PerfectIconRepository internal constructor(
     it.startsWith("layer_animating_icons/") && it.endsWith("/config.xml")
   }
 
-  private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan, transform: ByteArray): File {
+  private fun staticNightInputs(plan: PerfectIconPlan): Map<String, List<PerfectIconBlob>> =
+    plan.staticIds.sorted().mapNotNull { name ->
+      // Even quiet-only configured groups retain their original native mode selectors.
+      if ("layer_animating_icons/$name/config.xml" in plan.files) return@mapNotNull null
+      val prefix = "res/drawable-xxhdpi/$name"
+      val flat = plan.files["$prefix.png"]
+      val layers = listOfNotNull(plan.files["$prefix/0.png"], plan.files["$prefix/1.png"])
+      when {
+        flat != null -> name to listOf(flat)
+        layers.size == 2 -> name to layers
+        else -> null
+      }
+    }.toMap()
+
+  private fun staticPair(
+    inputs: List<PerfectIconBlob>, mask: String?, check: () -> Unit,
+    read: (PerfectIconBlob) -> ByteArray,
+  ): PerfectStaticPair {
+    val identity = "${PerfectStaticNightRenderer.REVISION}\n${PerfectIconFormat.sha(mask.orEmpty().toByteArray())}\n" +
+      inputs.joinToString("\n") { it.sha }
+    val key = PerfectIconFormat.sha(identity.toByteArray())
+    val file = File(renderedDir, "$key.zip")
+    if (file.isFile && file.length() in 1..(9L * 1024 * 1024)) {
+      try {
+        ZipFile(file).use { zip ->
+          require(zip.size() == 3)
+          fun bytes(path: String, max: Int): ByteArray {
+            val entry = requireNotNull(zip.getEntry(path))
+            require(entry.size in 1..max.toLong())
+            return zip.getInputStream(entry).use { it.readNBytes(max + 1) }.also {
+              require(it.size.toLong() == entry.size)
+            }
+          }
+          val proof = JSONObject(bytes("proof.json", 1024).toString(Charsets.UTF_8))
+          val pair = PerfectStaticPair(bytes("day.png", 4 * 1024 * 1024), bytes("night.png", 4 * 1024 * 1024))
+          require(proof.getString("key") == key &&
+            proof.getString("day") == PerfectIconFormat.sha(pair.day) &&
+            proof.getString("night") == PerfectIconFormat.sha(pair.night))
+          GeneratedIconPng.validate(pair.day, 512)
+          GeneratedIconPng.validate(pair.night, 512)
+          check()
+          file.setLastModified(now())
+          return pair
+        }
+      } catch (failure: Exception) {
+        if (failure is CancellationException || failure is InterruptedException) throw failure
+      }
+    }
+    check()
+    val source = inputs.map { blob ->
+      check()
+      read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) { "Cached source icon integrity mismatch" } }
+    }
+    val pair = requireNotNull(staticRenderer) { "Static night renderer unavailable" }(source, mask, check)
+    GeneratedIconPng.validate(pair.day, 512)
+    GeneratedIconPng.validate(pair.night, 512)
+    renderedDir.mkdirs()
+    val temporary = File(renderedDir, ".$key.${UUID.randomUUID()}.part")
+    try {
+      ZipOutputStream(temporary.outputStream()).use { zip ->
+        val proof = JSONObject().put("key", key).put("day", PerfectIconFormat.sha(pair.day))
+          .put("night", PerfectIconFormat.sha(pair.night)).toString().toByteArray()
+        for ((path, bytes) in mapOf("day.png" to pair.day, "night.png" to pair.night, "proof.json" to proof)) {
+          check()
+          zip.putNextEntry(ZipEntry(path).apply {
+            time = 0
+            method = ZipEntry.STORED
+            size = bytes.size.toLong()
+            compressedSize = size
+            crc = CRC32().apply { update(bytes) }.value
+          })
+          zip.write(bytes)
+          zip.closeEntry()
+        }
+      }
+      check()
+      move(temporary, file)
+    } finally {
+      temporary.delete()
+    }
+    return pair
+  }
+
+  private fun trimRendered() {
+    val files = renderedDir.listFiles().orEmpty().filter { it.extension == "zip" }
+    var bytes = files.sumOf { it.length() }
+    for (file in files.sortedBy { it.lastModified() }) {
+      if (bytes <= 256L * 1024 * 1024) break
+      val size = file.length()
+      if (file.delete()) bytes -= size
+    }
+  }
+
+  private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan,
+    transform: ByteArray, mask: String?, renderProgress: (Int, Int) -> Unit): File {
     outputDir.mkdirs()
     val identity = buildString {
       append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
       append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
+      if (options.staticNight) append(PerfectStaticNightRenderer.REVISION).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
     }
     val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
     val destination = File(outputDir, "perfect-${snapshot.sourceHash.take(12)}-$key.zip")
-    writeArchive(destination, plan, transform) { blob -> blobFile(blob.sha).readBytes() }
+    writeArchive(destination, plan, transform, options = options, mask = mask,
+      renderProgress = renderProgress) { blob -> blobFile(blob.sha).readBytes() }
     // Imports own an independent copy. Keep the new publication and two prior usable outputs.
     outputDir.listFiles().orEmpty().filter { it != destination && it.name.startsWith("perfect-") && it.extension == "zip" }
       .sortedByDescending { it.lastModified() }.drop(2).forEach { it.delete() }
@@ -505,7 +641,10 @@ class PerfectIconRepository internal constructor(
     destination: File,
     plan: PerfectIconPlan,
     transform: ByteArray,
-    maxFile: Long = Long.MAX_VALUE,
+    maxFile: Long = 1024L * 1024 * 1024,
+    options: PerfectIconOptions = PerfectIconOptions(),
+    mask: String? = null,
+    renderProgress: (Int, Int) -> Unit = { _, _ -> },
     read: (PerfectIconBlob) -> ByteArray,
   ) {
     val temporary = File(destination.parentFile, ".${UUID.randomUUID()}.part")
@@ -513,11 +652,19 @@ class PerfectIconRepository internal constructor(
     val generated = mapOf(
       "transform_config.xml" to transform,
     )
+    val nightInputs = if (options.staticNight) staticNightInputs(plan) else emptyMap()
+    val replaced = nightInputs.keys.mapTo(hashSetOf()) { "res/drawable-xxhdpi/$it.png" }
+    val expected = linkedMapOf<String, Pair<Long, String>>()
     try {
       FileOutputStream(temporary).use { output ->
-        ZipOutputStream(output, Charsets.UTF_8).use { zip ->
-          fun entry(path: String, bytes: ByteArray) {
+        ZipOutputStream(PerfectIconOutputLimit(output, maxFile) { coroutine.ensureActive() },
+          Charsets.UTF_8).use { zip ->
+          fun entry(path: String, bytes: ByteArray, sourceHash: String? = null) {
             coroutine.ensureActive()
+            check(path !in expected) { "Duplicate generated icon entry" }
+            val digest = PerfectIconFormat.sha(bytes)
+            require(sourceHash == null || sourceHash == digest) { "Cached source icon integrity mismatch" }
+            expected[path] = bytes.size.toLong() to digest
             zip.putNextEntry(ZipEntry(path).apply {
               time = 0
               if (path.endsWith(".png", true)) {
@@ -531,21 +678,28 @@ class PerfectIconRepository internal constructor(
             zip.closeEntry()
           }
           generated.forEach { (path, bytes) -> entry(path, bytes) }
-          plan.files.forEach { (path, blob) -> entry(path, read(blob)) }
+          plan.files.filterKeys { it !in replaced }.forEach { (path, blob) -> entry(path, read(blob), blob.sha) }
+          nightInputs.entries.forEachIndexed { index, (name, inputs) ->
+            coroutine.ensureActive()
+            val pair = staticPair(inputs, mask, { coroutine.ensureActive() }, read)
+            NativeDayNightIcon.entries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
+            renderProgress(index + 1, nightInputs.size)
+            if (index % 32 == 31) trimRendered()
+          }
           zip.finish()
           zip.flush()
           output.fd.sync()
         }
       }
-      require(temporary.length() <= maxFile) { "Perfect Icons preview ZIP exceeds its size limit" }
+      require(temporary.length() <= maxFile) { "Perfect Icons generated ZIP exceeds its size limit" }
       // Validate the archive that will be published, not just its inputs.
       ZipFile(temporary, Charsets.UTF_8).use { zip ->
-        require(zip.size() == plan.files.size + generated.size)
-        plan.files.forEach { (path, blob) ->
+        require(zip.size() == expected.size)
+        expected.forEach { (path, proof) ->
           coroutine.ensureActive()
           val entry = requireNotNull(zip.getEntry(path))
-          require(entry.size == blob.size)
-          require(PerfectIconFormat.sha(zip.getInputStream(entry).use { it.readBytes() }) == blob.sha)
+          require(entry.size == proof.first)
+          require(PerfectIconFormat.sha(zip.getInputStream(entry).use { it.readBytes() }) == proof.second)
           if (path.endsWith(".png", true)) require(entry.method == ZipEntry.STORED)
         }
         generated.forEach { (path, bytes) ->
@@ -558,6 +712,7 @@ class PerfectIconRepository internal constructor(
       move(temporary, destination)
     } finally {
       temporary.delete()
+      trimRendered()
     }
   }
 

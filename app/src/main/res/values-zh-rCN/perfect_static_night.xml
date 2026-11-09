@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_icons_static_night">静态图标深浅色适配</string>
+    <string name="perfect_icons_static_night_summary">从静态分层生成深色渐变，原版动态资源保持不变。可能增加图标加载开销。</string>
+    <string name="perfect_icons_static_night_note">此选项派生深色外观，不是源站独立深色资源或 Monet。分层背景使用深色渐变，一体图仅调暗；生成结果会缓存复用。更改后需重新生成并应用。</string>
+</resources>

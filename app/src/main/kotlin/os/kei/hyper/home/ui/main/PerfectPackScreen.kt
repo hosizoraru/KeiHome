@@ -74,6 +74,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   val prefs by vm.preferences.state.collectAsStateWithLifecycle()
   val guidanceNotes = listOf(
     stringResource(R.string.perfect_icons_layer_rules),
+    stringResource(R.string.perfect_icons_static_night_note),
     stringResource(R.string.pack_perfect_community_detail),
     stringResource(R.string.perfect_icons_style_summary),
     stringResource(R.string.perfect_icons_preview_summary),
@@ -249,6 +250,11 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             summary = stringResource(R.string.perfect_icons_dynamic_summary),
             checked = state.options.dynamic, enabled = !busy,
             onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(dynamic = it)) })
+          SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
+            summary = stringResource(R.string.perfect_icons_static_night_summary),
+            checked = state.options.staticNight, enabled = !busy,
+            onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) },
+            modifier = Modifier.testTag("icon-packs.perfect.static-night"))
         }
       }
       item("generated") {

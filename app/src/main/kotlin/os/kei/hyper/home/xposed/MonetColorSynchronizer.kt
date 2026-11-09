@@ -201,6 +201,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       dockGlassPid = dockProcess?.pid.takeIf { dockEnabled != null },
       dockGlassStartTicks = dockProcess?.startTicks.takeIf { dockEnabled != null },
       launcherGlassAvailable = launcherGlassAvailable,
+      launcherCapabilities = greeting?.capabilities,
       launcherGlassStyle = launcherGlass.acknowledgedStyle(
         acknowledgementProcess.takeIf { launcherGlassAvailable }, request.userId, SystemClock.elapsedRealtime()),
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {

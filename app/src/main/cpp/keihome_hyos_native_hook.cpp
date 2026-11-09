@@ -9,6 +9,7 @@
 #include "native_api.h"
 #include "maml_zip_release_hooks.h"
 #include "monet_hooks.h"
+#include "launcher_form_factor.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -136,7 +137,7 @@ void OnLsposedLibraryLoaded(const char* name, void* handle) {
 void HandleLoadedLibrary(const char* name, void* handle, bool fresh_load) {
     if (name == nullptr || handle == nullptr || !IsLauncherHookProcess()) return;
     if (EndsWith(name, "librust_maml_sdk.so")) {
-        InstallMamlZipRelease();
+        if (!IsTabletLauncherDevice()) InstallMamlZipRelease();
         return;
     }
     if (EndsWith(name, kHyperRuntimeName)) {
@@ -144,6 +145,12 @@ void HandleLoadedLibrary(const char* name, void* handle, bool fresh_load) {
         return;
     }
     if (EndsWith(name, kDartLibraryName)) {
+        if (IsTabletLauncherDevice()) {
+            // Diagnostic-only admission is safe even for an already running
+            // Pad isolate. It neither probes nor patches its Dart factories.
+            if (IsLauncherProcess()) InstallMonetHooksAtLibraryLoad(handle);
+            return;
+        }
         if (!fresh_load) __atomic_store_n(&g_existing_snapshot, 1u, __ATOMIC_RELEASE);
         // Multi-instruction detours are installed before the newly loaded
         // image starts executing; an existing isolate is never repatched.

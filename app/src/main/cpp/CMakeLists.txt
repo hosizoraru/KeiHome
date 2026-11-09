@@ -29,6 +29,7 @@ add_library(keihome_hyos_lsp SHARED
     launcher_glass_material_bridge.S
     launcher_glass_patch.cpp
     monet_hooks.cpp
+    launcher_form_factor.cpp
     monet_image_identity.cpp
     monet_image_recovery.cpp
     monet_image_recovery_resolver.cpp

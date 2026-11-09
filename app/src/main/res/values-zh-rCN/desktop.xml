@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="navigation_desktop">桌面</string>
-    <string name="desktop_synced_count">%1$d / %2$d 已同步</string>
+    <string name="desktop_synced_count">%1$d / %2$d 项受支持的设置已确认</string>
     <string name="desktop_labels_status_title">应用名称</string>
     <string name="desktop_glass_status_title">玻璃质感</string>
     <string name="desktop_dock_on">已开启 · %1$s</string>
@@ -16,4 +16,16 @@
     <string name="desktop_error_title">桌面同步异常</string>
     <string name="desktop_dock_status_title">Dock</string>
     <string name="desktop_status_badge">%1$s · %2$s</string>
+    <string name="desktop_compatibility_title">桌面兼容性</string>
+    <string name="desktop_no_supported_settings">没有受支持的覆盖设置，保留原生外观</string>
+    <string name="desktop_compatibility_pending">部分桌面能力尚未确认。</string>
+    <string name="desktop_status_unknown">桌面兼容性尚未确认</string>
+    <string name="desktop_status_checking">正在检查桌面兼容性</string>
+    <string name="desktop_status_read_failed">无法读取桌面状态，请刷新重试</string>
+    <string name="desktop_status_timeout">桌面状态检查超时，请刷新重试</string>
+    <string name="desktop_status_layout_unavailable">不支持布局自定义</string>
+    <string name="desktop_dock_native">保留原生 Dock</string>
+    <string name="dock_glass_native_retained">当前桌面不支持 Dock 覆盖设置，将保留原生 Dock；已保存的设置也会保留。</string>
+    <string name="dock_glass_layout_unavailable">当前桌面不支持布局自定义。已存设置会保留；选择“最近任务”“圆润”或重置 Dock 几何设置时，将恢复默认间距和偏移。</string>
+    <string name="launcher_labels_unavailable">当前桌面不支持标签自定义，已保存的选择会保留。</string>
 </resources>

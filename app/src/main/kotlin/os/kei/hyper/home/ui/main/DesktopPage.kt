@@ -17,6 +17,7 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherGlassStyle
 import os.kei.hyper.home.data.LauncherLabelMode
+import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import top.yukonga.miuix.kmp.basic.SmallTitle
 
 @Composable
@@ -44,7 +45,13 @@ private fun DesktopStatusCard(model: HomeViewModel) {
   val dockStatus = desktopDockStatus(dock, runtime, framework.dockGlassInScope(), now, version)
   val labelsStatus = desktopLabelStatus(labels, runtime, framework.launcherLabelsInScope(), now, version)
   val glassStatus = desktopGlassStatus(glass, runtime, framework.launcherGlassInScope(), now, version)
-  val accepted = listOf(dockStatus, labelsStatus, glassStatus).count { it == DesktopFeatureStatus.ACCEPTED }
+  val statuses = listOf(dockStatus, labelsStatus, glassStatus)
+  val capabilities = listOf(
+    desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK).takeIf { framework.dockGlassInScope() },
+    desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.LABELS).takeIf { framework.launcherLabelsInScope() },
+    desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.GLASS).takeIf { framework.launcherGlassInScope() },
+  )
+  val sync = desktopSyncSummary(statuses, capabilities)
   val dockValue = when (val saved = dock.saved) {
     null -> stringResource(R.string.theme_effects_loading)
     else -> if (!saved.enabled) stringResource(R.string.desktop_feature_off) else
@@ -62,23 +69,26 @@ private fun DesktopStatusCard(model: HomeViewModel) {
     LauncherGlassStyle.DARK -> R.string.launcher_glass_dark
     null -> R.string.theme_effects_loading
   })
-  val statuses = listOf(dockStatus, labelsStatus, glassStatus)
   val tone = when {
-    statuses.any { it == DesktopFeatureStatus.ERROR } -> StatusTone.ERROR
-    accepted == 3 -> StatusTone.READY
+    statuses.any { it == DesktopFeatureStatus.ERROR || it == DesktopFeatureStatus.READ_FAILED } -> StatusTone.ERROR
+    sync.ready -> StatusTone.READY
     else -> StatusTone.WARNING
   }
   StatusOverviewCard(
     title = stringResource(when (tone) {
       StatusTone.READY -> R.string.desktop_ready_title
-      StatusTone.WARNING -> R.string.desktop_pending_title
+      StatusTone.WARNING -> if (sync.supported == 0) R.string.desktop_compatibility_title else R.string.desktop_pending_title
       StatusTone.ERROR -> R.string.desktop_error_title
     }),
-    summary = stringResource(R.string.desktop_synced_count, accepted, 3),
+    summary = if (sync.supported == 0) stringResource(
+      if (capabilities.all { it == false }) R.string.desktop_no_supported_settings else R.string.desktop_status_unknown,
+    ) else stringResource(R.string.desktop_synced_count, sync.accepted, sync.supported),
+    footer = if (capabilities.any { it == null }) stringResource(R.string.desktop_compatibility_pending) else null,
     details = emptyList(), tone = tone, onRefresh = { model.refresh(5) },
     modifier = Modifier.testTag("desktop.status"),
     badges = listOf(
-      desktopStatusBadge(stringResource(R.string.desktop_dock_status_title), dockValue, dockStatus),
+      desktopStatusBadge(stringResource(R.string.desktop_dock_status_title), dockValue, dockStatus,
+        if (capabilities[0] == false) R.string.desktop_dock_native else R.string.desktop_status_unavailable),
       desktopStatusBadge(stringResource(R.string.desktop_labels_status_title), labelValue, labelsStatus),
       desktopStatusBadge(stringResource(R.string.desktop_glass_status_title), glassValue, glassStatus),
     ),
@@ -86,13 +96,19 @@ private fun DesktopStatusCard(model: HomeViewModel) {
 }
 
 @Composable
-private fun desktopStatusBadge(title: String, value: String, status: DesktopFeatureStatus): String {
+private fun desktopStatusBadge(title: String, value: String, status: DesktopFeatureStatus,
+  unavailableMessage: Int = R.string.desktop_status_unavailable): String {
   val label = if (status == DesktopFeatureStatus.ACCEPTED) value else stringResource(when (status) {
     DesktopFeatureStatus.OUT_OF_SCOPE -> R.string.desktop_status_not_ready
     DesktopFeatureStatus.LOADING -> R.string.theme_effects_loading
     DesktopFeatureStatus.SAVING -> R.string.theme_effects_saving
     DesktopFeatureStatus.ERROR -> R.string.desktop_status_error
-    DesktopFeatureStatus.UNAVAILABLE -> R.string.desktop_status_unavailable
+    DesktopFeatureStatus.UNAVAILABLE -> unavailableMessage
+    DesktopFeatureStatus.UNKNOWN -> R.string.desktop_status_unknown
+    DesktopFeatureStatus.CHECKING -> R.string.desktop_status_checking
+    DesktopFeatureStatus.READ_FAILED -> R.string.desktop_status_read_failed
+    DesktopFeatureStatus.TIMED_OUT -> R.string.desktop_status_timeout
+    DesktopFeatureStatus.LAYOUT_UNAVAILABLE -> R.string.desktop_status_layout_unavailable
     DesktopFeatureStatus.PENDING -> R.string.launcher_glass_pending
     DesktopFeatureStatus.ACCEPTED -> R.string.launcher_glass_accepted
   })

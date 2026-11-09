@@ -35,6 +35,8 @@ unsigned checks = 0, hook_calls = 0, server_calls = 0, last_capabilities = 0;
 unsigned fail_hook = 0;
 bool anchors = true, hash_ok = true, tint_ok = true, selection_ok = true;
 bool publication_ok = true, highlight_ok = true, server_ok = true;
+bool tablet = false;
+unsigned other_profile_calls = 0;
 uint8_t fake_image[256] = {};
 void Check(bool success, const char* name) {
     ++checks;
@@ -46,6 +48,8 @@ void Reset() {
     hook_calls = server_calls = last_capabilities = fail_hook = 0;
     anchors = hash_ok = tint_ok = selection_ok = publication_ok = true;
     highlight_ok = server_ok = true;
+    tablet = false;
+    other_profile_calls = 0;
 }
 }
 void* TestDlsym(void*, const char*) { return anchors ? fake_image : nullptr; }
@@ -82,27 +86,42 @@ int InstallInlineHook(void*, void*, void** original) {
     return hook_calls == fail_hook ? kHookFailed : kHookSuccess;
 }
 bool InstallIconHighlightAtLibraryLoad(void*) {
+    ++other_profile_calls;
     kh_theme_materials_installed = highlight_ok ? 1u : 0u;
     return highlight_ok;
 }
+bool IsTabletLauncherDevice() { return tablet; }
+bool PrepareDockGlassAtLibraryLoad(void*) { ++other_profile_calls; return false; }
+bool InstallPreparedDockGlass() { return false; }
+bool PrepareLauncherGlassMaterialAtLibraryLoad(void*) { ++other_profile_calls; return false; }
+bool InstallPreparedLauncherGlassMaterial() { return false; }
+bool InstallLauncherLabelsAtLibraryLoad(void*) { ++other_profile_calls; return false; }
 bool StartNativeMonetPolicyServer() {
     ++server_calls;
     last_capabilities = (kh_monet_installed == 1 ? 1u : 0u) |
                         (kh_theme_materials_installed == 1 ? 2u : 0u);
-    Check(last_capabilities != 0, "no empty-capability transport start");
     return server_ok;
 }
 void InstallMonetImageRecoveryAtLibraryLoad(const MonetSelectionImageView&) {}
 
 int main() {
     void* handle = fake_image;
+    for (const char* value : {"tablet", "tablet,nosdcard", "default, tablet ", "tablet,foldable"})
+        Check(HasTabletCharacteristic(value), "exact tablet characteristic token");
+    for (const char* value : {"", "phone", "default", "notablet", "tabletish", "TABLET"})
+        Check(!HasTabletCharacteristic(value), "do not guess tablet from substrings or width");
+    Reset(); tablet = true;
+    Check(!InstallMonetHooksAtLibraryLoad(handle), "tablet overrides not admitted");
+    Check(!hook_calls && !other_profile_calls && g_install_state == 0,
+          "tablet startup performs no phone profile scans or feature writes");
+    Check(server_calls == 1 && last_capabilities == 0, "tablet can report zero capabilities");
     for (unsigned failed = 0; failed <= 4; ++failed) {
         for (bool highlight : {false, true}) {
             Reset(); fail_hook = failed; highlight_ok = highlight;
             const bool success = InstallMonetHooksAtLibraryLoad(handle);
             Check(success == (failed == 0), "Monet result is actual four-hook installation");
             Check(kh_monet_installed == (failed == 0 ? 1u : 0u), "partial failure cannot advertise Monet");
-            Check(server_calls == (failed == 0 || highlight ? 1u : 0u), "one start after completed attempts");
+            Check(server_calls == 1u, "one diagnostic-capable start after completed attempts");
             if (server_calls)
                 Check(last_capabilities == ((failed == 0 ? 1u : 0u) | (highlight ? 2u : 0u)),
                       "greeting sees only installed capabilities");
@@ -114,6 +133,10 @@ int main() {
         Check(!hook_calls && kh_monet_installed == 0 && last_capabilities == 2,
               "resolver failure preserves independent highlight-only endpoint");
     }
+    Reset(); anchors = false; highlight_ok = false;
+    Check(!InstallMonetHooksAtLibraryLoad(handle), "unsupported image stays unsupported");
+    Check(server_calls == 1 && last_capabilities == 0 && !hook_calls,
+          "zero-capability endpoint reports rejection without installing feature hooks");
     Reset(); server_ok = false;
     Check(InstallMonetHooksAtLibraryLoad(handle), "transport failure does not un-install hooks");
     Check(kh_monet_installed == 1 && hook_calls == 4 && server_calls == 1,

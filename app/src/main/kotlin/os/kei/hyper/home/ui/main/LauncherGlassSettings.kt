@@ -27,11 +27,11 @@ internal enum class LauncherGlassRuntimeStatus { PENDING, UNAVAILABLE, ACCEPTED 
 
 internal fun launcherGlassRuntimeStatus(style: LauncherGlassStyle?, runtime: RuntimeStatusUiState,
   now: Long, moduleVersion: Long): LauncherGlassRuntimeStatus {
-  val report = runtime.report?.takeIf { it.isFresh(now) && it.moduleVersion == moduleVersion }
+  val report = desktopRuntimeReport(runtime, now, moduleVersion)
   return when {
-    runtime.readFailed || runtime.timedOut || report == null -> LauncherGlassRuntimeStatus.PENDING
-    report.nativeState == os.kei.hyper.home.status.NativeRuntimeState.INACTIVE_USER -> LauncherGlassRuntimeStatus.PENDING
-    !report.launcherGlassAvailable -> LauncherGlassRuntimeStatus.UNAVAILABLE
+    report == null -> LauncherGlassRuntimeStatus.PENDING
+    report.supportsLauncherCapability(os.kei.hyper.home.status.LauncherRuntimeCapabilities.GLASS) == false ->
+      LauncherGlassRuntimeStatus.UNAVAILABLE
     !report.acknowledgesLauncherGlass(style) -> LauncherGlassRuntimeStatus.PENDING
     else -> LauncherGlassRuntimeStatus.ACCEPTED
   }

@@ -1,10 +1,66 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.R
+import os.kei.hyper.home.data.DockGlassChoice
+import os.kei.hyper.home.data.DockGlassCornerStyle
 import os.kei.hyper.home.status.NativeRuntimeState
+import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusUiState
 
-internal enum class DesktopFeatureStatus { OUT_OF_SCOPE, LOADING, SAVING, ERROR, UNAVAILABLE, PENDING, ACCEPTED }
+internal enum class DesktopFeatureStatus {
+  OUT_OF_SCOPE, LOADING, SAVING, ERROR, UNAVAILABLE, UNKNOWN, CHECKING, READ_FAILED, TIMED_OUT,
+  LAYOUT_UNAVAILABLE, PENDING, ACCEPTED,
+}
+
+internal fun desktopCapability(
+  runtime: RuntimeStatusUiState, now: Long, moduleVersion: Long, capability: Int,
+): Boolean? = desktopRuntimeReport(runtime, now, moduleVersion)?.supportsLauncherCapability(capability)
+
+internal fun desktopControlEnabled(inScope: Boolean, saving: Boolean, unavailable: Boolean,
+  hasSaved: Boolean, supported: Boolean?): Boolean =
+  inScope && !saving && !unavailable && hasSaved && supported != false
+
+internal fun desktopDockLayoutEnabled(dockEnabled: Boolean, controlsEnabled: Boolean,
+  layoutSupported: Boolean?): Boolean = dockEnabled && controlsEnabled && layoutSupported != false
+
+internal data class DesktopDockControls(val cornerChooser: Boolean, val resetGeometry: Boolean, val geometry: Boolean)
+
+internal fun desktopDockControls(choice: DockGlassChoice?, controlsEnabled: Boolean,
+  layoutSupported: Boolean?): DesktopDockControls = DesktopDockControls(
+  cornerChooser = controlsEnabled && choice?.enabled == true,
+  resetGeometry = controlsEnabled && choice != null,
+  geometry = desktopDockLayoutEnabled(choice?.enabled == true, controlsEnabled, layoutSupported),
+)
+
+internal fun desktopDockCornerStyleSupported(style: DockGlassCornerStyle, layoutSupported: Boolean?): Boolean =
+  layoutSupported != false || style == DockGlassCornerStyle.RECENTS || style == DockGlassCornerStyle.ROUNDED
+
+internal fun desktopDockCornerSelection(choice: DockGlassChoice, style: DockGlassCornerStyle,
+  layoutSupported: Boolean?): DockGlassChoice? {
+  if (!desktopDockCornerStyleSupported(style, layoutSupported)) return null
+  // Only an explicit legacy-style selection clears geometry that this receiver cannot accept.
+  return if (layoutSupported == false) DockGlassChoice(enabled = choice.enabled, cornerStyle = style)
+    else choice.copy(cornerStyle = style)
+}
+
+internal fun desktopDockSaveSupported(choice: DockGlassChoice, dockSupported: Boolean?,
+  layoutSupported: Boolean?): Boolean =
+  dockSupported != false && (layoutSupported != false || choice.options in 0..1)
+
+internal data class DesktopSyncSummary(val accepted: Int, val supported: Int, val ready: Boolean)
+
+internal fun desktopSyncSummary(
+  statuses: List<DesktopFeatureStatus>, capabilities: List<Boolean?>,
+): DesktopSyncSummary {
+  require(statuses.size == capabilities.size)
+  val supported = capabilities.count { it == true }
+  val accepted = statuses.indices.count { capabilities[it] == true && statuses[it] == DesktopFeatureStatus.ACCEPTED }
+  return DesktopSyncSummary(accepted, supported, supported > 0 && accepted == supported &&
+    capabilities.none { it == null } && statuses.all {
+      it == DesktopFeatureStatus.ACCEPTED || it == DesktopFeatureStatus.UNAVAILABLE
+    })
+}
 
 internal fun desktopDockStatus(
   state: DockGlassUiState,
@@ -13,12 +69,15 @@ internal fun desktopDockStatus(
   now: Long,
   moduleVersion: Long,
 ): DesktopFeatureStatus {
-  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null)
-    ?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
+  val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK)
+  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
+    ?.let { return it }
   // Dock has its own process-bound ACK, independent of Monet readiness.
-  return if (report?.acknowledgesDockGlass(state.saved) == true) DesktopFeatureStatus.ACCEPTED
-    else DesktopFeatureStatus.PENDING
+  if (supported == true && state.saved != null && state.saved.options !in 0..1 &&
+    report.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK_LAYOUT) == false)
+    return DesktopFeatureStatus.LAYOUT_UNAVAILABLE
+  return desktopReceiverStatus(runtime, report, supported, report?.acknowledgesDockGlass(state.saved) == true)
 }
 
 internal fun desktopLabelStatus(
@@ -28,12 +87,13 @@ internal fun desktopLabelStatus(
   now: Long,
   moduleVersion: Long,
 ): DesktopFeatureStatus {
-  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null)
-    ?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
+  val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.LABELS)
+  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
+    ?.let { return it }
   // The producer emits this field only for a current process-validated ACK, including NATIVE.
-  return if (report != null && report.launcherLabelMode == state.saved?.nativeValue)
-    DesktopFeatureStatus.ACCEPTED else DesktopFeatureStatus.PENDING
+  return desktopReceiverStatus(runtime, report, supported,
+    report != null && report.launcherLabelMode == state.saved?.nativeValue)
 }
 
 internal fun desktopGlassStatus(
@@ -43,13 +103,24 @@ internal fun desktopGlassStatus(
   now: Long,
   moduleVersion: Long,
 ): DesktopFeatureStatus {
-  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null)
+  val report = desktopRuntimeReport(runtime, now, moduleVersion)
+  val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS)
+  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
     ?.let { return it }
-  return when (launcherGlassRuntimeStatus(state.saved, runtime, now, moduleVersion)) {
-    LauncherGlassRuntimeStatus.UNAVAILABLE -> DesktopFeatureStatus.UNAVAILABLE
-    LauncherGlassRuntimeStatus.PENDING -> DesktopFeatureStatus.PENDING
-    LauncherGlassRuntimeStatus.ACCEPTED -> DesktopFeatureStatus.ACCEPTED
-  }
+  return desktopReceiverStatus(runtime, report, supported,
+    report?.acknowledgesLauncherGlass(state.saved) == true)
+}
+
+private fun desktopReceiverStatus(runtime: RuntimeStatusUiState, report: RuntimeStatusReport?,
+  supported: Boolean?, acknowledged: Boolean): DesktopFeatureStatus = when {
+  report == null && runtime.readFailed -> DesktopFeatureStatus.READ_FAILED
+  report == null && runtime.timedOut -> DesktopFeatureStatus.TIMED_OUT
+  report == null && runtime.checking -> DesktopFeatureStatus.CHECKING
+  report == null -> DesktopFeatureStatus.UNKNOWN
+  supported == false -> DesktopFeatureStatus.UNAVAILABLE
+  acknowledged -> DesktopFeatureStatus.ACCEPTED
+  supported == null -> DesktopFeatureStatus.UNKNOWN
+  else -> DesktopFeatureStatus.PENDING
 }
 
 private fun desktopPreferenceStatus(
@@ -58,8 +129,10 @@ private fun desktopPreferenceStatus(
   saving: Boolean,
   failed: Boolean,
   hasSaved: Boolean,
+  supported: Boolean?,
 ): DesktopFeatureStatus? = when {
   !inScope -> DesktopFeatureStatus.OUT_OF_SCOPE
+  supported == false -> DesktopFeatureStatus.UNAVAILABLE
   unavailable -> DesktopFeatureStatus.UNAVAILABLE
   saving -> DesktopFeatureStatus.SAVING
   failed -> DesktopFeatureStatus.ERROR
@@ -67,7 +140,7 @@ private fun desktopPreferenceStatus(
   else -> null
 }
 
-private fun desktopRuntimeReport(
+internal fun desktopRuntimeReport(
   runtime: RuntimeStatusUiState,
   now: Long,
   moduleVersion: Long,
@@ -75,3 +148,20 @@ private fun desktopRuntimeReport(
   !runtime.readFailed && !runtime.timedOut && it.isFresh(now) && it.moduleVersion == moduleVersion &&
     it.nativeState != NativeRuntimeState.INACTIVE_USER
 }
+
+internal fun desktopStatusMessage(status: DesktopFeatureStatus, hasPending: Boolean = false,
+  preferenceUnavailable: Boolean = false, unsupportedMessage: Int = R.string.desktop_status_unavailable): Int? =
+  when (status) {
+    DesktopFeatureStatus.OUT_OF_SCOPE -> R.string.launcher_labels_scope
+    DesktopFeatureStatus.LOADING -> R.string.theme_effects_loading
+    DesktopFeatureStatus.SAVING -> R.string.theme_effects_saving
+    DesktopFeatureStatus.ERROR -> if (hasPending) R.string.theme_effects_save_failed else R.string.theme_effects_read_failed
+    DesktopFeatureStatus.UNAVAILABLE -> if (preferenceUnavailable) R.string.theme_effects_unavailable else unsupportedMessage
+    DesktopFeatureStatus.UNKNOWN -> R.string.desktop_status_unknown
+    DesktopFeatureStatus.CHECKING -> R.string.desktop_status_checking
+    DesktopFeatureStatus.READ_FAILED -> R.string.desktop_status_read_failed
+    DesktopFeatureStatus.TIMED_OUT -> R.string.desktop_status_timeout
+    DesktopFeatureStatus.LAYOUT_UNAVAILABLE -> R.string.dock_glass_layout_unavailable
+    DesktopFeatureStatus.PENDING -> R.string.launcher_glass_pending
+    DesktopFeatureStatus.ACCEPTED -> null
+  }

@@ -285,7 +285,7 @@ class NativeMonetClientTest {
       NativeMonetProtocol.launcherLabelsRequest(0), NativeMonetProtocol.launcherLabelsRequest(1),
       NativeMonetProtocol.dockGlassRequest(false), NativeMonetProtocol.dockGlassRequest(true),
       NativeMonetProtocol.launcherGlassRequest(0), NativeMonetProtocol.launcherGlassRequest(2))
-    for (capabilities in listOf(0, 64, 65, 127, Int.MIN_VALUE, -1)) {
+    for (capabilities in listOf(64, 65, 127, Int.MIN_VALUE, -1)) {
       for (request in requests) {
         val output = ByteArrayOutputStream()
         var failure: String? = null
@@ -297,6 +297,32 @@ class NativeMonetClientTest {
         assertEquals("native greeting capabilities invalid", failure)
       }
     }
+  }
+
+  @Test fun authenticatedZeroCapabilitiesAreReportedWithoutSendingAnyCommand() {
+    val requests = listOf(null, request(), NativeMonetProtocol.disableRequest(),
+      NativeMonetProtocol.themeMaterialsRequest(false), NativeMonetProtocol.launcherLabelsRequest(1),
+      NativeMonetProtocol.dockGlassRequest(true), NativeMonetProtocol.launcherGlassRequest(2))
+    for (request in requests) {
+      val output = ByteArrayOutputStream()
+      var reported: Int? = null
+      var writes = 0
+      var failure: String? = null
+      assertFalse(NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(0) + ack()), output, targetUid, targetUid, request,
+        onGreeting = { reported = it }, onWriteAttempt = { writes++ }, onFailure = { failure = it },
+      ))
+      assertEquals(0, reported)
+      assertEquals(0, output.size())
+      assertEquals(0, writes)
+      assertTrue(failure.orEmpty().contains("capability unavailable"))
+    }
+    var reported = false
+    assertFalse(NativeMonetProtocol.exchange(
+      ByteArrayInputStream(greeting(0)), ByteArrayOutputStream(), targetUid + 1, targetUid, null,
+      onGreeting = { reported = true },
+    ))
+    assertFalse("A zero mask must still authenticate the peer", reported)
   }
 
   @Test

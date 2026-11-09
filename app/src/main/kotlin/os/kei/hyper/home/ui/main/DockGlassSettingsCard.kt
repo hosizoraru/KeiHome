@@ -12,9 +12,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import os.kei.hyper.home.BuildConfig
 import kotlin.math.roundToInt
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.DockGlassCornerStyle
+import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -37,6 +39,11 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
   val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
   val inScope = framework.dockGlassInScope()
   val choice = state.pending ?: state.saved
+  val now = android.os.SystemClock.elapsedRealtime()
+  val version = BuildConfig.VERSION_CODE.toLong()
+  val supported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK)
+  val layoutSupported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK_LAYOUT)
+  val controlsEnabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported)
   val cornerSummary = when (choice?.cornerStyle) {
     DockGlassCornerStyle.RECENTS -> R.string.dock_glass_corner_recents_summary
     DockGlassCornerStyle.ROUNDED -> R.string.dock_glass_corner_rounded_summary
@@ -45,58 +52,59 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
     DockGlassCornerStyle.CUSTOM -> R.string.dock_glass_corner_custom_summary
     null -> R.string.dock_glass_corner_summary
   }
-  val editable = inScope && !state.saving && !state.unavailable && choice?.enabled == true
+  val dockControls = desktopDockControls(choice, controlsEnabled, layoutSupported)
   val styles = listOf(DockGlassCornerStyle.RECENTS, DockGlassCornerStyle.ROUNDED,
     DockGlassCornerStyle.PAD, DockGlassCornerStyle.CONCENTRIC, DockGlassCornerStyle.CUSTOM)
-  val report = runtime.report?.takeIf { it.isFresh(android.os.SystemClock.elapsedRealtime()) }
-  val issue = when {
-    !inScope -> R.string.launcher_labels_scope
-    state.unavailable -> R.string.theme_effects_unavailable
-    state.saving -> R.string.theme_effects_saving
-    state.failed -> if (state.pending != null) R.string.theme_effects_save_failed else R.string.theme_effects_read_failed
-    state.saved == null -> R.string.theme_effects_loading
-    runtime.readFailed || runtime.timedOut || report?.acknowledgesDockGlass(state.saved) != true -> R.string.dock_glass_pending
-    else -> null
-  }
+  val issue = desktopStatusMessage(desktopDockStatus(state, runtime, inScope, now, version),
+    state.pending != null, state.unavailable && supported != false, R.string.dock_glass_native_retained)
+  val layoutHint = if (supported == true && layoutSupported == false)
+    "\n" + stringResource(R.string.dock_glass_layout_unavailable) else ""
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     SwitchPreference(title = stringResource(R.string.dock_glass_title),
       summary = stringResource(R.string.dock_glass_summary) +
         (issue?.let { "\n" + stringResource(it) } ?: ""),
       checked = state.saved?.enabled == true,
-      enabled = inScope && !state.saving && !state.unavailable && state.saved != null,
+      enabled = controlsEnabled,
       onCheckedChange = model.dockGlass::setEnabled,
       modifier = Modifier.testTag("dock-glass.switch"))
     OverlaySpinnerPreference(title = stringResource(R.string.dock_glass_corner_title),
-      summary = stringResource(cornerSummary),
-      items = styles.map { DropdownItem(text = stringResource(it.labelResource)) },
+      summary = stringResource(cornerSummary) + layoutHint,
+      items = styles.map { DropdownItem(text = stringResource(it.labelResource),
+        enabled = desktopDockCornerStyleSupported(it, layoutSupported)) },
       selectedIndex = styles.indexOf(choice?.cornerStyle ?: DockGlassCornerStyle.RECENTS),
-      enabled = editable,
-      onSelectedIndexChange = { model.dockGlass.setCornerStyle(styles[it]) },
+      enabled = dockControls.cornerChooser,
+      onSelectedIndexChange = { index ->
+        if (dockControls.cornerChooser && choice != null) styles.getOrNull(index)?.let {
+          desktopDockCornerSelection(choice, it, layoutSupported)?.let(model.dockGlass::save)
+        }
+      },
       modifier = Modifier.testTag("dock-glass.corner-style"))
     DockGeometrySlider(value = choice?.verticalPaddingDp ?: 18, range = 0..32,
       title = stringResource(R.string.dock_glass_padding_title),
       summary = stringResource(R.string.dock_glass_padding_summary),
-      enabled = editable, onCommit = model.dockGlass::setVerticalPadding,
+      enabled = dockControls.geometry, onCommit = model.dockGlass::setVerticalPadding,
       modifier = Modifier.testTag("dock-glass.vertical-padding"))
     DockGeometrySlider(value = choice?.verticalOffsetDp ?: 0, range = -48..96,
       title = stringResource(R.string.dock_glass_offset_title),
       summary = stringResource(R.string.dock_glass_offset_summary),
-      enabled = editable, onCommit = model.dockGlass::setVerticalOffset,
+      enabled = dockControls.geometry, onCommit = model.dockGlass::setVerticalOffset,
       modifier = Modifier.testTag("dock-glass.vertical-offset"))
     if (choice?.cornerStyle == DockGlassCornerStyle.CUSTOM) {
       DockGeometrySlider(value = choice.customRadiusDp, range = 0..64,
         title = stringResource(R.string.dock_glass_radius_title),
         summary = stringResource(R.string.dock_glass_radius_summary),
-        enabled = editable, onCommit = model.dockGlass::setCustomRadius,
+        enabled = dockControls.geometry, onCommit = model.dockGlass::setCustomRadius,
         modifier = Modifier.testTag("dock-glass.custom-radius"))
     }
     BasicComponent(title = stringResource(R.string.dock_glass_reset),
-      summary = stringResource(R.string.dock_glass_reset_summary),
-      enabled = inScope && !state.saving && !state.unavailable && choice != null,
+      summary = stringResource(R.string.dock_glass_reset_summary) + layoutHint,
+      enabled = dockControls.resetGeometry,
       onClick = model.dockGlass::resetGeometry,
       modifier = Modifier.testTag("dock-glass.reset-geometry"))
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !state.saving, onClick = {
+      enabled = !state.saving && (state.pending?.let {
+        desktopDockSaveSupported(it, supported, layoutSupported)
+      } ?: true), onClick = {
         state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()
       })
   }

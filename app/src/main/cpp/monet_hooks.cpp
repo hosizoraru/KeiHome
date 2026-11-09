@@ -10,6 +10,7 @@
 #include "launcher_label_hooks.h"
 #include "launcher_glass_material_hooks.h"
 #include "dock_glass_hooks.h"
+#include "launcher_form_factor.h"
 #if defined(KH_MONET_IMAGE_TRACE)
 #include "monet_image_trace.h"
 #endif
@@ -143,6 +144,14 @@ static bool InstallMonetFeatureAtLibraryLoad(void* handle) {
 }
 
 bool InstallMonetHooksAtLibraryLoad(void* handle) {
+    if (IsTabletLauncherDevice()) {
+        // Current detours authenticate phone factories only. Until a Pad
+        // contract exists, avoid both modifying and repeatedly scanning them.
+        __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",
+                "Tablet launcher: preserving native features; status-only transport");
+        StartNativeMonetPolicyServer();
+        return false;
+    }
     const bool glass_ready = PrepareLauncherGlassMaterialAtLibraryLoad(handle);
     const bool dock_ready = PrepareDockGlassAtLibraryLoad(handle);
     const bool labels = InstallLauncherLabelsAtLibraryLoad(handle);
@@ -153,11 +162,18 @@ bool InstallMonetHooksAtLibraryLoad(void* handle) {
     // Both attempts and their capability stores finish before any greeting.
     // Request admission uses the server's matching capability bit, so partial
     // Monet hooks cannot receive policy through a highlight-only endpoint.
-    if ((monet || highlight || labels || dock || glass) && !StartNativeMonetPolicyServer()) {
+    // A verified launcher with no admitted feature still needs to report its
+    // zero capability mask. Command handlers independently reject absent hooks.
+    if (!(monet || highlight || labels || dock || glass)) {
+        __android_log_print(ANDROID_LOG_INFO, "KeiHomeMonet",
+                "No native feature contract admitted; status-only transport requested");
+    }
+    if (!StartNativeMonetPolicyServer()) {
         __android_log_print(ANDROID_LOG_WARN, "KeiHomeMonet",
-                "Native features installed (Monet=%u highlight=%u), "
-                "authenticated policy transport unavailable",
-                monet ? 1u : 0u, highlight ? 1u : 0u);
+                "Authenticated status transport unavailable "
+                "(Monet=%u highlight=%u labels=%u dock=%u glass=%u)",
+                monet ? 1u : 0u, highlight ? 1u : 0u, labels ? 1u : 0u,
+                dock ? 1u : 0u, glass ? 1u : 0u);
     }
     return monet;
 }

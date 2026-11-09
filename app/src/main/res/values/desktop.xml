@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="navigation_desktop">Desktop</string>
-    <string name="desktop_synced_count">%1$d / %2$d synced</string>
+    <string name="desktop_synced_count">%1$d / %2$d supported adjustments confirmed</string>
     <string name="desktop_labels_status_title">App names</string>
     <string name="desktop_glass_status_title">Glass appearance</string>
     <string name="desktop_dock_on">On &#183; %1$s</string>
@@ -16,4 +16,16 @@
     <string name="desktop_error_title">Launcher sync issue</string>
     <string name="desktop_dock_status_title">Dock</string>
     <string name="desktop_status_badge">%1$s &#183; %2$s</string>
+    <string name="desktop_compatibility_title">Launcher compatibility</string>
+    <string name="desktop_no_supported_settings">No supported overrides; native appearance retained</string>
+    <string name="desktop_compatibility_pending">Some launcher capabilities are still unconfirmed.</string>
+    <string name="desktop_status_unknown">Launcher compatibility not confirmed</string>
+    <string name="desktop_status_checking">Checking launcher compatibility</string>
+    <string name="desktop_status_read_failed">Could not read launcher status; refresh to retry</string>
+    <string name="desktop_status_timeout">Launcher status check timed out; refresh to retry</string>
+    <string name="desktop_status_layout_unavailable">Layout customization unavailable</string>
+    <string name="desktop_dock_native">Native Dock retained</string>
+    <string name="dock_glass_native_retained">This launcher does not support the Dock override. Its native Dock is retained, along with your saved settings.</string>
+    <string name="dock_glass_layout_unavailable">Layout customization is unavailable. Saved settings are kept until you select Recents or Rounded, or reset Dock geometry; these actions restore default spacing and offset.</string>
+    <string name="launcher_labels_unavailable">Label customization is unavailable in this launcher. Your saved choice is retained.</string>
 </resources>

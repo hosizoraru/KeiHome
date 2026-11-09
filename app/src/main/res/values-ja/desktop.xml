@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="navigation_desktop">ホーム</string>
-    <string name="desktop_synced_count">%2$d 件中 %1$d 件を同期</string>
+    <string name="desktop_synced_count">対応する設定 %2$d 件中 %1$d 件を確認済み</string>
     <string name="desktop_labels_status_title">アプリ名</string>
     <string name="desktop_glass_status_title">ガラスの質感</string>
     <string name="desktop_dock_on">オン · %1$s</string>
@@ -16,4 +16,16 @@
     <string name="desktop_error_title">ホーム同期エラー</string>
     <string name="desktop_dock_status_title">Dock</string>
     <string name="desktop_status_badge">%1$s · %2$s</string>
+    <string name="desktop_compatibility_title">ホームの互換性</string>
+    <string name="desktop_no_supported_settings">対応する上書き設定はありません。標準の外観を維持します</string>
+    <string name="desktop_compatibility_pending">一部のホーム機能はまだ確認されていません。</string>
+    <string name="desktop_status_unknown">ホームの互換性は未確認です</string>
+    <string name="desktop_status_checking">ホームの互換性を確認中</string>
+    <string name="desktop_status_read_failed">ホームの状態を読み取れません。更新して再試行してください</string>
+    <string name="desktop_status_timeout">ホームの状態確認がタイムアウトしました。更新して再試行してください</string>
+    <string name="desktop_status_layout_unavailable">レイアウトのカスタマイズは非対応</string>
+    <string name="desktop_dock_native">標準の Dock を維持</string>
+    <string name="dock_glass_native_retained">このホームは Dock の上書き設定に対応していません。標準の Dock と保存済みの設定を維持します。</string>
+    <string name="dock_glass_layout_unavailable">レイアウトのカスタマイズには非対応です。保存済みの設定は維持します。「最近のタスク」「丸み」の選択、または Dock の形状のリセットで、間隔と位置を既定値に戻せます。</string>
+    <string name="launcher_labels_unavailable">このホームではラベルをカスタマイズできません。保存済みの選択は維持します。</string>
 </resources>

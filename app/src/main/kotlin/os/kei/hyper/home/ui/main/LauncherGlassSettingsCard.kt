@@ -12,6 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherGlassStyle
+import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -24,32 +25,25 @@ internal fun LauncherGlassSettingsCard(model: HomeViewModel) {
   val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
   val inScope = framework.launcherGlassInScope()
   val choices = listOf(R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
-  val issue = when {
-    !inScope -> R.string.launcher_labels_scope
-    state.unavailable -> R.string.theme_effects_unavailable
-    state.saving -> R.string.theme_effects_saving
-    state.failed -> if (state.pending != null) R.string.theme_effects_save_failed else R.string.theme_effects_read_failed
-    state.saved == null -> R.string.theme_effects_loading
-    else -> null
-  }
-  val status = issue?.let { stringResource(it) } ?: stringResource(
-    R.string.launcher_glass_saved_status, stringResource(choices[requireNotNull(state.saved).ordinal]),
-    stringResource(when (launcherGlassRuntimeStatus(state.saved, runtime, android.os.SystemClock.elapsedRealtime(),
-      BuildConfig.VERSION_CODE.toLong())) {
-      LauncherGlassRuntimeStatus.PENDING -> R.string.launcher_glass_pending
-      LauncherGlassRuntimeStatus.UNAVAILABLE -> R.string.launcher_glass_unavailable
-      LauncherGlassRuntimeStatus.ACCEPTED -> R.string.launcher_glass_accepted
-    }))
+  val now = android.os.SystemClock.elapsedRealtime()
+  val version = BuildConfig.VERSION_CODE.toLong()
+  val supported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.GLASS)
+  val issue = desktopStatusMessage(desktopGlassStatus(state, runtime, inScope, now, version),
+    state.pending != null, state.unavailable && supported != false, R.string.launcher_glass_unavailable)
+  val receipt = stringResource(issue ?: R.string.launcher_glass_accepted)
+  val status = state.saved?.let {
+    stringResource(R.string.launcher_glass_saved_status, stringResource(choices[it.ordinal]), receipt)
+  } ?: receipt
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     OverlaySpinnerPreference(title = stringResource(R.string.launcher_glass_title),
       summary = stringResource(R.string.launcher_glass_summary) + "\n" + status,
       items = choices.map { DropdownItem(text = stringResource(it)) },
       selectedIndex = (state.saved ?: LauncherGlassStyle.SYSTEM).ordinal,
-      enabled = inScope && !state.saving && !state.unavailable && state.saved != null,
+      enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported),
       onSelectedIndexChange = { index -> LauncherGlassStyle.entries.getOrNull(index)?.let(model.launcherGlass::save) },
       modifier = Modifier.testTag("launcher-glass.style"))
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !state.saving, onClick = {
+      enabled = !state.saving && (state.pending == null || supported != false), onClick = {
         state.pending?.let(model.launcherGlass::save) ?: model.readLauncherGlassSettings()
       })
   }

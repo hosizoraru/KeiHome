@@ -521,7 +521,7 @@ internal object NativeMonetProtocol {
     if (greeting[1] != VERSION) return reject("native greeting protocol mismatch")
     if (greeting[2] != targetUid) return reject("native greeting launcher UID mismatch")
     val capabilities = greeting[3]
-    if (capabilities == 0 || capabilities and KNOWN_CAPABILITIES.inv() != 0) {
+    if (capabilities and KNOWN_CAPABILITIES.inv() != 0) {
       return reject("native greeting capabilities invalid")
     }
     if (readinessCapability != MONET_CAPABILITY && readinessCapability != DOCK_GLASS_CAPABILITY &&

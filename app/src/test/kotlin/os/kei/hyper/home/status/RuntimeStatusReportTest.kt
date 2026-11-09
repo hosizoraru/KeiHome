@@ -7,24 +7,77 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
-  @Test fun schemaSixAppendsCapabilityAndAcceptedStyleWithoutMovingOlderFields() {
+  @Test fun schemaSevenAppendsAuthenticatedCapabilitiesWithoutMovingOlderFields() {
     for (style in listOf(null) + os.kei.hyper.home.data.LauncherGlassStyle.entries.map { it.nativeValue }) {
       val report = ready.copy(launcherGlassAvailable = true, launcherGlassStyle = style)
       val fields = report.encode().split('|')
-      assertEquals(19, fields.size)
-      assertEquals("6", fields[0])
+      assertEquals(20, fields.size)
+      assertEquals("7", fields[0])
       assertEquals(ready.encode().split('|').subList(1, 17), fields.subList(1, 17))
       assertEquals("1", fields[17])
       assertEquals((style ?: -1).toString(), fields[18])
       assertEquals(report, RuntimeStatusReport.decode(report.encode()))
     }
-    assertEquals(listOf("0", "-1"), ready.encode().split('|').takeLast(2))
-    for ((schema, size) in listOf("1" to 11, "2" to 12, "3" to 13, "4" to 16, "5" to 17)) {
+    assertEquals(listOf("0", "-1", "-1"), ready.encode().split('|').takeLast(3))
+    for ((schema, size) in listOf("1" to 11, "2" to 12, "3" to 13, "4" to 16, "5" to 17, "6" to 19)) {
       val old = ready.encode().split('|').take(size).toMutableList().apply { this[0] = schema }.joinToString("|")
       assertEquals(ready, RuntimeStatusReport.decode(old))
       assertFalse(RuntimeStatusReport.decode(old)!!.launcherGlassAvailable)
       assertNull(RuntimeStatusReport.decode(old)!!.launcherGlassStyle)
+      assertNull(RuntimeStatusReport.decode(old)!!.launcherCapabilities)
+      assertNull(RuntimeStatusReport.decode(old)!!.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
+      assertNull(RuntimeStatusReport.decode(old + "|0"))
+      assertNull(RuntimeStatusReport.decode(old.substringBeforeLast('|')))
     }
+  }
+
+  @Test fun capabilitiesAllowZeroAndRequireKnownBitsAndAResidentLauncherIdentity() {
+    for (bits in 0..LauncherRuntimeCapabilities.KNOWN) {
+      val report = ready.copy(launcherCapabilities = bits)
+      assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    }
+    for (bits in listOf(-2, Int.MIN_VALUE, 64, 65, 127, Int.MAX_VALUE))
+      assertNull(RuntimeStatusReport.decode(ready.copy(launcherCapabilities = bits).encode()))
+    for (unbound in listOf(
+      ready.copy(launcherPid = null, launcherStartTicks = null),
+      ready.copy(launcherPid = 0), ready.copy(launcherStartTicks = 0),
+      ready.copy(launcherPid = -1), ready.copy(launcherStartTicks = -1),
+    )) {
+      for (bits in listOf(0, 8)) {
+        assertNull(RuntimeStatusReport.decode(unbound.copy(launcherCapabilities = bits).encode()))
+        assertEquals(null, unbound.copy(launcherCapabilities = bits).supportsLauncherCapability(8))
+      }
+    }
+  }
+
+  @Test fun diagnosticOnlyZeroCapabilitiesRemainDistinctFromAnUnknownGreeting() {
+    val zero = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE,
+      detail = NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE, launcherCapabilities = 0)
+    val decoded = requireNotNull(RuntimeStatusReport.decode(zero.encode()))
+    assertEquals(zero, decoded)
+    assertEquals(0, decoded.launcherCapabilities)
+    assertTrue(decoded.hasMissingMonetCapability)
+    for (bit in listOf(1, 2, 4, 8, 16, 32))
+      assertEquals(false, decoded.supportsLauncherCapability(bit))
+
+    val unknown = zero.copy(launcherCapabilities = null)
+    assertEquals(unknown, RuntimeStatusReport.decode(unknown.encode()))
+    assertNull(RuntimeStatusReport.decode(unknown.encode())!!.launcherCapabilities)
+    assertNull(unknown.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
+    assertEquals("-1", unknown.encode().substringAfterLast('|'))
+    assertEquals("0", zero.encode().substringAfterLast('|'))
+    assertEquals(unknown, RuntimeStatusReport.decode(zero.encode().split('|').take(19).toMutableList()
+      .apply { this[0] = "6" }.joinToString("|")))
+  }
+
+  @Test fun capabilitiesRemainIndependentOfMonetReadinessAndLegacyGlassBoolean() {
+    val report = ready.copy(nativeState = NativeRuntimeState.UNAVAILABLE,
+      launcherCapabilities = LauncherRuntimeCapabilities.DOCK)
+    assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+    assertEquals(true, report.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
+    assertEquals(false, report.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS))
+    assertEquals(null, report.copy(nativeState = NativeRuntimeState.INACTIVE_USER)
+      .supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
   }
 
   @Test fun launcherGlassAvailabilityIsIndependentOfMonetAndNeverAnAckByItself() {
@@ -117,7 +170,7 @@ class RuntimeStatusReportTest {
     val report = ready.copy(dockGlassEnabled = true, dockGlassPid = 9000,
       dockGlassStartTicks = 123L, dockGlassCornerStyle = choice.options)
     assertEquals(report, RuntimeStatusReport.decode(report.encode()))
-    assertEquals("6", report.encode().substringBefore('|'))
+    assertEquals("7", report.encode().substringBefore('|'))
     assertTrue(report.acknowledgesDockGlass(choice))
     for (different in listOf(choice.copy(verticalPaddingDp = 32),
       choice.copy(verticalOffsetDp = 96), choice.copy(customRadiusDp = 24),

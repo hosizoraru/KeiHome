@@ -125,3 +125,36 @@ Selected screenshots and reports are also saved under
 This is compiler/state/cache and focused visual evidence, not a measured FPS or
 frame-time improvement. The earlier watchdog/SystemUI ANR observations documented
 in `wallpaper-colors.md` remain unresolved; this UI work does not claim to fix them.
+
+## Bottom navigation selection and spacing (2026-11-09)
+
+A distant tab click moved the glass indicator to the destination, but
+`MainScreen` continued supplying `pager.currentPage` as the selected tab.
+Intermediate pages traversed by the MIUIX spring therefore retargeted the
+indicator, producing a visible reversal before it reached the selected section.
+The same intermediate page also controlled every page's bottom content padding,
+including the larger icon-pack FAB reserve.
+
+`MainTabNavigation` now holds a click destination for that scroll operation.
+A newer click cancels its predecessor; a generation token prevents a cancelled
+operation from releasing the newer selection. Once the scroll completes, or
+a user gesture interrupts it, selection follows the actual pager position.
+The existing MIUIX spring remains in use, with an exact final page settlement.
+The direct Status-to-Monet route uses the same owner before opening its detail.
+Clicking the already selected indicator still reaches the owner so a partially
+scrolled page can settle; fully settled repeated clicks do no navigation work.
+Tab changes clear input focus. Each page computes its own FAB/content reserve.
+
+KeiMi's separation of selection from intermediate pager position informed the
+approach; its pager animation implementation was not transplanted.
+
+AVD verification uses one Compose integration test with five sequential
+scenarios: destination selection checked on every animation frame, rapid reverse
+clicks, repeated destination clicks, user-input interruption and a direct detail
+route interrupting an older animation. The AVD blocks background test Activity
+launches, so the isolated host is explicitly foregrounded; the normal app does
+not need this workaround. Actual app recordings repeat the same distant/rapid
+click sequence before and after the change. This is state and visual acceptance,
+not an FPS or universal-device performance claim. Evidence, Release identity and
+core process continuity are recorded under
+`.artifacts/research/bottom-nav-jump-20261109/`.

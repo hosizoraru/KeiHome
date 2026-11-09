@@ -12,7 +12,6 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.utils.pagerGestureOverride
 import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
 import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
-import top.yukonga.miuix.kmp.utils.springAnimateToPage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
@@ -86,8 +86,13 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   // The tab order changed; retain logical page IDs for content and refresh state.
   val pager = androidx.compose.runtime.key("main-tabs-v3") { rememberPagerState { pages.size } }
   val navigationScope = rememberCoroutineScope()
-  val selectedTab = pager.currentPage.coerceIn(pages.indices)
-  fun selectTab(index: Int) { navigationScope.launch { pager.springAnimateToPage(index) } }
+  val tabNavigation = remember(pager, navigationScope) { MainTabNavigation(pager, navigationScope) }
+  val focus = LocalFocusManager.current
+  val selectedTab = tabNavigation.selectedPage.coerceIn(pages.indices)
+  fun selectTab(index: Int) {
+    focus.clearFocus(force = true)
+    tabNavigation.selectPage(index)
+  }
   val page = pages[selectedTab]
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
@@ -144,9 +149,6 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     },
     floatingActionButton = { PackActionFab(model, page, "home") },
   ) { insets ->
-    val padding = PaddingValues(start = 16.dp, end = 16.dp,
-      top = insets.calculateTopPadding() + 4.dp,
-      bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
       HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
@@ -157,6 +159,9 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
         else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
         val page = pages[tab]
+        val padding = PaddingValues(start = 16.dp, end = 16.dp,
+          top = insets.calculateTopPadding() + 4.dp,
+          bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
         savedPages.SaveableStateProvider(page) {
         val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[tab].nestedScrollConnection)
         if (tab == 1) {
@@ -173,7 +178,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
               0 -> {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                   StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = {
-                    navigationScope.launch { pager.scrollToPage(2); onOpenPackSection("monet") }
+                    focus.clearFocus(force = true)
+                    tabNavigation.selectPage(2, animate = false) { onOpenPackSection("monet") }
                   },
                     onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") })
                   RefreshFeedback(model, 0)

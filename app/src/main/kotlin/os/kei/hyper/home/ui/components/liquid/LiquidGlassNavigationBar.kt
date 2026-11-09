@@ -260,8 +260,8 @@ internal fun IosLiquidGlassNavigationBar(
                 val targetIndex = targetValue.roundToInt().coerceIn(0, tabsCount - 1)
                 if (currentIndex != targetIndex) {
                     currentIndex = targetIndex
-                    onItemClickUpdated(targetIndex)
                 }
+                onItemClickUpdated(targetIndex)
                 updateValue(targetIndex.toFloat())
                 animationScope.launch {
                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
@@ -297,8 +297,8 @@ internal fun IosLiquidGlassNavigationBar(
     fun activateTab(index: Int) {
         if (currentIndex != index) {
             currentIndex = index
-            onItemClickUpdated(index)
         }
+        onItemClickUpdated(index)
         dampedDrag.animateToValue(index.toFloat())
     }
 

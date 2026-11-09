@@ -27,7 +27,8 @@ class PackGuidanceDeviceTest {
   @Before fun foreground() {
       val i = InstrumentationRegistry.getInstrumentation()
       android.os.ParcelFileDescriptor.AutoCloseInputStream(i.uiAutomation.executeShellCommand(
-        "am start -n os.kei.hyper.home/.MainActivity")).use { it.readBytes() }
+        "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER " +
+          "-n os.kei.hyper.home/androidx.activity.ComponentActivity")).use { it.readBytes() }
       i.waitForIdleSync()
   }
   @get:Rule val rule = createComposeRule()

@@ -41,7 +41,9 @@ internal class SystemUiAppIconRuntime(
     check(Looper.myLooper() != Looper.getMainLooper())
     check(cache == null && !stopped) { "SystemUI app icon runtime already started or stopped" }
     val method = resolveProfile()
-    val iconCache = CrossSurfaceIconCache(context) { /* SystemUI will ask again on its next icon bind. */ }
+    // Notification app icons are demand-loaded. Do not prewarm unrelated apps or
+    // schedule empty ready callbacks; native rows bind again on their own lifecycle.
+    val iconCache = CrossSurfaceIconCache(context, maxEntries = 32)
     cache = iconCache
     replace(method, HOOK_ID) { chain -> intercept(chain) }
     iconCache.start()

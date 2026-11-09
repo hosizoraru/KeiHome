@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import android.util.LruCache
@@ -25,12 +26,19 @@ import os.kei.hyper.home.iconpack.validDottedName
 /** Host-local, bounded snapshots. Hooks only read memory and enqueue; never decode or use Binder. */
 internal class CrossSurfaceIconCache(
   private val context: Context,
-  private val onReady: () -> Unit,
+  private val maxEntries: Int = 64,
+  private val themeFile: File = File("/data/system/theme/icons"),
+  private val paletteState: () -> Long = {
+    Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
+  },
+  private val onReady: (() -> Unit)? = null,
 ) {
+  init { require(maxEntries in 1..64) }
   private data class Key(val name: String, val activity: String?)
+  private data class Appearance(val dark: Boolean, val locale: Locale, val palette: Long)
   private val lock = Any()
   private val revision = AtomicLong()
-  private val thread = HandlerThread("KeiHomeSurfaceIcons")
+  private val thread = HandlerThread("KeiHomeSurfaceIcons", Process.THREAD_PRIORITY_BACKGROUND)
   private lateinit var handler: Handler
   @Volatile private var active = false
   private var started = false
@@ -40,26 +48,38 @@ internal class CrossSurfaceIconCache(
   private var componentRegistered = false
   private var receiverRegistered = false
   private var observerRegistered = false
-  private val wanted = linkedSetOf<Key>()
+  private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)
   private val pending = linkedSetOf<Key>()
   private val misses = hashSetOf<Key>()
   private val dynamicMinutes = hashMapOf<Key, Long>()
-  private val cache = object : LruCache<Key, Bitmap>(12 * 1024 * 1024) {
+  private val cache = object : LruCache<Key, Bitmap>(maxEntries * SurfaceIconSnapshotRenderer.SIZE *
+    SurfaceIconSnapshotRenderer.SIZE * 4) {
     override fun sizeOf(key: Key, value: Bitmap) = value.allocationByteCount
   }
   private var stamp = ""
   // Worker-owned for one drain batch; closing the batch avoids retaining obsolete theme files.
   private var archive: ZipFile? = null
   private var archiveGeneration = -1L
+  private var appearance: Appearance? = null
+  private var drainScheduled = false
+  private val drainWork = Runnable { drain() }
   private var warned = false
   private var notifyReady: Runnable? = null
+  private var configurationKey = configurationKey(context.resources.configuration)
   private val receiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (active) invalidate()
     }
   }
   private val configuration = object : ComponentCallbacks {
-    override fun onConfigurationChanged(config: Configuration) = invalidate()
+    override fun onConfigurationChanged(config: Configuration) {
+      synchronized(lock) {
+        val next = configurationKey(config)
+        if (next == configurationKey) return
+        configurationKey = next
+        invalidate()
+      }
+    }
     override fun onLowMemory() {
       synchronized(lock) {
         if (!active) return
@@ -82,9 +102,6 @@ internal class CrossSurfaceIconCache(
       active = true
       handler.post {
         registerResources()
-        // Warm commonly visible system entries without enumerating packages or starting MAML engines.
-        listOf("com.android.calendar", "com.android.deskclock", "com.miui.weather2",
-          "com.android.settings", "com.android.mms", "com.android.contacts").forEach { get(it) }
       }
     }
   }
@@ -122,14 +139,23 @@ internal class CrossSurfaceIconCache(
     val key = Key(packageName, activityName?.takeIf { validDottedName(it) && it.length <= 240 })
     synchronized(lock) {
       if (!active) return null
+      // Keep the working set aligned with the bitmap bound, including negative results.
+      // Native task/notification owners may still hold a returned bitmap: never recycle on eviction.
+      wanted[key] = Unit
+      if (wanted.size > maxEntries) {
+        val oldest = wanted.keys.first()
+        wanted.remove(oldest)
+        pending.remove(oldest)
+        misses.remove(oldest)
+        dynamicMinutes.remove(oldest)
+        cache.remove(oldest)
+      }
       dynamicMinutes[key]?.let { minute ->
         if (minute != System.currentTimeMillis() / 60_000L) cache.remove(key)
       }
       cache.get(key)?.let { return it }
       if (key in misses || key in pending) return null
-      if (wanted.size >= 128 && key !in wanted) return null
-      wanted += key
-      enqueueLocked(key, revision.get())
+      enqueueLocked(key)
     }
     return null
   }
@@ -137,9 +163,9 @@ internal class CrossSurfaceIconCache(
   fun invalidate() {
     synchronized(lock) {
       if (!active) return
-      val generation = revision.incrementAndGet()
+      revision.incrementAndGet()
       clearSnapshotsLocked()
-      wanted.forEach { enqueueLocked(it, generation) }
+      wanted.keys.forEach { enqueueLocked(it) }
     }
   }
 
@@ -152,69 +178,98 @@ internal class CrossSurfaceIconCache(
     notifyReady = null
   }
 
-  private fun enqueueLocked(key: Key, generation: Long) {
+  private fun enqueueLocked(key: Key) {
     pending += key
-    if (!handler.post { load(key, generation) }) pending -= key
+    if (!drainScheduled) {
+      drainScheduled = true
+      if (!handler.post(drainWork)) {
+        drainScheduled = false
+        pending.clear()
+      }
+    }
   }
 
-  private fun load(key: Key, generation: Long) {
-    if (!active || generation != revision.get()) {
-      closeArchive()
-      return
+  private fun drain() {
+    var changed = false
+    // Yield to appearance events and retirement between small batches, rather than
+    // queueing a runnable (and a palette Binder read) for every retained icon.
+    repeat(8) {
+      val next = synchronized(lock) {
+        if (active) pending.firstOrNull()?.let { it to revision.get() } else null
+      }
+      if (next != null) changed = load(next.first, next.second) || changed
     }
-    var bitmap: Bitmap? = null
-    var dynamic = false
-    val now = System.currentTimeMillis()
-    try {
-      val file = File("/data/system/theme/icons")
-      val currentStamp = "${file.length()}:${file.lastModified()}"
-      if (stamp.isNotEmpty() && currentStamp != stamp) {
-        stamp = currentStamp
-        closeArchive()
-        invalidate()
-        return
-      }
-      stamp = currentStamp
-      check(file.length() in 1..(1024L * 1024 * 1024))
-      val config = context.resources.configuration
-      val dark = config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-      val locale = config.locales[0] ?: Locale.getDefault()
-      val palette = Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
-      fun checkCurrent() { check(active && generation == revision.get()) }
-      if (archiveGeneration != generation) {
-        check(closeArchive())
-        archiveGeneration = generation
-      }
-      val zip = archive ?: ZipFile(file).also { archive = it }
-      bitmap = SurfaceIconSnapshotRenderer.render(zip, key.activity ?: key.name, dark, locale,
-        now, palette, ::checkCurrent, packageName = key.name) { dynamic = true }
-    } catch (failure: Exception) {
-      if (active && generation == revision.get() && !warned) {
-        warned = true
-        Log.w(TAG, "Themed snapshot unavailable; retaining native app icon", failure)
-      }
-    }
-    val drained = synchronized(lock) {
-      if (!active || generation != revision.get()) {
-        bitmap?.recycle()
-        return@synchronized true
-      }
-      pending -= key
-      bitmap?.let { cache.put(key, it) } ?: run { misses += key }
-      if (dynamic && bitmap != null) dynamicMinutes[key] = now / 60_000L else dynamicMinutes.remove(key)
-      if (bitmap != null) {
+    val more = synchronized(lock) {
+      if (active && changed && onReady != null) {
         notifyReady?.let { handler.removeCallbacks(it) }
+        val generation = revision.get()
         val ready = Runnable {
-          if (active && generation == revision.get()) try { onReady() } catch (failure: Exception) {
+          if (active && generation == revision.get()) try { onReady.invoke() } catch (failure: Exception) {
             Log.w(TAG, "Native icon refresh unavailable", failure)
           }
         }
         notifyReady = ready
         handler.postDelayed(ready, 32L)
       }
-      pending.isEmpty()
+      if (active && pending.isNotEmpty() && handler.post(drainWork)) true
+      else {
+        drainScheduled = false
+        false
+      }
     }
-    if (drained) closeArchive()
+    if (!more) closeArchive()
+  }
+
+  private fun load(key: Key, generation: Long): Boolean {
+    if (!active || generation != revision.get()) {
+      closeArchive()
+      return false
+    }
+    var bitmap: Bitmap? = null
+    var dynamic = false
+    val now = System.currentTimeMillis()
+    try {
+      val file = themeFile
+      val currentStamp = "${file.length()}:${file.lastModified()}"
+      if (stamp.isNotEmpty() && currentStamp != stamp) {
+        stamp = currentStamp
+        closeArchive()
+        invalidate()
+        return false
+      }
+      stamp = currentStamp
+      check(file.length() in 1..(1024L * 1024 * 1024))
+      fun checkCurrent() { check(active && generation == revision.get()) }
+      if (archiveGeneration != generation) {
+        check(closeArchive())
+        archiveGeneration = generation
+      }
+      val zip = archive ?: ZipFile(file).also { archive = it }
+      val current = appearance ?: run {
+        val config = context.resources.configuration
+        Appearance(config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES,
+          config.locales[0] ?: Locale.getDefault(),
+          paletteState())
+          .also { appearance = it }
+      }
+      bitmap = SurfaceIconSnapshotRenderer.render(zip, key.activity ?: key.name, current.dark, current.locale,
+        now, current.palette, ::checkCurrent, packageName = key.name) { dynamic = true }
+    } catch (failure: Exception) {
+      if (active && generation == revision.get() && !warned) {
+        warned = true
+        Log.w(TAG, "Themed snapshot unavailable; retaining native app icon", failure)
+      }
+    }
+    return synchronized(lock) {
+      if (!active || generation != revision.get() || key !in wanted) {
+        bitmap?.recycle()
+        return@synchronized false
+      }
+      pending -= key
+      bitmap?.let { cache.put(key, it) } ?: run { misses += key }
+      if (dynamic && bitmap != null) dynamicMinutes[key] = now / 60_000L else dynamicMinutes.remove(key)
+      bitmap != null
+    }
   }
 
   private fun closeArchive(): Boolean {
@@ -222,6 +277,7 @@ internal class CrossSurfaceIconCache(
       archive?.close()
       archive = null
       archiveGeneration = -1L
+      appearance = null
       true
     } catch (failure: Exception) {
       Log.w(TAG, "Could not close themed icon archive", failure)
@@ -296,5 +352,7 @@ internal class CrossSurfaceIconCache(
   private companion object {
     const val TAG = "KeiHomeSurfaceIcons"
     const val STOP_TIMEOUT_MS = 1_500L
+    fun configurationKey(config: Configuration): String =
+      "${config.uiMode and Configuration.UI_MODE_NIGHT_MASK}:${config.locales.toLanguageTags()}"
   }
 }

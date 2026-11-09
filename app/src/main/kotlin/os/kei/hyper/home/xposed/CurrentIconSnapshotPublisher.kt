@@ -1,6 +1,8 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.content.pm.LauncherApps
+import android.os.UserHandle
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
@@ -19,14 +21,21 @@ import os.kei.hyper.home.iconpack.nativeFallbackProtectedNames
 
 /** Worker-only copy; neither a launcher hook nor the UI reads protected theme files. */
 internal object CurrentIconSnapshotPublisher {
-  fun publish(context: Context, report: SystemIconThemeReport, current: () -> Boolean): String? { return try {
+  fun publish(context: Context, report: SystemIconThemeReport, current: () -> Boolean, userId: Int = 0): String? { return try {
     val path = report.archivePath ?: return null
     require(path in setOf("/data/system/theme/icons", "/system/media/theme/default/icons"))
     val limits = IconPackLimits()
     require(File(path).isFile && File(path).length() in 1..limits.maxInputBytes)
     val checkCurrent = { check(current()) }
     checkCurrent()
-    val key = MessageDigest.getInstance("SHA-256").digest((report.revision + ":browser-v4").toByteArray())
+    val user = UserHandle.getUserHandleForUid(Math.multiplyExact(userId, 100_000))
+    val apps = context.getSystemService(LauncherApps::class.java).getActivityList(null, user)
+    checkCurrent()
+    val names = apps.flatMap { listOf(it.componentName.packageName, it.componentName.className) }.toSet()
+    if (names.isEmpty()) return null
+    val selection = CurrentIconSnapshotSelection(names)
+    val key = MessageDigest.getInstance("SHA-256").digest(
+      (report.revision + ":browser-v5-installed:$userId:" + selection.cacheIdentity()).toByteArray())
       .joinToString("") { "%02x".format(it) }
     if (context.contentResolver.call(RuntimeStatusInbox.AUTHORITY, "preview_exists", key, null)
         ?.getBoolean("accepted") == true) {
@@ -56,6 +65,7 @@ internal object CurrentIconSnapshotPublisher {
           zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
             checkCurrent()
             if (entry.name == IconBuildInventory.NAMES_PATH) return@forEach
+            if (!selection.includes(entry.name)) return@forEach
             require(entry.size in 0..limits.maxEntryBytes && entry.compressedSize >= 0 &&
               entry.size <= maxOf(1L, entry.compressedSize) * limits.maxCompressionRatio)
             if (entry.name.startsWith("fancy_icons/"))
@@ -77,7 +87,8 @@ internal object CurrentIconSnapshotPublisher {
           it.canonicalFile == root || it.canonicalPath.startsWith(root.path + File.separator)
         }.filter {
           checkCurrent()
-          it.isFile && it.extension == "png" && it.name !in nativeArt
+          it.isFile && it.extension == "png" && it.name !in nativeArt &&
+            selection.includes("res/drawable-xxhdpi/${it.name}")
         }.forEach { file ->
           require(file.canonicalPath.startsWith(root.path + File.separator))
           write("res/drawable-xxhdpi/${file.name}", file.length()) { file.inputStream() }

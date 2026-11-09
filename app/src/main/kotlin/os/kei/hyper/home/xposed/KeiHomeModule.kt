@@ -63,7 +63,8 @@ class KeiHomeModule : XposedModule() {
         else -> { publish(null); true }
       }.also { ready ->
         if (!ready) log(Log.WARN, "KeiHomeRetirement",
-          "Hot reload deferred in $processName: callbacks or owned workers have not drained")
+          "Hot reload deferred in $processName: " +
+            (ui?.retirementStatus() ?: server?.retirementStatus() ?: "cleanup pending"))
       }
     }
   }

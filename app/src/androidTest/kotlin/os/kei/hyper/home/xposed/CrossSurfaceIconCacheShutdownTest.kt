@@ -137,17 +137,44 @@ class CrossSurfaceIconCacheShutdownTest {
     }
   }
 
-  @Test fun failedUnregistrationDoesNotReportSuccessAfterWorkerExit() {
+  @Test fun transientUnregistrationFailureRetainsOwnerAndCanRetry() {
     val context = RecordingContext().apply { failComponentUnregistration = true }
     val cache = CrossSurfaceIconCache(context) {}
     try {
       cache.start()
       awaitRegistration(cache)
       assertFalse(cache.stop())
-      assertFalse(worker(cache).isAlive)
+      assertTrue(worker(cache).isAlive)
       assertEquals(1, context.receiverUnregistrations)
       assertFalse(cache.stop())
+      context.failComponentUnregistration = false
+      assertTrue(cache.stop())
+      assertFalse(worker(cache).isAlive)
+      assertEquals(1, context.receiverUnregistrations)
     } finally {
+      context.failComponentUnregistration = false
+      cache.stop()
+    }
+  }
+
+  @Test fun frameworkLockWaitBeyondOldBudgetCanStillDrain() {
+    val gate = Gate()
+    val context = RecordingContext().apply { unregisterGate = gate }
+    val cache = CrossSurfaceIconCache(context) {}
+    val release = Thread {
+      assertTrue(gate.entered.await(3, TimeUnit.SECONDS))
+      Thread.sleep(1_800)
+      gate.release.countDown()
+    }
+    try {
+      cache.start()
+      awaitRegistration(cache)
+      release.start()
+      assertTrue(cache.stop())
+      assertFalse(worker(cache).isAlive)
+    } finally {
+      gate.release.countDown()
+      release.join(3_000)
       cache.stop()
     }
   }

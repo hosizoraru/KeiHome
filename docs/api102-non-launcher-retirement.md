@@ -176,3 +176,39 @@ two rounds on each of the three Java hosts. Their machine-readable receipt is
 `.artifacts/research/provider-timeout-20261108/acceptance.json`.
 These passing same-process handoffs do not certify collection/unmapping of
 every old generation or resolve the initiating cause of the earlier kernel stall.
+
+### 2026-11-10: icon-cache retirement under framework lock contention
+
+The Phone AVD's 06:43 update was refused by the old SystemUI and
+system_server generations. The theme host succeeded. The system log records
+a `KeiHomeSurfaceIcons` worker waiting 4,790 ms for the framework lock in
+`ContextImpl.unregisterReceiver`; its cache stop budget was only 1,500 ms.
+This is evidence of an undersized cleanup deadline, not proof of a permanent
+deadlock, a crashed host, or the precise SystemUI cleanup stage.
+
+Cache shutdown now has separate nonblocking stop-request and bounded wait
+operations. The standalone cache budget is five seconds. Recent-task shutdown
+requests cache cleanup before joining its other worker and shares the outer
+retirement deadline across joins, cache cleanup, and callback drain. SystemUI
+cache cleanup shares a six-second outer deadline. Main-thread and cache-worker
+callers still never wait for cleanup.
+
+Failed unregister operations retain the worker and acquired registrations for
+an explicit subsequent stop attempt. Successfully released registrations are
+not released twice. No background retry timer or forced class-loader release
+is added. A timed-out or failed cleanup still refuses generation handoff.
+Recent-task replay posting is now serialized with shutdown admission and
+token removal, preventing a late queued callback from retaining the old
+generation after stop.
+
+Retirement diagnostics distinguish callback drain, worker liveness, archive
+close and registration cleanup. The original failure log did not distinguish
+these stages; do not retrospectively infer an exact SystemUI stage.
+
+See `.artifacts/research/hot-reload-failure-20261110/acceptance.json` for the
+device checks, process identities and test results. Same-APK API 102 reload
+probes must respect the framework's native-library rule: after the stale
+target has updated, another request can legitimately return `UNSUPPORTED`
+because native reload is allowed only for stale targets. Such a second probe
+is not a failed old-generation cleanup. Use increasing-version APK updates
+to verify repeated normal updates.

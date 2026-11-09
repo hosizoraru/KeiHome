@@ -36,7 +36,7 @@ internal class CrossSurfaceIconCache(
   init { require(maxEntries in 1..64) }
   private data class Key(val name: String, val activity: String?)
   private data class Appearance(val dark: Boolean, val locale: Locale, val palette: Long)
-  private val lock = Any()
+  private val lock = java.lang.Object()
   private val revision = AtomicLong()
   private val thread = HandlerThread("KeiHomeSurfaceIcons", Process.THREAD_PRIORITY_BACKGROUND)
   private lateinit var handler: Handler
@@ -44,6 +44,8 @@ internal class CrossSurfaceIconCache(
   private var started = false
   private var stopping = false
   @Volatile private var cleanupComplete = false
+  @Volatile private var cleanupStage = "not requested"
+  private var cleanupScheduled = false
   // Registration and cleanup run on the worker, including a registration already in flight at stop.
   private var componentRegistered = false
   private var receiverRegistered = false
@@ -291,20 +293,50 @@ internal class CrossSurfaceIconCache(
    */
   fun stop(): Boolean {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(STOP_TIMEOUT_MS)
+    requestStop()
+    return awaitStopped(deadline)
+  }
+
+  /** Close admission immediately; let independent owners drain in parallel. */
+  fun requestStop() {
     synchronized(lock) {
       if (!stopping) {
         stopping = true
         active = false
+        cleanupStage = "queued"
         revision.incrementAndGet()
-        if (started && ::handler.isInitialized) {
-          handler.removeCallbacksAndMessages(null)
-          if (!handler.post { cleanup() }) {
-            Log.w(TAG, "Could not enqueue icon-cache cleanup; retirement remains blocked")
-          }
-        } else if (!started) {
+        if (started && ::handler.isInitialized) handler.removeCallbacksAndMessages(null)
+        else if (!started) {
           cleanupComplete = true
+          cleanupStage = "complete"
         }
       }
+      if (!cleanupComplete && !cleanupScheduled && started && ::handler.isInitialized) {
+        cleanupScheduled = true
+        if (!handler.post { cleanup() }) {
+          cleanupScheduled = false
+          Log.w(TAG, "Could not enqueue icon-cache cleanup; retirement remains blocked")
+        }
+      }
+    }
+  }
+
+  fun awaitStopped(deadline: Long): Boolean {
+    // A failed cleanup leaves the worker alive for a later explicit retry.
+    // Wait for this attempt's result as well as thread termination.
+    if (Thread.currentThread() === thread || Looper.myLooper() == Looper.getMainLooper()) {
+      return cleanupComplete && !thread.isAlive
+    }
+    synchronized(lock) {
+      while (cleanupScheduled) {
+        val remaining = deadline - System.nanoTime()
+        if (remaining <= 0) return false
+        try { TimeUnit.NANOSECONDS.timedWait(lock, remaining) } catch (_: InterruptedException) {
+          Thread.currentThread().interrupt()
+          return false
+        }
+      }
+      if (!cleanupComplete) return false
     }
     if (thread.isAlive) {
       if (Thread.currentThread() === thread || Looper.myLooper() == Looper.getMainLooper()) return false
@@ -318,7 +350,11 @@ internal class CrossSurfaceIconCache(
     return cleanupComplete && !thread.isAlive
   }
 
+  fun retirementStatus(): String =
+    "stage=$cleanupStage cleanupComplete=$cleanupComplete worker=${thread.state}"
+
   private fun cleanup() {
+    cleanupStage = "close archive"
     var complete = closeArchive()
     fun unregister(action: () -> Unit) {
       try { action() } catch (failure: Exception) {
@@ -328,14 +364,17 @@ internal class CrossSurfaceIconCache(
     }
     try {
       if (componentRegistered) unregister {
+        cleanupStage = "unregister component callbacks"
         context.unregisterComponentCallbacks(configuration)
         componentRegistered = false
       }
       if (receiverRegistered) unregister {
+        cleanupStage = "unregister receiver"
         context.unregisterReceiver(receiver)
         receiverRegistered = false
       }
       if (observerRegistered) unregister {
+        cleanupStage = "unregister observer"
         context.contentResolver.unregisterContentObserver(observer)
         observerRegistered = false
       }
@@ -344,14 +383,19 @@ internal class CrossSurfaceIconCache(
         wanted.clear()
       }
       cleanupComplete = complete
+      cleanupStage = if (complete) "complete" else "cleanup failed"
     } finally {
-      thread.quitSafely()
+      if (cleanupComplete) thread.quitSafely()
+      synchronized(lock) {
+        cleanupScheduled = false
+        lock.notifyAll()
+      }
     }
   }
 
   private companion object {
     const val TAG = "KeiHomeSurfaceIcons"
-    const val STOP_TIMEOUT_MS = 1_500L
+    const val STOP_TIMEOUT_MS = 5_000L
     fun configurationKey(config: Configuration): String =
       "${config.uiMode and Configuration.UI_MODE_NIGHT_MASK}:${config.locales.toLanguageTags()}"
   }

@@ -380,6 +380,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       prepare = prepare@ {
         closingWorkers.pruneStopped()
         if (closingWorkers.hasLiveThreads()) return@prepare false
+        synchronized(lock) { recentTaskIcons }?.requestStop()
         frameworkManager.stop()
         stopRefreshWorker()
         NativeMonetSocketBroker.stop()
@@ -387,7 +388,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         iconPackImportMonitor.stop()
         true
       },
-      await = { stopRecentTaskIcons() && awaitRetirement(deadline) },
+      await = { stopRecentTaskIcons(deadline) && awaitRetirement(deadline) },
       commit = {
         closingWorkers.pruneStopped()
         saveState()
@@ -435,11 +436,21 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     }
   }
 
-  private fun stopRecentTaskIcons(): Boolean {
+  private fun stopRecentTaskIcons(
+    deadline: Long = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS),
+  ): Boolean {
     val runtime = synchronized(lock) { recentTaskIcons } ?: return true
-    if (!runtime.stop()) return false
+    if (!runtime.stop(deadline)) return false
     synchronized(lock) { if (recentTaskIcons === runtime) recentTaskIcons = null }
     return true
+  }
+
+  fun retirementStatus(): String {
+    val callbacks = synchronized(lock) {
+      "activeHooks=${lifecycle.activeHooks} activeJobs=${lifecycle.activeJobs}"
+    }
+    val tasks = synchronized(lock) { recentTaskIcons }?.retirementStatus() ?: "released"
+    return "$callbacks closingWorkers=${closingWorkers.hasLiveThreads()} recentTasks=[$tasks]"
   }
 
   private fun removeOldHooks(

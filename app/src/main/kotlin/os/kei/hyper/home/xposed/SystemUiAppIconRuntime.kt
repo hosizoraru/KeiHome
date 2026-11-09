@@ -159,11 +159,14 @@ internal class SystemUiAppIconRuntime(
 
   fun invalidate() = cache?.invalidate()
 
-  fun stop(): Boolean {
+  fun retirementStatus(): String = cache?.retirementStatus() ?: "cache released"
+
+  fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
     stopped = true
     val iconCache = cache ?: return true
     val stoppedCache = try {
-      iconCache.stop()
+      iconCache.requestStop()
+      iconCache.awaitStopped(deadline)
     } catch (failure: Throwable) {
       val cause = recoverableSystemUiFailure(failure)
       reportFailure("notification app icon cache stop", cause)

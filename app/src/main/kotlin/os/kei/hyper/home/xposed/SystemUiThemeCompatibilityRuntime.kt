@@ -396,11 +396,14 @@ internal class SystemUiThemeCompatibilityRuntime(
   }
 
   fun retire(saveState: () -> Unit): Boolean {
+    val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(6)
     val retired = lifecycle.retire(
       workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
     ) {
       try {
-        check(appIconRuntime?.stop() != false) { "Notification icon runtime has not stopped" }
+        check(appIconRuntime?.stop(deadline) != false) {
+          "Notification icon runtime has not stopped: ${appIconRuntime?.retirementStatus()}"
+        }
         appIconRuntime = null
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
@@ -420,6 +423,8 @@ internal class SystemUiThemeCompatibilityRuntime(
     }
     return retired
   }
+
+  fun retirementStatus(): String = lifecycle.retirementFailure ?: "cleanup pending"
 
   private fun replace(method: Method, id: String, hooker: XposedInterface.Hooker) {
     val key = method to id
@@ -472,6 +477,8 @@ internal class ThemeCompatibilityLifecycle(
   private var active = 0
   private var retiring = false
   private var retired = false
+  @Volatile var retirementFailure: String? = null
+    private set
 
   init { require(drainTimeoutMillis >= 0) }
 
@@ -490,23 +497,33 @@ internal class ThemeCompatibilityLifecycle(
       if (retired) return true
       if (retiring) return false
       retiring = true
+      retirementFailure = null
     }
     var complete = false
     try {
       synchronized(lock) {
         if (active != 0) {
-          if (isMainThread()) return false
+          if (isMainThread()) {
+            retirementFailure = "activeCallbacks=$active; refusing main-thread wait"
+            return false
+          }
           val timeoutNanos = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(drainTimeoutMillis)
           val started = System.nanoTime()
           while (active != 0) {
             val remaining = timeoutNanos - (System.nanoTime() - started)
-            if (remaining <= 0) return false
+            if (remaining <= 0) {
+              retirementFailure = "callback drain timed out; activeCallbacks=$active"
+              return false
+            }
             // Release admission's monitor so existing callbacks and installs can leave.
             lock.wait(remaining / 1_000_000L, (remaining % 1_000_000L).toInt())
           }
         }
       }
-      if (!workersStopped()) return false
+      if (!workersStopped()) {
+        retirementFailure = "owned worker has not exited"
+        return false
+      }
       // Framework listener removal can wait for a Binder callback which calls enter().
       // Close admission first, then clean up without holding the admission monitor.
       saveState()
@@ -514,6 +531,7 @@ internal class ThemeCompatibilityLifecycle(
       return true
     } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)
+      retirementFailure = "cleanup ${failure.javaClass.simpleName}: ${failure.message}"
       return false
     } finally {
       synchronized(lock) {

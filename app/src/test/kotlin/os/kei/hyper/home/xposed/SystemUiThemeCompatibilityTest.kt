@@ -106,6 +106,7 @@ class SystemUiThemeCompatibilityTest {
       }) { error("Worker still owns the runtime") })
       assertEquals(1, checks)
       assertEquals(false, admitted)
+      assertEquals("owned worker has not exited", lifecycle.retirementFailure)
       assertTrue(lifecycle.enter())
       lifecycle.leave()
     } finally {
@@ -179,6 +180,7 @@ class SystemUiThemeCompatibilityTest {
         lifecycle.retire(workersStopped = { workerChecks++; true }) { saves++ }
       }
       assertFalse(retirement.get(5, TimeUnit.SECONDS))
+      assertEquals("callback drain timed out; activeCallbacks=1", lifecycle.retirementFailure)
       assertEquals(0, workerChecks)
       assertEquals(0, saves)
       assertTrue(lifecycle.enter())
@@ -188,6 +190,7 @@ class SystemUiThemeCompatibilityTest {
       executor.shutdownNow()
     }
     assertTrue(lifecycle.retire(workersStopped = { true }) {})
+    assertEquals(null, lifecycle.retirementFailure)
     assertFalse(lifecycle.enter())
   }
 

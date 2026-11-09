@@ -99,9 +99,27 @@ internal class RecentTaskAppIconRuntime(
     }
   }
 
+  fun requestStop() {
+    val closing = synchronized(lock) {
+      stopped = true
+      cache?.let { closingCaches += it }
+      cache = null
+      workerHandler?.removeCallbacksAndMessages(null)
+      closingCaches.toList()
+    }
+    closing.forEach { it.requestStop() }
+  }
+
+  fun retirementStatus(): String = synchronized(lock) {
+    "hooks=$activeHooks replays=$activeReplays worker=${worker?.state} " +
+      "caches=${closingCaches.joinToString { it.retirementStatus() }}"
+  }
+
   /** A failed drain remains retryable, so an old module generation cannot outlive retirement. */
-  fun stop(): Boolean {
-    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(STOP_TIMEOUT_MS)
+  fun stop(
+    deadline: Long = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(STOP_TIMEOUT_MS),
+  ): Boolean {
+    requestStop()
     val thread: HandlerThread?
     val handlers: List<Handler>
     val handles: List<XposedInterface.HookHandle>
@@ -130,7 +148,9 @@ internal class RecentTaskAppIconRuntime(
     }
     thread?.quitSafely()
     if (thread?.isAlive == true && thread !== Thread.currentThread()) {
-      try { thread.join(STOP_TIMEOUT_MS) } catch (_: InterruptedException) {
+      val remaining = deadline - System.nanoTime()
+      if (remaining <= 0) return false
+      try { TimeUnit.NANOSECONDS.timedJoin(thread, remaining) } catch (_: InterruptedException) {
         Thread.currentThread().interrupt()
         return false
       }
@@ -138,7 +158,8 @@ internal class RecentTaskAppIconRuntime(
     val closing = synchronized(lock) { closingCaches.toList() }
     drained = drained && thread?.isAlive != true
     closing.forEach { cache ->
-      if (cache.stop()) synchronized(lock) { closingCaches.remove(cache) } else drained = false
+      if (cache.awaitStopped(deadline)) synchronized(lock) { closingCaches.remove(cache) }
+      else drained = false
     }
     return synchronized(lock) {
       while (activeHooks != 0 || activeReplays != 0) {
@@ -269,9 +290,10 @@ internal class RecentTaskAppIconRuntime(
           entry.delivered = bitmap
           replayHandlers.removeAll { it.get() == null }
           if (replayHandlers.none { it.get() === handler }) replayHandlers += WeakReference(handler)
-        }
-        if (!handler.postAtTime({ replay(profile, entry, bitmap) }, token, SystemClock.uptimeMillis())) {
-          synchronized(lock) { if (entry.delivered === bitmap) entry.delivered = null }
+          // Queue ownership and shutdown's token removal must be serialized.
+          if (!handler.postAtTime({ replay(profile, entry, bitmap) }, token, SystemClock.uptimeMillis())) {
+            if (entry.delivered === bitmap) entry.delivered = null
+          }
         }
       } catch (failure: Throwable) {
         recoverableSystemUiFailure(failure)

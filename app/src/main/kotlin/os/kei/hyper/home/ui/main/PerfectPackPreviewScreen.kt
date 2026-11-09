@@ -118,8 +118,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
                 else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
             }
             pack?.let { current ->
-              (items.firstOrNull { !it.quietSnapshot && it.dark != null && it.dark != it.light }
-                ?: items.firstOrNull { !it.quietSnapshot && it.light != null })?.let { sample ->
+              (visible.firstOrNull { !it.quietSnapshot && it.dark != null && it.dark != it.light }
+                ?: visible.firstOrNull { !it.quietSnapshot && it.light != null })?.let { sample ->
                 PackIconPair(current, sample, vm.packPreviews, IconPackAppearance.SYSTEM,
                   Modifier.width(58.dp), distinctOnly = true)
               }

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
-import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
@@ -49,7 +48,6 @@ internal class CrossSurfaceIconCache(
   // Registration and cleanup run on the worker, including a registration already in flight at stop.
   private var componentRegistered = false
   private var receiverRegistered = false
-  private var observerRegistered = false
   private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)
   private val pending = linkedSetOf<Key>()
   private val misses = hashSetOf<Key>()
@@ -90,10 +88,6 @@ internal class CrossSurfaceIconCache(
       }
     }
   }
-  private val observer by lazy { object : ContentObserver(handler) {
-    override fun onChange(selfChange: Boolean) = invalidate()
-  } }
-
   fun start() {
     synchronized(lock) {
       // Instances are single-use. A late start must not resurrect a retired cache.
@@ -125,14 +119,10 @@ internal class CrossSurfaceIconCache(
         addAction(Intent.ACTION_TIME_CHANGED)
         addAction(Intent.ACTION_TIMEZONE_CHANGED)
         addAction("com.miui.home.ACTION_HD_ICON_UPDATE")
+        addAction(CrossSurfaceIconEvents.PALETTE_CHANGED)
         addAction("android.intent.action.THEME_CHANGED")
       }, null, handler, Context.RECEIVER_NOT_EXPORTED)
       receiverRegistered = true
-    }
-    register {
-      context.contentResolver.registerContentObserver(
-        Settings.System.getUriFor(NativePaletteIcon.STATE_KEY), false, observer)
-      observerRegistered = true
     }
   }
 
@@ -372,11 +362,6 @@ internal class CrossSurfaceIconCache(
         cleanupStage = "unregister receiver"
         context.unregisterReceiver(receiver)
         receiverRegistered = false
-      }
-      if (observerRegistered) unregister {
-        cleanupStage = "unregister observer"
-        context.contentResolver.unregisterContentObserver(observer)
-        observerRegistered = false
       }
       synchronized(lock) {
         clearSnapshotsLocked()

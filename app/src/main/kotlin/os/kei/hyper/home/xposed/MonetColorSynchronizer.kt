@@ -420,6 +420,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
         override fun write(key: String, value: String) = Settings.System.putString(resolver, key, value)
         override fun notifyChanged(key: String) {
           resolver.notifyChange(Settings.System.getUriFor(key), excludingObserver)
+          if (key == os.kei.hyper.home.iconpack.NativePaletteIcon.STATE_KEY) {
+            CrossSurfaceIconEvents.publishPaletteChanged(context)
+          }
         }
       }, isCurrent = isCurrent)
   }

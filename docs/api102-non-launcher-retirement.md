@@ -212,3 +212,30 @@ target has updated, another request can legitimately return `UNSUPPORTED`
 because native reload is allowed only for stale targets. Such a second probe
 is not a failed old-generation cleanup. Use increasing-version APK updates
 to verify repeated normal updates.
+
+During this verification, several preflight screenshot probes exceeded their
+eight-second limit before installation. A separate full-resolution PNG
+capture completed in 9.73 seconds while the independent SystemUI renderer and
+main-thread probes responded normally. The screenshot encoding allowance is
+now fifteen seconds; renderer responsiveness, thread state, recent
+Provider/Watchdog failures and PNG integrity checks remain mandatory. The
+rejected preflights remain in the evidence directory and are not counted as
+failed module handoffs or as passing installations.
+
+A later busy update reproduced SystemUI refusal with the new diagnostics:
+`stage=unregister observer cleanupComplete=false worker=RUNNABLE`.
+Increasing the deadline alone was therefore insufficient. The cross-surface
+bitmap caches no longer register their own Settings `ContentObserver`.
+The system-server palette publisher already owns the final palette-state
+write: it now invalidates the two existing, non-exported host receivers using
+package-scoped, registered-receiver-only broadcasts after that write.
+The original Settings notifications needed by native/MAML consumers remain.
+Theme, configuration and time invalidation remain unchanged. No polling or
+additional receiver registration is introduced.
+
+The deployment check also now requires both `retired` and `adopted`
+acknowledgements from system_server and SystemUI, and rejects any fresh module
+deferral. Previously, one fresh system-server acknowledgement was enough to
+reach the process-identity check, which could miss a simultaneous SystemUI
+refusal. The earlier two successful rounds have matching acknowledgements for
+both hosts; the later reproduced refusal remains a failed intermediate round.

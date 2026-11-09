@@ -98,10 +98,21 @@ class BuiltinIconPackStoreDeviceTest {
       }
       val imported = original.inputStream().use { IconPackStore(File(directory, "legacy")).import(it, "legacy.zip").record }
       val index = IconPackArchive().inspect(imported.originalFile, File(directory, "scratch.zip"), Build.VERSION.SDK_INT)
-      assertEquals(pack.entries, index.entries)
+      assertEquals(index.entries, pack.entries.take(index.entries.size))
+      val themeStore = index.entries.single { it.component == IconPackComponent("com.heytap.themestore") }
+      val aliases = listOf("com.android.thememanager", "com.miui.themestore").map(::IconPackComponent)
+        .filterNot { target -> index.entries.any { it.component == target } }
+      assertEquals(aliases.map { target -> themeStore.copy(key = target.flattened, component = target) },
+        pack.entries.drop(index.entries.size))
+      aliases.forEach { target ->
+        assertEquals(pack.colorOsProfile!!.source(requireNotNull(themeStore.component)),
+          pack.colorOsProfile.source(target))
+      }
       val legacyProfile = requireNotNull(ColorOsPackProfile.load(imported) {})
-      assertEquals(pack.colorOsProfile!!.icons, legacyProfile.icons)
-      val legacy = pack.copy(source = IconPackSource.Imported(imported), colorOsProfile = legacyProfile)
+      assertEquals(pack.colorOsProfile!!.icons.filterKeys { it !in aliases }, legacyProfile.icons)
+      val legacyWithAliases = legacyProfile.copy(icons = legacyProfile.icons +
+        aliases.associateWith { legacyProfile.source(requireNotNull(themeStore.component))!! })
+      val legacy = pack.copy(source = IconPackSource.Imported(imported), colorOsProfile = legacyWithAliases)
       val probes = pack.entries.filter { it.light is IconPackArtwork.Archive }.filterIndexed { i, _ -> i % 45 == 0 }
       for (dark in listOf(false, true)) {
         IconPackRenderer(context).open(pack, dark).use { shared ->
@@ -119,6 +130,32 @@ class BuiltinIconPackStoreDeviceTest {
       }
       Log.i("KeiHomeBuiltinTest", "Legacy/shared ${probes.size * 2} day/night previews pixel-identical")
     } finally { directory.deleteRecursively() }
+  }
+
+  @Test fun bothThemeApplicationsRenderTheCanonicalLightAndDarkPixelsInEveryBuiltin() = runBlocking(Dispatchers.IO) {
+    val packs = IconPackRepository(context).listBuiltins().packs
+    assertTrue(packs.isNotEmpty())
+    packs.forEach { pack ->
+      val source = pack.entries.single { it.component == IconPackComponent("com.heytap.themestore") }
+      val aliases = listOf("com.android.thememanager", "com.miui.themestore").map { name ->
+        pack.entries.single { it.component == IconPackComponent(name) }
+      }
+      for (dark in listOf(false, true)) {
+        IconPackRenderer(context).open(pack, dark).use { renderer ->
+          val original = requireNotNull(renderer.render(source, 96))
+          try {
+            aliases.forEach { alias ->
+              val result = requireNotNull(renderer.render(alias, 96))
+              try {
+                assertTrue("${pack.builtinKey}: ${alias.key}, dark=$dark", original.sameAs(result))
+                assertEquals(pack.colorOsProfile!!.source(requireNotNull(source.component)),
+                  pack.colorOsProfile.source(requireNotNull(alias.component)))
+              } finally { result.recycle() }
+            }
+          } finally { original.recycle() }
+        }
+      }
+    }
   }
 
   @Test fun cancelledAndOversizedReadsFailBeforeReturningData(): Unit = runBlocking(Dispatchers.IO) {

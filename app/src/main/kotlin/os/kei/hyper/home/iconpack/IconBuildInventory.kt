@@ -24,7 +24,8 @@ internal object IconBuildInventory {
     is IconPackSource.Imported -> source.record.id + if (pack.format == IconPackFormat.APK) ":palette-apk-1" else if (pack.entries.any {
       (it.light as? IconPackArtwork.Archive)?.palettePair == true
     }) ":native-pair-1" else ""
-    is IconPackSource.Builtin -> source.record.id
+    is IconPackSource.Builtin -> source.record.id +
+      if (pack.builtinKey?.startsWith("coloros-") == true) ":${BuiltinColorOsMappings.REVISION}" else ""
     is IconPackSource.Generated -> source.digest
   }
 

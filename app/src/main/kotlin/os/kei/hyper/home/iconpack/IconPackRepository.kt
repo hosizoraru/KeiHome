@@ -207,9 +207,9 @@ internal class IconPackRepository(
     val index = IconPackArchive(limits).classicIndex(record.paths, Build.VERSION.SDK_INT, check) { path, max ->
       record.read(path, max, check)
     }
-    return IconPackDescriptor(record.id, index.description.title ?: record.key, index.format,
+    return BuiltinColorOsMappings.withAliases(IconPackDescriptor(record.id, index.description.title ?: record.key, index.format,
       IconPackSource.Builtin(record), index.entries, index.description, index.previews, index.notices, index.directives,
-      colorOsProfile = ColorOsPackProfile.load(record, check), builtinKey = record.key)
+      colorOsProfile = ColorOsPackProfile.load(record, check), builtinKey = record.key))
   }
 
   private fun load(record: StoredIconPack, check: () -> Unit): IconPackDescriptor {

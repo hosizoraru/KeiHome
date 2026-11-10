@@ -13,7 +13,8 @@ import sys
 sys.dont_write_bytecode = True
 from elf_reader import Elf
 ROOT=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else Path(__file__).resolve().parent
-elf=Elf((ROOT/'selection_bridge_test.elf').read_bytes())
+ELF_PATH=Path(sys.argv[2]).resolve() if len(sys.argv)>2 else ROOT/'selection_bridge_test.elf'
+elf=Elf(ELF_PATH.read_bytes())
 syms={n:(v,s) for v,s,n,_,_ in elf.symbols()}
 start,size=syms['kh_monet_selection_bridge']
 code=elf.read(start,size)
@@ -38,11 +39,16 @@ class Model:
                (0x8000000,0x8041000,'pool'),(self.policy,self.policy+16+512*260,'policy')]
   for p in elf.loads:
    if p[0]==1 and p[1]&2:
-    self.bounds.append((p[3],p[3]+p[5],'globals'))
+    self.bounds.append((p[3],p[3]+p[6],'globals'))
     for k,b in enumerate(elf.data[p[2]:p[2]+p[5]]):self.mem[p[3]+k]=b
   self.setsym('kh_monet_policy',self.policy,8)
   self.setsym('kh_monet_readers',reader_count,4)
   self.setsym('kh_selection_profile_ready',ready,4)
+  self.setsym('kh_selection_original',0x400000,8)
+  self.setsym('kh_selection_factory_entry',0x19e8678,8)
+  self.setsym('kh_selection_update_callback_entry',0xebf8dc,8)
+  self.setsym('kh_selection_factory_pool_offset',0x404f8,8)
+  self.setsym('kh_selection_update_callback_pool_offset',0x404e8,8)
   self.put(self.policy,flags,4);self.put(self.policy+12,len(names) if count is None else count,4)
   for j,name in enumerate(names):
    self.put(self.policy+16+j*260,len(name),4)
@@ -188,6 +194,7 @@ for name,path,kw in cases:
 m=Model();m.setsym('kh_monet_policy',0,8);assert m.run()=='original';results.append({'case':'null policy','path':'original'})
 m=Model();m.put(m.policy+16,256,4);assert m.run()=='original';results.append({'case':'oversize entry length','path':'original'})
 result={'native_execution':False,'method':'bounded decoded instruction-path model',
+        'elf':str(ELF_PATH), 'elf_sha256':hashlib.sha256(ELF_PATH.read_bytes()).hexdigest(),
         'compiled_instructions':len(instructions),'text_sha256':hashlib.sha256(code).hexdigest(),
         'forbidden_calls_or_syscalls':0,'cases':results,'passed':len(results)}
 (ROOT/'bridge-path-tests.json').write_text(json.dumps(result,indent=2)+'\n')

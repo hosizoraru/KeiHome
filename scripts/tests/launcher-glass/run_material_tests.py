@@ -8,12 +8,13 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import material_fixture_metadata as fixture_meta
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 CPP = ROOT / "app/src/main/cpp"
-ORACLES = ROOT / ".artifacts/research/dock-material-20261105/material-sidecar"
-VERSIONS = ("7722", "8593", "8602", "9209", "9226")
+ORACLES = fixture_meta.OUT
+VERSIONS = fixture_meta.VERSIONS
 
 
 def fields(path):

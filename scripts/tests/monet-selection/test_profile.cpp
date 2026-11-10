@@ -57,10 +57,18 @@ int main(int argc, char** argv) {
     Check(rx!=0&&rxsize>512,"executable LOAD found");
     MonetSelectionProfile out{};
     const auto resolve_started=std::chrono::steady_clock::now();
-    Check(ResolveMonetSelection(bytes.data(),bytes.size(),&out), "real image resolves without symbol/address/identity lookup");
+    const auto base=reinterpret_cast<uintptr_t>(bytes.data());
+    std::vector<MonetSelectionImageRange> split;
+    for(const auto& s:segments)split.push_back({base+s.start,s.size,s.executable});
+    const char* why=nullptr;
+    const bool resolved=ResolveMonetSelection({base,split.data(),split.size()},&out,&why);
+    if (!resolved) {
+        std::fprintf(stderr,"Resolver rejected %s: %s\n",argv[1],why);
+        return 1;
+    }
+    Check(resolved, "real image resolves without symbol/address/identity lookup");
     const double resolve_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-resolve_started).count();
     std::printf("TIMING {\"first_resolve_ms\":%.3f,\"executable_bytes\":%zu,\"host_only\":true}\n",resolve_ms,rxsize);
-    const auto base=reinterpret_cast<uintptr_t>(bytes.data());
     const size_t has=reinterpret_cast<uintptr_t>(out.entry)-base;
     const size_t eq=out.string_equals_entry-base;
     const size_t context=BlTarget(bytes,has+20);
@@ -159,12 +167,10 @@ int main(int argc, char** argv) {
           "coherent PP slot relocation derives new factory and callback offsets");
     auto wrong=bytes;wrong[18]=0x3e;wrong[19]=0;reject(wrong,"wrong ELF machine");
     out=valid;Check(!ResolveMonetSelection(bytes.data(),63,&out)&&out.entry==nullptr,"short supplied readable range");
-    MonetSelectionImageRange range{base,64,false};const char* why=nullptr;
+    MonetSelectionImageRange range{base,64,false};why=nullptr;
     Check(!ResolveMonetSelection({base,&range,1},&out,&why)&&why!=nullptr,"program header outside readable ranges");
     range={base,bytes.size(),false};
     Check(!ResolveMonetSelection({base,&range,1},&out,&why),"RX segment not executable in supplied ranges");
-    std::vector<MonetSelectionImageRange> split;
-    for(const auto& s:segments)split.push_back({base+s.start,s.size,s.executable});
     Check(ResolveMonetSelection({base,split.data(),split.size()},&out,&why),"segmented live-image view from actual LOADs");
     auto identity=bytes;identity[9]^=0x80; // ELF padding outside every code contract
     Check(ResolveMonetSelection(identity.data(),identity.size(),&out),"unknown file identity preserves structural support");

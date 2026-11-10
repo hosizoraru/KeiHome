@@ -1,8 +1,11 @@
 # Native wallpaper material checks
 
 Production resolves Flutter AOT source relationships; the fixture symbol/address
-oracles here are host-only. Keep the five exact launcher inputs in
-`.artifacts/inputs/launchers/{7722,8593,8602,9209,9226}/`.
+oracles here are host-only. Keep the seven exact launcher inputs in
+`.artifacts/inputs/launchers/{7722,8593,8602,8604,9209,9226,9239}/`.
+Set `KEIHOME_MATERIAL_METADATA_DIR` to an evidence directory when regenerating
+source oracles and running `run_material_tests.py`, so an earlier checkpoint
+is retained. The extra/native-style generators use the same version inventory.
 
 Generate independent source oracles and run the native profile/rejection suite:
 

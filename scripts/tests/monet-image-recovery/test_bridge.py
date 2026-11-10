@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Run the actual leaf and actual ELF clone/setter instructions, without a VM."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -27,8 +28,13 @@ with a.elf.open('rb') as stream:
     elf = ELFFile(stream)
     segments = [(s['p_vaddr'], s['p_memsz'], s.data()) for s in elf.iter_segments() if s['p_type'] == 'PT_LOAD']
     symbols = {s.name: s['st_value'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
+    symbol_sizes = {s.name: s['st_size'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
     code = elf.get_section_by_name('.text')
-    decoded = list(Cs(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN).disasm(code.data(), code['sh_addr']))
+    start, size = symbols['kh_image_recovery_bridge'], symbol_sizes['kh_image_recovery_bridge']
+    offset = start-code['sh_addr']
+    assert size > 0 and offset >= 0 and offset+size <= code.data_size
+    decoded = list(Cs(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN).disasm(code.data()[offset:offset+size], start))
+    assert len(decoded)*4 == size
 assert all(i.mnemonic not in ('bl', 'blr', 'svc', 'hvc', 'smc') for i in decoded)
 assert all(i.op_str == 'x0' for i in decoded if i.mnemonic == 'br')
 for i in decoded:
@@ -61,7 +67,12 @@ def run(name, repair=False, stock=False, **o):
     u.mem_write(cfg, struct.pack('<QIIiIIIII', layout['update_return'], layout['image_cid'],
         layout['render_cid'], layout['receiver_spill'], layout['render_image'], layout['disposed'],
         layout['backing'], layout['frame_size'], o.get('enabled', 1)))
-    original = layout['clone'] if stock else symbols['test_original']
+    original = layout['clone'] if stock else symbols.get('test_original', 0x600000)
+    if not stock:
+        # The shipping SO has no authored test tail. Stop at a mapped synthetic
+        # tail boundary, exactly as at test_original in the standalone harness.
+        mapping(original, 4)
+        u.mem_write(original, b'\xc0\x03\x5f\xd6')
     w64(symbols['kh_image_recovery_original'], original)
     w32(counts, o.get('count', 0)); w32(counts+4, o.get('uncounted', 0))
     for ptr, prefix, disposed in [(REQUEST, 'request', NULL+0x20), (OWNER, 'owner', NULL+0x30)]:
@@ -217,5 +228,6 @@ run('real clone still throws for missing owner', owner=NULL, stock=True)
 run('real clone still throws for different backing', owner_backing=BACKING+0x80, stock=True)
 run('real clone still throws on new mount', caller=layout['raw_create']+0x3c, stock=True)
 a.report.write_text(json.dumps({'result': 'host-pass', 'cases': results,
+    'elf': str(a.elf.resolve()), 'elf_sha256': hashlib.sha256(a.elf.read_bytes()).hexdigest(),
     'limits': 'Synthetic rooted heap; real clone/setter bodies with mocked allocation/handle registration. No Dart VM, GC, detour backend or device.'}, indent=2)+'\n')
 print(f'{len(results)} ARM64 recovery cases passed')

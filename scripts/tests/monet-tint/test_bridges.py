@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Authored synthetic fixtures only; no launcher bytes are loaded here.
 import argparse
+import hashlib
 import json
 import pathlib
 import random
@@ -11,7 +12,7 @@ import struct
 import sys
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--elf", type=pathlib.Path, required=True, help="ELF linked from the repository bridge and test_symbols.S")
+parser.add_argument("--elf", type=pathlib.Path, required=True, help="Unstripped shipping SO or standalone linked bridge ELF")
 parser.add_argument("--report", type=pathlib.Path, required=True, help="JSON result path outside source fixtures")
 parser.add_argument('--layout', type=pathlib.Path, help='Live resolver JSON for dynamic CIDs and slots')
 args = parser.parse_args()
@@ -35,7 +36,17 @@ with args.elf.open('rb') as f:
     e=ELFFile(f)
     segments=[(s['p_vaddr'],s['p_memsz'],s.data()) for s in e.iter_segments() if s['p_type']=='PT_LOAD']
     syms={s.name:s['st_value'] for s in e.get_section_by_name('.symtab').iter_symbols()}
+    # Authored trampoline boundaries occupy the existing synthetic caller page
+    # when the shipping SO has no standalone test stop symbols.
+    for index, name in enumerate(('tint_original_stop', 'equals_original_stop', 'enabled_original_stop')):
+        syms.setdefault(name, 0x800800+index*0x10)
+    symbol_sizes={s.name:s['st_size'] for s in e.get_section_by_name('.symtab').iter_symbols()}
     textsec=e.get_section_by_name('.text'); textbytes=textsec.data(); textaddr=textsec['sh_addr']
+    bridge_bodies=[]
+    for name in ('kh_monet_tint_bridge', 'kh_monet_filter_equals_bridge', 'kh_monet_enabled_equals_bridge'):
+        address, size = syms[name], symbol_sizes[name]
+        assert size > 0 and textaddr <= address and address+size <= textaddr+len(textbytes)
+        bridge_bodies.append((address, textbytes[address-textaddr:address-textaddr+size]))
 
 H=0x7400000000; PP=H+0x100000; THR=0x500000; TABLE=0x510000
 STACK=0x700000; DSP=STACK+0x8000; FP=DSP+0x20; CSP=STACK+0x100; GDT=0x530000
@@ -58,6 +69,9 @@ def run(name,kind='tint',success=False,**opt):
     def w32(a,n):uc.mem_write(a,struct.pack('<I',n&0xffffffff))
     def w64(a,n):uc.mem_write(a,struct.pack('<Q',n&0xffffffffffffffff))
     def r32(a):return struct.unpack('<I',uc.mem_read(a,4))[0]
+    w64(syms['kh_tint_original'], syms['tint_original_stop'])
+    w64(syms['kh_filter_equals_original'], syms['equals_original_stop'])
+    w64(syms['kh_monet_enabled_equals_original'], syms['enabled_original_stop'])
     for a in [TINT_LR,RENDER_LR,LAYER_LR,OTHER_LR]:w32(a,0xd503201f)
     w64(syms['kh_tint_caller'],TINT_LR)
     w64(syms['kh_render_equals_caller'],RENDER_LR)
@@ -247,9 +261,14 @@ for caller_name,caller in [('render',RENDER_LR),('layer',LAYER_LR)]:
         (f'equals-{caller_name}-enabled-then-null-all-instances',dict(kind='equals',caller=caller,success=True,repeat=4,withdraw='null')),
     ]
 results=[run(n,**o) for n,o in cases]
-instructions=list(Cs(CS_ARCH_ARM64,CS_MODE_ARM).disasm(textbytes,textaddr))
+instructions=[]
+for address, body in bridge_bodies:
+    decoded=list(Cs(CS_ARCH_ARM64,CS_MODE_ARM).disasm(body,address))
+    assert len(decoded)*4 == len(body)
+    instructions.extend(decoded)
 assert not any(i.mnemonic in ('bl','blr','svc','hvc','smc') for i in instructions)
 report={'unicorn_cases':len(results),'all_passed':True,'no_calls_or_syscalls':True,
+        'elf':str(args.elf.resolve()), 'elf_sha256':hashlib.sha256(args.elf.read_bytes()).hexdigest(),
         'scoped_equality':'Stock until first enabled publication; process-lifetime invalidation thereafter for every instance, including withdrawal; no policy reads or reader-counter writes',
         'registers_checked':'All X except intended result and dead x16 tail scratch; all Q; x15, native SP, x28, FP, LR, NZCV',
         'memory_writes_allowed':'64-byte temporary Dart stack; atomic reader counter; primitive selection notification generation',

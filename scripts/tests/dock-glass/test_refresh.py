@@ -491,7 +491,7 @@ def main():
         parser.error("Assertions must be enabled; do not use -O/PYTHONOPTIMIZE")
     payload = Payload(args.elf)
     paths = args.fixtures or [ROOT / f".artifacts/inputs/launchers/{v}/libapp.so"
-                              for v in ("7722", "8593", "8602", "9209", "9226")]
+                              for v in ("7722", "8593", "8602", "9209", "9226", "8604", "9239")]
     reports = []
     for path in paths:
         fixture = Fixture(path)

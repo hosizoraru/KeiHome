@@ -4,6 +4,34 @@ The fixtures are the user's exact launcher libraries, kept outside version
 control. The resolver uses mapped instruction contracts, without reading symbols.
 The symbol/debugdata files used during research are independent role oracles.
 
+The durable inventory is `fixtures.json`: 7722, 8593, 8602, 8604, 9209,
+9226 and 9239. Each exact ELF lives at
+`.artifacts/inputs/launchers/<version>/libapp.so`, next to its unpacked
+`debug.elf`. No fixture is copied into version control.
+
+Run the complete inventory from the repository root (no Gradle or device):
+
+```sh
+python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt
+python3 scripts/tests/launcher-labels/run.py \
+  --payload app/build/intermediates/cxx/RelWithDebInfo/2m3s6l5v/obj/arm64-v8a/libkeihome_hyos_lsp.so \
+  --ndk "$ANDROID_HOME/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/bin" \
+  --output .artifacts/research/launcher-labels
+```
+
+Use the actual current unstripped payload path; the path above is an example.
+Optional positional ELF paths select a subset; `--inventory` selects a different
+test-only inventory. The runner compiles the current host resolver, compares
+five resolved roles with independent symbols, verifies `debug.elf` matches
+embedded debugdata, then executes both freshly assembled and linked ARM64
+bridges. It also reproduces the expanded label patterns from the applicable
+9209/9226/9239 fixture oracles and compares the output with production.
+It snapshots the supplied payload before use and authenticates every
+bridge byte and entry offset against current assembly. `payload.json` records
+the full SO SHA-256, bridge SHA-256, source SHA-256 and entry offsets.
+This authenticates the bridge only, not the rest of the compiled C++ payload.
+Results and separate source/linked bridge logs remain under `--output`.
+
 Build the host resolver/rejection runner from the repository root:
 
 ```sh
@@ -17,7 +45,7 @@ clang++ -std=c++17 -Wall -Wextra -Werror -O2 -Iapp/src/main/cpp \
 
 After building the Release native payload, run the linked ARM64 bridge checks
 with a Python environment containing the pinned native-test dependencies in
-`../monet-tint/requirements-emulation.txt`. Set `--payload` to the unstripped
+`../icon-highlight/requirements-emulation.txt`. Set `--payload` to the unstripped
 Release `libkeihome_hyos_lsp.so` under `app/build/intermediates/cxx/`:
 
 ```sh
@@ -27,11 +55,13 @@ python scripts/tests/launcher-labels/test_bridge.py \
   .artifacts/inputs/launchers/8593/libapp.so \
   .artifacts/inputs/launchers/7722/libapp.so \
   .artifacts/inputs/launchers/8602/libapp.so \
+  .artifacts/inputs/launchers/8604/libapp.so \
   .artifacts/inputs/launchers/9209/libapp.so \
-  .artifacts/inputs/launchers/9226/libapp.so
+  .artifacts/inputs/launchers/9226/libapp.so \
+  .artifacts/inputs/launchers/9239/libapp.so
 ```
 
-The 3,430 execution cases across five fixtures stub the original Dart measurement, prefix, allocation,
+The 4,802 execution cases across seven fixtures stub the original Dart measurement, prefix, allocation,
 constructor, fade, visibility, editing and title-refresh callees. They assert original return
 PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
 width boundaries, preference changes, native pressure fallbacks and unchanged VM
@@ -49,7 +79,7 @@ Flutter rendering. Device acceptance is a separate required check after a fresh
 native load.
 
 `generate_variants.py` reproduces the reviewed newer instruction shapes from
-the external 9209/9226 debug-data oracles. It covers inline title configuration,
+the external 9209/9226/9239 debug-data oracles. It covers inline title configuration,
 the expanded grid field access and changed item-event prefix. Runtime resolution
 still derives fields, live root slots and targets from mapped code. The shared
 visibility tail is located uniquely within a bounded span so the new native

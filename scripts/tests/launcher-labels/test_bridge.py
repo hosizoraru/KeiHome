@@ -532,7 +532,7 @@ def main():
                                   (float('nan'),0),(0,float('nan')),(float('inf'),0),(0,float('inf'))):
                     execute_fade(template,entries,p,high,mode,start,end);total+=1
                 execute_fade(template,entries,p,high,mode,missing=True);total+=1
-        print(Path(path).parent.name, "bridge/root/return-PC cases passed")
+        print(Path(path).parent.name, "bridge/root/return-PC cases passed", flush=True)
     print(total, "ARM64 cases passed; actual Flutter/GC acceptance remains a device check")
 
 

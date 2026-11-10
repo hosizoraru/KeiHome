@@ -1,5 +1,25 @@
 # Rust MAML ZIP metadata release
 
+Run the durable framework inventory plus the 9239 launcher widget-SDK negative
+fixture from the repository root:
+
+```sh
+python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt
+python3 scripts/tests/maml-zip-release/run.py \
+  --output .artifacts/research/maml-zip-release --sanitizers
+```
+
+`fixtures.json` keeps the two external framework `librust_maml_sdk.so`
+fixtures separate from the launcher's `libnative_widget_sdk.so`. The runner
+obtains framework release RVAs from independent debug symbols, runs both host
+ownership suites, regenerates their graph patterns under `--output` and
+compares them byte-for-byte with production. It never writes production output.
+For the exact 9239 widget SDK it requires both absence of `zip_archive`
+symbols/release roots and rejection by the production mapped-code resolver
+with a zero output address. This is a negative regression fixture, not newly
+admitted SDK support. `--sanitizers` also runs the queue/priority suite under
+ASan+UBSan and TSan. `results.json` records fixture hashes and outcomes.
+
 The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
 ring. The host test covers 9,095 exactly-once releases, initialization failures,
 out-of-order publication, single-attempt reservation races, ticket wraparound,

@@ -2,6 +2,7 @@
 """Host-only named AOT/material/GC-map oracles. Never used by production."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import struct
 import sys
@@ -9,7 +10,9 @@ import sys
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-OUT = ROOT / ".artifacts/research/dock-material-20261105/material-sidecar"
+OUT = Path(os.environ.get("KEIHOME_MATERIAL_METADATA_DIR",
+                         ROOT / ".artifacts/research/dock-material-20261105/material-sidecar"))
+VERSIONS = ("7722", "8593", "8602", "9209", "9226", "8604", "9239")
 spec = importlib.util.spec_from_file_location("material_elf", HERE.parent / "icon-highlight/elf_fixture.py")
 elf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(elf)
@@ -111,7 +114,7 @@ def mask(word):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     evidence, patterns = {}, {}
-    for version in ("7722", "8593", "8602", "9209", "9226"):
+    for version in VERSIONS:
         im = elf.Image(ROOT / ".artifacts/inputs/launchers" / version / "libapp.so")
         build, build_size = im.syms["_DockGlassWidgetState.build"][0]
         dark, _ = im.syms["_DockGlassWidgetState._darkFilter"][0]

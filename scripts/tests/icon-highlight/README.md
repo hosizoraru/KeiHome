@@ -1,16 +1,26 @@
 # Native icon highlight host checks
 
-These tests consume local copies of both launcher ELFs. They never use ADB,
+These tests consume local copies of exact launcher ELFs. They never use ADB,
 launch/restart a process, run Gradle, or modify an input ELF. Generated test
 libraries, bridge objects and results stay under `--output`.
+
+With no positional ELFs, the runner uses the shared test-only
+`scripts/tests/launcher-labels/fixtures.json` inventory: 7722, 8593, 8602,
+8604, 9209, 9226 and 9239. Explicit ELF paths or `--inventory` override it.
+Install pinned Python dependencies with
+`python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt`.
+Add `--payload /absolute/path/to/current/unstripped/libkeihome_hyos_lsp.so`
+to execute the actual linked template. The runner snapshots that payload,
+authenticates all 64 template bytes against freshly assembled current source,
+and records the full SO, source and bridge SHA-256 values in `payload.json`.
+Run once without `--payload` and once with it for separate source/linked
+execution evidence. Authentication covers the bridge, not other payload C++.
 
 Requires Python with Unicorn, a host `clang++`, and the NDK LLVM tools. Example:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 /tmp/keihome-capstone-venv/bin/python \
   scripts/tests/icon-highlight/run.py \
-  .artifacts/inputs/launchers/8593/libapp.so \
-  .artifacts/inputs/launchers/7722/libapp.so \
   --output /tmp/keihome-theme-research/launcher-evidence/highlight-implementation/host-tests \
   --ndk /Users/voyager/Library/Android/sdk/ndk/30.0.16248370/toolchains/llvm/prebuilt/darwin-x86_64/bin
 ```
@@ -27,7 +37,7 @@ are private local fixtures and are not committed.
   conditional patch entry, invalid mappings and coherent unknown relocation.
 - The actual assembly template is assembled; the actual C++ builder fills its
   replay words and atomic address. Unicorn executes that bridge inside original
-  guard/lookup/return instructions on both images. Only native lazy lookup is
+  guard/lookup/return instructions on each image. Only native lazy lookup is
   mocked; material guard execution remains original.
 - Result, all non-result GPR/SIMD/flags/frame state, writes and call sequences
   are compared to native. Disabled guards never enter the bridge. Policies

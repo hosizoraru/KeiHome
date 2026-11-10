@@ -7,6 +7,10 @@ import/apply contract continues to use DexKit.
 
 ## Source fixtures
 
+The [9239 follow-up](launcher-9239-compatibility.md) extends the Phone regression
+set to seven fixtures and records an actual temporary 9239 AVD upgrade, current
+shipping-payload tests and restoration separately from host-only evidence.
+
 The later [8604 follow-up](launcher-8604-compatibility.md) extends this historical
 five-fixture checkpoint with the reported 8604 binary, additional native
 contracts and a separate Phone AVD acceptance/restoration record.

@@ -29,7 +29,7 @@ each fixture. These are optimized host measurements, not Android launch times.
 `app/src/main/cpp/monet_selection_patterns.h` contains generated instruction-body
 hashes, four-word scan prefixes and function-relative graph edges. It contains
 no image RVA table, complete extracted functions or image SHA allowlist. Generate
-it from all five external fixtures (7722, 8593, 8602, 9209 and 9226) with
+it from all seven external fixtures listed in `fixture_inventory.json` with
 repeatable `--fixture LIB DEBUG` arguments. For example:
 
 ```sh
@@ -43,6 +43,33 @@ The default output is the production header; `--output` can select a temporary
 file for comparison. Keep fixture binaries, decompilation, and generated audit
 JSON outside the repository. The JSON intentionally includes observed RVAs as
 evidence; the production header does not.
+
+The shared offline inventory includes 7722, 8593, 8602, 8604, 9209, 9226 and
+9239. Run all four suites and verify all three generated contract headers with:
+
+```sh
+NDK_DIR=/opt/homebrew/share/android-ndk /path/to/python \
+  scripts/tests/monet-selection/run_matrix.py \
+  --fixture-root /external/launchers --output /tmp/monet-matrix
+```
+
+Each fixture directory contains `libapp.so` and `debug.elf`. The interpreter
+must provide the pinned Capstone, Unicorn and pyelftools dependencies. Output
+contains full commands, per-file source/fixture SHA256s and suite receipts.
+
+To check an existing unstripped shipping SO without rebuilding it:
+
+```sh
+/path/to/python scripts/tests/monet-selection/run_shipping.py \
+  --elf /external/immutable/libkeihome_hyos_lsp.so \
+  --fixture-root /external/launchers --matrix /tmp/monet-matrix \
+  --output /tmp/monet-shipping
+```
+
+This uses the SO's actual bridge symbols and records its SHA256. Selection is
+a bounded instruction-path model; tint and image bridges execute in Unicorn.
+Resolver profiles are supplied by the host production-source matrix. These
+checks do not execute the shipping resolver or establish device acceptance.
 
 The decoder uses the bounded segment/branch-validation approach of the
 Apache-2.0 reference

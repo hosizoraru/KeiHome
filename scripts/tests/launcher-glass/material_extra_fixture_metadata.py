@@ -78,7 +78,7 @@ def pattern(im, start, size, role):
 
 def main():
     evidence, patterns = {}, {}
-    for version in ("7722", "8593", "8602", "9209", "9226"):
+    for version in base.VERSIONS:
         im = base.elf.Image(base.ROOT / ".artifacts/inputs/launchers" / version / "libapp.so")
         folder, size = im.syms["FolderBlurUtils.buildFolderGlass"][0]
         getter, _ = im.syms["RxObjectMixin.value"][0]

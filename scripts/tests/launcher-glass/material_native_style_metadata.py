@@ -20,7 +20,7 @@ def pool(im, add, load):
 
 def main():
     patterns, evidence = {}, {}
-    for version in ("7722", "8593", "8602", "9209", "9226"):
+    for version in base.VERSIONS:
         im = base.elf.Image(base.ROOT / ".artifacts/inputs/launchers" / version / "libapp.so")
         build = sorted(im.syms["_BlurBlendColorState.build"])
         init, init_size = im.syms["_FolderBlurChildState.initState"][0]

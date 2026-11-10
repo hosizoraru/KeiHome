@@ -64,6 +64,10 @@ int main(int argc, char** argv) {
     auto mutate = [&](uintptr_t pc, uint32_t mask) {
         word(pc) ^= mask; reject(view); word(pc) ^= mask;
     };
+    // Every opcode in the complete guarded-clone contract remains mandatory.
+    // Bit 30 is retained by all existing relocation masks.
+    for (size_t offset = 0; offset < 0x100; offset += 4)
+        mutate(good.guarded_clone+offset, 0x40000000u);
     auto branch = [](uintptr_t pc, uintptr_t target, uint32_t op) {
         const int64_t delta = int64_t(target)-int64_t(pc);
         assert(delta%4 == 0 && delta >= -(int64_t{1}<<27) && delta < (int64_t{1}<<27));

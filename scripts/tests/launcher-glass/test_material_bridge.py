@@ -746,7 +746,7 @@ def main():
             p, args.fixtures / version / "libapp.so",
             args.metadata / f"material-{version}.tsv", scope)
             for scope in ("Dock", "searchCapsule")}
-            for version in ("7722", "8593", "8602", "9209", "9226")}
+            for version in ("7722", "8593", "8602", "9209", "9226", "8604", "9239")}
     result["cases"] = sum(result[key] for key in
                           ("choose", "choose_conditions", "refresh", "runtime",
                            "policy", "publication_races"))

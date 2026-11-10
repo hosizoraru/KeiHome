@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <fstream>
 #include <iterator>
 #include <vector>
@@ -19,7 +20,7 @@ struct Section { uint32_t name, type; uint64_t flags, addr, offset, size; uint32
 struct Symbol { uint32_t name; uint8_t info, other; uint16_t index; uint64_t value, size; };
 
 int main(int argc, char** argv) {
-    if (argc != 3 || strcmp(argv[1], "--library")) return 2;
+    if ((argc != 3 && argc != 8) || strcmp(argv[1], "--library")) return 2;
     uint8_t digest[32];
     assert(HashMonetLibrary(argv[2], digest));
     std::ifstream input(argv[2], std::ios::binary);
@@ -84,6 +85,23 @@ int main(int argc, char** argv) {
     mutate(good.layer_equals_caller - 4, 1);
     mutate(good.settings_setter_caller - 4, 1);
     mutate(good.enabled_equals_caller - 4, 1);
+    if (argc == 8) {
+        assert(!strcmp(argv[3], "--widget-contract"));
+        const uintptr_t foreground = base + strtoull(argv[4], nullptr, 0);
+        const size_t foreground_size = strtoull(argv[5], nullptr, 0);
+        const uintptr_t render = base + strtoull(argv[6], nullptr, 0);
+        const size_t render_size = strtoull(argv[7], nullptr, 0);
+        assert(good.render_equals_caller > render && good.render_equals_caller <= render+render_size);
+        // The offline symbol oracle supplies complete body spans. Mutating
+        // interiors and tails must reject even when entry/call edges survive.
+        for (const auto& body : {std::pair{foreground, foreground_size},
+                                std::pair{foreground+foreground_size, size_t(0x1a0)},
+                                std::pair{render, render_size}}) {
+            assert(body.first >= base && body.first-base+body.second <= mapped.size());
+            for (size_t offset : {size_t(16), (body.second/2)&~size_t(3), body.second-8})
+                mutate(body.first+offset, 0x40000000u);
+        }
+    }
     auto bad = image; bad.verified_file_sha256 = nullptr; reject(bad);
     bad = image; bad.readable_ranges = nullptr; reject(bad);
     bad = image; bad.readable_range_count = 0; reject(bad);

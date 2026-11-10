@@ -1,5 +1,12 @@
 # Dock glass checks
 
+The current Phone inventory in `fixtures.json` includes 7722, 8593, 8602, 8604,
+9209, 9226 and 9239. Regenerate strict patterns with `generate_patterns.py`;
+`verify_fixture_oracle.py --binary PATH` independently compares every inventory
+entry to native debugdata and caller relationships. See the
+[9239 checkpoint](../../../docs/launcher-9239-compatibility.md) for the final
+shipping-payload and device boundary.
+
 See [feature and acceptance boundaries](../../../docs/dock-glass.md) and
 [refresh contract](../../../docs/dock-glass-refresh.md).
 
@@ -54,7 +61,7 @@ clang++ -std=c++17 -O2 -Wall -Wextra -Wpedantic -Werror \
   app/src/main/cpp/dock_glass_profile.cpp \
   app/src/main/cpp/launcher_label_profile.cpp \
   app/src/main/cpp/icon_highlight_profile.cpp -o /tmp/keihome-dock-profile-test
-for fixture in 7722 8593 8602 9209 9226 8604; do
+for fixture in 7722 8593 8602 9209 9226 8604 9239; do
   /tmp/keihome-dock-profile-test ".artifacts/inputs/launchers/$fixture/libapp.so"
   /tmp/keihome-dock-profile-test ".artifacts/inputs/launchers/$fixture/libapp.so" --root-only
 done

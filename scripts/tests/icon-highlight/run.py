@@ -199,12 +199,24 @@ def resolver_tests(lib, image, template):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("images", nargs="+", type=Path)
+    p.add_argument("images", nargs="*", type=Path,
+                   help="exact ELFs; defaults to the seven-launcher regression inventory")
+    p.add_argument("--inventory", type=Path,
+                   default=Path(__file__).parents[1] / "launcher-labels/fixtures.json")
+    p.add_argument("--payload", type=Path, help="also authenticate and execute the linked highlight template")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--cxx", default=os.environ.get("CXX", "clang++"))
     p.add_argument("--ndk", type=Path, required=True, help="NDK LLVM bin directory")
     args = p.parse_args()
+    if not args.images:
+        args.images = [ROOT / ".artifacts/inputs/launchers" / version / "libapp.so"
+                       for version in json.loads(args.inventory.read_text())["launchers"]]
     lib, template = build(args)
+    if args.payload:
+        from payload import authenticate
+        template, authentication = authenticate(args.payload, args.ndk, args.output, "highlight")
+        (args.output / "payload.json").write_text(json.dumps(authentication, indent=2) + "\n")
+        print(json.dumps({"payload": authentication}), flush=True)
     results = []
     for path in args.images:
         image = Image(path)

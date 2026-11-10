@@ -3,6 +3,7 @@
 """Build and run host tint checks using an external ARM64 libapp.so."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -104,11 +105,12 @@ def main():
         "overall": "failed",
     }
     sources = [CPP / name for name in (
-        "monet_tint_bridge.S", "monet_tint_profile.h", "monet_tint_profile.cpp", "monet_tint_patterns.h",
+        "monet_tint_bridge.S", "monet_tint_profile.h", "monet_tint_profile.cpp", "monet_tint_patterns.h", "monet_tint_variants.h",
         "monet_image_identity.h", "monet_image_identity.cpp", "monet_policy_server.h",
         "monet_hooks.cpp", "monet_policy_server.cpp",
     )]
     sources.extend(p for p in TEST_DIR.iterdir() if p.is_file())
+    sources.append(TEST_DIR.parent / "icon-highlight/elf_fixture.py")
     record["source_sha256"] = {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(sources)}
     try:
         print("[1/3] Host resolver: dynamic graph and rejected ABI changes", flush=True)
@@ -116,9 +118,16 @@ def main():
         run([compiler, "-std=c++17", "-UNDEBUG", "-O2", "-Wall", "-Wextra", "-Werror", "-I", CPP,
              TEST_DIR / "test_resolver.cpp", CPP / "monet_tint_profile.cpp",
              CPP / "monet_image_identity.cpp", "-o", resolver])
-        result = run([resolver, "--library", library])
+        oracle_spec = importlib.util.spec_from_file_location("tint_variant_oracle", TEST_DIR / "generate_variants.py")
+        oracle_module = importlib.util.module_from_spec(oracle_spec)
+        oracle_spec.loader.exec_module(oracle_module)
+        oracle = oracle_module.elf.Image(library)
+        [(foreground, foreground_size)] = oracle.syms['_MonochromeIconWidgetState.build']
+        [(render, render_size)] = oracle.syms['_ColorFilterRenderObject.colorFilter=']
+        result = run([resolver, "--library", library, "--widget-contract",
+                      hex(foreground), str(foreground_size), hex(render), str(render_size)])
         record["resolver"] = json.loads(result.stdout.splitlines()[-1])
-        assert record["resolver"]["resolver_rejections"] >= 17
+        assert record["resolver"]["resolver_rejections"] >= 26
 
         layout = output / "resolved-layout.json"
         layout.write_text(result.stdout.splitlines()[-1] + "\n")

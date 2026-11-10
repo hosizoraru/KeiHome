@@ -46,7 +46,9 @@ def main():
     for path in args.library:
         image = elf.Image(path)
         [(foreground, size)] = image.syms['_MonochromeIconWidgetState.build']
-        assert size == 0x3f8
+        # Use the independent symbol's full body, including older stack layouts.
+        # Production still authenticates every normalized word of each variant.
+        assert size % 4 == 0 and 16 <= size <= 320*4
         render, render_size = image.syms['_ColorFilterRenderObject.colorFilter='][0]
         for role, start, length in [('ForegroundBuild', foreground, size),
                                     ('BackgroundClosure', foreground+size, 0x1a0),

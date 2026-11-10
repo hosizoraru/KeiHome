@@ -1,0 +1,9 @@
+{
+  "framework_sdks": [
+    ".artifacts/inputs/framework/librust_maml_sdk.so",
+    ".artifacts/inputs/framework/maml/pandora-20261106/librust_maml_sdk.so"
+  ],
+  "negative_launcher_sdks": [
+    ".artifacts/inputs/launchers/9239/libnative_widget_sdk.so"
+  ]
+}

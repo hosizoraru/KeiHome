@@ -12,6 +12,7 @@ import java.io.File
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 import org.json.JSONArray
 import org.json.JSONObject
@@ -278,24 +279,42 @@ internal object HyperOsSidebarProfileCache {
   const val KEY = "keihome.sidebar.profile.v1"
   const val MAX_BYTES = 16 * 1024
   // Bump whenever the discovery proof or restoration contracts change.
-  const val SCHEMA = 2
+  const val SCHEMA = 3
 
   fun sourceIdentity(path: String): String {
     val file = File(path).canonicalFile
+    val length = file.length()
+    check(length in 1..512L * 1024 * 1024) { "Sidebar APK size outside discovery budget" }
     val entries = ZipFile(file).use { zip ->
-      zip.entries().asSequence().filter {
+      val candidates = zip.entries().asSequence().filter {
         it.name == "AndroidManifest.xml" ||
           (!it.name.contains('/') && it.name.startsWith("classes") && it.name.endsWith(".dex"))
-      }.map {
+      }.take(130).toList()
+      check(candidates.size in 2..129)
+      candidates.map {
         check(!it.isDirectory && it.crc >= 0 && it.size >= 0)
         Triple(it.name, it.crc, it.size)
       }.toList().sortedBy { it.first }
     }
     check(entries.size in 2..129 && entries.map { it.first }.distinct().size == entries.size)
     check(entries.count { it.first == "AndroidManifest.xml" } == 1)
-    return JSONObject().put("path", file.path).put("entries", JSONArray(entries.map {
-      JSONArray(listOf(it.first, it.second, it.third))
-    })).toString()
+    // Updated OEM APKs can retain every published version field. Hash actual
+    // bytes on this worker, once per resolution, never on the image hot path.
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().buffered(64 * 1024).use { input ->
+      val buffer = ByteArray(64 * 1024)
+      var total = 0L
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        check(total <= length) { "Sidebar APK grew during fingerprinting" }
+        digest.update(buffer, 0, count)
+      }
+      check(total == length && file.length() == length) { "Sidebar APK changed during fingerprinting" }
+    }
+    val hash = digest.digest().joinToString("") { "%02x".format(it) }
+    return JSONObject().put("path", file.path).put("sha256", hash).toString()
   }
 
   fun invalidate() {

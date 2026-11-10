@@ -71,6 +71,45 @@ generations. The Sidebar descriptor schema is versioned; member or source
 changes require discovery again, while unchanged sources restore members through
 the current loader without reopening DexKit.
 
+### Updates without version changes
+
+Sidebar discovery does not select an implementation by `versionCode`,
+`versionName`, an APK hash allowlist or obfuscated member names. DexKit follows
+the `pkg_icon` URI producers, request-wrapper/native-loader edges, model field
+reads, ImageView delivery and Dock caller relationships. Every role must be
+unique and its reflected signature must agree. Missing or ambiguous contracts
+leave the native host image in place.
+
+Cache schema 3 authenticates the canonical source path and SHA-256 of the
+actual APK bytes, including all DEX entries. ZIP entry CRCs/sizes are checked
+for shape but are no longer the content identity. The archive must fit the
+512 MiB input budget; hashing is streamed with a 64 KiB buffer on the discovery
+worker. A cold discovery checks the source again before publishing its proof.
+Cached generations hash once before restoring members through their own loader.
+Neither rendering nor image binding hashes an APK or opens DexKit.
+
+Settings uses explicit application identity at the framework/MAML API boundary.
+It does not currently cache or select any obfuscated Settings member, so a
+Settings-only APK update cannot reuse such a descriptor accidentally. Its
+method signatures are validated on the actual host. A future private Settings
+adapter should use structural discovery and content identity if those shared
+APIs are insufficient; it must not add a version-number lookup table.
+
+Seven archived SecurityCenter APKs from 13.6.0 through 13.8.0 pass independent
+DexSQL structure checks and actual AVD DexKit resolution/reflection/restoration.
+Both supplied 13.6.6 builds declare versionCode 40001366; 13.8.0 renames the
+grid and rail classes. The device matrix atomically replaces the APK at one
+fixed path while preserving the previous proof, then restores through a fresh
+loader. A separate regression changes DEX bytes while preserving archive
+length and modification time. Raw inputs and SHA-256 receipts live under
+`.artifacts/inputs/securitycenter/`; the reproducible offline runner is
+`scripts/tests/sidebar-profile/securitycenter_matrix.py`. Evidence is retained
+under `.artifacts/research/securitycenter-matrix-20261111/`.
+
+This matrix does not install all seven SecurityCenter applications or establish
+their full visual behavior on seven devices. The existing Sidebar visual
+acceptance remains for the installed Phone AVD host.
+
 New scope authorization and first target loading are separate from ordinary
 API 102 updates. Initial activation may require restarting the newly authorized
 target. This is not a requirement to restart Launcher, SystemUI or the system

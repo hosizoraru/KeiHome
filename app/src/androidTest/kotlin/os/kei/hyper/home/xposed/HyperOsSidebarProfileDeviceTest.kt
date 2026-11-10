@@ -198,7 +198,7 @@ class HyperOsSidebarProfileDeviceTest {
     }
   }
 
-  @Test fun sourceIdentityUsesCanonicalPathAndSortedManifestAndDexCrcAndSize() {
+  @Test fun sourceIdentityUsesCanonicalPathAndActualApkBytesWithoutVersionOrStatKeys() {
     val app = InstrumentationRegistry.getInstrumentation().targetContext
     val file = File.createTempFile("sidebar-source-", ".apk", app.cacheDir)
     fun write(dex: String = "dexA", manifest: String = "manifestA", resource: String = "resA",
@@ -207,7 +207,7 @@ class HyperOsSidebarProfileDeviceTest {
         "classes.dex" to dex, "res/test.txt" to resource)
       ZipOutputStream(file.outputStream()).use { zip ->
         for ((name, content) in if (reverse) entries.reversed() else entries) {
-          zip.putNextEntry(ZipEntry(name))
+          zip.putNextEntry(ZipEntry(name).apply { time = 0 })
           zip.write(content.toByteArray(Charsets.UTF_8))
           zip.closeEntry()
         }
@@ -216,14 +216,17 @@ class HyperOsSidebarProfileDeviceTest {
     try {
       write()
       val original = HyperOsSidebarProfileCache.sourceIdentity(file.path)
-      val entries = JSONObject(original).getJSONArray("entries")
-      assertEquals(listOf("AndroidManifest.xml", "classes.dex", "classes2.dex"),
-        (0 until entries.length()).map { entries.getJSONArray(it).getString(0) })
+      assertTrue(JSONObject(original).getString("sha256").matches(Regex("[0-9a-f]{64}")))
+      val originalLength = file.length()
+      val originalTime = file.lastModified()
       assertEquals(original,
         HyperOsSidebarProfileCache.sourceIdentity(File(file.parentFile, "./${file.name}").path))
-      write(resource = "unrelated resource", reverse = true)
-      assertEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
       write(dex = "dexB")
+      assertEquals(originalLength, file.length())
+      assertTrue(file.setLastModified(originalTime))
+      assertEquals(originalTime, file.lastModified())
+      assertNotEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
+      write(resource = "resB", reverse = true)
       assertNotEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
       write(dex = "dexLonger")
       assertNotEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
@@ -231,6 +234,19 @@ class HyperOsSidebarProfileDeviceTest {
       assertNotEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
       write(manifest = "manifestB")
       assertNotEquals(original, HyperOsSidebarProfileCache.sourceIdentity(file.path))
+    } finally { file.delete() }
+  }
+
+  @Test fun sourceIdentityRejectsMissingDex() {
+    val app = InstrumentationRegistry.getInstrumentation().targetContext
+    val file = File.createTempFile("sidebar-invalid-", ".apk", app.cacheDir)
+    try {
+      ZipOutputStream(file.outputStream()).use { zip ->
+        zip.putNextEntry(ZipEntry("AndroidManifest.xml"))
+        zip.write("unchanged-version".toByteArray())
+        zip.closeEntry()
+      }
+      assertTrue(runCatching { HyperOsSidebarProfileCache.sourceIdentity(file.path) }.isFailure)
     } finally { file.delete() }
   }
 

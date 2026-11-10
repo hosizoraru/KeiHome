@@ -811,7 +811,12 @@ internal fun StatusOverviewCard(
   Card(
     modifier = modifier
       .fillMaxWidth()
-      .semantics { this.onClick(label = actionLabel ?: refreshLabel, action = null) },
+      .semantics {
+        this.onClick(label = actionLabel ?: refreshLabel) {
+          (onOpen ?: onRefresh)()
+          true
+        }
+      },
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
     onClick = onOpen ?: onRefresh,

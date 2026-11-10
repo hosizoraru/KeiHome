@@ -70,6 +70,13 @@ forward before Compose's ActivityScenario rule runs. This is test-only setup;
 it does not change production navigation, clock synchronization or background
 activity-launch policy.
 
+Build and install the Debug target and AndroidTest APK as a pair from one
+Gradle invocation (`:app:assembleDebug :app:assembleDebugAndroidTest`).
+KeiHome allocates a new version code for builds, while version-sensitive test
+fixtures inline `BuildConfig.VERSION_CODE`. Rebuilding only AndroidTest and
+running it against an older Debug target can invert current/stale loading
+assertions even though the production status logic is correct.
+
 Official sources:
 
 - [Gradle release feed](https://services.gradle.org/versions/all) and

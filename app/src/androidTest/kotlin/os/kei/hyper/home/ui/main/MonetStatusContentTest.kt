@@ -16,11 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -135,7 +133,6 @@ class MonetStatusContentTest {
       null,
       HookedTarget.State.STALE,
       HookedTarget.State.RELOADING,
-      HookedTarget.State.FAILED,
     ).forEach { launcher ->
       assertEquals(StatusTone.WARNING, statusTone(true, false, true, current, launcher))
     }
@@ -144,6 +141,8 @@ class MonetStatusContentTest {
     assertEquals(StatusTone.ERROR, statusTone(false, false, true, current, current))
     assertEquals(StatusTone.ERROR, statusTone(true, true, true, current, current))
     assertEquals(StatusTone.ERROR, statusTone(true, false, false, current, current))
+    assertEquals(StatusTone.ERROR,
+      statusTone(true, false, true, current, HookedTarget.State.FAILED))
     assertEquals(
       StatusTone.ERROR,
       statusTone(true, false, true, HookedTarget.State.FAILED, current),
@@ -212,8 +211,8 @@ class MonetStatusContentTest {
       .assertDoesNotExist()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_wallpaper_colors_value, 2))
       .assertDoesNotExist()
-    composeTestRule.onAllNodesWithText(context.getString(R.string.monet_unavailable))
-      .assertCountEquals(2)
+    composeTestRule.onNodeWithText(context.getString(R.string.monet_unavailable))
+      .assertExists()
 
     composeTestRule.runOnIdle {
       currentSnapshot = snapshot(

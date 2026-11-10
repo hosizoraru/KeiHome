@@ -19,6 +19,28 @@ ACK = "[os.kei.hyper.home,KeiHomeIconRefresh,x] System-server icon refresh hooks
 
 
 class ModuleLogDeltaTest(unittest.TestCase):
+    def test_native_replacement_accepts_temporary_process_gap(self):
+        previous = {"pid": 17, "parent": 10, "start": 100}
+        child_only = {"pid": 18, "parent": 10, "start": 110}
+        replacement = {"pid": 20, "parent": 19, "start": 120}
+        with patch.object(deploy, "process", side_effect=[
+            deploy.ProcessUnavailable("temporarily absent"), child_only, replacement
+        ]) as process, patch.object(deploy.time, "sleep"):
+            self.assertEqual(replacement, deploy.wait_for_launcher_replacement(previous))
+            process.assert_called_with("com.miui.home", attempts=1)
+
+    def test_native_replacement_does_not_hide_unexpected_failures(self):
+        with patch.object(deploy, "process", side_effect=ValueError("invalid identity")):
+            with self.assertRaisesRegex(ValueError, "invalid identity"):
+                deploy.wait_for_launcher_replacement({"pid": 17, "parent": 10})
+
+    def test_native_replacement_expires_if_launcher_never_returns(self):
+        with patch.object(deploy, "process", side_effect=deploy.ProcessUnavailable("absent")), \
+                patch.object(deploy.time, "monotonic", side_effect=[0, 0, 16]), \
+                patch.object(deploy.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "No replacement launcher"):
+                deploy.wait_for_launcher_replacement({"pid": 17, "parent": 10})
+
     def handoff(self, host, event):
         return f"({host})[os.kei.hyper.home,KeiHomeRetirement,x] {event} pending=0"
 

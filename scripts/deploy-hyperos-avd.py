@@ -65,8 +65,12 @@ def java_reconciliation_complete(delta):
     return any("System-server icon refresh hooks installed" in line for line in own)
 
 
-def process(name):
-    for attempt in range(12):
+class ProcessUnavailable(RuntimeError):
+    pass
+
+
+def process(name, attempts=12):
+    for attempt in range(attempts):
         # pidof scans unrelated cmdlines, whose reads can wait on their mmap locks.
         # Discover candidates through task comm without touching those mappings.
         suffix = shlex.quote(name[-15:])
@@ -102,9 +106,23 @@ def process(name):
             # The live application has the oldest start tick; transient debugger
             # clones are newer. Do not select by directory enumeration order.
             return min(candidates, key=lambda item: item["start"])
-        if attempt < 11:
+        if attempt + 1 < attempts:
             time.sleep(0.25)
-    raise RuntimeError(f"Expected a live {name} process, got {raw!r}")
+    raise ProcessUnavailable(f"Expected a live {name} process, got {raw!r}")
+
+
+def wait_for_launcher_replacement(previous, timeout=15):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            current = process("com.miui.home", attempts=1)
+            if current["pid"] != previous["pid"] and current["parent"] != previous["parent"]:
+                return current
+        except (ProcessUnavailable, subprocess.CalledProcessError):
+            # Stopping the native spawner can leave no launcher during replacement.
+            pass
+        time.sleep(0.25)
+    raise RuntimeError("No replacement launcher; preserve evidence before recovery")
 
 
 def spawner(parent):
@@ -174,16 +192,7 @@ def main():
         launcher = before["com.miui.home"]
         spawner(launcher["parent"])
         root(f"kill -TERM {launcher['parent']}")
-        for _ in range(60):
-            time.sleep(0.25)
-            try:
-                current = process("com.miui.home")
-                if current["pid"] != launcher["pid"] and current["parent"] != launcher["parent"]:
-                    break
-            except subprocess.CalledProcessError:
-                pass
-        else:
-            raise RuntimeError("No replacement launcher; preserve evidence before recovery")
+        current = wait_for_launcher_replacement(launcher)
         adb("shell", "am", "start", "-a", "android.intent.action.MAIN", "-c",
             "android.intent.category.HOME", "-p", "com.miui.home")
         spawner(current["parent"])

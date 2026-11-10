@@ -32,6 +32,7 @@ internal class CrossSurfaceIconCache(
   },
   private val systemPaletteEvents: Boolean = false,
   private val eagerReload: Boolean = true,
+  private val refreshOnMinute: Boolean = false,
   private val onReady: (() -> Unit)? = null,
 ) {
   init { require(maxEntries in 1..64) }
@@ -71,6 +72,12 @@ internal class CrossSurfaceIconCache(
   private var configurationKey = configurationKey(context.resources.configuration)
   private val receiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+      if (intent.action == Intent.ACTION_TIME_TICK) {
+        synchronized(lock) {
+          if (active && dynamicMinutes.keys.any { it in wanted }) scheduleReadyLocked()
+        }
+        return
+      }
       if (active) invalidate()
     }
   }
@@ -125,6 +132,7 @@ internal class CrossSurfaceIconCache(
     register {
       context.registerReceiver(receiver, IntentFilter().apply {
         addAction(Intent.ACTION_DATE_CHANGED)
+        if (refreshOnMinute) addAction(Intent.ACTION_TIME_TICK)
         addAction(Intent.ACTION_TIME_CHANGED)
         addAction(Intent.ACTION_TIMEZONE_CHANGED)
         addAction("com.miui.home.ACTION_HD_ICON_UPDATE")
@@ -291,7 +299,12 @@ internal class CrossSurfaceIconCache(
         return@synchronized false
       }
       pending -= key
-      bitmap?.let { cache.put(key, it) } ?: run { misses += key }
+      if (bitmap != null) {
+        misses.remove(key)
+        cache.put(key, bitmap)
+      } else {
+        misses += key
+      }
       if (dynamic && bitmap != null) dynamicMinutes[key] = now / 60_000L else dynamicMinutes.remove(key)
       bitmap != null || !eagerReload
     }

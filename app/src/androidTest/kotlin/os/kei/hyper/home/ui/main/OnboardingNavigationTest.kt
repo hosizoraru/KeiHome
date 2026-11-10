@@ -64,6 +64,16 @@ class OnboardingNavigationTest {
   private fun action(tag: String) = rule.onNode(hasTestTag("setup.$tag") and
     hasAnyAncestor(hasTestTag("setup.page.$currentPage")))
 
+  private fun openLink(title: Int) {
+    val link = rule.onNodeWithText(context.getString(title)).performScrollTo()
+    val center = link.fetchSemanticsNode().boundsInRoot.center
+    val viewport = action("content").fetchSemanticsNode().boundsInRoot
+    val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
+    assertTrue("Link must stay inside the unobscured viewport", viewport.contains(center))
+    assertTrue("Link must not be covered by the floating toolbar", center.y < toolbar.top)
+    link.performClick()
+  }
+
   private fun packPage(section: String) {
     rule.waitUntil(30_000) {
       val matches = rule.onAllNodesWithTag("icon-packs.$section")
@@ -119,7 +129,7 @@ class OnboardingNavigationTest {
     action("next").assertIsEnabled().performClick()
     page(2)
     rule.onNodeWithText(context.getString(R.string.setup_native_icons_title)).assertIsDisplayed()
-    rule.onNodeWithText(context.getString(R.string.icon_pack_library)).performScrollTo().performClick()
+    openLink(R.string.icon_pack_library)
     packPage("library")
     rule.onNodeWithText(context.getString(R.string.pack_builtin)).performClick()
     packPage("builtin")
@@ -131,24 +141,20 @@ class OnboardingNavigationTest {
       R.string.perfect_icons_title to "perfect",
       R.string.apple_pack_title to "apple",
     )) {
-      rule.onNodeWithText(context.getString(title))
-        .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+      openLink(title)
       packPage(section)
       back()
       page(2)
     }
-    rule.onNodeWithText(context.getString(R.string.navigation_monet))
-      .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+    openLink(R.string.navigation_monet)
     packPage("monet")
     back()
     page(2)
-    rule.onNodeWithText(context.getString(R.string.pack_completion_title))
-      .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+    openLink(R.string.pack_completion_title)
     packPage("fallback")
     back()
     page(2)
-    rule.onNodeWithText(context.getString(R.string.pack_action_settings))
-      .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+    openLink(R.string.pack_action_settings)
     settleTransition()
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     back()
@@ -156,7 +162,7 @@ class OnboardingNavigationTest {
     checkContentEnd()
     action("next").performClick()
     page(3)
-    rule.onNodeWithText(context.getString(R.string.setup_open_desktop)).performClick()
+    openLink(R.string.setup_open_desktop)
     rule.waitForIdle()
     back()
     page(3)
@@ -170,20 +176,17 @@ class OnboardingNavigationTest {
     page(4)
     screenshot("finish")
     checkContentEnd()
-    rule.onNode(hasText(context.getString(R.string.settings_hook_section)) and hasClickAction())
-      .performScrollTo().performClick()
+    openLink(R.string.settings_hook_section)
     settleTransition()
     rule.onNodeWithText(context.getString(R.string.scope_surfaces_note))
       .performScrollTo().assertIsDisplayed()
     back()
     page(4)
-    rule.onNode(hasText(context.getString(R.string.settings_log_section)) and hasClickAction())
-      .performScrollTo().performClick()
+    openLink(R.string.settings_log_section)
     rule.waitForIdle()
     back()
     page(4)
-    rule.onNode(hasText(context.getString(R.string.settings_cache_section)) and hasClickAction())
-      .performScrollTo().performClick()
+    openLink(R.string.settings_cache_section)
     settleTransition()
     rule.onNodeWithTag("settings.cache.clear").assertExists()
     back()

@@ -112,11 +112,13 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
   ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       key(page) {
-        // Reserve toolbar space inside the scroll content, keeping the viewport behind it visible.
-        Column(Modifier.fillMaxSize().testTag("setup.content")
+        // Bring-into-view must keep actionable rows outside both overlay bars.
+        Column(Modifier.fillMaxSize()
+          .padding(top = insets.calculateTopPadding() + 12.dp,
+            bottom = insets.calculateBottomPadding() + toolbarClearance)
+          .testTag("setup.content")
           .nestedScroll(behavior.nestedScrollConnection).verticalScroll(rememberScrollState())
-          .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 12.dp,
-            bottom = insets.calculateBottomPadding() + toolbarClearance),
+          .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp)
             .semantics { contentDescription = stepLabel },

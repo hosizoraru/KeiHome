@@ -36,11 +36,12 @@ the Status page; an unavailable framework does not block Continue or Set up late
 
 The footer uses MIUIX Scaffold's native `floatingToolbar` slot with a rounded
 FloatingToolbar, divider and native buttons. There is no full-width bottom bar.
-Its measured height, floating spacing and navigation safe area are reserved
-inside the scroll content. Padding outside the scroll modifier previously
-shortened the viewport and left a solid block below it; the body now draws
-behind the floating controls and can scroll its final item above them. The TopAppBar
-uses MIUIX scroll behavior and the existing preference-aware blurred header.
+The scroll viewport reserves the measured toolbar height, floating spacing,
+navigation safe area and top-app-bar inset. This keeps rows brought into view
+outside both overlay bars; padding only the end of the scroll content can leave
+a middle row behind the toolbar and route a touch to Continue instead.
+The full-page backdrop remains on the outer container. The TopAppBar uses MIUIX
+scroll behavior and the existing preference-aware blurred header.
 MIUIX navigation provides page transitions and normal Back behavior; strings
 cover English, Simplified Chinese and Japanese.
 

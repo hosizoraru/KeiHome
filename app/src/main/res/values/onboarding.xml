@@ -7,7 +7,7 @@
     <string name="setup_exit">Close guide</string>
     <string name="setup_previous">Back</string>
     <string name="setup_next">Continue</string>
-    <string name="setup_finish">Start using KeiHome</string>
+    <string name="setup_finish">Start</string>
     <string name="setup_welcome_title">Make your home screen your own</string>
     <string name="setup_welcome_body">A few steps to explore KeiHome and check what is ready. You can skip optional setup and return here from Settings.</string>
     <string name="setup_feature_icons">Icons that fit together</string>

@@ -7,7 +7,7 @@
     <string name="setup_exit">ガイドを閉じる</string>
     <string name="setup_previous">戻る</string>
     <string name="setup_next">次へ</string>
-    <string name="setup_finish">KeiHome を使う</string>
+    <string name="setup_finish">はじめる</string>
     <string name="setup_welcome_title">ホーム画面を自分らしく</string>
     <string name="setup_welcome_body">KeiHome の機能と動作環境を確認し、好みの見た目を選びます。設定はあとでも行え、設定画面からこのガイドに戻れます。</string>
     <string name="setup_feature_icons">統一感のあるアイコン</string>

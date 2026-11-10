@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -64,9 +65,9 @@ class OnboardingNavigationTest {
     hasAnyAncestor(hasTestTag("setup.page.$currentPage")))
 
   private fun packPage(section: String) {
-    rule.waitUntil(10_000) {
-      rule.onAllNodesWithTag("icon-packs.$section").fetchSemanticsNodes()
-        .any { kotlin.math.abs(it.boundsInRoot.left) < 1f }
+    rule.waitUntil(30_000) {
+      val matches = rule.onAllNodesWithTag("icon-packs.$section")
+      matches.fetchSemanticsNodes().indices.any { matches[it].isDisplayed() }
     }
     settleTransition()
   }

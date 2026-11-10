@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="dashboard_pill_system">系统</string>
+    <string name="dashboard_pill_launcher">桌面</string>
+    <string name="dashboard_pill_icons">图标</string>
+    <string name="dashboard_pill_palette">调色板</string>
+    <string name="dashboard_pill_ready">已就绪</string>
+    <string name="dashboard_state_pill">%1$s · %2$s</string>
     <string name="dashboard_partly_loaded">部分已加载</string>
     <string name="dashboard_reading_status">正在读取状态…</string>
     <string name="dashboard_framework_identity">%1$s · %2$s</string>

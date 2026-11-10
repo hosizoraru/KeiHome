@@ -4,6 +4,7 @@ import android.provider.Settings
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -71,6 +72,8 @@ class MonetColorEditorTest {
   private fun openMonet() {
     val context = compose.activity
     compose.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable()).performClick()
+    compose.onNode(hasText(context.getString(R.string.settings_monet_title)) and hasClickAction())
+      .performScrollTo().performClick()
     compose.onNodeWithContentDescription(context.getString(R.string.monet_open_details))
       .performScrollTo().performClick()
   }

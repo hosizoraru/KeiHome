@@ -16,8 +16,10 @@ GROUPS = {
         UI + "UiActionPolishDeviceTest",)),
     "ui-navigation": ("device", "Both navbar styles, tabs, themes and large text", (
         UI + "Os4ChromeDeviceTest",)),
-    "ui-status": ("device", "Status cards and theme-effect controls", (
-        UI + "MonetStatusContentTest", UI + "ThemeEffectsCardTest")),
+    "ui-status": ("device", "Status cards, disclosures and detail navigation", (
+        UI + "MonetStatusContentTest",)),
+    "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (
+        UI + "ThemeEffectsCardTest",)),
     "ui-color-editor": ("device", "Color input, confirmation and draft recreation", (
         UI + "MonetColorEditorTest",)),
     "ui-settings": ("jvm", "Appearance preferences and recovery", (

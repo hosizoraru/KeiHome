@@ -34,6 +34,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -381,18 +382,34 @@ private fun RuntimeStatusCard(
   expanded: Boolean,
   onToggle: () -> Unit,
 ) {
-  val summary = if (runtime.kind == NativeStatusKind.READY) {
-    stringResource(R.string.runtime_ready_summary, targetLabel(state.systemState, state.reported))
-  } else stringResource(runtime.kind.label)
   val report = runtime.report
   val loadedAccent = colorResource(if (LocalKeiHomeDarkTheme.current)
     R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent)
   DashboardExpandableCard(
     title = stringResource(R.string.dashboard_runtime),
-    summary = summary,
     expanded = expanded,
     onToggle = onToggle,
-    footer = { DashboardCallbackReceipt(report?.refresh) },
+    footer = {
+      DashboardPillRow {
+        DashboardStatePill(stringResource(R.string.dashboard_pill_system),
+          targetLabel(state.systemState, state.reported), when (state.systemState) {
+            HookedTarget.State.UP_TO_DATE -> StatusTone.READY
+            HookedTarget.State.FAILED -> StatusTone.ERROR
+            HookedTarget.State.RELOADING, HookedTarget.State.STALE -> StatusTone.WARNING
+            null -> null
+          }, "status.runtime.system")
+        DashboardStatePill(stringResource(R.string.dashboard_pill_launcher),
+          stringResource(if (runtime.kind == NativeStatusKind.READY) R.string.dashboard_pill_ready
+            else runtime.kind.label), when (runtime.kind) {
+            NativeStatusKind.READY -> StatusTone.READY
+            NativeStatusKind.READ_FAILED, NativeStatusKind.TIMED_OUT -> StatusTone.ERROR
+            NativeStatusKind.NOT_REPORTED, NativeStatusKind.INACTIVE_USER,
+            NativeStatusKind.UNAVAILABLE -> null
+            else -> StatusTone.WARNING
+          }, "status.runtime.launcher")
+        DashboardCallbackReceipt(report?.refresh)
+      }
+    },
   ) {
     report?.launcherPid?.let { pid ->
       DashboardDetail(
@@ -489,6 +506,7 @@ private fun DashboardMonetCard(
   val current = snapshot.takeUnless { readFailed }
   val palette = current?.activePalette
   val paletteLabel = stringResource(when {
+    readFailed -> R.string.monet_state_unavailable
     palette == null -> R.string.status_unknown
     palette.state == MonetReadState.UNAVAILABLE -> R.string.monet_state_unavailable
     palette.state == MonetReadState.NOT_PROVIDED || palette.generatedColorCount == 0 ->
@@ -502,18 +520,22 @@ private fun DashboardMonetCard(
   })
   DashboardExpandableCard(
     title = stringResource(R.string.settings_monet_title),
-    summary = when {
-      readFailed -> stringResource(R.string.status_framework_error)
-      current == null -> stringResource(R.string.monet_loading)
-      else -> stringResource(R.string.dashboard_monet_summary, iconsLabel, paletteLabel)
-    },
     expanded = expanded,
     onToggle = onToggle,
     onOpen = onOpenMonet,
     openLabel = stringResource(R.string.monet_open_details),
     footer = {
-      if (readFailed) DashboardFootnote(stringResource(R.string.dashboard_current_unknown))
-      else if (current != null) DashboardPaletteAge(current.lastAppliedRevision)
+      DashboardPillRow {
+        DashboardStatePill(stringResource(R.string.dashboard_pill_icons), iconsLabel,
+          if (current?.monochrome?.enabled == true) StatusTone.READY else null, "status.monet.icons")
+        DashboardStatePill(stringResource(R.string.dashboard_pill_palette), paletteLabel, when {
+          readFailed || palette?.state == MonetReadState.UNAVAILABLE -> StatusTone.ERROR
+          palette == null || palette.state == MonetReadState.NOT_PROVIDED ||
+            palette.generatedColorCount == 0 -> null
+          else -> StatusTone.READY
+        }, "status.monet.palette")
+        if (current != null) DashboardPaletteAge(current.lastAppliedRevision)
+      }
     },
   ) {
     DashboardDetail(
@@ -602,7 +624,7 @@ private fun dashboardRelativeTime(age: Long?): String = when {
 @Composable
 private fun DashboardCallbackReceipt(receipt: IconRefreshReceipt?) {
   if (receipt == null || receipt.callbacks < 0 || receipt.completedAtMillis <= 0) {
-    DashboardFootnote(stringResource(R.string.runtime_callbacks_unreported))
+    MetadataPill(stringResource(R.string.runtime_callbacks_unreported), MiuixTheme.colorScheme.onSurfaceSecondary)
     return
   }
   val relative = dashboardRelativeTime(dashboardAgeMinutes(receipt.completedAtMillis))
@@ -661,7 +683,6 @@ private fun CapabilityCount(count: Int?, label: String, color: Color) {
 @Composable
 private fun DashboardExpandableCard(
   title: String,
-  summary: String,
   expanded: Boolean,
   onToggle: () -> Unit,
   onOpen: (() -> Unit)? = null,
@@ -677,19 +698,21 @@ private fun DashboardExpandableCard(
   )
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     Os4DisclosureHeader(
-      title = title, summary = summary, expanded = expanded,
+      title = title, summary = null, expanded = expanded,
       actionLabel = actionLabel, stateLabel = expansionState, onToggle = onToggle,
       bottomAction = footer,
     )
     Os4DisclosureContent(expanded) {
-      Column(content = content)
-    }
-    if (onOpen != null && openLabel != null) {
-      CenteredLinkAction(
-        label = stringResource(R.string.action_label_details), description = openLabel, onClick = onOpen,
-        icon = actionIcon(PageActionIcon.OPEN_INTERNAL),
-        modifier = Modifier.padding(horizontal = 12.dp),
-      )
+      Column {
+        if (onOpen != null && openLabel != null) {
+          CenteredLinkAction(
+            label = stringResource(R.string.action_label_details), description = openLabel, onClick = onOpen,
+            icon = actionIcon(PageActionIcon.OPEN_INTERNAL),
+            modifier = Modifier.padding(horizontal = 12.dp),
+          )
+        }
+        content()
+      }
     }
   }
 }
@@ -707,6 +730,25 @@ private fun DashboardDetail(title: String, value: String, stacked: Boolean = fal
         textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }),
   )
+}
+
+@Composable
+private fun DashboardPillRow(content: @Composable () -> Unit) {
+  FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+}
+
+@Composable
+private fun DashboardStatePill(label: String, value: String, tone: StatusTone?, tag: String) {
+  val color = when (tone) {
+    StatusTone.READY -> colorResource(if (LocalKeiHomeDarkTheme.current)
+      R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent)
+    StatusTone.WARNING -> colorResource(if (LocalKeiHomeDarkTheme.current)
+      R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent)
+    StatusTone.ERROR -> MiuixTheme.colorScheme.error
+    null -> MiuixTheme.colorScheme.onSurfaceSecondary
+  }
+  MetadataPill(stringResource(R.string.dashboard_state_pill, label, value), color, Modifier.testTag(tag))
 }
 
 @Composable

@@ -17,10 +17,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
@@ -151,6 +153,38 @@ class MonetStatusContentTest {
   }
 
   @Test
+  fun summaryPillsFollowCurrentSettingsAndClearStalePaletteSuccess() {
+    var current by mutableStateOf(snapshot())
+    var readFailed by mutableStateOf(false)
+    composeTestRule.setContent {
+      KeiHomeTheme {
+        Box(Modifier.verticalScroll(rememberScrollState())) {
+          StatusBody(connected = true, snapshot = null, readFailed = false,
+            monetSnapshot = current, monetReadFailed = readFailed, onRefresh = {},
+            onOpenMonet = {})
+        }
+      }
+    }
+    fun pill(label: Int, value: Int) =
+      context.getString(R.string.dashboard_state_pill, context.getString(label), context.getString(value))
+    val icons = composeTestRule.onNodeWithTag("status.monet.icons", useUnmergedTree = true)
+    val palette = composeTestRule.onNodeWithTag("status.monet.palette", useUnmergedTree = true)
+    composeTestRule.onNodeWithTag("status.runtime.system", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithTag("status.runtime.launcher", useUnmergedTree = true).assertExists()
+    icons.assertTextContains(pill(R.string.dashboard_pill_icons, R.string.dashboard_on))
+    palette.assertTextContains(pill(R.string.dashboard_pill_palette, R.string.dashboard_palette_available))
+    composeTestRule.runOnIdle {
+      current = snapshot(launcherState = MonetReadState.UNAVAILABLE,
+        frameworkState = MonetReadState.NOT_PROVIDED, themedIcons = false)
+    }
+    icons.assertTextContains(pill(R.string.dashboard_pill_icons, R.string.dashboard_off))
+    palette.assertTextContains(pill(R.string.dashboard_pill_palette, R.string.monet_state_not_provided))
+    composeTestRule.runOnIdle { readFailed = true }
+    icons.assertTextContains(pill(R.string.dashboard_pill_icons, R.string.status_unknown))
+    palette.assertTextContains(pill(R.string.dashboard_pill_palette, R.string.monet_state_unavailable))
+  }
+
+  @Test
   fun statusActionsHaveAccessibleLabels() {
     var refreshed = false
     var openedMonet = false
@@ -189,10 +223,13 @@ class MonetStatusContentTest {
       context.getString(R.string.dashboard_expand, context.getString(R.string.settings_monet_title)),
       monetCard.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
     )
+    val monetDetails = composeTestRule.onNodeWithContentDescription(context.getString(R.string.monet_open_details))
+    monetDetails.assertDoesNotExist()
     monetCard.performClick()
     composeTestRule.runOnIdle { assertFalse(openedMonet) }
-    composeTestRule.onNodeWithContentDescription(context.getString(R.string.monet_open_details))
-      .performScrollTo().performClick()
+    monetDetails.performScrollTo().performClick()
+    monetCard.performScrollTo().performClick()
+    monetDetails.assertDoesNotExist()
     composeTestRule.runOnIdle {
       assertTrue(refreshed)
       assertTrue(openedMonet)

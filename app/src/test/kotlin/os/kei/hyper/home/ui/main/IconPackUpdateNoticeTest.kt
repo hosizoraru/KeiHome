@@ -36,6 +36,15 @@ class IconPackUpdateNoticeTest {
     assertFalse(needed(current))
     assertTrue(needed(current, pack.copy(source = IconPackSource.Installed("os.test.icons", 2, 200))))
   }
+  @Test fun coveredLegacyFallbackNeedsOneRegenerationAfterCompanionRenderingFix() {
+    val legacy = IconBuildInventory.sourceIdentity(pack.copy(
+      id = "${pack.id}:system-fallback-v1:DEFAULT"))
+    val applied = source.copy(nativeNames = setOf(target.packageName), buildSource = legacy)
+    assertTrue(needed(applied))
+    val regenerated = applied.copy(buildSource = IconBuildInventory.sourceIdentity(pack.copy(
+      id = SystemIconFallback.DEFAULT.sourceId(pack.id))))
+    assertFalse(needed(regenerated))
+  }
   @Test fun fallbackPreferenceDifferenceNeedsRegeneration() {
     assertTrue(needed(source.copy(nativeNames = setOf(target.packageName),
       systemFallback = SystemIconFallbackManifest(SystemIconFallback.CLASSIC, setOf(target.packageName)))))

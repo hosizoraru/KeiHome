@@ -25,6 +25,7 @@ internal class SystemIconFallbackRenderer(
   private val style: SystemIconFallback,
 ) {
   private val apps = mutableMapOf<String, ApplicationInfo?>()
+  private val systemPackages = mutableMapOf<String, Boolean>()
   private val defaultShape by lazy { NativeAdaptiveIconMask.load() }
   private val shape by lazy {
     when (style) {
@@ -58,15 +59,21 @@ internal class SystemIconFallbackRenderer(
 
   val perfectSourceHash: String? by lazy { style.perfectStyle?.let { PerfectSystemFallback.sourceHash(context, it) } }
 
-  fun isSystem(target: IconPackComponent): Boolean {
-    val app = if (apps.containsKey(target.packageName)) apps[target.packageName] else {
+  fun isSystem(target: IconPackComponent): Boolean = isSystem(target.packageName)
+
+  private fun isSystem(packageName: String): Boolean = systemPackages.getOrPut(packageName) {
+    val app = if (apps.containsKey(packageName)) apps[packageName] else {
       try {
-        context.packageManager.getApplicationInfo(target.packageName,
+        context.packageManager.getApplicationInfo(packageName,
           PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
       } catch (_: PackageManager.NameNotFoundException) { null }
-        .also { apps[target.packageName] = it }
-    } ?: return false
-    return app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+        .also { apps[packageName] = it }
+    }
+    app != null && (app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 ||
+      SystemIconCompanions.matches(packageName, ::isSystem) { ui, host ->
+        try { context.packageManager.checkSignatures(ui, host) == PackageManager.SIGNATURE_MATCH }
+        catch (_: SecurityException) { false }
+      })
   }
 
   fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? {

@@ -94,6 +94,7 @@ internal fun SettingsContent(
     R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
   val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
   val staticScope = matches(SettingsSection.HOOK, R.string.scope_title, R.string.scope_search,
+    R.string.scope_surfaces_note,
     extra = "scope libxposed")
   val launcherGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.settings_system_appearance,
     R.string.launcher_glass_title, R.string.launcher_glass_summary,

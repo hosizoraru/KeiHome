@@ -47,7 +47,8 @@ import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class MonetStatusContentTest {
-  @get:Rule val composeTestRule = createComposeRule()
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val composeTestRule = createComposeRule()
 
   private val context: Context = ApplicationProvider.getApplicationContext()
 

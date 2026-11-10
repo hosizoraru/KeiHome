@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -30,8 +29,9 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
   val color = MiuixTheme.colorScheme.primary
   Card(Modifier.fillMaxWidth().testTag("framework.static-scope"), insideMargin = PaddingValues(0.dp)) {
     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(stringResource(R.string.scope_title), Modifier.weight(1f), style = MiuixTheme.textStyles.body1)
+      FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.scope_title), style = MiuixTheme.textStyles.body1)
         if (plan != null) MetadataPill(stringResource(R.string.scope_count, plan.granted.size, plan.eligible.size), color)
       }
       val summary = when {
@@ -46,6 +46,10 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       }
       Text(stringResource(summary), style = MiuixTheme.textStyles.footnote1,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (!attentionOnly) {
+        Text(stringResource(R.string.scope_surfaces_note), style = MiuixTheme.textStyles.footnote2,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
       if (plan != null) FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
       ) {
@@ -85,12 +89,13 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       }
       Text(stringResource(R.string.scope_runtime_note), style = MiuixTheme.textStyles.footnote2,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
         TextButton(stringResource(if (state.canRequest || state.requesting) R.string.scope_request else R.string.scope_check),
-          modifier = Modifier.weight(1f), enabled = state.connected && !state.requesting, onClick = {
+          enabled = state.connected && !state.requesting, onClick = {
             if (state.canRequest) model.scopeRequests.request() else model.scopeRequests.check()
           })
-        TextButton(stringResource(R.string.scope_open_manager), modifier = Modifier.weight(1f), onClick = openManager)
+        TextButton(stringResource(R.string.scope_open_manager), onClick = openManager)
       }
     }
   }

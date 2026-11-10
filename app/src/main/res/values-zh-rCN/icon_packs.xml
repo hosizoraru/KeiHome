@@ -53,5 +53,5 @@
     <string name="icon_pack_native_note">APK/ZIP 导出已安装应用的深浅色静态图标，新增应用后需重新导入。MTZ 保留原始资源。请在系统主题页应用。</string>
     <string name="icon_pack_recheck">查询导入结果</string>
     <string name="icon_pack_native_update">更新导入的图标</string>
-    <string name="icon_pack_scope_needed">应用图标包需在 LSPosed 启用“主题商店”作用域，然后重启主题商店。</string>
+    <string name="icon_pack_scope_needed">应用图标包需要在 LSPosed 中授权主题壁纸。新授权的主题进程需加载模块，授权不代表已经加载。</string>
 </resources>

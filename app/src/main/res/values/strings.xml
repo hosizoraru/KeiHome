@@ -105,7 +105,7 @@
     <string name="settings_api_title">LSPosed API</string>
     <string name="settings_api_value">API 102; automatic hot reload declared</string>
     <string name="settings_scope_title">Hook scope</string>
-    <string name="settings_scope_value">Recommended: system</string>
+    <string name="settings_scope_value">Grant installed targets in Static scope; loading is reported separately</string>
     <string name="settings_monet_title">Monet</string>
     <string name="settings_monet_value">System palette shown below</string>
     <string name="monet_section_title">Monet palette</string>
@@ -157,7 +157,7 @@
     <string name="monet_family_neutral_variant">Neutral 2</string>
     <string name="monet_swatch_tone_description">%1$s, tone %2$d: %3$s</string>
     <string name="monet_swatch_description">%1$s: %2$s</string>
-    <string name="settings_footer">A monochrome resource does not guarantee that a launcher supports themed icons. Activate the module and its scope in LSPosed.</string>
+    <string name="settings_footer">A monochrome resource alone does not confirm support. Enable the module and the scopes for the surfaces you use; verify loading and visible icons separately.</string>
     <string name="monet_current_theme">Current icon palette</string>
     <string name="monet_launcher_selection">Launcher color selection</string>
     <string name="monet_icons_disabled">Themed icons are off</string>
@@ -177,7 +177,7 @@
     <string name="monet_preview_light">Light</string>
     <string name="monet_accent_and_neutral">Foreground / background</string>
     <string name="monet_apply_scheme">Apply colors and enable Monet</string>
-    <string name="monet_scope_hint">Applies to launcher icons. Wallpaper seeds update automatically; fixed colors and custom families stay fixed.</string>
+    <string name="monet_scope_hint">Supported app icons in the launcher and other system surfaces reuse the applied theme and palette. Each host needs its scope. Wallpaper colors update automatically; fixed colors stay fixed.</string>
     <string name="monet_show_details">View palette details</string>
     <string name="monet_hide_details">Hide palette details</string>
     <string name="monet_selected_palette">Selected icon palette</string>

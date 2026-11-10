@@ -9,9 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
-import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
 import org.junit.Rule
 import org.junit.Test
@@ -26,16 +24,7 @@ import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class PackGuidanceDeviceTest {
   private val rule = createComposeRule()
-  @get:Rule val lifecycle = RuleChain.outerRule(object : ExternalResource() {
-    override fun before() {
-      // HyperOS may reject the next test Activity while the previous host has closed.
-      // Bring our app forward before ActivityScenario is created, not in @Before.
-      val i = InstrumentationRegistry.getInstrumentation()
-      android.os.ParcelFileDescriptor.AutoCloseInputStream(i.uiAutomation.executeShellCommand(
-        "am start -W -n os.kei.hyper.home/.MainActivity")).use { it.readBytes() }
-      i.waitForIdleSync()
-    }
-  }).around(rule)
+  @get:Rule val lifecycle = RuleChain.outerRule(ForegroundComposeHostRule()).around(rule)
   private val context: Context = ApplicationProvider.getApplicationContext()
   private fun text(id: Int) = context.getString(id)
 

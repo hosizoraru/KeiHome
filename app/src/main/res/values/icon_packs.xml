@@ -53,5 +53,5 @@
     <string name="icon_pack_native_note">APK/ZIP exports include light and dark static icons for installed apps. Re-import after installing more apps. MTZ resources are preserved. Apply from the system Themes screen.</string>
     <string name="icon_pack_recheck">Check import status</string>
     <string name="icon_pack_native_update">Update imported icons</string>
-    <string name="icon_pack_scope_needed">To apply packs, enable the Themes scope in LSPosed, then restart Themes.</string>
+    <string name="icon_pack_scope_needed">Applying packs needs Themes authorization in LSPosed. A newly authorized Themes process must load the module; authorization alone does not confirm loading.</string>
 </resources>

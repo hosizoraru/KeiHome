@@ -30,7 +30,8 @@ import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.basic.TextButton
 
 class FrameworkManagerHelpTest {
-  @get:Rule val compose = createComposeRule()
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val compose = createComposeRule()
   private val context: Context = ApplicationProvider.getApplicationContext()
 
   @Test fun unavailableBridgeOffersManualEntryInsteadOfADeadEnd() {

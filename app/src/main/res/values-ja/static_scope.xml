@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="scope_title">静的スコープ</string>
-  <string name="scope_search">スコープ 許可 申請 LSPosed Xposed フレームワーク 権限</string>
+  <string name="scope_search">スコープ 許可 申請 LSPosed Xposed フレームワーク 権限 システム 共有 設定 セキュリティ サイドバー</string>
   <string name="scope_count">%1$d / %2$d 許可済み</string>
   <string name="scope_disconnected">モジュールサービスに未接続です。管理アプリで KeiHome が有効か確認してください。</string>
   <string name="scope_read_failed">現在のスコープを読み取れません。再確認してから申請してください。</string>
@@ -24,12 +24,13 @@
   <string name="scope_failed">申請が完了しませんでした。フレームワークの応答を確認して再試行してください。</string>
   <string name="scope_returned">許可は未完了です。残りのスコープを再申請できます。</string>
   <string name="scope_timeout">応答がないため実際の許可を再確認しました。再試行できます。</string>
-  <string name="scope_runtime_note">許可状態と対象の読み込み状態は別々に表示されます。新しく許可された対象は再読み込みが必要な場合があります。</string>
+  <string name="scope_runtime_note">許可済みでも読み込み済みとは限りません。新しく許可したホストは次のプロセス起動時に読み込む場合があります。既存の対象は通常 API 102 のホットリロードで更新されます。「状態」で報告された読み込み状況を確認してください。</string>
   <string name="scope_request">許可を申請</string>
   <string name="scope_check">許可を確認</string>
   <string name="scope_open_manager">管理アプリを開く</string>
   <string name="scope_manager_unavailable">フレームワークの管理アプリで KeiHome が有効か確認してください。</string>
   <string name="scope_system_share">システム共有</string>
-  <string name="scope_security_center">セキュリティ</string>
+  <string name="scope_security_center">セキュリティ · サイドバー</string>
   <string name="scope_settings">設定</string>
+  <string name="scope_surfaces_note">対応アプリアイコンは、システム画面、共有画面、設定、セキュリティ（サイドバー）で適用済みテーマを使用できます。各スコープの許可が必要です。デスクトップ設定にはランチャー、パックの適用にはテーマも必要です。</string>
 </resources>

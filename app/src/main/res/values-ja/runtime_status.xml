@@ -10,7 +10,7 @@
     <string name="runtime_generation_mismatch">報告ビルドが不一致</string>
     <string name="runtime_unavailable">ホームの接続を待機中</string>
     <string name="runtime_capability_missing">ホーム機能が未読込</string>
-    <string name="runtime_capability_missing_note">ホームには接続済みですが、配色機能が読み込まれていません。モジュール更新後、ホームまたは端末を一度再起動してください。改善しない場合は LSPosed ログを書き出してください。</string>
+    <string name="runtime_capability_missing_note">ランチャーは接続済みですが、配色機能の準備ができていません。API 102 の自動ホットリロード完了後に再確認してください。利用できない状態が続く場合は、ランチャーの再起動を検討する前に LSPosed ログを書き出してください。</string>
     <string name="runtime_inactive_user">現在のユーザーではありません</string>
     <string name="runtime_timed_out">状態の照会がタイムアウト</string>
     <string name="runtime_read_failed">状態の取得に失敗</string>

@@ -19,7 +19,8 @@ import org.junit.Rule
 import org.junit.Test
 
 class MainTabNavigationDeviceTest {
-  @get:Rule val rule = createComposeRule()
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val rule = createComposeRule()
   private lateinit var pager: PagerState
   private lateinit var scope: CoroutineScope
   private lateinit var navigation: MainTabNavigation

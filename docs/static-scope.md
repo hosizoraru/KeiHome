@@ -24,6 +24,26 @@ installed-app browser also retains `QUERY_ALL_PACKAGES`. Like other real package
 these hosts are eligible only when confirmed installed for the current user.
 Existing grants remain valid; an upgrade requests only missing installed targets.
 
+The current declaration has seven targets; the UI reads it dynamically rather
+than storing a fixed count.
+
+| Target | UI name | Purpose and limits |
+| --- | --- | --- |
+| `system` | System framework | System-side synchronization and supported recent-task app-icon snapshots. Requires framework system-scope support. |
+| `com.miui.home` | Launcher | Supported desktop, Dock and icon controls. Native launcher capabilities still determine availability. |
+| `com.android.thememanager` | Themes | Apply generated/imported packs through the supported theme path. |
+| `com.android.systemui` | System UI | Supported materials and notification app-icon surfaces; not every notification symbol or image. |
+| `com.android.intentresolver` | System share | Supported OEM share-target app icons; package presence alone does not establish a compatible profile. |
+| `com.miui.securitycenter` | Security · Sidebar | Supported Sidebar app-icon entries in recognized Security processes and profiles. |
+| `com.android.settings` | Settings | Supported app-icon loading; this does not describe arbitrary Settings artwork. |
+
+These are scopes rather than seven universally available features. Existing host,
+process, user, signature and profile predicates remain authoritative. Unsupported
+or ambiguous entries retain native icons. An unchanged icon alone does not
+establish an authorization failure. The full scope card keeps these purposes
+in one compact explanation beside the existing status pills; the attention-only
+card omits this explanation on Status and the final guide step.
+
 The shared scope card in onboarding, System and Hook, and Status displays this
 host authorization state. Granting Settings or Security access does not require
 restarting the system, Launcher, or System UI. A host process already running
@@ -65,10 +85,11 @@ actions. KeiHome points to the framework dialog or notification; the framework
 handles the decision.
 
 The Phone AVD acceptance temporarily removed only the Themes authorization,
-verified the 3/4 state and missing-only request, rejected it through the native
+verified the historical 3/4 state and missing-only request, rejected it through the native
 notification, retried, and allowed the new request. All four original grants
 were read back afterward. Launcher, SystemUI, and system-server process identities
-remained unchanged. The final receipt records the tested build and UI evidence.
+remained unchanged. The final receipt records that earlier build and UI evidence;
+it does not validate the expanded seven-target declaration.
 
 Framework snapshots require a matching live service/client binding and an ordered
 read handle. An obsolete service cannot publish either a success or a failure
@@ -79,3 +100,40 @@ The original focused JVM verification covered 25 request-controller cases and
 4 scope-gate cases; the current request suite also covers app-icon host
 eligibility and missing-only upgrades. Final Release UI/build evidence is recorded in
 `.artifacts/research/static-scope-20261106/acceptance.json`.
+
+## Current UI and validation handoff
+
+The title/count and actions in `ui/main/StaticScopeCard.kt` wrap using the pinned
+MIUIX components for narrow windows and large text. `SettingsContent.kt` makes
+the surface explanation searchable. EN/ZH/JA `static_scope.xml` resources name
+Security and Sidebar together and distinguish authorization, loading and update
+behavior. Existing request decisions, source predicates and status implementations
+are unchanged by this UI/documentation slice.
+
+After first enablement and scope authorization, one system reboot is recommended.
+Subsequent module updates normally use API 102 automatic hot reload; supported
+settings sync automatically. This is separate from a newly authorized host needing
+its next process start. Status reports describe only the targets actually reported
+by the framework and launcher acknowledgements. They do not prove all hosts loaded
+or that their icons changed.
+
+Static checks cover resource XML parsing, duplicate names, locale key and format
+placeholder parity, UI string references, declared targets and diff whitespace.
+No Gradle, ADB or device acceptance runs are part of this slice. The parent should
+run `:app:testDebugUnitTest` (including `StaticScopeRequestsTest`) and the onboarding
+instrumented checks in `docs/onboarding.md`, then capture the scope card at standard
+and large text in EN/ZH/JA.
+
+Compare the count against confirmed-installed/supported declared targets in
+LSPosed. With all six APK targets confirmed installed, system scope supported and
+all seven authorized, expect 7 / 7 and a Check scope action. Missing,
+unsupported and unconfirmed entries stay distinct; another device may have a
+smaller denominator. Controls remain disabled during a request, and runtime
+warnings remain independent of the granted count.
+
+Check disconnected, partly granted and fully granted layouts. Open the launcher,
+recent tasks, a supported notification row, share sheet, Settings app list and
+Security Sidebar as available. Compare app icons after applying a pack and changing
+light/dark mode; confirm native fallback for unsupported entries. Preserve existing
+host/user/profile guards and distinguish authorization from actual loading and
+visible results.

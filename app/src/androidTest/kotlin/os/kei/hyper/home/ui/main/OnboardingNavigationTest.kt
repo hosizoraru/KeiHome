@@ -24,13 +24,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.tencent.mmkv.MMKV
 import android.graphics.Bitmap
 import java.io.File
-import java.io.FileInputStream
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.ExternalResource
 import os.kei.hyper.home.MainNavigation
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppLocalStorage
@@ -39,16 +37,7 @@ import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class OnboardingNavigationTest {
-  @get:Rule(order = 0) val foregroundHost = object : ExternalResource() {
-    override fun before() {
-      // HyperOS requires the test host to be visible before ActivityScenario's background start.
-      val command = "am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER " +
-        "-n ${context.packageName}/androidx.activity.ComponentActivity"
-      InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use {
-        FileInputStream(it.fileDescriptor).use { output -> output.readBytes() }
-      }
-    }
-  }
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createComposeRule()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val id = "onboarding_nav_${UUID.randomUUID()}"
@@ -137,6 +126,16 @@ class OnboardingNavigationTest {
     packPage("library")
     back()
     page(2)
+    for ((title, section) in listOf(
+      R.string.perfect_icons_title to "perfect",
+      R.string.apple_pack_title to "apple",
+    )) {
+      rule.onNodeWithText(context.getString(title))
+        .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+      packPage(section)
+      back()
+      page(2)
+    }
     rule.onNodeWithText(context.getString(R.string.navigation_monet))
       .performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
     packPage("monet")
@@ -170,6 +169,13 @@ class OnboardingNavigationTest {
     page(4)
     screenshot("finish")
     checkContentEnd()
+    rule.onNode(hasText(context.getString(R.string.settings_hook_section)) and hasClickAction())
+      .performScrollTo().performClick()
+    settleTransition()
+    rule.onNodeWithText(context.getString(R.string.scope_surfaces_note))
+      .performScrollTo().assertIsDisplayed()
+    back()
+    page(4)
     rule.onNode(hasText(context.getString(R.string.settings_log_section)) and hasClickAction())
       .performScrollTo().performClick()
     rule.waitForIdle()
@@ -213,6 +219,7 @@ class OnboardingNavigationTest {
     action("next").performClick()
     page(1)
     rule.onNodeWithText(context.getString(R.string.scope_open_manager)).performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.scope_surfaces_note)).performScrollTo().assertIsDisplayed()
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("large-text")
     checkContentEnd()
@@ -221,6 +228,12 @@ class OnboardingNavigationTest {
     rule.onNodeWithText(context.getString(R.string.setup_native_icons_title))
       .performScrollTo().assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.pack_completion_title))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.perfect_icons_title))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.apple_pack_title))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_local_icons_title))
       .performScrollTo().assertIsDisplayed()
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("large-icons")

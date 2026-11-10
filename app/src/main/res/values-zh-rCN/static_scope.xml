@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="scope_title">静态作用域</string>
-  <string name="scope_search">作用域 授权 申请 LSPosed Xposed 框架 权限</string>
+  <string name="scope_search">作用域 授权 申请 LSPosed Xposed 框架 权限 系统 分享 设置 手机管家 侧边栏</string>
   <string name="scope_count">%1$d / %2$d 已授权</string>
   <string name="scope_disconnected">尚未连接模块服务，请在框架管理器中检查 KeiHome 是否已启用。</string>
   <string name="scope_read_failed">暂时无法读取实际作用域，请重新检查后再申请。</string>
@@ -24,12 +24,13 @@
   <string name="scope_failed">申请未完成，请查看框架返回的原因后重试。</string>
   <string name="scope_returned">授权尚未完成，可以重新申请剩余作用域。</string>
   <string name="scope_timeout">暂未收到回调，已重新检查实际授权，可以重试。</string>
-  <string name="scope_runtime_note">授权状态与目标加载状态分别显示。新授权的目标可能需要重新加载后，相关功能才会生效。</string>
+  <string name="scope_runtime_note">已授权不代表已加载。新授权的宿主可能需在下次进程启动时加载模块；已有目标通常通过 API 102 热重载更新，请在状态页查看已上报的加载情况。</string>
   <string name="scope_request">申请授权</string>
   <string name="scope_check">检查授权</string>
   <string name="scope_open_manager">打开框架</string>
   <string name="scope_manager_unavailable">请打开所用框架的管理器，检查 KeiHome 是否已启用。</string>
   <string name="scope_system_share">系统分享</string>
-  <string name="scope_security_center">手机管家</string>
+  <string name="scope_security_center">手机管家 · 侧边栏</string>
   <string name="scope_settings">设置</string>
+  <string name="scope_surfaces_note">受支持的应用图标可在系统界面、分享面板、设置和手机管家（侧边栏）沿用已应用的主题，需分别授权对应作用域。桌面控制还需系统桌面，应用图标包需主题壁纸。</string>
 </resources>

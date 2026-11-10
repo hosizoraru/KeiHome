@@ -6,7 +6,7 @@
   <string name="top_bar_progressive">段階的ぼかし · Progressive</string>
   <string name="pack_update_available">補完または更新できるアイコンがあります。アイコンパックを更新してください。</string>
   <string name="pack_action_settings">アイコンパックと操作</string>
-  <string name="pack_action_settings_summary">自動適用、生成対象と選択内容の記憶</string>
+  <string name="pack_action_settings_summary">自動適用、全アプリまたはインストール済みのみの生成、選択の記憶</string>
   <string name="pack_auto_apply">生成後に自動適用</string>
   <string name="pack_auto_apply_summary">インストールや更新後、システムテーマで自動適用して戻ります。</string>
   <string name="pack_installed_icons_only">インストール済みアプリのアイコンのみ生成</string>

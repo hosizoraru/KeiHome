@@ -9,7 +9,7 @@
     <string name="settings_app_section">アプリ設定</string>
     <string name="settings_app_summary">外観、言語、ホーム画面のアイコンとナビゲーション</string>
     <string name="settings_hook_section">システムと Hook</string>
-    <string name="settings_hook_summary">システムの質感と起動画面</string>
+    <string name="settings_hook_summary">スコープの許可、システム素材、起動画面</string>
     <string name="settings_cache_section">キャッシュ管理</string>
     <string name="settings_cache_summary">アイコンプレビューとキャッシュの消去</string>
     <string name="settings_about_summary">バージョン、ソースとオープンソース表記</string>

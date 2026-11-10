@@ -53,5 +53,5 @@
     <string name="icon_pack_native_note">APK/ZIP はインストール済みアプリのライト・ダークアイコンを書き出します。アプリ追加後は再インポートしてください。MTZ の元リソースは保持されます。適用はシステムテーマ画面で行います。</string>
     <string name="icon_pack_recheck">インポート状況を確認</string>
     <string name="icon_pack_native_update">インポート済みアイコンを更新</string>
-    <string name="icon_pack_scope_needed">適用するには LSPosed でテーマのスコープを有効にし、テーマアプリを再起動してください。</string>
+    <string name="icon_pack_scope_needed">パックの適用には LSPosed でテーマの許可が必要です。新しく許可したテーマプロセスはモジュールを読み込む必要があり、許可だけでは読み込みを確認できません。</string>
 </resources>

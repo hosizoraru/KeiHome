@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="scope_title">Static scope</string>
-  <string name="scope_search">scope authorization LSPosed Xposed framework permissions</string>
+  <string name="scope_search">scope authorization LSPosed Xposed framework permissions system share sheet Settings Security Sidebar</string>
   <string name="scope_count">%1$d / %2$d granted</string>
   <string name="scope_disconnected">Connect the module service first. Check that KeiHome is enabled in the framework manager.</string>
   <string name="scope_read_failed">Unable to read the current scope. Check again before requesting access.</string>
@@ -24,12 +24,13 @@
   <string name="scope_failed">The request was not completed. Check the framework response and try again.</string>
   <string name="scope_returned">Authorization is incomplete. You can request the remaining scopes again.</string>
   <string name="scope_timeout">No callback arrived. The actual scope has been checked again; you can retry.</string>
-  <string name="scope_runtime_note">Authorization and target loading are shown separately. A newly authorized target may need to load again before its features become available.</string>
+  <string name="scope_runtime_note">Granted means authorized, not loaded. A newly added host may need its next process start to load the module. Existing targets normally update through API 102 hot reload; check reported loading in Status.</string>
   <string name="scope_request">Request access</string>
   <string name="scope_check">Check scope</string>
   <string name="scope_open_manager">Open manager</string>
   <string name="scope_manager_unavailable">Open your framework manager and check whether KeiHome is enabled.</string>
   <string name="scope_system_share">System share sheet</string>
-  <string name="scope_security_center">Security</string>
+  <string name="scope_security_center">Security · Sidebar</string>
   <string name="scope_settings">Settings</string>
+  <string name="scope_surfaces_note">Supported app icons can follow the applied theme in system surfaces, the share sheet, Settings and Security (Sidebar). Each needs its listed scope. Desktop controls also need Launcher; pack application needs Themes.</string>
 </resources>

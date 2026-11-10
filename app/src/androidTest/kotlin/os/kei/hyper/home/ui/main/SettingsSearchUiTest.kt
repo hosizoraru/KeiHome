@@ -52,7 +52,8 @@ class SettingsSearchUiTest {
     }
   }
 
-  @get:Rule val rule = createComposeRule()
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val rule = createComposeRule()
   private val context: Context = ApplicationProvider.getApplicationContext()
 
   @Test fun searchFindsAnOperableSettingAndShowsTheEmptyState() {

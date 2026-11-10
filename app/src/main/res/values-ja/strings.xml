@@ -109,7 +109,7 @@
     <string name="settings_api_title">LSPosed API</string>
     <string name="settings_api_value">API 102、自動ホットリロードを宣言済み</string>
     <string name="settings_scope_title">Hook のスコープ</string>
-    <string name="settings_scope_value">推奨スコープ: system</string>
+    <string name="settings_scope_value">静的スコープでインストール済みの対象を許可。読み込み状態は別に報告されます</string>
     <string name="settings_monet_title">Monet</string>
     <string name="settings_monet_value">システムパレットは下に表示</string>
     <string name="monet_section_title">Monet の配色</string>
@@ -154,7 +154,7 @@
     <string name="monet_family_neutral_variant">ニュートラル 2</string>
     <string name="monet_swatch_tone_description">%1$s、色調 %2$d: %3$s</string>
     <string name="monet_swatch_description">%1$s: %2$s</string>
-    <string name="settings_footer">単色リソースがあっても、ランチャーがテーマアイコンに対応しているとは限りません。LSPosed でモジュールとスコープを有効にしてください。</string>
+    <string name="settings_footer">単色リソースだけでは対応を確認できません。モジュールと使用する画面のスコープを有効にし、読み込み状態と実際のアイコンをそれぞれ確認してください。</string>
     <string name="monet_current_theme">現在のアイコン配色</string>
     <string name="monet_launcher_selection">ホームの選択色</string>
     <string name="monet_icons_disabled">テーマアイコンはオフ</string>
@@ -174,7 +174,7 @@
     <string name="monet_preview_light">ライト</string>
     <string name="monet_accent_and_neutral">前景 / 背景</string>
     <string name="monet_apply_scheme">配色を適用して Monet をオン</string>
-    <string name="monet_scope_hint">ホーム画面のテーマアイコンに適用。壁紙のシードは自動更新され、固定色とカスタム色系は維持されます。</string>
+    <string name="monet_scope_hint">ランチャーや他のシステム画面の対応アプリアイコンは適用済みテーマと配色を使用します。各ホストのスコープが必要です。壁紙の色は自動更新され、固定色は維持されます。</string>
     <string name="monet_show_details">パレットの詳細</string>
     <string name="monet_hide_details">詳細を閉じる</string>
     <string name="monet_selected_palette">選択したアイコン配色</string>

@@ -16,6 +16,7 @@ class KeiHomeModule : XposedModule() {
   private var themeIconImport: ThemeIconImportRuntime? = null
   private var systemUiTheme: SystemUiThemeCompatibilityRuntime? = null
   private var shareIcons: HyperOsShareIcons? = null
+  private var hostAppIcons: HostAppIconRuntime? = null
   private var processName: String = ""
   private val reloadState = ModuleReloadState(
     requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
@@ -30,6 +31,9 @@ class KeiHomeModule : XposedModule() {
   override fun onPackageLoaded(param: PackageLoadedParam) {
     if (!param.isFirstPackage) return
     when (param.packageName) {
+      HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE ->
+        if (HostAppIconRuntime.supports(processName) && hostAppIcons == null)
+          installHostAppIcons(param.defaultClassLoader)
       HyperOsShareProfile.PACKAGE ->
         if (shareIcons == null) installShareIcons(param.defaultClassLoader)
       ThemeIconImportRuntime.PACKAGE_NAME ->
@@ -42,6 +46,9 @@ class KeiHomeModule : XposedModule() {
 
   override fun onPackageReady(param: PackageReadyParam) {
     when (param.packageName) {
+      HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE ->
+        if (HostAppIconRuntime.supports(processName) && hostAppIcons == null)
+          installHostAppIcons(param.classLoader)
       HyperOsShareProfile.PACKAGE ->
         if (shareIcons == null) installShareIcons(param.classLoader)
       ThemeIconImportRuntime.PACKAGE_NAME ->
@@ -62,7 +69,9 @@ class KeiHomeModule : XposedModule() {
       val themes = themeIconImport
       val server = launcherRefresh
       val share = shareIcons
+      val sidebar = hostAppIcons
       when {
+        sidebar != null -> sidebar.retire { publish(sidebar.classLoader) }
         share != null -> share.retire { publish(share.classLoader) }
         ui != null -> ui.retire { publish(ui.classLoader) }
         themes != null -> themes.retire { publish(themes.classLoader) }
@@ -71,7 +80,8 @@ class KeiHomeModule : XposedModule() {
       }.also { ready ->
         if (!ready) log(Log.WARN, "KeiHomeRetirement",
           "Hot reload deferred in $processName: " +
-            (share?.retirementStatus() ?: ui?.retirementStatus() ?: server?.retirementStatus() ?: "cleanup pending"))
+            (sidebar?.retirementStatus() ?: share?.retirementStatus() ?:
+              ui?.retirementStatus() ?: server?.retirementStatus() ?: "cleanup pending"))
       }
     }
   }
@@ -81,6 +91,17 @@ class KeiHomeModule : XposedModule() {
     if (processName.substringBefore(':') == "com.miui.home") return
     val savedState = reloadState.restore(param.savedInstanceState)
     if (!param.isSystemServer) {
+      if (HostAppIconRuntime.supports(param.processName)) {
+        val application = runCatching {
+          Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+            .invoke(null) as? android.app.Application
+        }.getOrNull()
+        val loader = application?.classLoader ?: savedState as? ClassLoader
+        if (loader != null) installHostAppIcons(loader, param.oldHookHandles)
+        else log(Log.WARN, "KeiHomeSidebarIcons", "Sidebar loader unavailable after reload")
+        reloadState.startMaintenance()
+        return
+      }
       if (param.processName.substringBefore(':') == HyperOsShareProfile.PACKAGE) {
         val application = runCatching {
           Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
@@ -147,6 +168,14 @@ class KeiHomeModule : XposedModule() {
       launcherRefresh = LauncherIconRefreshRuntime(this)
     }
     reloadState.startMaintenance()
+  }
+
+  private fun installHostAppIcons(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
+    val runtime = HostAppIconRuntime(this, loader, processName)
+    hostAppIcons = runtime
+    try { runtime.install(oldHooks) } catch (failure: Exception) {
+      log(Log.WARN, "KeiHomeSidebarIcons", "Sidebar icons unavailable; retaining native behavior", failure)
+    }
   }
 
   private fun installShareIcons(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {

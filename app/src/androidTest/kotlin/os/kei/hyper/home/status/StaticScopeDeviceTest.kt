@@ -21,7 +21,10 @@ class StaticScopeDeviceTest {
     val service = requireNotNull(FrameworkConnection.service.value) { "Framework service did not connect" }
     val client = LibxposedStaticScopeClient(context, service)
     val before = client.readPlan()
-    assertEquals(listOf("system", "com.miui.home", "com.android.thememanager", "com.android.systemui"), before.declared)
+    assertEquals(listOf(
+      "system", "com.miui.home", "com.android.thememanager", "com.android.systemui",
+      "com.android.intentresolver", "com.miui.securitycenter", "com.android.settings",
+    ), before.declared)
     assertTrue(before.unconfirmed.isEmpty())
     val report = JSONObject().put("declared", JSONArray(before.declared))
       .put("eligible", JSONArray(before.eligible)).put("grantedBefore", JSONArray(service.scope))

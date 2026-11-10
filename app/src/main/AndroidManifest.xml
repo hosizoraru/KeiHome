@@ -28,6 +28,8 @@
             <category android:name="com.anddoes.launcher.THEME" />
         </intent>
         <package android:name="com.android.thememanager" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.android.settings" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

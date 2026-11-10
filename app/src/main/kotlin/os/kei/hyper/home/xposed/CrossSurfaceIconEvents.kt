@@ -18,10 +18,12 @@ internal object CrossSurfaceIconEvents {
     }
     // The OEM resolver has its own UID. Its exported receiver checks the shared
     // system sender identity in addition to requiring a system-only permission.
-    context.sendBroadcast(
-      Intent(PALETTE_CHANGED).setPackage(HyperOsShareProfile.PACKAGE)
-        .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
-      null, BroadcastOptions.makeBasic().setShareIdentityEnabled(true).toBundle(),
-    )
+    for (host in listOf(HyperOsShareProfile.PACKAGE, HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE)) {
+      context.sendBroadcast(
+        Intent(PALETTE_CHANGED).setPackage(host)
+          .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
+        null, BroadcastOptions.makeBasic().setShareIdentityEnabled(true).toBundle(),
+      )
+    }
   }
 }

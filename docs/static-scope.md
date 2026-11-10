@@ -16,6 +16,20 @@ not substituted for it. An individual package lookup failure remains
 unconfirmed and cannot revive a known absent target. An empty request is never
 submitted, and framework grants outside the declaration do not affect counts.
 
+The declared app-icon hosts include `com.android.intentresolver` (**System share
+sheet**), `com.android.settings` (**Settings**, including app management and app
+details), and `com.miui.securitycenter` (**Security**, including the sidebar).
+Settings and Security are explicitly listed in manifest queries; the existing
+installed-app browser also retains `QUERY_ALL_PACKAGES`. Like other real packages,
+these hosts are eligible only when confirmed installed for the current user.
+Existing grants remain valid; an upgrade requests only missing installed targets.
+
+The shared scope card in onboarding, System and Hook, and Status displays this
+host authorization state. Granting Settings or Security access does not require
+restarting the system, Launcher, or System UI. A host process already running
+without the module must load it on its next start; authorization alone does not
+confirm that its app-icon hooks are loaded.
+
 The current framework scope is reread immediately before submission, after
 either callback, on returning to the activity, and on request timeout. Callback
 approval is a signal to reconcile, rather than proof that every target was
@@ -61,6 +75,7 @@ read handle. An obsolete service cannot publish either a success or a failure
 after reconnect. Dock, launcher glass, and app-name settings require both the
 virtual `system` grant and `com.miui.home`; loading status is reported separately.
 
-Focused JVM verification covers 25 request-controller cases and 4 scope-gate
-cases. Final Release UI/build evidence is recorded in
+The original focused JVM verification covered 25 request-controller cases and
+4 scope-gate cases; the current request suite also covers app-icon host
+eligibility and missing-only upgrades. Final Release UI/build evidence is recorded in
 `.artifacts/research/static-scope-20261106/acceptance.json`.

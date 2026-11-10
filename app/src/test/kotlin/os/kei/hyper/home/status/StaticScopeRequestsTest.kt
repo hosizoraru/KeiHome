@@ -63,6 +63,32 @@ class StaticScopeRequestsTest {
     assertEquals(listOf("system"), plan.unsupported)
   }
 
+  @Test fun newlyDeclaredAppIconHostOnlyRequestsTheNewTarget() {
+    val hosts = listOf("com.miui.securitycenter", "com.android.settings")
+    for (host in hosts) {
+      val previous = declared + "com.android.systemui" + "com.android.intentresolver" + (hosts - host)
+      val plan = planStaticScope(previous + host, previous.toSet(), true) { true }
+      assertEquals(previous.toSet(), plan.granted)
+      assertEquals(listOf(host), plan.missing)
+      assertFalse(plan.complete)
+    }
+  }
+
+  @Test fun appIconHostAvailabilityControlsEligibility() {
+    for (host in listOf("com.miui.securitycenter", "com.android.settings")) {
+      val absent = planStaticScope(declared + host, declared.toSet(), true) { it != host }
+      assertEquals(declared, absent.eligible)
+      assertEquals(listOf(host), absent.absent)
+      assertTrue(absent.complete)
+      val unconfirmed = planStaticScope(declared + host, declared.toSet(), true) {
+        if (it == host) null else true
+      }
+      assertTrue(unconfirmed.missing.isEmpty())
+      assertEquals(listOf(host), unconfirmed.unconfirmed)
+      assertFalse(unconfirmed.complete)
+    }
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun emptyDeclarationFailsClosed() { planStaticScope(emptyList(), emptySet(), true) { true } }
 

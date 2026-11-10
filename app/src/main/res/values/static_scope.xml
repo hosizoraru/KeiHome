@@ -30,4 +30,6 @@
   <string name="scope_open_manager">Open manager</string>
   <string name="scope_manager_unavailable">Open your framework manager and check whether KeiHome is enabled.</string>
   <string name="scope_system_share">System share sheet</string>
+  <string name="scope_security_center">Security</string>
+  <string name="scope_settings">Settings</string>
 </resources>

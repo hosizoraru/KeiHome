@@ -24,7 +24,8 @@ class CrossSurfaceIconEventsTest {
       }
     }
     CrossSurfaceIconEvents.publishPaletteChanged(context)
-    assertEquals(listOf("android", "com.android.systemui", "com.android.intentresolver"), intents.map { it.`package` })
+    assertEquals(listOf("android", "com.android.systemui", "com.android.intentresolver",
+      "com.miui.securitycenter", "com.android.settings"), intents.map { it.`package` })
     intents.forEach {
       assertEquals(CrossSurfaceIconEvents.PALETTE_CHANGED, it.action)
       assertEquals(Intent.FLAG_RECEIVER_REGISTERED_ONLY, it.flags)

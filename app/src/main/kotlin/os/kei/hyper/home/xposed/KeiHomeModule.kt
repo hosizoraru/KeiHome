@@ -15,6 +15,7 @@ class KeiHomeModule : XposedModule() {
   private var launcherRefresh: LauncherIconRefreshRuntime? = null
   private var themeIconImport: ThemeIconImportRuntime? = null
   private var systemUiTheme: SystemUiThemeCompatibilityRuntime? = null
+  private var shareIcons: HyperOsShareIcons? = null
   private var processName: String = ""
   private val reloadState = ModuleReloadState(
     requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
@@ -29,6 +30,8 @@ class KeiHomeModule : XposedModule() {
   override fun onPackageLoaded(param: PackageLoadedParam) {
     if (!param.isFirstPackage) return
     when (param.packageName) {
+      HyperOsShareProfile.PACKAGE ->
+        if (shareIcons == null) installShareIcons(param.defaultClassLoader)
       ThemeIconImportRuntime.PACKAGE_NAME ->
         if (themeIconImport == null) installThemeImportHooks(param.defaultClassLoader, info = param.applicationInfo)
       SystemUiThemeCompatibilityRuntime.PACKAGE_NAME -> {
@@ -39,6 +42,8 @@ class KeiHomeModule : XposedModule() {
 
   override fun onPackageReady(param: PackageReadyParam) {
     when (param.packageName) {
+      HyperOsShareProfile.PACKAGE ->
+        if (shareIcons == null) installShareIcons(param.classLoader)
       ThemeIconImportRuntime.PACKAGE_NAME ->
         if (themeIconImport == null) installThemeImportHooks(param.classLoader, info = param.applicationInfo)
       SystemUiThemeCompatibilityRuntime.PACKAGE_NAME ->
@@ -56,7 +61,9 @@ class KeiHomeModule : XposedModule() {
       val ui = systemUiTheme
       val themes = themeIconImport
       val server = launcherRefresh
+      val share = shareIcons
       when {
+        share != null -> share.retire { publish(share.classLoader) }
         ui != null -> ui.retire { publish(ui.classLoader) }
         themes != null -> themes.retire { publish(themes.classLoader) }
         server != null -> server.retire { publish(null) }
@@ -64,7 +71,7 @@ class KeiHomeModule : XposedModule() {
       }.also { ready ->
         if (!ready) log(Log.WARN, "KeiHomeRetirement",
           "Hot reload deferred in $processName: " +
-            (ui?.retirementStatus() ?: server?.retirementStatus() ?: "cleanup pending"))
+            (share?.retirementStatus() ?: ui?.retirementStatus() ?: server?.retirementStatus() ?: "cleanup pending"))
       }
     }
   }
@@ -74,6 +81,19 @@ class KeiHomeModule : XposedModule() {
     if (processName.substringBefore(':') == "com.miui.home") return
     val savedState = reloadState.restore(param.savedInstanceState)
     if (!param.isSystemServer) {
+      if (param.processName.substringBefore(':') == HyperOsShareProfile.PACKAGE) {
+        val application = runCatching {
+          Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+            .invoke(null) as? android.app.Application
+        }.getOrNull()
+        val loader = (listOfNotNull(savedState as? ClassLoader, application?.classLoader) +
+          param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader })
+          .firstOrNull { runCatching { Class.forName(HyperOsShareProfile.HOLDER, false, it) }.isSuccess }
+        if (loader != null) installShareIcons(loader, param.oldHookHandles)
+        else log(Log.WARN, "KeiHomeShareIcons", "OEM resolver loader unavailable after reload")
+        reloadState.startMaintenance()
+        return
+      }
       if (param.processName.substringBefore(':') == SystemUiThemeCompatibilityRuntime.PACKAGE_NAME) {
         val loader = findSystemUiClassLoader(
           param.oldHookHandles.mapNotNull { it.executable.declaringClass.classLoader } +
@@ -127,6 +147,14 @@ class KeiHomeModule : XposedModule() {
       launcherRefresh = LauncherIconRefreshRuntime(this)
     }
     reloadState.startMaintenance()
+  }
+
+  private fun installShareIcons(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
+    val runtime = HyperOsShareIcons(this, loader)
+    shareIcons = runtime
+    try { runtime.install(oldHooks) } catch (failure: Exception) {
+      log(Log.WARN, "KeiHomeShareIcons", "OEM share icons unavailable; retaining native behavior", failure)
+    }
   }
 
   private fun installThemeImportHooks(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList(),

@@ -2,6 +2,7 @@ package os.kei.hyper.home.xposed
 
 import android.content.Context
 import android.content.Intent
+import android.app.BroadcastOptions
 import os.kei.hyper.home.BuildConfig
 
 /** The system-server publisher invalidates the existing host receivers once per palette. */
@@ -15,5 +16,12 @@ internal object CrossSurfaceIconEvents {
           .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
       )
     }
+    // The OEM resolver has its own UID. Its exported receiver checks the shared
+    // system sender identity in addition to requiring a system-only permission.
+    context.sendBroadcast(
+      Intent(PALETTE_CHANGED).setPackage(HyperOsShareProfile.PACKAGE)
+        .addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY),
+      null, BroadcastOptions.makeBasic().setShareIdentityEnabled(true).toBundle(),
+    )
   }
 }

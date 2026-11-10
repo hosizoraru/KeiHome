@@ -91,7 +91,7 @@ internal fun XposedService.reloadMismatchedSystemTargets() {
   val user = android.os.Process.myUid() / 100_000
   val targets = runningTargets.filter {
     ((it.uid == android.os.Process.SYSTEM_UID && it.processName in setOf("system_server", "system")) ||
-      (it.processName in setOf("com.android.thememanager", "com.android.systemui") &&
+      (it.processName.substringBefore(':') in setOf("com.android.thememanager", "com.android.systemui", "com.android.intentresolver") &&
         it.uid / 100_000 == user)) &&
       needsJavaReload(it.loadedVersionCode, BuildConfig.VERSION_CODE.toLong())
   }

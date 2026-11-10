@@ -29,4 +29,5 @@
   <string name="scope_check">检查授权</string>
   <string name="scope_open_manager">打开框架</string>
   <string name="scope_manager_unavailable">请打开所用框架的管理器，检查 KeiHome 是否已启用。</string>
+  <string name="scope_system_share">系统分享</string>
 </resources>

@@ -5,6 +5,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Bundle
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -13,13 +14,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CrossSurfaceIconEventsTest {
-  @Test fun publisherTargetsOnlyTheTwoExistingRegisteredHosts() {
+  @Test fun publisherTargetsRegisteredHostsAndSharesSystemIdentityWithOemResolver() {
     val intents = mutableListOf<Intent>()
     val context = object : ContextWrapper(InstrumentationRegistry.getInstrumentation().targetContext) {
       override fun sendBroadcast(intent: Intent) { intents += Intent(intent) }
+      override fun sendBroadcast(intent: Intent, permission: String?, options: Bundle?) {
+        assertNotNull(options)
+        intents += Intent(intent)
+      }
     }
     CrossSurfaceIconEvents.publishPaletteChanged(context)
-    assertEquals(listOf("android", "com.android.systemui"), intents.map { it.`package` })
+    assertEquals(listOf("android", "com.android.systemui", "com.android.intentresolver"), intents.map { it.`package` })
     intents.forEach {
       assertEquals(CrossSurfaceIconEvents.PALETTE_CHANGED, it.action)
       assertEquals(Intent.FLAG_RECEIVER_REGISTERED_ONLY, it.flags)

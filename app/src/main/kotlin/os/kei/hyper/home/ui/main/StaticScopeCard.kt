@@ -55,6 +55,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
             "com.miui.home" -> stringResource(R.string.scope_launcher)
             "com.android.thememanager" -> stringResource(R.string.scope_themes)
             "com.android.systemui" -> stringResource(R.string.scope_system_ui)
+            "com.android.intentresolver" -> stringResource(R.string.scope_system_share)
             else -> name
           }
           val status = when (name) {

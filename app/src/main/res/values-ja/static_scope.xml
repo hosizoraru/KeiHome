@@ -29,4 +29,5 @@
   <string name="scope_check">許可を確認</string>
   <string name="scope_open_manager">管理アプリを開く</string>
   <string name="scope_manager_unavailable">フレームワークの管理アプリで KeiHome が有効か確認してください。</string>
+  <string name="scope_system_share">システム共有</string>
 </resources>

@@ -30,6 +30,7 @@ internal class CrossSurfaceIconCache(
   private val paletteState: () -> Long = {
     Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
   },
+  private val systemPaletteEvents: Boolean = false,
   private val onReady: (() -> Unit)? = null,
 ) {
   init { require(maxEntries in 1..64) }
@@ -48,6 +49,7 @@ internal class CrossSurfaceIconCache(
   // Registration and cleanup run on the worker, including a registration already in flight at stop.
   private var componentRegistered = false
   private var receiverRegistered = false
+  private var paletteReceiverRegistered = false
   private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)
   private val pending = linkedSetOf<Key>()
   private val misses = hashSetOf<Key>()
@@ -69,6 +71,12 @@ internal class CrossSurfaceIconCache(
   private val receiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (active) invalidate()
+    }
+  }
+  private val paletteReceiver = object : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+      if (active && intent.action == CrossSurfaceIconEvents.PALETTE_CHANGED &&
+        sentFromUid == Process.SYSTEM_UID) invalidate()
     }
   }
   private val configuration = object : ComponentCallbacks {
@@ -123,6 +131,11 @@ internal class CrossSurfaceIconCache(
         addAction("android.intent.action.THEME_CHANGED")
       }, null, handler, Context.RECEIVER_NOT_EXPORTED)
       receiverRegistered = true
+        if (systemPaletteEvents) {
+          context.registerReceiver(paletteReceiver, IntentFilter(CrossSurfaceIconEvents.PALETTE_CHANGED),
+            "android.permission.INTERACT_ACROSS_USERS_FULL", handler, Context.RECEIVER_EXPORTED)
+          paletteReceiverRegistered = true
+        }
     }
   }
 
@@ -362,6 +375,11 @@ internal class CrossSurfaceIconCache(
         cleanupStage = "unregister receiver"
         context.unregisterReceiver(receiver)
         receiverRegistered = false
+      }
+      if (paletteReceiverRegistered) unregister {
+        cleanupStage = "unregister system palette receiver"
+        context.unregisterReceiver(paletteReceiver)
+        paletteReceiverRegistered = false
       }
       synchronized(lock) {
         clearSnapshotsLocked()

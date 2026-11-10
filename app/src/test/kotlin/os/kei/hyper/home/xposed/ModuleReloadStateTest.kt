@@ -90,14 +90,20 @@ class ModuleReloadStateTest {
   }
 
   @Test fun optionalCacheFailureDoesNotUndoSuccessfulOwnerRetirement() {
-    val logs = mutableListOf<String>()
-    var wire: Any? = null
-    assertTrue(state().retire({ wire = it }) { publish -> publish(null); true })
-    val successor = state(clean = { throw SecurityException() }, report = logs::add)
-    successor.restore(wire)
-    successor.startMaintenance()
-    assertTrue(successor.awaitMaintenance(5_000))
-    assertTrue(logs.last().contains("cleanup unavailable"))
+    // Exercise cleanup failure, rather than skipping an already-collected generation.
+    val retiredLoader = loader()
+    try {
+      val logs = mutableListOf<String>()
+      var wire: Any? = null
+      assertTrue(state(retiredLoader).retire({ wire = it }) { publish -> publish(null); true })
+      val successor = state(clean = { throw SecurityException() }, report = logs::add)
+      successor.restore(wire)
+      successor.startMaintenance()
+      assertTrue(successor.awaitMaintenance(5_000))
+      assertTrue(logs.last().contains("cleanup unavailable"))
+    } finally {
+      java.lang.ref.Reference.reachabilityFence(retiredLoader)
+    }
   }
 
   @Test fun blockedPlatformMaintenanceDefersBeforeStoppingCurrentOwner() {

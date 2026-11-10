@@ -46,15 +46,15 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.FloatingToolbar
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Layers
@@ -82,7 +82,7 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
   val backdrop = rememberKeiHomeBlurBackdrop()
   var toolbarHeight by remember { mutableIntStateOf(0) }
   val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + 24.dp
-  Scaffold(
+  Scaffold(backdrop = backdrop,
     modifier = Modifier.testTag("setup.page.$page"),
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
@@ -218,11 +218,19 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit) {
   LaunchedEffect(model, lifecycle) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }
   }
-  Scaffold(topBar = { TopAppBar(title = stringResource(R.string.navigation_desktop),
-    navigationIcon = { IconButton(onClick = onBack) {
-      Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
-    } }) }) { insets ->
-    Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())
-      .padding(16.dp)) { DesktopPage(model) }
+  val backdrop = rememberKeiHomeBlurBackdrop()
+  Scaffold(backdrop = backdrop, topBar = {
+    BlurredBar(backdrop, backdrop != null) {
+      TopAppBar(title = stringResource(R.string.navigation_desktop),
+        color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
+        navigationIcon = { IconButton(onClick = onBack) {
+          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+        } })
+    }
+  }) { insets ->
+    Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
+      Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())
+        .padding(16.dp)) { DesktopPage(model) }
+    }
   }
 }

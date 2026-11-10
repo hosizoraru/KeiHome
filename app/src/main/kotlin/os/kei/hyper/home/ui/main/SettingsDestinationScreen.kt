@@ -29,14 +29,14 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -71,18 +71,18 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
-  Scaffold(topBar = {
+  Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = licenseTitle ?: component?.name ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
         color = if (backdrop != null && license == null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
           if (route == SettingsSection.CACHE.route) IconButton(onClick = { cacheRefresh++ },
             modifier = Modifier.testTag("settings.cache.refresh")) {
-            Icon(MiuixIcons.Refresh, stringResource(R.string.refresh))
+            Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
           }
         },
         navigationIcon = { IconButton(onClick = onBack) {
-          Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } })
     }
   }, floatingActionButton = {

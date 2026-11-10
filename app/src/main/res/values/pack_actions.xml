@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="top_bar_blur">Top bar blur</string>
-  <string name="top_bar_blur_summary">Applies immediately to the top bar on all pages.</string>
+  <string name="top_bar_blur">In-app blur and glass</string>
+  <string name="top_bar_blur_summary">Applies to in-app bars and overlays. Off uses opaque surfaces.</string>
+  <string name="top_bar_off">Off</string>
   <string name="top_bar_gaussian">Gaussian</string>
   <string name="top_bar_progressive">Progressive</string>
   <string name="pack_update_available">Icons can be completed or updated. Use Update icon pack.</string>

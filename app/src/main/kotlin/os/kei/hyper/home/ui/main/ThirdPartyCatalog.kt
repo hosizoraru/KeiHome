@@ -77,7 +77,7 @@ internal val thirdPartyComponents = listOf(
   ThirdPartyComponent("cxx", "libc++", R.string.notices_role_cxx,
     "https://github.com/RikkaW/libcxx-prefab", listOf("libcxx"), listOf("dev.rikka.ndk.thirdparty")),
   ThirdPartyComponent("liquid-glass", "AndroidLiquidGlass", R.string.notices_role_glass,
-    "https://github.com/Kyant0/AndroidLiquidGlass", kind = AttributionKind.SOURCE),
+    "https://github.com/Kyant0/AndroidLiquidGlass", kind = AttributionKind.HISTORY),
   ThirdPartyComponent("back-gesture", "MiuiBackGestureHook", R.string.notices_role_native,
     "https://github.com/wxxsfxyzm/MiuiBackGestureHook", kind = AttributionKind.SOURCE),
   ThirdPartyComponent("perfect-icons", "Perfect Icons Completion Project", R.string.notices_role_perfect_icons,

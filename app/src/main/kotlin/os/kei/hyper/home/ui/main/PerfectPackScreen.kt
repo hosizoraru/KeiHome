@@ -12,8 +12,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,29 +46,29 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.extended.Theme
-import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
 internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
@@ -113,7 +116,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
     if (remaining > 0) delay(remaining)
     vm.perfectPacks.updateCooldown()
   }
-  Scaffold(
+  Scaffold(backdrop = backdrop,
     modifier = Modifier.testTag("icon-packs.perfect"),
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
@@ -123,13 +126,13 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = {
             IconButton(onClick = onBack) {
-              Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
+              Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
             }
           },
           actions = {
             if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
             IconButton(onClick = { vm.perfectPacks.refreshCatalog() }, enabled = !busy && !cooling) {
-              Icon(MiuixIcons.Refresh, stringResource(R.string.perfect_icons_refresh))
+              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_refresh))
             }
           },
         )
@@ -362,10 +365,57 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
   PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack,
     bottomSpacing = actionBottom,
     floatingActionButton = {
-      PageActionFab(downloadLabel, MiuixIcons.Refresh,
+      PageActionFab(downloadLabel, MiuixIcons.Glass.Refresh,
         onClick = { confirmDownload = true }, enabled = !busy && !cooling,
         busy = state.refreshing, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.force-download"))
+      val catalog = state.catalog
+      val revisionLabel = stringResource(R.string.perfect_icons_revision)
+      val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
+      Os4Dialog(show = showDetails, title = stringResource(R.string.perfect_icons_file_details),
+        onDismissRequest = { showDetails = false }) {
+        Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .65f).dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)) {
+          Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            catalog?.let {
+              Text(stringResource(R.string.perfect_icons_downloaded_at) + "\n" + perfectSyncTime(it.downloadedAt),
+                style = MiuixTheme.textStyles.body2)
+              Text(revisionLabel + "\n" + it.revision.ifEmpty { it.sourceHash },
+                style = MiuixTheme.textStyles.footnote1)
+              Text(hashLabel + "\n" + it.sourceHash, style = MiuixTheme.textStyles.footnote1)
+            }
+            state.result?.let { result ->
+              Text(stringResource(R.string.perfect_icons_output) + "\n" + result.file.name,
+                style = MiuixTheme.textStyles.footnote1)
+            }
+          }
+          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Os4DialogButton(stringResource(R.string.perfect_icons_copy_revision), enabled = catalog != null,
+              onClick = { catalog?.let { copyPerfectRevision(context, it.revision.ifEmpty { it.sourceHash }, revisionLabel) } },
+              modifier = Modifier.weight(1f))
+            Os4DialogButton(stringResource(R.string.perfect_icons_copy_checksum), enabled = catalog != null,
+              onClick = { catalog?.let { copyPerfectRevision(context, it.sourceHash, hashLabel) } },
+              modifier = Modifier.weight(1f))
+          }
+        }
+      }
+      Os4Dialog(show = confirmDownload,
+        title = downloadLabel,
+        summary = stringResource(if (hasSource) R.string.perfect_icons_force_download_confirm
+          else R.string.perfect_icons_download_confirm),
+        onDismissRequest = { confirmDownload = false }) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
+            modifier = Modifier.weight(1f))
+          Os4DialogButton(if (hasSource) stringResource(R.string.perfect_icons_force_download_proceed) else downloadLabel,
+            enabled = confirmDownload && !busy && !cooling, onClick = {
+              confirmDownload = false
+              vm.perfectPacks.refreshCatalog(forceDownload = true)
+            }, role = if (hasSource) GlassDialogButtonRole.Destructive else GlassDialogButtonRole.Primary,
+            modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
+        }
+      }
     }) {
     item("snapshot") {
       val catalog = state.catalog
@@ -450,50 +500,6 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
           endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
           modifier = Modifier.testTag("icon-packs.perfect.credits"))
       }
-    }
-  }
-  val catalog = state.catalog
-  val revisionLabel = stringResource(R.string.perfect_icons_revision)
-  val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
-  WindowDialog(show = showDetails, title = stringResource(R.string.perfect_icons_file_details),
-    onDismissRequest = { showDetails = false }) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-      catalog?.let {
-        Text(stringResource(R.string.perfect_icons_downloaded_at) + "\n" + perfectSyncTime(it.downloadedAt),
-          style = MiuixTheme.textStyles.body2)
-        Text(revisionLabel + "\n" + it.revision.ifEmpty { it.sourceHash },
-          style = MiuixTheme.textStyles.footnote1)
-        Text(hashLabel + "\n" + it.sourceHash, style = MiuixTheme.textStyles.footnote1)
-      }
-      state.result?.let { result ->
-        Text(stringResource(R.string.perfect_icons_output) + "\n" + result.file.name,
-          style = MiuixTheme.textStyles.footnote1)
-      }
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(stringResource(R.string.perfect_icons_copy_revision), enabled = catalog != null,
-          onClick = { catalog?.let { copyPerfectRevision(context, it.revision.ifEmpty { it.sourceHash }, revisionLabel) } },
-          modifier = Modifier.weight(1f))
-        TextButton(stringResource(R.string.perfect_icons_copy_checksum), enabled = catalog != null,
-          onClick = { catalog?.let { copyPerfectRevision(context, it.sourceHash, hashLabel) } },
-          modifier = Modifier.weight(1f))
-      }
-    }
-  }
-
-  WindowDialog(show = confirmDownload,
-    title = downloadLabel,
-    summary = stringResource(if (hasSource) R.string.perfect_icons_force_download_confirm
-      else R.string.perfect_icons_download_confirm),
-    onDismissRequest = { confirmDownload = false }) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      TextButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
-        modifier = Modifier.weight(1f))
-      TextButton(if (hasSource) stringResource(R.string.perfect_icons_force_download_proceed) else downloadLabel,
-        enabled = confirmDownload && !busy && !cooling, onClick = {
-          confirmDownload = false
-          vm.perfectPacks.refreshCatalog(forceDownload = true)
-        }, colors = ButtonDefaults.textButtonColorsPrimary(),
-        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
     }
   }
 }

@@ -23,11 +23,12 @@ and historical licenses are presented separately from current dependencies.
 
 ## MIUIX
 
-KeiHome uses the MIUIX UI, icons, preferences, navigation and blur modules under
-Apache 2.0. The current pinned snapshot is `0.9.4-fa6f5b50-SNAPSHOT`.
+KeiHome uses the MIUIX UI, icons, preferences, navigation, blur, material, glass
+and glass-icons modules under Apache 2.0. The current pinned snapshot is
+`0.9.4-ca674992-SNAPSHOT`.
 The full Apache 2.0 text is bundled as `assets/licenses/Apache-2.0.txt`.
 
-Source: <https://github.com/compose-miuix-ui/miuix/tree/fa6f5b50>
+Source: <https://github.com/compose-miuix-ui/miuix/tree/ca674992>
 
 ## AndroidX, Compose, Kotlin and supporting libraries
 
@@ -150,8 +151,6 @@ Engine source:
 The following files are adapted from the compose-miuix-ui/miuix example app:
 
 - `app/src/main/kotlin/os/kei/hyper/home/ui/components/MiuixSampleChrome.kt`
-- `app/src/main/kotlin/os/kei/hyper/home/ui/components/liquid/*`
-- `app/src/main/kotlin/os/kei/hyper/home/ui/components/animation/*`
 - `app/src/main/kotlin/os/kei/hyper/home/ui/components/about/*` (background shader and animation)
 
 Source: <https://github.com/compose-miuix-ui/miuix>
@@ -159,8 +158,17 @@ Source: <https://github.com/compose-miuix-ui/miuix>
 Copyright 2025-2026, compose-miuix-ui contributors.
 Licensed under the Apache License, Version 2.0. See `LICENSES/Apache-2.0.txt`.
 
-The liquid-glass navigation implementation is adapted by MIUIX from
-Kyant0/AndroidLiquidGlass: <https://github.com/Kyant0/AndroidLiquidGlass>.
+Earlier releases included local liquid-glass navigation, optics and drag
+helpers adapted through MIUIX from Kyant0/AndroidLiquidGlass:
+<https://github.com/Kyant0/AndroidLiquidGlass>. Those local helpers have been
+removed in favor of MIUIX's published OS4 glass components. The acknowledgement
+is retained as historical research.
+
+The OS4 adapters are authored for KeiHome against MIUIX's public Apache-2.0
+APIs and current upstream source. MeiloX and InstallerX-Revived were inspected
+for usage patterns; their implementation code is not copied, translated or
+bundled by this migration. See `docs/miuix-os4-migration.md` for the source
+boundary and reproducible migration notes.
 
 ## MiuiBackGestureHook native hook infrastructure
 

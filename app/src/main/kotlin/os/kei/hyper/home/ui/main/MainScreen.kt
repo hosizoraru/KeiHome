@@ -46,27 +46,27 @@ import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.ui.components.BlurredBar
-import os.kei.hyper.home.ui.components.liquid.IosLiquidGlassNavigationBar
+import os.kei.hyper.home.ui.components.KeiHomeGlassNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.icon.extended.Sort
-import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
-import top.yukonga.miuix.kmp.icon.extended.GridView
+import top.yukonga.miuix.kmp.icon.glass.Filter
+import top.yukonga.miuix.kmp.icon.glass.Sort
+import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import top.yukonga.miuix.kmp.icon.glass.GridView
 import top.yukonga.miuix.kmp.icon.extended.Home
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Layers
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Layers
+import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -103,16 +103,16 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_desktop),
     stringResource(R.string.navigation_settings))
   val navigation = remember(labels) { listOf(
-    NavigationItem(labels[0], MiuixIcons.Info), NavigationItem(labels[1], MiuixIcons.GridView),
-    NavigationItem(labels[2], MiuixIcons.Layers), NavigationItem(labels[3], MiuixIcons.Home),
-    NavigationItem(labels[4], MiuixIcons.Settings),
+    NavigationItem(labels[0], MiuixIcons.Glass.Info), NavigationItem(labels[1], MiuixIcons.Glass.GridView),
+    NavigationItem(labels[2], MiuixIcons.Glass.Layers), NavigationItem(labels[3], MiuixIcons.Home),
+    NavigationItem(labels[4], MiuixIcons.Glass.Settings),
   ) }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
   val appList = rememberLazyListState()
   val pageScrolls = pages.map { page -> androidx.compose.runtime.key("scroll-$page") { rememberScrollState() } }
   val savedPages = rememberSaveableStateHolder()
-  Scaffold(
+  Scaffold(backdrop = backdrop,
     modifier = modifier,
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
@@ -141,11 +141,11 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
       }.collectAsStateWithLifecycle(initialValue = os.kei.hyper.home.data.SystemIconFallback.DEFAULT)
       val pendingApply = pendingNativeApplication(packState, activeComponent, fallback) != null
       val updateLabel = stringResource(R.string.pack_update_available)
-      IosLiquidGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
-        onItemClick = { selectTab(it) }, backdrop = backdrop, isBlurActive = backdrop != null,
-        badge = { index -> if (index == 2 && packUpdate && !pendingApply) ({
+      KeiHomeGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
+        onSelect = { selectTab(it) }, backdrop = backdrop,
+        badge = { index -> if (index == 2 && packUpdate && !pendingApply) {
           top.yukonga.miuix.kmp.basic.Badge(modifier = Modifier.semantics { contentDescription = updateLabel })
-        }) else null })
+        } })
     },
     floatingActionButton = { PackActionFab(model, page, "home") },
   ) { insets ->
@@ -249,7 +249,7 @@ private fun AppsFilterMenu(model: HomeViewModel) {
     }),
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(filters, controls)) {
-    Icon(MiuixIcons.Filter, stringResource(R.string.filter_title), tint =
+    Icon(MiuixIcons.Glass.Filter, stringResource(R.string.filter_title), tint =
       if (options.copy(sort = 0, reverse = false) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
@@ -274,7 +274,7 @@ private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
       }),
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(entry, direction)) {
-    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort),
+    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
       tint = if (options.reverse) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
@@ -302,7 +302,7 @@ internal fun RefreshAction(model: HomeViewModel, page: Int) {
       animationSpec = tween(160), label = "refresh-action") { loading ->
       Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (loading) top.yukonga.miuix.kmp.basic.CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
-        else Icon(MiuixIcons.Refresh, null, Modifier.size(26.dp), tint = MiuixTheme.colorScheme.onBackground)
+        else Icon(MiuixIcons.Glass.Refresh, null, Modifier.size(26.dp), tint = MiuixTheme.colorScheme.onBackground)
       }
     }
   }

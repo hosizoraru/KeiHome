@@ -28,18 +28,18 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.ExpandLess
 import top.yukonga.miuix.kmp.icon.extended.ExpandMore
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 /** Informational notes only; errors, progress and actionable warnings stay in the page. */
 @Composable
@@ -48,12 +48,12 @@ internal fun PackHelpAction(notes: List<String>) {
   var showing by rememberSaveable { mutableStateOf(false) }
   val title = stringResource(R.string.pack_guidance_title)
   IconButton(onClick = { showing = true }) { Icon(MiuixIcons.Info, title) }
-  WindowDialog(show = showing, title = title, onDismissRequest = { showing = false }) {
+  Os4Dialog(show = showing, title = title, onDismissRequest = { showing = false }) {
     GuidanceNotes(notes, Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
       .verticalScroll(rememberScrollState()))
-    TextButton(stringResource(R.string.pack_guidance_done), onClick = { showing = false },
+    Os4DialogButton(stringResource(R.string.pack_guidance_done), onClick = { showing = false },
       modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-      colors = ButtonDefaults.textButtonColorsPrimary())
+      role = GlassDialogButtonRole.Primary)
   }
 }
 

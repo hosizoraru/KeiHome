@@ -7,6 +7,8 @@ package os.kei.hyper.home.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -21,15 +23,23 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.BlurDefaults
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.ProgressiveBlur
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
-import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+internal val LocalKeiHomeBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+internal val LocalKeiHomeTopBarBlur = staticCompositionLocalOf { AppTopBarBlur.PROGRESSIVE }
+
 @Composable
 fun rememberKeiHomeBlurBackdrop(): LayerBackdrop? {
+  val preferences = AppPreferences.get(LocalContext.current)
+  val (styleFlow, initialStyle) = remember(preferences) {
+    preferences.state.map { it.topBarBlur }.distinctUntilChanged() to preferences.state.value.topBarBlur
+  }
+  val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
+  if (style == AppTopBarBlur.OFF) return null
   if (!isRuntimeShaderSupported()) return null
   val surfaceColor = MiuixTheme.colorScheme.surface
   return rememberLayerBackdrop {
@@ -49,33 +59,37 @@ fun BlurredBar(
     preferences.state.map { it.topBarBlur }.distinctUntilChanged() to preferences.state.value.topBarBlur
   }
   val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
-  val blurActive = blurEnabled && backdrop != null
+  KeiHomeBarSurface(backdrop, blurEnabled, style, content)
+}
+
+@Composable
+internal fun KeiHomeBarSurface(
+  backdrop: LayerBackdrop?,
+  blurEnabled: Boolean,
+  style: AppTopBarBlur,
+  content: @Composable () -> Unit,
+) {
+  val blurActive = blurEnabled && backdrop != null && style != AppTopBarBlur.OFF
   Box {
-    if (blurActive) {
+    if (blurActive && style == AppTopBarBlur.GAUSSIAN) {
       Box(
-        modifier = Modifier.matchParentSize().then(
-          if (style == AppTopBarBlur.GAUSSIAN) Modifier.textureBlur(
+        modifier = Modifier.matchParentSize().textureBlur(
             backdrop = backdrop, shape = RectangleShape, blurRadius = 10f,
             colors = barBlurColors(),
-          ) else Modifier.progressiveTextureBlur(
-            backdrop = backdrop,
-            shape = RectangleShape,
-            gradient = ProgressiveBlur.Top.copy(curve = 2.2f),
-            blurRadius = 10f,
-            colors = barBlurColors(progressive = true),
-          )),
+          ),
       )
     }
-    content()
+    CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop.takeIf { blurActive },
+      LocalKeiHomeTopBarBlur provides style, content = content)
   }
 }
 
 @Composable
-private fun barBlurColors(progressive: Boolean = false): BlurColors =
+private fun barBlurColors(): BlurColors =
   BlurDefaults.blurColors(
     blendColors = listOf(
       BlendColorEntry(
-        color = MiuixTheme.colorScheme.surface.copy(if (progressive) 0.3f else 0.8f),
+        color = MiuixTheme.colorScheme.surface.copy(alpha = 0.8f),
       ),
     ),
   )

@@ -29,13 +29,13 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -47,7 +47,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit) {
   }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
-  Scaffold(
+  Scaffold(backdrop = backdrop,
     modifier = Modifier.testTag("icon-packs.monet"),
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
@@ -56,7 +56,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit) {
           scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = { IconButton(onClick = onBack) {
-            Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           } },
           actions = { RefreshAction(model, 2) },
         )

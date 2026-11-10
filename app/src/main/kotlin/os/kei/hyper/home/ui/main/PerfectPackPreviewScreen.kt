@@ -37,20 +37,20 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Filter
+import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
@@ -101,7 +101,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
       OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = filters.mapIndexed { index, label ->
         DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
       }))) {
-        Icon(MiuixIcons.Filter, stringResource(R.string.perfect_icons_preview_filter),
+        Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
           tint = if (filter == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
       }
     }) {
@@ -195,17 +195,17 @@ internal fun PerfectSubpage(
 ) {
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
-  Scaffold(topBar = {
+  Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = title, scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
-          IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) }
+          IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
         },
         actions = {
           actions()
           if (onRefresh != null) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
-            Icon(MiuixIcons.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
+            Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
           }
         })
     }

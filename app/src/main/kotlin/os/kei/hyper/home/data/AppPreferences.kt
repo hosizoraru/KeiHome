@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.update
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
 internal enum class AppPagerGesture { NATIVE, CROSS_AXIS, IOS_LIKE }
-internal enum class AppTopBarBlur { GAUSSIAN, PROGRESSIVE }
+internal enum class AppTopBarBlur { OFF, GAUSSIAN, PROGRESSIVE }
 internal enum class ColorOsStyle(val key: String) {
   CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");

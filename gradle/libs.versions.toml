@@ -5,6 +5,7 @@ androidxLifecycle = "2.11.0"
 androidxActivity = "1.13.0"
 androidxProfileInstaller = "1.4.1"
 androidxStartup = "1.2.0"
+androidxNavigationEvent = "1.2.0"
 androidxComposeBom = "2026.09.00"
 # The stable BOM predates this RC; align direct Compose and test APIs explicitly.
 androidxCompose = "1.13.0-rc01"
@@ -33,12 +34,13 @@ junit = "4.13.2"
 jvmJson = "20260814"
 kotlin = "2.4.21"
 libxposed = "102.0.0"
-miuix = "0.9.4-fa6f5b50-SNAPSHOT"
+miuix = "0.9.4-ca674992-SNAPSHOT"
 materialColorUtilities = "6.0.0"
 mmkv = "2.4.3"
 zipflinger = "9.5.1"
 
 [libraries]
+androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "androidxNavigationEvent" }
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidxAnnotation" }
 androidx-annotation-experimental = { module = "androidx.annotation:annotation-experimental", version.ref = "androidxAnnotationExperimental" }
 androidx-autofill = { module = "androidx.autofill:autofill", version.ref = "androidxAutofill" }
@@ -92,6 +94,9 @@ miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.re
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", version.ref = "miuix" }
 miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav-android", version.ref = "miuix" }
+miuix-glass = { module = "top.yukonga.miuix.kmp:miuix-glass-android", version.ref = "miuix" }
+miuix-glass-icons = { module = "top.yukonga.miuix.kmp:miuix-glass-icons-android", version.ref = "miuix" }
+miuix-material = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 
 [bundles]
 runtime-alignment = [
@@ -115,7 +120,7 @@ runtime-alignment = [
   "jetbrains-annotations",
   "jspecify",
 ]
-miuix = ["miuix-ui", "miuix-icons", "miuix-blur", "miuix-preference", "miuix-nav"]
+miuix = ["miuix-ui", "miuix-icons", "miuix-blur", "miuix-preference", "miuix-nav", "miuix-glass", "miuix-glass-icons", "miuix-material"]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

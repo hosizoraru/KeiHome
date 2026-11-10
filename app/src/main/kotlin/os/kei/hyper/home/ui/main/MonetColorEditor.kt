@@ -57,11 +57,12 @@ import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -225,7 +226,7 @@ internal fun MonetColorEditor(
   }
   val hex = hexField.text.toString()
   val valid = hex.removePrefix("#").let { it.length == 6 && it.toIntOrNull(16) != null } && color ushr 24 == 255
-  OverlayDialog(show = visible, title = title, onDismissRequest = { dismiss(onDismiss) },
+  Os4Dialog(show = visible, title = title, onDismissRequest = { dismiss(onDismiss) },
     onDismissFinished = { afterDismiss() }) {
     Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.65f).dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -265,13 +266,14 @@ internal fun MonetColorEditor(
             modifier = Modifier.testTag("monet.editor.chroma"))
         }
       }
-      onReset?.let { reset -> TextButton(stringResource(R.string.monet_custom_reset),
+      onReset?.let { reset -> Os4DialogButton(stringResource(R.string.monet_custom_reset),
         onClick = { dismiss(reset) }, enabled = visible,
         modifier = Modifier.fillMaxWidth().testTag("monet.editor.reset")) }
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(stringResource(R.string.monet_custom_cancel), onClick = { dismiss(onDismiss) },
+        Os4DialogButton(stringResource(R.string.monet_custom_cancel), onClick = { dismiss(onDismiss) },
           enabled = visible, modifier = Modifier.weight(1f))
-        TextButton(stringResource(R.string.monet_custom_use), enabled = valid && visible,
+        Os4DialogButton(stringResource(R.string.monet_custom_use), enabled = valid && visible,
+          role = GlassDialogButtonRole.Primary,
           onClick = {
             val selected = hexField.text.toString().removePrefix("#").toInt(16) or (0xff shl 24)
             val spec = if (initialSpec == null) null

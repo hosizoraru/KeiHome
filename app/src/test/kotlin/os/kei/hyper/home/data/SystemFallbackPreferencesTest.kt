@@ -6,6 +6,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SystemFallbackPreferencesTest {
+  @Test fun blurModesRestoreLegacyNamesAndPersistOpaqueModeWithoutChangingOtherPreferences() {
+    for (mode in AppTopBarBlur.entries) {
+      val store = Store(mutableMapOf("top_bar_blur" to mode.name, "remember_menus" to false))
+      val preferences = store.open()
+      assertEquals(mode, preferences.state.value.topBarBlur)
+      preferences.setTopBarBlur(AppTopBarBlur.OFF)
+      assertEquals(AppTopBarBlur.OFF, store.open().state.value.topBarBlur)
+      assertEquals(false, store.values["remember_menus"])
+    }
+    assertEquals(AppTopBarBlur.PROGRESSIVE, Store().open().state.value.topBarBlur)
+    assertEquals(AppTopBarBlur.PROGRESSIVE,
+      Store(mutableMapOf("top_bar_blur" to "FUTURE_MODE")).open().state.value.topBarBlur)
+  }
+
   @Test fun freshPreferencesKeepPerfectExpansionOff() {
     val preferences = Store().open()
     assertEquals(SystemIconFallback.DEFAULT, preferences.state.value.systemIconFallback)

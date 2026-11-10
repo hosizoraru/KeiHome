@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -49,7 +52,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.window.Dialog
 import java.io.IOException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -70,25 +72,28 @@ import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Search
-import top.yukonga.miuix.kmp.icon.extended.More
-import top.yukonga.miuix.kmp.menu.OverlayIconCascadingDropdownMenu
+import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Search
+import top.yukonga.miuix.kmp.icon.glass.More
+import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
@@ -262,14 +267,14 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
-  Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), topBar = {
+  Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(if (main) R.string.apple_pack_title
         else if (search) R.string.apple_choose_icon
         else if (matchedOnly) R.string.apple_matched_title else R.string.apple_mappings),
         scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-        navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Back, stringResource(R.string.pack_back)) } },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) } },
         actions = {
           if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
           if (!main && !search) {
@@ -321,7 +326,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               }),
             ))
             OverlayIconCascadingDropdownMenu(entries = browserActions + transferActions) {
-              Icon(MiuixIcons.More, stringResource(R.string.apple_mapping_transfer))
+              Icon(MiuixIcons.Glass.More, stringResource(R.string.apple_mapping_transfer))
             }
           }
         })
@@ -337,7 +342,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         else -> stringResource(R.string.apple_generate_incremental)
       }
       PageActionFab(label = label,
-        icon = if (search || batchBrowser) MiuixIcons.Search else MiuixIcons.Refresh,
+        icon = if (search || batchBrowser) MiuixIcons.Glass.Search else MiuixIcons.Glass.Refresh,
         onClick = {
           when {
             search -> searchNow()
@@ -616,12 +621,13 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         } }
       }
     }
-  }
-  transferMessage?.let { message ->
-    Dialog(onDismissRequest = { transferMessage = null }) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        Text(message, Modifier.padding(20.dp), style = MiuixTheme.textStyles.body1)
-        BasicComponent(title = stringResource(R.string.apple_mapping_transfer_done),
+    Os4Dialog(show = transferMessage != null, onDismissRequest = { transferMessage = null }) {
+      Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(transferMessage.orEmpty(), Modifier.heightIn(
+          max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
+          .verticalScroll(rememberScrollState()), style = MiuixTheme.textStyles.body1)
+        Os4DialogButton(stringResource(R.string.apple_mapping_transfer_done),
+          modifier = Modifier.fillMaxWidth(), role = GlassDialogButtonRole.Primary,
           onClick = { transferMessage = null })
       }
     }

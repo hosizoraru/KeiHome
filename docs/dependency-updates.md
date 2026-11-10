@@ -4,7 +4,8 @@ The 2026-11-11 update selects the newest published stable or release-candidate
 version from each dependency's official repository. Alpha, beta, development
 and snapshot releases are excluded. MIUIX is an explicit exception:
 all five `top.yukonga.miuix.kmp` components remain pinned to
-`0.9.4-fa6f5b50-SNAPSHOT`. Its OS4 design migration is separate work.
+`0.9.4-fa6f5b50-SNAPSHOT` for that audit. The subsequent OS4 upgrade to
+`0.9.4-ca674992-SNAPSHOT` is documented in [miuix-os4-migration.md](miuix-os4-migration.md).
 
 ## Version alignment
 

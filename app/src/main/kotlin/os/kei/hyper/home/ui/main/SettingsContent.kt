@@ -84,7 +84,7 @@ internal fun SettingsContent(
   val language = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.settings_language,
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
   val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
-    R.string.top_bar_gaussian, R.string.top_bar_progressive)
+    R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
   val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
@@ -176,7 +176,7 @@ internal fun SettingsContent(
         if (language) LanguagePreference()
         if (blur) OverlaySpinnerPreference(title = stringResource(R.string.top_bar_blur),
           summary = stringResource(R.string.top_bar_blur_summary),
-          items = listOf(R.string.top_bar_gaussian, R.string.top_bar_progressive)
+          items = listOf(R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
             .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.topBarBlur.ordinal,
           onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
       }

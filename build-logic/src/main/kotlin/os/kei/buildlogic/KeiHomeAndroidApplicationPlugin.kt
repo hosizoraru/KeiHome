@@ -28,6 +28,7 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
     with(android) {
       namespace = "os.kei.hyper.home"
       compileSdk = 37
+      compileSdkMinor = 2
       // Resolve the pinned NDK from the configured Android SDK on each machine.
       ndkVersion = "30.0.16248370"
 

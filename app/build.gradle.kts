@@ -110,6 +110,13 @@ android.buildFeatures.prefab = false
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
+  implementation(libs.androidx.compose.animation)
+  implementation(libs.androidx.compose.foundation)
+  implementation(libs.androidx.compose.runtime)
+  constraints {
+    // Upgrade libraries already present in the graph without adding unused components.
+    libs.bundles.runtime.alignment.get().forEach { implementation(it) }
+  }
   androidTestImplementation(composeBom)
 
   compileOnly(libs.libxposed.api)

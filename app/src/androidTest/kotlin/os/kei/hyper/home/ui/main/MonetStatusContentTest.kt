@@ -153,6 +153,8 @@ class MonetStatusContentTest {
   fun statusActionsHaveAccessibleLabels() {
     var refreshed = false
     var openedMonet = false
+    var openedEnvironment = false
+    var onOpenEnvironment by mutableStateOf<(() -> Unit)?>(null)
     composeTestRule.setContent {
       KeiHomeTheme {
         Box(Modifier.verticalScroll(rememberScrollState())) {
@@ -164,6 +166,7 @@ class MonetStatusContentTest {
             monetReadFailed = false,
             onRefresh = { refreshed = true },
             onOpenMonet = { openedMonet = true },
+            onOpenEnvironment = onOpenEnvironment,
           )
         }
       }
@@ -189,6 +192,17 @@ class MonetStatusContentTest {
     composeTestRule.runOnIdle {
       assertTrue(refreshed)
       assertTrue(openedMonet)
+      refreshed = false
+      onOpenEnvironment = { openedEnvironment = true }
+    }
+    assertEquals(
+      context.getString(R.string.status_open_environment),
+      statusCard.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
+    )
+    statusCard.performClick()
+    composeTestRule.runOnIdle {
+      assertTrue(openedEnvironment)
+      assertFalse(refreshed)
     }
   }
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_open_environment">查看运行环境</string>
     <string name="runtime_module_ready">模块已就绪</string>
     <string name="runtime_native_ready">桌面已就绪</string>
     <string name="runtime_ready_summary">系统：%1$s · 桌面已就绪</string>

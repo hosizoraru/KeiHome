@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_open_environment">動作環境を表示</string>
     <string name="runtime_module_ready">モジュール準備完了</string>
     <string name="runtime_native_ready">ホーム準備完了</string>
     <string name="runtime_ready_summary">システム：%1$s · ホーム準備完了</string>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_open_environment">View environment</string>
     <string name="runtime_module_ready">Module ready</string>
     <string name="runtime_native_ready">Launcher ready</string>
     <string name="runtime_ready_summary">System: %1$s · Launcher ready</string>

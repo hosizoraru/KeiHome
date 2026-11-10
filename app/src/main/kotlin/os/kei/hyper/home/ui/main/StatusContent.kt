@@ -126,7 +126,7 @@ internal fun StatusBody(
   onOpenApps: () -> Unit = {},
   runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
-  coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: () -> Unit = {},
+  coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: (() -> Unit)? = null,
   scopeContent: @Composable () -> Unit = {},
 ) {
   // The containing page's SaveableStateProvider retains these across tab switches.
@@ -296,7 +296,7 @@ private fun RuntimeStatusSection(
   expanded: Boolean,
   onToggle: () -> Unit,
   onRefresh: () -> Unit,
-  onOpenEnvironment: () -> Unit,
+  onOpenEnvironment: (() -> Unit)?,
 ) {
   val current = if (framework.connected && !framework.readFailed) runtime else RuntimeStatusUiState()
   val checkedAt = current.report?.checkedAtElapsed
@@ -321,7 +321,7 @@ private fun RuntimeStatusSection(
 
 @Composable
 private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, onRefresh: () -> Unit,
-  onOpenEnvironment: () -> Unit) {
+  onOpenEnvironment: (() -> Unit)?) {
   val context = LocalContext.current
   val environment by produceState<AboutDeviceDetails?>(null, context) {
     value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
@@ -354,6 +354,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     tone = presentation.tone,
     onRefresh = onRefresh,
     onOpen = onOpenEnvironment,
+    actionLabel = if (onOpenEnvironment != null) stringResource(R.string.status_open_environment) else null,
     environmentSummary = environmentSummary,
     footer = when {
       // Java hot reload is a separate observation from the resident native endpoint.
@@ -809,21 +810,17 @@ internal fun StatusOverviewCard(
   }
 
   Card(
-    modifier = modifier
-      .fillMaxWidth()
-      .semantics {
-        this.onClick(label = actionLabel ?: refreshLabel) {
-          (onOpen ?: onRefresh)()
-          true
-        }
-      },
+    modifier = modifier.fillMaxWidth(),
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
     onClick = onOpen ?: onRefresh,
     showIndication = true,
     pressFeedbackType = PressFeedbackType.Tilt,
   ) {
-    Box(Modifier.fillMaxWidth().clipToBounds()) {
+    // MIUIX owns the clickable inner column; its semantics merge this content label.
+    Box(Modifier.fillMaxWidth().clipToBounds().semantics {
+      this.onClick(label = actionLabel ?: refreshLabel, action = null)
+    }) {
       // Keep the symbol square and clip it only at the full card boundary.
       Box(Modifier.matchParentSize()) {
         StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.CenterEnd)

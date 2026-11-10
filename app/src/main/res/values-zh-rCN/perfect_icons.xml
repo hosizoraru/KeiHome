@@ -87,7 +87,7 @@
   <string name="perfect_icons_result_reused">复用 %1$d 项</string>
   <string name="perfect_icons_force_download">强制拉取最新资源</string>
   <string name="perfect_icons_force_download_confirm">将重新下载最新的完整仓库快照，即使本地已经是最新版本。下载可能超过 600 MB，且需要额外临时存储空间，建议使用 Wi-Fi。下载失败时会保留原有可用资源，不会自动应用或更改当前主题。</string>
-  <string name="perfect_icons_force_download_proceed">确认重新下载</string>
+  <string name="perfect_icons_force_download_proceed">重新下载</string>
   <string name="perfect_icons_storage_count">%1$d 项图标 · %2$s</string>
   <string name="perfect_icons_storage_empty">点击下方悬浮按钮下载完整快照；进入本页仅读取本地数据。</string>
   <string name="perfect_icons_file_details">版本与文件详情</string>

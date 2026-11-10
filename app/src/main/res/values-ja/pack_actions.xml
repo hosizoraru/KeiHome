@@ -3,8 +3,8 @@
   <string name="top_bar_blur">アプリ内のぼかしとガラス</string>
   <string name="top_bar_blur_summary">アプリ内のバーとポップアップに適用。オフは不透明表示。</string>
   <string name="top_bar_off">オフ</string>
-  <string name="top_bar_gaussian">ガウスぼかし · Gaussian</string>
-  <string name="top_bar_progressive">段階的ぼかし · Progressive</string>
+  <string name="top_bar_gaussian">ガウス</string>
+  <string name="top_bar_progressive">段階的</string>
   <string name="pack_update_available">補完または更新できるアイコンがあります。アイコンパックを更新してください。</string>
   <string name="pack_action_settings">アイコンパックと操作</string>
   <string name="pack_action_settings_summary">自動適用、全アプリまたはインストール済みのみの生成、選択の記憶</string>

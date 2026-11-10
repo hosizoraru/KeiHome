@@ -66,6 +66,7 @@ class PerfectIconRepository internal constructor(
   private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
   private val nativeMask: () -> String? = { null },
   private val staticRenderer: ((List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
+  private val dynamicNightRenderer: ((ByteArray, Boolean, () -> Unit) -> ByteArray?)? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
@@ -73,6 +74,9 @@ class PerfectIconRepository internal constructor(
     MmkvSettings(context.applicationContext),
     nativeMask = { NativeAdaptiveIconMask.load()?.pathData },
     staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check) },
+    dynamicNightRenderer = { bytes, background, check ->
+      PerfectDynamicNightRenderer.render(bytes, background, check)
+    },
   )
 
   private val mutex = locks.getOrPut(root.absolutePath) { Mutex() }
@@ -231,9 +235,16 @@ class PerfectIconRepository internal constructor(
         progress(PerfectIconProgress(done, total, "source.static-night"))
       }
       trimBlobs(unique.map { it.sha }.toSet())
+      val derivedDynamicCount = if (options.staticNight && options.dynamic) ZipFile(file).use { zip ->
+        zip.entries().asSequence().count {
+          it.name.startsWith("nightmode/layer_animating_icons/") && it.name.endsWith("/config.xml")
+        }
+      } else 0
       PerfectIconResult(file, (validated.staticIds + validated.dynamicIds).size, validated.staticIds.size,
         validated.dynamicIds.size, extracted, reused, snapshot.revision,
-        rejectedDynamic = validated.rejectedDynamic.size)
+        rejectedDynamic = validated.rejectedDynamic.size,
+        nightRevision = options.nightContract(),
+        derivedDynamicCount = derivedDynamicCount)
     }
   }
 
@@ -247,7 +258,7 @@ class PerfectIconRepository internal constructor(
       require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
       val mask = nativeMask()
       val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit" +
-        if (options.staticNight) "\n${PerfectStaticNightRenderer.REVISION}" else ""
+        if (options.staticNight) "\n${PerfectStaticNightRenderer.REVISION}:${PerfectDynamicNight.REVISION}" else ""
       val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
       val destination = File(previewDir, "preview-${snapshot.sourceHash.take(12)}-$key.zip")
       val proof = File(previewDir, "${destination.name}.sha256")
@@ -624,7 +635,8 @@ class PerfectIconRepository internal constructor(
       append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
       append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
-      if (options.staticNight) append(PerfectStaticNightRenderer.REVISION).append('\n')
+      if (options.staticNight) append(PerfectStaticNightRenderer.REVISION)
+        .append(':').append(PerfectDynamicNight.REVISION).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
     }
     val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
@@ -653,6 +665,7 @@ class PerfectIconRepository internal constructor(
       "transform_config.xml" to transform,
     )
     val nightInputs = if (options.staticNight) staticNightInputs(plan) else emptyMap()
+    val dynamicNight = options.staticNight && dynamicNightRenderer != null
     val replaced = nightInputs.keys.mapTo(hashSetOf()) { "res/drawable-xxhdpi/$it.png" }
     val expected = linkedMapOf<String, Pair<Long, String>>()
     try {
@@ -678,13 +691,54 @@ class PerfectIconRepository internal constructor(
             zip.closeEntry()
           }
           generated.forEach { (path, bytes) -> entry(path, bytes) }
-          plan.files.filterKeys { it !in replaced }.forEach { (path, blob) -> entry(path, read(blob), blob.sha) }
+          plan.files.filterKeys {
+            it !in replaced && !(dynamicNight && it.startsWith("layer_animating_icons/"))
+          }.forEach { (path, blob) -> entry(path, read(blob), blob.sha) }
           nightInputs.entries.forEachIndexed { index, (name, inputs) ->
             coroutine.ensureActive()
             val pair = staticPair(inputs, mask, { coroutine.ensureActive() }, read)
             NativeDayNightIcon.entries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
+            entry("nightmode/res/drawable-xxhdpi/$name.png", pair.night)
             renderProgress(index + 1, nightInputs.size)
             if (index % 32 == 31) trimRendered()
+          }
+          if (dynamicNight) {
+            val groups = plan.files.keys.filter { it.startsWith("layer_animating_icons/") }
+              .map { it.removePrefix("layer_animating_icons/").substringBefore('/') }.toSortedSet()
+            for (name in groups) {
+              coroutine.ensureActive()
+              val prefix = "layer_animating_icons/$name/"
+              val files = plan.files.filterKeys { it.startsWith(prefix) }
+                .mapKeys { (path, _) -> path.removePrefix(prefix) }
+              fun original() = files.toSortedMap().forEach { (path, blob) ->
+                entry("$prefix$path", read(blob), blob.sha)
+              }
+              val group = PerfectDynamicNight.group(files, read) { coroutine.ensureActive() }
+              if (group == null) { original(); continue }
+              val converted = linkedMapOf<String, ByteArray>()
+              var renderedBytes = 0L
+              for (path in listOf(group.background) + group.foreground) {
+                coroutine.ensureActive()
+                val bytes = dynamicNightTexture(group.files.getValue(path), path == group.background,
+                  { coroutine.ensureActive() }, read) ?: break
+                renderedBytes += bytes.size
+                if (renderedBytes > 32L * 1024 * 1024) break
+                converted[path] = bytes
+              }
+              // Publish the whole closure or none, never a mixture of night and missing day assets.
+              if (converted.size != group.foreground.size + 1) { original(); continue }
+              val originals = group.files.mapValues { (_, blob) ->
+                read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) }
+              }
+              val night = originals + converted
+              // Rust's layer loader does not reliably select the nightmode tree.
+              // Keep native animation owners and select their textures inside the layers.
+              val live = PerfectDynamicNightSwitch.systemFiles(group, originals, converted)
+              if (live == null) { original(); continue }
+              live.toSortedMap().forEach { (path, bytes) -> entry("$prefix$path", bytes) }
+              night.toSortedMap().forEach { (path, bytes) -> entry("nightmode/$prefix$path", bytes) }
+              trimRendered()
+            }
           }
           zip.finish()
           zip.flush()
@@ -714,6 +768,71 @@ class PerfectIconRepository internal constructor(
       temporary.delete()
       trimRendered()
     }
+  }
+
+  private fun dynamicNightTexture(
+    blob: PerfectIconBlob,
+    background: Boolean,
+    check: () -> Unit,
+    read: (PerfectIconBlob) -> ByteArray,
+  ): ByteArray? {
+    val render = dynamicNightRenderer ?: return null
+    val key = PerfectIconFormat.sha("${PerfectDynamicNight.REVISION}:${blob.sha}:$background".toByteArray())
+    val output = File(renderedDir, "$key.zip")
+    if (output.isFile && output.length() in 1..(PerfectIconFormat.MAX_BLOB.toLong() + 4096)) {
+      try {
+        ZipFile(output).use { zip ->
+          val proofEntry = requireNotNull(zip.getEntry("proof.json"))
+          require(proofEntry.size in 1..4096)
+          val proofBytes = zip.getInputStream(proofEntry).use { it.readNBytes(4097) }
+          require(proofBytes.size <= 4096)
+          val proof = JSONObject(proofBytes.toString(Charsets.UTF_8))
+          require(proof.getString("key") == key)
+          if (proof.optBoolean("retained")) {
+            require(zip.size() == 1)
+            return null
+          }
+          val entry = requireNotNull(zip.getEntry("night.png"))
+          require(zip.size() == 2 && entry.size in 1..PerfectIconFormat.MAX_BLOB.toLong())
+          check()
+          val bytes = zip.getInputStream(entry).use { it.readNBytes(PerfectIconFormat.MAX_BLOB + 1) }
+          require(bytes.size <= PerfectIconFormat.MAX_BLOB)
+          require(PerfectIconFormat.sha(bytes) == proof.getString("sha"))
+          PerfectIconFormat.raster(bytes)
+          return bytes
+        }
+      } catch (failure: Exception) {
+        if (failure is CancellationException || failure is InterruptedException) throw failure
+        output.delete()
+      }
+    }
+    check()
+    val bytes = render(read(blob), background, check)
+    if (bytes != null) PerfectIconFormat.raster(bytes)
+    val proof = JSONObject().put("key", key).apply {
+      if (bytes == null) put("retained", true) else put("sha", PerfectIconFormat.sha(bytes))
+    }.toString().toByteArray()
+    val encoded = ByteArrayOutputStream().also { buffer ->
+      ZipOutputStream(buffer).use { zip ->
+        fun entry(name: String, content: ByteArray) {
+          zip.putNextEntry(ZipEntry(name).apply {
+            time = 0
+            if (name.endsWith(".png")) {
+              method = ZipEntry.STORED
+              size = content.size.toLong()
+              compressedSize = size
+              crc = CRC32().apply { update(content) }.value
+            }
+          })
+          zip.write(content)
+          zip.closeEntry()
+        }
+        entry("proof.json", proof)
+        if (bytes != null) entry("night.png", bytes)
+      }
+    }.toByteArray()
+    atomic(output, encoded, check)
+    return bytes
   }
 
 

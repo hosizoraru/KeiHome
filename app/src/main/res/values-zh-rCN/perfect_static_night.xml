@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="perfect_icons_static_night">静态图标深浅色适配</string>
-    <string name="perfect_icons_static_night_summary">从静态分层生成深色渐变，原版动态资源保持不变。可能增加图标加载开销。</string>
-    <string name="perfect_icons_static_night_note">此选项派生深色外观，不是源站独立深色资源或 Monet。分层背景使用深色渐变，一体图仅调暗；生成结果会缓存复用。更改后需重新生成并应用。</string>
+    <string name="perfect_icons_static_night">图标深浅色适配</string>
+    <string name="perfect_icons_static_night_summary">为符合条件的静态图标及位图动态分层生成深色外观，保留原版动画。动态适配会增加背景绘制和缓存开销。</string>
+    <string name="perfect_icons_static_night_note">这是派生深色外观，并非源站独立深色资源或 Monet。静态分层使用深色渐变，一体图仅调暗。符合条件的动态组保留原分层、动画时序和事件，补充深浅纹理选择及背景绘制；每组会增加一个背景绘制实例。复杂 Lottie、文字、程序化绘制及作者自带的深色行为保持不变。结果缓存复用，更改后需重新生成并应用。</string>
     <string name="perfect_icons_night_mode_original">原始资源</string>
     <string name="perfect_icons_night_mode_derived">额外深色适配</string>
-    <string name="perfect_icons_night_disabled">关闭时保留原始分层与原版动态；不会为静态图标额外生成深色。</string>
-    <string name="perfect_icons_night_enabled">为符合条件的静态图标生成深色外观，原版动态不变。可能增加加载开销。</string>
-    <string name="perfect_icons_preview_options_scope">预览跟随当前选项，不代表已生成或桌面已应用的效果。修改后需重新生成并应用。</string>
+    <string name="perfect_icons_night_disabled">关闭时保留原始分层、原版动画及已有深色行为，不额外生成派生深色外观。</string>
+    <string name="perfect_icons_night_enabled">为符合条件的静态图标及部分位图动态分层派生深色外观，保留原动画。不支持的组及作者已有的深色行为保持不变；动态适配有额外绘制和缓存开销。</string>
+    <string name="perfect_icons_preview_options_scope">预览仅展示当前选项下的静态画面，不播放实时动画，也不代表已生成或桌面已应用的效果。修改后需重新生成并应用。</string>
+    <string name="perfect_icons_result_dynamic_night">深色分层 · %1$d</string>
 </resources>

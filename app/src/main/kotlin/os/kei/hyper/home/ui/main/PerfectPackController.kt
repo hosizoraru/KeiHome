@@ -337,6 +337,7 @@ internal class PerfectPackController(
       .put("dynamicCount", result.dynamicCount).put("downloaded", result.downloaded)
       .put("reused", result.reused).put("revision", result.revision)
       .put("rejectedDynamic", result.rejectedDynamic).put("contract", result.contract)
+      .put("nightRevision", result.nightRevision).put("derivedDynamicCount", result.derivedDynamicCount)
       .put("style", options.style).put("installedOnly", options.installedOnly).put("dynamic", options.dynamic)
       .put("staticNight", options.staticNight)
     check(storage.encode("last_generated", saved.toString()))
@@ -353,5 +354,7 @@ internal class PerfectPackController(
     revision = getString("revision"),
     rejectedDynamic = optInt("rejectedDynamic", 0),
     contract = optString("contract", ""),
+    nightRevision = optString("nightRevision", ""),
+    derivedDynamicCount = optInt("derivedDynamicCount", 0),
   )
 }

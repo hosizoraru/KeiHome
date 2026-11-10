@@ -46,10 +46,15 @@ internal object LocalLayerIconValidator {
         if (layer in config.quietOnly) require(quiet in paths) { "Missing quiet-only layer" }
         if (layer in config.fancyOnly) require(manifest in paths) { "Missing fancy-only layer" }
         if (manifest in paths) {
-          consumed += visual(read(manifest, limits.maxXmlBytes.toLong()), prefix + "fancy/", paths, read)
+          val program = read(manifest, limits.maxXmlBytes.toLong())
+          val weatherImages = LocalWeatherLayerProgram.resources(program, prefix + "fancy/", paths)
+          if (weatherImages != null) weatherImages.forEach(::bitmap)
+          else consumed += visual(program, prefix + "fancy/", paths, read)
           consumed += manifest
         }
-        fancyResources[prefix + "fancy/"].orEmpty().filter { imagePath.matches(it.removePrefix(prefix + "fancy/")) }
+        fancyResources[prefix + "fancy/"].orEmpty().filter {
+          it !in consumed && imagePath.matches(it.removePrefix(prefix + "fancy/"))
+        }
           .forEach(::bitmap)
       }
     }
@@ -61,7 +66,7 @@ internal object LocalLayerIconValidator {
     }
     for (path in static) {
       val pieces = path.removePrefix("nightmode/").split('/')
-      require(pieces.size == 4 && validDottedName(pieces[2]) && '.' in pieces[2] &&
+      require(pieces.size == 4 && validDottedName(pieces[2]) &&
         pieces[3] in setOf("0.png", "1.png")) { "Unsupported static layer resource" }
       val prefix = path.substringBeforeLast('/')
       require("$prefix/0.png" in paths && "$prefix/1.png" in paths) { "Incomplete static layer pair" }
@@ -72,7 +77,7 @@ internal object LocalLayerIconValidator {
 
   private val timeUpdaters = setOf("DateTime.Day", "DateTime.Hour", "DateTime.Minute", "DateTime.Second")
   private val systemNumbers = setOf("date", "month", "year", "day_of_week", "hour12", "hour24",
-    "minute", "second", "time_sys", "ratio")
+    "minute", "second", "time_sys", "ratio", "__darkmode")
   private val numberToken = Regex("#[A-Za-z_][A-Za-z0-9_]*(?:\\.(?:text_width|text_height))?|[A-Za-z_][A-Za-z0-9_]*")
 
   private fun numeric(value: String, references: MutableSet<String>) {
@@ -86,7 +91,10 @@ internal object LocalLayerIconValidator {
     }
   }
 
-  private data class Element(val tag: String, val name: String?, var branches: Int = 0)
+  private data class Element(
+    val tag: String, val name: String?, var branches: Int = 0,
+    var animationKinds: Int = 0, var lastKeyframe: Int = -1,
+  )
 
   private fun visual(
     bytes: ByteArray,
@@ -111,6 +119,11 @@ internal object LocalLayerIconValidator {
     val edges = linkedMapOf<String, MutableList<String>>()
     val costs = mutableMapOf<String, Int>()
     var visuals = 0
+    var observesDarkMode = false
+    var tracks = 0
+    var keyframes = 0
+    val keyframeTargets = mutableSetOf<String>()
+    val keyframeReferences = mutableSetOf<String>()
     fun name(value: String): String = value.also { require(identifier.matches(it)) { "Unsafe visual identifier" } }
     fun names(value: String): List<String> {
       require(value.matches(Regex("'[A-Za-z_][A-Za-z0-9_]*'(?:,'[A-Za-z_][A-Za-z0-9_]*')*")))
@@ -121,7 +134,7 @@ internal object LocalLayerIconValidator {
     BoundedPackXml.read(bytes, limits, start = { tag, attrs, depth ->
       val parent = stack.lastOrNull()
       val owner = stack.lastOrNull { it.tag == "Function" }?.name?.let { "function:$it" } ?: "entry"
-      val command = tag in setOf("FolmeCommand", "FrameRateCommand", "FunctionCommand", "LottieCommand",
+      val command = tag in setOf("FolmeCommand", "FrameRateCommand", "FunctionCommand", "LottieCommand", "AnimationCommand",
         "IfCommand", "VariableCommand", "ExternCommand")
       val inLottieCompletion = stack.any { it.tag == "Triggers" }
       require(if (depth == 1) tag == "Icon" else when {
@@ -134,6 +147,8 @@ internal object LocalLayerIconValidator {
         tag == "Trigger" -> parent?.tag in setOf("ExternalCommands", "Triggers")
         tag == "Triggers" -> parent?.tag == "Lottie"
         tag == "Function" -> parent?.tag == "Icon"
+        tag in setOf("PositionAnimation", "AlphaAnimation") -> parent?.tag == "Image"
+        tag == "Item" -> parent?.tag in setOf("PositionAnimation", "AlphaAnimation")
         tag in setOf("Group", "Image", "Lottie", "Text", "Var", "FolmeState", "FolmeConfig", "ExternalCommands") ->
           parent?.tag in setOf("Icon", "Group")
         else -> false
@@ -142,9 +157,12 @@ internal object LocalLayerIconValidator {
       val allowed = when (tag) {
         "Icon" -> setOf("version", "frameRate", "width", "height", "screenWidth", "resDensity", "useVariableUpdater")
         "Group" -> geometry + setOf("name", "align", "alignV", "visibility")
-        "Image" -> geometry + setOf("name", "src", "srcid", "cornerRadius", "align", "alignV", "visibility", "folmeMode")
+        "Image" -> geometry + setOf("name", "src", "srcid", "srcExp", "cornerRadius", "align", "alignV", "visibility", "folmeMode")
         "Lottie" -> setOf("name", "src", "x", "y", "w", "h", "align", "alignV", "autoplay", "loop")
         "LottieCommand" -> setOf("target", "command", "params")
+        "AnimationCommand" -> setOf("target", "command")
+        "PositionAnimation", "AlphaAnimation" -> emptySet()
+        "Item" -> if (parent?.tag == "PositionAnimation") setOf("x", "y", "time") else setOf("value", "time")
         "Text" -> geometry + setOf("name", "scale", "align", "alignV", "size", "fontFamily", "color", "textExp")
         "Var" -> setOf("name", "expression", "type", "const")
         "FolmeState" -> geometry + "name"
@@ -196,12 +214,25 @@ internal object LocalLayerIconValidator {
           "loop" -> boundedInt(value, 0..16)
           "params" -> require(value.matches(Regex("(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?")) &&
             value.toDouble() in 0.0..36_000.0) { "Unsupported Lottie command parameter" }
-          "useVariableUpdater" -> require(value in timeUpdaters) { "Unsupported time updater" }
+          "useVariableUpdater" -> {
+            val updaters = value.split(',')
+            require(value == "none" || (updaters.size in 1..2 && updaters.distinct().size == updaters.size &&
+              updaters.all { it in timeUpdaters || it == "DarkMode" } &&
+              (updaters.size == 1 || "DarkMode" in updaters))) { "Unsupported time updater" }
+            observesDarkMode = "DarkMode" in updaters
+          }
+          "srcExp" -> {
+            val source = requireNotNull(attrs["src"])
+            require(imagePath.matches(source) && attrs["srcid"] == null && observesDarkMode &&
+              value == "ifelse(#__darkmode,'keihome_night/$source','$source')" &&
+              base + "keihome_night/$source" in paths) { "Unsupported local appearance selector" }
+          }
           "action" -> require(if (parent?.tag == "Triggers") value == "complete"
             else value.split(',').all { it in lifecycle }) { "Unsupported layer trigger action" }
           "target" -> {
             val kind = when (tag) { "FunctionCommand" -> "function"; "LottieCommand" -> "lottie"; else -> "target" }
             references += kind to name(value)
+            if (tag == "AnimationCommand") keyframeReferences += value
             if (kind == "function") edge(owner, "function:$value")
           }
           "states" -> names(value).also {
@@ -221,6 +252,13 @@ internal object LocalLayerIconValidator {
           "command" -> when (tag) {
             "ExternCommand" -> require(value == "__datatimeVarUpdate") { "Unsupported external command" }
             "LottieCommand" -> require(value in setOf("play", "goToAndStop")) { "Unsupported Lottie command" }
+            "AnimationCommand" -> {
+              val range = requireNotNull(Regex("play\\((0|[1-9][0-9]{0,4}),(0|[1-9][0-9]{0,4})\\)")
+                .matchEntire(value)) { "Unsupported keyframe command" }
+              val start = range.groupValues[1].toInt()
+              val end = range.groupValues[2].toInt()
+              require(start <= end && end <= 60_000) { "Unbounded keyframe playback" }
+            }
             else -> require(value in setOf("setTo", "fromTo", "to", "cancel"))
           }
           "strPara" -> require(value in setOf("'DateTime.Second'", "'DateTime.Minute'")) { "Unsupported external parameter" }
@@ -231,6 +269,8 @@ internal object LocalLayerIconValidator {
           "textExp" -> require(value == "formatDate('E',#time_sys)") { "Unsupported date text expression" }
           "size" -> boundedInt(value, 1..256)
           "delay" -> boundedInt(value, 0..60_000)
+          "time" -> boundedInt(value, 0..60_000)
+          "value" -> boundedInt(value, 0..255)
           "ease" -> {
             val values = value.split(',')
             require(values.size in 1..8 && values.all {
@@ -267,6 +307,27 @@ internal object LocalLayerIconValidator {
           require(attrs.keys.containsAll(setOf("target", "command")))
           if (attrs["command"] == "goToAndStop") require(attrs["params"] != null)
         }
+        "AnimationCommand" -> require(attrs.keys == setOf("target", "command"))
+        "PositionAnimation", "AlphaAnimation" -> {
+          val image = requireNotNull(parent)
+          val bit = if (tag == "PositionAnimation") 1 else 2
+          require(image.animationKinds and bit == 0 && ++tracks <= 32) { "Keyframe track limit" }
+          image.animationKinds = image.animationKinds or bit
+          image.name?.let(keyframeTargets::add)
+        }
+        "Item" -> {
+          val track = requireNotNull(parent)
+          val expected = if (track.tag == "PositionAnimation") setOf("x", "y", "time") else setOf("value", "time")
+          require(attrs.keys == expected && ++track.branches <= 64 && ++keyframes <= 256)
+          val time = attrs.getValue("time").toInt()
+          require(time >= track.lastKeyframe) { "Keyframe times must be ordered" }
+          track.lastKeyframe = time
+          if (track.tag == "PositionAnimation") for (axis in listOf("x", "y")) {
+            val value = attrs.getValue(axis)
+            require(value.matches(Regex("-?[0-9]+(?:\\.[0-9]{1,6})?")) &&
+              value.toDoubleOrNull()?.let { it in -4096.0..4096.0 } == true) { "Unsupported keyframe position" }
+          }
+        }
         "Text" -> {
           require(attrs.keys.containsAll(setOf("name", "textExp", "size", "fontFamily", "color")))
           visuals++
@@ -287,10 +348,15 @@ internal object LocalLayerIconValidator {
     }, end = { _, _ ->
       val element = stack.removeAt(stack.lastIndex)
       if (element.tag == "IfCommand") require(element.branches in 1..2)
+      if (element.tag in setOf("PositionAnimation", "AlphaAnimation")) {
+        require(element.branches > 0) { "Empty keyframe track" }
+      }
     }, text = { text, _ -> require(text.isBlank()) })
     require(visuals in 1..128 && texts.size <= 16 && states.size <= 64 && configs.size <= 64)
+    require(keyframeTargets.containsAll(keyframeReferences)) { "Missing keyframe target" }
     require(localNumbers.none { it in targets || it in lotties || it in callable || it in states || it in configs })
     numericReferences.forEach { value ->
+      if (value == "__darkmode") require(observesDarkMode) { "Missing DarkMode updater" }
       if ('.' in value) require(value.substringBefore('.') in texts) { "Unknown local text metric" }
       else require(value in systemNumbers || value in localNumbers) { "Unknown local numeric variable: $value" }
     }

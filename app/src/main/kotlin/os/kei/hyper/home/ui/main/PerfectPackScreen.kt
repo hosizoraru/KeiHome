@@ -286,7 +286,10 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                   if (result.rejectedDynamic > 0) MetadataPill(
                     stringResource(R.string.perfect_icons_layer_fallback, result.rejectedDynamic),
                     MiuixTheme.colorScheme.primary)
-                  if (result.contract != os.kei.hyper.home.iconpack.perfect.PerfectIconRepository.LAYER_CONTRACT)
+                  if (result.derivedDynamicCount > 0) MetadataPill(
+                    stringResource(R.string.perfect_icons_result_dynamic_night, result.derivedDynamicCount),
+                    MiuixTheme.colorScheme.onSurfaceSecondary)
+                  if (result.needsContractUpdate(state.generatedOptions ?: state.options))
                     MetadataPill(stringResource(R.string.perfect_icons_layer_regenerate), MiuixTheme.colorScheme.primary)
                 }
                 if (state.generatedOptions != null && state.generatedOptions != state.options) {

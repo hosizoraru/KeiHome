@@ -34,7 +34,17 @@ data class PerfectIconResult(
   val revision: String,
   val rejectedDynamic: Int = 0,
   val contract: String = PerfectIconRepository.LAYER_CONTRACT,
-)
+  val nightRevision: String = "",
+  val derivedDynamicCount: Int = 0,
+) {
+  internal fun needsContractUpdate(options: PerfectIconOptions): Boolean =
+    contract != PerfectIconRepository.LAYER_CONTRACT ||
+      options.staticNight && nightRevision != options.nightContract()
+}
+
+internal fun PerfectIconOptions.nightContract(): String =
+  if (staticNight) "${PerfectStaticNightRenderer.REVISION}:${if (dynamic) PerfectDynamicNight.REVISION else "static"}"
+  else ""
 
 class PerfectIconCooldownException(val retryAt: Long) :
   IOException("Perfect Icons requests paused until $retryAt")

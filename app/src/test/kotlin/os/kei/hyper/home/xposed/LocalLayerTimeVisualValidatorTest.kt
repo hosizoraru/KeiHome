@@ -20,10 +20,67 @@ class LocalLayerTimeVisualValidatorTest {
     "back_home_finish", "back_home_cancel", "open_second", "close_second",
     "open_second_instant", "close_second_instant")
 
+  @Test fun frameworkStaticPairsCoexistWithFlatArtworkInMixedArchives() {
+    val paths = setOf("res/drawable-xxhdpi/com.example.png",
+      "nightmode/res/drawable-xxhdpi/com.example.png",
+      "res/drawable-xxhdpi/android/0.png", "res/drawable-xxhdpi/android/1.png")
+    val checked = mutableSetOf<String>()
+    val admitted = LocalLayerIconValidator.validate(paths, { path, _ ->
+      checked += path
+      png
+    }, {})
+    assertEquals(paths.filter { it.endsWith("/0.png") || it.endsWith("/1.png") }.toSet(), admitted)
+    assertEquals(admitted, checked)
+    assertThrows(IllegalArgumentException::class.java) {
+      LocalLayerIconValidator.validate(paths + "res/drawable-xxhdpi/android/nested/0.png",
+        { _, _ -> png }, {})
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      LocalLayerIconValidator.validate(paths - "res/drawable-xxhdpi/android/1.png",
+        { _, _ -> png }, {})
+    }
+  }
+
   @Test fun admitsTimeUpdatersOnlyFromTheExactEnum() {
     for (updater in listOf("Day", "Hour", "Minute", "Second")) admit("", "useVariableUpdater='DateTime.$updater'")
     for (updater in listOf("DateTime", "DateTime.Millisecond", "Battery", "DateTime.Day,Content",
       "DateTime.Second;Intent", "dateTime.Second")) {
+      reject("", "useVariableUpdater='$updater'")
+    }
+  }
+
+  @Test fun localDarkModeSelectorsRequireTheirUpdaterAndCompleteTexturePair() {
+    val body = """<Image name="hand" src="icon.png"
+      srcExp="ifelse(#__darkmode,'keihome_night/icon.png','icon.png')"/>"""
+    val textures = mapOf(base + "keihome_night/icon.png" to png)
+    for (updater in listOf("DarkMode", "DateTime.Minute,DarkMode", "DateTime.Second,DarkMode")) {
+      admit(body, "frameRate='0' useVariableUpdater='$updater'", textures, includeImage = false)
+    }
+    for (changed in listOf(
+      body.replace("#__darkmode", "#second"),
+      body.replace("keihome_night/icon.png", "../icon.png"),
+      body.replace("keihome_night/icon.png", "content://weather/icon.png"),
+      body.replace("ifelse(", "eval("),
+      body.replace("src=\"icon.png\"", "src=\"icon.png\" srcid=\"#date\""),
+    )) assertThrows(Exception::class.java) {
+      admit(changed, "useVariableUpdater='DarkMode'", textures, includeImage = false)
+    }
+    assertThrows(Exception::class.java) {
+      admit(body, "useVariableUpdater='DarkMode'", includeImage = false)
+    }
+    assertThrows(Exception::class.java) {
+      admit(body, "useVariableUpdater='DateTime.Minute'", textures, includeImage = false)
+    }
+  }
+
+  @Test fun appearanceNumbersAreReadOnlyAndDoNotEnableArbitraryUpdaters() {
+    admit("<Image src='icon.png' visibility='not(#__darkmode)'/>", "useVariableUpdater='DarkMode'")
+    admit("", "useVariableUpdater='none'")
+    reject("<Image src='icon.png' visibility='not(#__darkmode)'/>")
+    reject(trigger("<VariableCommand name='__darkmode' type='number' expression='0'/>"),
+      "useVariableUpdater='DarkMode'")
+    for (updater in listOf("DarkMode,DarkMode", "DateTime.Hour,DateTime.Second",
+      "DarkMode,ContentProvider", "none,DarkMode", "DarkMode,DateTime.Second,DateTime.Minute")) {
       reject("", "useVariableUpdater='$updater'")
     }
   }

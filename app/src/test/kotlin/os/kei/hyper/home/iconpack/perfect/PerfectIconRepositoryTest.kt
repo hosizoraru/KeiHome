@@ -90,6 +90,107 @@ class PerfectIconRepositoryTest {
       files[prefix + "0/fancy/image.png"] = png(tint)
       files[prefix + "original.dat"] = byteArrayOf(0, 2, 3, -1)
     }
+    fun bitmapDynamic(id: String) {
+      files["icons/$id/0.png"] = png(20)
+      files["icons/$id/1.png"] = png(21)
+      val prefix = "themes/default/layer_animating_icons/$id/"
+      files[prefix + "config.xml"] = """<Config><Variables>
+        <Variable name="layer0" value="0" type="string"/>
+        <Variable name="layer1" value="1" type="string"/>
+        <Variable name="layer_only_quiet0" value="true" type="string"/>
+        <Variable name="layer_only_quiet1" value="false" type="string"/>
+        </Variables></Config>""".toByteArray()
+      files[prefix + "0/quiet/quietImage.png"] = png(20)
+      files[prefix + "1/quiet/quietImage.png"] = png(21)
+      files[prefix + "1/fancy/frame.png"] = png(21)
+      files[prefix + "1/fancy/manifest.xml"] =
+        """<Icon version="1" width="2" height="2" frameRate="0" useVariableUpdater="none"><Image src="frame.png"/></Icon>""".toByteArray()
+      update()
+    }
+  }
+
+  @Test fun bitmapDynamicNightKeepsAnimationOwnersAndReusesDerivedTexturesAcrossPreview() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.files.clear()
+    val id = "test.dynamic"
+    f.bitmapDynamic(id)
+    var renders = 0
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      dynamicNightRenderer = { _, background, check ->
+        check(); renders++; if (background) png(30) else png(40)
+      })
+    repo.catalog(true)
+    val off = PerfectIconOptions("default")
+    val on = off.copy(staticNight = true)
+    val original = repo.generate(off, setOf(id)) {}.file
+    assertEquals(0, renders)
+    val generated = repo.generate(on, setOf(id)) {}
+    assertEquals(1, generated.dynamicCount)
+    assertEquals(1, generated.derivedDynamicCount)
+    assertFalse(generated.needsContractUpdate(on))
+    val prefix = "layer_animating_icons/$id/"
+    ZipFile(generated.file).use { zip ->
+      for ((path, bytes) in f.files.filterKeys { it.startsWith("themes/default/$prefix") }) {
+        val relative = path.removePrefix("themes/default/")
+        if (relative !in setOf("${prefix}config.xml", "${prefix}1/fancy/manifest.xml"))
+          assertArrayEquals(bytes, zip.getInputStream(zip.getEntry(relative)).readBytes())
+        if (relative.endsWith(".xml"))
+          assertArrayEquals(bytes, zip.getInputStream(zip.getEntry("nightmode/$relative")).readBytes())
+      }
+      assertArrayEquals(png(30), zip.getInputStream(zip.getEntry("nightmode/${prefix}0/quiet/quietImage.png")).readBytes())
+      assertArrayEquals(png(40), zip.getInputStream(zip.getEntry("nightmode/${prefix}1/fancy/frame.png")).readBytes())
+      val configuration = zip.getInputStream(zip.getEntry("${prefix}config.xml")).readBytes()
+      assertTrue(os.kei.hyper.home.iconpack.NativeLayerConfig.parse(configuration,
+        os.kei.hyper.home.iconpack.IconPackLimits()).fancyOnly.contains("0"))
+      val manifest = zip.getInputStream(zip.getEntry("${prefix}1/fancy/manifest.xml")).readBytes().decodeToString()
+      assertTrue(manifest.contains("srcExp="))
+      assertTrue(manifest.contains("DarkMode"))
+      assertNotNull(zip.getEntry("${prefix}0/fancy/manifest.xml"))
+      assertNull(zip.getEntry("fancy_icons/$id/manifest.xml"))
+      assertEquals(ZipEntry.STORED, zip.getEntry("nightmode/${prefix}1/fancy/frame.png").method)
+    }
+    assertEquals(2, renders)
+    val first = generated.file.readBytes()
+    repo.previewArchive(on, 1)
+    assertEquals(2, renders)
+    assertArrayEquals(first, repo.generate(on, setOf(id)) {}.file.readBytes())
+    ZipFile(original).use { zip -> assertNull(zip.getEntry("nightmode/${prefix}config.xml")) }
+    assertEquals(1, f.http.calls.size)
+  }
+
+  @Test fun rejectedDynamicPlateIsCachedAndNeverPublishesPartialNightTree() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.files.clear()
+    val id = "test.dynamic"
+    f.bitmapDynamic(id)
+    var renders = 0
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      dynamicNightRenderer = { _, background, _ -> renders++; assertTrue(background); null })
+    repo.catalog(true)
+    val options = PerfectIconOptions("default", staticNight = true)
+    val result = repo.generate(options, setOf(id)) {}
+    assertEquals(0, result.derivedDynamicCount)
+    assertEquals(1, renders)
+    ZipFile(result.file).use { zip ->
+      assertNotNull(zip.getEntry("layer_animating_icons/$id/config.xml"))
+      assertFalse(zip.entries().asSequence().any { it.name.startsWith("nightmode/") })
+    }
+    repo.previewArchive(options, 1)
+    assertEquals(1, renders)
+    assertEquals(1, f.http.calls.size)
+  }
+
+  @Test fun oldNightOutputsRequestRegenerationWithoutInvalidatingOriginalMode() {
+    val old = PerfectIconResult(File("existing.zip"), 1, 0, 1, 0, 0, "a".repeat(40))
+    assertFalse(old.needsContractUpdate(PerfectIconOptions("default")))
+    assertTrue(old.needsContractUpdate(PerfectIconOptions("default", dynamic = false, staticNight = true)))
+    assertTrue(old.needsContractUpdate(PerfectIconOptions("default", staticNight = true)))
+    assertFalse(old.copy(nightRevision = PerfectIconOptions("default", staticNight = true).nightContract())
+      .needsContractUpdate(PerfectIconOptions("default", staticNight = true)))
+    val staticOnly = PerfectIconOptions("default", dynamic = false, staticNight = true)
+    assertFalse(old.copy(nightRevision = staticOnly.nightContract()).needsContractUpdate(staticOnly))
+    assertTrue(old.copy(nightRevision = staticOnly.nightContract())
+      .needsContractUpdate(staticOnly.copy(dynamic = true)))
   }
 
   @Test fun optionalStaticNightReusesPairsAndOnlyRendersChangedSourceWithoutNetworkRepeats() = runBlocking {
@@ -110,6 +211,8 @@ class PerfectIconRepositoryTest {
       assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/0.png"))
       assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/1.png"))
       assertNotNull(zip.getEntry("fancy_icons/third.party/night.png"))
+      assertArrayEquals(png(40), zip.getInputStream(
+        zip.getEntry("nightmode/res/drawable-xxhdpi/third.party.png")).readBytes())
       val xml = zip.getInputStream(zip.getEntry("fancy_icons/third.party/manifest.xml")).reader().readText()
       assertTrue(xml.contains("frameRate=\"0\""))
       assertFalse(xml.contains("ContentProviderBinder"))

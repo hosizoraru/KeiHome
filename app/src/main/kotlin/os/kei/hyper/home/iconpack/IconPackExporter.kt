@@ -325,8 +325,8 @@ internal class IconPackExporter(private val context: Context, private val limits
         check()
         val name = requireNotNull(entry.nativeName)
         val root = "fancy_icons/$name/"
-        val dayPath = (entry.light!! as IconPackArtwork.Archive).variants.single().path
-        val nightPath = (entry.dark!! as IconPackArtwork.Archive).variants.single().path
+        val dayPath = (entry.light as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
+        val nightPath = (entry.dark as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
         val originalPaths = setOf(root + "manifest.xml", dayPath, nightPath)
         if (paths.any { it.startsWith(root) && it !in originalPaths }) continue
         NativeMamlMonet.read(entry, check) { path ->

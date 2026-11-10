@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="perfect_icons_static_night">Static icon light/dark adaptation</string>
-    <string name="perfect_icons_static_night_summary">Generate a dark gradient from static layers; keep original dynamic resources. May increase icon loading overhead.</string>
-    <string name="perfect_icons_static_night_note">Optional derived dark artwork, not an original dark variant or Monet. Layered backgrounds use a dark gradient; flat artwork is only dimmed. Cached results are reused. Generate and apply again after changing this option.</string>
+    <string name="perfect_icons_static_night">Icon light/dark adaptation</string>
+    <string name="perfect_icons_static_night_summary">Derive dark artwork for eligible static and bitmap-only layered icons while retaining their animation. Dynamic adaptation adds background rendering and cache overhead.</string>
+    <string name="perfect_icons_static_night_note">Derived artwork is not an independent upstream dark variant or Monet. Static layers use a dark gradient; flat icons are dimmed. Eligible dynamic groups retain their layers, animation timing and events, with texture selectors and one additional background renderer per group. Complex Lottie, text, procedural artwork and existing author dark behavior remain unchanged. Results are cached. Regenerate and apply after changing this option.</string>
     <string name="perfect_icons_night_mode_original">Original resources</string>
     <string name="perfect_icons_night_mode_derived">Additional dark adaptation</string>
-    <string name="perfect_icons_night_disabled">Keep original layers and native dynamics. No extra dark artwork is generated for static icons.</string>
-    <string name="perfect_icons_night_enabled">Generate dark artwork for eligible static icons; keep native dynamics. May increase loading overhead.</string>
-    <string name="perfect_icons_preview_options_scope">Preview follows current options, not the last generated or applied pack. Generate and apply again after changing options.</string>
+    <string name="perfect_icons_night_disabled">Keep original layers, native animation and existing dark behavior. No additional derived dark artwork is generated.</string>
+    <string name="perfect_icons_night_enabled">Derive dark artwork for eligible static icons and a bounded subset of bitmap-only dynamic groups, retaining their animation. Unsupported groups and existing author dark behavior stay unchanged. Dynamic adaptation adds rendering and cache overhead.</string>
+    <string name="perfect_icons_preview_options_scope">Preview shows still images for the current options, not live animation or the last generated or applied pack. Generate and apply again after changing options.</string>
+    <string name="perfect_icons_result_dynamic_night">Dark layered · %1$d</string>
 </resources>

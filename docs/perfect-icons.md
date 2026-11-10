@@ -122,9 +122,13 @@ snapshot size and derived-cache cleanup are on the Source and storage page.
   Importing a Magisk/KernelSU module ZIP is not the workflow.
 
 The existing validated local-native import boundary still applies: bounded
-images and local visual XML are admitted, while external sources, binders,
+images and local visual XML are admitted. External sources, arbitrary binders,
 script installation payloads, malformed/ambiguous layers, and unsafe paths
-are rejected. Upstream identity is not a reason to bypass these checks.
+are rejected. One exact original weather program is recognized structurally:
+its read-only temperature query, update timing, glyph layout and all 13 textures
+must match. Additional queries or commands are rejected. This retains the
+original weather program; it does not add dark adaptation to it. Upstream
+identity is not a reason to bypass these checks.
 
 ## Download and storage behavior
 
@@ -236,20 +240,78 @@ Local auto-apply admission remains a separate, stricter execution boundary. A ho
 
 Legacy `use_fancy_when_static_layerN` and `use_quiet_when_anim_layerN` boolean fields are preserved and bounded against declared layers. Their names are not interpreted as exclusive quiet/fancy modes. Only the existing explicit `layer_only_quietN` / `layer_only_fancyN` rules provide that exclusivity.
 
-## Optional static light/dark adaptation
+## Optional icon light/dark adaptation
 
-The default remains the original native layers. The separate, default-off **Static icon light/dark adaptation** option generates derived artwork automatically from the cached snapshot:
+The default remains the original native layers, animation and existing dark behavior. The separate, default-off **Icon light/dark adaptation** option derives dark artwork from the cached snapshot for eligible static icons and, within the dynamic scope below, bounded raster-only dynamic layer groups. The historical static checkpoint below does not establish dynamic acceptance; see the separate dynamic checkpoint.
 
 - A static background/foreground pair is composited at 512px for the day image. For night, the original background alpha shapes a vertical `#383838` → `#151515` gradient; the original foreground is composited above it, then the complete RGB image is multiplied by `#D6D6D6`. Alpha is retained. This replaces background color rather than placing an invisible gradient behind an opaque original background.
 - An already flattened source has no reliable background/foreground separation. Its night image is only dimmed, preserving alpha; no segmentation or background recoloring is guessed.
-- Both images use the authenticated native system mask when available. Every configured native group, including quiet-only groups, retains its original resources and selectors. Calendar, clock, weather and other original dynamic programs are not rasterized by this option.
+- Both static images use the authenticated native system mask when available. Native dynamic programs are not flattened into replacement static icons by this option.
 
-Original layers remain in the archive. Eligible static IDs receive the existing canonical light/dark container with `frameRate="0"` and the native `__darkmode` variable. No ContentProvider binder, palette query, custom timer or animation is added. The native host still creates an additional container for each adapted icon, so loading and transitions can cost more than the default native static-layer path. This is an opt-in appearance tradeoff, not a universal performance improvement. Source dynamic counts continue to describe original dynamic groups, not the number of generated paired-image containers.
+**Dynamic scope:** Only bounded native layer groups whose artwork consists entirely of supported raster images are eligible. The actual Phone AVD probe retained a complete `nightmode` tree but did not select its dark textures. Publication therefore also adds live texture selectors inside the original foreground MAML and a zero-requested-frame-rate background MAML. Native layer order, foreground names, animation timing and events remain; the background slot changes from quiet-only to fancy-only. This adds one background renderer per admitted icon, rather than flattening its animation. Existing quiet textures and day textures remain intact; a separate derived night tree supplies quiet previews and readers which select that tree. Complex Lottie, text and procedural groups, and groups with author-owned dark modes, remain unchanged. Eligibility does not imply support for every clock, calendar, weather icon or upstream animation.
 
-Rendered pairs are keyed by source-image hashes, native mask and renderer revision. They are checked before reuse, published atomically, rebuilt locally after corruption, included in cache accounting/clearing, and bounded by a 256MiB LRU budget. A changed source icon invalidates only affected pairs. Preview and publication identities include the enabled renderer revision; disabling the option retains the original publication identity. Generated ZIP output is bounded to 1GiB; preview retains its smaller limit. Changing this option requires generation and application again.
+The classifier additionally defers groups with a composite root quiet image, layered masks, an author-provided `DarkMode` updater, a black-stencil foreground or a background incompatible with gradient adaptation. The selector writer also rejects expression-driven filenames, path collisions and unsafe XML. A failed conversion preserves the complete original group. These groups retain their original behavior.
+
+When the original foreground omits its updater or leaves it blank, the selector explicitly retains `DateTime.Minute` before appending `DarkMode`. This preserves the default documented in [Xiaomi's MAML grammar](https://zhuti.designer.xiaomi.com/docs/grammar/), rather than silently replacing it with only `DarkMode`. An explicit `none` remains free of a time updater. This distinction is necessary for the unmodified upstream HyperOS4 Music program; selector admission and real-source tests cover it. Changes to this contract invalidate derived publications through the renderer revision while retaining the downloaded snapshot.
+
+Native local application has a separate admission step after generation. Its layer validator accepts only a literal local `src` paired with the exact `ifelse(#__darkmode,'keihome_night/<src>','<src>')` selector, a declared `DarkMode` updater and a complete validated texture pair. Other expressions, external URIs, missing files, mutable appearance state and arbitrary updater combinations remain rejected. This gate must be tested on the complete emitted archive, not just on individual converted textures.
+
+The retained source weather program also has a separate exact structural admission: its sole temperature query, existing ten-minute refresh condition, delayed refresh command and complete 13-image glyph closure must all match. Extra binders, queries, attributes, commands, text or faster refresh timing are rejected. This preserves that original weather program during native application; it does not adapt its colors or enable general-purpose provider binders.
+
+Source image position/alpha keyframes retain their original timing. Admission limits these tracks to local images, literal bounded values, ordered times within 60 seconds, at most 64 items per track, 32 tracks and 256 items per program. Only the two-integer `play(start,end)` command is accepted for a resolved image with keyframes; additional loop parameters, expression-driven playback, duplicate tracks and external actions remain rejected.
+
+Original layers remain in the archive. Eligible static IDs receive the existing canonical light/dark container with `frameRate="0"` and the native `__darkmode` variable. The module adds no ContentProvider binder, palette query or polling loop. Native renderers can still schedule frames, including their own bootstrap and animation work: zero requested frame rate is not a zero-cost guarantee. The additional containers can increase loading and transition costs. This is an opt-in appearance tradeoff. Source dynamic counts continue to describe original dynamic groups, not the number of generated paired-image containers.
+
+Rendered static pairs are keyed by source-image hashes, native mask and renderer revision. They are checked before reuse, published atomically, rebuilt locally after corruption, included in cache accounting/clearing, and bounded by a 256MiB LRU budget. A changed source icon invalidates only affected pairs. Preview and publication identities include the enabled renderer revision; disabling the option retains the original publication identity. Generated ZIP output is bounded to 1GiB; preview retains its smaller limit. Changing this option requires generation and application again.
+
+**Dynamic cache:** Texture entries use source SHA-256, background/foreground role and the adaptation revision. They participate in existing cache accounting and clearing, are verified before reuse, and rebuild locally after corruption. Preview and publication use the same writer and revision. Rendering failures and selector failures preserve the whole original group. No automatic source download or theme reapplication runs when system appearance changes.
+
+Complete native publications include the standard
+`nightmode/res/drawable-xxhdpi/<name>.png` fallback alongside each generated
+static day/night selector. The native admission boundary verifies that fallback
+against the selector textures. Static renderer revision 2 invalidates older
+publications that omitted it; the contract records both the static revision and
+the enabled dynamic revision, including when original dynamic resources are OFF.
+Original `android` framework static pairs are admitted through the same bounded
+identifier and image checks as other packages; a dot in the package name is not
+a safety requirement.
+
+### Dynamic-device checkpoint, 2026-11-10
+
+Diagnostic build `105000497` generated the complete installed-only HyperOS4
+publication from the retained snapshot without downloading it: 46 static groups,
+5 original dynamic groups, and 1 admitted derived dark dynamic group. A second
+generation reused 175 local resources and produced the same file and SHA-256
+`a54fe25b8412e8e6712b3360b6bee3d6aed73c337bf977753e3565e9e0e30baf`.
+Native admission, native export with original layered-program preservation,
+import through the Themes process, and actual icon-only application passed.
+The applied module's source marker matched that publication hash.
+
+A separately owned Music-to-Settings probe confirmed day/night texture changes,
+normal app opening, and the original rotating-note animation during a fast
+return-home gesture. The full publication was also captured in both system
+appearances. This is Phone AVD evidence; the other admitted source fixtures are
+not a claim of physical-device or every-style animation acceptance.
+
+The final production checks covered 1,218 JVM tests (1,212 passed, 6 skipped),
+lint, and 11 device cases (10 passed, 1 missing-fixture skip), plus separate
+probe and complete-module import cases. The diagnostic APK deliberately retained
+the previously validated Phone native payload. No native activation was needed
+for this resource-generation feature.
+
+During live testing the AVD also recorded input-monitor ANRs in SystemUI and
+Launcher, followed by a primary display stuck behind an undrawn keyguard.
+SystemUI was separately restarted to recover interaction. The available ANR
+record lacks a usable Java main-thread stack, so this checkpoint does not
+attribute those failures to this feature or claim to fix them. Normal update
+handoffs and identities must be evaluated separately from that recovery.
+Detailed receipts, screenshots, animation video, publication and recovery facts
+are kept in `.artifacts/research/perfect-dynamic-night-20261110/acceptance.json`.
+
+The generated-pack card's **Dark layered** pill counts actual emitted nightmode layer groups whose live selector was also admitted. A persisted night renderer revision marks older generated packs as requiring regeneration only when both dark adaptation and dynamic resources are enabled. With dark adaptation OFF, this revision check leaves the original behavior unchanged.
 
 The archive reader recognizes the exact generated zero-frame-rate template, including its compact single-image form, for selectable light/dark previews. This is format recognition only; it does not broaden native script execution admission.
 
-The main page and preview page share the same persisted static-night option. Changing it clears the in-memory preview and reloads the appropriate content-addressed preview archive; toggling back reuses the original preview without a source download. The preview identifies the current mode and its hero image follows the filtered items. The generated-pack card separately identifies the last generated mode and keeps the options-changed warning until regeneration. Previewing never rewrites or applies a published pack. With the option OFF, original layers and configured native dynamics remain available, but no additional synthetic dark artwork is generated for static icons. Changing the applied result requires generation and application, including when disabling the option.
+The main page and preview page share the same persisted light/dark adaptation option. Changing it clears the in-memory preview and reloads the appropriate content-addressed preview archive; toggling back reuses the original preview without a source download. The preview identifies the current mode and its hero image follows the filtered items. Previews are still images or quiet snapshots for the current options, not live native animation or proof of the desktop's applied appearance. Eligible dynamic groups are intended to animate through their original native program after generation and application; still previews cannot verify that behavior. The generated-pack card separately identifies the last generated mode and keeps the options-changed warning until regeneration. Previewing never rewrites or applies a published pack. With the option OFF, original layers, configured native dynamics and existing dark behavior are retained, and no additional derived dark artwork is generated. Changing the applied result requires generation and application, including when disabling the option.
 
-AVD checkpoint: the retained HyperOS4 snapshot and installed-app selection generated 51 mappings, comprising 46 static IDs and five original dynamic IDs. The opt-in archive contains 46 paired-image containers and is 17,574,278 bytes, compared with 6,775,689 bytes for the original native-layer output. All 83 original dynamic files and 102 original static layer files remain byte-identical. Repeated generation produced the same archive SHA-256 and reused cached pairs; cache timestamps may advance for LRU bookkeeping. Twenty device tests cover rendering, layer composition and publication, while 1,100 host tests passed with four skipped. Actual application to the Launcher and transition performance were not measured in this checkpoint: the existing Classic ART+ theme remains active. The new option was restored OFF after preview/generation acceptance. Exact build, identities and evidence are recorded in `.artifacts/research/perfect-static-night-20261109/acceptance.json`.
+Historical static-only AVD checkpoint (2026-11-09): the retained HyperOS4 snapshot and installed-app selection generated 51 mappings, comprising 46 static IDs and five original dynamic IDs. The opt-in archive contains 46 paired-image containers and is 17,574,278 bytes, compared with 6,775,689 bytes for the original native-layer output. All 83 original dynamic files and 102 original static layer files remain byte-identical. Repeated generation produced the same archive SHA-256 and reused cached pairs; cache timestamps may advance for LRU bookkeeping. Twenty device tests cover rendering, layer composition and publication, while 1,100 host tests passed with four skipped. Actual application to the Launcher and transition performance were not measured in this checkpoint: the existing Classic ART+ theme remains active. The new option was restored OFF after preview/generation acceptance. Exact build, identities and evidence are recorded in `.artifacts/research/perfect-static-night-20261109/acceptance.json`. This record does not establish live-device acceptance of the dynamic extension or its transition performance.

@@ -78,7 +78,7 @@ internal object SurfaceIconSnapshotRenderer {
       if (day != null && night != null && mask != null && background != null) {
         val verified = listOf(false, true).any { expanded -> listOf(false, true).any { scalar ->
           try {
-            NativePaletteIcon.entries(name, day, night, mask, background,
+            NativePaletteIcon.entries(root.removePrefix("fancy_icons/").removeSuffix("/"), day, night, mask, background,
               legacyExpanded = expanded, legacyScalarBinders = scalar)
               .getValue(root + "manifest.xml").contentEquals(manifest)
           } catch (_: IllegalArgumentException) { false }
@@ -87,23 +87,18 @@ internal object SurfaceIconSnapshotRenderer {
           if (palette ushr 48 == 1L) {
             val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(result)
+            NativeAdaptiveIconMask.load()?.pathForBounds(Rect(0, 0, SIZE, SIZE))?.let(canvas::clipPath)
             for ((data, color) in listOf(background to palette.toInt(),
                 mask to (palette ushr 24).toInt())) {
               val bitmap = decode(data) ?: run { result.recycle(); return null }
               try {
-                // SRC_IN needs an existing destination. Build a solid-color layer first,
-                // then composite that tinted alpha mask over the snapshot.
-                val tinted = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
-                try {
-                  val tintCanvas = Canvas(tinted)
-                  tintCanvas.drawColor(color or Color.BLACK)
-                  tintCanvas.drawBitmap(bitmap, null,
-                    RectF(0f, 0f, SIZE.toFloat(), SIZE.toFloat()),
-                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                      colorFilter = PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.DST_IN)
-                    })
-                  canvas.drawBitmap(tinted, 0f, 0f, null)
-                } finally { tinted.recycle() }
+                // A color filter tints the source's alpha; an opaque temporary
+                // canvas would fill transparent mask pixels and hide the background.
+                canvas.drawBitmap(bitmap, null,
+                  RectF(0f, 0f, SIZE.toFloat(), SIZE.toFloat()),
+                  Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                    colorFilter = PorterDuffColorFilter(color or Color.BLACK, PorterDuff.Mode.SRC_IN)
+                  })
               } finally { bitmap.recycle() }
             }
             return result

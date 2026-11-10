@@ -20,10 +20,11 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 @RunWith(AndroidJUnit4::class)
 class SurfaceIconSnapshotRendererDeviceTest {
   private val name = "os.kei.surface.fixture"
-  private fun png(color: Int): ByteArray {
+  private fun png(color: Int, transparentCorner: Boolean = false): ByteArray {
     val bitmap = Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
     return try {
       bitmap.eraseColor(color)
+    if (transparentCorner) bitmap.setPixel(0, 0, Color.TRANSPARENT)
       ByteArrayOutputStream().use { out ->
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         out.toByteArray()
@@ -90,6 +91,38 @@ class SurfaceIconSnapshotRendererDeviceTest {
         }
         assertTrue("Palette snapshot must contain a painted pixel", painted)
       } finally { bitmap.recycle() }
+    }
+  }
+
+  @Test fun componentLookupAuthenticatesPackageFallbackPaletteAgainstActualResourceRoot() {
+    archive(NativePaletteIcon.entries(name, png(Color.RED), png(Color.BLUE), mask(), mask())) { zip ->
+      for (dark in listOf(false, true)) {
+        val expected = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, dark, Locale.US,
+          0, NativePaletteIcon.packedState(Color.GREEN, Color.YELLOW)))
+        val actual = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, "$name.ShareActivity",
+          dark, Locale.US, 0, NativePaletteIcon.packedState(Color.GREEN, Color.YELLOW), packageName = name))
+        try { assertTrue(expected.sameAs(actual)) } finally { expected.recycle(); actual.recycle() }
+      }
+    }
+  }
+
+  @Test fun paletteTintPreservesTransparentForegroundAndIndependentBackgroundColor() {
+    val foreground = Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
+    val bytes = try {
+      foreground.eraseColor(Color.TRANSPARENT)
+      for (y in 60..90) for (x in 60..90) foreground.setPixel(x, y, Color.BLACK)
+      ByteArrayOutputStream().use { out ->
+        foreground.compress(Bitmap.CompressFormat.PNG, 100, out)
+        out.toByteArray()
+      }
+    } finally { foreground.recycle() }
+    archive(NativePaletteIcon.entries(name, png(Color.RED), png(Color.BLUE), bytes, png(Color.BLACK, true))) { zip ->
+      val icon = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, false, Locale.US,
+        0, NativePaletteIcon.packedState(Color.GREEN, Color.YELLOW)))
+      try {
+        assertEquals(Color.GREEN, icon.getPixel(icon.width / 2, icon.height / 2))
+        assertEquals(Color.YELLOW, icon.getPixel(icon.width / 4, icon.height / 2))
+      } finally { icon.recycle() }
     }
   }
 

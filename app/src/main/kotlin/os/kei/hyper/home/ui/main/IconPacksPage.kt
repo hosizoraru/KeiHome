@@ -182,7 +182,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
               PackActionButton(stringResource(if (state.importing) R.string.icon_pack_importing else
                 if (section == "installed") R.string.icon_pack_choose_apk_file else R.string.icon_pack_choose_file),
                 onClick = { picker.launch(arrayOf("*/*")) }, enabled = !state.importing, compact = false,
-                operation = PageActionIcon.IMPORT)
+                operation = PageActionIcon.IMPORT, modifier = Modifier.fillMaxWidth())
               state.importName?.let { Text(stringResource(R.string.icon_pack_imported_name, it)) }
               if (framework.snapshot?.themesInScope != true) Text(stringResource(R.string.icon_pack_scope_needed),
                 style = MiuixTheme.textStyles.footnote2)
@@ -383,7 +383,9 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         else -> R.string.icon_pack_native_import
       })
       val updateDescription = stringResource(R.string.icon_pack_native_update)
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      FlowRow(Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PackActionButton(stringResource(when {
           importing -> R.string.pack_action_importing_short
           nativeId != null && generated -> R.string.pack_action_update_short
@@ -428,7 +430,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
 }
 
 @Composable
-private fun PackActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+internal fun PackActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
   enabled: Boolean = true, primary: Boolean = false, compact: Boolean = true,
   operation: PageActionIcon = PageActionIcon.UPDATE) {
   val colors = if (primary) ButtonDefaults.textButtonColorsPrimary() else ButtonDefaults.textButtonColors()

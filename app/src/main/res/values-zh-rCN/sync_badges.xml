@@ -1,0 +1,9 @@
+<resources>
+    <string name="sync_badge_success">同步 · %1$s</string>
+    <string name="sync_badge_failed">同步失败</string>
+    <string name="sync_badge_interrupted">同步中断</string>
+    <string name="sync_badge_corrupt">资源损坏</string>
+    <string name="sync_badge_issue_time">%1$s · %2$s</string>
+    <string name="sync_storage_ready">可离线生成与预览</string>
+    <string name="sync_storage_repair">请重新下载以修复本地资源</string>
+</resources>

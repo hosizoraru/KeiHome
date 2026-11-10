@@ -161,7 +161,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             state.refreshing -> R.string.perfect_icons_syncing
             state.clearingCache -> R.string.perfect_icons_clearing_cache
             localLoading -> R.string.perfect_icons_loading
-            state.error != null -> R.string.perfect_icons_attention
+            state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
+            state.syncIssue != null -> if (catalog != null) R.string.perfect_icons_catalog_ready
+              else R.string.perfect_icons_catalog_missing
             catalog?.upToDate == true -> R.string.perfect_icons_up_to_date
             state.pack != null -> R.string.perfect_icons_ready
             catalog != null -> R.string.perfect_icons_catalog_ready
@@ -172,25 +174,28 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
               else R.string.pack_perfect_community_summary),
           details = emptyList(),
           tone = when {
-            state.error != null -> StatusTone.ERROR
+            state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> StatusTone.ERROR
+            state.syncIssue != null -> StatusTone.WARNING
             catalog == null || busy -> StatusTone.WARNING
             else -> StatusTone.READY
           },
           onRefresh = { if (!busy && !cooling) vm.perfectPacks.refreshCatalog() },
           onOpen = { onNavigate("perfect-sources") },
           actionLabel = stringResource(R.string.perfect_icons_sources_storage),
-          footer = catalog?.let { catalogSummary(it) },
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
             .testTag("icon-packs.perfect.status"),
-          badgeContent = if (catalog == null) null else { color ->
-            MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
-            val revision = catalog.revision.ifEmpty { catalog.sourceHash }
-            val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
-              R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-            MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
-              Modifier.testTag("icon-packs.perfect.revision").clickable(onClickLabel = copyLabel) {
-                copyPerfectRevision(context, revision, copyLabel)
-              })
+          badgeContent = if (catalog == null && state.lastSuccessfulSyncAtMillis <= 0 && state.syncIssue == null) null else { color ->
+            PerfectSyncBadges(state, color)
+            if (catalog != null) {
+              MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
+              val revision = catalog.revision.ifEmpty { catalog.sourceHash }
+              val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
+                R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
+              MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+                Modifier.testTag("icon-packs.perfect.revision").clickable(onClickLabel = copyLabel) {
+                  copyPerfectRevision(context, revision, copyLabel)
+                })
+            }
           },
         )
         if (catalog == null || busy || localLoading || state.error != null || cooling) {
@@ -321,11 +326,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
 }
 
 @Composable
-private fun catalogSummary(catalog: PerfectIconCatalog): String {
-  return stringResource(R.string.perfect_icons_catalog_detail, perfectSyncTime(catalog.updatedAt))
-}
-
-@Composable
 internal fun perfectSyncTime(millis: Long): String {
   val context = LocalContext.current
   return if (millis > 0) {
@@ -426,15 +426,20 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
         title = stringResource(when {
           state.refreshing -> R.string.perfect_icons_syncing
           localLoading -> R.string.perfect_icons_loading
-          state.error != null -> R.string.perfect_icons_attention
+          state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
           catalog != null -> R.string.perfect_icons_catalog_ready
           else -> R.string.perfect_icons_catalog_missing
         }),
-        summary = if (catalog != null) catalogSummary(catalog) else stringResource(
-          if (localLoading) R.string.pack_local_catalog_loading else R.string.perfect_icons_storage_empty),
+        summary = when {
+          state.syncIssue == PerfectSyncIssue.CORRUPT -> stringResource(R.string.sync_storage_repair)
+          catalog != null -> stringResource(R.string.sync_storage_ready)
+          else -> stringResource(if (localLoading) R.string.pack_local_catalog_loading
+            else R.string.perfect_icons_storage_empty)
+        },
         details = emptyList(),
         tone = when {
-          state.error != null -> StatusTone.ERROR
+          state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> StatusTone.ERROR
+          state.syncIssue != null -> StatusTone.WARNING
           catalog == null || busy -> StatusTone.WARNING
           else -> StatusTone.READY
         },
@@ -446,13 +451,16 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
           else downloadLabel,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
           .testTag("icon-packs.perfect.storage-status"),
-        badgeContent = if (catalog == null) null else { color ->
-          MetadataPill(stringResource(R.string.perfect_icons_storage_count, catalog.iconCount,
-            Formatter.formatFileSize(context, catalog.archiveBytes)), color)
-          val revision = catalog.revision.ifEmpty { catalog.sourceHash }
-          val label = stringResource(R.string.perfect_icons_revision)
-          MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
-            Modifier.clickable(onClickLabel = label) { copyPerfectRevision(context, revision, label) })
+        badgeContent = if (catalog == null && state.lastSuccessfulSyncAtMillis <= 0 && state.syncIssue == null) null else { color ->
+          PerfectSyncBadges(state, color)
+          if (catalog != null) {
+            MetadataPill(stringResource(R.string.perfect_icons_storage_count, catalog.iconCount,
+              Formatter.formatFileSize(context, catalog.archiveBytes)), color)
+            val revision = catalog.revision.ifEmpty { catalog.sourceHash }
+            val label = stringResource(R.string.perfect_icons_revision)
+            MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+              Modifier.clickable(onClickLabel = label) { copyPerfectRevision(context, revision, label) })
+          }
         })
     }
     if (localLoading || state.refreshing || state.error != null || cooling) item("sync-progress") {

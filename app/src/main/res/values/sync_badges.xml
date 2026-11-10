@@ -1,0 +1,9 @@
+<resources>
+    <string name="sync_badge_success">Synced · %1$s</string>
+    <string name="sync_badge_failed">Sync failed</string>
+    <string name="sync_badge_interrupted">Sync interrupted</string>
+    <string name="sync_badge_corrupt">Resources damaged</string>
+    <string name="sync_badge_issue_time">%1$s · %2$s</string>
+    <string name="sync_storage_ready">Ready for offline generation and previews</string>
+    <string name="sync_storage_repair">Download again to repair local resources</string>
+</resources>

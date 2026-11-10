@@ -88,6 +88,8 @@ class PerfectIconRepository internal constructor(
   private val renderedDir get() = File(root, "rendered-static-night")
   // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
   private var fallbackIndex: FallbackIndex? = null
+  private val syncHistory = PerfectSyncHistory(settings::read, settings::write, now)
+  private val localHealthProbe = PerfectLocalHealthProbe()
 
   private data class FallbackIndex(
     val stamp: String,
@@ -175,6 +177,58 @@ class PerfectIconRepository internal constructor(
   fun retryAtMillis(): Long = if (settings.read("cooldownSource") == PerfectIconUrls.SOURCE)
     settings.read("retryAt")?.toLongOrNull()?.coerceAtLeast(0) ?: 0 else 0
 
+  internal suspend fun syncHistory(): PerfectSyncHistoryState = withContext(ioDispatcher) {
+    mutex.withLock { syncHistory.current() }
+  }
+
+  /** Metadata and ZIP directory only. Full archive/payload validation remains on sync/read paths. */
+  internal suspend fun localStatus(): PerfectLocalStatus = withContext(ioDispatcher) {
+    mutex.withLock {
+      val snapshot = localSnapshot()
+      val knownHash = settings.read("knownSourceHash")
+      val corruptHash = settings.read("corruptSourceHash")
+      val sourceHash = snapshot?.sourceHash ?: knownHash.orEmpty()
+      val source = File(sourceDir, "$sourceHash.zip")
+      val stamp = PerfectLocalProbeStamp(snapshotFile.exists(), snapshotFile.length(), snapshotFile.lastModified(),
+        sourceHash, source.isFile, source.length(), source.lastModified(), corruptHash,
+        snapshot?.sourceHash ?: knownHash, sourceDir.lastModified())
+      val referenced = snapshotFile.exists() || !knownHash.isNullOrEmpty() ||
+        sourceDir.listFiles().orEmpty().any { it.isFile && it.extension == "zip" }
+      val coroutine = currentCoroutineContext()
+      val healthy = localHealthProbe.healthy(stamp) {
+        snapshot != null && corruptHash != snapshot.sourceHash && try {
+          ZipFile(archive(snapshot), Charsets.UTF_8).use { zip ->
+            snapshot.entries.all { source ->
+              coroutine.ensureActive()
+              val entry = zip.getEntry(PerfectIconSourceZip.PREFIX + source.path)
+              entry != null && entry.size == source.size && entry.crc == source.crc
+            }
+          }
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (_: Exception) {
+          false
+        }
+      }
+      when {
+        healthy -> {
+          val checked = requireNotNull(snapshot)
+          if (settings.read("knownSourceHash") != checked.sourceHash)
+            settings.write("knownSourceHash", checked.sourceHash)
+          if (settings.read("localCorruptAt") != "0") settings.write("localCorruptAt", "0")
+          syncHistory.seedLastSuccess(checked.updatedAt)
+          PerfectLocalStatus(PerfectLocalHealth.READY, checked.catalog)
+        }
+        referenced -> {
+          val timestamp = settings.read("localCorruptAt")?.toLongOrNull()?.takeIf { it > 0 }
+            ?: now().coerceAtLeast(1).also { settings.write("localCorruptAt", it.toString()) }
+          PerfectLocalStatus(PerfectLocalHealth.CORRUPT, corruptAtMillis = timestamp)
+        }
+        else -> PerfectLocalStatus(PerfectLocalHealth.MISSING)
+      }
+    }
+  }
+
   suspend fun catalog(
     refresh: Boolean = false,
     forceDownload: Boolean = false,
@@ -182,7 +236,29 @@ class PerfectIconRepository internal constructor(
   ): PerfectIconCatalog? = withContext(ioDispatcher) {
     mutex.withLock {
       val old = localSnapshot()
-      if (refresh) refresh(old, progress, forceDownload).catalog else old?.catalog
+      if (!refresh) return@withLock old?.catalog
+      // A rejected local cooldown is not a new network attempt.
+      if (retryAtMillis() > now()) throw PerfectIconCooldownException(retryAtMillis())
+      syncHistory.started()
+      try {
+        val catalog = refresh(old, progress, forceDownload).catalog
+        settings.write("knownSourceHash", catalog.sourceHash)
+        settings.write("corruptSourceHash", "")
+        settings.write("localCorruptAt", "0")
+        syncHistory.succeeded()
+        catalog
+      } catch (cancelled: CancellationException) {
+        syncHistory.interrupted()
+        throw cancelled
+      } catch (interrupted: InterruptedException) {
+        syncHistory.interrupted()
+        throw interrupted
+      } catch (failure: Exception) {
+        syncHistory.failed()
+        throw failure
+      } finally {
+        localHealthProbe.invalidate()
+      }
     }
   }
 
@@ -840,26 +916,36 @@ class PerfectIconRepository internal constructor(
     zip: ZipFile, blob: PerfectIconBlob, source: PerfectIconSourceEntry,
   ): ByteArray {
     require(blob.size in 0..PerfectIconFormat.MAX_BLOB.toLong()) { "Selected source resource exceeds size limit" }
-    val coroutine = currentCoroutineContext()
-    val entry = requireNotNull(zip.getEntry(PerfectIconSourceZip.PREFIX + blob.source))
-    require(entry.size == source.size && entry.crc == source.crc)
-    val bytes = zip.getInputStream(entry).use { input ->
-      val output = ByteArrayOutputStream()
-      val buffer = ByteArray(32 * 1024)
-      var count = 0L
-      while (true) {
-        coroutine.ensureActive()
-        val read = input.read(buffer)
-        if (read < 0) break
-        count += read
-        require(count <= blob.size && count <= PerfectIconFormat.MAX_BLOB)
-        output.write(buffer, 0, read)
+    try {
+      val coroutine = currentCoroutineContext()
+      val entry = requireNotNull(zip.getEntry(PerfectIconSourceZip.PREFIX + blob.source))
+      require(entry.size == source.size && entry.crc == source.crc)
+      val bytes = zip.getInputStream(entry).use { input ->
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(32 * 1024)
+        var count = 0L
+        while (true) {
+          coroutine.ensureActive()
+          val read = input.read(buffer)
+          if (read < 0) break
+          count += read
+          require(count <= blob.size && count <= PerfectIconFormat.MAX_BLOB)
+          output.write(buffer, 0, read)
+        }
+        output.toByteArray()
       }
-      output.toByteArray()
+      require(bytes.size.toLong() == blob.size && PerfectIconFormat.sha(bytes) == blob.sha &&
+        CRC32().apply { update(bytes) }.value == source.crc) { "Local source resource integrity check failed" }
+      return bytes
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (interrupted: InterruptedException) {
+      throw interrupted
+    } catch (failure: Exception) {
+      localHealthProbe.invalidate()
+      settings.write("corruptSourceHash", File(zip.name).nameWithoutExtension)
+      throw failure
     }
-    require(bytes.size.toLong() == blob.size && PerfectIconFormat.sha(bytes) == blob.sha &&
-      CRC32().apply { update(bytes) }.value == source.crc) { "Local source resource integrity check failed" }
-    return bytes
   }
 
   private suspend fun previewHash(file: File): String {
@@ -902,7 +988,10 @@ class PerfectIconRepository internal constructor(
       requireNotNull(MMKV.mmkvWithID("perfect_icon_source", MMKV.MULTI_PROCESS_MODE))
     }
     override fun read(key: String): String? = store.decodeString(key)
-    override fun write(key: String, value: String) { check(store.encode(key, value)) }
+    override fun write(key: String, value: String) {
+      check(store.encode(key, value))
+      store.sync()
+    }
   }
 
   companion object {

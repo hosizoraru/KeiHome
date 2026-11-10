@@ -42,6 +42,24 @@ full accessibility label. Standalone theme/view/navigation buttons and
 scope action groups use centered placement. Ordinary preference rows retain
 their normal leading title and trailing navigation chevron.
 
+Perfect Icons timestamps live in metadata pills. Today's successful sync shows
+time only; other dates in the current year omit the year; older dates include
+it. Formatting follows the locale, time zone and system 12/24-hour preference.
+Full dates remain available in file details and accessibility descriptions.
+The previous successful time remains visible alongside a distinct failed,
+interrupted or damaged-resource pill. A new successful sync clears the old
+attempt failure. First use without local resources does not imply corruption.
+
+Sync history is recorded before network work. Explicit cancellation records an
+interruption; a later process recovers an unfinished attempt from its previous
+owner, while a second controller in the same process leaves live work alone.
+The local health probe checks the source pointer and ZIP directory metadata,
+with a bounded cache keyed by file stamps and corruption markers. Payload
+hash/CRC verification stays on actual read/sync paths. Opening a page does not
+rehash the complete archive or fetch the source. Failed downloads preserve the
+last usable snapshot. Generated/imported pack failures are separate from sync
+history.
+
 The resource dependency's MIT notice, Lucide ISC notice and Feather-derived
 MIT notice are bundled and reachable from third-party notices. Release
 resource shrinking is enabled; only referenced glyph resources should remain

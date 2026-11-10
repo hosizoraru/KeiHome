@@ -9,6 +9,7 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,8 +31,11 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconResult
+import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
+import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
 
 internal enum class PerfectPackError { LOCAL, CATALOG, NETWORK, COOLDOWN, INSTALLED, GENERATE, IMPORT, EMPTY, CACHE }
+internal enum class PerfectSyncIssue { FAILED, INTERRUPTED, CORRUPT }
 
 internal data class PerfectPackPreviewState(
   val options: PerfectIconOptions? = null,
@@ -57,6 +61,9 @@ internal data class PerfectPackState(
   val result: PerfectIconResult? = null,
   val generatedOptions: PerfectIconOptions? = null,
   val pack: IconPackCardData? = null,
+  val syncIssue: PerfectSyncIssue? = null,
+  val syncIssueAtMillis: Long = 0,
+  val lastSuccessfulSyncAtMillis: Long = 0,
 ) {
   val busy: Boolean get() = loading || refreshing || generating || clearingCache || previewLoading
 }
@@ -232,8 +239,10 @@ internal class PerfectPackController(
       } catch (_: Exception) {
         mutableState.update { it.copy(error = PerfectPackError.CATALOG) }
       } finally {
-        updateCache()
-        mutableState.update { it.copy(refreshing = false, progress = null) }
+        withContext(NonCancellable) {
+          updateCache()
+          mutableState.update { it.copy(refreshing = false, progress = null) }
+        }
       }
     }
   }
@@ -301,7 +310,19 @@ internal class PerfectPackController(
       try {
         val bytes = repository.cacheBytes()
         val retry = repository.retryAtMillis()
-        mutableState.update { it.copy(cacheBytes = bytes, retryAtMillis = retry) }
+        val local = repository.localStatus()
+        val history = repository.syncHistory()
+        val issue = if (local.health == PerfectLocalHealth.CORRUPT) PerfectSyncIssue.CORRUPT
+          else when (history.issue) {
+            PerfectSyncFailure.FAILED -> PerfectSyncIssue.FAILED
+            PerfectSyncFailure.INTERRUPTED -> PerfectSyncIssue.INTERRUPTED
+            null -> null
+          }
+        mutableState.update { it.copy(cacheBytes = bytes, retryAtMillis = retry,
+          syncIssue = issue,
+          syncIssueAtMillis = if (issue == PerfectSyncIssue.CORRUPT) local.corruptAtMillis else history.issueAtMillis,
+          lastSuccessfulSyncAtMillis = history.lastSuccessfulSyncAtMillis,
+          catalog = if (local.health == PerfectLocalHealth.CORRUPT) null else it.catalog) }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {

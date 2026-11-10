@@ -1,0 +1,9 @@
+<resources>
+    <string name="sync_badge_success">同期 · %1$s</string>
+    <string name="sync_badge_failed">同期失敗</string>
+    <string name="sync_badge_interrupted">同期中断</string>
+    <string name="sync_badge_corrupt">リソース破損</string>
+    <string name="sync_badge_issue_time">%1$s · %2$s</string>
+    <string name="sync_storage_ready">オフラインで生成・プレビュー可能</string>
+    <string name="sync_storage_repair">再ダウンロードしてローカルリソースを修復</string>
+</resources>

@@ -2,6 +2,8 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
@@ -9,11 +11,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -28,11 +33,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import androidx.test.core.app.ApplicationProvider
+import android.content.Context
+import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.CenteredLinkAction
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class UiActionPolishDeviceTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
@@ -130,5 +139,58 @@ class UiActionPolishDeviceTest {
     compose.onAllNodes(hasClickAction()).assertCountEquals(1)
     action.performClick()
     compose.runOnIdle { assertEquals(1, calls) }
+  }
+
+  @Test fun syncIssuePillsKeepTheLastSuccessAndDistinguishFirstUse() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    var state by mutableStateOf(PerfectPackState(lastSuccessfulSyncAtMillis = 1_763_000_000_000))
+    var density = 1f
+    compose.setContent {
+      KeiHomeTheme {
+        density = LocalDensity.current.density
+        CompositionLocalProvider(LocalDensity provides Density(density, 1.3f)) {
+          Column(Modifier.width(260.dp)) {
+            PerfectSyncBadges(state, MiuixTheme.colorScheme.primary)
+          }
+        }
+      }
+    }
+    compose.onNodeWithTag("perfect.sync.success").assertExists()
+    compose.onNodeWithTag("perfect.sync.issue").assertDoesNotExist()
+    for ((issue, label) in listOf(
+      PerfectSyncIssue.FAILED to R.string.sync_badge_failed,
+      PerfectSyncIssue.INTERRUPTED to R.string.sync_badge_interrupted,
+      PerfectSyncIssue.CORRUPT to R.string.sync_badge_corrupt,
+    )) {
+      compose.runOnIdle { state = state.copy(syncIssue = issue, syncIssueAtMillis = 1_763_000_100_000) }
+      compose.onNodeWithTag("perfect.sync.success").assertExists()
+      val pill = compose.onNodeWithTag("perfect.sync.issue")
+      pill.assertContentDescriptionContains(context.getString(label), substring = true)
+      assertTrue(pill.fetchSemanticsNode().boundsInRoot.width / density <= 260.1f)
+    }
+    compose.runOnIdle { state = PerfectPackState() }
+    compose.onNodeWithTag("perfect.sync.success").assertDoesNotExist()
+    compose.onNodeWithTag("perfect.sync.issue").assertDoesNotExist()
+  }
+
+  @Test fun pairedActionsStayCenteredOnOneLineWhenTheyFit() {
+    compose.setContent {
+      KeiHomeTheme {
+        val density = LocalDensity.current.density
+        CompositionLocalProvider(LocalDensity provides Density(density, 1.3f)) {
+          FlowRow(Modifier.width(260.dp).testTag("pair"),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
+            PackActionButton("更新", {}, Modifier.testTag("pair.update"), operation = PageActionIcon.UPDATE)
+            PackActionButton("应用", {}, Modifier.testTag("pair.apply"), operation = PageActionIcon.APPLY)
+          }
+        }
+      }
+    }
+    val parent = compose.onNodeWithTag("pair").fetchSemanticsNode().boundsInRoot
+    val update = compose.onNodeWithTag("pair.update").fetchSemanticsNode().boundsInRoot
+    val apply = compose.onNodeWithTag("pair.apply").fetchSemanticsNode().boundsInRoot
+    assertEquals(update.center.y, apply.center.y, 1f)
+    assertEquals(parent.center.x, (update.left + apply.right) / 2f, 1f)
+    assertTrue(update.right < apply.left)
   }
 }

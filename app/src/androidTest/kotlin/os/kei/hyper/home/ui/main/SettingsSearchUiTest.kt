@@ -71,7 +71,8 @@ class SettingsSearchUiTest {
           SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
             ThemeEffectsUiState(savedChoice = true), true, {},
             ThemeEffectsUiState(savedChoice = false), framework, { requested = it }, query, null,
-            onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {}) {}
+            onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
+            onNavigationBarStyleChange = {}) {}
         }
       }
     }
@@ -106,7 +107,8 @@ class SettingsSearchUiTest {
                 changes += enabled
                 preferences.value = preferences.value.copy(installedIconsOnly = enabled)
               }, {}, {}, ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
-              query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {}) {}
+              query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
+              onNavigationBarStyleChange = {}) {}
           }
         }
       }

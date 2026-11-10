@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppAppearance
+import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferencesState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -66,6 +67,7 @@ internal fun SettingsContent(
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
   onCompactPackHintsChange: (Boolean) -> Unit = {},
+  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -85,6 +87,10 @@ internal fun SettingsContent(
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
   val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
     R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
+  val navigationBarStyle = matches(SettingsSection.APP, R.string.polish_settings_display,
+    R.string.navigation_bar_style_title, R.string.navigation_bar_style_summary,
+    R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass,
+    R.string.navigation_bar_style_search_keywords)
   val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
@@ -131,7 +137,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
+    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -147,7 +153,7 @@ internal fun SettingsContent(
       SmallTitle(stringResource(R.string.settings_icon_fallback_section), modifier = Modifier.semantics { heading() })
       fallbackContent()
     }
-    if (colorMode || appearance || language || blur) {
+    if (colorMode || appearance || language || blur || navigationBarStyle) {
       SmallTitle(
         stringResource(R.string.polish_settings_display),
         modifier = Modifier.semantics { heading() },
@@ -174,6 +180,15 @@ internal fun SettingsContent(
         if (appearance)
           AppearancePreference(preferences.appearance, onAppearanceChange)
         if (language) LanguagePreference()
+        if (navigationBarStyle) OverlaySpinnerPreference(
+          title = stringResource(R.string.navigation_bar_style_title),
+          summary = stringResource(R.string.navigation_bar_style_summary),
+          items = listOf(R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass)
+            .map { DropdownItem(text = stringResource(it)) },
+          selectedIndex = preferences.navigationBarStyle.ordinal,
+          onSelectedIndexChange = { onNavigationBarStyleChange(AppNavigationBarStyle.entries[it]) },
+          modifier = Modifier.testTag("settings.navigation-bar-style"),
+        )
         if (blur) OverlaySpinnerPreference(title = stringResource(R.string.top_bar_blur),
           summary = stringResource(R.string.top_bar_blur_summary),
           items = listOf(R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)

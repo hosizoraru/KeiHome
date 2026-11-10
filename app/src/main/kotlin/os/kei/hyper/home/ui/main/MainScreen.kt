@@ -45,8 +45,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
+import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.ui.components.BlurredBar
-import os.kei.hyper.home.ui.components.KeiHomeGlassNavigationBar
+import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -67,6 +68,10 @@ import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Layers
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.icon.glass.Settings
+import top.yukonga.miuix.kmp.icon.extended.Info as IosInfo
+import top.yukonga.miuix.kmp.icon.extended.GridView as IosGridView
+import top.yukonga.miuix.kmp.icon.extended.Layers as IosLayers
+import top.yukonga.miuix.kmp.icon.extended.Settings as IosSettings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -102,11 +107,20 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
     stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_desktop),
     stringResource(R.string.navigation_settings))
-  val navigation = remember(labels) { listOf(
-    NavigationItem(labels[0], MiuixIcons.Glass.Info), NavigationItem(labels[1], MiuixIcons.Glass.GridView),
-    NavigationItem(labels[2], MiuixIcons.Glass.Layers), NavigationItem(labels[3], MiuixIcons.Home),
-    NavigationItem(labels[4], MiuixIcons.Glass.Settings),
-  ) }
+  val (navigationStyleFlow, initialNavigationStyle) = remember(model) {
+    model.preferences.state.map { it.navigationBarStyle }.distinctUntilChanged() to
+      model.preferences.state.value.navigationBarStyle
+  }
+  val navigationStyle by navigationStyleFlow.collectAsStateWithLifecycle(initialValue = initialNavigationStyle)
+  val navigation = remember(labels, navigationStyle) {
+    val icons = when (navigationStyle) {
+      AppNavigationBarStyle.IOS_LIKE ->
+        listOf(MiuixIcons.IosInfo, MiuixIcons.IosGridView, MiuixIcons.IosLayers, MiuixIcons.Home, MiuixIcons.IosSettings)
+      AppNavigationBarStyle.OS4_GLASS ->
+        listOf(MiuixIcons.Glass.Info, MiuixIcons.Glass.GridView, MiuixIcons.Glass.Layers, MiuixIcons.Home, MiuixIcons.Glass.Settings)
+    }
+    labels.mapIndexed { index, label -> NavigationItem(label, icons[index]) }
+  }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
   val appList = rememberLazyListState()
@@ -141,11 +155,11 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
       }.collectAsStateWithLifecycle(initialValue = os.kei.hyper.home.data.SystemIconFallback.DEFAULT)
       val pendingApply = pendingNativeApplication(packState, activeComponent, fallback) != null
       val updateLabel = stringResource(R.string.pack_update_available)
-      KeiHomeGlassNavigationBar(items = navigation, selectedIndex = selectedTab,
+      KeiHomeNavigationBar(style = navigationStyle, items = navigation, selectedIndex = selectedTab,
         onSelect = { selectTab(it) }, backdrop = backdrop,
-        badge = { index -> if (index == 2 && packUpdate && !pendingApply) {
+        badge = { index -> if (index == 2 && packUpdate && !pendingApply) ({
           top.yukonga.miuix.kmp.basic.Badge(modifier = Modifier.semantics { contentDescription = updateLabel })
-        } })
+        }) else null })
     },
     floatingActionButton = { PackActionFab(model, page, "home") },
   ) { insets ->
@@ -189,7 +203,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                 DesktopPage(model)
                 RefreshFeedback(model, 5)
               }
-              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection)
+              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection,
+                onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
             }
           }
         }

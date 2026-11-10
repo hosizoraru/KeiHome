@@ -11,6 +11,7 @@ internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
 internal enum class AppPagerGesture { NATIVE, CROSS_AXIS, IOS_LIKE }
 internal enum class AppTopBarBlur { OFF, GAUSSIAN, PROGRESSIVE }
+internal enum class AppNavigationBarStyle { IOS_LIKE, OS4_GLASS }
 internal enum class ColorOsStyle(val key: String) {
   CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
@@ -60,6 +61,7 @@ internal data class AppPreferencesState(
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
   val monetInspiration: Boolean? = null,
   val compactPackHints: Boolean = false,
+  val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.IOS_LIKE,
 )
 
 internal class AppPreferences internal constructor(
@@ -112,6 +114,9 @@ internal class AppPreferences internal constructor(
     monetInspiration = if (preferences.contains("monet_inspiration"))
       preferences.getBoolean("monet_inspiration", false) else null,
     compactPackHints = preferences.getBoolean("compact_pack_hints", false),
+    navigationBarStyle = AppNavigationBarStyle.entries.firstOrNull {
+      it.name == preferences.getString("navigation_bar_style", null)
+    } ?: AppNavigationBarStyle.IOS_LIKE,
   )
 
   fun setAppearance(value: AppAppearance) {
@@ -122,6 +127,11 @@ internal class AppPreferences internal constructor(
   fun setTopBarBlur(value: AppTopBarBlur) {
     preferences.edit().putString("top_bar_blur", value.name).apply()
     state.update { it.copy(topBarBlur = value) }
+  }
+
+  fun setNavigationBarStyle(value: AppNavigationBarStyle) {
+    preferences.edit().putString("navigation_bar_style", value.name).apply()
+    state.update { it.copy(navigationBarStyle = value) }
   }
 
   fun setPageUserScroll(value: Boolean) {

@@ -158,11 +158,12 @@ Source: <https://github.com/compose-miuix-ui/miuix>
 Copyright 2025-2026, compose-miuix-ui contributors.
 Licensed under the Apache License, Version 2.0. See `LICENSES/Apache-2.0.txt`.
 
-Earlier releases included local liquid-glass navigation, optics and drag
-helpers adapted through MIUIX from Kyant0/AndroidLiquidGlass:
-<https://github.com/Kyant0/AndroidLiquidGlass>. Those local helpers have been
-removed in favor of MIUIX's published OS4 glass components. The acknowledgement
-is retained as historical research.
+The optional iOS-like navigation retains local liquid-glass navigation,
+optics and drag helpers adapted through MIUIX from Kyant0/AndroidLiquidGlass:
+<https://github.com/Kyant0/AndroidLiquidGlass>. The files under
+`ui/components/liquid/` and `ui/components/animation/` retain their Apache-2.0
+headers. Their shader, sensor and edge-light integration uses MIUIX's current
+material APIs. The separate OS4 Glass option uses the published MIUIX component.
 
 The OS4 adapters are authored for KeiHome against MIUIX's public Apache-2.0
 APIs and current upstream source. MeiloX and InstallerX-Revived were inspected

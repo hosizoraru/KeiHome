@@ -19,14 +19,20 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
@@ -36,14 +42,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.data.AppTopBarBlur
+import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.ui.components.KeiHomeBarSurface
-import os.kei.hyper.home.ui.components.KeiHomeGlassNavigationBar
+import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -58,11 +66,12 @@ class Os4ChromeDeviceTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createComposeRule()
 
-  @Test fun glassAndOpaqueNavigationKeepTheirBoundsAcrossTabsThemesAndFontSizes() {
+  @Test fun bothNavigationStylesKeepSelectionAndBoundsAcrossTabsThemesAndFontSizes() {
     var selected by mutableStateOf(0)
     var dark by mutableStateOf(false)
     var mode by mutableStateOf(AppTopBarBlur.PROGRESSIVE)
     var large by mutableStateOf(false)
+    var style by mutableStateOf(AppNavigationBarStyle.IOS_LIKE)
     var refreshes = 0
     lateinit var screenshots: File
     rule.setContent {
@@ -86,8 +95,11 @@ class Os4ChromeDeviceTest {
               })
             }
           }, bottomBar = {
-            KeiHomeGlassNavigationBar(List(5) { NavigationItem("Tab $it", MiuixIcons.Info) },
-              selected, { selected = it }, Modifier.testTag("os4.navigation"), backdrop)
+            KeiHomeNavigationBar(style, List(5) { NavigationItem("Tab $it", MiuixIcons.Info) },
+              selected, { selected = it }, Modifier.testTag("os4.navigation"), backdrop,
+              badge = { index -> if (index == 2) ({
+                Badge(Modifier.semantics { contentDescription = "Update" })
+              }) else null })
           }) { padding ->
             Box(Modifier.fillMaxSize().layerBackdrop(source)
               .background(Brush.verticalGradient(listOf(Color(0xFF278DC4), MiuixTheme.colorScheme.surface)))) {
@@ -97,9 +109,12 @@ class Os4ChromeDeviceTest {
         }
       }
     }
-    for (enlarged in listOf(false, true)) for (night in listOf(false, true)) for (blur in AppTopBarBlur.entries) {
-      rule.runOnIdle { large = enlarged; dark = night; mode = blur }
+    for (barStyle in AppNavigationBarStyle.entries) for (enlarged in listOf(false, true))
+      for (night in listOf(false, true)) for (blur in AppTopBarBlur.entries) {
+      val previousSelection = selected
+      rule.runOnIdle { style = barStyle; large = enlarged; dark = night; mode = blur }
       rule.waitForIdle()
+      rule.runOnIdle { assertEquals(previousSelection, selected) }
       val bounds = rule.onNodeWithTag("os4.navigation").fetchSemanticsNode().boundsInRoot
       for (index in listOf(4, 1, 3, 0, 2)) {
         rule.onNodeWithText("Tab $index").assertIsDisplayed().performTouchInput { click(center) }
@@ -107,14 +122,17 @@ class Os4ChromeDeviceTest {
         rule.runOnIdle { assertEquals(index, selected) }
         assertEquals(bounds, rule.onNodeWithTag("os4.navigation").fetchSemanticsNode().boundsInRoot)
         rule.onNodeWithText("Page $index").assertIsDisplayed()
+        rule.onAllNodesWithText("Tab $index").assertCountEquals(1)
       }
+      rule.onNodeWithContentDescription("Update").assertIsDisplayed()
+      rule.onAllNodesWithContentDescription("Update").assertCountEquals(1)
       rule.onNodeWithContentDescription("Unavailable").assertIsNotEnabled()
       rule.onNodeWithContentDescription("Refresh").performTouchInput { click(center) }
       val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
-      File(screenshots, "os4-chrome-$night-$blur-$enlarged.png").outputStream().use {
+      File(screenshots, "os4-chrome-$barStyle-$night-$blur-$enlarged.png").outputStream().use {
         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
       }
     }
-    rule.runOnIdle { assertEquals(12, refreshes) }
+    rule.runOnIdle { assertEquals(24, refreshes) }
   }
 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_bar_style_title">ナビゲーションバーのスタイル</string>
+    <string name="navigation_bar_style_summary">下部ナビゲーションの外観を選択。すぐに反映されます。</string>
+    <string name="navigation_bar_style_ios_like">iOS-like</string>
+    <string name="navigation_bar_style_os4_glass">OS4 Glass</string>
+    <string name="navigation_bar_style_search_keywords">下部ナビゲーション ナビバー タブ iOS ガラス</string>
+</resources>

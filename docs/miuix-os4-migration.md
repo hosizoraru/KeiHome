@@ -24,8 +24,10 @@ translated, included as source, or linked into KeiHome by this migration.
 MeiloX's independent Glasmio choices are not treated as MIUIX OS4 APIs.
 
 Existing adapted MIUIX About/background code retains its attribution.
-The retired local AndroidLiquidGlass navigation and drag helpers are removed;
-their acknowledgement is kept under historical research.
+The selectable iOS-like navigation retains the project's existing Apache-2.0
+AndroidLiquidGlass adaptations and attribution. Its shader, sensor and
+edge-stroke integration is migrated to the new material APIs. It is independent
+of the published OS4 Glass navigation implementation.
 
 ## Read the commit contracts, not only the release number
 
@@ -107,7 +109,9 @@ controls/opaque surfaces remain usable.
 | Progressive treatment | Official `progressiveBlur` and band material; no extra legacy progressive layer. |
 | Gaussian treatment | Existing uniform blur underneath the bar; no additional progressive treatment. |
 | Toolbar actions | `KeiHomeIconButton`; official `GlassIconButton` inside a glass toolbar, native disabled/held/custom-color behavior retained. |
-| Navigation | `Os4NavigationBar.kt`; official Glass navigation, existing pager coordinator, safe bottom inset and icon-pack update badge. |
+| Navigation selector | `KeiHomeNavigationBar.kt`; persisted iOS-like / OS4 Glass choice, one existing pager coordinator and icon-pack update badge. |
+| OS4 Glass navigation | `Os4NavigationBar.kt`; official Glass navigation with its native materials, icons, shape and safe inset. |
+| iOS-like navigation | `liquid/LiquidGlassNavigationBar.kt`; original lens, chromatic dispersion, dual-peak reflected light, drag motion and 24dp horizontal margins; migrated to `material` APIs. |
 | Grouped/child menus | `Os4DropdownMenu.kt`; measured anchor, root-hosted popup, app-theme material, existing selections and close behavior. |
 | Confirmation/help dialogs | `Os4Dialogs.kt`; official Glass dialog with its opaque null-backdrop fallback, themed buttons, native Back/dismiss and disabled actions. |
 | Forms and lists | Existing MIUIX controls use the upgraded library without app-owned imitations of the new material. |
@@ -116,6 +120,22 @@ The root navigation still owns tab selection. A component callback requests
 a destination; it does not introduce a second independent navigation state.
 The existing coordinator cancels old animations when interrupted and derives
 selection from the pager.
+
+App Settings exposes **Navigation bar style**, independently of page gestures
+and the blur mode. The stable serialized names are `IOS_LIKE` and `OS4_GLASS`.
+Missing or unknown keys retain iOS-like as the original default. Selecting a
+style updates the preference immediately; it does not recreate the pager,
+reset the current page, or change the launcher's Dock. Only the selected
+implementation is composed. Disabling blur also gives iOS-like its opaque
+surface fallback instead of enabling its lens implicitly, and stops its
+tilt-reflection subscriptions.
+
+The old `Highlight` / `BloomStroke` contract is replaced by `EdgeStroke`
+with `EdgePeak.Dual`, the original light coordinates/intensities, and the same
+flat band/bevel parameters. `drawEdgeStroke` runs in `drawBackdrop.onDrawFront`:
+gravity and press state remain draw-time reads instead of causing sensor-rate
+recomposition of the navigation tree. OS4 Glass retains its separate native
+material and interaction behavior.
 
 ### Return events and popup tests
 
@@ -139,6 +159,14 @@ Tapping the margin outside an intentionally inset Scaffold or the system
 gesture strip does not test its dismiss surface. Check selection and semantics
 uniqueness after reopening; do not hide measurement clones by selecting only
 the first matching node.
+
+The navigation harness covers 24 combinations: both styles, three blur modes,
+light/dark and font scale 1.0/1.6. It exercises every tab, retained selection
+across style changes, stable bounds within each style and a single accessible
+update badge. Assert the badge through its content description, as production
+does: a tab merges descendant semantics, so a child test tag does not represent
+the accessible update indicator. Hidden optical recording layers must not
+introduce additional accessible labels or badges.
 
 ## Recipe for another project
 

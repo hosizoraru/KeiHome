@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_bar_style_title">底栏风格</string>
+    <string name="navigation_bar_style_summary">选择底部导航栏外观，即时生效。</string>
+    <string name="navigation_bar_style_ios_like">iOS-like</string>
+    <string name="navigation_bar_style_os4_glass">OS4 Glass</string>
+    <string name="navigation_bar_style_search_keywords">底部导航 导航栏 底栏 标签页 iOS 玻璃</string>
+</resources>

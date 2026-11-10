@@ -104,7 +104,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           component != null -> ThirdPartyComponentDetails(component, onNavigate)
           route == "notices" -> ThirdPartyNotices(onNavigate)
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
-            onOpenPerfectIcons = onOpenPackSection)
+            onOpenPerfectIcons = onOpenPackSection,
+            onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
         }
       }
     }

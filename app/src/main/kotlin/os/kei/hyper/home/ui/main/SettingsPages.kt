@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.AppNavigationBarStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -47,7 +48,8 @@ internal enum class SettingsSection(val route: String, @param:StringRes val titl
 
 @Composable
 internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit,
-  onOpenPerfectIcons: ((String) -> Unit)? = null) {
+  onOpenPerfectIcons: ((String) -> Unit)? = null,
+  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
   var query by rememberSaveable { mutableStateOf("") }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
@@ -90,14 +92,15 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
-        onOpenPerfectIcons = onOpenPerfectIcons)
+        onOpenPerfectIcons = onOpenPerfectIcons, onNavigationBarStyleChange = onNavigationBarStyleChange)
     }
   }
 }
 
 @Composable
 internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSection?, query: String = "",
-  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null) {
+  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null,
+  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
   val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
@@ -116,6 +119,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     staticScopeContent = { StaticScopeCard(model) },
     onCompactPackHintsChange = model.preferences::setCompactPackHints,
+    onNavigationBarStyleChange = onNavigationBarStyleChange,
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

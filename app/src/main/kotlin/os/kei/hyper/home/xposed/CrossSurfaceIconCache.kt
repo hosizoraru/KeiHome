@@ -31,6 +31,7 @@ internal class CrossSurfaceIconCache(
     Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
   },
   private val systemPaletteEvents: Boolean = false,
+  private val eagerReload: Boolean = true,
   private val onReady: (() -> Unit)? = null,
 ) {
   init { require(maxEntries in 1..64) }
@@ -131,11 +132,11 @@ internal class CrossSurfaceIconCache(
         addAction("android.intent.action.THEME_CHANGED")
       }, null, handler, Context.RECEIVER_NOT_EXPORTED)
       receiverRegistered = true
-        if (systemPaletteEvents) {
-          context.registerReceiver(paletteReceiver, IntentFilter(CrossSurfaceIconEvents.PALETTE_CHANGED),
-            "android.permission.INTERACT_ACROSS_USERS_FULL", handler, Context.RECEIVER_EXPORTED)
-          paletteReceiverRegistered = true
-        }
+      if (systemPaletteEvents) {
+        context.registerReceiver(paletteReceiver, IntentFilter(CrossSurfaceIconEvents.PALETTE_CHANGED),
+          "android.permission.INTERACT_ACROSS_USERS_FULL", handler, Context.RECEIVER_EXPORTED)
+        paletteReceiverRegistered = true
+      }
     }
   }
 
@@ -165,12 +166,18 @@ internal class CrossSurfaceIconCache(
     return null
   }
 
+  /** A definitive miss, distinct from an asynchronously pending snapshot. */
+  fun isMissing(packageName: String, activityName: String? = null): Boolean = synchronized(lock) {
+    Key(packageName, activityName?.takeIf { validDottedName(it) && it.length <= 240 }) in misses
+  }
+
   fun invalidate() {
     synchronized(lock) {
       if (!active) return
       revision.incrementAndGet()
       clearSnapshotsLocked()
-      wanted.keys.forEach { enqueueLocked(it) }
+      if (eagerReload) wanted.keys.forEach { enqueueLocked(it) }
+      else scheduleReadyLocked()
     }
   }
 
@@ -194,6 +201,29 @@ internal class CrossSurfaceIconCache(
     }
   }
 
+  private fun scheduleReadyLocked() {
+    if (!active || onReady == null) return
+    notifyReady?.let {
+      if (!eagerReload) return
+      handler.removeCallbacks(it)
+    }
+    val generation = revision.get()
+    val ready = object : Runnable {
+      override fun run() {
+        val publish = synchronized(lock) {
+          if (notifyReady !== this) return
+          notifyReady = null
+          active && generation == revision.get()
+        }
+        if (publish) try { onReady.invoke() } catch (failure: Exception) {
+          Log.w(TAG, "Native icon refresh unavailable", failure)
+        }
+      }
+    }
+    notifyReady = ready
+    if (!handler.postDelayed(ready, 32L)) notifyReady = null
+  }
+
   private fun drain() {
     var changed = false
     // Yield to appearance events and retirement between small batches, rather than
@@ -205,17 +235,7 @@ internal class CrossSurfaceIconCache(
       if (next != null) changed = load(next.first, next.second) || changed
     }
     val more = synchronized(lock) {
-      if (active && changed && onReady != null) {
-        notifyReady?.let { handler.removeCallbacks(it) }
-        val generation = revision.get()
-        val ready = Runnable {
-          if (active && generation == revision.get()) try { onReady.invoke() } catch (failure: Exception) {
-            Log.w(TAG, "Native icon refresh unavailable", failure)
-          }
-        }
-        notifyReady = ready
-        handler.postDelayed(ready, 32L)
-      }
+      if (changed) scheduleReadyLocked()
       if (active && pending.isNotEmpty() && handler.post(drainWork)) true
       else {
         drainScheduled = false
@@ -273,7 +293,7 @@ internal class CrossSurfaceIconCache(
       pending -= key
       bitmap?.let { cache.put(key, it) } ?: run { misses += key }
       if (dynamic && bitmap != null) dynamicMinutes[key] = now / 60_000L else dynamicMinutes.remove(key)
-      bitmap != null
+      bitmap != null || !eagerReload
     }
   }
 

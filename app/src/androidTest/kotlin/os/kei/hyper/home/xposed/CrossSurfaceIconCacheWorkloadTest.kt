@@ -24,6 +24,23 @@ import org.junit.Test
 
 /** Real worker/ZIP/Bitmap work; no privileged hooks, remote services or user theme changes. */
 class CrossSurfaceIconCacheWorkloadTest {
+  @Test fun lazyMissNotifiesOwnerOnceSoItCanStopShowingAnOlderSnapshot() = fixture { file ->
+    val notifications = AtomicInteger()
+    val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
+      paletteState = { 0L }, eagerReload = false, onReady = { notifications.incrementAndGet() })
+    try {
+      cache.start()
+      assertNull(cache.get("os.kei.missing.fixture"))
+      awaitSettled(cache)
+      assertTrue(cache.isMissing("os.kei.missing.fixture"))
+      assertEquals(1, notifications.get())
+      repeat(100) { assertNull(cache.get("os.kei.missing.fixture")) }
+      awaitSettled(cache)
+      assertEquals(1, notifications.get())
+      assertEquals(0, size(cache, "pending"))
+    } finally { assertTrue(cache.stop()) }
+  }
+
   @Test fun repeatedInvalidationsCoalesceAndReadPaletteOnceForTheRetainedBatch() = fixture { file ->
     val reads = AtomicInteger()
     val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
@@ -120,6 +137,35 @@ class CrossSurfaceIconCacheWorkloadTest {
     } finally { assertTrue(cache.stop()) }
   }
 
+  @Test fun lazyInvalidationCoalescesWithoutDecodingHiddenTargetsAndReloadsOnlyRequestedIcons() = fixture { file ->
+    val reads = AtomicInteger()
+    val notifications = AtomicInteger()
+    val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
+      paletteState = { reads.incrementAndGet(); 0L }, eagerReload = false,
+      onReady = { notifications.incrementAndGet() })
+    try {
+      cache.start()
+      block(cache) { repeat(32) { cache.get(name(it)) }; null }
+      awaitSettled(cache)
+      assertEquals(1, reads.get())
+      assertEquals(32, bitmapCache(cache).snapshot().size)
+      notifications.set(0)
+
+      block(cache) { repeat(100) { cache.invalidate() }; null }
+      awaitSettled(cache)
+      assertEquals("Hidden targets must not cause archive/palette work", 1, reads.get())
+      assertEquals(0, size(cache, "pending"))
+      assertEquals(0, bitmapCache(cache).size())
+      assertEquals("Notify the owner once so it can request its visible targets", 1, notifications.get())
+
+      assertNull(cache.get(name(0)))
+      awaitSettled(cache)
+      assertNotNull(cache.get(name(0)))
+      assertEquals(2, reads.get())
+      assertEquals("Previously requested hidden targets stay cold", 1, bitmapCache(cache).snapshot().size)
+    } finally { assertTrue(cache.stop()) }
+  }
+
   private fun name(index: Int) = "com.keihome.workload.app$index"
 
   private fun fixture(body: (File) -> Unit) {
@@ -179,6 +225,20 @@ class CrossSurfaceIconCacheWorkloadTest {
     }
     assertTrue(handler.post(probe))
     assertTrue("Cache work did not drain", done.await(5, TimeUnit.SECONDS))
+  }
+
+  private fun awaitSettled(cache: CrossSurfaceIconCache) {
+    val done = CountDownLatch(1)
+    val handler = handler(cache)
+    val probe = object : Runnable {
+      override fun run() {
+        if (field(cache, "drainScheduled") == true || field(cache, "notifyReady") != null)
+          handler.postDelayed(this, 5)
+        else done.countDown()
+      }
+    }
+    assertTrue(handler.post(probe))
+    assertTrue("Cache work and notification did not settle", done.await(5, TimeUnit.SECONDS))
   }
 
   private class RecordingContext : ContextWrapper(

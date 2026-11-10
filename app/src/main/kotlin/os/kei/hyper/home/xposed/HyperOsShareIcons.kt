@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ResolveInfo
+import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Handler
@@ -31,6 +32,25 @@ internal fun shareAppIdentity(info: ResolveInfo, user: Int): Pair<String, String
   if (activity.icon != 0 && activity.icon != app.icon) return null
   return app.packageName?.takeIf { it.isNotBlank() }?.let {
     it to (activity.name ?: return null)
+  }
+}
+
+/** Reuse the wrapper and avoid invalidating ImageView when its image is unchanged. */
+internal class ShareIconPresentation(val original: Drawable?) {
+  private var bitmap: Bitmap? = null
+  private var replacement: BitmapDrawable? = null
+
+  fun apply(view: ImageView, next: Bitmap?, pending: Boolean = false) {
+    if (next == null && pending && replacement != null) {
+      if (view.drawable !== replacement) view.setImageDrawable(replacement)
+      return
+    }
+    if (next !== bitmap) {
+      bitmap = next
+      replacement = next?.let { BitmapDrawable(view.resources, it) }
+    }
+    val desired = replacement ?: original
+    if (view.drawable !== desired) view.setImageDrawable(desired)
   }
 }
 
@@ -131,7 +151,7 @@ internal class HyperOsShareIcons(
   private val xposed: XposedInterface,
   val classLoader: ClassLoader,
 ) {
-  private data class Bound(val name: String, val activity: String, val original: Drawable?)
+  private data class Bound(val name: String, val activity: String, val presentation: ShareIconPresentation)
   private val lifecycle = ThemeCompatibilityLifecycle()
   private val main = Handler(Looper.getMainLooper())
   private val views = WeakHashMap<ImageView, Bound>() // main-thread only
@@ -145,7 +165,8 @@ internal class HyperOsShareIcons(
     if (!lifecycle.enter()) return@Runnable
     try {
       views.forEach { (view, bound) ->
-        if (view.isAttachedToWindow) apply(view, bound)
+        if (view.isAttachedToWindow && view.isShown && view.windowVisibility == View.VISIBLE)
+          apply(view, bound)
       }
     } finally { lifecycle.leave() }
   }
@@ -157,6 +178,11 @@ internal class HyperOsShareIcons(
       if (lifecycle.enter()) try {
         initialize(chain.thisObject as Application)
       } finally { lifecycle.leave() }
+      result
+    }
+    replace(Activity::class.java.getDeclaredMethod("onPostResume"), "resume") { chain ->
+      val result = chain.proceed()
+      if (lifecycle.enter()) try { queueReplay() } finally { lifecycle.leave() }
       result
     }
     val application = Class.forName("android.app.ActivityThread")
@@ -172,8 +198,9 @@ internal class HyperOsShareIcons(
       if (!lifecycle.enter()) return@Thread
       try {
         val profile = HyperOsShareProfile.resolve(application, classLoader)
-        val icons = CrossSurfaceIconCache(application, maxEntries = 64, systemPaletteEvents = true) {
-          if (!stopped && replayQueued.compareAndSet(false, true)) main.post(replay)
+        val icons = CrossSurfaceIconCache(application, maxEntries = 64, systemPaletteEvents = true,
+          eagerReload = false) {
+          queueReplay()
         }
         cache = icons
         icons.start()
@@ -198,9 +225,14 @@ internal class HyperOsShareIcons(
     worker.start()
   }
 
-  private fun capture(profile: HyperOsShareProfile, holder: Any) {
+  private fun queueReplay() {
+    if (!stopped && replayQueued.compareAndSet(false, true) && !main.post(replay))
+      replayQueued.set(false)
+  }
+
+  private fun capture(profile: HyperOsShareProfile, holder: Any, preload: Boolean = true) {
     val view = profile.icon.get(holder) as ImageView
-    views.remove(view)
+    val previous = views.remove(view)
     val target = profile.boundInfo.get(holder)
     if (!profile.accepts(target?.javaClass)) return
     val info = profile.resolveInfo.invoke(target) as? ResolveInfo ?: return
@@ -209,9 +241,12 @@ internal class HyperOsShareIcons(
     // original even when the visible ImageView still contains the retired bitmap.
     val original = profile.displayIcon.invoke(profile.displayHolder.invoke(target)) as? Drawable
     if (views.size >= 128) views.entries.iterator().let { it.next(); it.remove() }
-    val bound = Bound(identity.first, identity.second, original)
+    val bound = previous?.takeIf {
+      it.name == identity.first && it.activity == identity.second && it.presentation.original === original
+    } ?: Bound(identity.first, identity.second, ShareIconPresentation(original))
     views[view] = bound
-    apply(view, bound)
+    if ((preload && !view.isAttachedToWindow) ||
+      (view.isShown && view.windowVisibility == View.VISIBLE)) apply(view, bound)
   }
 
   /** Adopt attached OEM rows after reload; do not retain old callbacks or scan the heap. */
@@ -229,7 +264,7 @@ internal class HyperOsShareIcons(
         if (--budget < 0) return
         if (recycler.isInstance(view.parent)) {
           val row = holder.invoke(view.parent, view)
-          if (profile.icon.declaringClass.isInstance(row)) capture(profile, row)
+          if (profile.icon.declaringClass.isInstance(row)) capture(profile, row, preload = false)
         }
         if (view is ViewGroup) for (i in 0 until view.childCount) {
           if (budget <= 0) break
@@ -250,8 +285,10 @@ internal class HyperOsShareIcons(
   }
 
   private fun apply(view: ImageView, bound: Bound) {
-    val bitmap = cache?.get(bound.name, bound.activity)
-    view.setImageDrawable(bitmap?.let { BitmapDrawable(view.resources, it) } ?: bound.original)
+    val icons = cache
+    val bitmap = icons?.get(bound.name, bound.activity)
+    val pending = bitmap == null && icons != null && !icons.isMissing(bound.name, bound.activity)
+    bound.presentation.apply(view, bitmap, pending)
   }
 
   private fun replace(method: Method, name: String, hooker: XposedInterface.Hooker) {

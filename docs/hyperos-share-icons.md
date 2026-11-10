@@ -32,8 +32,8 @@ changed.
 
 The native bind runs first. The hook performs only identity/field reads and an
 in-memory cache lookup. Archive reads, palette reads and image decoding run on the
-existing cross-surface worker. A miss keeps the native icon; completion replays
-attached views on the main thread. There are at most 64 cached icons and 128 weak
+existing cross-surface worker. A cold miss keeps the native icon; completion replays
+visible attached views on the main thread. There are at most 64 cached icons and 128 weak
 view bindings. No source MAML program, animation timer, polling task or Binder
 query is created by a bind.
 
@@ -62,6 +62,35 @@ Monet snapshots now tint the foreground/background alpha masks independently
 with a source color filter and use the native adaptive mask. This preserves
 transparent pixels and distinct palette colors, and removes two temporary
 full-size bitmaps. Tests verify both exact colors and component/package parity.
+
+## Share-sheet workload balance
+
+The share process uses demand-driven invalidation. A theme, palette or appearance
+change clears its snapshots and coalesces one notification, without decoding all
+previously requested targets. Replay requests only attached, shown views whose
+window is visible. An existing native `Activity.onPostResume` hook queues replay
+when the panel returns, including when appearance changed while it was hidden.
+Normal native binding may still prepare a newly created, unattached row before it
+appears. There is no new polling loop or network request.
+
+Each binding reuses its `BitmapDrawable` while the cached bitmap stays the same,
+and skips `setImageDrawable` when that drawable is already installed. A valid old
+snapshot remains visible during asynchronous replacement; a definitive miss
+notifies the owner once and restores the original native drawable. Native
+rebinding can change that original drawable without changing the target identity,
+and is respected. This avoids flashing the native icon during refresh while
+retaining failure fallback and native panel animations.
+
+These changes preserve the 192px snapshot resolution, 64-target/9MiB bitmap-cache
+budget and 128-binding limit. The other cross-surface cache owners retain their
+existing eager invalidation by default. Device tests exercise hidden invalidation
+bursts without palette reads, on-demand rebuilding, miss completion, repeated
+cache-hit presentation, native rebinding and retirement.
+
+Follow-up evidence is stored under
+`.artifacts/research/share-balance-20261110/acceptance.json`. Emulator frame and
+memory observations are diagnostic samples, not physical-device performance
+claims or a general percentage improvement.
 
 ## Acceptance checkpoint
 

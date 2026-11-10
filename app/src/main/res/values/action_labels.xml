@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="action_label_details">Details</string>
     <string name="action_label_apply">Apply</string>
     <string name="action_label_update">Update</string>
     <string name="action_label_generate">Generate</string>

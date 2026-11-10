@@ -686,9 +686,9 @@ private fun DashboardExpandableCard(
     }
     if (onOpen != null && openLabel != null) {
       CenteredLinkAction(
-        label = openLabel, onClick = onOpen,
+        label = stringResource(R.string.action_label_details), description = openLabel, onClick = onOpen,
         icon = actionIcon(PageActionIcon.OPEN_INTERNAL),
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = 12.dp),
       )
     }
   }

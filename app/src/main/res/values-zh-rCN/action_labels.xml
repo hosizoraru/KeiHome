@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="action_label_details">详情</string>
     <string name="action_label_apply">应用</string>
     <string name="action_label_update">更新</string>
     <string name="action_label_generate">生成</string>

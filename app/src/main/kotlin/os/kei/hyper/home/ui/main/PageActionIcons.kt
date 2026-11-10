@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.composables.icons.lucide.R as LucideR
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Download
@@ -38,5 +39,5 @@ internal fun actionIcon(action: PageActionIcon): ImageVector = when (action) {
   PageActionIcon.OPEN_EXTERNAL -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_square_arrow_out_up_right)
   PageActionIcon.STATUS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_activity)
   PageActionIcon.PACKS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_shapes)
-  PageActionIcon.DESKTOP -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_layout_dashboard)
+  PageActionIcon.DESKTOP -> MiuixIcons.Home
 }

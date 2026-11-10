@@ -17,7 +17,7 @@ EN, Chinese and Japanese captions share the same operation distinctions.
 
 `PageActionIcons.kt` centralizes actions and bottom navigation semantics.
 The five tab symbols represent activity/status, applications, icon shapes,
-desktop layout and settings. Both selectable navigation implementations use
+the familiar HyperOS desktop outline and settings. Both selectable navigation implementations use
 these meanings while retaining their own geometry, optics and interactions.
 Existing suitable MIUIX icons remain the first choice. The supplemental
 `com.composables:icons-lucide-android:2.2.1` resource dependency is the same

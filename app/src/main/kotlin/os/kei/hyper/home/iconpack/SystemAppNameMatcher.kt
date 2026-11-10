@@ -6,14 +6,17 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import java.util.Locale
 
-/** Optional, conservative label fallback for system apps after exact appfilter matching. */
-internal class SystemAppNameMatcher(context: Context, entries: List<IconPackEntry>, private val enabled: Boolean) {
+/** Optional label fallback for system/verified native factory apps, after exact appfilter matching. */
+internal class SystemAppNameMatcher(private val context: Context, entries: List<IconPackEntry>, private val enabled: Boolean) {
   private val pm = context.packageManager
   private val byArtworkName = HashMap<String, IconPackEntry>()
   private val ambiguousArtwork = HashSet<String>()
   private val byRole = HashMap<String, IconPackEntry>()
   private val ambiguousRole = HashSet<String>()
   private val labels = HashMap<IconPackComponent, String?>()
+  private val nativeEligibility by lazy {
+    SystemIconFallbackRenderer(context, os.kei.hyper.home.data.SystemIconFallback.DEFAULT)
+  }
 
   init {
     if (enabled) entries.forEach { entry ->
@@ -36,7 +39,8 @@ internal class SystemAppNameMatcher(context: Context, entries: List<IconPackEntr
     val label = labels.getOrPut(target) {
       val app = try { pm.getApplicationInfo(target.packageName, PackageManager.ApplicationInfoFlags.of(0)) }
         catch (_: PackageManager.NameNotFoundException) { return@getOrPut null }
-      if (app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0) return@getOrPut null
+      if (app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0 &&
+        !nativeEligibility.isSystem(target)) return@getOrPut null
       val activityName = target.className ?: pm.getLaunchIntentForPackage(target.packageName)?.component?.className
       val activityLabel = activityName?.let { name ->
         try { pm.getActivityInfo(ComponentName(target.packageName, name), PackageManager.ComponentInfoFlags.of(0))

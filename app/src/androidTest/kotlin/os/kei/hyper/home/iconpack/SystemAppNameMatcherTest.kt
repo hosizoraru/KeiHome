@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class SystemAppNameMatcherTest {
-  @Test fun onlySystemAppsUseCrossOemArtworkAfterExactMappingFails() {
+  @Test fun onlySystemOrNativeFactoryAppsUseCrossOemArtworkAfterExactMappingFails() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val manager = IconPackEntry("manager", component = IconPackComponent("com.oplus.phonemanager"),
       light = IconPackArtwork.Resource(IconDrawableName("phone_manager")))
@@ -25,6 +25,19 @@ class SystemAppNameMatcherTest {
     assertNull(enabled.match(IconPackComponent(context.packageName)))
     assertNull(SystemAppNameMatcher(context, listOf(manager, themes, store), false)
       .match(IconPackComponent("com.miui.securitycenter")))
+  }
+
+  @Test fun optInNameMatchingIncludesNativeNonSystemPreloadsAndStillRejectsUserApps() {
+    org.junit.Assume.assumeTrue(java.io.File("/product/data-app").isDirectory)
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val themeStore = IconPackEntry("theme", component = IconPackComponent("com.heytap.themestore"),
+      light = IconPackArtwork.Resource(IconDrawableName("themestore")))
+    val ownName = IconPackEntry("own", light = IconPackArtwork.Resource(IconDrawableName("keihome")))
+    val target = IconPackComponent("com.miui.themestore")
+    val matcher = SystemAppNameMatcher(context, listOf(themeStore, ownName), true)
+    assertEquals(themeStore, matcher.match(target))
+    assertNull(matcher.match(IconPackComponent(context.packageName)))
+    assertNull(SystemAppNameMatcher(context, listOf(themeStore), false).match(target))
   }
 
   @Test fun installedArcticonsExposesSystemNameCandidates() {

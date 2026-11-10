@@ -26,6 +26,8 @@ internal class SystemIconFallbackRenderer(
 ) {
   private val apps = mutableMapOf<String, ApplicationInfo?>()
   private val systemPackages = mutableMapOf<String, Boolean>()
+  private val preinstalledPackages = mutableMapOf<String, Boolean>()
+  private val nativeSources = mutableMapOf<IconPackComponent, Boolean>()
   private val defaultShape by lazy { NativeAdaptiveIconMask.load() }
   private val shape by lazy {
     when (style) {
@@ -59,7 +61,22 @@ internal class SystemIconFallbackRenderer(
 
   val perfectSourceHash: String? by lazy { style.perfectStyle?.let { PerfectSystemFallback.sourceHash(context, it) } }
 
-  fun isSystem(target: IconPackComponent): Boolean = isSystem(target.packageName)
+  fun isSystem(target: IconPackComponent): Boolean {
+    if (isSystem(target.packageName)) return true
+    val app = apps[target.packageName] ?: return false
+    // A preload is not a system app. Admit it only to artwork fallback, with an actual stock source.
+    if (!nativeSources.getOrPut(target) {
+      listOfNotNull(target.className, target.packageName).any { name ->
+        val root = "/product/media/theme/miui_mod_icons"
+        readSource(File(root, "$name.png")) != null ||
+          (readSource(File(root, "dynamic/$name/0.png")) != null &&
+            readSource(File(root, "dynamic/$name/1.png")) != null)
+      }
+    }) return false
+    return preinstalledPackages.getOrPut(target.packageName) {
+      NativePreinstalledIcons.matches(context.packageManager, app)
+    }
+  }
 
   private fun isSystem(packageName: String): Boolean = systemPackages.getOrPut(packageName) {
     val app = if (apps.containsKey(packageName)) apps[packageName] else {
@@ -78,7 +95,7 @@ internal class SystemIconFallbackRenderer(
 
   fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? {
     check()
-    if (!isSystem(target) || live(target)) return null
+    if (live(target) || !isSystem(target)) return null
     val names = listOfNotNull(target.className, target.packageName).distinct()
     style.perfectStyle?.let { selected ->
       PerfectSystemFallback.icon(context, selected, names, requireNotNull(perfectSourceHash))?.let { artwork ->

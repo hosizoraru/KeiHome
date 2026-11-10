@@ -43,3 +43,7 @@ Unit tests cover untrusted companions and legacy publication/update handling.
 
 This is Phone AVD acceptance; it does not claim inspection of the reporting
 user's physical device or blanket support for other split system applications.
+
+The subsequent [factory data-app audit](preinstalled-icon-fallback.md) extends the
+eligibility rule through exact factory package/certificate evidence and stock
+artwork presence. Its v3 source identity supersedes this checkpoint's v2 identity.

@@ -90,8 +90,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.glass.Search
 import top.yukonga.miuix.kmp.icon.glass.More
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -333,7 +331,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     }
   }, floatingActionButton = {
     if (!matchedOnly) {
-      val label = when {
+      val description = when {
         batchBrowser && selecting -> stringResource(R.string.apple_batch_match_selected,
           selectedBatch.size, selectedVisible.size)
         batchBrowser -> stringResource(R.string.apple_batch_next, AppleAutoMatchPolicy.BATCH_SIZE)
@@ -341,8 +339,20 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         state.pack == null -> stringResource(R.string.apple_generate)
         else -> stringResource(R.string.apple_generate_incremental)
       }
-      PageActionFab(label = label,
-        icon = if (search || batchBrowser) MiuixIcons.Glass.Search else MiuixIcons.Glass.Refresh,
+      val actionBusy = if (search) state.searching else state.busy || localLoading
+      val label = stringResource(when {
+        actionBusy && localLoading -> R.string.action_label_preparing
+        actionBusy -> R.string.action_label_processing
+        search -> R.string.action_label_search
+        batchBrowser -> R.string.action_label_match
+        else -> R.string.action_label_generate
+      })
+      PageActionFab(label = label, description = description,
+        icon = actionIcon(when {
+          search -> PageActionIcon.SEARCH
+          batchBrowser -> PageActionIcon.MATCH
+          else -> PageActionIcon.GENERATE
+        }),
         onClick = {
           when {
             search -> searchNow()
@@ -359,7 +369,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         enabled = enabled && (!search || query.isNotBlank() && !state.searching && !state.previewing) &&
           (!batchBrowser || !browserLoading && state.retryAtMillis <= now &&
             (if (selecting) selectedBatch.isNotEmpty() else visibleEligible.isNotEmpty())),
-        busy = if (search) state.searching else state.busy || localLoading,
+        busy = actionBusy,
         onHeightChanged = { actionHeight = it })
     }
   }) { insets ->

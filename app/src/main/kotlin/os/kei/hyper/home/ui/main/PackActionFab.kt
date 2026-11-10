@@ -9,9 +9,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Theme
 
 @Composable
 internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
@@ -37,10 +34,21 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
       model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents) == null))) return
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
-  val label = stringResource(if (busy && state.preparing) R.string.pack_action_preparing
+  val description = stringResource(if (busy && state.preparing) R.string.pack_action_preparing
     else if (busy) R.string.icon_pack_importing else if (pending != null) R.string.pack_apply_native else if (update)
     R.string.pack_action_update else if (generate) R.string.pack_action_install else R.string.pack_action_inspiration)
-  PageActionFab(label, if (update) MiuixIcons.Refresh else MiuixIcons.Theme,
+  val label = stringResource(when {
+    busy && state.preparing -> R.string.action_label_preparing
+    busy -> R.string.action_label_processing
+    pending != null -> R.string.action_label_apply
+    update -> R.string.action_label_update
+    else -> R.string.action_label_apply
+  })
+  PageActionFab(label, actionIcon(when {
+    pending != null -> PageActionIcon.APPLY
+    update -> PageActionIcon.UPDATE
+    else -> PageActionIcon.APPLY
+  }), description = description,
     onHeightChanged = onHeightChanged,
     modifier = Modifier.testTag("icon-packs.$section.action"), enabled = ready, busy = busy, onClick = {
       if (pending != null) runCatching {

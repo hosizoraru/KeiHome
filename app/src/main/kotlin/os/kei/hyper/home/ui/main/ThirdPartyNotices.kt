@@ -38,6 +38,7 @@ internal data class BundledLicense(val key: String, val title: String, val asset
 internal val bundledLicenses = listOf(
   BundledLicense("apache", "Apache 2.0", "licenses/Apache-2.0.txt"),
   BundledLicense("android-tools-notice", "Android Tools · NOTICE", "licenses/AndroidTools-NOTICE.txt"),
+  BundledLicense("compose-icons-mit", "Compose Icons · MIT", "licenses/ComposeIcons-MIT.txt"),
   BundledLicense("dexkit-apache", "DexKit · Apache 2.0", "licenses/DexKit-Apache-2.0.txt"),
   BundledLicense("dexkit-lgpl", "DexKit · LGPL 3.0", "licenses/DexKit-LGPL-3.0.txt"),
   BundledLicense("dexkit-source", "DexKit · Source", "licenses/DexKit-SOURCE.txt"),
@@ -46,6 +47,7 @@ internal val bundledLicenses = listOf(
   BundledLicense("mmkv", "MMKV · BSD 3-Clause", "licenses/MMKV-BSD-3-Clause.txt"),
   BundledLicense("libcxx", "libc++ · Apache 2.0 / LLVM", "licenses/libcxx-LICENSE.txt"),
   BundledLicense("lsplt", "LSPlt · LGPL 3.0", "licenses/LSPlt-LGPL-3.0.txt"),
+  BundledLicense("lucide-isc", "Lucide Icons · ISC / MIT", "licenses/Lucide-ISC.txt"),
   BundledLicense("notices", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
 )
 
@@ -158,7 +160,7 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
           } catch (_: RuntimeException) {
             Toast.makeText(context, R.string.notices_source_unavailable, Toast.LENGTH_SHORT).show()
           }
-        }, endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+        }, endActions = { Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null) })
     }
     SmallTitle(stringResource(R.string.settings_license_files))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

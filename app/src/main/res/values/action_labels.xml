@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_label_apply">Apply</string>
+    <string name="action_label_update">Update</string>
+    <string name="action_label_generate">Generate</string>
+    <string name="action_label_export">Export</string>
+    <string name="action_label_clear">Clear</string>
+    <string name="action_label_download">Download</string>
+    <string name="action_label_preparing">Preparing</string>
+    <string name="action_label_processing">Processing</string>
+    <string name="action_label_search">Search</string>
+    <string name="action_label_match">Match</string>
+    <string name="notices_role_icons">Semantic action and navigation icons for gaps in MIUIX.</string>
+</resources>

@@ -66,7 +66,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -139,7 +138,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
       }
     },
     floatingActionButton = {
-      PageActionFab(stringResource(R.string.perfect_icons_generate), MiuixIcons.Theme,
+      PageActionFab(stringResource(if (state.generating) R.string.action_label_processing
+        else R.string.action_label_generate), actionIcon(PageActionIcon.GENERATE),
+        description = stringResource(R.string.perfect_icons_generate),
         onClick = vm.perfectPacks::generate, enabled = !busy && state.catalog != null,
         busy = state.generating, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.generate"))
@@ -365,7 +366,9 @@ internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onN
   PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack,
     bottomSpacing = actionBottom,
     floatingActionButton = {
-      PageActionFab(downloadLabel, MiuixIcons.Glass.Refresh,
+      PageActionFab(stringResource(if (state.refreshing) R.string.action_label_processing
+        else R.string.action_label_download), actionIcon(PageActionIcon.FETCH),
+        description = downloadLabel,
         onClick = { confirmDownload = true }, enabled = !busy && !cooling,
         busy = state.refreshing, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.force-download"))

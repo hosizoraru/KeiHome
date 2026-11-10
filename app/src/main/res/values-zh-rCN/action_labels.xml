@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_label_apply">应用</string>
+    <string name="action_label_update">更新</string>
+    <string name="action_label_generate">生成</string>
+    <string name="action_label_export">导出</string>
+    <string name="action_label_clear">清理</string>
+    <string name="action_label_download">下载</string>
+    <string name="action_label_preparing">准备中</string>
+    <string name="action_label_processing">处理中</string>
+    <string name="action_label_search">搜索</string>
+    <string name="action_label_match">匹配</string>
+    <string name="notices_role_icons">补充 MIUIX 未提供的操作与导航图标。</string>
+</resources>

@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -89,13 +91,16 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       }
       Text(stringResource(R.string.scope_runtime_note), style = MiuixTheme.textStyles.footnote2,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+      FlowRow(Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         TextButton(stringResource(if (state.canRequest || state.requesting) R.string.scope_request else R.string.scope_check),
+          modifier = Modifier.heightIn(min = 48.dp),
           enabled = state.connected && !state.requesting, onClick = {
             if (state.canRequest) model.scopeRequests.request() else model.scopeRequests.check()
           })
-        TextButton(stringResource(R.string.scope_open_manager), onClick = openManager)
+        TextButton(stringResource(R.string.scope_open_manager), onClick = openManager,
+          modifier = Modifier.heightIn(min = 48.dp))
       }
     }
   }

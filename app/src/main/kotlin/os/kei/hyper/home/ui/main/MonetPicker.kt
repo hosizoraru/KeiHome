@@ -58,7 +58,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.glass.Theme
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -346,7 +346,7 @@ private fun IconPalettePreview(
       }
       Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
         contentAlignment = Alignment.Center) {
-        Icon(MiuixIcons.Theme, contentDescription = null, tint = foreground, modifier = Modifier.size(26.dp))
+        Icon(MiuixIcons.Glass.Theme, contentDescription = null, tint = foreground, modifier = Modifier.size(26.dp))
       }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

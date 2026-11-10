@@ -34,7 +34,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Copy
+import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -384,7 +384,7 @@ private fun AboutCard(showVersion: Boolean, showPackage: Boolean, showApi: Boole
       },
       endActions = {
         Icon(
-          imageVector = MiuixIcons.Copy,
+          imageVector = MiuixIcons.Glass.Copy,
           contentDescription = null,
           modifier = Modifier.size(22.dp),
           tint = MiuixTheme.colorScheme.onSurfaceSecondary,

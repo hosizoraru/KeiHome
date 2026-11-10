@@ -42,8 +42,8 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -107,7 +107,7 @@ internal fun IconPackRefreshFeedback(model: HomeViewModel) {
             animationSpec = tween(160), label = "icon-pack-refresh") { target ->
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
               if (target == RefreshPhase.LOADING) CircularProgressIndicator(size = 20.dp, strokeWidth = 2.dp)
-              else Icon(if (target == RefreshPhase.FAILED) MiuixIcons.Info else MiuixIcons.Ok,
+              else Icon(if (target == RefreshPhase.FAILED) MiuixIcons.Glass.Info else MiuixIcons.Glass.Ok,
                 null, Modifier.size(20.dp), tint = if (target == RefreshPhase.FAILED) MiuixTheme.colorScheme.error
                   else MiuixTheme.colorScheme.primary)
             }

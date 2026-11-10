@@ -53,10 +53,13 @@ import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.InputField
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -176,9 +179,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("import") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              TextButton(stringResource(if (state.importing) R.string.icon_pack_importing else
+              PackActionButton(stringResource(if (state.importing) R.string.icon_pack_importing else
                 if (section == "installed") R.string.icon_pack_choose_apk_file else R.string.icon_pack_choose_file),
-                onClick = { picker.launch(arrayOf("*/*")) }, enabled = !state.importing)
+                onClick = { picker.launch(arrayOf("*/*")) }, enabled = !state.importing, compact = false,
+                operation = PageActionIcon.IMPORT)
               state.importName?.let { Text(stringResource(R.string.icon_pack_imported_name, it)) }
               if (framework.snapshot?.themesInScope != true) Text(stringResource(R.string.icon_pack_scope_needed),
                 style = MiuixTheme.textStyles.footnote2)
@@ -380,7 +384,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
       })
       val updateDescription = stringResource(R.string.icon_pack_native_update)
       FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(stringResource(when {
+        PackActionButton(stringResource(when {
           importing -> R.string.pack_action_importing_short
           nativeId != null && generated -> R.string.pack_action_update_short
           nativeId != null -> R.string.pack_action_apply_short
@@ -394,11 +398,14 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
           enabled = !importing && if (generated) enabled && card.matchedApps > 0
           else nativeId != null || (enabled && (card.matchedApps > 0 ||
             pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)),
-          colors = ButtonDefaults.textButtonColorsPrimary(), minWidth = 0.dp, minHeight = 48.dp,
-          insideMargin = PaddingValues(horizontal = 12.dp, vertical = 12.dp), textStyle = MiuixTheme.textStyles.footnote1)
-        if (!generated && nativeId != null) TextButton(stringResource(R.string.pack_action_update_short),
-          modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" }, onClick = onImport, enabled = enabled && !importing, minWidth = 0.dp, minHeight = 48.dp,
-          insideMargin = PaddingValues(horizontal = 12.dp, vertical = 12.dp), textStyle = MiuixTheme.textStyles.footnote1)
+          primary = true, operation = when {
+            nativeId == null -> PageActionIcon.IMPORT
+            generated -> PageActionIcon.UPDATE
+            else -> PageActionIcon.APPLY
+          })
+        if (!generated && nativeId != null) PackActionButton(stringResource(R.string.pack_action_update_short),
+          modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" },
+          onClick = onImport, enabled = enabled && !importing)
       }
       if (result != null && !result.imported) {
         Text(stringResource(when (result.status) {
@@ -417,6 +424,24 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
 
     }
+  }
+}
+
+@Composable
+private fun PackActionButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+  enabled: Boolean = true, primary: Boolean = false, compact: Boolean = true,
+  operation: PageActionIcon = PageActionIcon.UPDATE) {
+  val colors = if (primary) ButtonDefaults.textButtonColorsPrimary() else ButtonDefaults.textButtonColors()
+  Button(onClick = onClick, modifier = modifier, enabled = enabled,
+    minWidth = if (compact) 0.dp else ButtonDefaults.MinWidth,
+    minHeight = if (compact) 48.dp else ButtonDefaults.MinHeight,
+    insideMargin = if (compact) PaddingValues(12.dp) else ButtonDefaults.InsideMargin,
+    colors = ButtonColors(color = colors.color, disabledColor = colors.disabledColor,
+      contentColor = colors.textColor, disabledContentColor = colors.disabledTextColor)) {
+    Icon(actionIcon(operation),
+      null, Modifier.size(20.dp))
+    Text(label, Modifier.padding(start = 8.dp),
+      style = if (compact) MiuixTheme.textStyles.footnote1 else MiuixTheme.textStyles.button)
   }
 }
 

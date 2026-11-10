@@ -37,7 +37,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -87,7 +86,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     }
   }, floatingActionButton = {
     if (section == SettingsSection.CACHE) PageActionFab(
-      stringResource(R.string.polish_clear_previews), MiuixIcons.Delete,
+      stringResource(R.string.action_label_clear), actionIcon(PageActionIcon.CLEAR),
+      description = stringResource(R.string.polish_clear_previews),
       onHeightChanged = { actionHeight = it },
       modifier = Modifier.testTag("settings.cache.clear"), onClick = {
         model.clearPreviewCache()

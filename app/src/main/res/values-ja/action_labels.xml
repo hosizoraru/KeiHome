@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_label_apply">適用</string>
+    <string name="action_label_update">更新</string>
+    <string name="action_label_generate">生成</string>
+    <string name="action_label_export">書き出す</string>
+    <string name="action_label_clear">削除</string>
+    <string name="action_label_download">ダウンロード</string>
+    <string name="action_label_preparing">準備中</string>
+    <string name="action_label_processing">処理中</string>
+    <string name="action_label_search">検索</string>
+    <string name="action_label_match">照合</string>
+    <string name="notices_role_icons">MIUIX にない操作・ナビゲーション用アイコンを補います。</string>
+</resources>

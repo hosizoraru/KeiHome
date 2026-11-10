@@ -38,6 +38,9 @@ internal data class ThirdPartyComponent(
 }
 
 internal val thirdPartyComponents = listOf(
+  ThirdPartyComponent("lucide", "Lucide Icons", R.string.notices_role_icons,
+    "https://github.com/composablehorizons/compose-icons", listOf("compose-icons-mit", "lucide-isc"),
+    listOf("com.composables")),
   ThirdPartyComponent("miuix", "MIUIX", R.string.notices_role_miuix,
     "https://github.com/compose-miuix-ui/miuix", groups = listOf("top.yukonga.miuix.kmp")),
   ThirdPartyComponent("androidx", "AndroidX", R.string.notices_role_android,

@@ -35,11 +35,13 @@ jvmJson = "20260814"
 kotlin = "2.4.21"
 libxposed = "102.0.0"
 miuix = "0.9.4-ca674992-SNAPSHOT"
+lucide-icons = "2.2.1"
 materialColorUtilities = "6.0.0"
 mmkv = "2.4.3"
 zipflinger = "9.5.1"
 
 [libraries]
+lucide-icons = { module = "com.composables:icons-lucide-android", version.ref = "lucide-icons" }
 androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "androidxNavigationEvent" }
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidxAnnotation" }
 androidx-annotation-experimental = { module = "androidx.annotation:annotation-experimental", version.ref = "androidxAnnotationExperimental" }

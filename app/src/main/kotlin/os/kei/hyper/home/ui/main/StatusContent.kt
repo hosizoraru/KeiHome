@@ -2,12 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import android.os.SystemClock
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
@@ -17,28 +11,25 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -49,7 +40,6 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +50,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import io.github.libxposed.service.HookedTarget
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import os.kei.hyper.home.ui.components.CenteredLinkAction
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
@@ -77,9 +70,9 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Ok
-import top.yukonga.miuix.kmp.icon.extended.Report
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Ok
+import top.yukonga.miuix.kmp.icon.glass.Report
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -551,14 +544,6 @@ private fun DashboardMonetCard(
       text = stringResource(R.string.dashboard_monet_report_note),
       modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
     )
-    BasicComponent(
-      title = stringResource(R.string.monet_open_details),
-      insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-      onClick = onOpenMonet,
-      onClickLabel = stringResource(R.string.monet_open_details),
-      role = Role.Button,
-      endActions = { DashboardArrow() },
-    )
   }
 }
 
@@ -690,51 +675,23 @@ private fun DashboardExpandableCard(
   val expansionState = stringResource(
     if (expanded) R.string.dashboard_expanded else R.string.dashboard_collapsed,
   )
-  val rotation by animateFloatAsState(if (expanded) 270f else 90f, label = "statusExpansion")
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    BasicComponent(
-      title = title,
-      summary = summary,
-      modifier = if (onOpen == null) Modifier.semantics { stateDescription = expansionState }
-        else Modifier,
-      insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-      onClick = onOpen ?: onToggle,
-      onClickLabel = if (onOpen == null) actionLabel else openLabel,
-      role = Role.Button,
-      endActions = {
-        if (onOpen == null) {
-          DashboardExpandIcon(rotation)
-        } else {
-          // Keep tapping the Monet summary as its existing page shortcut; the chevron
-          // independently discloses details with a full touch target and its own state.
-          IconButton(
-            onClick = onToggle,
-            modifier = Modifier.size(48.dp).semantics { stateDescription = expansionState },
-          ) {
-            DashboardExpandIcon(rotation, actionLabel)
-          }
-        }
-      },
+    Os4DisclosureHeader(
+      title = title, summary = summary, expanded = expanded,
+      actionLabel = actionLabel, stateLabel = expansionState, onToggle = onToggle,
       bottomAction = footer,
     )
-    AnimatedVisibility(
-      visible = expanded,
-      enter = expandVertically() + fadeIn(),
-      exit = shrinkVertically() + fadeOut(),
-    ) {
+    Os4DisclosureContent(expanded) {
       Column(content = content)
     }
+    if (onOpen != null && openLabel != null) {
+      CenteredLinkAction(
+        label = openLabel, onClick = onOpen,
+        icon = actionIcon(PageActionIcon.OPEN_INTERNAL),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+      )
+    }
   }
-}
-
-@Composable
-private fun DashboardExpandIcon(rotation: Float, description: String? = null) {
-  Icon(
-    MiuixIcons.Basic.ArrowRight,
-    modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = rotation },
-    contentDescription = description,
-    tint = MiuixTheme.colorScheme.onSurfaceSecondary,
-  )
 }
 
 @Composable
@@ -804,9 +761,9 @@ internal fun StatusOverviewCard(
     StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
   }
   val icon = when (tone) {
-    StatusTone.READY -> MiuixIcons.Ok
-    StatusTone.WARNING -> MiuixIcons.Info
-    StatusTone.ERROR -> MiuixIcons.Report
+    StatusTone.READY -> MiuixIcons.Glass.Ok
+    StatusTone.WARNING -> MiuixIcons.Glass.Info
+    StatusTone.ERROR -> MiuixIcons.Glass.Report
   }
 
   Card(

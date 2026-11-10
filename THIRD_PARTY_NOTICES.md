@@ -1,5 +1,18 @@
 # Third-party notices
 
+## Lucide Icons for Android
+
+`com.composables:icons-lucide-android` 2.2.1 supplies a small set of semantic
+vector drawables where MIUIX has no suitable glyph, including file export,
+archive generation and external navigation. Suitable MIUIX OS4 icons remain
+the first choice. Android resource shrinking removes unused Lucide drawables.
+
+The Composable Horizons Android packaging is MIT licensed:
+<https://github.com/composablehorizons/compose-icons>.
+Lucide artwork uses ISC, with MIT notices for icons derived from Feather: <https://lucide.dev/license>.
+The corresponding notices are bundled in `assets/licenses/ComposeIcons-MIT.txt`
+and `assets/licenses/Lucide-ISC.txt`.
+
 ## Perfect Icons resources and historical research
 
 Perfect Icons source resources are acquired on demand from

@@ -42,7 +42,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Copy
+import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -138,7 +138,7 @@ private fun MonetCopyableColor(label: String, color: Int, modifier: Modifier = M
     endActions = {
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         MonetColorSample(color)
-        Icon(MiuixIcons.Copy, contentDescription = null, modifier = Modifier.size(20.dp),
+        Icon(MiuixIcons.Glass.Copy, contentDescription = null, modifier = Modifier.size(20.dp),
           tint = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     },

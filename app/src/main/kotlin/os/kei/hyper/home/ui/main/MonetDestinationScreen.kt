@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -58,7 +59,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit) {
           navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           } },
-          actions = { RefreshAction(model, 2) },
+          actions = { RefreshAction(model, 2, Modifier.testTag("monet.page.refresh")) },
         )
       }
     },

@@ -55,10 +55,8 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.extended.Home
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Layers
-import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.icon.glass.Ok
+import top.yukonga.miuix.kmp.icon.glass.Rocket
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 
@@ -134,10 +132,11 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(20.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
               Icon(when (page) {
-                1 -> MiuixIcons.Info
-                2 -> MiuixIcons.Layers
-                3 -> MiuixIcons.Settings
-                else -> MiuixIcons.Home
+                1 -> actionIcon(PageActionIcon.STATUS)
+                2 -> actionIcon(PageActionIcon.PACKS)
+                3 -> actionIcon(PageActionIcon.DESKTOP)
+                4 -> MiuixIcons.Glass.Ok
+                else -> MiuixIcons.Glass.Rocket
               }, null, Modifier.size(40.dp), tint = MiuixTheme.colorScheme.primary)
               Text(stringResource(titles[page]), style = MiuixTheme.textStyles.title2,
                 modifier = Modifier.semantics { heading() })

@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
-import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -62,16 +61,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
-import top.yukonga.miuix.kmp.icon.glass.GridView
-import top.yukonga.miuix.kmp.icon.extended.Home
-import top.yukonga.miuix.kmp.icon.glass.Info
-import top.yukonga.miuix.kmp.icon.glass.Layers
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.glass.Settings
-import top.yukonga.miuix.kmp.icon.extended.Info as IosInfo
-import top.yukonga.miuix.kmp.icon.extended.GridView as IosGridView
-import top.yukonga.miuix.kmp.icon.extended.Layers as IosLayers
-import top.yukonga.miuix.kmp.icon.extended.Settings as IosSettings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -112,14 +102,10 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
       model.preferences.state.value.navigationBarStyle
   }
   val navigationStyle by navigationStyleFlow.collectAsStateWithLifecycle(initialValue = initialNavigationStyle)
-  val navigation = remember(labels, navigationStyle) {
-    val icons = when (navigationStyle) {
-      AppNavigationBarStyle.IOS_LIKE ->
-        listOf(MiuixIcons.IosInfo, MiuixIcons.IosGridView, MiuixIcons.IosLayers, MiuixIcons.Home, MiuixIcons.IosSettings)
-      AppNavigationBarStyle.OS4_GLASS ->
-        listOf(MiuixIcons.Glass.Info, MiuixIcons.Glass.GridView, MiuixIcons.Glass.Layers, MiuixIcons.Home, MiuixIcons.Glass.Settings)
-    }
-    labels.mapIndexed { index, label -> NavigationItem(label, icons[index]) }
+  val navIcons = listOf(actionIcon(PageActionIcon.STATUS), actionIcon(PageActionIcon.APPS),
+    actionIcon(PageActionIcon.PACKS), actionIcon(PageActionIcon.DESKTOP), actionIcon(PageActionIcon.SETTINGS))
+  val navigation = remember(navIcons, labels, navigationStyle) {
+    labels.mapIndexed { index, label -> NavigationItem(label, navIcons[index]) }
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
@@ -295,7 +281,7 @@ private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
 }
 
 @Composable
-internal fun RefreshAction(model: HomeViewModel, page: Int) {
+internal fun RefreshAction(model: HomeViewModel, page: Int, modifier: Modifier = Modifier) {
   val scanning by remember(model) { model.apps.map { it.loading }.distinctUntilChanged() }
     .collectAsStateWithLifecycle(initialValue = false)
   val refreshing by remember(model, page) { model.refreshing.map { page in it }.distinctUntilChanged() }
@@ -309,7 +295,7 @@ internal fun RefreshAction(model: HomeViewModel, page: Int) {
   val label = stringResource(R.string.refresh)
   val progress = stringResource(R.string.refresh_in_progress)
   IconButton(onClick = { model.refresh(page) }, enabled = !busy,
-    modifier = Modifier.semantics {
+    modifier = modifier.semantics {
       contentDescription = label
       if (busy) stateDescription = progress
     }) {

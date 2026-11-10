@@ -5,17 +5,21 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
@@ -27,25 +31,33 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit,
   modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false,
+  description: String = label,
   onHeightChanged: (Int) -> Unit = {}) {
   val foreground = if (enabled || busy) MiuixTheme.colorScheme.onPrimary
     else MiuixTheme.colorScheme.onSurfaceSecondary
-  FloatingActionButton(modifier = modifier.widthIn(min = 164.dp).onSizeChanged { onHeightChanged(it.height) }
-    .semantics { if (!enabled || busy) disabled() },
+  FloatingActionButton(modifier = modifier.wrapContentWidth().heightIn(min = 56.dp)
+    .onSizeChanged { onHeightChanged(it.height) }
+    .semantics {
+      contentDescription = description
+      if (!enabled || busy) disabled()
+    },
     onClick = { if (enabled && !busy) onClick() }, shape = RoundedCornerShape(28.dp),
+    minWidth = 0.dp, minHeight = 56.dp,
     containerColor = if (enabled || busy) MiuixTheme.colorScheme.primary
       else MiuixTheme.colorScheme.surfaceVariant) {
-    Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+      Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
         Crossfade(busy, animationSpec = tween(160), label = "page-action-progress") { loading ->
           if (loading) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp,
             colors = ProgressIndicatorDefaults.progressIndicatorColors(
               foregroundColor = foreground, backgroundColor = foreground.copy(alpha = 0.2f)))
-          else Icon(icon, null, tint = foreground)
+          else Icon(icon, null, modifier = Modifier.size(22.dp), tint = foreground)
         }
       }
-      Text(label, style = MiuixTheme.textStyles.button, color = foreground)
+      Text(label, modifier = Modifier.weight(1f, fill = false).clearAndSetSemantics {},
+        style = MiuixTheme.textStyles.button, color = foreground,
+        maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
   }
 }

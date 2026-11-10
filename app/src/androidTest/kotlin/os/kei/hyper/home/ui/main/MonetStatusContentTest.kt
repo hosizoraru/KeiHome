@@ -22,6 +22,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -185,10 +186,13 @@ class MonetStatusContentTest {
       hasText(context.getString(R.string.settings_monet_title)) and hasClickAction(),
     )
     assertEquals(
-      context.getString(R.string.monet_open_details),
+      context.getString(R.string.dashboard_expand, context.getString(R.string.settings_monet_title)),
       monetCard.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
     )
     monetCard.performClick()
+    composeTestRule.runOnIdle { assertFalse(openedMonet) }
+    composeTestRule.onNodeWithContentDescription(context.getString(R.string.monet_open_details))
+      .performScrollTo().performClick()
     composeTestRule.runOnIdle {
       assertTrue(refreshed)
       assertTrue(openedMonet)

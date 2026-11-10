@@ -32,9 +32,9 @@ internal fun PackCompletionCard(
         Text(stringResource(if (pending != null) R.string.pack_pending_apply_hint
           else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
           style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        if (pending != null) NativeThemeLink(pending, autoApply = false, enabled = !importing)
       }
       Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
+    if (pending != null) NativeThemeLink(pending, autoApply = false, enabled = !importing)
   }
 }

@@ -71,7 +71,7 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -105,7 +105,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
         Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
       }
       IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(start = 8.dp)) {
-        Icon(MiuixIcons.Back, stringResource(R.string.pack_back))
+        Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
       }
     }
   }
@@ -186,7 +186,7 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
         if (!UpdateChannel.open(context))
           android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
       }, endActions = {
-        Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
       })
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
       endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })

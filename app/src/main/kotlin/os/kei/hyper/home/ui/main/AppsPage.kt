@@ -62,8 +62,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.glass.Help
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Ok
 import androidx.compose.animation.AnimatedVisibility
 
 @Composable
@@ -111,7 +112,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
           Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
             style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
-          Icon(MiuixIcons.Info, contentDescription = disclosure, modifier = Modifier.size(16.dp),
+          Icon(MiuixIcons.Glass.Info, contentDescription = disclosure, modifier = Modifier.size(16.dp),
             tint = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         AnimatedVisibility(showPreviewNote) {
@@ -244,8 +245,8 @@ private fun CapabilityPill(label: String, status: IconCapabilityStatus, positive
     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
     Text(label, style = MiuixTheme.textStyles.footnote2, color = color)
     when (status) {
-      IconCapabilityStatus.DETECTED -> Icon(MiuixIcons.Ok, null, Modifier.size(12.dp), tint = color)
-      IconCapabilityStatus.UNKNOWN -> Icon(MiuixIcons.Info, null, Modifier.size(12.dp), tint = color)
+      IconCapabilityStatus.DETECTED -> Icon(MiuixIcons.Glass.Ok, null, Modifier.size(12.dp), tint = color)
+      IconCapabilityStatus.UNKNOWN -> Icon(MiuixIcons.Glass.Help, null, Modifier.size(12.dp), tint = color)
       IconCapabilityStatus.NOT_DETECTED -> Text("\u2014", style = MiuixTheme.textStyles.footnote2, color = color)
     }
   }

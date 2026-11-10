@@ -18,19 +18,18 @@ import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -38,12 +37,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.TextRange
 import java.util.Locale
+import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetIconRole
@@ -55,14 +55,11 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -90,7 +87,7 @@ internal fun MonetAdvancedColors(
     ColorSectionHeader(stringResource(R.string.monet_custom_palettes), familiesExpanded,
       stringResource(R.string.monet_custom_palette_count, choice.paletteOverrides.size),
       "monet.custom.palettes") { familiesExpanded = !familiesExpanded }
-    if (familiesExpanded) {
+    Os4DisclosureContent(familiesExpanded) {
       Text(stringResource(R.string.monet_custom_palette_hint), Modifier.padding(horizontal = 16.dp),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       MonetPaletteFamily.entries.forEach { family ->
@@ -107,7 +104,7 @@ internal fun MonetAdvancedColors(
       if (choice.iconOverrides.isNotEmpty()) stringResource(R.string.monet_custom_override)
         else choice.backgroundFamily?.let { familyName(it) } ?: stringResource(R.string.monet_custom_aosp_roles),
       "monet.custom.icons") { iconsExpanded = !iconsExpanded }
-    if (iconsExpanded) {
+    Os4DisclosureContent(iconsExpanded) {
       OverlaySpinnerPreference(
         title = stringResource(R.string.monet_custom_background_family),
         summary = stringResource(R.string.monet_custom_background_hint),
@@ -158,12 +155,12 @@ private fun ColorSectionHeader(
   title: String, expanded: Boolean, summary: String, tag: String, onClick: () -> Unit,
 ) {
   val label = stringResource(if (expanded) R.string.polish_details_collapse else R.string.polish_details_expand)
-  BasicComponent(title = title, summary = summary, onClick = onClick, onClickLabel = label,
-    modifier = Modifier.testTag(tag).semantics { stateDescription = label }, endActions = {
-      Icon(MiuixIcons.Basic.ArrowRight, contentDescription = null,
-        modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = if (expanded) 270f else 90f },
-        tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-    })
+  Os4DisclosureHeader(
+    title = title, summary = summary, expanded = expanded,
+    actionLabel = label, stateLabel = stringResource(
+      if (expanded) R.string.dashboard_expanded else R.string.dashboard_collapsed),
+    onToggle = onClick, modifier = Modifier.testTag(tag),
+  )
 }
 
 @Composable

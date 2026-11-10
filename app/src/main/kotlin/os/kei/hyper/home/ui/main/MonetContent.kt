@@ -41,7 +41,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.glass.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -106,7 +106,7 @@ private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit)
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
         Icon(
-          imageVector = MiuixIcons.Theme,
+          imageVector = MiuixIcons.Glass.Theme,
           modifier = Modifier.size(24.dp),
           tint = MiuixTheme.colorScheme.primary,
           contentDescription = null,

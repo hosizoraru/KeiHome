@@ -1,11 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,19 +9,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.R
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
@@ -36,9 +28,7 @@ import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.ExpandLess
-import top.yukonga.miuix.kmp.icon.extended.ExpandMore
-import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Informational notes only; errors, progress and actionable warnings stay in the page. */
@@ -47,7 +37,7 @@ internal fun PackHelpAction(notes: List<String>) {
   if (notes.isEmpty()) return
   var showing by rememberSaveable { mutableStateOf(false) }
   val title = stringResource(R.string.pack_guidance_title)
-  IconButton(onClick = { showing = true }) { Icon(MiuixIcons.Info, title) }
+  IconButton(onClick = { showing = true }) { Icon(MiuixIcons.Glass.Info, title) }
   Os4Dialog(show = showing, title = title, onDismissRequest = { showing = false }) {
     GuidanceNotes(notes, Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
       .verticalScroll(rememberScrollState()))
@@ -63,18 +53,12 @@ internal fun PackGuidanceCard(notes: List<String>, modifier: Modifier = Modifier
   var expanded by rememberSaveable { mutableStateOf(false) }
   val state = stringResource(if (expanded) R.string.pack_guidance_expanded else R.string.pack_guidance_collapsed)
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    BasicComponent(title = stringResource(R.string.pack_guidance_title), summary = notes.firstOrNull(),
-      modifier = Modifier.semantics { stateDescription = state },
-      onClick = { expanded = !expanded }, role = Role.Button,
-      onClickLabel = stringResource(if (expanded) R.string.pack_guidance_collapse else R.string.pack_guidance_expand),
-      insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-      endActions = {
-        AnimatedContent(expanded, label = "packGuidanceIcon") { open ->
-          Icon(if (open) MiuixIcons.ExpandLess else MiuixIcons.ExpandMore, null,
-            tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-      })
-    AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+    Os4DisclosureHeader(
+      title = stringResource(R.string.pack_guidance_title), summary = notes.firstOrNull(),
+      expanded = expanded, stateLabel = state, onToggle = { expanded = !expanded },
+      actionLabel = stringResource(if (expanded) R.string.pack_guidance_collapse else R.string.pack_guidance_expand),
+    )
+    Os4DisclosureContent(expanded) {
       GuidanceNotes(notes.drop(1), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp))
     }
   }

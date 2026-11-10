@@ -63,9 +63,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
@@ -108,7 +107,9 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         })
     }
   }, floatingActionButton = {
-    PageActionFab(stringResource(R.string.logs_export), MiuixIcons.Share,
+    PageActionFab(stringResource(if (exporting) R.string.action_label_processing
+      else R.string.action_label_export), actionIcon(PageActionIcon.EXPORT),
+      description = stringResource(R.string.logs_export),
       onHeightChanged = { actionHeight = it },
       modifier = Modifier.testTag("settings.logs.export"), enabled = hours > 0, busy = exporting, onClick = {
         val since = System.currentTimeMillis() - hours * 3_600_000
@@ -143,7 +144,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         onClickLabel = stringResource(R.string.logs_source), onClick = openFrameworkLogs),
         insideMargin = PaddingValues(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-          Icon(MiuixIcons.Info, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary)
+          Icon(MiuixIcons.Glass.Info, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary)
           Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.logs_function_title), modifier = Modifier.semantics { heading() },
               style = MiuixTheme.textStyles.body1.copy(fontWeight = FontWeight.SemiBold))

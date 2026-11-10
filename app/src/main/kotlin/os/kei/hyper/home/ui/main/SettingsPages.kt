@@ -29,11 +29,11 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Layers
-import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.glass.Book
+import top.yukonga.miuix.kmp.icon.glass.Folder
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Link
+import top.yukonga.miuix.kmp.icon.glass.Notes
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
@@ -59,13 +59,13 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         SettingsSection.entries.forEach { section ->
           val icon = when (section) {
-            SettingsSection.APP -> MiuixIcons.Settings
-            SettingsSection.PACKS -> MiuixIcons.Theme
-            SettingsSection.GUIDE -> MiuixIcons.Info
-            SettingsSection.HOOK -> MiuixIcons.Layers
-            SettingsSection.CACHE -> MiuixIcons.Refresh
-            SettingsSection.LOG -> MiuixIcons.Info
-            SettingsSection.ABOUT -> MiuixIcons.Info
+            SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
+            SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
+            SettingsSection.GUIDE -> MiuixIcons.Glass.Book
+            SettingsSection.HOOK -> MiuixIcons.Glass.Link
+            SettingsSection.CACHE -> MiuixIcons.Glass.Folder
+            SettingsSection.LOG -> MiuixIcons.Glass.Notes
+            SettingsSection.ABOUT -> MiuixIcons.Glass.Info
           }
           BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
             onClick = { onNavigate(section.route) },

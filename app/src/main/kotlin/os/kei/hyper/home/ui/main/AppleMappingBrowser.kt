@@ -51,8 +51,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Filter
-import top.yukonga.miuix.kmp.icon.extended.Sort
+import top.yukonga.miuix.kmp.icon.glass.Filter
+import top.yukonga.miuix.kmp.icon.glass.Sort
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.Collator
@@ -86,7 +86,7 @@ internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, 
     }),
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(groups, reset)) {
-    Icon(MiuixIcons.Filter, stringResource(R.string.filter_title), tint =
+    Icon(MiuixIcons.Glass.Filter, stringResource(R.string.filter_title), tint =
       if (filter != AppleMappingFilter.ALL || region.isNotBlank()) MiuixTheme.colorScheme.primary
       else MiuixTheme.colorScheme.onBackground)
   }
@@ -98,7 +98,7 @@ internal fun AppleMappingSortMenu(sort: AppleMappingSort, onSort: (AppleMappingS
     DropdownItem(text = stringResource(it.label), selected = sort == it, onClick = { onSort(it) })
   })
   OverlayIconCascadingDropdownMenu(entries = listOf(choices)) {
-    Icon(MiuixIcons.Sort, stringResource(R.string.browser_sort), tint =
+    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort), tint =
       if (sort != AppleMappingSort.NAME) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }

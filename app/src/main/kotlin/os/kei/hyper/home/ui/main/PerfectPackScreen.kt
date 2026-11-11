@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,39 +31,39 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import java.util.Date
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.ui.components.BlurredBar
-import os.kei.hyper.home.ui.components.Os4Dialog
-import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -358,42 +358,30 @@ internal fun PerfectResourceConfirmations(state: PerfectPackState, busy: Boolean
   onDismissDelete: () -> Unit, onDismissClearCache: () -> Unit,
   onDelete: () -> Unit, onClearCache: () -> Unit) {
   val context = LocalContext.current
-  Os4Dialog(show = confirmDelete,
+  Os4ActionDialog(show = confirmDelete,
     title = stringResource(R.string.perfect_git_delete),
     summary = stringResource(R.string.perfect_git_delete_confirm,
       Formatter.formatFileSize(context, state.resourceBytes)),
-    onDismissRequest = onDismissDelete) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Os4DialogButton(stringResource(R.string.logs_cancel), onClick = onDismissDelete,
-        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.cancel-delete"))
-      Os4DialogButton(stringResource(R.string.perfect_git_delete_proceed),
+    onDismissRequest = onDismissDelete, icon = actionIcon(PageActionIcon.CLEAR),
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissDelete,
+        tag = "icon-packs.perfect.cancel-delete"),
+      Os4DialogAction(stringResource(R.string.perfect_git_delete_proceed),
         enabled = confirmDelete && !busy, onClick = {
-          if (confirmDelete && !busy) {
-            onDismissDelete()
-            onDelete()
-          }
-        }, role = GlassDialogButtonRole.Destructive,
-        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-delete"))
-    }
-  }
-  Os4Dialog(show = confirmClearCache,
+          if (confirmDelete && !busy) { onDismissDelete(); onDelete() }
+        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-delete")))
+  Os4ActionDialog(show = confirmClearCache,
     title = stringResource(R.string.perfect_icons_clear_cache),
     summary = stringResource(R.string.perfect_git_clear_cache_confirm,
       Formatter.formatFileSize(context, state.cacheBytes)),
-    onDismissRequest = onDismissClearCache) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Os4DialogButton(stringResource(R.string.logs_cancel), onClick = onDismissClearCache,
-        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.cancel-clear-cache"))
-      Os4DialogButton(stringResource(R.string.perfect_icons_clear_cache),
+    onDismissRequest = onDismissClearCache, icon = actionIcon(PageActionIcon.CLEAR),
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = onDismissClearCache,
+        tag = "icon-packs.perfect.cancel-clear-cache"),
+      Os4DialogAction(stringResource(R.string.perfect_icons_clear_cache),
         enabled = confirmClearCache && !busy, onClick = {
-          if (confirmClearCache && !busy) {
-            onDismissClearCache()
-            onClearCache()
-          }
-        }, role = GlassDialogButtonRole.Destructive,
-        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-clear-cache"))
-    }
-  }
+          if (confirmClearCache && !busy) { onDismissClearCache(); onClearCache() }
+        }, role = GlassDialogButtonRole.Destructive, tag = "icon-packs.perfect.confirm-clear-cache")))
 }
 
 @Composable

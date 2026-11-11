@@ -24,6 +24,7 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
 import top.yukonga.miuix.kmp.material.GlassMaterials
+import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val LocalGlassDialog = staticCompositionLocalOf { false }
@@ -68,7 +69,7 @@ internal fun Os4DialogButton(
 ) {
   if (LocalGlassDialog.current) {
     GlassDialogButton(onClick = onClick, modifier = modifier, enabled = enabled, role = role) {
-      Text(text, style = MiuixTheme.textStyles.button)
+      Text(text, style = MiuixTheme.textStyles.button, color = LocalContentColor.current)
     }
   } else {
     val colors = when (role) {

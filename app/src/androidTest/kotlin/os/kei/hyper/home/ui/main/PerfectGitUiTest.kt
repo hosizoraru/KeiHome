@@ -8,19 +8,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -34,6 +33,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.printToString
+import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -160,7 +160,11 @@ class PerfectGitUiTest {
     compose.onNodeWithTag("perfect.resources.none").performClick()
     compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
     compose.onNodeWithTag("perfect.resources.all").performClick()
-    compose.onNodeWithTag("perfect.resources.filter").performScrollTo().performClick()
+    compose.onNodeWithTag("perfect.resources.filter").performClick()
+    val filterLabel = ApplicationProvider.getApplicationContext<Context>()
+      .getString(R.string.perfect_git_filter_downloaded)
+    waitForDisplayed(hasText(filterLabel), "resource-filter-menu")
+    compose.onNodeWithText(filterLabel).performClick()
     compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
     compose.onAllNodesWithTag("perfect.resources.style.Square").assertCountEquals(0)
     compose.runOnIdle { backHost.completeBack() }
@@ -220,6 +224,21 @@ class PerfectGitUiTest {
     val controls = compose.onNodeWithTag("perfect.resources.all").assertIsDisplayed()
       .fetchSemanticsNode().boundsInRoot
     assertTrue("The selection toolbar must not cover the last style", row.bottom <= controls.top)
+  }
+
+  @Test fun largeTextStyleDialogKeepsAllThreeActionsVisibleAndRequiresExplicitConfirmation() {
+    val requests = mutableListOf<Set<String>>()
+    setResourceContent(resourceState(), fontScale = 1.6f, onDownload = { requests += it })
+    compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    waitForDisplayed(hasTestTag("perfect.resources.style-download"), "large-style-dialog")
+    val update = compose.onNodeWithTag("perfect.resources.style-download").assertIsDisplayed()
+    compose.onNodeWithText(context.getString(R.string.perfect_resource_remove_short)).assertIsDisplayed()
+    val close = compose.onNodeWithText(context.getString(R.string.perfect_resource_close)).assertIsDisplayed()
+    assertTrue(update.fetchSemanticsNode().boundsInRoot.bottom <= close.fetchSemanticsNode().boundsInRoot.top)
+    compose.runOnIdle { assertEquals(emptyList<Set<String>>(), requests) }
+    update.performClick()
+    compose.runOnIdle { assertEquals(listOf(setOf("default")), requests) }
   }
 
   private fun setResourceContent(state: PerfectPackState, onDownload: (Set<String>) -> Unit = {},

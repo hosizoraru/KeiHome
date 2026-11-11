@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.FrameworkManagerLauncher
 import os.kei.hyper.home.status.FrameworkManagerProtocol
-import os.kei.hyper.home.ui.components.Os4Dialog
-import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -38,28 +38,23 @@ internal fun rememberFrameworkManagerAction(target: Int = FrameworkManagerProtoc
   val scope = rememberCoroutineScope()
   var opening by remember { mutableStateOf(false) }
   var help by remember { mutableStateOf(false) }
-  Os4Dialog(show = help, title = stringResource(R.string.scope_open_manager),
-    onDismissRequest = { help = false }) {
-    Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .65f).dp)
-      .verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Text(stringResource(R.string.framework_entry_help, FrameworkManagerProtocol.DIAL_CODE),
-        style = MiuixTheme.textStyles.body2)
-      Os4DialogButton(stringResource(R.string.framework_entry_dial), modifier = Modifier.fillMaxWidth(),
-        role = GlassDialogButtonRole.Primary, onClick = {
-        val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", FrameworkManagerProtocol.DIAL_CODE, null))
-        runCatching { context.startActivity(intent); help = false }.onFailure {
-          Toast.makeText(context, R.string.framework_entry_no_dialer, Toast.LENGTH_LONG).show()
-        }
-      })
-      Os4DialogButton(stringResource(R.string.framework_entry_copy), modifier = Modifier.fillMaxWidth(), onClick = {
+  Os4ActionDialog(show = help, title = stringResource(R.string.scope_open_manager),
+    summary = stringResource(R.string.framework_entry_help, FrameworkManagerProtocol.DIAL_CODE),
+    onDismissRequest = { help = false }, icon = actionIcon(PageActionIcon.SETTINGS),
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.framework_entry_dial), role = GlassDialogButtonRole.Primary,
+        onClick = {
+          val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", FrameworkManagerProtocol.DIAL_CODE, null))
+          runCatching { context.startActivity(intent); help = false }.onFailure {
+            Toast.makeText(context, R.string.framework_entry_no_dialer, Toast.LENGTH_LONG).show()
+          }
+        }),
+      Os4DialogAction(stringResource(R.string.framework_entry_copy), onClick = {
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(
           ClipData.newPlainText("LSPosed", FrameworkManagerProtocol.DIAL_CODE))
         help = false
-      })
-      Os4DialogButton(stringResource(R.string.logs_cancel), modifier = Modifier.fillMaxWidth(),
-        onClick = { help = false })
-    }
-  }
+      }),
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { help = false })))
   return {
     if (!opening) {
       opening = true

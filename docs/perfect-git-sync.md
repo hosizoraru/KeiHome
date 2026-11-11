@@ -25,6 +25,8 @@ The application never checks out or executes upstream scripts.
    and a single OS4 glass toolbar appear. Its five icon actions are select all,
    deselect all, download, remove and Done. Selection counts appear only in the
    title. Removal is red when enabled; all icons have localized accessible names.
+   The top-right filter menu selects all or downloaded styles; it no longer
+   occupies the list header. The current option is checked in the menu.
    Changing the filter clears selection. Back or Done exits selection before
    leaving the page. Submitted batch operations return to browsing; canceling
    a removal confirmation retains the selection.

@@ -21,4 +21,6 @@
   <string name="perfect_resource_info_hint">選択したスタイルと必要な共通リソースだけを同期し、変更のないオブジェクトを再利用します。消去と修復は上部のメニューで行えます。</string>
   <string name="perfect_resource_corrupt">一部のリソースが不完全です。上部のメニューから修復してください。</string>
   <string name="perfect_resource_incomplete">修復が必要</string>
+  <string name="perfect_resource_filter_description">絞り込み: %1$s</string>
+  <string name="perfect_resource_download_title">%1$s をダウンロード</string>
 </resources>

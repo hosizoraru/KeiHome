@@ -44,7 +44,9 @@ import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
+import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
@@ -132,17 +134,17 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     PerfectResourceConfirmations(state, busy, showDelete, showClear,
       onDismissDelete = { showDelete = false }, onDismissClearCache = { showClear = false },
       onDelete = onDelete, onClearCache = onClearCache)
-    Os4Dialog(show = removalTargets.isNotEmpty(),
+    Os4ActionDialog(show = removalTargets.isNotEmpty(),
       title = stringResource(R.string.perfect_git_remove_title, removalTargets.size),
       summary = stringResource(R.string.perfect_git_remove_confirm, removalTargets.size, removalTargets.joinToString { if (it == "default") defaultName else it },
         Formatter.formatFileSize(context, state.resourceBytes)) +
         if (removalTargets.isNotEmpty() && removalTargets.containsAll(downloaded))
           "\n" + stringResource(R.string.perfect_git_remove_all_scope) else "",
-      onDismissRequest = { removalTargets = emptySet() }) {
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { removalTargets = emptySet() },
-          modifier = Modifier.weight(1f).testTag("perfect.resources.cancel-remove"))
-        Os4DialogButton(stringResource(R.string.perfect_git_delete_proceed),
+      onDismissRequest = { removalTargets = emptySet() }, icon = actionIcon(PageActionIcon.CLEAR),
+      actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { removalTargets = emptySet() },
+          tag = "perfect.resources.cancel-remove"),
+        Os4DialogAction(stringResource(R.string.perfect_git_delete_proceed),
           enabled = !busy && removalTargets.intersect(downloaded).isNotEmpty(), onClick = {
             if (!busy) {
               val requested = removalTargets.intersect(downloaded)
@@ -150,47 +152,42 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
               if (requested.isNotEmpty()) { exitSelection(); onRemove(requested) }
             }
           }, role = GlassDialogButtonRole.Destructive,
-          modifier = Modifier.weight(1f).testTag("perfect.resources.confirm-remove"))
-      }
-    }
-    Os4Dialog(show = showRepair, title = stringResource(R.string.perfect_git_repair),
+          tag = "perfect.resources.confirm-remove")))
+    Os4ActionDialog(show = showRepair, title = stringResource(R.string.perfect_git_repair),
       summary = stringResource(R.string.perfect_git_repair_confirm),
-      onDismissRequest = { showRepair = false }) {
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { showRepair = false },
-          modifier = Modifier.weight(1f))
-        Os4DialogButton(stringResource(R.string.perfect_git_repair), enabled = !busy && !cooling,
+      onDismissRequest = { showRepair = false }, icon = actionIcon(PageActionIcon.FETCH),
+      actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { showRepair = false }),
+        Os4DialogAction(stringResource(R.string.perfect_git_repair), enabled = !busy && !cooling,
           onClick = {
             if (showRepair && !busy && !cooling) {
               showRepair = false
               onRepair()
             }
           }, role = GlassDialogButtonRole.Primary,
-          modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
-      }
-    }
+          tag = "icon-packs.perfect.confirm-download")))
 
     focusedStyle?.let { style ->
-      Os4Dialog(true, { focusedStyle = null }, title = if (style == "default") defaultName else style) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          Text(stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
-            else R.string.perfect_resource_style_missing), color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Os4DialogButton(stringResource(R.string.perfect_resource_close), { focusedStyle = null },
-              modifier = Modifier.weight(1f))
-            Os4DialogButton(stringResource(if (style in downloaded) R.string.action_label_update
-              else R.string.action_label_download), enabled = !busy && !cooling,
-              modifier = Modifier.weight(1f), onClick = { focusedStyle = null; onDownload(setOf(style)) })
-          }
-          if (style in downloaded) Os4DialogButton(stringResource(R.string.perfect_resource_remove_short),
-            enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+      val styleName = if (style == "default") defaultName else style
+      Os4ActionDialog(true, { focusedStyle = null }, title = if (style in downloaded) styleName
+        else stringResource(R.string.perfect_resource_download_title, styleName),
+        summary = stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
+          else R.string.perfect_resource_style_missing), icon = actionIcon(PageActionIcon.FETCH),
+        actions = buildList {
+          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.perfect_resource_close
+            else R.string.logs_cancel), { focusedStyle = null }))
+          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.action_label_update
+            else R.string.action_label_download), enabled = !busy && !cooling,
+            role = GlassDialogButtonRole.Primary, tag = "perfect.resources.style-download",
+            onClick = { focusedStyle = null; onDownload(setOf(style)) }))
+          if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_remove_short),
+            enabled = !busy, role = GlassDialogButtonRole.Destructive, onClick = {
               focusedStyle = null; removalTargets = setOf(style)
-            })
-        }
-      }
+            }))
+        })
     }
     Os4Dialog(showInfo, { showInfo = false }, title = stringResource(R.string.perfect_resource_info)) {
-      Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -229,6 +226,18 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     else stringResource(R.string.perfect_git_resources),
     onBack = { if (selecting) exitSelection() else onBack() },
     actions = {
+      OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
+        DropdownItem(text = stringResource(R.string.perfect_git_filter_all), selected = !downloadedOnly,
+          onClick = { if (downloadedOnly) { selection = emptyList(); downloadedOnly = false } }),
+        DropdownItem(text = stringResource(R.string.perfect_git_filter_downloaded), selected = downloadedOnly,
+          onClick = { if (!downloadedOnly) { selection = emptyList(); downloadedOnly = true } })))),
+        modifier = Modifier.testTag("perfect.resources.filter")) {
+        Icon(ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_filter),
+          contentDescription = stringResource(R.string.perfect_resource_filter_description,
+            stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded else R.string.perfect_git_filter_all)),
+          modifier = Modifier.size(24.dp),
+          tint = if (downloadedOnly) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
+      }
       if (!selecting) IconButton(
         enabled = !busy && visible.isNotEmpty(),
         modifier = Modifier.testTag("perfect.resources.selection-mode"),
@@ -319,12 +328,9 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         Modifier.padding(16.dp), color = MiuixTheme.colorScheme.onSurfaceSecondary,
         style = MiuixTheme.textStyles.footnote1)
     }
-    item(key = "filter") {
-      Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        SmallTitle(stringResource(R.string.perfect_resource_styles), modifier = Modifier.weight(1f))
-        TextButton(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded else R.string.perfect_git_filter_all),
-          modifier = Modifier.testTag("perfect.resources.filter"), onClick = { selection = emptyList(); downloadedOnly = !downloadedOnly })
-      }
+    item(key = "styles-title") {
+      SmallTitle(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded
+        else R.string.perfect_resource_styles), Modifier.padding(horizontal = 12.dp))
     }
     if (visible.isEmpty()) item(key = "empty") {
       Text(stringResource(R.string.perfect_resource_filter_empty), Modifier.padding(horizontal = 16.dp),

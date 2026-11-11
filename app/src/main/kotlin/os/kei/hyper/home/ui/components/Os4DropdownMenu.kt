@@ -51,6 +51,7 @@ import top.yukonga.miuix.kmp.utils.MiuixPopupUtils.Companion.PopupLayout
 @Composable
 internal fun OverlayIconCascadingDropdownMenu(
   entries: List<DropdownEntry>,
+  modifier: Modifier = Modifier,
   content: @Composable () -> Unit,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
@@ -83,7 +84,7 @@ internal fun OverlayIconCascadingDropdownMenu(
     KeiHomeIconButton(
       onClick = onClick,
       enabled = hasItems,
-      modifier = Modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
+      modifier = modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
     ) {
       Box(Modifier.glassPopupAnchorContent(anchor)) { content() }
     }
@@ -93,7 +94,7 @@ internal fun OverlayIconCascadingDropdownMenu(
       backdrop = backdrop,
       style = style,
       size = 40.dp,
-      modifier = Modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
+      modifier = modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
     ) {
       Box(Modifier.glassPopupAnchorContent(anchor)) { content() }
     }

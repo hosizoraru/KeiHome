@@ -26,13 +26,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -40,36 +41,35 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
 import androidx.core.content.FileProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.AppLogStore
 import os.kei.hyper.home.ui.components.BlurredBar
-import os.kei.hyper.home.ui.components.Os4Dialog
-import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
-import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
-import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun LogSettingsScreen(onBack: () -> Unit) {
@@ -215,24 +215,20 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         })
       }
     }
-    Os4Dialog(show = confirmClear, title = stringResource(R.string.logs_clear_confirm),
-      onDismissRequest = { confirmClear = false }) {
-      Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
-        .verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Os4DialogButton(stringResource(R.string.logs_cancel), modifier = Modifier.fillMaxWidth(),
-          onClick = { confirmClear = false })
-        Os4DialogButton(stringResource(R.string.logs_confirm), modifier = Modifier.fillMaxWidth(),
-          role = GlassDialogButtonRole.Destructive, onClick = {
-          confirmClear = false
-          scope.launch {
-            val removed = withContext(Dispatchers.IO) {
-              AppLogStore.clear(context, System.currentTimeMillis() - hours * 3_600_000)
+    Os4ActionDialog(show = confirmClear, title = stringResource(R.string.logs_clear),
+      summary = stringResource(R.string.logs_clear_confirm), icon = actionIcon(PageActionIcon.CLEAR),
+      onDismissRequest = { confirmClear = false }, actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { confirmClear = false }),
+        Os4DialogAction(stringResource(R.string.logs_confirm), role = GlassDialogButtonRole.Destructive,
+          enabled = !exporting, onClick = {
+            confirmClear = false
+            scope.launch {
+              val removed = withContext(Dispatchers.IO) {
+                AppLogStore.clear(context, System.currentTimeMillis() - hours * 3_600_000)
+              }
+              refresh++
+              Toast.makeText(context, resources.getString(R.string.logs_cleared, removed), Toast.LENGTH_SHORT).show()
             }
-            refresh++
-            Toast.makeText(context, resources.getString(R.string.logs_cleared, removed), Toast.LENGTH_SHORT).show()
-          }
-        })
-      }
-    }
+          })))
   }
 }

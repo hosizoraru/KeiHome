@@ -21,4 +21,6 @@
   <string name="perfect_resource_info_hint">仅同步所选样式与必需的共享资源；未变更的对象会复用。清理和修复可从顶栏菜单操作。</string>
   <string name="perfect_resource_corrupt">部分资源不完整，可从顶栏菜单修复。</string>
   <string name="perfect_resource_incomplete">待修复</string>
+  <string name="perfect_resource_filter_description">筛选：%1$s</string>
+  <string name="perfect_resource_download_title">下载「%1$s」</string>
 </resources>

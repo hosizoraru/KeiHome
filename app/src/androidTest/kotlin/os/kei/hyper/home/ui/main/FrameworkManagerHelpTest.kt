@@ -1,12 +1,14 @@
 package os.kei.hyper.home.ui.main
 
-import android.content.Context
 import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.Handler
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -26,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.FrameworkManagerProtocol
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.basic.TextButton
 
@@ -41,9 +44,13 @@ class FrameworkManagerHelpTest {
       KeiHomeTheme {
         val base = LocalContext.current
         val unavailable = remember(base) { UnavailableBridge(base) }
-        CompositionLocalProvider(LocalContext provides unavailable) {
-          val action = rememberFrameworkManagerAction()
-          TextButton("Open", modifier = Modifier.testTag("framework-open"), onClick = action)
+        KeiHomeScaffold { padding ->
+          Column(Modifier.padding(padding)) {
+            CompositionLocalProvider(LocalContext provides unavailable) {
+              val action = rememberFrameworkManagerAction()
+              TextButton("Open", modifier = Modifier.testTag("framework-open"), onClick = action)
+            }
+          }
         }
       }
     }

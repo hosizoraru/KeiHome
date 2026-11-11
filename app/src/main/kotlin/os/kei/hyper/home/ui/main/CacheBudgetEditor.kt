@@ -18,7 +18,8 @@ import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4Dialog
-import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4DialogActions
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -46,15 +47,13 @@ internal fun CacheBudgetEditor(customBudget: Long, effectiveBudget: Long, onChan
         modifier = Modifier.fillMaxWidth().testTag("cache.budget.input"))
       Text(stringResource(R.string.storage_budget_range), style = MiuixTheme.textStyles.footnote1,
         color = if (value == null) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceVariantSummary)
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Os4DialogButton(stringResource(R.string.storage_auto), { onChange(0L); show = false },
-          modifier = Modifier.weight(1f).testTag("cache.budget.auto"))
-        Os4DialogButton(stringResource(R.string.storage_cancel), { show = false },
-          modifier = Modifier.weight(1f))
-        Os4DialogButton(stringResource(R.string.storage_save), { value?.let(onChange); show = false },
+      Os4DialogActions(listOf(
+        Os4DialogAction(stringResource(R.string.storage_auto), { onChange(0L); show = false },
+          tag = "cache.budget.auto"),
+        Os4DialogAction(stringResource(R.string.storage_cancel), { show = false }),
+        Os4DialogAction(stringResource(R.string.storage_save), { value?.let(onChange); show = false },
           enabled = value != null, role = GlassDialogButtonRole.Primary,
-          modifier = Modifier.weight(1f).testTag("cache.budget.save"))
-      }
+          tag = "cache.budget.save")))
     }
   }
 }

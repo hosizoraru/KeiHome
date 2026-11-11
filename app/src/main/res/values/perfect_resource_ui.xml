@@ -21,4 +21,6 @@
   <string name="perfect_resource_info_hint">Only selected styles and required shared resources are synchronized. Unchanged objects are reused. Cleanup and repair are available in the top bar menu.</string>
   <string name="perfect_resource_corrupt">Some resources are incomplete. Use Repair in the top bar menu.</string>
   <string name="perfect_resource_incomplete">Needs repair</string>
+  <string name="perfect_resource_filter_description">Filter: %1$s</string>
+  <string name="perfect_resource_download_title">Download %1$s</string>
 </resources>

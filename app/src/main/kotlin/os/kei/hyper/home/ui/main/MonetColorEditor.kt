@@ -12,21 +12,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -37,29 +37,31 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.unit.dp
 import java.util.Locale
-import os.kei.hyper.home.ui.components.Os4DisclosureHeader
-import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetIconRole
 import os.kei.hyper.home.data.MonetPaletteFamily
 import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.MonetTonalSpec
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4DialogActions
+import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
-import os.kei.hyper.home.ui.components.Os4Dialog
-import os.kei.hyper.home.ui.components.Os4DialogButton
-import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -266,10 +268,10 @@ internal fun MonetColorEditor(
       onReset?.let { reset -> Os4DialogButton(stringResource(R.string.monet_custom_reset),
         onClick = { dismiss(reset) }, enabled = visible,
         modifier = Modifier.fillMaxWidth().testTag("monet.editor.reset")) }
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Os4DialogButton(stringResource(R.string.monet_custom_cancel), onClick = { dismiss(onDismiss) },
-          enabled = visible, modifier = Modifier.weight(1f))
-        Os4DialogButton(stringResource(R.string.monet_custom_use), enabled = valid && visible,
+      Os4DialogActions(listOf(
+        Os4DialogAction(stringResource(R.string.monet_custom_cancel), onClick = { dismiss(onDismiss) },
+          enabled = visible),
+        Os4DialogAction(stringResource(R.string.monet_custom_use), enabled = valid && visible,
           role = GlassDialogButtonRole.Primary,
           onClick = {
             val selected = hexField.text.toString().removePrefix("#").toInt(16) or (0xff shl 24)
@@ -278,8 +280,7 @@ internal fun MonetColorEditor(
               else MonetTonalSpec(hue, chroma)
             dismiss { onConfirm(selected, spec) }
           },
-          modifier = Modifier.weight(1f).testTag("monet.editor.confirm"))
-      }
+          tag = "monet.editor.confirm")))
     }
   }
 }

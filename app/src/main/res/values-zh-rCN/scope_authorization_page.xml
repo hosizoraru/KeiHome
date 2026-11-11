@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="scope_page_primary">基础作用域</string>
+  <string name="scope_page_surfaces">系统图标场景</string>
+  <string name="scope_page_entry_summary">查看各作用域的授权状态与组件版本</string>
+  <string name="scope_page_manager_summary">在框架管理器中调整 KeiHome 的作用域</string>
+  <string name="scope_page_loading_title">授权与加载</string>
+  <string name="scope_page_disconnected">框架未连接</string>
+  <string name="scope_page_read_failed">授权读取失败</string>
+  <string name="scope_page_unconfirmed">授权待确认</string>
+  <string name="scope_page_unsupported">框架支持不完整</string>
+  <string name="scope_page_ready">授权已齐备</string>
+  <string name="scope_page_incomplete">授权待完善</string>
+  <string name="scope_page_granted_count">%1$d / %2$d 已授权</string>
+  <string name="scope_page_missing_count">未授权 %1$d</string>
+  <string name="scope_page_absent_count">未安装 %1$d</string>
+  <string name="scope_page_unknown_count">待确认 %1$d</string>
+  <string name="scope_page_metadata_failed">组件信息读取失败，请刷新重试。</string>
+  <string name="scope_page_android_version">Android %1$s</string>
+  <string name="scope_page_api">API %1$s</string>
+  <string name="scope_page_build">构建 %1$s</string>
+  <string name="scope_page_version_loading">正在读取版本…</string>
+  <string name="scope_page_version_unknown">版本暂不可用</string>
+  <string name="scope_page_purpose_system">系统图标桥接与模块启动支持</string>
+  <string name="scope_page_purpose_launcher">桌面图标、Dock 与启动体验</string>
+  <string name="scope_page_purpose_themes">应用与更新图标包</string>
+  <string name="scope_page_purpose_systemui">通知、状态栏与控制中心图标</string>
+  <string name="scope_page_purpose_share">HyperOS 分享面板中的应用图标</string>
+  <string name="scope_page_purpose_security">侧边栏等手机管家场景的应用图标</string>
+  <string name="scope_page_purpose_settings">应用管理与应用详情中的图标</string>
+  <string name="scope_page_purpose_other">模块声明的其他作用域</string>
+</resources>

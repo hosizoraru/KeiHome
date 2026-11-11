@@ -21,6 +21,7 @@ does not automatically run navigation, color editing or native tests.
 | About copy action and scrolling | `ui-about` |
 | Settings search and preview preference placement | `ui-settings-search` |
 | Cache pills, chart layout, reminder editor and resource navigation | `ui-cache` |
+| OS4 scope page, component versions, grant states and large text | `ui-scope` |
 | Cache reminder settings and protected resource accounting | `cache-budget` |
 | Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
 | Desktop capability and acknowledgement summaries | `desktop-state` |

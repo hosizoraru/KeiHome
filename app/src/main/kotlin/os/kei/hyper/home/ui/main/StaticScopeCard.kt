@@ -56,16 +56,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
       ) {
         for (name in plan.declared) {
-          val label = when (name) {
-            "system" -> stringResource(R.string.scope_system)
-            "com.miui.home" -> stringResource(R.string.scope_launcher)
-            "com.android.thememanager" -> stringResource(R.string.scope_themes)
-            "com.android.systemui" -> stringResource(R.string.scope_system_ui)
-            "com.android.intentresolver" -> stringResource(R.string.scope_system_share)
-            "com.miui.securitycenter" -> stringResource(R.string.scope_security_center)
-            "com.android.settings" -> stringResource(R.string.scope_settings)
-            else -> name
-          }
+          val label = scopeTargetLabel(name)
           val status = when (name) {
             in plan.granted -> R.string.scope_granted
             in plan.absent -> R.string.scope_absent
@@ -105,4 +96,16 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       }
     }
   }
+}
+
+@Composable
+internal fun scopeTargetLabel(name: String): String = when (name) {
+  "system" -> stringResource(R.string.scope_system)
+  "com.miui.home" -> stringResource(R.string.scope_launcher)
+  "com.android.thememanager" -> stringResource(R.string.scope_themes)
+  "com.android.systemui" -> stringResource(R.string.scope_system_ui)
+  "com.android.intentresolver" -> stringResource(R.string.scope_system_share)
+  "com.miui.securitycenter" -> stringResource(R.string.scope_security_center)
+  "com.android.settings" -> stringResource(R.string.scope_settings)
+  else -> name
 }

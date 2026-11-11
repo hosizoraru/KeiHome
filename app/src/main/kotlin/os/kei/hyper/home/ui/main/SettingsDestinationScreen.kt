@@ -50,6 +50,10 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     PackSettingsScreen(model, onBack)
     return
   }
+  if (route == SettingsSection.HOOK.route) {
+    ScopeAuthorizationScreen(model, onBack)
+    return
+  }
   if (route == SettingsSection.ABOUT.route || route == "about/environment") {
     AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
       focusEnvironment = route == "about/environment")

@@ -9,7 +9,7 @@
     <string name="settings_app_section">App settings</string>
     <string name="settings_app_summary">Appearance, language, launcher icon and navigation</string>
     <string name="settings_hook_section">Scope authorization</string>
-    <string name="settings_hook_summary">View static scope access</string>
+    <string name="settings_hook_summary">Scope authorization and component versions</string>
     <string name="settings_cache_section">Cache management</string>
     <string name="settings_cache_summary">Storage usage and cache cleanup</string>
     <string name="settings_about_summary">Version, source code and open-source notices</string>

@@ -107,8 +107,24 @@ eligibility and missing-only upgrades. Final Release UI/build evidence is record
 
 ## Current UI and validation handoff
 
-The title/count and actions in `ui/main/StaticScopeCard.kt` wrap using the pinned
-MIUIX components for narrow windows and large text. `SettingsContent.kt` makes
+`ui/main/ScopeAuthorizationScreen.kt` owns the dedicated OS4 settings page,
+including its collapsing glass toolbar, refresh action, authorization summary,
+grouped target rows, framework-manager entry and loading explanation. Each row
+shows its purpose, independent authorization status, full version name and build
+code. The virtual system target shows Android release and API level. Unsupported,
+unconfirmed and absent targets remain distinct. Disconnected or failed reads do
+not present previously granted entries as currently confirmed.
+
+`ScopeTargetVersions.kt` reads only the declared packages, on IO, on page
+entry/resume and manual refresh. There is no polling, icon decoding, APK hashing
+or version-code cache; OEM version names can change without a different code.
+This is display metadata, not an input to hook matching or authorization.
+`LibxposedStaticScopeClient.kt` shares the existing module declaration parser
+with the page so the UI does not maintain a second scope list.
+
+The compact request card in `ui/main/StaticScopeCard.kt` remains for onboarding
+and attention prompts. Settings search links to the complete page instead of
+embedding that card. `SettingsContent.kt` makes
 the surface explanation searchable. EN/ZH/JA `static_scope.xml` resources name
 Security and Sidebar together and distinguish authorization, loading and update
 behavior. Existing request decisions, source predicates and status implementations
@@ -121,16 +137,14 @@ its next process start. Status reports describe only the targets actually report
 by the framework and launcher acknowledgements. They do not prove all hosts loaded
 or that their icons changed.
 
-Static checks cover resource XML parsing, duplicate names, locale key and format
-placeholder parity, UI string references, declared targets and diff whitespace.
-No Gradle, ADB or device acceptance runs are part of this slice. The parent should
-run `:app:testDebugUnitTest` (including `StaticScopeRequestsTest`) and the onboarding
-instrumented checks in `docs/onboarding.md`, then capture the scope card at standard
-and large text in EN/ZH/JA.
+Focused checks are `StaticScopeRequestsTest` and `python3 scripts/checks.py
+ui-scope --serial SERIAL --run`. Device cases cover refreshing version names
+without a code change, stale-grant handling, absent/unknown/unsupported targets,
+long versions at 1.6x font, manager access and installed package metadata.
 
 Compare the count against confirmed-installed/supported declared targets in
 LSPosed. With all six APK targets confirmed installed, system scope supported and
-all seven authorized, expect 7 / 7 and a Check scope action. Missing,
+all seven authorized, expect 7 / 7 and a toolbar Refresh action. Missing,
 unsupported and unconfirmed entries stay distinct; another device may have a
 smaller denominator. Controls remain disabled during a request, and runtime
 warnings remain independent of the granted count.

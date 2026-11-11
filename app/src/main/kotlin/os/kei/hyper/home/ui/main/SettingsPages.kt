@@ -118,7 +118,14 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     searchGlassContent = { SearchGlassSettingsCard(model) },
-    staticScopeContent = { StaticScopeCard(model, readOnly = true) },
+    staticScopeContent = {
+      Card(Modifier.fillMaxWidth()) {
+        BasicComponent(title = stringResource(R.string.settings_hook_section),
+          summary = stringResource(R.string.scope_page_entry_summary),
+          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
+          onClick = { onNavigate(SettingsSection.HOOK.route) })
+      }
+    },
     onCompactPackHintsChange = model.preferences::setCompactPackHints,
     onNavigationBarStyleChange = onNavigationBarStyleChange,
     desktopStatusObserver = {

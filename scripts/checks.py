@@ -30,6 +30,8 @@ GROUPS = {
         UI + "SettingsSearchUiTest",)),
     "ui-cache": ("device", "Cache pills, equal chart columns, reminder editor and resource links", (
         UI + "CacheStorageUiTest",)),
+    "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (
+        UI + "ScopeAuthorizationUiTest",)),
     "cache-budget": ("jvm", "Reminder preference and protected Perfect storage accounting", (
         "CacheReminderBudgetTest", "PerfectIconRepositoryTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (

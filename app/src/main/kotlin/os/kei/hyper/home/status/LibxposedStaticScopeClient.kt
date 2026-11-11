@@ -10,14 +10,7 @@ internal class LibxposedStaticScopeClient(
   private val service: XposedService,
 ) : StaticScopeClient {
   override val identity: Any get() = service
-  private val declared by lazy {
-    checkNotNull(context.classLoader.getResourceAsStream("META-INF/xposed/scope.list")) {
-      "Missing static scope declaration"
-    }.bufferedReader().use { reader ->
-      reader.lineSequence().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-        .distinct().toList().also { require(it.isNotEmpty()) }
-    }
-  }
+  private val declared by lazy { readStaticScopeDeclaration(context) }
 
   fun plan(granted: Set<String>, properties: Long): StaticScopePlan =
     planStaticScope(declared, granted, properties and XposedService.PROP_CAP_SYSTEM.toLong() != 0L) { name ->
@@ -42,3 +35,11 @@ internal class LibxposedStaticScopeClient(
     })
   }
 }
+
+internal fun readStaticScopeDeclaration(context: Context): List<String> =
+  checkNotNull(context.classLoader.getResourceAsStream("META-INF/xposed/scope.list")) {
+    "Missing static scope declaration"
+  }.bufferedReader().use { reader ->
+    reader.lineSequence().map(String::trim).filter { it.isNotEmpty() && !it.startsWith("#") }
+      .distinct().toList().also { require(it.isNotEmpty()) }
+  }

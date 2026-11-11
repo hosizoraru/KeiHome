@@ -900,7 +900,7 @@ internal fun StatusOverviewCard(
 }
 
 @Composable
-private fun StatusOverviewSymbol(
+internal fun StatusOverviewSymbol(
   icon: ImageVector, tone: StatusTone, color: Color, modifier: Modifier, compact: Boolean = false,
 ) {
   Icon(

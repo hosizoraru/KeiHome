@@ -32,6 +32,8 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Checkbox
@@ -213,45 +215,50 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     }
     item("storage") {
       Card(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_git_storage),
+        val storageAction = stringResource(
+          if (showStorage) R.string.polish_details_collapse else R.string.polish_details_expand)
+        Os4DisclosureHeader(title = stringResource(R.string.perfect_git_storage),
           summary = stringResource(R.string.perfect_git_storage_summary,
             Formatter.formatFileSize(context, state.resourceBytes)),
-          onClick = { showStorage = !showStorage },
+          expanded = showStorage, actionLabel = storageAction, stateLabel = storageAction,
+          onToggle = { showStorage = !showStorage },
           modifier = Modifier.testTag("perfect.resources.storage"))
-        if (showStorage) {
-          Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.remote?.let {
-              Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" +
-                perfectSyncTime(it.committedAt), style = MiuixTheme.textStyles.footnote1)
-              if (it.subject.isNotBlank()) Text(it.subject, style = MiuixTheme.textStyles.footnote1)
-              Text(stringResource(R.string.perfect_git_checked_at, perfectSyncTime(it.checkedAt)),
-                style = MiuixTheme.textStyles.footnote1)
+        Os4DisclosureContent(showStorage) {
+          Column {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+              verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              state.remote?.let {
+                Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" +
+                  perfectSyncTime(it.committedAt), style = MiuixTheme.textStyles.footnote1)
+                if (it.subject.isNotBlank()) Text(it.subject, style = MiuixTheme.textStyles.footnote1)
+                Text(stringResource(R.string.perfect_git_checked_at, perfectSyncTime(it.checkedAt)),
+                  style = MiuixTheme.textStyles.footnote1)
+              }
+              state.catalog?.let {
+                Text(stringResource(R.string.perfect_icons_snapshot_hash) + "\n" + it.sourceHash,
+                  style = MiuixTheme.textStyles.footnote1)
+                if (it.gitBacked) Text(stringResource(R.string.perfect_git_last_transfer,
+                  Formatter.formatFileSize(context, it.transferredBytes)), style = MiuixTheme.textStyles.footnote1)
+              }
             }
-            state.catalog?.let {
-              Text(stringResource(R.string.perfect_icons_snapshot_hash) + "\n" + it.sourceHash,
-                style = MiuixTheme.textStyles.footnote1)
-              if (it.gitBacked) Text(stringResource(R.string.perfect_git_last_transfer,
-                Formatter.formatFileSize(context, it.transferredBytes)), style = MiuixTheme.textStyles.footnote1)
-            }
+            BasicComponent(title = stringResource(R.string.perfect_git_repair),
+              summary = stringResource(R.string.perfect_git_repair_hint),
+              enabled = !busy && !cooling && downloaded.isNotEmpty(), onClick = { confirmRepair = true },
+              modifier = Modifier.testTag("icon-packs.perfect.force-download"))
+            PerfectResourceStorageCard(state, busy,
+              onRequestClearCache = { confirmCache = true }, onRequestDelete = { confirmDelete = true })
+            BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
+              summary = "pzcn / Perfect-Icons-Completion-Project",
+              onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
+              modifier = Modifier.testTag("icon-packs.perfect.credits"))
+            BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
+              summary = "YifePlayte / PerfectIconsPacker",
+              onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
+            Text(stringResource(R.string.perfect_icons_attribution) + "\n" +
+              stringResource(R.string.pack_perfect_packer_reference),
+              modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
-          BasicComponent(title = stringResource(R.string.perfect_git_repair),
-            summary = stringResource(R.string.perfect_git_repair_hint),
-            enabled = !busy && !cooling && downloaded.isNotEmpty(), onClick = { confirmRepair = true },
-            modifier = Modifier.testTag("icon-packs.perfect.force-download"))
-          PerfectResourceStorageCard(state, busy,
-            onRequestClearCache = { confirmCache = true }, onRequestDelete = { confirmDelete = true })
-          BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
-            summary = "pzcn / Perfect-Icons-Completion-Project",
-            onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
-            modifier = Modifier.testTag("icon-packs.perfect.credits"))
-          BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
-            summary = "YifePlayte / PerfectIconsPacker",
-            onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
-          Text(stringResource(R.string.perfect_icons_attribution) + "\n" +
-            stringResource(R.string.pack_perfect_packer_reference),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
       }
     }

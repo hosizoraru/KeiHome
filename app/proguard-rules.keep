@@ -21,6 +21,13 @@
     *;
 }
 
+# NLS constructs this bundle reflectively, then uses its class and field names
+# to load JGitText.properties and assign translated strings.
+-keep,allowoptimization class org.eclipse.jgit.internal.JGitText {
+    public <init>();
+    public java.lang.String *;
+}
+
 # JGit's desktop JMX monitor has no Android runtime. The source store uses DFS;
 # also fold off the file-cache monitoring switch in the optimized build.
 -assumevalues class org.eclipse.jgit.storage.file.WindowCacheConfig {

@@ -83,6 +83,8 @@ Android does not provide JMX or Kerberos classes referenced by JGit's desktop
 paths. Release R8 rules explicitly disable file-cache JMX publication and
 suppress only the concrete optional missing types. HTTP 401/407 are rejected
 before JGit authentication selection, so SPNEGO is not an anonymous fallback.
+The reflected `JGitText` constructor, class name and public string-field names
+are retained so the bundled properties can be loaded in optimized builds.
 There is no blanket keep/dontwarn rule for JGit. Release transport is checked
 through the real application after shrinking.
 

@@ -19,6 +19,11 @@ data class PerfectIconCatalog(
   val sourceHash: String = revision,
   val upToDate: Boolean = false,
   val archiveBytes: Long = 0,
+  val downloadedStyles: List<String> = styles,
+  val remoteCommittedAt: Long = 0,
+  val remoteSubject: String = "",
+  val transferredBytes: Long = 0,
+  val gitBacked: Boolean = false,
 )
 
 data class PerfectIconProgress(val done: Int, val total: Int, val label: String)

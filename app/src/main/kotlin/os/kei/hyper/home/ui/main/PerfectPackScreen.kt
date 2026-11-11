@@ -12,11 +12,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,7 +27,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -44,7 +40,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
-import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
+import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4Dialog
@@ -65,7 +61,6 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -75,18 +70,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
   val prefs by vm.preferences.state.collectAsStateWithLifecycle()
-  val guidanceNotes = listOf(
-    stringResource(R.string.perfect_icons_layer_rules),
-    stringResource(R.string.perfect_icons_static_night_note),
-    stringResource(R.string.pack_perfect_community_detail),
-    stringResource(R.string.perfect_icons_style_summary),
-    stringResource(R.string.perfect_icons_preview_summary),
-    stringResource(R.string.perfect_icons_limits_summary),
-    stringResource(R.string.icon_pack_preview_note),
-    stringResource(R.string.icon_pack_appearance_scope_note),
-    stringResource(R.string.icon_pack_native_note),
-    stringResource(R.string.icon_pack_effects_note),
-  )
   val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
@@ -126,9 +109,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
           actions = {
-            if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
-            IconButton(onClick = { vm.perfectPacks.refreshCatalog() }, enabled = !busy && !cooling) {
-              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_refresh))
+            IconButton(onClick = { vm.perfectPacks.checkUpdates() }, enabled = !busy && !cooling,
+              modifier = Modifier.testTag("icon-packs.perfect.check-updates")) {
+              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_git_check))
             }
           },
         )
@@ -138,7 +121,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
       PageActionFab(stringResource(if (state.generating) R.string.action_label_processing
         else R.string.action_label_generate), actionIcon(PageActionIcon.GENERATE),
         description = stringResource(R.string.perfect_icons_generate),
-        onClick = vm.perfectPacks::generate, enabled = !busy && state.catalog != null,
+        onClick = vm.perfectPacks::generate, enabled = !busy && state.ready,
         busy = state.generating, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.generate"))
     },
@@ -155,35 +138,45 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         StatusOverviewCard(
           title = stringResource(when {
             state.generating -> R.string.perfect_icons_generating
-            state.refreshing -> R.string.perfect_icons_syncing
+            state.refreshing -> R.string.perfect_git_syncing
+            state.checking -> R.string.perfect_git_checking
             state.clearingCache -> R.string.perfect_icons_clearing_cache
+            state.deletingResources -> R.string.perfect_git_deleting
             localLoading -> R.string.perfect_icons_loading
             state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
-            state.syncIssue != null -> if (catalog != null) R.string.perfect_icons_catalog_ready
+            state.updateAvailable -> R.string.perfect_git_update_available
+            catalog != null && !state.ready -> R.string.perfect_git_style_missing
+            state.syncIssue != null -> if (state.ready) R.string.perfect_icons_catalog_ready
               else R.string.perfect_icons_catalog_missing
-            catalog?.upToDate == true -> R.string.perfect_icons_up_to_date
+            state.remote != null && state.ready -> R.string.perfect_git_current
             state.pack != null -> R.string.perfect_icons_ready
             catalog != null -> R.string.perfect_icons_catalog_ready
             else -> R.string.perfect_icons_catalog_missing
           }),
-          summary = if (catalog != null) stringResource(R.string.perfect_icons_preview_style, style)
-            else stringResource(if (localLoading) R.string.pack_local_catalog_loading
-              else R.string.pack_perfect_community_summary),
+          summary = when {
+            localLoading -> stringResource(R.string.pack_local_catalog_loading)
+            !state.ready -> stringResource(R.string.perfect_git_overview_summary)
+            else -> stringResource(R.string.perfect_icons_preview_style, style)
+          },
           details = emptyList(),
           tone = when {
             state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> StatusTone.ERROR
             state.syncIssue != null -> StatusTone.WARNING
-            catalog == null || busy -> StatusTone.WARNING
+            !state.ready || state.updateAvailable || busy -> StatusTone.WARNING
             else -> StatusTone.READY
           },
-          onRefresh = { if (!busy && !cooling) vm.perfectPacks.refreshCatalog() },
+          onRefresh = { if (!busy && !cooling) vm.perfectPacks.checkUpdates() },
           onOpen = { onNavigate("perfect-sources") },
-          actionLabel = stringResource(R.string.perfect_icons_sources_storage),
+          actionLabel = stringResource(R.string.perfect_git_resources),
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
             .testTag("icon-packs.perfect.status"),
-          badgeContent = if (catalog == null && state.lastSuccessfulSyncAtMillis <= 0 && state.syncIssue == null) null else { color ->
+          badgeContent = if (catalog == null && state.remote == null &&
+            state.lastSuccessfulSyncAtMillis <= 0 && state.syncIssue == null) null else { color ->
             PerfectSyncBadges(state, color)
             if (catalog != null) {
+              MetadataPill(stringResource(if (state.ready) R.string.perfect_git_downloaded
+                else R.string.perfect_git_not_downloaded), color,
+                Modifier.testTag("icon-packs.perfect.style-readiness"))
               MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
               val revision = catalog.revision.ifEmpty { catalog.sourceHash }
               val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
@@ -195,11 +188,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
         )
-        if (catalog == null || busy || localLoading || state.error != null || cooling) {
+        if (state.busy || localLoading || state.error != null || cooling) {
           Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              if (state.catalog == null && !state.busy && !localLoading) Text(stringResource(R.string.perfect_icons_sync_first),
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
               if (state.busy || localLoading) {
                 val progress = state.progress
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
@@ -207,10 +198,15 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                     (it.done.toFloat() / it.total).coerceIn(0f, 1f)
                   })
                 progress?.let {
-                  Text(when (it.label) {
+                  Text(if (state.checking) stringResource(R.string.perfect_git_checking)
+                  else if (it.label.startsWith("source.git:")) stringResource(
+                    R.string.perfect_icons_download_progress, Formatter.formatFileSize(context,
+                      it.label.substringAfter("source.git:").toLongOrNull()?.coerceAtLeast(0) ?: 0))
+                  else when (it.label) {
                     "source.download" -> stringResource(R.string.perfect_icons_download_progress,
                       Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
                     "source.verify" -> stringResource(R.string.perfect_icons_verifying)
+                    "source.check", "source.tree" -> stringResource(R.string.perfect_git_checking)
                     else -> stringResource(R.string.perfect_icons_progress,
                       it.done.coerceAtLeast(0), it.total.coerceAtLeast(0))
                   }, style = MiuixTheme.textStyles.footnote2)
@@ -227,12 +223,25 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           }
         }
       }
-      if (!prefs.compactPackHints) item("guidance") {
-        PackGuidanceCard(notes = guidanceNotes, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+      item("pages") {
+        Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+          BasicComponent(title = stringResource(R.string.perfect_git_resources),
+            summary = stringResource(R.string.perfect_git_resources_summary),
+            enabled = !busy, onClick = { onNavigate("perfect-sources") },
+            modifier = Modifier.testTag("icon-packs.perfect.sources"))
+          BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
+            summary = stringResource(R.string.perfect_git_preview_summary),
+            enabled = !busy, onClick = { onNavigate("perfect-preview") },
+            modifier = Modifier.testTag("icon-packs.perfect.preview"))
+        }
       }
       item("options") {
-        PerfectPackOptions(state.options, state.catalog?.styles, !busy, state.catalog != null,
-          vm.perfectPacks::setOptions, onNavigate)
+        val availableStyles = ((state.remote?.availableStyles?.takeIf { it.isNotEmpty() }
+          ?: state.catalog?.styles?.takeIf { it.isNotEmpty() }
+          ?: listOf("default", SystemIconFallback.DEFAULT_PERFECT_STYLE)) +
+          state.catalog?.downloadedStyles.orEmpty()).map { it.ifEmpty { "default" } }.distinct()
+        PerfectPackOptions(state.options, availableStyles, state.catalog?.downloadedStyles.orEmpty(),
+          !busy, vm.perfectPacks::setOptions)
       }
       item("generated") {
         state.pack?.let { card ->
@@ -285,57 +294,39 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           }
         }
       }
-      item("sources") {
-        Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-          BasicComponent(title = stringResource(R.string.perfect_icons_sources_storage),
-            summary = stringResource(R.string.perfect_icons_sources_row_summary),
-            onClick = { onNavigate("perfect-sources") },
-            modifier = Modifier.testTag("icon-packs.perfect.sources"))
-        }
-      }
     }
   }
 }
 
 @Composable
 private fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<String>?,
-  enabled: Boolean, hasCatalog: Boolean, onOptionsChange: (PerfectIconOptions) -> Unit,
-  onNavigate: (String) -> Unit) {
+  downloadedStyles: List<String>, enabled: Boolean, onOptionsChange: (PerfectIconOptions) -> Unit) {
   Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-    val styles = remember(catalogStyles) {
-      listOf("") + catalogStyles.orEmpty().filter { it.isNotBlank() && it != "default" }.distinct()
+    val styles = remember(catalogStyles, options.style) {
+      (listOf("") + catalogStyles.orEmpty() + options.style)
+        .map { it.takeUnless { style -> style == "default" }.orEmpty() }.distinct()
     }
     val defaultStyle = stringResource(R.string.perfect_icons_style_default)
-    val styleItems = remember(styles, defaultStyle) {
-      styles.map { DropdownItem(text = it.ifEmpty { defaultStyle }) }
+    val downloaded = stringResource(R.string.perfect_git_downloaded)
+    val notDownloaded = stringResource(R.string.perfect_git_not_downloaded)
+    val styleItems = remember(styles, downloadedStyles, defaultStyle, downloaded, notDownloaded) {
+      styles.map { style ->
+        val available = downloadedStyles.any { it.ifEmpty { "default" } == style.ifEmpty { "default" } }
+        DropdownItem(text = "${style.ifEmpty { defaultStyle }} · ${if (available) downloaded else notDownloaded}")
+      }
     }
     OverlaySpinnerPreference(title = stringResource(R.string.perfect_icons_style),
       items = styleItems,
       selectedIndex = styles.indexOf(options.style.takeUnless { it == "default" }.orEmpty())
         .coerceAtLeast(0),
-      enabled = enabled && hasCatalog,
+      enabled = enabled && styles.size > 1,
       onSelectedIndexChange = { index -> styles.getOrNull(index)?.let {
         onOptionsChange(options.copy(style = it))
       } })
-    BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
-      summary = stringResource(R.string.perfect_icons_preview_row_summary),
-      enabled = enabled && hasCatalog,
-      onClick = { onNavigate("perfect-preview") },
-      modifier = Modifier.testTag("icon-packs.perfect.preview"))
     SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
       summary = stringResource(R.string.perfect_icons_installed_summary),
       checked = options.installedOnly, enabled = enabled,
       onCheckedChange = { onOptionsChange(options.copy(installedOnly = it)) })
-    SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
-      summary = stringResource(R.string.perfect_icons_dynamic_summary),
-      checked = options.dynamic, enabled = enabled,
-      onCheckedChange = { onOptionsChange(options.copy(dynamic = it)) })
-    SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
-      summary = stringResource(if (options.staticNight) R.string.perfect_icons_night_enabled
-        else R.string.perfect_icons_night_disabled),
-      checked = options.staticNight, enabled = enabled,
-      onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) },
-      modifier = Modifier.testTag("icon-packs.perfect.static-night"))
   }
 }
 
@@ -353,215 +344,96 @@ private fun copyPerfectRevision(context: android.content.Context, revision: Stri
 }
 
 @Composable
-internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
-  val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
-  val packs by vm.iconPacks.collectAsStateWithLifecycle()
+internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
+  PerfectResourceScreen(vm, onBack)
+}
+
+@Composable
+internal fun PerfectResourceConfirmations(state: PerfectPackState, busy: Boolean,
+  confirmDelete: Boolean, confirmClearCache: Boolean,
+  onDismissDelete: () -> Unit, onDismissClearCache: () -> Unit,
+  onDelete: () -> Unit, onClearCache: () -> Unit) {
   val context = LocalContext.current
-  val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
-  var localLoadRequested by remember(vm) { mutableStateOf(false) }
-  val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
-  var confirmDownload by remember { mutableStateOf(false) }
-  var showDetails by remember { mutableStateOf(false) }
-  var actionHeight by remember { mutableIntStateOf(0) }
-  val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
-  val cooling = state.retryAtMillis > System.currentTimeMillis()
-  val hasSource = state.catalog != null
-  val downloadLabel = stringResource(if (hasSource) R.string.perfect_icons_force_download
-    else R.string.perfect_icons_download_resources)
-  LaunchedEffect(vm) {
-    vm.perfectPacks.load()
-    localLoadRequested = true
+  Os4Dialog(show = confirmDelete,
+    title = stringResource(R.string.perfect_git_delete),
+    summary = stringResource(R.string.perfect_git_delete_confirm,
+      Formatter.formatFileSize(context, state.resourceBytes)),
+    onDismissRequest = onDismissDelete) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Os4DialogButton(stringResource(R.string.logs_cancel), onClick = onDismissDelete,
+        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.cancel-delete"))
+      Os4DialogButton(stringResource(R.string.perfect_git_delete_proceed),
+        enabled = confirmDelete && !busy, onClick = {
+          if (confirmDelete && !busy) {
+            onDismissDelete()
+            onDelete()
+          }
+        }, role = GlassDialogButtonRole.Destructive,
+        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-delete"))
+    }
   }
-  LaunchedEffect(state.retryAtMillis) {
-    val remaining = state.retryAtMillis - System.currentTimeMillis()
-    if (remaining > 0) delay(remaining)
-    vm.perfectPacks.updateCooldown()
-  }
-  PerfectSubpage(stringResource(R.string.perfect_icons_sources_storage), onBack,
-    bottomSpacing = actionBottom,
-    floatingActionButton = {
-      PageActionFab(stringResource(if (state.refreshing) R.string.action_label_processing
-        else R.string.action_label_download), actionIcon(PageActionIcon.FETCH),
-        description = downloadLabel,
-        onClick = { confirmDownload = true }, enabled = !busy && !cooling,
-        busy = state.refreshing, onHeightChanged = { actionHeight = it },
-        modifier = Modifier.testTag("icon-packs.perfect.force-download"))
-      val catalog = state.catalog
-      val revisionLabel = stringResource(R.string.perfect_icons_revision)
-      val hashLabel = stringResource(R.string.perfect_icons_snapshot_hash)
-      Os4Dialog(show = showDetails, title = stringResource(R.string.perfect_icons_file_details),
-        onDismissRequest = { showDetails = false }) {
-        Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .65f).dp),
-          verticalArrangement = Arrangement.spacedBy(14.dp)) {
-          Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            catalog?.let {
-              Text(stringResource(R.string.perfect_icons_downloaded_at) + "\n" + perfectSyncTime(it.downloadedAt),
-                style = MiuixTheme.textStyles.body2)
-              Text(revisionLabel + "\n" + it.revision.ifEmpty { it.sourceHash },
-                style = MiuixTheme.textStyles.footnote1)
-              Text(hashLabel + "\n" + it.sourceHash, style = MiuixTheme.textStyles.footnote1)
-            }
-            state.result?.let { result ->
-              Text(stringResource(R.string.perfect_icons_output) + "\n" + result.file.name,
-                style = MiuixTheme.textStyles.footnote1)
-            }
+  Os4Dialog(show = confirmClearCache,
+    title = stringResource(R.string.perfect_icons_clear_cache),
+    summary = stringResource(R.string.perfect_git_clear_cache_confirm,
+      Formatter.formatFileSize(context, state.cacheBytes)),
+    onDismissRequest = onDismissClearCache) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Os4DialogButton(stringResource(R.string.logs_cancel), onClick = onDismissClearCache,
+        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.cancel-clear-cache"))
+      Os4DialogButton(stringResource(R.string.perfect_icons_clear_cache),
+        enabled = confirmClearCache && !busy, onClick = {
+          if (confirmClearCache && !busy) {
+            onDismissClearCache()
+            onClearCache()
           }
-          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Os4DialogButton(stringResource(R.string.perfect_icons_copy_revision), enabled = catalog != null,
-              onClick = { catalog?.let { copyPerfectRevision(context, it.revision.ifEmpty { it.sourceHash }, revisionLabel) } },
-              modifier = Modifier.weight(1f))
-            Os4DialogButton(stringResource(R.string.perfect_icons_copy_checksum), enabled = catalog != null,
-              onClick = { catalog?.let { copyPerfectRevision(context, it.sourceHash, hashLabel) } },
-              modifier = Modifier.weight(1f))
-          }
-        }
-      }
-      Os4Dialog(show = confirmDownload,
-        title = downloadLabel,
-        summary = stringResource(if (hasSource) R.string.perfect_icons_force_download_confirm
-          else R.string.perfect_icons_download_confirm),
-        onDismissRequest = { confirmDownload = false }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-          Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { confirmDownload = false },
-            modifier = Modifier.weight(1f))
-          Os4DialogButton(if (hasSource) stringResource(R.string.perfect_icons_force_download_proceed) else downloadLabel,
-            enabled = confirmDownload && !busy && !cooling, onClick = {
-              confirmDownload = false
-              vm.perfectPacks.refreshCatalog(forceDownload = true)
-            }, role = if (hasSource) GlassDialogButtonRole.Destructive else GlassDialogButtonRole.Primary,
-            modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
-        }
-      }
-    }) {
-    item("snapshot") {
-      val catalog = state.catalog
-      StatusOverviewCard(
-        title = stringResource(when {
-          state.refreshing -> R.string.perfect_icons_syncing
-          localLoading -> R.string.perfect_icons_loading
-          state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
-          catalog != null -> R.string.perfect_icons_catalog_ready
-          else -> R.string.perfect_icons_catalog_missing
-        }),
-        summary = when {
-          state.syncIssue == PerfectSyncIssue.CORRUPT -> stringResource(R.string.sync_storage_repair)
-          catalog != null -> stringResource(R.string.sync_storage_ready)
-          else -> stringResource(if (localLoading) R.string.pack_local_catalog_loading
-            else R.string.perfect_icons_storage_empty)
-        },
-        details = emptyList(),
-        tone = when {
-          state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> StatusTone.ERROR
-          state.syncIssue != null -> StatusTone.WARNING
-          catalog == null || busy -> StatusTone.WARNING
-          else -> StatusTone.READY
-        },
-        onRefresh = {}, onOpen = {
-          if (catalog != null) showDetails = true
-          else if (!busy && !cooling && !localLoading) confirmDownload = true
-        },
-        actionLabel = if (catalog != null) stringResource(R.string.perfect_icons_file_details)
-          else downloadLabel,
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
-          .testTag("icon-packs.perfect.storage-status"),
-        badgeContent = if (catalog == null && state.lastSuccessfulSyncAtMillis <= 0 && state.syncIssue == null) null else { color ->
-          PerfectSyncBadges(state, color)
-          if (catalog != null) {
-            MetadataPill(stringResource(R.string.perfect_icons_storage_count, catalog.iconCount,
-              Formatter.formatFileSize(context, catalog.archiveBytes)), color)
-            val revision = catalog.revision.ifEmpty { catalog.sourceHash }
-            val label = stringResource(R.string.perfect_icons_revision)
-            MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
-              Modifier.clickable(onClickLabel = label) { copyPerfectRevision(context, revision, label) })
-          }
-        })
-    }
-    if (localLoading || state.refreshing || state.error != null || cooling) item("sync-progress") {
-      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          if (localLoading || state.refreshing) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(state.progress?.let {
-              if (it.label == "source.download") stringResource(R.string.perfect_icons_download_progress,
-                Formatter.formatFileSize(context, it.done.coerceAtLeast(0).toLong()))
-              else stringResource(R.string.perfect_icons_verifying)
-            } ?: stringResource(R.string.perfect_icons_loading), style = MiuixTheme.textStyles.footnote1)
-          }
-          state.error?.let { Text(stringResource(perfectErrorResource(it)),
-            color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.footnote1) }
-          if (cooling) Text(stringResource(R.string.perfect_icons_cooldown_detail,
-            DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))),
-            style = MiuixTheme.textStyles.footnote1)
-        }
-      }
-    }
-    item("cache") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_icons_clear_cache),
-          summary = stringResource(R.string.perfect_icons_clear_cache_summary),
-          endActions = { MetadataPill(Formatter.formatFileSize(context, state.cacheBytes),
-            MiuixTheme.colorScheme.primary) },
-          enabled = !busy && state.cacheBytes > 0, onClick = vm.perfectPacks::clearDownloads,
-          modifier = Modifier.testTag("icon-packs.perfect.clear-cache"))
-        if (state.clearingCache) LinearProgressIndicator(Modifier.fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 8.dp))
-        state.clearedBytes?.let { bytes ->
-          BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
-            Formatter.formatFileSize(context, bytes)))
-        }
-      }
-    }
-    item("details") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_icons_file_details),
-          summary = stringResource(R.string.perfect_icons_file_details_summary),
-          enabled = state.catalog != null, onClick = { showDetails = true },
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
-          modifier = Modifier.testTag("icon-packs.perfect.file-details"))
-        BasicComponent(title = stringResource(R.string.perfect_icons_sources),
-          summary = "pzcn / Perfect-Icons-Completion-Project",
-          onClick = { onNavigate("perfect-credits") },
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
-          modifier = Modifier.testTag("icon-packs.perfect.credits"))
-      }
+        }, role = GlassDialogButtonRole.Destructive,
+        modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-clear-cache"))
     }
   }
 }
 
 @Composable
-internal fun PerfectPackCreditsScreen(onBack: () -> Unit) {
-  val uri = LocalUriHandler.current
-  PerfectSubpage(stringResource(R.string.perfect_icons_sources), onBack) {
-    item("credits") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        BasicComponent(title = stringResource(R.string.perfect_icons_sources),
-          summary = stringResource(R.string.perfect_icons_attribution))
-        BasicComponent(title = stringResource(R.string.pack_perfect_community_title),
-          summary = stringResource(R.string.pack_perfect_community_detail))
-        BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
-          summary = "pzcn/Perfect-Icons-Completion-Project",
-          onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") })
-        BasicComponent(title = stringResource(R.string.pack_perfect_author),
-          summary = "pzcn", onClick = { uri.openUri("https://github.com/pzcn") })
-        BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
-          summary = "YifePlayte/PerfectIconsPacker\n${stringResource(R.string.pack_perfect_packer_reference)}",
-          onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
-        BasicComponent(title = stringResource(R.string.perfect_icons_limits),
-          summary = stringResource(R.string.perfect_icons_limits_summary))
-      }
+internal fun PerfectResourceStorageCard(state: PerfectPackState, busy: Boolean,
+  onRequestClearCache: () -> Unit, onRequestDelete: () -> Unit) {
+  val context = LocalContext.current
+  Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+    BasicComponent(title = stringResource(R.string.perfect_icons_clear_cache),
+      summary = stringResource(R.string.perfect_icons_clear_cache_summary),
+      endActions = { MetadataPill(Formatter.formatFileSize(context, state.cacheBytes),
+        MiuixTheme.colorScheme.primary) },
+      enabled = !busy && state.cacheBytes > 0, onClick = onRequestClearCache,
+      modifier = Modifier.testTag("icon-packs.perfect.clear-cache"))
+    BasicComponent(title = stringResource(R.string.perfect_git_delete),
+      summary = stringResource(R.string.perfect_git_delete_size,
+        Formatter.formatFileSize(context, state.resourceBytes)),
+      enabled = !busy && (state.resourceBytes > 0 || state.catalog != null || state.remote != null ||
+        state.syncIssue != null),
+      onClick = onRequestDelete,
+      modifier = Modifier.testTag("icon-packs.perfect.delete-resources"))
+    if (state.clearingCache) LinearProgressIndicator(Modifier.fillMaxWidth()
+      .padding(horizontal = 16.dp, vertical = 8.dp))
+    state.clearedBytes?.let { bytes ->
+      BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
+        Formatter.formatFileSize(context, bytes)))
+    }
+    state.deletedBytes?.let { bytes ->
+      BasicComponent(title = stringResource(R.string.perfect_git_deleted,
+        Formatter.formatFileSize(context, bytes)))
     }
   }
 }
 
-private fun perfectErrorResource(error: PerfectPackError): Int = when (error) {
+internal fun perfectErrorResource(error: PerfectPackError): Int = when (error) {
   PerfectPackError.LOCAL -> R.string.perfect_icons_error_local
   PerfectPackError.CATALOG -> R.string.perfect_icons_error_catalog
   PerfectPackError.NETWORK -> R.string.perfect_icons_error_network
+  PerfectPackError.CHECK -> R.string.perfect_git_check_failed
+  PerfectPackError.STYLE_NEEDED -> R.string.perfect_git_style_needed
   PerfectPackError.COOLDOWN -> R.string.perfect_icons_error_cooldown
   PerfectPackError.INSTALLED -> R.string.perfect_icons_error_installed
   PerfectPackError.GENERATE -> R.string.perfect_icons_error_generate
   PerfectPackError.IMPORT -> R.string.perfect_icons_error_import
   PerfectPackError.EMPTY -> R.string.perfect_icons_error_empty
   PerfectPackError.CACHE -> R.string.perfect_icons_error_cache
+  PerfectPackError.DELETE -> R.string.perfect_git_delete_failed
 }

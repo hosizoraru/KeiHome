@@ -1,15 +1,17 @@
 # Perfect Icons: source and implementation boundary
 
-Checkpoint: 2026-11-09.
+Checkpoint: 2026-11-11 (transport); native-writer evidence remains 2026-11-09.
 
 ## Current inputs
 
-The only upstream input to synchronization/generation is the complete
+The only upstream resource repository for synchronization/generation is the
 [pzcn resource repository](https://github.com/pzcn/Perfect-Icons-Completion-Project).
 The retained checkpoint is commit `fb8b5c9224510fedb653a7dceafdcb364b4e2263`,
 archive SHA-256
 `8cbbb7a398649902f437eadd90c55e25884bee776f3fadfce825cdedf57577c1`.
-It is acquired explicitly and cached; it is not bundled as an executable library.
+That archive is a historical fixture. Current production synchronization uses
+JGit to obtain a commit/tree index and only the selected styles' required blobs.
+Resources are acquired explicitly and cached, not bundled as an executable library.
 Source graphics, XML and MAML resources retain their original authors' rights.
 The repository snapshot has no top-level LICENSE file. Availability on GitHub
 is not treated as a blanket license for the artwork or scripts.
@@ -96,3 +98,17 @@ with the original stock shape and without a custom shape override.
 The associated UI cleanup places generation statistics and changed-option
 explanations inside the generated pack card. Statistics still describe the
 last generated pack, not settings that have yet to be generated.
+
+## Git transport provenance
+
+The 2026-11-11 synchronization rewrite is independent application code using
+[Eclipse JGit](https://github.com/eclipse-jgit/jgit), core version
+`7.8.1.202611041320-r`, under EDL-1.0. Official Git/JGit protocol and library
+sources, the pzcn resource tree, controlled owned fixtures and Android runtime
+checks are the implementation inputs. No PerfectIconsPacker implementation was
+read/copied or invoked for this rewrite. Its public README/architecture
+information was consulted earlier to establish that its documented transport is
+Git-based; this statement does not recast historical integration as a formal
+clean-room process. Git transport licensing does not grant artwork rights.
+
+See [Git synchronization](perfect-git-sync.md) for behavior and acceptance.

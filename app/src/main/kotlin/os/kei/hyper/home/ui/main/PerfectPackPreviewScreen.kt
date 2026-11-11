@@ -92,17 +92,19 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
     }
   }
   LaunchedEffect(vm, state.options, state.catalog?.sourceHash, state.busy) {
-    if (!state.busy && state.catalog != null) vm.perfectPacks.loadPreview()
+    if (!state.busy && state.ready) vm.perfectPacks.loadPreview()
   }
   PerfectSubpage(stringResource(R.string.perfect_icons_preview_title), onBack,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
-    refreshEnabled = !state.busy && state.catalog != null,
+    refreshEnabled = !state.busy && state.ready,
     actions = {
+      if (pack != null) {
       OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = filters.mapIndexed { index, label ->
         DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
       }))) {
         Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
           tint = if (filter == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+      }
       }
     }) {
     item("style") {
@@ -130,24 +132,28 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
           Text(stringResource(R.string.perfect_icons_preview_options_scope),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
+        SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
+          summary = stringResource(R.string.perfect_icons_dynamic_summary),
+          checked = state.options.dynamic, enabled = !state.busy,
+          onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(dynamic = it)) })
         SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
           summary = stringResource(if (state.options.staticNight) R.string.perfect_icons_night_enabled
             else R.string.perfect_icons_night_disabled),
           checked = state.options.staticNight, enabled = !state.busy,
           onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) })
       }
-      if (preview.loading || state.catalog == null || preview.failed) {
+      if (preview.loading || !state.ready || preview.failed) {
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
           if (preview.loading) LinearProgressIndicator(Modifier.fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp))
-          if (state.catalog == null || preview.failed) BasicComponent(
-            title = stringResource(R.string.perfect_icons_error),
-            summary = stringResource(if (state.catalog == null) R.string.perfect_icons_error_catalog
+          if (!state.ready || preview.failed) BasicComponent(
+            title = stringResource(if (!state.ready) R.string.perfect_git_style_missing else R.string.perfect_icons_error),
+            summary = stringResource(if (!state.ready) R.string.perfect_git_style_needed
               else R.string.perfect_icons_preview_error))
         }
       }
     }
-    item("search") {
+    if (pack != null) item("search") {
       InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
         onExpandedChange = {}, label = stringResource(R.string.perfect_icons_preview_search),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))

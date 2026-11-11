@@ -127,6 +127,7 @@ dependencies {
   implementation(libs.mmkv)
   implementation(libs.zipflinger)
   implementation(libs.commonmark)
+  implementation(libs.jgit.core)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

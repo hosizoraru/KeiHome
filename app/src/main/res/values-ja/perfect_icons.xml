@@ -10,7 +10,7 @@
   <string name="perfect_icons_attention">操作が必要です</string>
   <string name="perfect_icons_ready">ローカルアイコンパックの準備完了</string>
   <string name="perfect_icons_catalog_ready">ローカルデータの準備完了</string>
-  <string name="perfect_icons_catalog_missing">リポジトリは未同期です</string>
+  <string name="perfect_icons_catalog_missing">リソースは未ダウンロードです</string>
   <string name="perfect_icons_workflow">履歴を含まないリポジトリ全体を一度取得します。以後はローカルでスタイルと対象アプリを選び、ネイティブ ZIP を生成できます。テーマは自動適用しません。</string>
   <string name="perfect_icons_progress">%1$d / %2$d リソース</string>
   <string name="perfect_icons_catalog_count">カタログに %1$d 個のアイコン</string>
@@ -63,7 +63,7 @@
   <string name="perfect_icons_revision_short">ソース %1$s</string>
   <string name="perfect_icons_sources_storage">出典とストレージ</string>
   <string name="perfect_icons_sources_row_summary">クレジット、完全なリビジョン、スナップショット詳細とキャッシュ管理</string>
-  <string name="perfect_icons_preview_title">選択中のスタイルをプレビュー</string>
+  <string name="perfect_icons_preview_title">プレビューと効果</string>
   <string name="perfect_icons_preview_row_summary">選択中のスタイルの例をローカルから表示</string>
   <string name="perfect_icons_preview_style">スタイル：%1$s</string>
   <string name="perfect_icons_preview_summary">未インストールのアプリを含め、最大 24 件のローカルサンプルを表示します。動的アイコンは静止画像で表示します。</string>

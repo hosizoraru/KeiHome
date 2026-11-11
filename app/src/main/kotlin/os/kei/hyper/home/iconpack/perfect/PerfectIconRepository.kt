@@ -18,6 +18,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -58,7 +59,7 @@ internal class PerfectIconOutputLimit(
   }
 }
 
-/** One explicit conditional codeload request per refresh; generation is entirely local. */
+/** Explicit anonymous Git synchronization; generation and already acquired styles stay offline. */
 class PerfectIconRepository internal constructor(
   private val root: File,
   private val transport: PerfectIconTransport,
@@ -69,6 +70,7 @@ class PerfectIconRepository internal constructor(
   private val nativeMask: () -> String? = { null },
   private val staticRenderer: ((List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
   private val dynamicNightRenderer: ((ByteArray, Boolean, () -> Unit) -> ByteArray?)? = null,
+  private val git: PerfectIconGitBackend? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
@@ -79,6 +81,7 @@ class PerfectIconRepository internal constructor(
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
     },
+    git = PerfectIconGit(File(context.applicationContext.filesDir, "perfect-icons/git")),
   )
 
   private val mutex = locks.getOrPut(root.absolutePath) { Mutex() }
@@ -123,13 +126,13 @@ class PerfectIconRepository internal constructor(
         layers.takeIf { it.size == 2 }
       }.firstOrNull() ?: return@withLock null
       val coroutine = currentCoroutineContext()
-      var zip: ZipFile? = null
+      var reader: PerfectGitReader? = null
       var extracted = false
       try {
         FallbackIcon(blobs.map { blob ->
           coroutine.ensureActive()
           val bytes = if (cachedBlob(blob)) blobFile(blob.sha).readBytes() else {
-            val source = zip ?: ZipFile(archive(index.snapshot), Charsets.UTF_8).also { zip = it }
+            val source = reader ?: openSource(index.snapshot).also { reader = it }
             sourceBytes(source, blob, requireNotNull(index.entries[blob.source])).also {
               atomic(blobFile(blob.sha), it) { coroutine.ensureActive() }
               extracted = true
@@ -138,7 +141,7 @@ class PerfectIconRepository internal constructor(
           PerfectIconFormat.png(bytes, square = true)
           bytes
         }).also { if (extracted) trimBlobs(blobs.mapTo(hashSetOf()) { it.sha }) }
-      } finally { zip?.close() }
+      } finally { reader?.close() }
     }
   }
 
@@ -154,10 +157,8 @@ class PerfectIconRepository internal constructor(
       val snapshot = localSnapshot() ?: throw IOException("Perfect Icons local resources are unavailable")
       FallbackIndex(stamp, snapshot, snapshot.entries.associateBy { it.path }).also { fallbackIndex = it }
     }
-    require(style in index.snapshot.styles) { "Perfect Icons style is unavailable: $style" }
-    require(archive(index.snapshot).isFile && archive(index.snapshot).length() == index.snapshot.archiveBytes) {
-      "Perfect Icons local source archive is unavailable"
-    }
+    require(style in index.snapshot.downloadedStyles) { "Download the Perfect Icons style first: $style" }
+    require(sourceExists(index.snapshot)) { "Perfect Icons local source is unavailable" }
     return index
   }
 
@@ -183,29 +184,76 @@ class PerfectIconRepository internal constructor(
     mutex.withLock { syncHistory.current() }
   }
 
-  /** Metadata and ZIP directory only. Full archive/payload validation remains on sync/read paths. */
+  /** A remote check never publishes source data or changes the last successful resource sync. */
+  internal suspend fun checkUpdates(
+    progress: (PerfectIconProgress) -> Unit = {},
+  ): PerfectIconRemote = withContext(ioDispatcher) {
+    mutex.withLock {
+      val backend = git ?: throw IOException("Git synchronization is unavailable")
+      if (retryAtMillis() > now()) throw PerfectIconCooldownException(retryAtMillis())
+      val remote = try {
+        backend.check(progress)
+      } catch (failure: Exception) {
+        if (failure !is CancellationException) cooldownCause(failure)?.let {
+          cooldown(it.retryAt)
+          throw it
+        }
+        throw failure
+      }
+      currentCoroutineContext().ensureActive()
+      saveRemote(remote)
+      remote
+    }
+  }
+
+  internal suspend fun remoteStatus(): PerfectIconRemote? = withContext(ioDispatcher) {
+    mutex.withLock { readRemote() }
+  }
+
+  private fun readRemote(): PerfectIconRemote? = runCatching {
+    val value = settings.read("gitRemote") ?: return null
+    require(value.length <= 16_384)
+    val json = JSONObject(value)
+    val styles = json.optJSONArray("styles")
+    require(styles == null || styles.length() <= 256)
+    PerfectIconRemote(json.getString("revision").also { require(it.matches(Regex("[0-9a-f]{40}"))) },
+      json.getLong("committedAt").also { require(it >= 0) },
+      json.getString("subject").take(1024),
+      json.getLong("checkedAt").also { require(it >= 0) },
+      styles?.let { values -> (0 until values.length()).map {
+        values.getString(it).also(PerfectIconFormat::style)
+      } }.orEmpty())
+  }.getOrNull()
+
+  private fun saveRemote(remote: PerfectIconRemote) {
+    require(remote.revision.matches(Regex("[0-9a-f]{40}")) &&
+      remote.committedAt >= 0 && remote.checkedAt >= 0)
+    settings.write("gitRemote", JSONObject().put("revision", remote.revision)
+      .put("committedAt", remote.committedAt).put("subject", remote.subject.take(1024))
+      .put("checkedAt", remote.checkedAt).put("styles", JSONArray(remote.availableStyles)).toString())
+  }
+
+  /** Metadata/object headers only. Full payload hashes are checked on acquisition and reads. */
   internal suspend fun localStatus(): PerfectLocalStatus = withContext(ioDispatcher) {
     mutex.withLock {
       val snapshot = localSnapshot()
       val knownHash = settings.read("knownSourceHash")
       val corruptHash = settings.read("corruptSourceHash")
       val sourceHash = snapshot?.sourceHash ?: knownHash.orEmpty()
-      val source = File(sourceDir, "$sourceHash.zip")
+      val source = if (snapshot?.gitStore?.isNotEmpty() == true) File(root, "git/${snapshot.gitStore}")
+        else File(sourceDir, "$sourceHash.zip")
+      val gitStamp = if (snapshot?.gitStore?.isNotEmpty() == true)
+        runCatching { git?.stamp(snapshot.gitStore) }.getOrNull().orEmpty() else ""
       val stamp = PerfectLocalProbeStamp(snapshotFile.exists(), snapshotFile.length(), snapshotFile.lastModified(),
-        sourceHash, source.isFile, source.length(), source.lastModified(), corruptHash,
-        snapshot?.sourceHash ?: knownHash, sourceDir.lastModified())
+        sourceHash, snapshot?.let(::sourceExists) ?: source.isFile, source.length(), source.lastModified(),
+        corruptHash, snapshot?.sourceHash ?: knownHash,
+        if (gitStamp.isNotEmpty()) gitStamp.hashCode().toLong() else sourceDir.lastModified())
       val referenced = snapshotFile.exists() || !knownHash.isNullOrEmpty() ||
         sourceDir.listFiles().orEmpty().any { it.isFile && it.extension == "zip" }
       val coroutine = currentCoroutineContext()
       val healthy = localHealthProbe.healthy(stamp) {
         snapshot != null && corruptHash != snapshot.sourceHash && try {
-          ZipFile(archive(snapshot), Charsets.UTF_8).use { zip ->
-            snapshot.entries.all { source ->
-              coroutine.ensureActive()
-              val entry = zip.getEntry(PerfectIconSourceZip.PREFIX + source.path)
-              entry != null && entry.size == source.size && entry.crc == source.crc
-            }
-          }
+          openSource(snapshot).use { it.healthy(snapshot.entries) { coroutine.ensureActive() } }
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (_: Exception) {
@@ -234,6 +282,7 @@ class PerfectIconRepository internal constructor(
   suspend fun catalog(
     refresh: Boolean = false,
     forceDownload: Boolean = false,
+    styles: Set<String> = emptySet(),
     progress: (PerfectIconProgress) -> Unit = {},
   ): PerfectIconCatalog? = withContext(ioDispatcher) {
     mutex.withLock {
@@ -243,7 +292,8 @@ class PerfectIconRepository internal constructor(
       if (retryAtMillis() > now()) throw PerfectIconCooldownException(retryAtMillis())
       syncHistory.started()
       try {
-        val catalog = refresh(old, progress, forceDownload).catalog
+        val catalog = if (git != null) refreshGit(old, styles, progress, forceDownload).catalog
+          else refresh(old, progress, forceDownload).catalog
         settings.write("knownSourceHash", catalog.sourceHash)
         settings.write("corruptSourceHash", "")
         settings.write("localCorruptAt", "0")
@@ -257,12 +307,20 @@ class PerfectIconRepository internal constructor(
         throw interrupted
       } catch (failure: Exception) {
         syncHistory.failed()
+        cooldownCause(failure)?.let {
+          cooldown(it.retryAt)
+          throw it
+        }
         throw failure
       } finally {
         localHealthProbe.invalidate()
       }
     }
   }
+
+  private fun cooldownCause(failure: Throwable): PerfectIconCooldownException? =
+    generateSequence(failure) { it.cause?.takeUnless { cause -> cause === it } }.take(16)
+      .filterIsInstance<PerfectIconCooldownException>().firstOrNull()
 
   suspend fun generate(
     options: PerfectIconOptions,
@@ -276,7 +334,7 @@ class PerfectIconRepository internal constructor(
       progress(PerfectIconProgress(0, 0, "Reading local repository snapshot"))
       val snapshot = localSnapshot() ?: throw IOException("Refresh the Perfect Icons repository before generating")
       val style = options.style.ifEmpty { "default" }
-      require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
+      require(style in snapshot.downloadedStyles) { "Download the Perfect Icons style first: $style" }
       fun branch(prefix: String) = snapshot.entries.filter { it.path.startsWith("$prefix/") }.map {
         PerfectIconBlob(it.path.removePrefix("$prefix/"), it.sha, it.size, it.path)
       }
@@ -290,7 +348,7 @@ class PerfectIconRepository internal constructor(
       var reused = 0
       val coroutine = currentCoroutineContext()
       val indexed = snapshot.entries.associateBy { it.path }
-      ZipFile(archive(snapshot), Charsets.UTF_8).use { zip ->
+      openSource(snapshot).use { zip ->
         unique.forEachIndexed { index, blob ->
           coroutine.ensureActive()
           if (cachedBlob(blob)) {
@@ -333,7 +391,7 @@ class PerfectIconRepository internal constructor(
     mutex.withLock {
       val snapshot = localSnapshot() ?: throw IOException("Refresh the Perfect Icons repository before previewing")
       val style = options.style.ifEmpty { "default" }
-      require(style in snapshot.styles) { "Unknown Perfect Icons style: $style" }
+      require(style in snapshot.downloadedStyles) { "Download the Perfect Icons style first: $style" }
       val mask = nativeMask()
       val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit" +
         if (options.staticNight) "\n${PerfectStaticNightRenderer.REVISION}:${PerfectDynamicNight.REVISION}" else ""
@@ -380,7 +438,7 @@ class PerfectIconRepository internal constructor(
       try {
         val files = HashMap<String, File>()
         val indexed = snapshot.entries.associateBy { it.path }
-        ZipFile(archive(snapshot), Charsets.UTF_8).use { zip ->
+        openSource(snapshot).use { zip ->
           plan.files.values.distinctBy { it.sha }.forEach { blob ->
             coroutine.ensureActive()
             if (cachedBlob(blob)) {
@@ -438,7 +496,7 @@ class PerfectIconRepository internal constructor(
     }
   }
 
-  /** Keep the usable source ZIP/catalog and completed outputs, so generation remains offline. */
+  /** Keep the usable source/catalog and completed outputs, so generation remains offline. */
   suspend fun clearDownloadCache(): Long = withContext(ioDispatcher) {
     mutex.withLock {
       val coroutine = currentCoroutineContext()
@@ -449,6 +507,94 @@ class PerfectIconRepository internal constructor(
         if (it.delete()) freed += size
       }
       freed
+    }
+  }
+
+  private fun resourceDirectories() = listOf(File(root, "git"), sourceDir, blobsDir, previewDir,
+    renderedDir, File(root, "trees"))
+
+  internal suspend fun resourceBytes(): Long = withContext(ioDispatcher) {
+    mutex.withLock {
+      val coroutine = currentCoroutineContext()
+      resourceDirectories().sumOf { measureDiskCache(it) { coroutine.ensureActive() }.total } +
+        snapshotFile.length()
+    }
+  }
+
+  /** Confirmed source removal is serialized with all readers and never deletes generated exports. */
+  internal suspend fun deleteResources(): Long = withContext(ioDispatcher) {
+    mutex.withLock {
+      currentCoroutineContext().ensureActive()
+      deleteResourcesLocked()
+    }
+  }
+
+  private suspend fun deleteResourcesLocked(): Long = withContext(NonCancellable) {
+    val before = resourceDirectories().sumOf { measureDiskCache(it).total } + snapshotFile.length()
+    require(!snapshotFile.exists() || snapshotFile.delete()) { "Cannot remove Perfect Icons source index" }
+    fallbackIndex = null
+    localHealthProbe.invalidate()
+    settings.write("knownSourceHash", "")
+    settings.write("corruptSourceHash", "")
+    settings.write("localCorruptAt", "0")
+    settings.write("retryAt", "0")
+    settings.write("gitRemote", "")
+    settings.write("syncHistoryV1", "{}")
+    var complete = true
+    resourceDirectories().forEach { if (it.exists() && !it.deleteRecursively()) complete = false }
+    require(complete) { "Some Perfect Icons resources could not be removed; try again" }
+    before
+  }
+
+  /** Rebuild only the remaining local graph; removal never needs the upstream repository. */
+  internal suspend fun removeStyles(
+    styles: Set<String>,
+    progress: (PerfectIconProgress) -> Unit = {},
+  ): Long = withContext(ioDispatcher) {
+    mutex.withLock {
+      require(styles.isNotEmpty())
+      styles.forEach(PerfectIconFormat::style)
+      val old = localSnapshot() ?: return@withLock 0L
+      val removed = styles.intersect(old.downloadedStyles.toSet())
+      if (removed.isEmpty()) return@withLock 0L
+      val remaining = old.downloadedStyles.toSet() - removed
+      if (remaining.isEmpty()) return@withLock deleteResourcesLocked()
+      require(old.gitStore.isNotEmpty()) { "Refresh legacy source resources before removing individual styles" }
+      val coroutine = currentCoroutineContext()
+      val paths = PerfectIconSelection.paths(old.entries.map { it.path }, remaining)
+      val entries = old.entries.filter { it.path in paths }
+      require(entries.isNotEmpty())
+      val before = resourceDirectories().sumOf { measureDiskCache(it) { coroutine.ensureActive() }.total } +
+        snapshotFile.length()
+      val retained = requireNotNull(git).retain(old.gitStore, entries, progress)
+      var published = false
+      try {
+        coroutine.ensureActive()
+        require(retained.store.matches(Regex("[a-zA-Z0-9-]{1,80}")) &&
+          retained.store != old.gitStore && git.exists(retained.store) &&
+          retained.storedBytes in 0..limits.compressed)
+        val snapshot = old.copy(entries = entries, downloadedStyles = remaining.sorted(),
+          sourceHash = graphHash(entries, remaining), gitStore = retained.store,
+          archiveBytes = retained.storedBytes, count = iconCount(entries, remaining))
+        val encoded = snapshot.json().toString().toByteArray(Charsets.UTF_8)
+        require(encoded.size <= MAX_META)
+        atomic(snapshotFile, encoded) { coroutine.ensureActive() }
+        published = true
+        fallbackIndex = null
+        localHealthProbe.invalidate()
+        settings.write("knownSourceHash", snapshot.sourceHash)
+        settings.write("corruptSourceHash", "")
+        withContext(NonCancellable) {
+          runCatching { git.published(snapshot.gitStore, snapshot.revision) }
+          // These are rebuildable copies; remaining source objects are already durable.
+          listOf(blobsDir, previewDir, renderedDir, File(root, "trees")).forEach { it.deleteRecursively() }
+        }
+        val after = resourceDirectories().sumOf { measureDiskCache(it).total } + snapshotFile.length()
+        (before - after).coerceAtLeast(0)
+      } finally {
+        if (!published && retained.store != old.gitStore && retained.store.matches(Regex("[a-zA-Z0-9-]{1,80}")))
+          File(root, "git/${retained.store}").deleteRecursively()
+      }
     }
   }
 
@@ -467,11 +613,21 @@ class PerfectIconRepository internal constructor(
     val count: Int,
     val etag: String,
     val upToDate: Boolean,
+    val gitStore: String = "",
+    val downloadedStyles: List<String> = styles,
+    val remoteCommittedAt: Long = 0,
+    val remoteSubject: String = "",
+    val transferredBytes: Long = 0,
   ) {
-    val catalog get() = PerfectIconCatalog(revision, styles, updatedAt, count, downloadedAt, sourceHash, upToDate, archiveBytes)
-    fun json(): JSONObject = JSONObject().put("version", 2).put("revision", revision).put("sourceHash", sourceHash)
+    val catalog get() = PerfectIconCatalog(revision, styles, updatedAt, count, downloadedAt, sourceHash,
+      upToDate, archiveBytes, downloadedStyles, remoteCommittedAt, remoteSubject, transferredBytes, gitStore.isNotEmpty())
+    fun json(): JSONObject = JSONObject().put("version", if (gitStore.isEmpty()) 2 else 3)
+      .put("revision", revision).put("sourceHash", sourceHash)
       .put("archiveBytes", archiveBytes).put("styles", JSONArray(styles)).put("updatedAt", updatedAt)
       .put("downloadedAt", downloadedAt).put("count", count).put("etag", etag).put("upToDate", upToDate)
+      .put("gitStore", gitStore).put("downloadedStyles", JSONArray(downloadedStyles))
+      .put("remoteCommittedAt", remoteCommittedAt).put("remoteSubject", remoteSubject)
+      .put("transferredBytes", transferredBytes)
       .put("entries", JSONArray(entries.map { JSONArray(listOf(it.path, it.sha, it.size, it.crc)) }))
   }
 
@@ -480,7 +636,8 @@ class PerfectIconRepository internal constructor(
   private fun localSnapshot(): Snapshot? = runCatching {
     if (!snapshotFile.isFile || snapshotFile.length() > MAX_META) return null
     val json = JSONObject(snapshotFile.readText(Charsets.UTF_8))
-    require(json.getInt("version") == 2)
+    val version = json.getInt("version")
+    require(version in 2..3)
     val revision = json.getString("revision")
     require(revision.isEmpty() || revision.matches(Regex("[0-9a-f]{40}")))
     val sourceHash = json.getString("sourceHash")
@@ -490,6 +647,16 @@ class PerfectIconRepository internal constructor(
     val entries = json.getJSONArray("entries")
     require(entries.length() in 1..limits.entries)
     val paths = hashSetOf<String>()
+    val available = (0 until styles.length()).map { styles.getString(it).also(PerfectIconFormat::style) }.sorted()
+    require(available.distinct().size == available.size)
+    val store = if (version == 3) json.getString("gitStore").also {
+      require(it.matches(Regex("[a-zA-Z0-9-]{1,80}")))
+    } else ""
+    val downloaded = if (version == 3) json.getJSONArray("downloadedStyles").let { array ->
+      require(array.length() in 1..256)
+      (0 until array.length()).map { array.getString(it).also(PerfectIconFormat::style) }.sorted()
+        .also { require(it.distinct().size == it.size && available.containsAll(it)) }
+    } else available
     val snapshot = Snapshot(revision, sourceHash, json.getLong("archiveBytes"),
       (0 until entries.length()).map { index ->
         val entry = entries.getJSONArray(index)
@@ -502,15 +669,169 @@ class PerfectIconRepository internal constructor(
         val crc = entry.getLong(3).also { require(it in 0..0xffffffffL) }
         PerfectIconSourceEntry(path, sha, size, crc)
       },
-      (0 until styles.length()).map { styles.getString(it).also(PerfectIconFormat::style) }.sorted(),
+      available,
       json.getLong("updatedAt").also { require(it >= 0) },
       json.getLong("downloadedAt").also { require(it >= 0) },
       json.getInt("count").also { require(it in 0..limits.entries) },
-      json.optString("etag", ""), json.optBoolean("upToDate", false))
-    require(snapshot.archiveBytes in 22..limits.compressed && archive(snapshot).isFile &&
-      archive(snapshot).length() == snapshot.archiveBytes)
+      json.optString("etag", ""), json.optBoolean("upToDate", false), store, downloaded,
+      json.optLong("remoteCommittedAt", 0).also { require(it >= 0) },
+      json.optString("remoteSubject", "").take(1024),
+      json.optLong("transferredBytes", 0).also { require(it >= 0) })
+    require(snapshot.entries.sumOf { it.size } <= limits.expanded)
+    require(snapshot.archiveBytes in 0..limits.compressed && sourceExists(snapshot))
     snapshot
   }.getOrNull()
+
+  private fun sourceExists(snapshot: Snapshot): Boolean =
+    if (snapshot.gitStore.isNotEmpty()) git?.exists(snapshot.gitStore) == true
+    else archive(snapshot).isFile && archive(snapshot).length() == snapshot.archiveBytes
+
+  private fun openSource(snapshot: Snapshot): PerfectGitReader {
+    val delegate = if (snapshot.gitStore.isNotEmpty()) requireNotNull(git).open(snapshot.gitStore)
+      else ZipSourceReader(ZipFile(archive(snapshot), Charsets.UTF_8))
+    return object : PerfectGitReader {
+      override fun read(entry: PerfectIconSourceEntry, check: () -> Unit): ByteArray = try {
+        delegate.read(entry, check)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (interrupted: InterruptedException) {
+        throw interrupted
+      } catch (failure: Exception) {
+        localHealthProbe.invalidate()
+        settings.write("corruptSourceHash", snapshot.sourceHash)
+        throw failure
+      }
+      override fun healthy(entries: List<PerfectIconSourceEntry>, check: () -> Unit): Boolean =
+        delegate.healthy(entries, check)
+      override fun close() = delegate.close()
+    }
+  }
+
+  private class ZipSourceReader(private val zip: ZipFile) : PerfectGitReader {
+    override fun read(entry: PerfectIconSourceEntry, check: () -> Unit): ByteArray {
+      val source = requireNotNull(zip.getEntry(PerfectIconSourceZip.PREFIX + entry.path))
+      require(source.size == entry.size && source.crc == entry.crc)
+      require(entry.size in 0..PerfectIconFormat.MAX_BLOB.toLong())
+      val output = ByteArrayOutputStream()
+      zip.getInputStream(source).use { input ->
+        val buffer = ByteArray(32 * 1024)
+        while (true) {
+          check()
+          val count = input.read(buffer)
+          if (count < 0) break
+          require(output.size().toLong() + count <= entry.size)
+          output.write(buffer, 0, count)
+        }
+      }
+      return output.toByteArray().also {
+        require(it.size.toLong() == entry.size && PerfectIconFormat.sha(it) == entry.sha &&
+          CRC32().apply { update(it) }.value == entry.crc) { "Local source resource integrity check failed" }
+      }
+    }
+
+    override fun healthy(entries: List<PerfectIconSourceEntry>, check: () -> Unit): Boolean =
+      entries.all { source ->
+        check()
+        val entry = zip.getEntry(PerfectIconSourceZip.PREFIX + source.path)
+        entry != null && entry.size == source.size && entry.crc == source.crc
+      }
+    override fun close() = zip.close()
+  }
+
+  private suspend fun refreshGit(
+    old: Snapshot?, requestedStyles: Set<String>, progress: (PerfectIconProgress) -> Unit, repair: Boolean,
+  ): Snapshot {
+    val backend = requireNotNull(git)
+    val coroutine = currentCoroutineContext()
+    val selected = requestedStyles.ifEmpty { setOf(options().style.ifEmpty { "default" }) }
+    selected.forEach(PerfectIconFormat::style)
+    require(selected.size <= 256)
+    val retained = if (old?.gitStore?.isNotEmpty() == true) old.downloadedStyles.toSet() else emptySet()
+    var fetched = backend.fetch(old?.gitStore?.takeIf { it.isNotEmpty() }, repair, retained + selected, progress)
+    val pendingStores = mutableSetOf(fetched.store)
+    var published = false
+    try {
+      coroutine.ensureActive()
+      require(fetched.remote.revision.matches(Regex("[0-9a-f]{40}")))
+      require(fetched.store.matches(Regex("[a-zA-Z0-9-]{1,80}")) && backend.exists(fetched.store))
+      require(fetched.availableStyles.size in 1..256 && fetched.downloadedStyles.isNotEmpty() &&
+        fetched.downloadedStyles.size <= 256 && fetched.availableStyles.containsAll(fetched.downloadedStyles) &&
+        fetched.downloadedStyles.containsAll(selected))
+      fetched.availableStyles.forEach(PerfectIconFormat::style)
+      require(fetched.entries.size in 1..limits.entries && fetched.storedBytes in 0..limits.compressed &&
+        fetched.transferredBytes >= 0 && fetched.remote.committedAt >= 0)
+      val paths = hashSetOf<String>()
+      var expanded = 0L
+      fetched.entries.sortedBy { it.path }.forEach { entry ->
+        coroutine.ensureActive()
+        PerfectIconFormat.safePath(entry.path)
+        require(paths.add(entry.path) && entry.sha.matches(Regex("[0-9a-f]{40}")))
+        require(entry.path.startsWith("icons/") ||
+          entry.path.startsWith("themes/common/layer_animating_icons/") ||
+          fetched.downloadedStyles.any { entry.path.startsWith("themes/$it/") })
+        require(entry.size in 0..PerfectIconFormat.MAX_BLOB.toLong() && entry.size <= limits.expanded - expanded)
+        expanded += entry.size
+      }
+      if (old != null && old.revision != fetched.remote.revision &&
+        backend.maintenanceNeeded(fetched.store, expanded)) {
+        val compacted = backend.retain(fetched.store, fetched.entries, progress)
+        pendingStores.add(compacted.store)
+        fetched = fetched.copy(store = compacted.store, storedBytes = compacted.storedBytes)
+      }
+      val count = iconCount(fetched.entries, fetched.downloadedStyles.toSet())
+      require(count > 0) { "Perfect Icons source lacks usable icon resources" }
+      val hash = graphHash(fetched.entries, fetched.downloadedStyles.toSet())
+      val checkedAt = now()
+      val snapshot = Snapshot(fetched.remote.revision, hash, fetched.storedBytes, fetched.entries,
+        fetched.availableStyles.sorted(), checkedAt,
+        if (hash == old?.sourceHash) old.downloadedAt else checkedAt, count, "", hash == old?.sourceHash,
+        fetched.store, fetched.downloadedStyles.sorted(), fetched.remote.committedAt,
+        fetched.remote.subject.take(1024), fetched.transferredBytes)
+      val encoded = snapshot.json().toString().toByteArray(Charsets.UTF_8)
+      require(encoded.size <= MAX_META) { "Perfect Icons source index exceeds its size limit" }
+      atomic(snapshotFile, encoded) { coroutine.ensureActive() }
+      published = true
+      fallbackIndex = null
+      // The pointer is durable. Housekeeping must not turn this successful publication into a failed sync.
+      runCatching { backend.published(snapshot.gitStore, snapshot.revision) }
+      runCatching { saveRemote(fetched.remote) }
+      sourceDir.listFiles().orEmpty().filter { it.isFile && it.extension == "zip" }.forEach { it.delete() }
+      return snapshot
+    } finally {
+      if (!published) pendingStores.filter {
+        it != old?.gitStore && it.matches(Regex("[a-zA-Z0-9-]{1,80}"))
+      }.forEach { File(root, "git/$it").deleteRecursively() }
+    }
+  }
+
+  private fun graphHash(entries: List<PerfectIconSourceEntry>, styles: Set<String>): String {
+    val identity = MessageDigest.getInstance("SHA-256")
+    entries.sortedBy { it.path }.forEach {
+      identity.update("${it.path}\u0000${it.sha}\u0000${it.size}\n".toByteArray(Charsets.UTF_8))
+    }
+    styles.sorted().forEach { identity.update("style:$it\n".toByteArray(Charsets.UTF_8)) }
+    return identity.digest().joinToString("") { "%02x".format(it) }
+  }
+
+  private fun iconCount(entries: List<PerfectIconSourceEntry>, styles: Set<String>): Int {
+    val base = entries.filter { it.path.startsWith("icons/") }.map {
+      PerfectIconBlob(it.path.removePrefix("icons/"), it.sha, it.size, it.path)
+    }
+    val common = entries.filter { it.path.startsWith("themes/common/layer_animating_icons/") }.map {
+      PerfectIconBlob(it.path.removePrefix("themes/common/layer_animating_icons/"), it.sha, it.size, it.path)
+    }
+    return styles.maxOf { style ->
+      val static = entries.filter { it.path.startsWith("themes/$style/icons/") }.map {
+        PerfectIconBlob(it.path.removePrefix("themes/$style/icons/"), it.sha, it.size, it.path)
+      }
+      val dynamic = entries.filter { it.path.startsWith("themes/$style/layer_animating_icons/") }.map {
+        PerfectIconBlob(it.path.removePrefix("themes/$style/layer_animating_icons/"), it.sha, it.size, it.path)
+      }
+      val plan = PerfectIconFormat.plan(base, static, common, dynamic,
+        PerfectIconOptions(style = style, installedOnly = false, dynamic = true), emptySet())
+      (plan.staticIds + plan.dynamicIds).size
+    }
+  }
 
   private suspend fun refresh(old: Snapshot?, progress: (PerfectIconProgress) -> Unit,
     forceDownload: Boolean): Snapshot {
@@ -925,39 +1246,11 @@ class PerfectIconRepository internal constructor(
 
 
   private suspend fun sourceBytes(
-    zip: ZipFile, blob: PerfectIconBlob, source: PerfectIconSourceEntry,
+    sourceReader: PerfectGitReader, blob: PerfectIconBlob, source: PerfectIconSourceEntry,
   ): ByteArray {
     require(blob.size in 0..PerfectIconFormat.MAX_BLOB.toLong()) { "Selected source resource exceeds size limit" }
-    try {
-      val coroutine = currentCoroutineContext()
-      val entry = requireNotNull(zip.getEntry(PerfectIconSourceZip.PREFIX + blob.source))
-      require(entry.size == source.size && entry.crc == source.crc)
-      val bytes = zip.getInputStream(entry).use { input ->
-        val output = ByteArrayOutputStream()
-        val buffer = ByteArray(32 * 1024)
-        var count = 0L
-        while (true) {
-          coroutine.ensureActive()
-          val read = input.read(buffer)
-          if (read < 0) break
-          count += read
-          require(count <= blob.size && count <= PerfectIconFormat.MAX_BLOB)
-          output.write(buffer, 0, read)
-        }
-        output.toByteArray()
-      }
-      require(bytes.size.toLong() == blob.size && PerfectIconFormat.sha(bytes) == blob.sha &&
-        CRC32().apply { update(bytes) }.value == source.crc) { "Local source resource integrity check failed" }
-      return bytes
-    } catch (cancelled: CancellationException) {
-      throw cancelled
-    } catch (interrupted: InterruptedException) {
-      throw interrupted
-    } catch (failure: Exception) {
-      localHealthProbe.invalidate()
-      settings.write("corruptSourceHash", File(zip.name).nameWithoutExtension)
-      throw failure
-    }
+    val coroutine = currentCoroutineContext()
+    return sourceReader.read(source) { coroutine.ensureActive() }
   }
 
   private suspend fun previewHash(file: File): String {

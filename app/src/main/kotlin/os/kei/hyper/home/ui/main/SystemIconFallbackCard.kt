@@ -71,7 +71,7 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
   LaunchedEffect(model, perfect.clearingCache) {
     if (!perfect.clearingCache) model.perfectPacks.load()
   }
-  val downloadedStyles = perfect.catalog?.styles.orEmpty()
+  val downloadedStyles = perfect.catalog?.downloadedStyles.orEmpty()
   val choices = systemFallbackChoices(model.preferences.systemIconFallbackChoices, downloadedStyles,
     preferences.perfectFallbackExpanded, preferences.systemIconFallback)
   val resourcesAvailable = (preferences.systemIconFallback.perfectStyle

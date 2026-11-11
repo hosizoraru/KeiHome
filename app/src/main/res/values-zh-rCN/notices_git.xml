@@ -1,0 +1,6 @@
+<resources>
+    <string name="notices_role_git">匿名 Git 同步与对象存储 · EDL 1.0</string>
+    <string name="notices_role_git_bitmap">Git 压缩位图索引 · Apache 2.0</string>
+    <string name="notices_role_logging">日志接口 · MIT</string>
+    <string name="notices_role_encoding">二进制编解码与摘要 · Apache 2.0</string>
+</resources>

@@ -54,7 +54,10 @@ GROUPS = {
         "PackEventTimeTest",)),
     "perfect-sync": ("jvm", "Sync history, health, cached source and cancellation", (
         "PerfectSyncHistoryTest", "PerfectIconSyncHealthTest", "PerfectLocalHealthProbeTest",
-        "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest")),
+        "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest", "PerfectGitRepositoryTest",
+        "PerfectIconGitTest", "PerfectPackStateTest")),
+    "ui-perfect": ("device", "Perfect resources, readiness and OS4 destructive confirmations", (
+        "os.kei.hyper.home.ui.main.PerfectGitUiTest",)),
     "scope": ("jvm", "Scope authorization requests and missing targets", (
         "StaticScopeRequestsTest",)),
     "icon-shape": ("jvm", "Native config completion, generation flags and converted archive boundaries", (

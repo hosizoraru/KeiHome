@@ -11,7 +11,7 @@ Current output configuration is owned by `HyperOs4IconModule`. Its stock shape
 comes from the destination product theme through `NativeAdaptiveIconMask`, not
 one research device's path. Dynamic loading is enabled only when the generated
 module actually includes dynamic resources. The contract revision and shape
-participate in publication and preview identity; the complete source snapshot
+participate in publication and preview identity; the selected source graph
 and content-addressed resources are reused.
 
 See [source and implementation provenance](perfect-icons-provenance.md) for the
@@ -70,9 +70,10 @@ acceptance of every upstream dynamic animation or every OEM device.
 
 ## Workflow
 
-1. Explicitly sync the complete upstream repository snapshot. A single streamed
-   GET to GitHub's codeload ZIP endpoint downloads the current `main` tree,
-   without Git history. Opening the page only loads local metadata.
+1. Check the remote explicitly through anonymous Git HTTPS. This reads the `main`
+   commit and a shallow, blob-filtered directory index, without image resources.
+   Select a style, then explicitly download its dependencies; opening the page
+   and changing a style remain local. See [Git synchronization](perfect-git-sync.md).
 2. Select a theme. The default choice uses upstream `themes/default`, over
    the common third-party `icons` tree. `common` is shared dynamic data,
    not a selectable style.
@@ -132,44 +133,40 @@ identity is not a reason to bypass these checks.
 
 ## Download and storage behavior
 
-The primary flow makes no REST API tree queries or per-image raw requests.
-Later explicit syncs send `If-None-Match` to the same codeload endpoint. A
-`304` updates the successful-check time, keeps the snapshot download time,
-and reports that the repository is unchanged. A changed snapshot is fully
-validated before its durable catalog pointer replaces the previous one.
-Network or validation failure preserves the old snapshot, timestamps and
-generated pack.
+Production acquisition uses JGit, with no GitHub REST API, account, token,
+external Git executable, checkout, installer scripts or source ZIP repacking.
+A remote check reads the advertised branch and filtered metadata. Explicit sync
+fetches only missing Git blob identities for the selected styles' dependency
+graph. Previously downloaded styles stay available offline. Identical objects
+are shared between styles and revisions; upstream deletions and renames are
+reflected by replacing the index rather than appending filenames.
 
-The source commit is read from GitHub's Git-archive ZIP comment, tying the
-displayed revision to the downloaded archive rather than a separate branch
-lookup that might race an upstream update. The UI shows seven characters
-and copies the complete commit when tapped. An absent comment is recorded
-as an unknown commit; the independently computed archive SHA-256 is then
-labelled as a snapshot checksum, never as a Git commit.
+The full Git commit, actual upstream commit time and subject are separate from
+local check and successful-sync times. Checking updates never records a resource
+sync as successful. The short revision can be copied in full. Source identity is
+a SHA-256 of the selected resource graph and acquired style set, so a commit that
+does not change those resources need not invalidate generated artwork.
 
-Source archives are persistent offline data, with their size shown separately.
-The actual `fb8b5c9` source snapshot is 594,366,831 bytes (about 567 MiB):
-27,597 ZIP entries and 609,922,400 expanded bytes. This is a substantial
-one-time transfer; reducing the request count does not make the repository
-smaller. The parser's retained limits admit this real snapshot.
-Generation, style changes and installed-app filtering read only that snapshot.
-Files are cached by locally verified Git blob identity
-(`SHA1("blob " + length + NUL + content)`), allowing reuse across theme
-selections and later commits. Clearing derived caches keeps the complete
-snapshot, options and generated/imported packs; later generation repairs
-those caches locally without another download.
+A verified last-good index remains published through network, validation and
+cancellation failures. Local generation and previews open bounded Git objects,
+not a full archive. Extracted/rendered previews remain disposable caches. Repair
+uses a new store generation and publishes its index only after acquisition is
+complete. See [the storage and transport contract](perfect-git-sync.md).
 
-The downloader streams to a private temporary file with cancellation checks.
-Archive size, expanded size, entry count, compression ratios, duplicate paths,
-links, CRCs and local/central-name consistency are bounded or verified.
-Only selected icon resources enter the generated pack; repository scripts
-are never executed. Requests observe persisted cooldowns without recursive
-retries. A `403` without rate-limit evidence is a download failure, not an
-assertion that GitHub rate-limited the user. Whole snapshots avoid REST's
-anonymous request quota but are not exempt from network or site protections.
+Source and storage offers two distinct actions with MIUIX OS4 confirmation:
+clear derived caches, or delete downloaded source resources and their caches.
+Both preserve generated ZIPs and imported/applied packs. Source deletion also
+resets local source/check/sync status. User options remain available for the next
+download. No action requires clearing the entire application's data.
 
-No artwork from these projects is added to the shipped APK by this integration.
-Both sources are linked in the page and the component attribution screen.
+Older ZIP snapshots remain readable for bounded fixtures and internal builds;
+production sync no longer contacts codeload. Historical full-archive receipts
+below describe the former transport, not the current network cost. In
+particular the retained `fb8b5c9` archive was 594,366,831 bytes; that is not an
+estimate for any selected style's Git transfer.
+
+No resource artwork is bundled into the shipped APK. The upstream repository
+and authors retain their resource rights.
 
 ## Acceptance record
 
@@ -197,34 +194,14 @@ exact signed build, AVD screenshots, menu/search behavior, font-scale restoratio
 and process continuity. This layout change does not modify the source downloader,
 conversion pipeline, generated theme or native Hook payload.
 
-## Explicit full download
+## Explicit source repair
 
-The Source & Storage page has a floating “Force download latest resources”
-action. A confirmation explains the full repository transfer (potentially over
-600 MB), temporary disk space and preservation of the active theme. Cancel
-performs no network work. Confirm skips the local ETag and source rehash but
-still observes the existing cooldown, validates the complete downloaded ZIP
-and publishes its pointer atomically before retiring older source bytes.
-Failure retains the previous usable snapshot. Normal synchronization remains
-conditional. Neither action applies a generated theme.
+The Source and storage action repairs the selected and previously downloaded
+styles. An OS4 confirmation explains the resource download and retention of
+usable old resources on failure. Cancel performs no network work. Repair uses
+an isolated store generation; it does not apply a theme. Routine updates reuse
+verified existing objects instead of selecting this repair path.
 
-The system-app fallback resource entry always opens Source & Storage, including
-when resources have not yet been downloaded. Progress and errors stay visible
-on this page, with measured space reserved below the list for the floating action.
-EN, Simplified Chinese and Japanese use the same flow. Acceptance evidence is
-recorded in `.artifacts/research/perfect-force-sync-20261109/acceptance.json`.
-
-Source & Storage uses the shared status-card layout, with local icon count,
-archive size and a copyable short revision in pills. The full revision, checksum,
-download timestamp and generated filename are available in a MIUIX WindowDialog.
-Cache size sits alongside its cleanup action; source attribution has its own
-local subpage. The full-download confirmation also uses MIUIX WindowDialog,
-with native title/summary layout and equal-width cancel/primary buttons.
-Opening the page never starts a download.
-
-Before the first snapshot exists, the action and confirmation use first-download
-wording. With a usable snapshot, the same entry explicitly offers a forced
-re-download. Both paths require confirmation and share the validated transfer.
 
 ## Layer rule checkpoint (2026-11-09)
 

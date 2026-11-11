@@ -30,12 +30,15 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCooldownException
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
+import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconResult
 import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
 import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
 
-internal enum class PerfectPackError { LOCAL, CATALOG, NETWORK, COOLDOWN, INSTALLED, GENERATE, IMPORT, EMPTY, CACHE }
+internal enum class PerfectPackError {
+  LOCAL, CATALOG, NETWORK, CHECK, STYLE_NEEDED, COOLDOWN, INSTALLED, GENERATE, IMPORT, EMPTY, CACHE, DELETE,
+}
 internal enum class PerfectSyncIssue { FAILED, INTERRUPTED, CORRUPT }
 
 internal data class PerfectPackPreviewState(
@@ -49,14 +52,19 @@ internal data class PerfectPackPreviewState(
 internal data class PerfectPackState(
   val options: PerfectIconOptions = PerfectIconOptions(),
   val catalog: PerfectIconCatalog? = null,
+  val remote: PerfectIconRemote? = null,
   val loading: Boolean = false,
+  val checking: Boolean = false,
   val refreshing: Boolean = false,
   val generating: Boolean = false,
   val clearingCache: Boolean = false,
+  val deletingResources: Boolean = false,
   val previewLoading: Boolean = false,
   val clearedBytes: Long? = null,
+  val deletedBytes: Long? = null,
   val progress: PerfectIconProgress? = null,
   val cacheBytes: Long = 0,
+  val resourceBytes: Long = 0,
   val retryAtMillis: Long = 0,
   val error: PerfectPackError? = null,
   val result: PerfectIconResult? = null,
@@ -66,7 +74,15 @@ internal data class PerfectPackState(
   val syncIssueAtMillis: Long = 0,
   val lastSuccessfulSyncAtMillis: Long = 0,
 ) {
-  val busy: Boolean get() = loading || refreshing || generating || clearingCache || previewLoading
+  val busy: Boolean get() = loading || checking || refreshing || generating || clearingCache ||
+    deletingResources || previewLoading
+  val selectedStyle: String get() = options.style.ifEmpty { "default" }
+  val ready: Boolean get() = catalog?.downloadedStyles?.any {
+    it.ifEmpty { "default" } == selectedStyle
+  } == true
+  val updateAvailable: Boolean get() = remote?.let { latest ->
+    catalog?.let { it.revision != latest.revision }
+  } == true
 }
 
 /** Owns page work in the Home ViewModel, so navigation does not restart network requests. */
@@ -87,6 +103,10 @@ internal class PerfectPackController(
   fun loadPreview(refresh: Boolean = false) {
     val current = state.value
     if (current.busy) return
+    if (!current.ready) {
+      mutablePreview.value = PerfectPackPreviewState(options = current.options, failed = true)
+      return
+    }
     val catalog = current.catalog ?: run {
       mutablePreview.value = PerfectPackPreviewState(options = current.options, failed = true)
       return
@@ -141,6 +161,8 @@ internal class PerfectPackController(
       try {
         withContext(Dispatchers.IO) {
           val options = repository.options()
+          val remote = repository.remoteStatus()
+          mutableState.update { it.copy(options = options, remote = remote) }
           val catalog = repository.catalog(refresh = false)
           mutableState.update { it.copy(options = options, catalog = catalog) }
           val saved = storage.getString("last_generated", null)?.let(::JSONObject)
@@ -202,6 +224,44 @@ internal class PerfectPackController(
     }
   }
 
+  fun deleteResources() {
+    removeResources(null)
+  }
+
+  fun removeStyles(styles: Set<String>) {
+    val downloaded = state.value.catalog?.downloadedStyles.orEmpty().map { it.ifEmpty { "default" } }.toSet()
+    val requested = styles.map { it.ifEmpty { "default" } }.toSet().intersect(downloaded)
+    if (requested.isEmpty()) return
+    removeResources(requested)
+  }
+
+  private fun removeResources(styles: Set<String>?) {
+    if (state.value.busy) return
+    mutableState.update { it.copy(deletingResources = true, deletedBytes = null, progress = null, error = null) }
+    scope.launch {
+      try {
+        val bytes = withContext(Dispatchers.IO) {
+          if (styles == null) repository.deleteResources()
+          else repository.removeStyles(styles) { progress ->
+            mutableState.update { it.copy(progress = progress) }
+          }
+        }
+        mutableState.update { it.copy(deletedBytes = bytes, clearedBytes = null, progress = null) }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        mutableState.update { it.copy(error = PerfectPackError.DELETE) }
+      } finally {
+        withContext(NonCancellable) {
+          mutablePreview.value = PerfectPackPreviewState()
+          updateCache()
+          mutableState.update { it.copy(deletingResources = false) }
+          onGenerated()
+        }
+      }
+    }
+  }
+
   fun setOptions(options: PerfectIconOptions) {
     if (state.value.busy) return
     mutableState.update { it.copy(loading = true, error = null) }
@@ -220,16 +280,58 @@ internal class PerfectPackController(
     }
   }
 
-  fun refreshCatalog(forceDownload: Boolean = false) {
+  fun checkUpdates() {
     if (!canStart()) return
-    mutableState.update { it.copy(refreshing = true, clearedBytes = null, error = null) }
+    mutableState.update { it.copy(checking = true, progress = null, error = null) }
     scope.launch {
       try {
-        val catalog = withContext(Dispatchers.IO) {
-          repository.catalog(refresh = true, forceDownload = forceDownload) { progress ->
+        val remote = withContext(Dispatchers.IO) {
+          repository.checkUpdates { progress ->
             mutableState.update { it.copy(progress = progress) }
           }
         }
+        mutableState.update { it.copy(remote = remote) }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: PerfectIconCooldownException) {
+        mutableState.update { it.copy(error = PerfectPackError.COOLDOWN) }
+      } catch (_: Exception) {
+        mutableState.update { it.copy(error = PerfectPackError.CHECK) }
+      } finally {
+        withContext(NonCancellable) {
+          updateCache()
+          mutableState.update { it.copy(checking = false, progress = null) }
+        }
+      }
+    }
+  }
+
+  fun refreshCatalog(forceDownload: Boolean = false) {
+    syncStyles(setOf(state.value.selectedStyle), forceDownload)
+  }
+
+  fun downloadStyles(styles: Set<String>) {
+    if (styles.isEmpty()) return
+    syncStyles(styles.map { it.ifEmpty { "default" } }.toSet(), forceDownload = false)
+  }
+
+  fun repairResources() {
+    val downloaded = state.value.catalog?.downloadedStyles.orEmpty().map { it.ifEmpty { "default" } }.toSet()
+    if (downloaded.isNotEmpty()) syncStyles(downloaded, forceDownload = true)
+  }
+
+  private fun syncStyles(styles: Set<String>, forceDownload: Boolean) {
+    if (!canStart()) return
+    mutableState.update { it.copy(refreshing = true, progress = null, clearedBytes = null,
+      deletedBytes = null, error = null) }
+    scope.launch {
+      try {
+        val catalog = withContext(Dispatchers.IO) {
+          repository.catalog(refresh = true, forceDownload = forceDownload, styles = styles) { progress ->
+            mutableState.update { it.copy(progress = progress) }
+          }
+        }
+        if (catalog != null) mutablePreview.value = PerfectPackPreviewState()
         mutableState.update { it.copy(catalog = catalog ?: it.catalog,
           error = if (catalog == null) PerfectPackError.CATALOG else null) }
       } catch (cancelled: CancellationException) {
@@ -251,10 +353,10 @@ internal class PerfectPackController(
   }
 
   fun generate() {
-    // Generating from the complete local snapshot never needs the network.
+    // Only explicitly downloaded styles can generate; this path stays offline.
     if (state.value.busy) return
-    if (state.value.catalog == null) {
-      mutableState.update { it.copy(error = PerfectPackError.CATALOG) }
+    if (!state.value.ready) {
+      mutableState.update { it.copy(error = PerfectPackError.STYLE_NEEDED) }
       return
     }
     val options = state.value.options
@@ -312,20 +414,23 @@ internal class PerfectPackController(
     withContext(Dispatchers.IO) {
       try {
         val bytes = repository.cacheBytes()
+        val resourceBytes = repository.resourceBytes()
         val retry = repository.retryAtMillis()
         val local = repository.localStatus()
         val history = repository.syncHistory()
+        val remote = repository.remoteStatus()
         val issue = if (local.health == PerfectLocalHealth.CORRUPT) PerfectSyncIssue.CORRUPT
           else when (history.issue) {
             PerfectSyncFailure.FAILED -> PerfectSyncIssue.FAILED
             PerfectSyncFailure.INTERRUPTED -> PerfectSyncIssue.INTERRUPTED
             null -> null
           }
-        mutableState.update { it.copy(cacheBytes = bytes, retryAtMillis = retry,
+        mutableState.update { it.copy(cacheBytes = bytes, resourceBytes = resourceBytes,
+          retryAtMillis = retry, remote = remote,
           syncIssue = issue,
           syncIssueAtMillis = if (issue == PerfectSyncIssue.CORRUPT) local.corruptAtMillis else history.issueAtMillis,
           lastSuccessfulSyncAtMillis = history.lastSuccessfulSyncAtMillis,
-          catalog = if (local.health == PerfectLocalHealth.CORRUPT) null else it.catalog) }
+          catalog = local.catalog.takeIf { local.health == PerfectLocalHealth.READY }) }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {

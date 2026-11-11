@@ -44,6 +44,24 @@ python3 scripts/checks.py ui-actions --serial emulator-5580 --run
 python3 scripts/checks.py ui-actions --method syncIssuePillsKeepTheLastSuccessAndDistinguishFirstUse --serial emulator-5580 --run
 ```
 
+`perfect-sync` includes selective Git objects, resource-graph deletion, offline
+readiness and last-good snapshot preservation. `ui-perfect` covers the resource
+manager's batch selection and MIUIX OS4 confirmations, without network or real
+source deletion. Actual transport acceptance is opt-in:
+
+```sh
+adb -s emulator-5580 shell am instrument -w \
+  -e class os.kei.hyper.home.iconpack.perfect.PerfectGitDeviceTest \
+  -e perfectGitNetwork true \
+  -e perfectGitFixture /data/local/tmp/keihome-perfect-git-fixture-20261111 \
+  os.kei.hyper.home.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+This transport fixture must be prepared explicitly; it is an owned small bare
+repository with two revisions, selected/shared resources and an unrelated blob.
+The test uses an isolated cache root, preserves the user's source data, and
+deletes that temporary root on completion. See `docs/perfect-git-sync.md`.
+
 Device groups operate on the APKs already installed on the explicit target.
 They do not build, sign, install, clear data, uninstall, restart scopes or fetch
 icon resources. Build main and AndroidTest together before deploying a changed

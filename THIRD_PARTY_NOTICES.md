@@ -1,5 +1,28 @@
 # Third-party notices
 
+## Eclipse JGit core
+
+Perfect Icons uses the official Eclipse JGit core artifact
+`org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r` for anonymous Git
+transport, object validation, and bare pack storage. Its official parent POM
+targets Java 17 and declares BSD-3-Clause (Eclipse Distribution License 1.0).
+No JGit SSH or external Git executable is used.
+
+- Project: https://eclipse.dev/jgit/
+- Artifact POM: https://repo.maven.apache.org/maven2/org/eclipse/jgit/org.eclipse.jgit/7.8.1.202611041320-r/org.eclipse.jgit-7.8.1.202611041320-r.pom
+- Parent POM: https://repo.maven.apache.org/maven2/org/eclipse/jgit/org.eclipse.jgit-parent/7.8.1.202611041320-r/org.eclipse.jgit-parent-7.8.1.202611041320-r.pom
+- License and bundled SHA-1 UbcCheck MIT notice, reproduced from the official
+  core JAR's `about.html`: `licenses/JGit-EDL-1.0.txt`.
+
+The core artifact also brings these runtime dependencies:
+
+- JavaEWAH 1.2.3, Apache-2.0. Copyright 2009-2016 Daniel Lemire, Cliff Moon,
+  David McIntosh, Robert Becho, Google Inc., Veronika Zenz, Owen Kaser,
+  Gregory Ssi-Yan-Kai, and Rory Graves. See `licenses/Apache-2.0.txt`.
+- SLF4J API 2.0.18, MIT. See `licenses/SLF4J-MIT.txt`.
+- Apache Commons Codec 1.22.0, Apache-2.0. See `licenses/Apache-2.0.txt`
+  and the upstream notice in `licenses/Commons-Codec-NOTICE.txt`.
+
 ## CommonMark
 
 `org.commonmark:commonmark` parses bundled release-note Markdown. Rendering uses

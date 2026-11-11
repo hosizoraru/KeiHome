@@ -1,4 +1,5 @@
 [versions]
+jgit = "7.8.1.202611041320-r"
 androidGradlePlugin = "9.5.1"
 androidxCore = "1.19.1"
 androidxLifecycle = "2.11.0"
@@ -42,6 +43,7 @@ mmkv = "2.4.3"
 zipflinger = "9.5.1"
 
 [libraries]
+jgit-core = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
 commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 lucide-icons = { module = "com.composables:icons-lucide-android", version.ref = "lucide-icons" }
 androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "androidxNavigationEvent" }

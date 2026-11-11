@@ -196,6 +196,7 @@ internal fun PerfectSubpage(
   refreshEnabled: Boolean = true,
   actions: @Composable RowScope.() -> Unit = {},
   floatingActionButton: @Composable () -> Unit = {},
+  floatingToolbar: @Composable () -> Unit = {},
   bottomSpacing: androidx.compose.ui.unit.Dp = 24.dp,
   content: LazyListScope.() -> Unit,
 ) {
@@ -215,7 +216,7 @@ internal fun PerfectSubpage(
           }
         })
     }
-  }, floatingActionButton = floatingActionButton) { padding ->
+  }, floatingActionButton = floatingActionButton, floatingToolbar = floatingToolbar) { padding ->
     LazyColumn(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .nestedScroll(behavior.nestedScrollConnection),

@@ -19,9 +19,21 @@ The application never checks out or executes upstream scripts.
 4. Local previews, generation and system-app fallback use acquired resources.
    A newer remote commit does not disable a usable offline style. A style not
    acquired locally offers a download action instead of an empty preview.
-5. Source and storage shows downloaded styles, stored bytes, the last transfer
-   and revision information. Repair, cache clearing and source deletion are
-   separate actions; destructive actions require MIUIX OS4 confirmation.
+5. Resource management opens in browsing mode with a shared status card.
+   Tapping a style opens its download/update and removal actions. The top bar
+   Select icon enters contextual multi-selection; only then do checkboxes
+   and a single OS4 glass toolbar appear. Its five icon actions are select all,
+   deselect all, download, remove and Done. Selection counts appear only in the
+   title. Removal is red when enabled; all icons have localized accessible names.
+   Changing the filter clears selection. Back or Done exits selection before
+   leaving the page. Submitted batch operations return to browsing; canceling
+   a removal confirmation retains the selection.
+6. Check updates remains in the top bar. The management menu exposes repair,
+   cache clearing and full resource deletion directly. The status card and
+   Version and source menu item open a MIUIX OS4 dialog with revision, sync,
+   storage and attribution details. No source/storage expansion group or
+   additional child page is needed. Destructive actions retain MIUIX OS4
+   confirmation. New selection and refresh actions are disabled while busy.
 
 The resource selection follows the existing formatter's rules: complete static
 layer pairs, style-specific flat/layer overrides and complete native dynamic

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_resource_select">Select</string>
+  <string name="perfect_resource_done">Done</string>
+  <string name="perfect_resource_select_none">Deselect all</string>
+  <string name="perfect_resource_manage">Manage resources</string>
+  <string name="perfect_resource_info">Version and source</string>
+  <string name="perfect_resource_close">Close</string>
+  <string name="perfect_resource_remove_short">Delete</string>
+  <string name="perfect_resource_styles">Icon styles</string>
+  <string name="perfect_resource_ready">Resources ready</string>
+  <string name="perfect_resource_ready_summary">Open a style for actions, or select several from the top bar.</string>
+  <string name="perfect_resource_empty_summary">Download styles to preview and generate offline.</string>
+  <string name="perfect_resource_style_count">Downloaded %1$d / %2$d</string>
+  <string name="perfect_resource_filter_empty">No downloaded styles. Switch to all styles to browse.</string>
+  <string name="perfect_resource_style_ready">Downloaded. Choose this style on the overview to preview or generate icons.</string>
+  <string name="perfect_resource_style_missing">Download this style and required shared resources. This does not apply an icon pack.</string>
+  <string name="perfect_resource_local_revision">Local revision %1$s</string>
+  <string name="perfect_resource_cache_size">Rebuildable cache %1$s</string>
+  <string name="perfect_resource_source_size">Downloaded resources %1$s</string>
+  <string name="perfect_resource_info_hint">Only selected styles and required shared resources are synchronized. Unchanged objects are reused. Cleanup and repair are available in the top bar menu.</string>
+  <string name="perfect_resource_corrupt">Some resources are incomplete. Use Repair in the top bar menu.</string>
+  <string name="perfect_resource_incomplete">Needs repair</string>
+</resources>

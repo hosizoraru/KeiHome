@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_resource_select">选择</string>
+  <string name="perfect_resource_done">完成</string>
+  <string name="perfect_resource_select_none">全不选</string>
+  <string name="perfect_resource_manage">管理资源</string>
+  <string name="perfect_resource_info">版本与来源</string>
+  <string name="perfect_resource_close">关闭</string>
+  <string name="perfect_resource_remove_short">删除</string>
+  <string name="perfect_resource_styles">图标样式</string>
+  <string name="perfect_resource_ready">资源已就绪</string>
+  <string name="perfect_resource_ready_summary">选择样式查看操作，或使用顶栏多选管理。</string>
+  <string name="perfect_resource_empty_summary">下载需要的样式，之后可离线预览和生成。</string>
+  <string name="perfect_resource_style_count">已下载 %1$d / %2$d</string>
+  <string name="perfect_resource_filter_empty">暂无已下载样式，可切换到全部风格。</string>
+  <string name="perfect_resource_style_ready">资源已下载。可在总览选择此样式，预览或生成图标包。</string>
+  <string name="perfect_resource_style_missing">下载此样式及必需的共享资源，不会自动应用图标包。</string>
+  <string name="perfect_resource_local_revision">本地版本 %1$s</string>
+  <string name="perfect_resource_cache_size">可重建缓存 %1$s</string>
+  <string name="perfect_resource_source_size">下载资源 %1$s</string>
+  <string name="perfect_resource_info_hint">仅同步所选样式与必需的共享资源；未变更的对象会复用。清理和修复可从顶栏菜单操作。</string>
+  <string name="perfect_resource_corrupt">部分资源不完整，可从顶栏菜单修复。</string>
+  <string name="perfect_resource_incomplete">待修复</string>
+</resources>

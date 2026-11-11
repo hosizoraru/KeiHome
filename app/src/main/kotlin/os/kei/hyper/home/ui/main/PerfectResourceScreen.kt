@@ -1,49 +1,72 @@
 package os.kei.hyper.home.ui.main
 
 import android.text.format.Formatter
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
-import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
+import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
-import os.kei.hyper.home.ui.components.Os4DisclosureContent
-import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.material.GlassDefaults
+import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -71,217 +94,272 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   onDelete: () -> Unit, onClearCache: () -> Unit) {
   val context = LocalContext.current
   val uri = LocalUriHandler.current
-  val downloaded = state.catalog?.downloadedStyles.orEmpty().map { it.ifEmpty { "default" } }.toSet()
-  val styles = remember(state.remote?.availableStyles, state.catalog?.styles, downloaded) {
-    val available = state.remote?.availableStyles?.takeIf { it.isNotEmpty() }
-      ?: state.catalog?.styles?.takeIf { it.isNotEmpty() }
-      ?: listOf("default", SystemIconFallback.DEFAULT_PERFECT_STYLE)
-    (available.map { it.ifEmpty { "default" } } + downloaded)
-      .distinct().sortedWith(compareBy<String> { it != "default" }.thenBy { it })
-  }
-  var selection by remember { mutableStateOf(emptySet<String>()) }
-  var downloadedOnly by remember { mutableStateOf(false) }
-  var showStorage by remember { mutableStateOf(false) }
-  var removal by remember { mutableStateOf(emptySet<String>()) }
-  var confirmDelete by remember { mutableStateOf(false) }
-  var confirmCache by remember { mutableStateOf(false) }
-  var confirmRepair by remember { mutableStateOf(false) }
-  var actionHeight by remember { mutableIntStateOf(0) }
-  val selected = selection.intersect(styles.toSet())
-  val removable = selected.intersect(downloaded)
-  val visible = if (downloadedOnly) styles.filter { it in downloaded } else styles
   val cooling = state.retryAtMillis > System.currentTimeMillis()
-  val bottomSpacing = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val defaultName = stringResource(R.string.perfect_icons_style_default)
-  val names: (Set<String>) -> String = { values ->
-    styles.filter { it in values }.joinToString { if (it == "default") defaultName else it }
+  val downloaded = remember(state.catalog) {
+    state.catalog?.downloadedStyles.orEmpty().map { it.ifEmpty { "default" } }.toSet()
   }
+  val available = remember(state.catalog, state.remote, downloaded) {
+    (state.remote?.availableStyles?.takeIf { it.isNotEmpty() }
+      ?: state.catalog?.styles?.takeIf { it.isNotEmpty() }
+      ?: listOf("default", "HyperOS4")).plus(downloaded)
+      .map { it.ifEmpty { "default" } }.distinct()
+      .sortedWith(compareBy<String> { it != "default" }.thenBy { it })
+  }
+  var selecting by rememberSaveable { mutableStateOf(false) }
+  var selection by rememberSaveable { mutableStateOf(listOf<String>()) }
+  var downloadedOnly by rememberSaveable { mutableStateOf(false) }
+  val visible = remember(available, downloaded, downloadedOnly) {
+    if (downloadedOnly) available.filter { it in downloaded } else available
+  }
+  val selected = selection.filter { it in visible }
+  val selectedDownloaded = selected.filter { it in downloaded }
+  LaunchedEffect(visible) { selection = selection.filter { it in visible } }
+  fun exitSelection() { selecting = false; selection = emptyList() }
   fun toggle(style: String) {
-    if (!busy) selection = if (style in selection) selection - style else selection + style
+    selection = if (style in selection) selection - style else selection + style
   }
+  // A completed back gesture leaves selection before leaving the resource page.
+  NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None),
+    isBackEnabled = selecting, onBackCompleted = { exitSelection() })
+  var focusedStyle by remember { mutableStateOf<String?>(null) }
+  var removalTargets by remember { mutableStateOf(emptySet<String>()) }
+  var showInfo by remember { mutableStateOf(false) }
+  var showClear by remember { mutableStateOf(false) }
+  var showRepair by remember { mutableStateOf(false) }
+  var showDelete by remember { mutableStateOf(false) }
+  val dialogs: @Composable () -> Unit = {
+    PerfectResourceConfirmations(state, busy, showDelete, showClear,
+      onDismissDelete = { showDelete = false }, onDismissClearCache = { showClear = false },
+      onDelete = onDelete, onClearCache = onClearCache)
+    Os4Dialog(show = removalTargets.isNotEmpty(),
+      title = stringResource(R.string.perfect_git_remove_title, removalTargets.size),
+      summary = stringResource(R.string.perfect_git_remove_confirm, removalTargets.size, removalTargets.joinToString { if (it == "default") defaultName else it },
+        Formatter.formatFileSize(context, state.resourceBytes)) +
+        if (removalTargets.isNotEmpty() && removalTargets.containsAll(downloaded))
+          "\n" + stringResource(R.string.perfect_git_remove_all_scope) else "",
+      onDismissRequest = { removalTargets = emptySet() }) {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { removalTargets = emptySet() },
+          modifier = Modifier.weight(1f).testTag("perfect.resources.cancel-remove"))
+        Os4DialogButton(stringResource(R.string.perfect_git_delete_proceed),
+          enabled = !busy && removalTargets.intersect(downloaded).isNotEmpty(), onClick = {
+            if (!busy) {
+              val requested = removalTargets.intersect(downloaded)
+              removalTargets = emptySet()
+              if (requested.isNotEmpty()) { exitSelection(); onRemove(requested) }
+            }
+          }, role = GlassDialogButtonRole.Destructive,
+          modifier = Modifier.weight(1f).testTag("perfect.resources.confirm-remove"))
+      }
+    }
+    Os4Dialog(show = showRepair, title = stringResource(R.string.perfect_git_repair),
+      summary = stringResource(R.string.perfect_git_repair_confirm),
+      onDismissRequest = { showRepair = false }) {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { showRepair = false },
+          modifier = Modifier.weight(1f))
+        Os4DialogButton(stringResource(R.string.perfect_git_repair), enabled = !busy && !cooling,
+          onClick = {
+            if (showRepair && !busy && !cooling) {
+              showRepair = false
+              onRepair()
+            }
+          }, role = GlassDialogButtonRole.Primary,
+          modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
+      }
+    }
 
-  PerfectSubpage(stringResource(R.string.perfect_git_resources), onBack,
-    bottomSpacing = bottomSpacing,
+    focusedStyle?.let { style ->
+      Os4Dialog(true, { focusedStyle = null }, title = if (style == "default") defaultName else style) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Text(stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
+            else R.string.perfect_resource_style_missing), color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Os4DialogButton(stringResource(R.string.perfect_resource_close), { focusedStyle = null },
+              modifier = Modifier.weight(1f))
+            Os4DialogButton(stringResource(if (style in downloaded) R.string.action_label_update
+              else R.string.action_label_download), enabled = !busy && !cooling,
+              modifier = Modifier.weight(1f), onClick = { focusedStyle = null; onDownload(setOf(style)) })
+          }
+          if (style in downloaded) Os4DialogButton(stringResource(R.string.perfect_resource_remove_short),
+            enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+              focusedStyle = null; removalTargets = setOf(style)
+            })
+        }
+      }
+    }
+    Os4Dialog(showInfo, { showInfo = false }, title = stringResource(R.string.perfect_resource_info)) {
+      Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            PerfectSyncBadges(state, MiuixTheme.colorScheme.primary)
+          }
+          state.remote?.let {
+            Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" + it.subject,
+              style = MiuixTheme.textStyles.footnote1)
+          }
+          state.catalog?.let {
+            Text(stringResource(R.string.perfect_resource_local_revision, it.revision), style = MiuixTheme.textStyles.footnote1)
+          }
+          Text(stringResource(R.string.perfect_resource_cache_size, Formatter.formatFileSize(context, state.cacheBytes)),
+            style = MiuixTheme.textStyles.footnote1)
+          Text(stringResource(R.string.perfect_resource_source_size, Formatter.formatFileSize(context, state.resourceBytes)),
+            style = MiuixTheme.textStyles.footnote1)
+          Text(stringResource(R.string.perfect_git_last_transfer, Formatter.formatFileSize(context, state.catalog?.transferredBytes ?: 0)),
+            style = MiuixTheme.textStyles.footnote1)
+          Text(stringResource(R.string.perfect_resource_info_hint), style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          TextButton(stringResource(R.string.perfect_icons_source_icons),
+            onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
+            modifier = Modifier.fillMaxWidth())
+          TextButton(stringResource(R.string.perfect_icons_source_packer),
+            onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") },
+            modifier = Modifier.fillMaxWidth())
+          Text(stringResource(R.string.perfect_icons_attribution), style = MiuixTheme.textStyles.footnote1)
+        }
+        Os4DialogButton(stringResource(R.string.perfect_resource_close), { showInfo = false }, Modifier.fillMaxWidth())
+      }
+    }
+  }
+  var actionHeight by remember { mutableIntStateOf(0) }
+  val actionInset = with(LocalDensity.current) { actionHeight.toDp() }
+  PerfectSubpage(if (selecting) stringResource(R.string.perfect_git_selection_count, selected.size)
+    else stringResource(R.string.perfect_git_resources),
+    onBack = { if (selecting) exitSelection() else onBack() },
     actions = {
-      IconButton(onClick = onCheck, enabled = !busy && !cooling,
-        modifier = Modifier.testTag("icon-packs.perfect.check-updates")) {
+      if (!selecting) IconButton(
+        enabled = !busy && visible.isNotEmpty(),
+        modifier = Modifier.testTag("perfect.resources.selection-mode"),
+        onClick = { selection = emptyList(); selecting = true }) {
+        Icon(ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square_check),
+          stringResource(R.string.perfect_resource_select), Modifier.size(24.dp))
+      }
+      if (!selecting) IconButton(onClick = onCheck, enabled = !busy && !cooling,
+        modifier = Modifier.testTag("perfect.resources.refresh")) {
         Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_git_check))
       }
+      if (!selecting) OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
+          DropdownItem(text = stringResource(R.string.perfect_resource_info), onClick = { showInfo = true }),
+          DropdownItem(text = stringResource(R.string.perfect_git_repair), enabled = !busy && state.catalog != null && !cooling,
+            onClick = { showRepair = true }),
+          DropdownItem(text = stringResource(R.string.perfect_icons_clear_cache), enabled = !busy && state.cacheBytes > 0,
+            onClick = { showClear = true }),
+          DropdownItem(text = stringResource(R.string.perfect_git_delete),
+            enabled = !busy && (state.catalog != null || state.resourceBytes > 0),
+            onClick = { showDelete = true }),
+
+        )))) { Icon(MiuixIcons.Glass.More, stringResource(R.string.perfect_resource_manage),
+          Modifier.testTag("perfect.resources.manage")) }
+    }, bottomSpacing = if (selecting) actionInset + 24.dp else 24.dp,
+    floatingActionButton = { dialogs() },
+    floatingToolbar = {
+      if (selecting) {
+        val shape = GlassShape(32.dp)
+        Row(Modifier.widthIn(max = 320.dp).fillMaxWidth()
+          .onSizeChanged { actionHeight = it.height }
+          .testTag("perfect.resources.toolbar")
+          .glassPanel(backdrop = LocalKeiHomeBackdrop.current, shape = shape,
+            style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
+            material = GlassTopAppBarDefaults.buttonMaterial(), shading = false,
+            fallback = Modifier.clip(shape).background(MiuixTheme.colorScheme.surfaceContainer))
+          .padding(horizontal = 8.dp, vertical = 6.dp),
+          horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+          ResourceToolbarButton("all", stringResource(R.string.perfect_git_select_all),
+            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_checks),
+            enabled = !busy && selected.size < visible.size, onClick = { selection = visible })
+          ResourceToolbarButton("none", stringResource(R.string.perfect_resource_select_none),
+            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square),
+            enabled = !busy && selected.isNotEmpty(), onClick = { selection = emptyList() })
+          ResourceToolbarButton("download", stringResource(R.string.action_label_download),
+            actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
+            onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
+          ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
+            actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
+            tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
+          ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
+            actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
+            tint = MiuixTheme.colorScheme.primary)
+        }
+      }
     },
-    floatingActionButton = {
-      Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PageActionFab(stringResource(R.string.perfect_git_remove_count, removable.size),
-          actionIcon(PageActionIcon.CLEAR), enabled = !busy && removable.isNotEmpty(),
-          onClick = { removal = removable.toSet() },
-          modifier = Modifier.weight(1f).testTag("perfect.resources.remove"))
-        PageActionFab(stringResource(R.string.perfect_git_download_count, selected.size),
-          actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
-          busy = state.refreshing, onClick = { onDownload(selected.toSet()) },
-          onHeightChanged = { actionHeight = it },
-          modifier = Modifier.weight(1f).testTag("perfect.resources.download"))
+  ) {
+    item(key = "resource-status") {
+      val tone = when {
+        state.error != null || state.syncIssue != null -> StatusTone.WARNING
+        downloaded.isNotEmpty() -> StatusTone.READY
+        else -> StatusTone.WARNING
       }
-      // GlassDialog registers with this Scaffold host, outside the recorded page content.
-      PerfectResourceConfirmations(state, busy, confirmDelete, confirmCache,
-        onDismissDelete = { confirmDelete = false }, onDismissClearCache = { confirmCache = false },
-        onDelete = onDelete, onClearCache = onClearCache)
-      Os4Dialog(show = removal.isNotEmpty(),
-        title = stringResource(R.string.perfect_git_remove_title, removal.size),
-        summary = stringResource(R.string.perfect_git_remove_confirm, removal.size, names(removal),
-          Formatter.formatFileSize(context, state.resourceBytes)) +
-          if (removal.isNotEmpty() && removal.containsAll(downloaded))
-            "\n" + stringResource(R.string.perfect_git_remove_all_scope) else "",
-        onDismissRequest = { removal = emptySet() }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-          Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { removal = emptySet() },
-            modifier = Modifier.weight(1f).testTag("perfect.resources.cancel-remove"))
-          Os4DialogButton(stringResource(R.string.perfect_git_delete_proceed),
-            enabled = !busy && removal.intersect(downloaded).isNotEmpty(), onClick = {
-              if (!busy) {
-                val requested = removal.intersect(downloaded)
-                removal = emptySet()
-                if (requested.isNotEmpty()) onRemove(requested)
-              }
-            }, role = GlassDialogButtonRole.Destructive,
-            modifier = Modifier.weight(1f).testTag("perfect.resources.confirm-remove"))
-        }
-      }
-      Os4Dialog(show = confirmRepair, title = stringResource(R.string.perfect_git_repair),
-        summary = stringResource(R.string.perfect_git_repair_confirm),
-        onDismissRequest = { confirmRepair = false }) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-          Os4DialogButton(stringResource(R.string.logs_cancel), onClick = { confirmRepair = false },
-            modifier = Modifier.weight(1f))
-          Os4DialogButton(stringResource(R.string.perfect_git_repair), enabled = !busy && !cooling,
-            onClick = {
-              if (confirmRepair && !busy && !cooling) {
-                confirmRepair = false
-                onRepair()
-              }
-            }, role = GlassDialogButtonRole.Primary,
-            modifier = Modifier.weight(1f).testTag("icon-packs.perfect.confirm-download"))
-        }
-      }
-    }) {
-    item("summary") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-          Text(stringResource(R.string.perfect_git_resource_summary, downloaded.size, styles.size,
-            state.catalog?.iconCount ?: 0), style = MiuixTheme.textStyles.body1)
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PerfectSyncBadges(state, MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded
-              else R.string.perfect_git_filter_all), enabled = !busy,
-              onClick = { downloadedOnly = !downloadedOnly },
-              modifier = Modifier.testTag("perfect.resources.filter"))
-            TextButton(stringResource(if (visible.isNotEmpty() && selected.containsAll(visible))
-              R.string.perfect_git_clear_selection else R.string.perfect_git_select_all), enabled = !busy,
-              onClick = {
-                selection = if (visible.isNotEmpty() && selected.containsAll(visible)) selection - visible.toSet()
-                  else selection + visible
-              }, modifier = Modifier.testTag("perfect.resources.select-all"))
-          }
-          Text(stringResource(R.string.perfect_git_selection_count, selected.size),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary,
-            modifier = Modifier.testTag("perfect.resources.selection-count"))
-          if (state.remote == null) Text(stringResource(R.string.perfect_git_check_styles),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (busy) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(stringResource(when {
-              state.checking -> R.string.perfect_git_checking
-              state.refreshing -> R.string.perfect_git_resource_syncing
-              state.deletingResources -> R.string.perfect_git_deleting
-              else -> R.string.perfect_icons_loading
-            }), style = MiuixTheme.textStyles.footnote1)
-            state.progress?.let {
-              if (!state.checking && it.label.startsWith("source.git:")) Text(
-                stringResource(R.string.perfect_icons_download_progress, Formatter.formatFileSize(context,
-                  it.label.substringAfter("source.git:").toLongOrNull()?.coerceAtLeast(0) ?: 0)),
-                style = MiuixTheme.textStyles.footnote1)
+      StatusOverviewCard(title = stringResource(when {
+        state.checking -> R.string.perfect_git_checking
+        state.refreshing -> R.string.perfect_git_resource_syncing
+        state.deletingResources -> R.string.perfect_git_deleting
+        state.clearingCache -> R.string.perfect_icons_loading
+        busy -> R.string.action_label_processing
+        downloaded.isNotEmpty() -> R.string.perfect_resource_ready
+        else -> R.string.perfect_icons_catalog_missing
+      }), summary = stringResource(if (downloaded.isNotEmpty()) R.string.perfect_resource_ready_summary
+        else R.string.perfect_resource_empty_summary), tone = tone, details = emptyList(), onRefresh = { if (!busy && !cooling) onCheck() }, onOpen = { showInfo = true }, actionLabel = stringResource(R.string.perfect_resource_info),
+        compactSymbol = true, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("perfect.resources.status"), badgeContent = { color ->
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            MetadataPill(stringResource(R.string.perfect_resource_style_count, downloaded.size, available.size), color)
+            MetadataPill(Formatter.formatFileSize(context, state.resourceBytes), color)
+            (state.catalog?.revision ?: state.remote?.revision)?.let {
+              MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), color)
             }
+            PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
           }
-          state.error?.let { Text(stringResource(perfectErrorResource(it)),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error) }
-          if (cooling) Text(stringResource(R.string.perfect_icons_error_cooldown),
-            style = MiuixTheme.textStyles.footnote1)
-          state.deletedBytes?.let { Text(stringResource(R.string.perfect_git_deleted,
-            Formatter.formatFileSize(context, it)), style = MiuixTheme.textStyles.footnote1) }
-        }
+        })
+      if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+      if (cooling) Text(stringResource(R.string.perfect_icons_error_cooldown), Modifier.padding(16.dp),
+        style = MiuixTheme.textStyles.footnote1)
+      state.error?.let { Text(stringResource(perfectErrorResource(it)), Modifier.padding(16.dp), color = MiuixTheme.colorScheme.error) }
+      if ((state.syncIssue == PerfectSyncIssue.CORRUPT)) Text(stringResource(R.string.perfect_resource_corrupt),
+        Modifier.padding(16.dp), color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        style = MiuixTheme.textStyles.footnote1)
+    }
+    item(key = "filter") {
+      Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        SmallTitle(stringResource(R.string.perfect_resource_styles), modifier = Modifier.weight(1f))
+        TextButton(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded else R.string.perfect_git_filter_all),
+          modifier = Modifier.testTag("perfect.resources.filter"), onClick = { selection = emptyList(); downloadedOnly = !downloadedOnly })
       }
     }
-    item("storage") {
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-        val storageAction = stringResource(
-          if (showStorage) R.string.polish_details_collapse else R.string.polish_details_expand)
-        Os4DisclosureHeader(title = stringResource(R.string.perfect_git_storage),
-          summary = stringResource(R.string.perfect_git_storage_summary,
-            Formatter.formatFileSize(context, state.resourceBytes)),
-          expanded = showStorage, actionLabel = storageAction, stateLabel = storageAction,
-          onToggle = { showStorage = !showStorage },
-          modifier = Modifier.testTag("perfect.resources.storage"))
-        Os4DisclosureContent(showStorage) {
-          Column {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-              verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              state.remote?.let {
-                Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" +
-                  perfectSyncTime(it.committedAt), style = MiuixTheme.textStyles.footnote1)
-                if (it.subject.isNotBlank()) Text(it.subject, style = MiuixTheme.textStyles.footnote1)
-                Text(stringResource(R.string.perfect_git_checked_at, perfectSyncTime(it.checkedAt)),
-                  style = MiuixTheme.textStyles.footnote1)
-              }
-              state.catalog?.let {
-                Text(stringResource(R.string.perfect_icons_snapshot_hash) + "\n" + it.sourceHash,
-                  style = MiuixTheme.textStyles.footnote1)
-                if (it.gitBacked) Text(stringResource(R.string.perfect_git_last_transfer,
-                  Formatter.formatFileSize(context, it.transferredBytes)), style = MiuixTheme.textStyles.footnote1)
-              }
-            }
-            BasicComponent(title = stringResource(R.string.perfect_git_repair),
-              summary = stringResource(R.string.perfect_git_repair_hint),
-              enabled = !busy && !cooling && downloaded.isNotEmpty(), onClick = { confirmRepair = true },
-              modifier = Modifier.testTag("icon-packs.perfect.force-download"))
-            PerfectResourceStorageCard(state, busy,
-              onRequestClearCache = { confirmCache = true }, onRequestDelete = { confirmDelete = true })
-            BasicComponent(title = stringResource(R.string.perfect_icons_source_icons),
-              summary = "pzcn / Perfect-Icons-Completion-Project",
-              onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
-              modifier = Modifier.testTag("icon-packs.perfect.credits"))
-            BasicComponent(title = stringResource(R.string.perfect_icons_source_packer),
-              summary = "YifePlayte / PerfectIconsPacker",
-              onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") })
-            Text(stringResource(R.string.perfect_icons_attribution) + "\n" +
-              stringResource(R.string.pack_perfect_packer_reference),
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-        }
-      }
+    if (visible.isEmpty()) item(key = "empty") {
+      Text(stringResource(R.string.perfect_resource_filter_empty), Modifier.padding(horizontal = 16.dp),
+        color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
-    items(visible, key = { it }) { style ->
-      Card(Modifier.padding(horizontal = 12.dp, vertical = 3.dp)) {
+    items(visible, key = { "style:$it" }, contentType = { "style" }) { style ->
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)) {
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
-          onClick = { toggle(style) },
-          endActions = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-              verticalAlignment = Alignment.CenterVertically) {
+          onClick = { if (selecting) toggle(style) else focusedStyle = style }, endActions = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
               MetadataPill(stringResource(when {
-                style in downloaded && state.updateAvailable -> R.string.perfect_git_update_available
-                style in downloaded -> R.string.perfect_git_downloaded
-                else -> R.string.perfect_git_not_downloaded
-              }), if (style in downloaded) MiuixTheme.colorScheme.primary
-                else MiuixTheme.colorScheme.onSurfaceSecondary, Modifier.widthIn(max = 144.dp))
-              Checkbox(state = if (style in selected) ToggleableState.On else ToggleableState.Off,
-                onClick = { toggle(style) }, enabled = !busy,
-                modifier = Modifier.testTag("perfect.resources.select.$style"))
+                style !in downloaded -> R.string.perfect_git_not_downloaded
+                (state.syncIssue == PerfectSyncIssue.CORRUPT) -> R.string.perfect_resource_incomplete
+                else -> R.string.perfect_git_downloaded
+              }), if (style in downloaded && !(state.syncIssue == PerfectSyncIssue.CORRUPT)) MiuixTheme.colorScheme.primary
+                else MiuixTheme.colorScheme.onSurfaceSecondary)
+              if (selecting) Checkbox(state = if (style in selected) ToggleableState.On else ToggleableState.Off, onClick = { toggle(style) },
+                enabled = !busy, modifier = Modifier.testTag("perfect.resources.select.$style"))
+              else Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null,
+                modifier = Modifier.size(18.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
             }
           }, modifier = Modifier.testTag("perfect.resources.style.$style"))
       }
     }
+  }
+}
 
+@Composable
+private fun ResourceToolbarButton(tag: String, label: String, icon: ImageVector,
+  enabled: Boolean = true, tint: Color = MiuixTheme.colorScheme.onSurface,
+  onClick: () -> Unit) {
+  IconButton(onClick = onClick, enabled = enabled,
+    backgroundColor = Color.Transparent, minWidth = 48.dp, minHeight = 48.dp,
+    modifier = Modifier.testTag("perfect.resources.$tag")) {
+    Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp),
+      tint = if (enabled) tint else MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.38f))
   }
 }

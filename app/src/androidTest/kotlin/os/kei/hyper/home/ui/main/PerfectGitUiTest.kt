@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -34,6 +38,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
@@ -85,6 +90,7 @@ class PerfectGitUiTest {
     val state = resourceState()
     val requests = mutableListOf<Set<String>>()
     setResourceContent(state, onDownload = { requests += it })
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
     compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
     compose.onNodeWithTag("perfect.resources.style.Square").performScrollTo().performClick()
     compose.runOnIdle { assertEquals(emptyList<Set<String>>(), requests) }
@@ -93,6 +99,8 @@ class PerfectGitUiTest {
       assertEquals(listOf(setOf("default", "Square")), requests)
       assertEquals("Rounded", state.options.style)
     }
+    compose.onAllNodesWithTag("perfect.resources.download").assertCountEquals(0)
+    compose.onAllNodesWithTag("perfect.resources.select.default").assertCountEquals(0)
   }
 
   @Test fun batchRemovalOnlyIncludesDownloadedSelectionAndRequiresConfirmationAfterCancel() {
@@ -100,6 +108,7 @@ class PerfectGitUiTest {
     val state = resourceState()
     val requests = mutableListOf<Set<String>>()
     setResourceContent(state, onRemove = { requests += it })
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
     listOf("default", "Rounded", "Square").forEach {
       compose.onNodeWithTag("perfect.resources.style.$it").performScrollTo().performClick()
     }
@@ -124,6 +133,42 @@ class PerfectGitUiTest {
       assertEquals(listOf(setOf("default", "Rounded")), requests)
       assertEquals("Rounded", state.options.style)
     }
+    compose.onAllNodesWithTag("perfect.resources.remove").assertCountEquals(0)
+  }
+
+  @Test fun browsingHasNoSelectionChromeAndSingleStyleOpensActions() {
+    val requests = mutableListOf<Set<String>>()
+    setResourceContent(resourceState(), onDownload = { requests += it })
+    compose.onNodeWithTag("perfect.resources.status").assertIsDisplayed()
+    listOf("all", "none", "download", "remove", "select.default").forEach {
+      compose.onAllNodesWithTag("perfect.resources.$it").assertCountEquals(0)
+    }
+    compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    waitForDisplayed(hasText(context.getString(R.string.perfect_resource_style_ready)), "single-style-actions")
+    compose.onNodeWithText(context.getString(R.string.action_label_update)).performClick()
+    compose.runOnIdle { assertEquals(listOf(setOf("default")), requests) }
+  }
+
+  @Test fun selectionControlsClearHiddenItemsAndBackReturnsToBrowsing() {
+    val backHost = Os4NavigationTestHost()
+    var exits = 0
+    setResourceContent(resourceState(), backHost = backHost, onBack = { exits++ })
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
+    compose.onNodeWithTag("perfect.resources.all").performClick()
+    compose.onNodeWithTag("perfect.resources.download").assertIsDisplayed()
+    compose.onNodeWithTag("perfect.resources.none").performClick()
+    compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
+    compose.onNodeWithTag("perfect.resources.all").performClick()
+    compose.onNodeWithTag("perfect.resources.filter").performScrollTo().performClick()
+    compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
+    compose.onAllNodesWithTag("perfect.resources.style.Square").assertCountEquals(0)
+    compose.runOnIdle { backHost.completeBack() }
+    compose.onAllNodesWithTag("perfect.resources.download").assertCountEquals(0)
+    compose.onAllNodesWithTag("perfect.resources.select.default").assertCountEquals(0)
+    compose.runOnIdle { assertEquals(0, exits) }
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
+    compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
   }
 
   private fun resourceState() = PerfectPackState(
@@ -135,14 +180,59 @@ class PerfectGitUiTest {
       availableStyles = listOf("default", "Rounded", "Square")),
     resourceBytes = 8L * 1024 * 1024, cacheBytes = 1024L * 1024)
 
+  @Test fun synchronizationDisablesNewSelectionAndRefresh() {
+    setResourceContent(resourceState().copy(refreshing = true))
+    compose.onNodeWithTag("perfect.resources.selection-mode").assertIsNotEnabled()
+    compose.onNodeWithTag("perfect.resources.refresh").assertIsNotEnabled()
+    compose.onAllNodesWithTag("perfect.resources.download").assertCountEquals(0)
+  }
+
+  @Test fun iconToolbarHasFiveNamedActionsAndDoneClearsSelection() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    var checks = 0
+    setResourceContent(resourceState(), onCheck = { checks++ })
+    compose.onNodeWithTag("perfect.resources.selection-mode")
+      .assertContentDescriptionEquals(context.getString(R.string.perfect_resource_select))
+    compose.onNodeWithTag("perfect.resources.refresh").performClick()
+    compose.runOnIdle { assertEquals(1, checks) }
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
+    listOf("all" to R.string.perfect_git_select_all, "none" to R.string.perfect_resource_select_none,
+      "download" to R.string.action_label_download, "remove" to R.string.perfect_resource_remove_short,
+      "done" to R.string.perfect_resource_done).forEach { (tag, label) ->
+      compose.onNodeWithTag("perfect.resources.$tag").assertIsDisplayed()
+        .assertContentDescriptionEquals(context.getString(label))
+    }
+    compose.onAllNodesWithTag("perfect.resources.selection-mode").assertCountEquals(0)
+    compose.onNodeWithTag("perfect.resources.all").performClick()
+    compose.onNodeWithTag("perfect.resources.done").performClick()
+    compose.onAllNodesWithTag("perfect.resources.toolbar").assertCountEquals(0)
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
+    compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
+  }
+
+  @Test fun largeTextKeepsTheLastStyleAboveSelectionActions() {
+    setResourceContent(resourceState(), fontScale = 1.6f)
+    compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
+    compose.onNodeWithTag("perfect.resources.style.Square").performScrollTo()
+    compose.waitForIdle()
+    val row = compose.onNodeWithTag("perfect.resources.style.Square").assertIsDisplayed()
+      .fetchSemanticsNode().boundsInRoot
+    val controls = compose.onNodeWithTag("perfect.resources.all").assertIsDisplayed()
+      .fetchSemanticsNode().boundsInRoot
+    assertTrue("The selection toolbar must not cover the last style", row.bottom <= controls.top)
+  }
+
   private fun setResourceContent(state: PerfectPackState, onDownload: (Set<String>) -> Unit = {},
-    onRemove: (Set<String>) -> Unit = {}) {
-    val backHost = Os4NavigationTestHost()
+    onRemove: (Set<String>) -> Unit = {}, backHost: Os4NavigationTestHost = Os4NavigationTestHost(),
+    onBack: () -> Unit = {}, onCheck: () -> Unit = {}, fontScale: Float? = null) {
     compose.setContent {
       backHost.Provide {
         KeiHomeTheme {
-          PerfectResourceContent(state, busy = false, onBack = {}, onCheck = {},
-            onDownload = onDownload, onRemove = onRemove, onRepair = {}, onDelete = {}, onClearCache = {})
+          val density = LocalDensity.current
+          CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
+            PerfectResourceContent(state, busy = state.busy, onBack = onBack, onCheck = onCheck,
+              onDownload = onDownload, onRemove = onRemove, onRepair = {}, onDelete = {}, onClearCache = {})
+          }
         }
       }
     }

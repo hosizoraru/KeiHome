@@ -25,6 +25,8 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -48,7 +50,7 @@ class CacheStorageUiTest {
     rule.setContent { KeiHomeTheme {
       KeiHomeScaffold { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
-          CacheStorageContent(sample, false, false, custom, {}, {}, { custom = it })
+          CacheStorageContent(sample, false, false, custom, {}, {})
         }
       }
     } }
@@ -94,6 +96,27 @@ class CacheStorageUiTest {
     rule.runOnIdle { assertEquals(0L, custom) }
   }
 
+  @Test fun toolbarEditPrecedesRefreshAndOpensTheThresholdDialog() {
+    val store = ViewModelStore()
+    val model = ViewModelProvider(store,
+      ViewModelProvider.AndroidViewModelFactory(app))[HomeViewModel::class.java]
+    try {
+      rule.setContent { KeiHomeTheme {
+        SettingsDestinationScreen(model, "cache", {}, {}, {})
+      } }
+      val edit = rule.onNodeWithTag("cache.budget.edit").assertIsDisplayed()
+      val refresh = rule.onNodeWithTag("settings.cache.refresh").assertIsDisplayed()
+      org.junit.Assert.assertTrue(edit.fetchSemanticsNode().boundsInRoot.right <=
+        refresh.fetchSemanticsNode().boundsInRoot.left)
+      rule.onNodeWithText(app.getString(R.string.storage_budget_help)).assertDoesNotExist()
+      edit.performClick()
+      rule.onNodeWithTag("cache.budget.input").assertIsDisplayed()
+      rule.onNodeWithText(app.getString(R.string.storage_cancel)).performClick()
+    } finally {
+      rule.runOnIdle { store.clear() }
+    }
+  }
+
   @Test fun resourceRowsNavigateAndLargeTextKeepsPreferencesReachable() {
     val destinations = mutableListOf<String>()
     rule.setContent { KeiHomeTheme {
@@ -101,7 +124,7 @@ class CacheStorageUiTest {
       CompositionLocalProvider(LocalDensity provides Density(density.density, 1.6f)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
           CacheStorageContent(sample(perfect = 600_000_000L), false, false, 0L, {},
-            destinations::add, {})
+            destinations::add)
         }
       }
     } }
@@ -109,14 +132,14 @@ class CacheStorageUiTest {
     rule.onNodeWithTag("cache.category.4").performScrollTo().performClick()
     rule.onNodeWithTag("cache.category.5").performScrollTo().performClick()
     rule.runOnIdle { assertEquals(listOf("apple", "perfect"), destinations) }
-    rule.onNodeWithTag("cache.budget.edit").performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag("cache.storage.preferences").performScrollTo().assertIsDisplayed()
   }
 
   @Test fun partialMeasurementDoesNotClaimHealthyUsage() {
     rule.setContent { KeiHomeTheme {
       Column(Modifier.verticalScroll(rememberScrollState())) {
         CacheStorageContent(sample().copy(disk = DiskCacheUsage(emptyMap(), false)),
-          false, false, 0L, {}, {}, {})
+          false, false, 0L, {}, {})
       }
     } }
     rule.onNodeWithText(app.getString(R.string.storage_partial)).assertIsDisplayed()

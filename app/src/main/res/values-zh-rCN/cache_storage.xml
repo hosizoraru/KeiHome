@@ -30,4 +30,5 @@
     <string name="storage_read_failed">未能完成统计</string>
     <string name="storage_used_pill">已用 %1$s</string>
     <string name="storage_budget_pill">提醒 %1$s</string>
+    <string name="storage_edit_budget">修改提醒阈值</string>
 </resources>

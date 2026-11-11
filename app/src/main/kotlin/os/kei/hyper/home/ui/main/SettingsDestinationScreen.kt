@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -24,8 +25,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.CacheReminderBudget
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
@@ -64,6 +67,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     "dexkit-source" -> stringResource(R.string.notices_source_offer)
     else -> license?.title
   }
+  var perfectStorageBytes by remember { mutableLongStateOf(0L) }
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -83,9 +87,14 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
       TopAppBar(title = licenseTitle ?: component?.name ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
         color = if (backdrop != null && license == null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
-          if (route == SettingsSection.CACHE.route) IconButton(onClick = { cacheRefresh++ },
-            modifier = Modifier.testTag("settings.cache.refresh")) {
-            Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
+          if (route == SettingsSection.CACHE.route) {
+            val preferences by model.preferences.state.collectAsStateWithLifecycle()
+            CacheBudgetEditor(preferences.cacheReminderBytes,
+              CacheReminderBudget.resolve(preferences.cacheReminderBytes, perfectStorageBytes),
+              model.preferences::setCacheReminderBytes)
+            IconButton(onClick = { cacheRefresh++ }, modifier = Modifier.testTag("settings.cache.refresh")) {
+              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
+            }
           }
         },
         navigationIcon = { IconButton(onClick = onBack) {
@@ -111,6 +120,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           license != null -> LicenseDocument(license.asset)
           component != null -> ThirdPartyComponentDetails(component, onNavigate)
           route == "notices" -> ThirdPartyNotices(onNavigate)
+          section == SettingsSection.CACHE -> CacheOverview(model, cacheRefresh, onOpenPackSection,
+            onPerfectUsageChanged = { perfectStorageBytes = it })
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
             onOpenPerfectIcons = onOpenPackSection,
             onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)

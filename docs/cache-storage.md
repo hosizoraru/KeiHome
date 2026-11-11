@@ -2,7 +2,9 @@
 
 Cache management presents a compact status card with usage, reminder threshold,
 measurement time and health pills. The cylinder and category legend occupy equal
-widths. Six colors identify snapshots, built-in copies, transfers, temporary
+widths. The OS4 edit icon immediately before toolbar Refresh opens the reminder
+editor; the footer only explains cleanup scope and shows preview RAM.
+Six colors identify snapshots, built-in copies, transfers, temporary
 files, Apple downloads and Perfect resources. Apple/Perfect rows open their
 management pages. Existing toolbar refresh and preview-memory clearing remain.
 
@@ -35,7 +37,8 @@ Draw, leaving text/preferences out of frame-by-frame recomposition. Font scaling
 grows rows and wraps pills; the page remains scrollable.
 
 Focused validation: 56 budget/repository JVM checks, 16 related preference
-checks, and four Phone AVD UI checks across focused invocations. UI coverage
+checks, and five Phone AVD UI checks across focused invocations. UI coverage
 includes equal column widths, automatic/custom thresholds, invalid input,
-returning to automatic mode, resource links, partial statistics and 1.6x text.
+returning to automatic mode, toolbar ordering/dialog access, resource links,
+partial statistics and 1.6x text.
 Evidence lives in `.artifacts/research/cache-storage-20261111/`.

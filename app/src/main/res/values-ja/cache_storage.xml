@@ -30,4 +30,5 @@
     <string name="storage_read_failed">集計できませんでした</string>
     <string name="storage_used_pill">使用 %1$s</string>
     <string name="storage_budget_pill">目安 %1$s</string>
+    <string name="storage_edit_budget">通知の目安を変更</string>
 </resources>

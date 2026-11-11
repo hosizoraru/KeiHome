@@ -56,7 +56,8 @@ internal data class CacheSample(
 }
 
 @Composable
-internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack: (String) -> Unit = {}) {
+internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack: (String) -> Unit = {},
+  onPerfectUsageChanged: (Long) -> Unit = {}) {
   val context = LocalContext.current.applicationContext
   val owner = LocalLifecycleOwner.current
   val refreshing by model.refreshing.collectAsStateWithLifecycle()
@@ -92,9 +93,9 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack
       awaitCancellation()
     }
   }
+  LaunchedEffect(sample?.perfect) { sample?.let { onPerfectUsageChanged(it.perfect) } }
   CacheStorageContent(sample, reading, failed, preferences.cacheReminderBytes,
-    onRefresh = { nonce++ }, onOpenPack = onOpenPack,
-    onBudgetChange = model.preferences::setCacheReminderBytes)
+    onRefresh = { nonce++ }, onOpenPack = onOpenPack)
 }
 
 @Composable
@@ -105,7 +106,6 @@ internal fun CacheStorageContent(
   customBudget: Long,
   onRefresh: () -> Unit,
   onOpenPack: (String) -> Unit,
-  onBudgetChange: (Long) -> Unit,
 ) {
   val context = LocalContext.current
   val scheme = MiuixTheme.colorScheme
@@ -145,9 +145,6 @@ internal fun CacheStorageContent(
     CacheStorageChart(sample?.categories ?: List(6) { 0L }, budget, sample != null, onOpenPack)
     Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences")) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        CacheBudgetEditor(customBudget, budget, onBudgetChange)
-        Text(stringResource(R.string.storage_budget_help), style = MiuixTheme.textStyles.footnote1,
-          color = scheme.onSurfaceVariantSummary)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Text(stringResource(R.string.storage_memory), style = MiuixTheme.textStyles.body2)
           Text(sample?.let { size(it.memory) } ?: "\u2014",

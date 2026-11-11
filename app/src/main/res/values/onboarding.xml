@@ -13,7 +13,7 @@
     <string name="setup_feature_icons">Icons that fit together</string>
     <string name="setup_feature_icons_body">Supported icons can follow light/dark mode and the applied theme across system surfaces. Extra packs and Monet are optional.</string>
     <string name="setup_feature_desktop">A more personal launcher</string>
-    <string name="setup_feature_desktop_body">Explore Dock glass, launcher glass styles and long app names.</string>
+    <string name="setup_feature_desktop_body">Customize Dock, appearance and labels, icons and launch screens.</string>
     <string name="setup_feature_control">Changes you control</string>
     <string name="setup_feature_control_body">Browsing keeps current settings. You choose whether to change packs or enable Monet and desktop effects.</string>
     <string name="setup_framework_title">Check the module environment</string>
@@ -30,9 +30,9 @@
     <string name="setup_icon_tip_title">Preview, apply, then check</string>
     <string name="setup_icon_tip_body">After changing artwork, completion rules or generation scope, use the page’s floating action to generate, then apply if needed. Supported light/dark and palette changes sync automatically. Check the launcher and the other surfaces you use.</string>
     <string name="setup_desktop_title">Make optional adjustments</string>
-    <string name="setup_desktop_body">Explore the same controls as the Desktop tab. Supported changes sync automatically without repeated launcher restarts; check Status for the launcher connection and settings acknowledgement. Availability depends on the launcher. Opening this page keeps your settings unchanged.</string>
+    <string name="setup_desktop_body">Browse desktop settings by category. Supported changes sync automatically; check their status on the corresponding page. Availability depends on your launcher and scope access. Opening a page keeps your settings unchanged.</string>
     <string name="setup_open_desktop">Open desktop settings</string>
-    <string name="setup_open_desktop_body">Dock glass, corner styles, glass rendering and app names.</string>
+    <string name="setup_open_desktop_body">Dock, appearance and labels, icons and launch screens.</string>
     <string name="setup_finish_title">Ready to explore</string>
     <string name="setup_finish_body">You have reached the end of the guide. Optional setup can be completed later, and this guide is always available in Settings.</string>
     <string name="setup_finish_note_body">Status shows the targets and launcher connection that were reported. Scope grants do not confirm that every host is loaded. Open the share sheet, Settings or Sidebar to check the icons you use; availability depends on the system version and app.</string>

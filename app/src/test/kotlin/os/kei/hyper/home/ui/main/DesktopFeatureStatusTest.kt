@@ -223,7 +223,8 @@ class DesktopFeatureStatusTest {
 
   @Test fun explicitGlassCapabilityAbsenceDoesNotImplyOtherFeaturesAreUnavailable() {
     val state = runtime.copy(report = report.copy(launcherGlassAvailable = false, launcherGlassStyle = null,
-      launcherCapabilities = LauncherRuntimeCapabilities.KNOWN xor LauncherRuntimeCapabilities.GLASS))
+      launcherCapabilities = LauncherRuntimeCapabilities.KNOWN and
+        (LauncherRuntimeCapabilities.GLASS or LauncherRuntimeCapabilities.GLASS_PAIR).inv()))
     assertEquals(DesktopFeatureStatus.UNAVAILABLE, desktopGlassStatus(glass, state, true, now, version))
     assertEquals(DesktopFeatureStatus.ACCEPTED, desktopDockStatus(dock, state, true, now, version))
     assertEquals(DesktopFeatureStatus.ACCEPTED, desktopLabelStatus(labels, state, true, now, version))
@@ -251,7 +252,8 @@ class DesktopFeatureStatusTest {
   @Test fun eachMissingCapabilityDisablesOnlyItsOwnFeatureEvenWithAnOldAck() {
     for (bit in listOf(LauncherRuntimeCapabilities.DOCK, LauncherRuntimeCapabilities.LABELS,
       LauncherRuntimeCapabilities.GLASS)) {
-      val state = runtime.copy(report = report.copy(launcherCapabilities = LauncherRuntimeCapabilities.KNOWN xor bit))
+      val removed = if (bit == LauncherRuntimeCapabilities.GLASS) bit or LauncherRuntimeCapabilities.GLASS_PAIR else bit
+      val state = runtime.copy(report = report.copy(launcherCapabilities = LauncherRuntimeCapabilities.KNOWN and removed.inv()))
       val statuses = listOf(
         desktopDockStatus(dock, state, true, now, version),
         desktopLabelStatus(labels, state, true, now, version),

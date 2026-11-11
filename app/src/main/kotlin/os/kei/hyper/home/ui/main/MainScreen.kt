@@ -66,7 +66,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
-  onOpenSettingsSection: (String) -> Unit, modifier: Modifier = Modifier) {
+  onOpenSettingsSection: (String) -> Unit, onOpenDesktopSection: (String) -> Unit,
+  modifier: Modifier = Modifier) {
   val (interactionFlow, initialInteraction) = remember(model) {
     model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged() to
       model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture }
@@ -186,7 +187,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                 }
               }
               5 -> {
-                DesktopPage(model)
+                DesktopPage(model, onOpenDesktopSection)
                 RefreshFeedback(model, 5)
               }
               4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection,

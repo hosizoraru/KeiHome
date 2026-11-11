@@ -7,24 +7,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeStatusReportTest {
-  @Test fun schemaSevenAppendsAuthenticatedCapabilitiesWithoutMovingOlderFields() {
+  @Test fun schemaEightAppendsSearchAckWithoutMovingOlderFields() {
     for (style in listOf(null) + os.kei.hyper.home.data.LauncherGlassStyle.entries.map { it.nativeValue }) {
       val report = ready.copy(launcherGlassAvailable = true, launcherGlassStyle = style)
       val fields = report.encode().split('|')
-      assertEquals(20, fields.size)
-      assertEquals("7", fields[0])
+      assertEquals(21, fields.size)
+      assertEquals("8", fields[0])
       assertEquals(ready.encode().split('|').subList(1, 17), fields.subList(1, 17))
       assertEquals("1", fields[17])
       assertEquals((style ?: -1).toString(), fields[18])
+      assertEquals("-1", fields[19])
+      assertEquals("-1", fields[20])
       assertEquals(report, RuntimeStatusReport.decode(report.encode()))
     }
-    assertEquals(listOf("0", "-1", "-1"), ready.encode().split('|').takeLast(3))
-    for ((schema, size) in listOf("1" to 11, "2" to 12, "3" to 13, "4" to 16, "5" to 17, "6" to 19)) {
+    assertEquals(listOf("0", "-1", "-1", "-1"), ready.encode().split('|').takeLast(4))
+    for ((schema, size) in listOf("1" to 11, "2" to 12, "3" to 13, "4" to 16, "5" to 17, "6" to 19, "7" to 20)) {
       val old = ready.encode().split('|').take(size).toMutableList().apply { this[0] = schema }.joinToString("|")
       assertEquals(ready, RuntimeStatusReport.decode(old))
       assertFalse(RuntimeStatusReport.decode(old)!!.launcherGlassAvailable)
       assertNull(RuntimeStatusReport.decode(old)!!.launcherGlassStyle)
       assertNull(RuntimeStatusReport.decode(old)!!.launcherCapabilities)
+      assertNull(RuntimeStatusReport.decode(old)!!.launcherSearchGlassStyle)
       assertNull(RuntimeStatusReport.decode(old)!!.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
       assertNull(RuntimeStatusReport.decode(old + "|0"))
       assertNull(RuntimeStatusReport.decode(old.substringBeforeLast('|')))
@@ -34,9 +37,10 @@ class RuntimeStatusReportTest {
   @Test fun capabilitiesAllowZeroAndRequireKnownBitsAndAResidentLauncherIdentity() {
     for (bits in 0..LauncherRuntimeCapabilities.KNOWN) {
       val report = ready.copy(launcherCapabilities = bits)
-      assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+      if (bits and 64 == 0 || bits and 16 != 0) assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+      else assertNull("Pair capability needs existing glass: $bits", RuntimeStatusReport.decode(report.encode()))
     }
-    for (bits in listOf(-2, Int.MIN_VALUE, 64, 65, 127, Int.MAX_VALUE))
+    for (bits in listOf(-2, Int.MIN_VALUE, 64, 65, 128, Int.MAX_VALUE))
       assertNull(RuntimeStatusReport.decode(ready.copy(launcherCapabilities = bits).encode()))
     for (unbound in listOf(
       ready.copy(launcherPid = null, launcherStartTicks = null),
@@ -57,15 +61,16 @@ class RuntimeStatusReportTest {
     assertEquals(zero, decoded)
     assertEquals(0, decoded.launcherCapabilities)
     assertTrue(decoded.hasMissingMonetCapability)
-    for (bit in listOf(1, 2, 4, 8, 16, 32))
+    for (bit in listOf(1, 2, 4, 8, 16, 32, 64))
       assertEquals(false, decoded.supportsLauncherCapability(bit))
 
     val unknown = zero.copy(launcherCapabilities = null)
     assertEquals(unknown, RuntimeStatusReport.decode(unknown.encode()))
     assertNull(RuntimeStatusReport.decode(unknown.encode())!!.launcherCapabilities)
     assertNull(unknown.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK))
-    assertEquals("-1", unknown.encode().substringAfterLast('|'))
-    assertEquals("0", zero.encode().substringAfterLast('|'))
+    assertEquals("-1", unknown.encode().split('|')[19])
+    assertEquals("0", zero.encode().split('|')[19])
+    assertEquals("-1", zero.encode().split('|')[20])
     assertEquals(unknown, RuntimeStatusReport.decode(zero.encode().split('|').take(19).toMutableList()
       .apply { this[0] = "6" }.joinToString("|")))
   }
@@ -170,7 +175,7 @@ class RuntimeStatusReportTest {
     val report = ready.copy(dockGlassEnabled = true, dockGlassPid = 9000,
       dockGlassStartTicks = 123L, dockGlassCornerStyle = choice.options)
     assertEquals(report, RuntimeStatusReport.decode(report.encode()))
-    assertEquals("7", report.encode().substringBefore('|'))
+    assertEquals("8", report.encode().substringBefore('|'))
     assertTrue(report.acknowledgesDockGlass(choice))
     for (different in listOf(choice.copy(verticalPaddingDp = 32),
       choice.copy(verticalOffsetDp = 96), choice.copy(customRadiusDp = 24),

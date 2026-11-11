@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="desktop_connection_framework">框架</string>
+  <string name="desktop_connection_system">加载</string>
+  <string name="desktop_connection_java">桌面 Java</string>
+  <string name="desktop_connection_native">原生连接</string>
+  <string name="desktop_connection_badge">%1$s · %2$s</string>
+  <string name="desktop_connection_version_unknown">Home · 版本未知</string>
+  <string name="desktop_connection_connected">已连接</string>
+  <string name="desktop_connection_ready">就绪</string>
+  <string name="desktop_connection_disconnected">已断开</string>
+  <string name="desktop_connection_read_failed">读取失败</string>
+  <string name="desktop_connection_waiting">等待中</string>
+  <string name="desktop_connection_scope_missing">作用域缺失</string>
+  <string name="desktop_connection_failed">加载失败</string>
+  <string name="desktop_connection_reloading">重载中</string>
+  <string name="desktop_connection_stale">报告过旧</string>
+  <string name="desktop_connection_generation_mismatch">版本不匹配</string>
+  <string name="desktop_connection_checking">检查中</string>
+  <string name="desktop_connection_not_reported">尚无回复</string>
+  <string name="desktop_connection_expired">回复已过期</string>
+  <string name="desktop_connection_timed_out">请求超时</string>
+  <string name="desktop_connection_native_unsupported">不支持</string>
+  <string name="desktop_connection_native_unavailable">不可用</string>
+  <string name="desktop_connection_inactive_user">用户未激活</string>
+  <string name="desktop_connection_ready_summary">已通过当前原生回复确认桌面连接。</string>
+  <string name="desktop_connection_disconnected_summary">框架服务已断开，保留的旧回复无法确认桌面连接。</string>
+  <string name="desktop_connection_read_failed_summary">无法读取最新连接状态，请刷新重试。</string>
+  <string name="desktop_connection_waiting_summary">正在等待当前框架加载报告。</string>
+  <string name="desktop_connection_scope_missing_summary">请在模块作用域中同时启用系统框架与系统桌面。</string>
+  <string name="desktop_connection_failed_summary">框架报告模块加载失败。</string>
+  <string name="desktop_connection_reloading_summary">模块正在重载，等待当前连接状态。</string>
+  <string name="desktop_connection_stale_summary">模块加载报告已过旧，请刷新确认当前运行模块。</string>
+  <string name="desktop_connection_generation_summary">当前运行模块与已安装模块的版本不一致。</string>
+  <string name="desktop_connection_checking_summary">正在检查桌面原生连接。</string>
+  <string name="desktop_connection_not_reported_summary">桌面原生端尚未回复。</string>
+  <string name="desktop_connection_expired_summary">原生回复已过期，请刷新确认当前连接。</string>
+  <string name="desktop_connection_timed_out_summary">桌面未在请求超时前回复。</string>
+  <string name="desktop_connection_native_unsupported_summary">此桌面报告不支持所需的原生能力。</string>
+  <string name="desktop_connection_native_unavailable_summary">桌面原生连接端点不可用。</string>
+  <string name="desktop_connection_inactive_user_summary">桌面连接端点属于未激活的 Android 用户。</string>
+</resources>

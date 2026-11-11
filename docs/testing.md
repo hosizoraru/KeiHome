@@ -18,6 +18,8 @@ does not automatically run navigation, color editing or native tests.
 | Theme-effect controls | `ui-theme-effects` |
 | Color editor, input validation, draft lifecycle | `ui-color-editor` |
 | Pack preferences navigation and wizard shortcut | `ui-pack-settings` |
+| Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
+| Desktop capability and acknowledgement summaries | `desktop-state` |
 | Appearance preferences/recovery | `ui-settings` |
 | Date/time display | `pack-time`; pill test only if its layout changes |
 | Perfect source/sync/history/health | `perfect-sync` |

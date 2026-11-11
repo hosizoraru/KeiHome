@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import struct
+from itertools import product
 from pathlib import Path
 from elftools.elf.elffile import ELFFile
 from arm64_support import Payload, HEAP, STACK, TRAP, read64, write64, xreg
@@ -28,12 +29,12 @@ def branch(at, to):
     return 0x14000000 | ((delta // 4) & 0x3ffffff)
 
 
-def template(p, uc):
+def template(p, uc, shift=0):
     names = ("INSTALLED", "CONTROL", "REVISION", "NOTIFIED", "CONTROLLER_SLOT",
              "RX_FIELD", "SUBJECT_FIELD", "VALUE_FIELD", "OBSERVER_SLOT", "REFRESH",
              "EVENT_RETURN", "TRUE_OFFSET", "FALSE_OFFSET", "LISTENERS_FIELD",
-             "BUSY_FIELD", "LENGTH_FIELD")
-    assert [CONFIG["KH_GLASS_MATERIAL_" + name] for name in names] == list(range(0, 128, 8))
+             "BUSY_FIELD", "LENGTH_FIELD", "POLICY_SHIFT")
+    assert [CONFIG["KH_GLASS_MATERIAL_" + name] for name in names] == list(range(0, 136, 8))
     start = p.addr("kh_glass_material_begin")
     end = p.addr("kh_glass_material_end")
     data = bytearray(uc.mem_read(start, end - start))
@@ -53,8 +54,8 @@ def template(p, uc):
                      branch(TRAP + positions["event_resume"], TRAP + 0x3004))
     state, table, pool, thread = HEAP + 0x6000, HEAP + 0x4000, HEAP + 0x5000, HEAP + 0x3000
     cfg = [state, state + 8, state + 16, state + 24, 0x20, 0x47, 0x13, 0xB,
-           0x10, TRAP + 4096, TRAP + 0x3000, 0x20, 0x30, 0x1B, 0x1F, 0xB]
-    assert CONFIG_SIZE == 128 and len(cfg) * 8 == CONFIG_SIZE
+           0x10, TRAP + 4096, TRAP + 0x3000, 0x20, 0x30, 0x1B, 0x1F, 0xB, shift]
+    assert CONFIG_SIZE == 136 and len(cfg) * 8 == CONFIG_SIZE
     assert len(data) - positions["config"] == CONFIG_SIZE
     assert not any(name.startswith("kh_glass_folder_") for name in p.symbols)
     struct.pack_into(CONFIG_FORMAT, data, positions["config"], *cfg)
@@ -67,13 +68,14 @@ def template(p, uc):
 def choose_cases(p):
     cases = 0
     for installed in range(2):
-        for mode in range(4):
+        for shift, policy in product((0, 2), range(16)):
+            mode = (policy >> shift) & 3
             for native_bool in [0x100, 0x110]:
                 for flags in [0, 0xB0000000]:
                     uc = p.uc()
-                    pos, state, *_ = template(p, uc)
+                    pos, state, *_ = template(p, uc, shift)
                     write64(uc, state, installed)
-                    write64(uc, state + 8, mode)
+                    write64(uc, state + 8, policy)
                     saved = [0x1234000000000000 + n for n in range(31)]
                     saved[0] = native_bool
                     for n, value in enumerate(saved):
@@ -114,14 +116,14 @@ def condition_cases(p):
         for flags in range(16):
             for value in (0, 0x100000001):
                 for installed in (0, 1):
-                    for mode in range(4):
+                    for shift, mode in product((0, 2), range(4)):
                         uc = p.uc()
-                        pos, state, _, _, _ = template(p, uc)
+                        pos, state, _, _, _ = template(p, uc, shift)
                         relative = (pos["taken"] - pos["original"]) // 4
                         uc.mem_write(TRAP + pos["original"], struct.pack(
                             "<I", word | ((relative & 0x7ffff) << 5)))
                         write64(uc, state, installed)
-                        write64(uc, state + 8, mode)
+                        write64(uc, state + 8, (mode << shift) | (((mode + 1) % 4) << (2 - shift)))
                         uc.reg_write(xreg(0), value)
                         uc.reg_write(UC_ARM64_REG_NZCV, flags << 28)
                         before = {n: uc.reg_read(xreg(n)) for n in range(31)
@@ -443,16 +445,18 @@ def runtime_cases(p):
 
 def publication_race_cases(p):
     """Pause the linked policy writer between control and revision publication."""
-    name, = [n for n in p.symbols if n.startswith("_Z") and "RequestLauncherGlassStyle" in n]
     cases = 0
-    for style in range(3):
+    for api, value in [("Style", n) for n in range(3)] + [
+            ("Policy", dock | (search << 2)) for dock, search in product(range(3), repeat=2)]:
+        name, = [n for n in p.symbols if n.startswith("_Z") and "RequestLauncherGlass" + api in n]
+        pair = value * 5 if api == "Style" else value
         m = MaterialMachine(p)
         m.set("installed", 1)
-        m.set("control", (style + 1) % 3)
+        m.set("control", 5 if pair != 5 else 10)
         m.set("revision", 7)
         m.set("notified", 7)
         stop = TRAP + 0x3900
-        m.uc.reg_write(xreg(0), style)
+        m.uc.reg_write(xreg(0), value)
         m.uc.reg_write(xreg(30), stop)
         m.uc.reg_write(UC_ARM64_REG_PC, p.addr(name))
         observed = False
@@ -461,7 +465,7 @@ def publication_race_cases(p):
             if pc == stop:
                 break
             m.uc.emu_start(pc, stop + 4, count=1)
-            if not observed and m.get("control") == style and m.get("revision") == 7:
+            if not observed and m.get("control") == pair and m.get("revision") == 7:
                 context = m.uc.context_save()
                 m.run()
                 assert not m.calls and m.get("notified") == 7
@@ -500,10 +504,35 @@ def linked_policy_cases(p):
             revision += 1
             previous = style
         assert uc.reg_read(xreg(0)) == int(style <= 2)
-        assert read64(uc, p.addr("kh_launcher_glass_control")) == previous
+        assert read64(uc, p.addr("kh_launcher_glass_control")) == previous * 5
         assert read64(uc, p.addr("kh_glass_material_revision")) == revision
         assert read64(uc, p.addr("kh_glass_material_notified")) == 0
     return len(styles) + 1
+
+
+def linked_pair_policy_cases(p):
+    """Exercise actual atomic pair writes, all transitions and invalid values."""
+    name, = [n for n in p.symbols if n.startswith("_Z") and "RequestLauncherGlassPolicy" in n]
+    pairs = [dock | (search << 2) for dock, search in product(range(3), repeat=2)]
+    cases = 0
+    for previous, policy in product(pairs, range(32)):
+        uc = p.uc()
+        write64(uc, p.addr("kh_launcher_glass_control"), previous)
+        write64(uc, p.addr("kh_glass_material_revision"), 11)
+        write64(uc, p.addr("kh_glass_material_notified"), 7)
+        stop = TRAP + 0x3900
+        uc.reg_write(xreg(0), policy)
+        uc.reg_write(xreg(30), stop)
+        uc.hook_add(UC_HOOK_CODE, lambda cpu, pc, _s, _d:
+                    cpu.emu_stop() if pc == stop else None)
+        uc.emu_start(p.addr(name), stop + 4, count=500)
+        valid = policy in pairs
+        assert uc.reg_read(xreg(0)) == int(valid)
+        assert read64(uc, p.addr("kh_launcher_glass_control")) == (policy if valid else previous)
+        assert read64(uc, p.addr("kh_glass_material_revision")) == 11 + int(valid and policy != previous)
+        assert read64(uc, p.addr("kh_glass_material_notified")) == 7
+        cases += 1
+    return cases
 
 
 def fixture_cases(p, image_path, metadata_path, scope="Dock"):
@@ -562,7 +591,8 @@ def fixture_cases(p, image_path, metadata_path, scope="Dock"):
     assert source_word(meta["refresh_add_bitmap"]) & 0xFF == 0
     total = 0
     for native_light_wallpaper in (False, True):
-        for mode in range(3):
+        for dock, search in product(range(3), repeat=2):
+            mode = search if scope == "searchCapsule" else dock
             for relocate in (False, True):
                 for pending_change in (False, True):
                     uc = p.uc()
@@ -578,8 +608,9 @@ def fixture_cases(p, image_path, metadata_path, scope="Dock"):
                               subject_field, value_field, observer_slot,
                               native_refresh, source_event, 32, 48,
                               meta["subject_listeners_field"], meta["subject_busy_field"],
-                              meta["subject_listener_length_field"]]
-                    uc.mem_write(TRAP + pos["config"], struct.pack("<16Q", *config))
+                              meta["subject_listener_length_field"],
+                              2 if scope == "searchCapsule" else 0]
+                    uc.mem_write(TRAP + pos["config"], struct.pack(CONFIG_FORMAT, *config))
                     for name, target in [("dark", source_base + meta["light"]),
                                          ("light", source_base + meta["dark"]),
                                          ("taken", original_taken),
@@ -615,7 +646,7 @@ def fixture_cases(p, image_path, metadata_path, scope="Dock"):
                         (listeners + meta["subject_listener_length_field"], 2),
                     ]:
                         uc.mem_write(at, struct.pack("<I", value))
-                    for offset, value in [(0, 1), (8, mode), (16, 3), (24, 1)]:
+                    for offset, value in [(0, 1), (8, dock | (search << 2)), (16, 3), (24, 1)]:
                         write64(uc, state + offset, value)
                     frame = STACK + 0x5000
                     dart_sp = frame - event_map["spills"] * 8 - 16
@@ -723,24 +754,40 @@ def fixture_cases(p, image_path, metadata_path, scope="Dock"):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--payload", type=Path, required=True,
+    source = ap.add_mutually_exclusive_group(required=True)
+    source.add_argument("--payload", type=Path,
                     help="final shipping arm64 SO assembled by main")
+    source.add_argument("--source", action="store_true",
+                        help="compile production bridge/policy only; no Gradle")
+    ap.add_argument("--ndk", type=Path, help="NDK for --source")
     ap.add_argument("--report", type=Path)
     ap.add_argument("--fixtures", type=Path)
     ap.add_argument("--metadata", type=Path)
     args = ap.parse_args()
     if bool(args.fixtures) != bool(args.metadata):
         ap.error("--fixtures and --metadata must be supplied together")
+    if args.source:
+        from material_bridge_payload import standalone_payload
+        with standalone_payload(args.ndk) as payload:
+            args.payload = payload
+            execute(args)
+    else:
+        execute(args)
+
+
+def execute(args):
     payload_sha256 = hashlib.sha256(args.payload.read_bytes()).hexdigest()
     p = Payload(args.payload)
     template(p, p.uc())  # reject the old ABI/exports before executing any payload
     result = dict(config_bytes=CONFIG_SIZE, shipping_scopes=["Dock", "searchCapsule"],
+                  payload_kind="source-only" if args.source else "final-linked",
                   payload=str(args.payload.resolve()),
                   payload_sha256=payload_sha256,
                   folder_exports_absent=True,
                   choose=choose_cases(p), choose_conditions=condition_cases(p),
                   refresh=refresh_cases(p), runtime=runtime_cases(p),
-                  policy=linked_policy_cases(p), publication_races=publication_race_cases(p))
+                  policy=linked_policy_cases(p), pair_policy=linked_pair_policy_cases(p),
+                  publication_races=publication_race_cases(p))
     if args.fixtures:
         result["native_fixtures"] = {version: {scope: fixture_cases(
             p, args.fixtures / version / "libapp.so",
@@ -749,7 +796,7 @@ def main():
             for version in ("7722", "8593", "8602", "9209", "9226", "8604", "9239")}
     result["cases"] = sum(result[key] for key in
                           ("choose", "choose_conditions", "refresh", "runtime",
-                           "policy", "publication_races"))
+                           "policy", "pair_policy", "publication_races"))
     result["cases"] += sum(scope["cases"] for scopes in
                            result.get("native_fixtures", {}).values()
                            for scope in scopes.values())

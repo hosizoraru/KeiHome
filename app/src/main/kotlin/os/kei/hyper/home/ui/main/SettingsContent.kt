@@ -64,6 +64,7 @@ internal fun SettingsContent(
   launcherLabelsContent: @Composable () -> Unit,
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
+  searchGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
   onCompactPackHintsChange: (Boolean) -> Unit = {},
@@ -98,13 +99,15 @@ internal fun SettingsContent(
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
     R.string.system_fallback_classic, R.string.system_fallback_boundless,
     R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
-  val effects = matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
+  val effects = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
   val staticScope = matches(SettingsSection.HOOK, R.string.scope_title, R.string.scope_search,
     R.string.scope_surfaces_note,
     extra = "scope libxposed")
   val launcherGlass = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.settings_system_appearance,
     R.string.launcher_glass_title, R.string.launcher_glass_summary,
     R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
+  val searchGlass = migratedSearch && matches(SettingsSection.HOOK,
+    R.string.search_glass_title, R.string.search_glass_summary, R.string.search_glass_follow_dock)
   val labels = migratedSearch && matches(SettingsSection.HOOK, R.string.navigation_desktop, R.string.launcher_labels_section, R.string.launcher_labels_title,
     R.string.launcher_labels_summary, R.string.launcher_labels_native, R.string.launcher_labels_marquee,
     R.string.launcher_labels_two_lines)
@@ -116,7 +119,7 @@ internal fun SettingsContent(
     R.string.dock_glass_offset_title, R.string.dock_glass_offset_summary,
     R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
-  val splashVisible = matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
+  val splashVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
@@ -201,35 +204,14 @@ internal fun SettingsContent(
       if (effects) ThemeEffectsCard(themeEffects, framework, onThemeEffectsChange)
     if (launcherGlass || labels || dockGlass) desktopStatusObserver()
     if (launcherGlass) launcherGlassContent()
+    if (searchGlass) searchGlassContent()
     }
     if (labels || dockGlass) {
       SmallTitle(stringResource(R.string.launcher_labels_section), modifier = Modifier.semantics { heading() })
       if (labels) launcherLabelsContent()
       if (dockGlass) dockGlassContent()
     }
-    if (splashVisible) {
-      SmallTitle(stringResource(R.string.splash_section))
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        val issue = when {
-          !splashInScope -> R.string.splash_scope
-          splash.unavailable -> R.string.theme_effects_unavailable
-          splash.saving -> R.string.theme_effects_saving
-          splash.saveFailed -> R.string.theme_effects_save_failed
-          splash.readFailed -> R.string.theme_effects_read_failed
-          splash.loading || splash.savedChoice == null -> R.string.theme_effects_loading
-          else -> null
-        }
-        SwitchPreference(title = stringResource(R.string.splash_adapt),
-          summary = stringResource(issue ?: R.string.splash_adapt_summary),
-          checked = splash.savedChoice == true,
-          enabled = splashInScope && splash.canSaveThemeEffects(splash.savedChoice != true),
-          onCheckedChange = onSplashChange)
-        if (splashInScope && (splash.readFailed || splash.saveFailed)) {
-          BasicComponent(title = stringResource(R.string.theme_effects_resave_off),
-            enabled = splash.canSaveThemeEffects(false), onClick = { onSplashChange(false) })
-        }
-      }
-    }
+    if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange)
     if (autoApply || installedIconsOnly || rememberMenus || compactPackHints) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
         onRememberMenusChange, onCompactPackHintsChange,

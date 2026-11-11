@@ -13,7 +13,7 @@
     <string name="setup_feature_icons">統一感のあるアイコン</string>
     <string name="setup_feature_icons_body">対応アイコンは明暗に追従し、システムの各画面で適用済みテーマを使用できます。追加パックや Monet は任意です。</string>
     <string name="setup_feature_desktop">ホーム画面のカスタマイズ</string>
-    <string name="setup_feature_desktop_body">Dock のガラス効果、ホーム画面のガラススタイル、長いアプリ名の表示を調整できます。</string>
+    <string name="setup_feature_desktop_body">Dock、外観とラベル、アイコンと起動画面をカテゴリ別に調整できます。</string>
     <string name="setup_feature_control">有効化は自分のペースで</string>
     <string name="setup_feature_control_body">閲覧中も現在の設定を維持します。パックの変更、Monet やデスクトップ効果の有効化は自分で選べます。</string>
     <string name="setup_framework_title">モジュールの動作環境を確認</string>
@@ -30,9 +30,9 @@
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
     <string name="setup_icon_tip_body">画像、補完ルール、生成対象を変更したら、各ページのフローティング操作で生成し、必要に応じて適用してください。対応する明暗や配色の変更は自動同期されます。ホーム画面と普段使う他の画面で確認してください。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
-    <string name="setup_desktop_body">「デスクトップ」と同じ設定を開きます。対応する変更は自動で同期され、ランチャーを何度も再起動する必要はありません。「状態」で接続と設定の受信状況を確認してください。利用可否はホームアプリによって異なり、開くだけでは設定は変わりません。</string>
+    <string name="setup_desktop_body">カテゴリ別にホーム設定を開きます。対応する変更は自動で同期され、状態は各ページで確認できます。利用可否はホームアプリとスコープ許可によって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
-    <string name="setup_open_desktop_body">Dock のガラス効果、角の形状、ガラスの描画スタイル、アプリ名の表示。</string>
+    <string name="setup_open_desktop_body">Dock、外観とラベル、アイコンと起動画面をカテゴリ別に開きます。</string>
     <string name="setup_finish_title">KeiHome を使ってみましょう</string>
     <string name="setup_finish_body">ガイドはここまでです。未完了の設定はあとでも行えます。「設定」からいつでもこのガイドを開けます。</string>
     <string name="setup_finish_note_body">「状態」には報告された対象とランチャー接続が表示されます。スコープの許可だけでは、すべてのホストの読み込みは確認できません。普段使う共有画面、設定、サイドバーを開いてアイコンを確認してください。利用可否はシステムのバージョンやアプリによって異なります。</string>

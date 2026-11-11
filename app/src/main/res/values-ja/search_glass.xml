@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_glass_title">検索バーの質感</string>
+    <string name="search_glass_summary">個別に設定するか、Dockの質感に連動します。</string>
+    <string name="search_glass_follow_dock">Dockに連動</string>
+    <string name="search_glass_follow_value">Dock · %1$s</string>
+    <string name="search_glass_unavailable">このホームプロセスでは検索バーの個別設定に対応していません</string>
+    <string name="desktop_saved_title">設定を保存済み</string>
+    <string name="desktop_stored_count">%2$d項目中%1$d項目を保存済み</string>
+    <string name="desktop_stored_value">保存済み · %1$s</string>
+</resources>

@@ -27,6 +27,137 @@ import org.junit.Test
 import os.kei.hyper.home.data.LauncherGlassStyle
 
 class NativeMonetClientTest {
+  @Test fun independentGlassEncodesAllNinePoliciesAndRequiresBothCapabilitiesBeforeWriting() {
+    for (dock in 0..2) for (search in 0..2) {
+      val policy = dock or (search shl 2)
+      assertTrue(NativeMonetProtocol.validGlassPolicy(policy))
+      val command = NativeMonetProtocol.launcherGlassPairRequest(policy)
+      assertEquals(24, command.size)
+      assertArrayEquals(words(magic, 1, 10, policy, 0, 0), command)
+      for (capabilities in 0..127) {
+        val output = ByteArrayOutputStream()
+        val input = ByteArrayInputStream(greeting(capabilities) + ack())
+        var writes = 0
+        val accepted = NativeMonetProtocol.exchange(input, output, targetUid, targetUid, command,
+          onWriteAttempt = { writes++ })
+        val expected = capabilities and 80 == 80
+        assertEquals("dock=$dock search=$search caps=$capabilities", expected, accepted)
+        assertEquals(if (expected) 1 else 0, writes)
+        assertArrayEquals(if (expected) command else byteArrayOf(), output.toByteArray())
+        assertEquals(if (expected) 0 else 12, input.available())
+      }
+    }
+  }
+
+  @Test fun independentGlassRejectsNegativeReservedAndHighBitPoliciesBeforeWriting() {
+    val invalid = listOf(-1, Int.MIN_VALUE, 3, 7, 11, 12, 13, 14, 15, 16, 64, 256, Int.MAX_VALUE)
+    for (policy in invalid) {
+      assertFalse("policy=$policy", NativeMonetProtocol.validGlassPolicy(policy))
+      assertThrows(IllegalArgumentException::class.java) { NativeMonetProtocol.launcherGlassPairRequest(policy) }
+      val output = ByteArrayOutputStream()
+      var writes = 0
+      assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(127) + ack()),
+        output, targetUid, targetUid, words(magic, 1, 10, policy, 0, 0), onWriteAttempt = { writes++ }))
+      assertEquals(0, writes)
+      assertEquals(0, output.size())
+    }
+    for (reserved in listOf(words(magic, 1, 10, 10, 1, 0), words(magic, 1, 10, 10, 0, 1),
+      words(magic, 1, 10, 10, -1, 0), words(magic, 1, 10, 10, 0, Int.MIN_VALUE))) {
+      val output = ByteArrayOutputStream()
+      var writes = 0
+      assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(127) + ack()),
+        output, targetUid, targetUid, reserved, onWriteAttempt = { writes++ }))
+      assertEquals(0, writes)
+      assertEquals(0, output.size())
+    }
+  }
+
+  @Test fun independentGlassRejectsTruncatedAndTrailingPayloadBeforeWriting() {
+    val command = NativeMonetProtocol.launcherGlassPairRequest(10)
+    for (malformed in (0 until command.size).map(command::copyOf) +
+      listOf(command + byteArrayOf(0), command + words(0))) {
+      val output = ByteArrayOutputStream()
+      var writes = 0
+      assertFalse("request length=${malformed.size}", NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(80) + ack()), output, targetUid, targetUid, malformed,
+        onWriteAttempt = { writes++ }))
+      assertEquals(0, writes)
+      assertEquals(0, output.size())
+    }
+  }
+
+  @Test fun legacyGlassEndpointRejectsPairWithoutWritingAndStillAcceptsOpcodeNine() {
+    for (caps in listOf(16, 17, 31, 63)) {
+      val output = ByteArrayOutputStream()
+      var writes = 0
+      var failure: String? = null
+      assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(caps) + ack()),
+        output, targetUid, targetUid, NativeMonetProtocol.launcherGlassPairRequest(6),
+        onWriteAttempt = { writes++ }, onFailure = { failure = it }))
+      assertEquals("native independent glass capability unavailable", failure)
+      assertEquals(0, output.size())
+      assertEquals(0, writes)
+      for (style in 0..2) {
+        val legacy = NativeMonetProtocol.launcherGlassRequest(style)
+        assertArrayEquals(words(magic, 1, 9, style, 0, 0), legacy)
+        val legacyOutput = ByteArrayOutputStream()
+        assertTrue(exchange(ByteArrayInputStream(greeting(caps) + ack()), legacyOutput, request = legacy))
+        assertArrayEquals(legacy, legacyOutput.toByteArray())
+      }
+    }
+  }
+
+  @Test fun pairOnlyGreetingIsInvalidAndCannotAdvertiseOrAuthorizeAnyGlassCommand() {
+    for (caps in (64..127).filter { it and 16 == 0 }) {
+      for (command in listOf(null, NativeMonetProtocol.launcherGlassRequest(1),
+        NativeMonetProtocol.launcherGlassPairRequest(9))) {
+        val output = ByteArrayOutputStream()
+        var observed: Int? = null
+        var writes = 0
+        var failure: String? = null
+        assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(caps) + ack()),
+          output, targetUid, targetUid, command, onGreeting = { observed = it },
+          onWriteAttempt = { writes++ }, onFailure = { failure = it }))
+        assertEquals("native greeting capabilities invalid", failure)
+        assertNull(observed)
+        assertEquals(0, writes)
+        assertEquals(0, output.size())
+      }
+    }
+  }
+
+  @Test fun independentGlassNeedsACompleteSuccessfulAndCurrentAck() {
+    val command = NativeMonetProtocol.launcherGlassPairRequest(6)
+    for (length in 0 until 12) assertThrows(EOFException::class.java) {
+      exchange(ByteArrayInputStream(greeting(80) + ack().copyOf(length)), ByteArrayOutputStream(), request = command)
+    }
+    for (reply in listOf(words(magic, 1, 1), words(magic, 2, 0), words(0, 1, 0))) {
+      val output = ByteArrayOutputStream()
+      assertFalse(exchange(ByteArrayInputStream(greeting(80) + reply), output, request = command))
+      assertArrayEquals(command, output.toByteArray())
+    }
+    var checks = 0
+    val output = ByteArrayOutputStream()
+    assertFalse(NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(80) + ack()),
+      output, targetUid, targetUid, command, isCurrentTarget = { ++checks == 1 }))
+    assertArrayEquals(command, output.toByteArray())
+  }
+
+  @Test fun failedPairWriteMarksTheAttemptBeforeAnyPartialByteCanEscape() {
+    var writes = 0
+    val output = object : OutputStream() {
+      override fun write(value: Int) {
+        assertEquals(1, writes)
+        throw InterruptedIOException("partial pair write")
+      }
+    }
+    assertThrows(InterruptedIOException::class.java) {
+      NativeMonetProtocol.exchange(ByteArrayInputStream(greeting(80)), output, targetUid, targetUid,
+        NativeMonetProtocol.launcherGlassPairRequest(9), onWriteAttempt = { writes++ })
+    }
+    assertEquals(1, writes)
+  }
+
   @Test fun launcherGlassHasItsOwnCapabilityAndExact24ByteWallpaperMaterialCommand() {
     for (material in LauncherGlassStyle.entries) {
       val style = material.nativeValue
@@ -285,7 +416,7 @@ class NativeMonetClientTest {
       NativeMonetProtocol.launcherLabelsRequest(0), NativeMonetProtocol.launcherLabelsRequest(1),
       NativeMonetProtocol.dockGlassRequest(false), NativeMonetProtocol.dockGlassRequest(true),
       NativeMonetProtocol.launcherGlassRequest(0), NativeMonetProtocol.launcherGlassRequest(2))
-    for (capabilities in listOf(64, 65, 127, Int.MIN_VALUE, -1)) {
+    for (capabilities in listOf(64, 65, 128, Int.MIN_VALUE, -1)) {
       for (request in requests) {
         val output = ByteArrayOutputStream()
         var failure: String? = null

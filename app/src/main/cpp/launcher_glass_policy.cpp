@@ -8,12 +8,17 @@ alignas(8) uint64_t kh_glass_material_revision = 0;
 alignas(8) uint64_t kh_glass_material_notified = 0;
 }
 
-bool RequestLauncherGlassStyle(uint32_t style) {
-    if (style > kLauncherGlassDark) return false;
+bool RequestLauncherGlassPolicy(uint32_t policy) {
+    if (!ValidLauncherGlassPolicy(policy)) return false;
     const uint64_t previous = __atomic_exchange_n(
-            &kh_launcher_glass_control, uint64_t{style}, __ATOMIC_ACQ_REL);
-    if (previous != style) {
+            &kh_launcher_glass_control, uint64_t{policy}, __ATOMIC_ACQ_REL);
+    if (previous != policy) {
         __atomic_add_fetch(&kh_glass_material_revision, uint64_t{1}, __ATOMIC_RELEASE);
     }
     return true;
+}
+
+bool RequestLauncherGlassStyle(uint32_t style) {
+    if (style > kLauncherGlassDark) return false;
+    return RequestLauncherGlassPolicy(style | (style << 2u));
 }

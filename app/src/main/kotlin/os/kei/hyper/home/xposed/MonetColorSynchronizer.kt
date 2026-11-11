@@ -52,9 +52,9 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     if (!mayWrite() || Thread.currentThread().isInterrupted) return false
     val user = currentUserId() ?: return false
     val context = contextForUser(baseContext, user) ?: return false
-    val style = os.kei.hyper.home.data.LauncherGlassPreferences.read(preferences).nativeValue
+    val style = os.kei.hyper.home.data.LauncherGlassPreferences.readChoice(preferences).nativePolicy
     val current = { mayWrite() && !Thread.currentThread().isInterrupted && currentUserId() == user &&
-      os.kei.hyper.home.data.LauncherGlassPreferences.read(preferences).nativeValue == style }
+      os.kei.hyper.home.data.LauncherGlassPreferences.readChoice(preferences).nativePolicy == style }
     return launcherGlass.synchronize(style, user, SystemClock::elapsedRealtime, current) { attempted ->
       if (native.setLauncherGlass(context, style, attempted)) native.acknowledgedLauncherGlassProcess else null
     }
@@ -181,6 +181,8 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     val process = identities.process
     val acknowledgementProcess = identities.acknowledgementProcess
     val launcherGlassAvailable = greeting?.launcherGlassAvailable == true
+    val glassPolicy = launcherGlass.acknowledgedStyle(
+      acknowledgementProcess.takeIf { launcherGlassAvailable }, request.userId, SystemClock.elapsedRealtime())
     val dockProcess = acknowledgementProcess.takeIf { dockAvailable }
     val dockCheckedAt = SystemClock.elapsedRealtime()
     val dockEnabled = dockGlass.acknowledgedEnabled(dockProcess, request.userId, dockCheckedAt)
@@ -202,8 +204,8 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       dockGlassStartTicks = dockProcess?.startTicks.takeIf { dockEnabled != null },
       launcherGlassAvailable = launcherGlassAvailable,
       launcherCapabilities = greeting?.capabilities,
-      launcherGlassStyle = launcherGlass.acknowledgedStyle(
-        acknowledgementProcess.takeIf { launcherGlassAvailable }, request.userId, SystemClock.elapsedRealtime()),
+      launcherGlassStyle = glassPolicy?.and(3),
+      launcherSearchGlassStyle = glassPolicy?.ushr(2),
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)

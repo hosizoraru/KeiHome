@@ -92,7 +92,7 @@ uint32_t InstalledCapabilities() {
     const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeDockGlassCapability | kNativeDockLayoutCapability : 0u;
     const uint32_t glass = __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u
-            ? kNativeLauncherGlassCapability : 0u;
+            ? kNativeLauncherGlassCapability | kNativeLauncherGlassPairCapability : 0u;
     return monet | materials | labels | dock | glass;
 }
 
@@ -147,7 +147,7 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
     if (ReadLe32(header) != kNativeMonetMagic ||
             ReadLe32(header + 4u) != kNativeMonetProtocolVersion ||
             (flags > kNativeLauncherLabelsCommand && flags != kNativeDockGlassCommand &&
-             flags != kNativeLauncherGlassCommand) ||
+             flags != kNativeLauncherGlassCommand && flags != kNativeLauncherGlassPairCommand) ||
             (count > kNativeMonetMaxPackages && flags != kNativeDockGlassCommand) ||
             (flags == 0u && count != 0u) ||
             (flags == 1u && ((foreground >> 24u) != 0xffu ||
@@ -160,7 +160,9 @@ bool ReadRequestHeader(Reader read_exactly, RequestHeader* output) {
              (foreground > 1u || background > kNativeDockGlassMaxCornerQ8 ||
               !ValidDockGlassOptions(count))) ||
             (flags == kNativeLauncherGlassCommand &&
-             (foreground > kLauncherGlassDark || background != 0u || count != 0u))) {
+             (foreground > kLauncherGlassDark || background != 0u || count != 0u)) ||
+            (flags == kNativeLauncherGlassPairCommand &&
+             (!ValidLauncherGlassPolicy(foreground) || background != 0u || count != 0u))) {
         return false;
     }
     *output = {flags, foreground, background, count};
@@ -344,12 +346,18 @@ template <typename Reader, typename Clock>
 bool ReadAndCommitRequest(PolicyState* state, Reader read_exactly, Clock now_before_deadline) {
     RequestHeader header{};
     if (!ReadRequestHeader(read_exactly, &header)) return false;
-    if (header.flags == kNativeLauncherGlassCommand) {
+    if (header.flags == kNativeLauncherGlassCommand ||
+            header.flags == kNativeLauncherGlassPairCommand) {
         const uint64_t now = now_before_deadline();
-        if (!now || (InstalledCapabilities() & kNativeLauncherGlassCapability) == 0u)
+        const uint32_t capability = header.flags == kNativeLauncherGlassPairCommand
+                ? kNativeLauncherGlassPairCapability : kNativeLauncherGlassCapability;
+        if (!now || (InstalledCapabilities() & capability) == 0u)
             return false;
         MaintainPolicy(state, now);
-        if (!RequestLauncherGlassStyle(header.foreground)) return false;
+        const bool accepted = header.flags == kNativeLauncherGlassPairCommand
+                ? RequestLauncherGlassPolicy(header.foreground)
+                : RequestLauncherGlassStyle(header.foreground);
+        if (!accepted) return false;
         state->launcher_glass_expires_at = header.foreground
                 ? now + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u;
         return true;

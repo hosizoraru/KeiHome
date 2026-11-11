@@ -16,9 +16,11 @@
 #define KH_GLASS_MATERIAL_LISTENERS_FIELD  104
 #define KH_GLASS_MATERIAL_BUSY_FIELD       112
 #define KH_GLASS_MATERIAL_LENGTH_FIELD     120
-#define KH_GLASS_MATERIAL_CONFIG_SIZE      128
+#define KH_GLASS_MATERIAL_POLICY_SHIFT    128
+#define KH_GLASS_MATERIAL_CONFIG_SIZE      136
 
 #ifndef __ASSEMBLER__
+#include <stddef.h>
 #include <stdint.h>
 struct LauncherGlassMaterialConfig {
     uint64_t installed, control, revision, notified;
@@ -26,8 +28,11 @@ struct LauncherGlassMaterialConfig {
     uint64_t refresh, eventReturn;
     uint64_t trueOffset, falseOffset;
     uint64_t listenersField, busyField, lengthField;
+    uint64_t policyShift; // Trusted installer role: 0 Dock/folder, 2 search.
 };
 static_assert(sizeof(LauncherGlassMaterialConfig) == KH_GLASS_MATERIAL_CONFIG_SIZE);
+static_assert(offsetof(LauncherGlassMaterialConfig, policyShift) ==
+        KH_GLASS_MATERIAL_POLICY_SHIFT);
 extern "C" {
 extern const uint8_t kh_glass_material_begin[], kh_glass_material_choose[];
 extern const uint8_t kh_glass_material_original[], kh_glass_material_taken[];

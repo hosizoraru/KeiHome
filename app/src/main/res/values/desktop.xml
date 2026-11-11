@@ -3,7 +3,7 @@
     <string name="navigation_desktop">Desktop</string>
     <string name="desktop_synced_count">%1$d / %2$d supported adjustments confirmed</string>
     <string name="desktop_labels_status_title">App names</string>
-    <string name="desktop_glass_status_title">Glass appearance</string>
+    <string name="desktop_glass_status_title">Dock material</string>
     <string name="desktop_dock_on">On &#183; %1$s</string>
     <string name="desktop_feature_off">Off</string>
     <string name="desktop_status_not_ready">Not ready</string>
@@ -11,10 +11,10 @@
     <string name="desktop_status_unavailable">Unavailable</string>
     <string name="desktop_appearance_section">Launcher appearance</string>
     <string name="desktop_refresh_completed">Launcher settings refreshed at %1$s.</string>
-    <string name="desktop_ready_title">Launcher ready</string>
-    <string name="desktop_pending_title">Launcher sync pending</string>
-    <string name="desktop_error_title">Launcher sync issue</string>
-    <string name="desktop_dock_status_title">Dock</string>
+    <string name="desktop_ready_title">Settings confirmed</string>
+    <string name="desktop_pending_title">Settings sync pending</string>
+    <string name="desktop_error_title">Settings sync issue</string>
+    <string name="desktop_dock_status_title">Dock style</string>
     <string name="desktop_status_badge">%1$s &#183; %2$s</string>
     <string name="desktop_compatibility_title">Launcher compatibility</string>
     <string name="desktop_no_supported_settings">No supported overrides; native appearance retained</string>

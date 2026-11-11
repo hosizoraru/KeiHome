@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="launcher_glass_title">Dock 与搜索框质感</string>
-    <string name="launcher_glass_summary">为 Dock 与小搜索框选择浅色或深色玻璃方案，保留原生模糊、折射与动画。文件夹背景继续跟随原生主题。</string>
+    <string name="launcher_glass_title">Dock 质感</string>
+    <string name="launcher_glass_summary">跟随壁纸明暗，或使用浅色、深色质感。</string>
     <string name="launcher_glass_system">跟随系统</string>
     <string name="launcher_glass_light">浅色质感</string>
     <string name="launcher_glass_dark">深色质感</string>

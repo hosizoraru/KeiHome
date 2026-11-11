@@ -3,7 +3,7 @@
     <string name="navigation_desktop">ホーム</string>
     <string name="desktop_synced_count">対応する設定 %2$d 件中 %1$d 件を確認済み</string>
     <string name="desktop_labels_status_title">アプリ名</string>
-    <string name="desktop_glass_status_title">ガラスの質感</string>
+    <string name="desktop_glass_status_title">Dockの質感</string>
     <string name="desktop_dock_on">オン · %1$s</string>
     <string name="desktop_feature_off">オフ</string>
     <string name="desktop_status_not_ready">準備未完了</string>
@@ -11,10 +11,10 @@
     <string name="desktop_status_unavailable">利用不可</string>
     <string name="desktop_appearance_section">ホーム画面の外観</string>
     <string name="desktop_refresh_completed">%1$s にホーム設定と同期状態を更新しました。</string>
-    <string name="desktop_ready_title">ホーム準備完了</string>
-    <string name="desktop_pending_title">ホーム同期を待機中</string>
-    <string name="desktop_error_title">ホーム同期エラー</string>
-    <string name="desktop_dock_status_title">Dock</string>
+    <string name="desktop_ready_title">設定を確認済み</string>
+    <string name="desktop_pending_title">設定の同期を待機中</string>
+    <string name="desktop_error_title">設定の同期エラー</string>
+    <string name="desktop_dock_status_title">Dockスタイル</string>
     <string name="desktop_status_badge">%1$s · %2$s</string>
     <string name="desktop_compatibility_title">ホームの互換性</string>
     <string name="desktop_no_supported_settings">対応する上書き設定はありません。標準の外観を維持します</string>

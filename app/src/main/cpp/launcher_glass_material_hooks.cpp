@@ -107,9 +107,14 @@ bool InstallPreparedLauncherGlassMaterial() {
     if (!__atomic_compare_exchange_n(&gPhase, &expected, 5u, false,
             __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return IsLauncherGlassInstalled();
     const auto& p = gProfile;
-    struct Choice { size_t branch; uint32_t word; size_t lightScheme, darkScheme; };
+    struct Choice {
+        size_t branch;
+        uint32_t word;
+        size_t lightScheme, darkScheme;
+        uint64_t policyShift;
+    };
     Choice choices[1 + kLauncherGlassMaterialExtraChooseCapacity]{};
-    choices[0] = {p.branch, p.branchWord, p.darkTarget, p.lightTarget};
+    choices[0] = {p.branch, p.branchWord, p.darkTarget, p.lightTarget, 0u};
     const size_t count = 1 + gExtra.count;
     if (count > 1 + kLauncherGlassMaterialExtraChooseCapacity)
         return Reject("native material scope capacity");
@@ -117,8 +122,15 @@ bool InstallPreparedLauncherGlassMaterial() {
         const auto& site = gExtra.sites[i];
         if (!site.lightSchemeTarget || !site.darkSchemeTarget)
             return Reject("native material scheme polarity");
+        uint64_t shift;
+        switch (site.kind) {
+            case kLauncherGlassMaterialSearchCapsule: shift = 2u; break;
+            case kLauncherGlassMaterialFolder:
+            case kLauncherGlassMaterialFolderDefaultColors: shift = 0u; break;
+            default: return Reject("native material policy role");
+        }
         choices[i + 1] = {site.branch, site.word,
-            site.lightSchemeTarget, site.darkSchemeTarget};
+            site.lightSchemeTarget, site.darkSchemeTarget, shift};
     }
     const size_t length = size_t(kh_glass_material_end - kh_glass_material_begin);
     const long page = sysconf(_SC_PAGESIZE);
@@ -146,7 +158,7 @@ bool InstallPreparedLauncherGlassMaterial() {
         p.controllerSlot, uint64_t(p.wallpaperRxField), p.rxSubjectField, p.rxValueField,
         p.observerSlot, gImage.base + p.refreshEntry, gImage.base + p.returnPc,
         p.nativeTrueOffset, p.nativeFalseOffset,
-        p.subjectListenersField, p.subjectBusyField, p.subjectListenerLengthField};
+        p.subjectListenersField, p.subjectBusyField, p.subjectListenerLengthField, 0u};
     for (size_t i = 0; i < count; ++i) {
         const auto& choice = choices[i];
         const bool testBit = (choice.word & 0x7e000000u) == 0x36000000u;
@@ -183,6 +195,7 @@ bool InstallPreparedLauncherGlassMaterial() {
                 !jump(kh_glass_material_fall, choice.branch + 4) ||
                 !jump(kh_glass_material_event_resume, p.resume))
             return fail("native continuations");
+        config.policyShift = choice.policyShift;
         memcpy(code + Offset(kh_glass_material_config), &config, sizeof(config));
         if (!LauncherGlassBranch(sites[i], reinterpret_cast<uintptr_t>(
                 code + Offset(kh_glass_material_choose)), &entryBranches[i]) ||

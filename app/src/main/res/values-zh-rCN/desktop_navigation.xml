@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="desktop_dock_title">Dock</string>
+    <string name="desktop_connection_title">桌面连接</string>
+    <string name="desktop_overview_summary">按分类调整设置，在子页面查看同步状态。</string>
+    <string name="desktop_dock_summary">材质、圆角与布局</string>
+    <string name="desktop_display_title">搜索与文字</string>
+    <string name="desktop_display_summary">搜索栏质感与应用名称</string>
+    <string name="desktop_icons_title">图标与启动</string>
+    <string name="desktop_icons_summary">图标遮罩特效与启动背景</string>
+</resources>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="desktop_connection_framework">フレームワーク</string>
+  <string name="desktop_connection_system">読み込み</string>
+  <string name="desktop_connection_java">Home Java</string>
+  <string name="desktop_connection_native">ネイティブ</string>
+  <string name="desktop_connection_badge">%1$s · %2$s</string>
+  <string name="desktop_connection_version_unknown">Home · バージョン不明</string>
+  <string name="desktop_connection_connected">接続済み</string>
+  <string name="desktop_connection_ready">準備完了</string>
+  <string name="desktop_connection_disconnected">未接続</string>
+  <string name="desktop_connection_read_failed">取得失敗</string>
+  <string name="desktop_connection_waiting">待機中</string>
+  <string name="desktop_connection_scope_missing">スコープ不足</string>
+  <string name="desktop_connection_failed">読み込み失敗</string>
+  <string name="desktop_connection_reloading">再読み込み中</string>
+  <string name="desktop_connection_stale">古い報告</string>
+  <string name="desktop_connection_generation_mismatch">バージョン不一致</string>
+  <string name="desktop_connection_checking">確認中</string>
+  <string name="desktop_connection_not_reported">応答なし</string>
+  <string name="desktop_connection_expired">応答期限切れ</string>
+  <string name="desktop_connection_timed_out">タイムアウト</string>
+  <string name="desktop_connection_native_unsupported">非対応</string>
+  <string name="desktop_connection_native_unavailable">利用不可</string>
+  <string name="desktop_connection_inactive_user">非アクティブ</string>
+  <string name="desktop_connection_ready_summary">最新のネイティブ応答でランチャー接続を確認しました。</string>
+  <string name="desktop_connection_disconnected_summary">フレームワークサービスが未接続です。保存された応答では接続を確認できません。</string>
+  <string name="desktop_connection_read_failed_summary">最新の接続状態を取得できませんでした。更新して再試行してください。</string>
+  <string name="desktop_connection_waiting_summary">現在のフレームワーク読み込み報告を待っています。</string>
+  <string name="desktop_connection_scope_missing_summary">モジュールのスコープでシステムフレームワークとシステムランチャーを有効にしてください。</string>
+  <string name="desktop_connection_failed_summary">フレームワークがモジュールの読み込み失敗を報告しています。</string>
+  <string name="desktop_connection_reloading_summary">モジュールを再読み込み中です。現在の接続状態を待っています。</string>
+  <string name="desktop_connection_stale_summary">モジュールの読み込み報告が古くなっています。更新して確認してください。</string>
+  <string name="desktop_connection_generation_summary">実行中とインストール済みのモジュールのバージョンが一致しません。</string>
+  <string name="desktop_connection_checking_summary">ランチャーのネイティブ接続を確認しています。</string>
+  <string name="desktop_connection_not_reported_summary">ランチャーのネイティブ側からまだ応答がありません。</string>
+  <string name="desktop_connection_expired_summary">ネイティブ応答の有効期限が切れました。更新して接続を確認してください。</string>
+  <string name="desktop_connection_timed_out_summary">制限時間内にランチャーから応答がありませんでした。</string>
+  <string name="desktop_connection_native_unsupported_summary">このランチャーは必要なネイティブ機能に対応していないと報告しています。</string>
+  <string name="desktop_connection_native_unavailable_summary">ランチャーのネイティブ接続先を利用できません。</string>
+  <string name="desktop_connection_inactive_user_summary">ランチャーの接続先は非アクティブな Android ユーザーに属しています。</string>
+</resources>

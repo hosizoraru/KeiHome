@@ -324,7 +324,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
   val environmentSummary = if (device == null) null else listOfNotNull(
     "${device.marketName} · ${android.os.Build.VERSION.INCREMENTAL.substringBeforeLast('.', android.os.Build.VERSION.INCREMENTAL)}",
     listOfNotNull(device.launcherVersion?.let { version ->
-      "Home ${Regex("(?<![0-9])[0-9]{3,5}(?![0-9])").findAll(version).lastOrNull()?.value ?: version}"
+      compactLauncherVersion(version) ?: stringResource(R.string.desktop_connection_version_unknown)
     },
       device.rustVersion?.takeIf(String::isNotBlank)?.let { "Rust $it" },
       device.flutterVersion?.takeIf(String::isNotBlank)?.let { "Flutter ${it.substringBefore("-mi-")}" })
@@ -775,6 +775,7 @@ internal fun StatusOverviewCard(
   badges: List<String> = emptyList(),
   badgeContent: (@Composable ColumnScope.(Color) -> Unit)? = null,
   actionLabel: String? = null,
+  compactSymbol: Boolean = false,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
   val dark = LocalKeiHomeDarkTheme.current
@@ -821,7 +822,9 @@ internal fun StatusOverviewCard(
       // Keep the symbol square and clip it only at the full card boundary.
       Box(Modifier.matchParentSize()) {
         StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.CenterEnd)
-          .offset(x = 27.dp).requiredSize(130.dp))
+          .offset(x = if (compactSymbol) (-18).dp else 27.dp)
+          .requiredSize(if (compactSymbol) 80.dp else 130.dp)
+          .testTag("status.overview.symbol"), compactSymbol)
       }
       Column {
         Box(Modifier.fillMaxWidth().clipToBounds()) {
@@ -898,12 +901,13 @@ internal fun StatusOverviewCard(
 
 @Composable
 private fun StatusOverviewSymbol(
-  icon: ImageVector, tone: StatusTone, color: Color, modifier: Modifier,
+  icon: ImageVector, tone: StatusTone, color: Color, modifier: Modifier, compact: Boolean = false,
 ) {
   Icon(
     imageVector = icon,
     modifier = modifier.then(
-      if (tone == StatusTone.READY) Modifier.border(5.dp, color, CircleShape).padding(26.dp)
+      if (tone == StatusTone.READY) Modifier.border(if (compact) 3.dp else 5.dp, color, CircleShape)
+        .padding(if (compact) 16.dp else 26.dp)
       else Modifier,
     ),
     tint = color,

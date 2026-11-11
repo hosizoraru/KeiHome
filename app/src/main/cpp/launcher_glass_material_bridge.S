@@ -23,6 +23,8 @@ kh_glass_material_choose:
     cbz w16, kh_glass_material_original
     ldr x16, [x17, #KH_GLASS_MATERIAL_CONTROL]
     ldar x16, [x16]
+    ldr x17, [x17, #KH_GLASS_MATERIAL_POLICY_SHIFT]
+    lsr w16, w16, w17
     and w16, w16, #3
     cbz w16, kh_glass_material_original
     tbz w16, #1, kh_glass_material_light

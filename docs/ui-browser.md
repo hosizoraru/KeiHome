@@ -21,10 +21,10 @@ Evidence is under `.artifacts/research/monet-subpage-20261106/`.
 
 ## Desktop navigation, 2026-11-06
 
-The Desktop tab groups launcher glass appearance, Dock glass and corner style,
-and app-name presentation. Its overview reuses the semantic status card from
-Status and Icon packs. Each feature occupies a separate pill row; the pills
-reserve the same space for the status graphic as the headline.
+The Desktop tab now presents a connection overview and three category entries:
+Dock, Appearance and labels, and Icons and launch screens. Each child owns
+its settings and relevant status; the overview does not combine hidden
+categories' acknowledgement counters. See `desktop-navigation.md`.
 Overview cards measure and clip their decorative symbol against the whole card,
 including environment information and pills. This preserves its square
 proportions even with a short headline.
@@ -34,8 +34,8 @@ from the current module can confirm a matching configuration. Scope, missing
 capabilities, pending changes and preference errors have separate states;
 an acknowledged disabled Dock is a valid synchronized choice.
 
-Settings / System and Hook retains system material preservation and launch
-screen adaptation. The icon-pack completion card opens its own fallback
+Desktop / Icons and launch screens contains system material preservation and
+launch-screen adaptation. Settings / Scope authorization is a read-only viewer. The icon-pack completion card opens its own fallback
 destination containing system fallback, app-name matching and optional ColorOS
 completion. Global settings search still renders matching migrated controls.
 The icon-pack overview owns the ColorOS completion count, applied or selected

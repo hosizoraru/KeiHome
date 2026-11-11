@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="desktop_dock_title">Dock</string>
+    <string name="desktop_connection_title">Desktop connection</string>
+    <string name="desktop_overview_summary">Choose a category to view settings and sync status.</string>
+    <string name="desktop_dock_summary">Dock style, corners and layout</string>
+    <string name="desktop_display_title">Search and labels</string>
+    <string name="desktop_display_summary">Search bar material and app labels</string>
+    <string name="desktop_icons_title">Icons and launch screens</string>
+    <string name="desktop_icons_summary">Icon effects and launch backgrounds</string>
+</resources>

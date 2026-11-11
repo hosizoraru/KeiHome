@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_glass_title">搜索栏质感</string>
+    <string name="search_glass_summary">独立设置，或跟随 Dock 质感。</string>
+    <string name="search_glass_follow_dock">跟随 Dock</string>
+    <string name="search_glass_follow_value">跟随 Dock · %1$s</string>
+    <string name="search_glass_unavailable">当前桌面进程暂不支持独立设置搜索栏质感</string>
+    <string name="desktop_saved_title">设置已保存</string>
+    <string name="desktop_stored_count">已保存 %1$d / %2$d 项设置</string>
+    <string name="desktop_stored_value">已保存 · %1$s</string>
+</resources>

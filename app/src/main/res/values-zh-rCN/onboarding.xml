@@ -13,7 +13,7 @@
     <string name="setup_feature_icons">统一图标风格</string>
     <string name="setup_feature_icons_body">受支持的图标可跟随深浅色，并在系统多处沿用已应用的主题。额外图标包与 Monet 按需选择。</string>
     <string name="setup_feature_desktop">桌面个性化</string>
-    <string name="setup_feature_desktop_body">按需调整 Dock 玻璃、桌面玻璃风格与长应用名称的显示方式。</string>
+    <string name="setup_feature_desktop_body">按分类调整 Dock、桌面外观与文字，以及图标与启动设置。</string>
     <string name="setup_feature_control">由你决定何时启用</string>
     <string name="setup_feature_control_body">浏览向导会保留当前设置；更换图标包、开启 Monet 或桌面效果均由你决定。</string>
     <string name="setup_framework_title">确认模块运行环境</string>
@@ -30,9 +30,9 @@
     <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
     <string name="setup_icon_tip_body">更换图标、补全规则或生成范围后，用对应页面的悬浮操作生成，并按需应用。受支持的深浅色与取色变化会自动同步；请到桌面及常用的其他界面确认效果。</string>
     <string name="setup_desktop_title">按需调整桌面效果</string>
-    <string name="setup_desktop_body">这里使用与桌面板块相同的控制项。受支持的设置会自动同步，不必反复重启桌面；请在状态页确认桌面已连接、设置已接收。实际可用情况取决于系统桌面，仅打开页面不会改变配置。</string>
+    <string name="setup_desktop_body">按分类浏览桌面设置。受支持的更改会自动同步，可在对应子页查看功能状态。实际可用情况取决于系统桌面与作用域；仅打开页面不会改变配置。</string>
     <string name="setup_open_desktop">打开桌面个性化</string>
-    <string name="setup_open_desktop_body">Dock 玻璃、圆角、玻璃渲染风格与应用名称显示。</string>
+    <string name="setup_open_desktop_body">Dock、外观与文字、图标与启动，按分类进入。</string>
     <string name="setup_finish_title">开始探索 KeiHome</string>
     <string name="setup_finish_body">向导已结束，未完成的配置可以稍后继续。需要回顾时，随时到设置里重新打开使用向导。</string>
     <string name="setup_finish_note_body">状态页显示已上报的目标与桌面连接情况。作用域授权不代表每个宿主均已加载；请打开常用的分享面板、设置或侧边栏确认图标，实际可用情况取决于系统版本与应用。</string>

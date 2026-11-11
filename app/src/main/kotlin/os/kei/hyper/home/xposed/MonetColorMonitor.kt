@@ -95,7 +95,8 @@ internal class MonetColorMonitor(
       if (key == null || key == ThemeEffectsPreferences.KEY ||
         key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY ||
         os.kei.hyper.home.data.DockGlassPreferences.isPreferenceKey(key) ||
-        key == os.kei.hyper.home.data.LauncherGlassPreferences.KEY) requestMaterials()
+        key == os.kei.hyper.home.data.LauncherGlassPreferences.KEY ||
+        key == os.kei.hyper.home.data.LauncherGlassPreferences.SEARCH_KEY) requestMaterials()
     }
     private val wallpaperDirty = AtomicBoolean(true)
     private val wallpaperListener = WallpaperManager.OnColorsChangedListener { _, _ ->

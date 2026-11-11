@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_glass_title">Search bar material</string>
+    <string name="search_glass_summary">Set independently, or follow Dock material.</string>
+    <string name="search_glass_follow_dock">Follow Dock</string>
+    <string name="search_glass_follow_value">Dock · %1$s</string>
+    <string name="search_glass_unavailable">Independent search material is unavailable in this launcher process</string>
+    <string name="desktop_saved_title">Settings saved</string>
+    <string name="desktop_stored_count">Saved %1$d of %2$d settings</string>
+    <string name="desktop_stored_value">Saved · %1$s</string>
+</resources>

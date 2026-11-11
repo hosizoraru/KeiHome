@@ -13,7 +13,7 @@ internal class LauncherGlassLease {
 
   fun synchronize(style: Int, user: Int, now: () -> Long, isCurrent: () -> Boolean,
     exchange: (onWriteAttempted: () -> Unit) -> NativeMonetProcessIdentity?): Boolean {
-    if (style !in 0..2 || user < 0 || !isCurrent()) return false
+    if (!NativeMonetProtocol.validGlassPolicy(style) || user < 0 || !isCurrent()) return false
     val started = now()
     var attempted = false
     var committed = false

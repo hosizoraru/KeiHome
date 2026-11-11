@@ -117,7 +117,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
-    staticScopeContent = { StaticScopeCard(model) },
+    searchGlassContent = { SearchGlassSettingsCard(model) },
+    staticScopeContent = { StaticScopeCard(model, readOnly = true) },
     onCompactPackHintsChange = model.preferences::setCompactPackHints,
     onNavigationBarStyleChange = onNavigationBarStyleChange,
     desktopStatusObserver = {

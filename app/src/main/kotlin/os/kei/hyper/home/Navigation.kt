@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.status.IconPackImportProtocol
+import os.kei.hyper.home.ui.main.DesktopSection
+import os.kei.hyper.home.ui.main.DesktopDestinationScreen
 import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.PackDestinationScreen
@@ -77,6 +79,10 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     val route: HomeRoute = if (section == "setup") OnboardingRoute(0, replay = true) else SettingsRoute(section)
     if (backStack.lastOrNull() != route) backStack.add(route)
   }
+  fun openDesktop(section: String) {
+    if (DesktopSection.entries.none { it != DesktopSection.OVERVIEW && it.route == section }) return
+    backStack.add(DesktopRoute(section))
+  }
   fun back() { if (backStack.size > 1) backStack.removeLastOrNull() }
   fun finishSetup(route: OnboardingRoute) {
     setup.complete()
@@ -93,7 +99,12 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
       dimAmount = 0.26f, blockInputDuringTransition = true,
       backdropColor = MiuixTheme.colorScheme.surface)) {
-    entry<Main> { MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings) }
+    entry<Main> { MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
+      onOpenDesktopSection = ::openDesktop) }
+    entry<DesktopRoute> { route ->
+      val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
+      DesktopDestinationScreen(model, section, onBack = ::back)
+    }
     entry<OnboardingRoute>(swipeDismiss = swipe) { route ->
       OnboardingScreen(model, page = route.page, replay = route.replay,
         onBack = ::back, onExit = { finishSetup(route) },
@@ -105,7 +116,7 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
         onOpenSettings = ::openSettings)
     }
     entry<OnboardingDesktop>(swipeDismiss = swipe) {
-      OnboardingDesktopScreen(model, onBack = ::back)
+      OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
     }
     entry<PackRoute>(swipeDismiss = swipe) { route ->
       PackDestinationScreen(model, route.section,

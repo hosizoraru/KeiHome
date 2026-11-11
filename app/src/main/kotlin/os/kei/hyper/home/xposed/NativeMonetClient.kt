@@ -118,7 +118,7 @@ internal class NativeMonetClient {
       onWriteAttempted = onWriteAttempted)
 
   fun setLauncherGlass(context: Context, style: Int, onWriteAttempted: () -> Unit): Boolean =
-    communicate(context, NativeMonetProtocol.launcherGlassRequest(style), glassCommand = true,
+    communicate(context, NativeMonetProtocol.launcherGlassPairRequest(style), glassCommand = true,
       onWriteAttempted = onWriteAttempted)
 
   fun isDockGlassAvailable(context: Context): Boolean = communicate(context, null, dockCommand = true)
@@ -434,13 +434,16 @@ internal object NativeMonetProtocol {
   const val DOCK_GLASS_CAPABILITY = 8
   const val LAUNCHER_GLASS_CAPABILITY = 16
   const val DOCK_LAYOUT_CAPABILITY = 32
+  const val LAUNCHER_GLASS_PAIR_CAPABILITY = 64
   private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY or
-    LAUNCHER_LABELS_CAPABILITY or DOCK_GLASS_CAPABILITY or LAUNCHER_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
+    LAUNCHER_LABELS_CAPABILITY or DOCK_GLASS_CAPABILITY or LAUNCHER_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY or
+    LAUNCHER_GLASS_PAIR_CAPABILITY
   private const val ENABLED = 1
   private const val THEME_MATERIALS = 2
   private const val LAUNCHER_LABELS = 3
   private const val DOCK_GLASS = 8
   private const val LAUNCHER_GLASS = 9
+  private const val LAUNCHER_GLASS_PAIR = 10
   private const val MAX_ENTRIES = 512
   private const val MAX_ENTRY_BYTES = 255
 
@@ -486,6 +489,14 @@ internal object NativeMonetProtocol {
     return header(flags = LAUNCHER_GLASS, foreground = style, background = 0, count = 0).array()
   }
 
+  fun launcherGlassPairRequest(policy: Int): ByteArray {
+    require(validGlassPolicy(policy))
+    return header(flags = LAUNCHER_GLASS_PAIR, foreground = policy, background = 0, count = 0).array()
+  }
+
+  fun validGlassPolicy(policy: Int): Boolean =
+    policy in 0..10 && (policy and 3) <= 2 && (policy ushr 2) <= 2
+
   private fun isPackageName(name: String): Boolean {
     if (name.length !in 1..MAX_ENTRY_BYTES) return false
     var segmentStart = true
@@ -521,7 +532,8 @@ internal object NativeMonetProtocol {
     if (greeting[1] != VERSION) return reject("native greeting protocol mismatch")
     if (greeting[2] != targetUid) return reject("native greeting launcher UID mismatch")
     val capabilities = greeting[3]
-    if (capabilities and KNOWN_CAPABILITIES.inv() != 0) {
+    if (capabilities and KNOWN_CAPABILITIES.inv() != 0 ||
+      (capabilities and LAUNCHER_GLASS_PAIR_CAPABILITY != 0 && capabilities and LAUNCHER_GLASS_CAPABILITY == 0)) {
       return reject("native greeting capabilities invalid")
     }
     if (readinessCapability != MONET_CAPABILITY && readinessCapability != DOCK_GLASS_CAPABILITY &&
@@ -539,6 +551,14 @@ internal object NativeMonetProtocol {
           if (options in 0..1) DOCK_GLASS_CAPABILITY else DOCK_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
         }
         LAUNCHER_GLASS -> LAUNCHER_GLASS_CAPABILITY
+        LAUNCHER_GLASS_PAIR -> {
+          if (request.size != 6 * Int.SIZE_BYTES) return reject("native glass pair invalid")
+          val words = ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN)
+          if (!validGlassPolicy(words.getInt(3 * Int.SIZE_BYTES)) ||
+            words.getInt(4 * Int.SIZE_BYTES) != 0 || words.getInt(5 * Int.SIZE_BYTES) != 0)
+            return reject("native glass pair invalid")
+          LAUNCHER_GLASS_CAPABILITY or LAUNCHER_GLASS_PAIR_CAPABILITY
+        }
         else -> return reject("native request opcode unsupported")
       }
     }
@@ -550,6 +570,7 @@ internal object NativeMonetProtocol {
       else if (requiredCapability == DOCK_GLASS_CAPABILITY) "native Dock glass capability unavailable"
       else if (requiredCapability and DOCK_LAYOUT_CAPABILITY != 0) "native Dock layout capability unavailable"
       else if (requiredCapability == LAUNCHER_GLASS_CAPABILITY) "native launcher glass capability unavailable"
+      else if (requiredCapability and LAUNCHER_GLASS_PAIR_CAPABILITY != 0) "native independent glass capability unavailable"
       else "native theme materials capability unavailable")
     }
     if (request == null) return true

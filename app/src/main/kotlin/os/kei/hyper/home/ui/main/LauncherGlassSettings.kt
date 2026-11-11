@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import os.kei.hyper.home.data.LauncherGlassPreferences
 import os.kei.hyper.home.data.LauncherGlassStyle
+import os.kei.hyper.home.data.SearchGlassStyle
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.RuntimeStatusUiState
 
@@ -21,6 +22,8 @@ internal data class LauncherGlassUiState(
   val saving: Boolean = false,
   val failed: Boolean = false,
   val unavailable: Boolean = false,
+  val savedSearch: SearchGlassStyle? = null,
+  val pendingSearch: SearchGlassStyle? = null,
 )
 
 internal enum class LauncherGlassRuntimeStatus { PENDING, UNAVAILABLE, ACCEPTED }
@@ -46,32 +49,50 @@ internal class LauncherGlassSettings(private val scope: CoroutineScope, private 
 
   suspend fun read() = mutex.withLock {
     val service = FrameworkConnection.service.value ?: return@withLock
-    if (!inScope() || state.value.saving || state.value.pending != null) return@withLock
-    val mayPublish = {
-      FrameworkConnection.service.value === service && inScope() &&
-        !state.value.saving && state.value.pending == null
+    if (!inScope() || state.value.saving || state.value.pending != null ||
+      state.value.pendingSearch != null) return@withLock
+    fun publish(update: (LauncherGlassUiState) -> LauncherGlassUiState) {
+      state.update { current ->
+        if (FrameworkConnection.service.value === service && inScope() &&
+          !current.saving && current.pending == null && current.pendingSearch == null) update(current)
+        else current
+      }
     }
     try {
-      val style = LauncherGlassPreferences.read(service)
-      if (mayPublish()) state.value = LauncherGlassUiState(saved = style)
+      val choice = LauncherGlassPreferences.readChoice(service)
+      publish { LauncherGlassUiState(saved = choice.dock, savedSearch = choice.search) }
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: UnsupportedOperationException) {
-      if (mayPublish()) state.update { it.copy(unavailable = true) }
+      publish { it.copy(unavailable = true) }
     } catch (_: Exception) {
-      if (mayPublish()) state.update { it.copy(failed = true) }
+      publish { it.copy(failed = true) }
     }
   }
 
-  fun save(style: LauncherGlassStyle) {
+  fun save(style: LauncherGlassStyle) = saveChange(style = style)
+
+  fun saveSearch(search: SearchGlassStyle) = saveChange(search = search)
+
+  private fun saveChange(style: LauncherGlassStyle? = null, search: SearchGlassStyle? = null) {
     val service = FrameworkConnection.service.value ?: return
-    if (!inScope() || state.value.saving || state.value.unavailable) return
-    state.update { it.copy(pending = style, saving = true, failed = false) }
+    while (true) {
+      val current = state.value
+      if (!inScope() || current.saving || current.unavailable) return
+      if (state.compareAndSet(current, current.copy(
+        pending = style ?: current.pending,
+        pendingSearch = search ?: current.pendingSearch,
+        saving = true, failed = false,
+      ))) break
+    }
     scope.launch {
       mutex.withLock {
         try {
           if (FrameworkConnection.service.value !== service || !inScope()) return@withLock
-          LauncherGlassPreferences.save(service, style)
-          if (FrameworkConnection.service.value === service) state.value = LauncherGlassUiState(saved = style)
+          if (style != null) LauncherGlassPreferences.save(service, style)
+          else LauncherGlassPreferences.saveSearch(service, requireNotNull(search))
+          val choice = LauncherGlassPreferences.readChoice(service)
+          if (FrameworkConnection.service.value === service && inScope())
+            state.value = LauncherGlassUiState(saved = choice.dock, savedSearch = choice.search, saving = true)
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: UnsupportedOperationException) {
           if (FrameworkConnection.service.value === service) state.update { it.copy(unavailable = true) }

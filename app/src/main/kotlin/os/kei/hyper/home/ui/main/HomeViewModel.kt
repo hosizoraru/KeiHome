@@ -370,7 +370,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         readSplashAppearance()
         while (true) { readThemeEffects(); delay(5_000) }
       }
-      if (page == 5) launch { observeDesktopStatus() }
+      if (page == 5) launch { observeDesktopStatus(DesktopSection.OVERVIEW) }
       if (page in 0..3) launch {
         while (true) {
           readFramework()
@@ -406,20 +406,39 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     finally { nativeReceiptVisibility.update { it.copy(observers = it.observers - 1, generation = it.generation + 1) } }
   }
 
-  /** Receipts omit the icon inventory; polling ends when the visible desktop surface leaves. */
-  suspend fun observeDesktopStatus(): Unit = coroutineScope {
+  suspend fun observeScopeStatus() {
+    while (true) {
+      readFramework()
+      delay(5_000)
+    }
+  }
+
+  /** Receipts omit the icon inventory; only the visible category's settings are polled. */
+  suspend fun observeDesktopStatus(section: DesktopSection? = null): Unit = coroutineScope {
     launch {
       while (true) {
         readFramework()
-        launcherLabels.read()
-        dockGlass.read()
-        launcherGlass.read()
+        readDesktopSettings(section)
         delay(5_000)
       }
     }
-    while (true) {
-      refreshHomeScreenStatus()
-      delay(5_000)
+    if (section != DesktopSection.ICONS) {
+      while (true) {
+        refreshHomeScreenStatus()
+        delay(5_000)
+      }
+    } else awaitCancellation()
+  }
+
+  private suspend fun readDesktopSettings(section: DesktopSection?) {
+    if (section == null || section == DesktopSection.APPEARANCE) {
+      launcherLabels.read()
+    }
+    if (section == null || section == DesktopSection.APPEARANCE || section == DesktopSection.DOCK) launcherGlass.read()
+    if (section == null || section == DesktopSection.DOCK) dockGlass.read()
+    if (section == DesktopSection.ICONS) {
+      readThemeEffects()
+      readSplashAppearance()
     }
   }
 
@@ -430,7 +449,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun setFilter(value: Int) { filter.value = value }
 
-  fun refresh(page: Int) {
+  fun refresh(page: Int, desktopSection: DesktopSection = DesktopSection.OVERVIEW) {
     if (page in refreshing.value) return
     refreshing.update { it + page }
     viewModelScope.launch {
@@ -438,13 +457,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         readFramework()
         if (page == 4) { readSplashAppearance(); readThemeEffects() }
         if (page == 5) {
-          launcherLabels.read()
-          dockGlass.read()
-          launcherGlass.read()
-          refreshHomeScreenStatus()
-          val failed = framework.value.readFailed || homeScreenRuntime.value.readFailed ||
-            homeScreenRuntime.value.timedOut || launcherLabels.state.value.failed ||
-            dockGlass.state.value.failed || launcherGlass.state.value.failed
+          readDesktopSettings(desktopSection)
+          if (desktopSection != DesktopSection.ICONS) refreshHomeScreenStatus()
+          val failed = framework.value.readFailed || when (desktopSection) {
+            DesktopSection.ICONS -> themeEffects.value.readFailed || splashAppearance.value.readFailed
+            else -> homeScreenRuntime.value.readFailed || homeScreenRuntime.value.timedOut ||
+              when (desktopSection) {
+                DesktopSection.DOCK -> dockGlass.state.value.failed || launcherGlass.state.value.failed
+                DesktopSection.APPEARANCE -> launcherLabels.state.value.failed || launcherGlass.state.value.failed
+                else -> false
+              }
+          }
           refreshResults.update { it + (page to PageRefreshResult(System.currentTimeMillis(), failed)) }
           return@launch
         }

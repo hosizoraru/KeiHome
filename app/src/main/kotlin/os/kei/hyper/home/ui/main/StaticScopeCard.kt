@@ -23,7 +23,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = false) {
+internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = false, readOnly: Boolean = false) {
   val state by model.scopeRequests.state.collectAsStateWithLifecycle()
   if (attentionOnly && !state.needsAttention) return
   val openManager = rememberFrameworkManagerAction()
@@ -94,10 +94,11 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       FlowRow(Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        TextButton(stringResource(if (state.canRequest || state.requesting) R.string.scope_request else R.string.scope_check),
+        TextButton(stringResource(if (!readOnly && (state.canRequest || state.requesting))
+            R.string.scope_request else R.string.scope_check),
           modifier = Modifier.heightIn(min = 48.dp),
           enabled = state.connected && !state.requesting, onClick = {
-            if (state.canRequest) model.scopeRequests.request() else model.scopeRequests.check()
+            if (!readOnly && state.canRequest) model.scopeRequests.request() else model.scopeRequests.check()
           })
         TextButton(stringResource(R.string.scope_open_manager), onClick = openManager,
           modifier = Modifier.heightIn(min = 48.dp))

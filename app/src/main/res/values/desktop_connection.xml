@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="desktop_connection_framework">Framework</string>
+  <string name="desktop_connection_system">Loader</string>
+  <string name="desktop_connection_java">Home Java</string>
+  <string name="desktop_connection_native">Native</string>
+  <string name="desktop_connection_badge">%1$s · %2$s</string>
+  <string name="desktop_connection_version_unknown">Home · Unknown</string>
+  <string name="desktop_connection_connected">Connected</string>
+  <string name="desktop_connection_ready">Ready</string>
+  <string name="desktop_connection_disconnected">Disconnected</string>
+  <string name="desktop_connection_read_failed">Read failed</string>
+  <string name="desktop_connection_waiting">Waiting</string>
+  <string name="desktop_connection_scope_missing">Scope missing</string>
+  <string name="desktop_connection_failed">Load failed</string>
+  <string name="desktop_connection_reloading">Reloading</string>
+  <string name="desktop_connection_stale">Stale</string>
+  <string name="desktop_connection_generation_mismatch">Version mismatch</string>
+  <string name="desktop_connection_checking">Checking</string>
+  <string name="desktop_connection_not_reported">No reply</string>
+  <string name="desktop_connection_expired">Reply expired</string>
+  <string name="desktop_connection_timed_out">Timed out</string>
+  <string name="desktop_connection_native_unsupported">Unsupported</string>
+  <string name="desktop_connection_native_unavailable">Unavailable</string>
+  <string name="desktop_connection_inactive_user">Inactive user</string>
+  <string name="desktop_connection_ready_summary">The Launcher connection is verified by a current native reply.</string>
+  <string name="desktop_connection_disconnected_summary">The framework service is disconnected. Retained replies cannot verify the Launcher.</string>
+  <string name="desktop_connection_read_failed_summary">The latest connection status could not be read. Refresh to try again.</string>
+  <string name="desktop_connection_waiting_summary">Waiting for a current framework load report.</string>
+  <string name="desktop_connection_scope_missing_summary">Enable both System Framework and System Launcher in the module scope.</string>
+  <string name="desktop_connection_failed_summary">The framework reports a module load failure.</string>
+  <string name="desktop_connection_reloading_summary">The module is reloading. Waiting for its current connection status.</string>
+  <string name="desktop_connection_stale_summary">A module load report is stale. Refresh to verify the running module.</string>
+  <string name="desktop_connection_generation_summary">The running module does not match the installed module version.</string>
+  <string name="desktop_connection_checking_summary">Checking the native Launcher connection.</string>
+  <string name="desktop_connection_not_reported_summary">The native Launcher has not replied yet.</string>
+  <string name="desktop_connection_expired_summary">The native reply has expired. Refresh to verify the current connection.</string>
+  <string name="desktop_connection_timed_out_summary">The Launcher did not reply before the request timed out.</string>
+  <string name="desktop_connection_native_unsupported_summary">This Launcher reports that the required native capability is unsupported.</string>
+  <string name="desktop_connection_native_unavailable_summary">The native Launcher endpoint is unavailable.</string>
+  <string name="desktop_connection_inactive_user_summary">The Launcher endpoint belongs to an inactive Android user.</string>
+</resources>

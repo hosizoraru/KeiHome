@@ -212,10 +212,10 @@ private fun SetupNote(title: String, body: String) {
 }
 
 @Composable
-internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit) {
+internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, onOpenSection: (String) -> Unit) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   LaunchedEffect(model, lifecycle) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus(DesktopSection.OVERVIEW) }
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(backdrop = backdrop, topBar = {
@@ -229,7 +229,7 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit) {
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())
-        .padding(16.dp)) { DesktopPage(model) }
+        .padding(16.dp)) { DesktopPage(model, onOpenSection) }
     }
   }
 }

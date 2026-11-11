@@ -63,7 +63,7 @@ Perfect syncs or Apple searches/downloads. Clearing preview memory preserves
 downloaded artwork and applied packs. This describes KeiHome's app-icon path,
 not the network behavior of host apps.
 
-The final page links to System and Hook, preview-cache management and App logs,
+The final page links to Scope authorization, preview-cache management and App logs,
 and gives LSPosed feature logs a separate explanation card. App logs cover
 KeiHome's own interface/settings issues. Status reports loading and launcher
 acknowledgements; it does not confirm every host or the appearance of every icon.
@@ -141,7 +141,7 @@ changed by this slice.
 Changed paths:
 
 - `app/src/main/kotlin/os/kei/hyper/home/ui/main/OnboardingScreen.kt`: direct
-  Perfect/Apple links, cache guidance and final System and Hook link.
+  Perfect/Apple links, cache guidance and final Scope authorization link.
 - `app/src/main/kotlin/os/kei/hyper/home/ui/main/StaticScopeCard.kt` and
   `SettingsContent.kt`: surface guidance, wrapping title/count and actions, and
   searchable scope purposes.
@@ -173,7 +173,7 @@ Suggested commands for the parent (not run in this slice):
 
 Capture all five steps in EN/ZH/JA at standard and large text. On step 3, open
 Perfect and Apple and return to the same step; scroll to every link and the final
-cache note. On step 5, open System and Hook and return. Check that the last item
+cache note. On step 5, open Scope authorization and return. Check that the last item
 clears the floating toolbar, that scope grants and reported loading stay distinct,
 and that unavailable hosts are not presented as active features. Retain coverage
 for Back, later/replay, light/dark mode and enlarged display size.
@@ -183,3 +183,9 @@ The icon step now opens **Icon packs > More settings** as a Packs child.
 Returning restores the same wizard step. Its generation/application and
 experience cards use the same saved preferences as global Settings search;
 the Settings root no longer exposes a separate icon-pack actions entry.
+
+Desktop now opens a category overview, with Dock, Appearance and labels, and
+Icons and launch screens as child pages. From a child page, Back returns to
+the overview before returning to the same wizard step. The final settings
+shortcut opens the read-only scope viewer; authorization requests remain
+on the guide scope card and Status attention card. See `desktop-navigation.md`.

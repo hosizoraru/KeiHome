@@ -44,7 +44,7 @@ establish an authorization failure. The full scope card keeps these purposes
 in one compact explanation beside the existing status pills; the attention-only
 card omits this explanation on Status and the final guide step.
 
-The shared scope card in onboarding, System and Hook, and Status displays this
+The shared scope card in onboarding, Scope authorization, and Status displays this
 host authorization state. Granting Settings or Security access does not require
 restarting the system, Launcher, or System UI. A host process already running
 without the module must load it on its next start; authorization alone does not
@@ -68,7 +68,11 @@ the ViewModel's main scope. Existing framework observation supplies periodic
 scope updates; this feature adds no polling loop. Transient waiting state is
 not persisted.
 
-System and Hook contains the complete scope card. Status shows it only while
+Scope authorization contains the complete scope card in read-only mode: refresh
+and the external module-manager shortcut remain available, while grant requests
+belong to onboarding and the Status attention card. Icon effects and launch
+background controls now live in Desktop > Icons and launch screens.
+Status shows the scope card only while
 authorization needs attention, and settings search can find it. Framework access
 is offered when the module service is unavailable. Authorization does not
 restart targets or claim that a newly granted target has already loaded; actual

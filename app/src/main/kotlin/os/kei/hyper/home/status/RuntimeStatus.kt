@@ -16,9 +16,10 @@ internal object LauncherRuntimeCapabilities {
   const val DOCK = 8
   const val GLASS = 16
   const val DOCK_LAYOUT = 32
-  const val KNOWN = 63
+  const val GLASS_PAIR = 64
+  const val KNOWN = 127
 
-  fun isValid(bits: Int): Boolean = bits in 0..KNOWN
+  fun isValid(bits: Int): Boolean = bits in 0..KNOWN && (bits and GLASS_PAIR == 0 || bits and GLASS != 0)
 }
 
 internal object NativeRuntimeDiagnostic {
@@ -56,6 +57,7 @@ internal data class RuntimeStatusReport(
   val launcherGlassAvailable: Boolean = false,
   val launcherGlassStyle: Int? = null,
   val launcherCapabilities: Int? = null,
+  val launcherSearchGlassStyle: Int? = null,
 ) {
   fun supportsLauncherCapability(capability: Int): Boolean? =
     launcherCapabilities?.takeIf {
@@ -75,21 +77,29 @@ internal data class RuntimeStatusReport(
     style != null && launcherGlassAvailable && nativeState != NativeRuntimeState.INACTIVE_USER &&
       launcherGlassStyle == style.nativeValue
 
+  fun acknowledgesSearchGlass(choice: os.kei.hyper.home.data.LauncherGlassChoice?): Boolean =
+    choice != null && launcherGlassAvailable && nativeState != NativeRuntimeState.INACTIVE_USER &&
+      supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS_PAIR) == true &&
+      launcherSearchGlassStyle == choice.resolvedSearch.nativeValue &&
+      (choice.search != os.kei.hyper.home.data.SearchGlassStyle.FOLLOW_DOCK ||
+        launcherGlassStyle == choice.dock.nativeValue)
+
   fun isFresh(now: Long): Boolean = now >= checkedAtElapsed && now - checkedAtElapsed <= FRESHNESS_MS
 
   fun matches(request: RuntimeStatusRequest, now: Long): Boolean = request.isPending(now) && requestId == request.id &&
     userId == request.userId && checkedAtElapsed >= request.startedAtElapsed && isFresh(now)
 
-  // Schema 7 has 20 pipe-delimited fields; schemas 1..6 retain their field positions.
+  // Schema 8 has 21 pipe-delimited fields; schemas 1..7 retain their field positions.
   // [16] carries raw Dock options, including the legacy default-geometry words 0 and 1.
   // [17] wallpaper glass capability: "0"/"1"; [18] accepted material: "-1" unknown,
   // "0" follow wallpaper, "1" light, "2" dark. Numeric fields stay wire compatible.
+  // [19] capability bits; [20] effective search material, with the same -1..2 encoding.
   // [19] current process-authenticated capability bits; "0" means none, "-1" means unknown.
   // Capability and ACK are independent of Monet readiness; neither is a painted-frame receipt.
   // Fixed fields keep this small protocol usable in the host tests and in system_server.
   // Only the diagnostic text needs escaping; request IDs are generated UUIDs.
   fun encode(): String = listOf(
-    "7", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
+    "8", requestId, userId, moduleVersion, checkedAtElapsed, nativeState.name,
     launcherPid ?: 0, launcherStartTicks ?: 0, refresh?.callbacks ?: -1,
     refresh?.completedAtMillis ?: 0,
     Base64.getEncoder().encodeToString(detail.orEmpty().take(400).toByteArray(Charsets.UTF_8)),
@@ -99,6 +109,7 @@ internal data class RuntimeStatusReport(
     dockGlassPid ?: 0, dockGlassStartTicks ?: 0, dockGlassCornerStyle ?: -1,
     if (launcherGlassAvailable) 1 else 0, launcherGlassStyle ?: -1,
     launcherCapabilities ?: -1,
+    launcherSearchGlassStyle ?: -1,
   ).joinToString("|")
 
   companion object {
@@ -109,7 +120,8 @@ internal data class RuntimeStatusReport(
       if (fields == null || !((fields.size == 11 && fields[0] == "1") ||
           (fields.size == 12 && fields[0] == "2") || (fields.size == 13 && fields[0] == "3") ||
           (fields.size == 16 && fields[0] == "4") || (fields.size == 17 && fields[0] == "5") ||
-          (fields.size == 19 && fields[0] == "6") || (fields.size == 20 && fields[0] == "7"))) null else {
+          (fields.size == 19 && fields[0] == "6") || (fields.size == 20 && fields[0] == "7") ||
+          (fields.size == 21 && fields[0] == "8"))) null else {
         val state = NativeRuntimeState.valueOf(fields[5])
         val pid = fields[6].toInt().takeIf { it > 0 }
         val start = fields[7].toLong().takeIf { it > 0 }
@@ -132,6 +144,7 @@ internal data class RuntimeStatusReport(
           launcherGlassAvailable = fields.getOrNull(17) == "1",
           launcherGlassStyle = fields.getOrNull(18)?.toInt()?.takeIf { it in 0..2 },
           launcherCapabilities = fields.getOrNull(19)?.toInt()?.takeUnless { it == -1 },
+          launcherSearchGlassStyle = fields.getOrNull(20)?.toInt()?.takeIf { it in 0..2 },
         ).takeIf {
           it.requestId.isNotBlank() && it.userId >= 0 && it.moduleVersion > 0 && it.checkedAtElapsed >= 0 &&
             (fields.getOrNull(11).isNullOrEmpty() || it.iconTheme != null) &&
@@ -146,6 +159,9 @@ internal data class RuntimeStatusReport(
               (it.launcherGlassAvailable || it.launcherGlassStyle == null))) &&
             (fields.size < 20 || it.launcherCapabilities == null ||
               (LauncherRuntimeCapabilities.isValid(it.launcherCapabilities) && pid != null && start != null)) &&
+            (fields.size < 21 || (fields[20].toInt() in -1..2 &&
+              (it.launcherSearchGlassStyle == null || (it.launcherGlassAvailable &&
+                it.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS_PAIR) == true)))) &&
             (state != NativeRuntimeState.READY || (pid != null && start != null))
         }
       }

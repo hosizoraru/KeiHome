@@ -6,6 +6,7 @@ The default verifies Java hot reload without restarting any process.
 root HYOS spawner after Java hot reload succeeds. It is not module runtime code.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -189,6 +190,19 @@ def main():
             raise RuntimeError(f"{name} changed during APK installation/hot reload")
     print("API 102 Java reload verified; process identities unchanged", flush=True)
     if args.reload_native:
+        # Make the installed APK durable before the deliberate native process replacement.
+        root("sync")
+        package_paths = adb("shell", "pm", "path", PACKAGE).splitlines()
+        base_paths = [line.removeprefix("package:").strip() for line in package_paths
+                      if line.startswith("package:") and line.endswith("/base.apk")]
+        if len(base_paths) != 1:
+            raise RuntimeError("Cannot verify installed base APK; native restart stopped")
+        installed_hash = root(f"sha256sum {shlex.quote(base_paths[0])}").split()[0]
+        if installed_hash != hashlib.sha256(args.apk.read_bytes()).hexdigest():
+            raise RuntimeError("Installed APK hash differs; native restart stopped")
+        (args.evidence / "native-pre-restart-integrity.json").write_text(json.dumps({
+            "flushed": True, "apkPath": base_paths[0], "apkSha256": installed_hash,
+        }, indent=2) + "\n")
         launcher = before["com.miui.home"]
         spawner(launcher["parent"])
         root(f"kill -TERM {launcher['parent']}")

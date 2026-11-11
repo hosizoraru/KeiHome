@@ -15,7 +15,7 @@ from the library. Native HyperOS themes retain their own behavior.
 1. Exact component or package artwork supplied by the pack wins.
 2. For an uncovered installed system app in an APK or converted ColorOS pack,
    optionally try the pack's artwork by application name. This is enabled by
-   default under Settings > System and Hook. The app or launcher activity label
+   default under Icon packs > Completion and fallback. The app or launcher activity label
    is compared with resource names and a small set of equivalent OEM roles
    (phone manager, theme store, app/software store). Ambiguous artwork is rejected.
 3. Use the selected native fallback when the pack has no safe match.

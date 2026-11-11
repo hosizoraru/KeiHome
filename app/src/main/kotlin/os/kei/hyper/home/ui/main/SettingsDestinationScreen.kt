@@ -70,8 +70,11 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
-  LaunchedEffect(model, lifecycle, locales) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(4, locales) }
+  LaunchedEffect(model, lifecycle, locales, section) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      if (section == SettingsSection.HOOK) model.observeScopeStatus()
+      else model.observePage(4, locales)
+    }
   }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()

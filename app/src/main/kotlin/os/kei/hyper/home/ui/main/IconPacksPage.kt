@@ -267,6 +267,7 @@ internal fun ThemeEffectsCard(
   framework: FrameworkUiState,
   onCheckedChange: (Boolean) -> Unit,
   modifier: Modifier = Modifier,
+  showStatus: Boolean = true,
 ) {
   val snapshot = framework.snapshot.takeIf { framework.connected && !framework.readFailed }
   val inScope = framework.themeEffectsInScope()
@@ -312,7 +313,7 @@ internal fun ThemeEffectsCard(
       )
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(status, style = MiuixTheme.textStyles.footnote2,
+        if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2,
           color = if (state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
             else MiuixTheme.colorScheme.onSurfaceSecondary)
         if (state.readFailed || state.saveFailed) {
@@ -324,6 +325,8 @@ internal fun ThemeEffectsCard(
         if (scopeGuidance != null) Text(stringResource(scopeGuidance),
           style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
+      DesktopSettingProgress(if (state.saving) DesktopFeatureStatus.SAVING else DesktopFeatureStatus.ACCEPTED,
+        Modifier.testTag("desktop.feature.icon-effects.progress"))
     }
   }
 }

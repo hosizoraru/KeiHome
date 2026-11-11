@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,11 +33,16 @@ internal val DockGlassCornerStyle.labelResource: Int get() = when (this) {
   DockGlassCornerStyle.CUSTOM -> R.string.dock_glass_corner_custom
 }
 
+private enum class DockEditedField { STYLE, CORNER, PADDING, OFFSET, RADIUS, RESET }
+
 @Composable
 internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Modifier) {
   val state by model.dockGlass.state.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
+  val refreshes by model.refreshResults.collectAsStateWithLifecycle()
+  // Retain the target after the controller clears pending, until the native ACK arrives.
+  var lastEdited by remember { mutableStateOf(DockEditedField.STYLE) }
   val inScope = framework.dockGlassInScope()
   val choice = state.pending ?: state.saved
   val now = android.os.SystemClock.elapsedRealtime()
@@ -55,18 +61,21 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
   val dockControls = desktopDockControls(choice, controlsEnabled, layoutSupported)
   val styles = listOf(DockGlassCornerStyle.RECENTS, DockGlassCornerStyle.ROUNDED,
     DockGlassCornerStyle.PAD, DockGlassCornerStyle.CONCENTRIC, DockGlassCornerStyle.CUSTOM)
-  val issue = desktopStatusMessage(desktopDockStatus(state, runtime, inScope, now, version),
-    state.pending != null, state.unavailable && supported != false, R.string.dock_glass_native_retained)
+  val status = rememberDesktopOperationStatus(desktopDockStatus(state, runtime, inScope, now, version),
+    choice, refreshes[5])
   val layoutHint = if (supported == true && layoutSupported == false)
     "\n" + stringResource(R.string.dock_glass_layout_unavailable) else ""
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     SwitchPreference(title = stringResource(R.string.dock_glass_title),
-      summary = stringResource(R.string.dock_glass_summary) +
-        (issue?.let { "\n" + stringResource(it) } ?: ""),
+      summary = stringResource(R.string.dock_glass_summary),
       checked = state.saved?.enabled == true,
       enabled = controlsEnabled,
-      onCheckedChange = model.dockGlass::setEnabled,
+      onCheckedChange = {
+        lastEdited = DockEditedField.STYLE
+        model.dockGlass.setEnabled(it)
+      },
       modifier = Modifier.testTag("dock-glass.switch"))
+    DockOptionProgress(DockEditedField.STYLE, lastEdited, status)
     OverlaySpinnerPreference(title = stringResource(R.string.dock_glass_corner_title),
       summary = stringResource(cornerSummary) + layoutHint,
       items = styles.map { DropdownItem(text = stringResource(it.labelResource),
@@ -75,32 +84,52 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
       enabled = dockControls.cornerChooser,
       onSelectedIndexChange = { index ->
         if (dockControls.cornerChooser && choice != null) styles.getOrNull(index)?.let {
-          desktopDockCornerSelection(choice, it, layoutSupported)?.let(model.dockGlass::save)
+          desktopDockCornerSelection(choice, it, layoutSupported)?.let { selection ->
+            lastEdited = DockEditedField.CORNER
+            model.dockGlass.save(selection)
+          }
         }
       },
       modifier = Modifier.testTag("dock-glass.corner-style"))
+    DockOptionProgress(DockEditedField.CORNER, lastEdited, status)
     DockGeometrySlider(value = choice?.verticalPaddingDp ?: 18, range = 0..32,
       title = stringResource(R.string.dock_glass_padding_title),
       summary = stringResource(R.string.dock_glass_padding_summary),
-      enabled = dockControls.geometry, onCommit = model.dockGlass::setVerticalPadding,
+      enabled = dockControls.geometry, onCommit = {
+        lastEdited = DockEditedField.PADDING
+        model.dockGlass.setVerticalPadding(it)
+      },
       modifier = Modifier.testTag("dock-glass.vertical-padding"))
+    DockOptionProgress(DockEditedField.PADDING, lastEdited, status)
     DockGeometrySlider(value = choice?.verticalOffsetDp ?: 0, range = -48..96,
       title = stringResource(R.string.dock_glass_offset_title),
       summary = stringResource(R.string.dock_glass_offset_summary),
-      enabled = dockControls.geometry, onCommit = model.dockGlass::setVerticalOffset,
+      enabled = dockControls.geometry, onCommit = {
+        lastEdited = DockEditedField.OFFSET
+        model.dockGlass.setVerticalOffset(it)
+      },
       modifier = Modifier.testTag("dock-glass.vertical-offset"))
+    DockOptionProgress(DockEditedField.OFFSET, lastEdited, status)
     if (choice?.cornerStyle == DockGlassCornerStyle.CUSTOM) {
       DockGeometrySlider(value = choice.customRadiusDp, range = 0..64,
         title = stringResource(R.string.dock_glass_radius_title),
         summary = stringResource(R.string.dock_glass_radius_summary),
-        enabled = dockControls.geometry, onCommit = model.dockGlass::setCustomRadius,
+        enabled = dockControls.geometry, onCommit = {
+          lastEdited = DockEditedField.RADIUS
+          model.dockGlass.setCustomRadius(it)
+        },
         modifier = Modifier.testTag("dock-glass.custom-radius"))
+      DockOptionProgress(DockEditedField.RADIUS, lastEdited, status)
     }
     BasicComponent(title = stringResource(R.string.dock_glass_reset),
       summary = stringResource(R.string.dock_glass_reset_summary) + layoutHint,
       enabled = dockControls.resetGeometry,
-      onClick = model.dockGlass::resetGeometry,
+      onClick = {
+        lastEdited = DockEditedField.RESET
+        model.dockGlass.resetGeometry()
+      },
       modifier = Modifier.testTag("dock-glass.reset-geometry"))
+    DockOptionProgress(DockEditedField.RESET, lastEdited, status)
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
       enabled = !state.saving && (state.pending?.let {
         desktopDockSaveSupported(it, supported, layoutSupported)
@@ -108,6 +137,11 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
         state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()
       })
   }
+}
+
+@Composable
+private fun DockOptionProgress(field: DockEditedField, lastEdited: DockEditedField, status: DesktopFeatureStatus) {
+  if (field == lastEdited) DesktopSettingProgress(status, tag = "desktop.feature.dock.progress")
 }
 
 @Composable

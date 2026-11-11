@@ -1,6 +1,6 @@
 # Launcher app names
 
-Settings > System and Hook > Home screen offers the system default, scrolling
+Desktop > Appearance and labels offers the system default, scrolling
 long names, and two lines. The saved default is the system behavior. The two-line
 choice uses the launcher's existing title-line and line-height calculation; an
 arbitrarily long name can still exceed two lines.

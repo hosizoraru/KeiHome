@@ -24,6 +24,10 @@ GROUPS = {
         UI + "MonetColorEditorTest",)),
     "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
         UI + "PackSettingsNavigationTest",)),
+    "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
+        UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
+    "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (
+        "DesktopFeatureStatusTest",)),
     "ui-settings": ("jvm", "Appearance preferences and recovery", (
         "ThemeEffectsPreferencesTest", "ThemeEffectsRecoveryTest", "ThemeEffectsScopeTest")),
     "pack-time": ("jvm", "Compact dates, locales, time zones and year boundaries", (

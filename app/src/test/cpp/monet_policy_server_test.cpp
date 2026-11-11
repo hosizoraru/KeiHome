@@ -31,6 +31,7 @@ static_assert(kNativeDockGlassCapability == 8u && kNativeDockGlassCommand == 8u)
 static_assert(kNativeDockGlassMaxCornerQ8 == 65536u);
 static_assert(kNativeDockGlassRoundedStyle == 0u && kNativeDockGlassRecentsStyle == 1u);
 static_assert(kNativeLauncherGlassCapability == 16u && kNativeLauncherGlassCommand == 9u);
+static_assert(kNativeLauncherGlassPairCapability == 64u && kNativeLauncherGlassPairCommand == 10u);
 static_assert(kNativeMonetExpiryMs == 45000u);
 
 namespace {
@@ -559,7 +560,7 @@ void TestDockGlassCapabilitiesAndCommandAdmission() {
             __atomic_store_n(&kh_theme_materials_installed, uint32_t{bool(caps & 2u)}, __ATOMIC_RELEASE);
             __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
             __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
-            assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u)));
+            assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u) | ((caps & 16u) ? 64u : 0u)));
             assert(kh_monet_policy == nullptr && kh_dock_glass_enabled == 0u);
             const uint64_t revision = kh_dock_glass_revision;
             const uint64_t notified = kh_dock_glass_notified;
@@ -919,7 +920,7 @@ void TestLauncherGlassAdmissionAndRefresh() {
         __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
         __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
         __atomic_store_n(&kh_launcher_glass_installed, uint32_t{bool(caps & 16u)}, __ATOMIC_RELEASE);
-        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u)));
+        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u) | ((caps & 16u) ? 64u : 0u)));
         for (uint32_t mode = 0u; mode <= 2u; ++mode) {
             PolicyState state{};
             const bool available = (caps & 16u) != 0u;
@@ -928,7 +929,7 @@ void TestLauncherGlassAdmissionAndRefresh() {
             assert(request.size() == 24u);
             assert(ApplyRequest(&state, request, 1u) == available);
             const auto after = __atomic_load_n(&kh_launcher_glass_control, __ATOMIC_ACQUIRE);
-            assert(after == (available ? uint64_t{mode} : before));
+            assert(after == (available ? uint64_t{mode | (mode << 2u)} : before));
             assert(state.launcher_glass_expires_at ==
                     (available && mode ? 1u + uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs : 0u));
             assert(kh_monet_policy == nullptr);
@@ -963,7 +964,7 @@ void TestLauncherGlassAdmissionAndRefresh() {
     puts("Glass capability 16: all 32 masks, three modes, wire rejection and expiry passed");
 }
 
-void TestLauncherGlassLeaseIsolation() {
+void TestLauncherGlassLeaseIsolation(uint32_t command) {
     const InstalledFlagSnapshot installed;
     PolicyState state{};
     __atomic_store_n(&kh_launcher_glass_installed, 1u, __ATOMIC_RELEASE);
@@ -979,7 +980,7 @@ void TestLauncherGlassLeaseIsolation() {
     const PolicyState before = state;
     const auto dock_revision = kh_dock_glass_revision;
     const auto label_revision = kh_launcher_label_revision;
-    assert(ApplyRequest(&state, Request(9u, 1u, 0u, {}), 5u));
+    assert(ApplyRequest(&state, Request(command, command == 10u ? 6u : 1u, 0u, {}), 5u));
     assert(kh_monet_policy == policy);
     assert(state.expiration == before.expiration && state.expires_at == before.expires_at);
     assert(state.materials_expires_at == before.materials_expires_at);
@@ -999,6 +1000,97 @@ void TestLauncherGlassLeaseIsolation() {
     __atomic_store_n(&kh_theme_materials_enabled, 0u, __ATOMIC_RELEASE);
     Clear(&state);
     puts("Glass lease remains independent of Monet, highlight, labels and Dock geometry");
+}
+
+void TestLauncherGlassPairCommands() {
+    const InstalledFlagSnapshot installed;
+    assert(RequestLauncherGlassStyle(0u));
+    const uint64_t lease = uint64_t{kNativeMonetExpiryMs} * kNanosecondsPerMs;
+    const uint64_t notified = kh_glass_material_notified;
+    for (uint32_t ready : {0u, 1u, 2u, UINT32_MAX}) {
+        __atomic_store_n(&kh_launcher_glass_installed, ready, __ATOMIC_RELEASE);
+        assert(bool(InstalledCapabilities() & kNativeLauncherGlassPairCapability) == (ready == 1u));
+        assert(bool(InstalledCapabilities() & kNativeLauncherGlassCapability) == (ready == 1u));
+        for (uint32_t dock = 0u; dock <= 2u; ++dock) {
+            for (uint32_t search = 0u; search <= 2u; ++search) {
+                PolicyState state{};
+                const uint32_t pair = dock | (search << 2u);
+                const uint64_t revision = kh_glass_material_revision;
+                const Bytes request = Request(10u, pair, 0u, {});
+                assert(request.size() == 24u);
+                assert(ApplyRequest(&state, request, 10u) == (ready == 1u));
+                const bool changed = ready == 1u && pair != 0u;
+                assert(kh_launcher_glass_control == (ready == 1u ? pair : 0u));
+                assert(kh_glass_material_revision == revision + uint64_t{changed});
+                assert(state.launcher_glass_expires_at == (changed ? 10u + lease : 0u));
+                assert(ApplyRequest(&state, request, 20u) == (ready == 1u));
+                assert(kh_glass_material_revision == revision + uint64_t{changed});
+                const uint64_t expiry = changed ? 20u + lease : 0u;
+                assert(state.launcher_glass_expires_at == expiry);
+                assert(kh_monet_policy == nullptr && kh_glass_material_notified == notified);
+                if (changed) {
+                    assert(NextMaintenanceWake(&state, UINT64_MAX) == expiry);
+                    MaintainPolicy(&state, expiry - 1u);
+                    assert(kh_launcher_glass_control == pair);
+                    MaintainPolicy(&state, expiry);
+                    assert(kh_launcher_glass_control == 0u);
+                    assert(kh_glass_material_revision == revision + 2u);
+                    MaintainPolicy(&state, expiry + 1u);
+                    assert(kh_glass_material_revision == revision + 2u);
+                }
+                assert(state.launcher_glass_expires_at == 0u);
+            }
+        }
+    }
+    __atomic_store_n(&kh_launcher_glass_installed, 1u, __ATOMIC_RELEASE);
+    PolicyState state{};
+    assert(ApplyRequest(&state, Request(10u, 9u, 0u, {}), 100u)); // Dock light/search dark.
+    uint64_t revision = kh_glass_material_revision;
+    const uint64_t expiry = state.launcher_glass_expires_at;
+    const auto rejects = [&](const Bytes& bad, uint64_t now = 101u) {
+        assert(!ApplyRequest(&state, bad, now));
+        assert(kh_launcher_glass_control == 9u);
+        assert(kh_glass_material_revision == revision);
+        assert(state.launcher_glass_expires_at == expiry);
+    };
+    const Bytes valid = Request(10u, 6u, 0u, {});
+    for (size_t length = 0u; length < valid.size(); ++length)
+        rejects(Bytes(valid.begin(), valid.begin() + length));
+    for (uint32_t pair = 0u; pair < 256u; ++pair) {
+        const bool expected = pair < 16u && (pair & 3u) < 3u && (pair >> 2u) < 3u;
+        assert(ValidLauncherGlassPolicy(pair) == expected);
+        if (!expected) {
+            assert(!RequestLauncherGlassPolicy(pair));
+            rejects(Request(10u, pair, 0u, {}));
+        }
+    }
+    for (uint32_t bit = 4u; bit < 32u; ++bit) rejects(Request(10u, 1u << bit, 0u, {}));
+    assert(!RequestLauncherGlassPolicy(UINT32_MAX));
+    rejects(Request(10u, UINT32_MAX, 0u, {}));
+    rejects(Request(10u, 6u, 1u, {}));
+    rejects(Request(10u, 6u, 0u, {"com.example"}));
+    rejects(valid, 0u); // Commit deadline expired.
+    assert(ApplyRequest(&state, Request(9u, 1u, 0u, {}), 102u));
+    assert(kh_launcher_glass_control == 5u && kh_glass_material_revision == ++revision);
+    assert(ApplyRequest(&state, Request(10u, 5u, 0u, {}), 103u));
+    assert(kh_glass_material_revision == revision); // Same pair through either API.
+    assert(ApplyRequest(&state, Request(10u, 4u, 0u, {}), 104u)); // Search only.
+    assert(kh_glass_material_revision == ++revision);
+    assert(state.launcher_glass_expires_at == 104u + lease);
+    __atomic_store_n(&kh_launcher_glass_installed, 0u, __ATOMIC_RELEASE);
+    MaintainPolicy(&state, 105u);
+    assert(kh_launcher_glass_control == 0u && state.launcher_glass_expires_at == 0u);
+    assert(kh_glass_material_revision == ++revision);
+    assert(kh_glass_material_notified == notified);
+    __atomic_store_n(&kh_launcher_glass_installed, 1u, __ATOMIC_RELEASE);
+    assert(ApplyRequest(&state, Request(10u, 6u, 0u, {}), 106u));
+    assert(kh_glass_material_revision == ++revision);
+    assert(ApplyRequest(&state, Request(10u, 0u, 0u, {}), 107u));
+    assert(kh_glass_material_revision == ++revision);
+    assert(kh_launcher_glass_control == 0u && state.launcher_glass_expires_at == 0u);
+    assert(ApplyRequest(&state, Request(9u, 0u, 0u, {}), 108u));
+    assert(kh_glass_material_revision == revision);
+    puts("Glass pair: nine policies, capability gating, validation, renewals, shared legacy lease passed");
 }
 
 void TestConcurrentReaders() {
@@ -1058,7 +1150,7 @@ void TestLauncherLabelCommands() {
         kh_monet_installed = (caps & 1) != 0;
         kh_theme_materials_installed = (caps & 2) != 0;
         kh_launcher_labels_installed = (caps & 4) != 0;
-        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u)));
+        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u) | ((caps & 16u) ? 64u : 0u)));
         for (uint32_t mode = 0; mode < 3; ++mode) {
             kh_launcher_label_mode = 0;
             const uint64_t revision = kh_launcher_label_revision;
@@ -1131,7 +1223,9 @@ int main() {
         puts("Dock extended geometry: 80 atomic choices, quiet renewals and invalid words rejected");
     }
     TestLauncherGlassAdmissionAndRefresh();
-    TestLauncherGlassLeaseIsolation();
+    TestLauncherGlassLeaseIsolation(9u);
+    TestLauncherGlassLeaseIsolation(10u);
+    TestLauncherGlassPairCommands();
     TestConcurrentReaders();
     puts("monet identity, capabilities, command isolation, leases and reader lifetime tests passed");
 }

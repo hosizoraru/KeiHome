@@ -1,6 +1,6 @@
 # Native launcher Dock glass
 
-The optional **Settings → System & Hook → Dock glass background** switch adds a
+The optional **Desktop → Dock → Dock glass background** switch adds a
 floating background behind the native phone Dock. It defaults to off. The AVD
 acceptance setup leaves it on for visual review.
 

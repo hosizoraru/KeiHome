@@ -16,6 +16,7 @@ constexpr uint32_t kNativeLauncherLabelsCapability = 4u;
 constexpr uint32_t kNativeDockGlassCapability = 8u;
 constexpr uint32_t kNativeDockLayoutCapability = 32u;
 constexpr uint32_t kNativeLauncherGlassCapability = 16u;
+constexpr uint32_t kNativeLauncherGlassPairCapability = 64u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;
@@ -25,6 +26,7 @@ constexpr uint32_t kNativeThemeMaterialsCommand = 2u;
 constexpr uint32_t kNativeLauncherLabelsCommand = 3u;
 constexpr uint32_t kNativeDockGlassCommand = 8u;
 constexpr uint32_t kNativeLauncherGlassCommand = 9u;
+constexpr uint32_t kNativeLauncherGlassPairCommand = 10u;
 // Command 8 word 4: logical dp * 256; zero selects the native fallback.
 constexpr uint32_t kNativeDockGlassMaxCornerQ8 = 65536u;
 // Command 8 word 5 is a style, never a trailing package count.
@@ -125,7 +127,8 @@ inline void ReleaseNativeMonetPolicy() {
 // accepted here. Closing the Java owner reconnects to the new hot-reload owner.
 // One greeting/request/ACK per connection, all uint32 words little-endian:
 //   greeting: magic, protocolVersion, getuid(), capabilities
-//             bits: 1=Monet, 2=highlight, 4=labels, 8=Dock, 16=glass style
+//             bits: 1=Monet, 2=highlight, 4=labels, 8=Dock, 16=glass style,
+//                   32=Dock layout, 64=independent Dock/search glass
 //             0 is unavailable; unknown bits are rejected by the client
 //   request:  magic, protocolVersion, flags, fgARGB, bgARGB, count
 //             then count repetitions of length + ASCII package bytes
@@ -149,4 +152,10 @@ inline void ReleaseNativeMonetPolicy() {
 // 2 modern; bg=count=0. Its independent lease restores system selection on
 // expiry. A request is accepted before painting; a mode changes only between
 // complete admitted render invocations, never halfway through a glass pass.
+// Legacy flags 9 sets BOTH Dock/folder and search styles.
+// flags 10 packs effective Dock style in fg bits 0..1 and effective search style
+// in bits 2..3, each 0..2. All high bits and bg/count must be zero. Requires
+// capability 64, advertised with 16 only after the full glass install (including
+// resolved search). It shares command 9's lease/ownership/ACK; expiry restores
+// both roles to system. Java resolves any follow-Dock preference before sending.
 bool StartNativeMonetPolicyServer();

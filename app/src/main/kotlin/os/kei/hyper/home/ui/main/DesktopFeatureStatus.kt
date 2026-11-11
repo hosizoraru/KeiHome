@@ -111,6 +111,33 @@ internal fun desktopGlassStatus(
     report?.acknowledgesLauncherGlass(state.saved) == true)
 }
 
+internal fun desktopSearchGlassStatus(
+  state: LauncherGlassUiState,
+  runtime: RuntimeStatusUiState,
+  inScope: Boolean,
+  now: Long,
+  moduleVersion: Long,
+): DesktopFeatureStatus {
+  val report = desktopRuntimeReport(runtime, now, moduleVersion)
+  val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS_PAIR)
+  desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.savedSearch != null, supported)
+    ?.let { return it }
+  val choice = state.saved?.let { dock -> state.savedSearch?.let { search ->
+    os.kei.hyper.home.data.LauncherGlassChoice(dock, search)
+  } }
+  return desktopReceiverStatus(runtime, report, supported, report?.acknowledgesSearchGlass(choice) == true)
+}
+
+internal fun desktopStoredStatus(state: ThemeEffectsUiState, inScope: Boolean): DesktopFeatureStatus = when {
+  !inScope -> DesktopFeatureStatus.OUT_OF_SCOPE
+  state.unavailable -> DesktopFeatureStatus.UNAVAILABLE
+  state.saving -> DesktopFeatureStatus.SAVING
+  state.saveFailed -> DesktopFeatureStatus.ERROR
+  state.readFailed -> DesktopFeatureStatus.READ_FAILED
+  state.loading || state.savedChoice == null -> DesktopFeatureStatus.LOADING
+  else -> DesktopFeatureStatus.ACCEPTED
+}
+
 private fun desktopReceiverStatus(runtime: RuntimeStatusUiState, report: RuntimeStatusReport?,
   supported: Boolean?, acknowledged: Boolean): DesktopFeatureStatus = when {
   report == null && runtime.readFailed -> DesktopFeatureStatus.READ_FAILED

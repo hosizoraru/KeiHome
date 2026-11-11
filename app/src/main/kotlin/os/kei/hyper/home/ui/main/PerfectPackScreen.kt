@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
+import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4Dialog
 import os.kei.hyper.home.ui.components.Os4DialogButton
@@ -86,8 +87,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
     stringResource(R.string.icon_pack_native_note),
     stringResource(R.string.icon_pack_effects_note),
   )
-  val runtime by vm.runtime.collectAsStateWithLifecycle()
-  val framework by vm.framework.collectAsStateWithLifecycle()
   val context = LocalContext.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
@@ -99,8 +98,6 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   var localLoadRequested by remember(vm) { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
-  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
-    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
   LaunchedEffect(vm) {
     vm.perfectPacks.load()
     localLoadRequested = true
@@ -234,41 +231,16 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         PackGuidanceCard(notes = guidanceNotes, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
       }
       item("options") {
-        Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-          val styles = listOf("") + state.catalog?.styles.orEmpty()
-            .filter { it.isNotBlank() && it != "default" }.distinct()
-          val defaultStyle = stringResource(R.string.perfect_icons_style_default)
-          OverlaySpinnerPreference(title = stringResource(R.string.perfect_icons_style),
-            items = styles.map { DropdownItem(text = it.ifEmpty { defaultStyle }) },
-            selectedIndex = styles.indexOf(state.options.style.takeUnless { it == "default" }.orEmpty())
-              .coerceAtLeast(0),
-            enabled = !busy && state.catalog != null,
-            onSelectedIndexChange = { index -> styles.getOrNull(index)?.let {
-              vm.perfectPacks.setOptions(state.options.copy(style = it))
-            } })
-          BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
-            summary = stringResource(R.string.perfect_icons_preview_row_summary),
-            enabled = !busy && state.catalog != null,
-            onClick = { onNavigate("perfect-preview") },
-            modifier = Modifier.testTag("icon-packs.perfect.preview"))
-          SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
-            summary = stringResource(R.string.perfect_icons_installed_summary),
-            checked = state.options.installedOnly, enabled = !busy,
-            onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(installedOnly = it)) })
-          SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
-            summary = stringResource(R.string.perfect_icons_dynamic_summary),
-            checked = state.options.dynamic, enabled = !busy,
-            onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(dynamic = it)) })
-          SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
-            summary = stringResource(if (state.options.staticNight) R.string.perfect_icons_night_enabled
-              else R.string.perfect_icons_night_disabled),
-            checked = state.options.staticNight, enabled = !busy,
-            onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) },
-            modifier = Modifier.testTag("icon-packs.perfect.static-night"))
-        }
+        PerfectPackOptions(state.options, state.catalog?.styles, !busy, state.catalog != null,
+          vm.perfectPacks::setOptions, onNavigate)
       }
       item("generated") {
         state.pack?.let { card ->
+          val runtime by vm.runtime.collectAsStateWithLifecycle()
+          val framework by vm.framework.collectAsStateWithLifecycle()
+          val ready = framework.connected && framework.snapshot?.themesInScope == true &&
+            runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() &&
+            !runtime.readFailed && !runtime.timedOut
           Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val sourceId = prefs.systemIconFallback.sourceId(card.pack.id)
@@ -322,6 +294,48 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         }
       }
     }
+  }
+}
+
+@Composable
+private fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<String>?,
+  enabled: Boolean, hasCatalog: Boolean, onOptionsChange: (PerfectIconOptions) -> Unit,
+  onNavigate: (String) -> Unit) {
+  Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+    val styles = remember(catalogStyles) {
+      listOf("") + catalogStyles.orEmpty().filter { it.isNotBlank() && it != "default" }.distinct()
+    }
+    val defaultStyle = stringResource(R.string.perfect_icons_style_default)
+    val styleItems = remember(styles, defaultStyle) {
+      styles.map { DropdownItem(text = it.ifEmpty { defaultStyle }) }
+    }
+    OverlaySpinnerPreference(title = stringResource(R.string.perfect_icons_style),
+      items = styleItems,
+      selectedIndex = styles.indexOf(options.style.takeUnless { it == "default" }.orEmpty())
+        .coerceAtLeast(0),
+      enabled = enabled && hasCatalog,
+      onSelectedIndexChange = { index -> styles.getOrNull(index)?.let {
+        onOptionsChange(options.copy(style = it))
+      } })
+    BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
+      summary = stringResource(R.string.perfect_icons_preview_row_summary),
+      enabled = enabled && hasCatalog,
+      onClick = { onNavigate("perfect-preview") },
+      modifier = Modifier.testTag("icon-packs.perfect.preview"))
+    SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
+      summary = stringResource(R.string.perfect_icons_installed_summary),
+      checked = options.installedOnly, enabled = enabled,
+      onCheckedChange = { onOptionsChange(options.copy(installedOnly = it)) })
+    SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
+      summary = stringResource(R.string.perfect_icons_dynamic_summary),
+      checked = options.dynamic, enabled = enabled,
+      onCheckedChange = { onOptionsChange(options.copy(dynamic = it)) })
+    SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
+      summary = stringResource(if (options.staticNight) R.string.perfect_icons_night_enabled
+        else R.string.perfect_icons_night_disabled),
+      checked = options.staticNight, enabled = enabled,
+      onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) },
+      modifier = Modifier.testTag("icon-packs.perfect.static-night"))
   }
 }
 

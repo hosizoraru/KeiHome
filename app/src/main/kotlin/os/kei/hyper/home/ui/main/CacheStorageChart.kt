@@ -3,7 +3,6 @@ package os.kei.hyper.home.ui.main
 import android.text.format.Formatter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -95,7 +95,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
 
 @Composable
 private fun Cylinder(fractions: List<State<Float>>, empty: Color, modifier: Modifier) {
-  Canvas(modifier) {
+  Spacer(modifier.drawWithCache {
     val left = size.width * .04f
     val width = size.width * .92f
     val cap = minOf(width * .26f, size.height * .1f)
@@ -106,7 +106,9 @@ private fun Cylinder(fractions: List<State<Float>>, empty: Color, modifier: Modi
       addOval(Rect(left, 0f, left + width, cap))
       addOval(Rect(left, size.height - cap, left + width, size.height))
     }
-    clipPath(outline) {
+    val shading = Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .14f),
+      Color.White.copy(alpha = .12f), Color.Transparent, Color.Black.copy(alpha = .13f)))
+    onDrawBehind { clipPath(outline) {
       drawRect(empty)
       drawOval(Color.White.copy(alpha = .05f), Offset(left, 0f), Size(width, cap))
       var cursor = bottom
@@ -121,8 +123,7 @@ private fun Cylinder(fractions: List<State<Float>>, empty: Color, modifier: Modi
           cursor = top
         }
       }
-      drawRect(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = .14f),
-        Color.White.copy(alpha = .12f), Color.Transparent, Color.Black.copy(alpha = .13f))))
-    }
-  }
+      drawRect(shading)
+    } }
+  })
 }

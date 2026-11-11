@@ -77,10 +77,16 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   var query by rememberSaveable { mutableStateOf("") }
   var showPreviewNote by rememberSaveable { mutableStateOf(false) }
-  val matches by produceState(Pair(emptyList<IconBrowserRow>(), 0), scan.capabilities, source, options, query) {
+  val rows by produceState(emptyList<IconBrowserRow>(), scan.capabilities, source, options) {
     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-      val rows = browserRows(scan.capabilities.orEmpty(), source, options, "")
-      rows.filter { it.app.matchesQuery(query) } to rows.size
+      browserRows(scan.capabilities.orEmpty(), source, options, "")
+    }
+  }
+  val matches by produceState(Pair(emptyList<IconBrowserRow>(), 0), rows, query) {
+    val currentRows = rows
+    val currentQuery = query
+    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+      currentRows.filter { it.app.matchesQuery(currentQuery) } to currentRows.size
     }
   }
   val visible = matches.first

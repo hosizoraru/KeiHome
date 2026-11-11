@@ -214,12 +214,13 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     Triple(list.size, list.count { it.nightMode == IconCapabilityStatus.DETECTED },
       list.count { it.monochrome == IconCapabilityStatus.DETECTED })
   } }
+  val covered = remember(effective) { effective?.count { it.covered } }
   StatusBody(connected = framework.connected, snapshot = framework.snapshot, readFailed = framework.readFailed,
     monetSnapshot = monet.snapshot, monetReadFailed = monet.readFailed, onRefresh = { model.refresh(0) },
     onOpenMonet = onOpenMonet, onOpenApps = onOpenApps,
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
     runtime = runtime,
-    iconSource = runtime.report?.iconTheme, coveredApps = effective?.count { it.covered },
+    iconSource = runtime.report?.iconTheme, coveredApps = covered,
     onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment,
     scopeContent = { StaticScopeCard(model, attentionOnly = true) })
 }

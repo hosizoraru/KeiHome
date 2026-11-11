@@ -101,11 +101,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   onNavigate: (String) -> Unit) {
   val controller = model.applePacks
   val state by controller.state.collectAsStateWithLifecycle()
-  val currentPreviewProvider = rememberAppleCurrentThemePreviewProvider(model)
+  val currentPreviewProvider = if (section != "apple" && section != "apple-search")
+    rememberAppleCurrentThemePreviewProvider(model) else null
   val packs by model.iconPacks.collectAsStateWithLifecycle()
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
-  val runtime by model.runtime.collectAsStateWithLifecycle()
-  val framework by model.framework.collectAsStateWithLifecycle()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   val main = section == "apple"
@@ -185,8 +184,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   var batchClock by remember { mutableLongStateOf(System.currentTimeMillis()) }
   val now = maxOf(batchClock, System.currentTimeMillis())
-  val eligiblePackages = remember(state.rows, now) {
-    state.rows.filter { appleBatchSelectable(it, now) }.mapTo(hashSetOf()) { it.target.packageName }
+  // Row retries advance batchClock below; unrelated progress updates need no eligibility scan.
+  val eligiblePackages = remember(batchBrowser, state.rows, batchClock) {
+    if (batchBrowser) state.rows.asSequence().filter { appleBatchSelectable(it, now) }
+      .mapTo(hashSetOf()) { it.target.packageName } else emptySet()
   }
   val locale = LocalConfiguration.current.locales[0]
   val mappingFilter = AppleMappingFilter.entries.firstOrNull { it.name == filterName } ?: AppleMappingFilter.ALL
@@ -194,22 +195,35 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val browserRequest = remember(state.rows, filter, mappingFilter, mappingSort, state.options.country,
     regionFilter, matchedOnly, locales, batchClock) { Any() }
   // Retain the previous rows until this exact filtering request finishes.
-  val browserResult by produceState<Pair<Any, List<AppleMappingRow>>?>(null, browserRequest) {
-    val rows = withContext(Dispatchers.Default) {
-      appleMappingRows(state.rows, filter, mappingFilter, mappingSort, state.options.country,
-        regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now)
+  val browserResult = if (!main && !search) {
+    val result by produceState<Pair<Any, List<AppleMappingRow>>?>(null, browserRequest) {
+      val rows = withContext(Dispatchers.Default) {
+        appleMappingRows(state.rows, filter, mappingFilter, mappingSort, state.options.country,
+          regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now)
+      }
+      value = browserRequest to rows
     }
-    value = browserRequest to rows
-  }
+    result
+  } else null
   val browserRows = browserResult?.second.orEmpty()
-  val browserLoading = browserResult?.first !== browserRequest
+  val browserLoading = !main && !search && browserResult?.first !== browserRequest
+  val regions = remember(main, search, state.rows, state.options.country) {
+    if (main || search) emptyList() else state.rows.mapNotNull {
+      it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
+    }.distinct().sorted()
+  }
+  val mappedCount = remember(state.rows) { state.rows.count { it.app != null } }
   val visibleEligible = remember(browserRows, eligiblePackages) {
     browserRows.filter { it.target.packageName in eligiblePackages }.mapTo(linkedSetOf()) { it.target.packageName }
   }
-  val selectedVisible = remember(visibleEligible, selectedPackages) {
-    visibleEligible.filter { it in selectedPackages }
+  val selectedPackageSet = remember(selectedPackages) { selectedPackages.toSet() }
+  val selectedVisible = remember(visibleEligible, selectedPackageSet) {
+    visibleEligible.filter { it in selectedPackageSet }
   }
-  val selectedBatch = selectedVisible.take(AppleAutoMatchPolicy.BATCH_SIZE).toSet()
+  val selectedVisibleSet = remember(selectedVisible) { selectedVisible.toSet() }
+  val selectedBatch = remember(selectedVisible) {
+    selectedVisible.take(AppleAutoMatchPolicy.BATCH_SIZE).toSet()
+  }
   LaunchedEffect(batchBrowser, state.rows, batchClock, mappingFilter) {
     if (!batchBrowser) return@LaunchedEffect
     val time = System.currentTimeMillis()
@@ -263,8 +277,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       coroutineScope { launch { model.observePage(3, locales) } }
     }
   }
-  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
-    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
   Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(if (main) R.string.apple_pack_title
@@ -276,9 +288,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         actions = {
           if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
           if (!main && !search) {
-            AppleMappingFilterMenu(mappingFilter, regionFilter, state.rows.mapNotNull {
-              it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
-            }.distinct().sorted(), matchedOnly,
+            AppleMappingFilterMenu(mappingFilter, regionFilter, regions, matchedOnly,
               onFilter = { filterName = it.name; browserChanged(resetSelection = true) },
               onRegion = { regionFilter = it; browserChanged(resetSelection = true) })
             AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
@@ -431,7 +441,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           item("mappings") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_matched_title),
-                summary = stringResource(R.string.apple_mapping_count, state.rows.count { it.app != null }, state.rows.size),
+                summary = stringResource(R.string.apple_mapping_count, mappedCount, state.rows.size),
                 enabled = enabled, onClick = { onNavigate("apple-matched") })
               BasicComponent(title = stringResource(R.string.apple_mappings),
                 summary = stringResource(R.string.apple_mapping_manage_summary),
@@ -469,6 +479,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
           packs.packs.firstOrNull { it.pack.id == "apple" }?.let { card ->
             item("generated-pack") {
+              val runtime by model.runtime.collectAsStateWithLifecycle()
+              val framework by model.framework.collectAsStateWithLifecycle()
+              val ready = framework.connected && framework.snapshot?.themesInScope == true &&
+                runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() &&
+                !runtime.readFailed && !runtime.timedOut
               IconPackCard(card, model.packPreviews, prefs.iconPackAppearance,
                 packs.nativeAssociations[prefs.systemIconFallback.sourceId(card.pack.id)],
                 false, packs.nativeImporting == prefs.systemIconFallback.sourceId(card.pack.id),
@@ -512,14 +527,14 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
           }
           item("count") {
-            Text(stringResource(R.string.apple_browser_count, browserRows.size, state.rows.count { it.app != null }, state.rows.size),
+            Text(stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
               Modifier.padding(horizontal = 12.dp), style = MiuixTheme.textStyles.footnote2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
           if (browserRows.isNotEmpty() || (!localLoading && !browserLoading)) {
             appleMappingCards(browserRows, state, controller, enabled && !browserLoading,
               currentPreviewProvider = currentPreviewProvider,
-              selectionMode = batchBrowser && selecting, selectedPackages = selectedVisible.toSet(),
+              selectionMode = batchBrowser && selecting, selectedPackages = selectedVisibleSet,
               selectablePackages = visibleEligible, onToggleSelection = { packageName ->
                 if (enabled && !browserLoading && packageName in visibleEligible) selectedPackages =
                   if (packageName in selectedPackages) selectedPackages - packageName else selectedPackages + packageName

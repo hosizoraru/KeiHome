@@ -27,7 +27,10 @@ GROUPS = {
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
         UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (
-        "DesktopFeatureStatusTest",)),
+        "DesktopFeatureStatusTest", "DesktopConnectionCardTest", "LauncherVersionLabelTest")),
+    "desktop-materials": ("jvm", "Material preferences, leases, protocol and independent search acknowledgements", (
+        "LauncherGlassPreferencesTest", "LauncherGlassControllerTest", "LauncherGlassLeaseTest",
+        "NativeMonetClientTest", "RuntimeStatusReportTest", "RuntimeSearchGlassAckTest")),
     "ui-settings": ("jvm", "Appearance preferences and recovery", (
         "ThemeEffectsPreferencesTest", "ThemeEffectsRecoveryTest", "ThemeEffectsScopeTest")),
     "pack-time": ("jvm", "Compact dates, locales, time zones and year boundaries", (

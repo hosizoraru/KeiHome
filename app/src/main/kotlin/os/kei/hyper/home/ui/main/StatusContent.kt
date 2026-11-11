@@ -39,6 +39,7 @@ import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -53,7 +54,6 @@ import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
-import os.kei.hyper.home.ui.components.CenteredLinkAction
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
@@ -564,7 +564,7 @@ private fun DashboardMonetCard(
     )
     DashboardFootnote(
       text = stringResource(R.string.dashboard_monet_report_note),
-      modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+      modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
     )
   }
 }
@@ -703,16 +703,14 @@ private fun DashboardExpandableCard(
       bottomAction = footer,
     )
     Os4DisclosureContent(expanded) {
-      Column {
-        if (onOpen != null && openLabel != null) {
-          CenteredLinkAction(
-            label = stringResource(R.string.action_label_details), description = openLabel, onClick = onOpen,
-            icon = actionIcon(PageActionIcon.OPEN_INTERNAL),
-            modifier = Modifier.padding(horizontal = 12.dp),
-          )
-        }
-        content()
-      }
+      if (onOpen != null && openLabel != null) {
+        BasicComponent(
+          modifier = Modifier.semantics { contentDescription = openLabel },
+          insideMargin = PaddingValues(0.dp),
+          onClick = onOpen, onClickLabel = openLabel, role = Role.Button,
+          content = content,
+        )
+      } else Column(content = content)
     }
   }
 }

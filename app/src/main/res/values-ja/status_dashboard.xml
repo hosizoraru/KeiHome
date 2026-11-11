@@ -25,7 +25,7 @@
     <string name="dashboard_off">オフ</string>
     <string name="dashboard_monet_summary">アイコン：%1$s · 配色：%2$s</string>
     <string name="dashboard_style">スタイル</string>
-    <string name="dashboard_monet_report_note">設定と配色を取得しても、ホームのアイコン表示を確認したことにはなりません。</string>
+    <string name="dashboard_monet_report_note">実際の表示はホームで確認。</string>
     <string name="dashboard_no_palette_record">前回の配色：記録なし</string>
     <string name="dashboard_last_palette">前回の配色：%1$s</string>
     <string name="dashboard_apps">アプリ · 前回の検出</string>

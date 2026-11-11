@@ -227,7 +227,11 @@ class MonetStatusContentTest {
     monetDetails.assertDoesNotExist()
     monetCard.performClick()
     composeTestRule.runOnIdle { assertFalse(openedMonet) }
+    composeTestRule.onNodeWithText(context.getString(R.string.action_label_details)).assertDoesNotExist()
+    assertEquals(context.getString(R.string.monet_open_details),
+      monetDetails.fetchSemanticsNode().config[SemanticsActions.OnClick].label)
     monetDetails.performScrollTo().performClick()
+    monetDetails.assertExists()
     monetCard.performScrollTo().performClick()
     monetDetails.assertDoesNotExist()
     composeTestRule.runOnIdle {

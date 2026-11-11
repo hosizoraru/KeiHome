@@ -25,7 +25,7 @@
     <string name="dashboard_off">Off</string>
     <string name="dashboard_monet_summary">Icons: %1$s · Palette: %2$s</string>
     <string name="dashboard_style">Style</string>
-    <string name="dashboard_monet_report_note">Reported settings and palette do not confirm how launcher icons look.</string>
+    <string name="dashboard_monet_report_note">Check icons on your home screen.</string>
     <string name="dashboard_no_palette_record">Last palette: no record</string>
     <string name="dashboard_last_palette">Last palette: %1$s</string>
     <string name="dashboard_apps">Apps · last scan</string>

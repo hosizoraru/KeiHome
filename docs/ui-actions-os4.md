@@ -33,10 +33,11 @@ confirmation and existing import/apply readiness checks are preserved.
 ChevronForward, with a shared trailing position and coordinated spring
 rotation/expansion. The entire header performs a single disclosure action,
 with an accessible expanded/collapsed state. Status, Monet editor and pack
-guidance use this header. The Monet details action appears centered at
-the start of the expanded content, clear of the floating navbar on entry.
-The collapsed card keeps only its summary and timestamp
-pill; it reserves no separate navigation row.
+guidance use this header. Monet's expanded information area itself opens its
+settings using MIUIX's native clickable component and a labelled accessibility
+action. There is no separate details button. The header independently toggles
+expansion; the collapsed card keeps only its state and timestamp pills.
+The short appearance note has 16dp bottom padding.
 Runtime and Monet summaries use wrapping state pills: system/launcher and
 icons/palette are independent, with green for ready/on/read, grey for off or
 unknown/not provided, amber for pending/stale, and red for failures. Each pill

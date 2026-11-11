@@ -54,6 +54,8 @@ private val storageLabels = listOf(R.string.storage_icons, R.string.storage_buil
 internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, onOpenPack: (String) -> Unit) {
   val context = LocalContext.current
   val total = bytes.sum()
+  val graphDescription = stringResource(R.string.storage_graph_description,
+    Formatter.formatShortFileSize(context, total), Formatter.formatShortFileSize(context, budget))
   val capacity = maxOf(total, budget).coerceAtLeast(1L).toDouble()
   val fractions = bytes.map { animateFloatAsState(if (ready) (it / capacity).toFloat() else 0f,
     animationSpec = tween(800), label = "cache storage fill") }
@@ -63,8 +65,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
     Box(Modifier.weight(1f).fillMaxHeight().testTag("cache.storage.graph-region")) {
       Cylinder(fractions, scheme.surfaceContainerHigh, Modifier.fillMaxWidth().fillMaxHeight()
       .padding(horizontal = 12.dp, vertical = 8.dp).semantics {
-        contentDescription = context.getString(R.string.storage_graph_description,
-          Formatter.formatShortFileSize(context, total), Formatter.formatShortFileSize(context, budget))
+        contentDescription = graphDescription
       }.testTag("cache.storage.cylinder"))
     }
     Column(Modifier.weight(1f).testTag("cache.storage.legend"),

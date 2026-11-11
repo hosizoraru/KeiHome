@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_os4_welcome_title">Your desktop, your way</string>
+    <string name="setup_os4_welcome_body">Make KeiHome yours. Nothing changes automatically.</string>
+    <string name="setup_os4_framework_title">Get the module ready</string>
+    <string name="setup_os4_framework_body">Enable KeiHome in LSPosed and grant host scopes. You can continue and finish this later.</string>
+    <string name="setup_os4_icons_title">Find icons you love</string>
+    <string name="setup_os4_icons_body">Generate icons on this device, preview them, then apply when ready.</string>
+    <string name="setup_os4_desktop_title">Make your desktop feel right</string>
+    <string name="setup_os4_desktop_body">Explore Dock materials, appearance and text, or icons and launching. Choose what suits you.</string>
+    <string name="setup_os4_finish_title">Ready when you are</string>
+    <string name="setup_os4_finish_body">Finish any pending steps later. Revisit this guide anytime in Settings.</string>
+    <string name="setup_os4_framework_manager">Open framework</string>
+    <string name="setup_os4_scope">Scope permissions</string>
+    <string name="setup_os4_scope_body">Check permissions and versions for each host.</string>
+    <string name="setup_os4_activation">Restart the system once after first enabling. Later changes usually apply through hot reload.</string>
+    <string name="setup_os4_icons_more">More icon settings</string>
+    <string name="setup_os4_desktop_dock">Dock materials</string>
+    <string name="setup_os4_desktop_appearance">Appearance and text</string>
+    <string name="setup_os4_desktop_launch">Icons and launching</string>
+    <string name="setup_os4_help">Need help?</string>
+    <string name="setup_os4_help_body">For hook issues, use LSPosed logs. For app issues, use app logs.</string>
+    <string name="setup_os4_next">Continue</string>
+    <string name="setup_os4_start">Start setup</string>
+    <string name="setup_os4_done">Finish</string>
+    <string name="setup_os4_scopes_granted">Granted %1$d / %2$d</string>
+    <string name="setup_os4_scopes_unknown">Permissions unconfirmed</string>
+    <string name="setup_os4_module_ready">Framework connected</string>
+    <string name="setup_os4_module_pending">Framework not connected</string>
+    <string name="setup_os4_framework_action_summary">Enable the module and manage its scopes</string>
+    <string name="setup_os4_icons_more_body">Preview, action, and display preferences</string>
+    <string name="setup_os4_desktop_note">Changes are optional. Check each category’s status card after making a change.</string>
+    <string name="setup_os4_feature_icons">Icon style</string>
+    <string name="setup_os4_feature_desktop">Your desktop</string>
+    <string name="setup_os4_feature_control">Your choice</string>
+    <string name="setup_os4_later">Later</string>
+    <string name="setup_os4_exit">Close</string>
+</resources>

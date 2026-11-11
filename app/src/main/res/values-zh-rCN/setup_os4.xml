@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_os4_welcome_title">你的桌面，由你定义</string>
+    <string name="setup_os4_welcome_body">按你的喜好设置 KeiHome，不会自动更改设置。</string>
+    <string name="setup_os4_framework_title">先让模块准备好</string>
+    <string name="setup_os4_framework_body">在 LSPosed 中启用 KeiHome 并授权宿主作用域，也可以先继续，稍后完善。</string>
+    <string name="setup_os4_icons_title">选一套喜欢的图标</string>
+    <string name="setup_os4_icons_body">在本机生成图标，先预览，满意后再应用。</string>
+    <string name="setup_os4_desktop_title">让桌面用起来顺手</string>
+    <string name="setup_os4_desktop_body">从 Dock 质感、外观与文字、图标与启动中，按需调整。</string>
+    <string name="setup_os4_finish_title">准备好，就出发</string>
+    <string name="setup_os4_finish_body">未完成的步骤可以稍后完善，也能随时在设置中重新查看向导。</string>
+    <string name="setup_os4_framework_manager">打开框架</string>
+    <string name="setup_os4_scope">作用域授权</string>
+    <string name="setup_os4_scope_body">查看各宿主的授权与版本</string>
+    <string name="setup_os4_activation">首次启用后重启系统一次；后续通常自动热重载。</string>
+    <string name="setup_os4_icons_more">图标更多设置</string>
+    <string name="setup_os4_desktop_dock">Dock 质感</string>
+    <string name="setup_os4_desktop_appearance">外观与文字</string>
+    <string name="setup_os4_desktop_launch">图标与启动</string>
+    <string name="setup_os4_help">遇到问题</string>
+    <string name="setup_os4_help_body">Hook 问题查看 LSPosed 日志；应用问题查看应用日志。</string>
+    <string name="setup_os4_next">继续</string>
+    <string name="setup_os4_start">开始设置</string>
+    <string name="setup_os4_done">完成</string>
+    <string name="setup_os4_scopes_granted">已授权 %1$d / %2$d</string>
+    <string name="setup_os4_scopes_unknown">授权待确认</string>
+    <string name="setup_os4_module_ready">框架已连接</string>
+    <string name="setup_os4_module_pending">框架未连接</string>
+    <string name="setup_os4_framework_action_summary">启用模块与管理作用域</string>
+    <string name="setup_os4_icons_more_body">预览、操作与界面偏好</string>
+    <string name="setup_os4_desktop_note">按需调整，修改后可在各分类的状态卡中查看生效情况。</string>
+    <string name="setup_os4_feature_icons">图标风格</string>
+    <string name="setup_os4_feature_desktop">桌面定制</string>
+    <string name="setup_os4_feature_control">按需启用</string>
+    <string name="setup_os4_later">稍后</string>
+    <string name="setup_os4_exit">退出</string>
+</resources>

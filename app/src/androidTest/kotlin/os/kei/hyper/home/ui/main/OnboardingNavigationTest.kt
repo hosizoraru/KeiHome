@@ -75,13 +75,15 @@ class OnboardingNavigationTest {
     link.performClick()
   }
 
-  private fun packPage(section: String) {
+  private fun destination(tag: String) {
     rule.waitUntil(30_000) {
-      val matches = rule.onAllNodesWithTag("icon-packs.$section")
+      val matches = rule.onAllNodesWithTag(tag)
       matches.fetchSemanticsNodes().indices.any { matches[it].isDisplayed() }
     }
     settleTransition()
   }
+
+  private fun packPage(section: String) = destination("icon-packs.$section")
 
   private fun settleTransition() {
     // MIUIX can still block pointer input after the clipped scene reaches the viewport.
@@ -126,10 +128,20 @@ class OnboardingNavigationTest {
     action("next").performClick()
     page(1)
     screenshot("framework")
+    rule.onNodeWithText(context.getString(R.string.setup_os4_framework_manager))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_os4_activation))
+      .performScrollTo().assertIsDisplayed()
+    openLink(R.string.setup_os4_scope)
+    destination("scope.page.refresh")
+    rule.onNodeWithTag("scope.page.refresh").assertIsDisplayed()
+    back()
+    page(1)
     checkContentEnd()
     action("next").assertIsEnabled().performClick()
     page(2)
-    rule.onNodeWithText(context.getString(R.string.setup_native_icons_title)).assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_native_icons_title))
+      .performScrollTo().assertIsDisplayed()
     openLink(R.string.icon_pack_library)
     packPage("library")
     rule.onNodeWithText(context.getString(R.string.pack_builtin)).performClick()
@@ -155,7 +167,7 @@ class OnboardingNavigationTest {
     packPage("fallback")
     back()
     page(2)
-    openLink(R.string.pack_action_settings)
+    openLink(R.string.setup_os4_icons_more)
     packPage("settings")
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     back()
@@ -164,13 +176,21 @@ class OnboardingNavigationTest {
     action("next").performClick()
     page(3)
     openLink(R.string.setup_open_desktop)
-    rule.waitForIdle()
+    destination("desktop.settings")
+    back()
+    page(3)
+    openLink(R.string.setup_os4_desktop_dock)
+    destination("desktop.page.dock")
+    rule.onNodeWithTag("desktop.page.dock").assertIsDisplayed()
     back()
     page(3)
     checkContentEnd()
     action("previous").performClick()
     page(2)
-    rule.runOnIdle { assertEquals(2, store.state.value) }
+    rule.runOnIdle {
+      assertEquals(2, store.state.value)
+      assertEquals(2, OnboardingPreferences(context, id, existingConfiguration = false).state.value)
+    }
     action("next").performClick()
     page(3)
     action("next").performClick()
@@ -178,13 +198,13 @@ class OnboardingNavigationTest {
     screenshot("finish")
     checkContentEnd()
     openLink(R.string.settings_hook_section)
-    settleTransition()
-    rule.onNodeWithText(context.getString(R.string.scope_surfaces_note))
-      .performScrollTo().assertIsDisplayed()
+    destination("scope.page.refresh")
+    rule.onNodeWithTag("scope.page.refresh").assertIsDisplayed()
     back()
     page(4)
     openLink(R.string.settings_log_section)
-    rule.waitForIdle()
+    destination("settings.logs.export")
+    rule.onNodeWithTag("settings.logs.export").assertIsDisplayed()
     back()
     page(4)
     openLink(R.string.settings_cache_section)
@@ -205,7 +225,22 @@ class OnboardingNavigationTest {
       val after = AppPreferences.get(context).state.value
       assertEquals(preferencesBefore, after)
       assertEquals(OnboardingPreferences.COMPLETE, store.state.value)
+      assertEquals(OnboardingPreferences.COMPLETE,
+        OnboardingPreferences(context, id, existingConfiguration = false).state.value)
     }
+  }
+
+  @Test fun rapidContinueDoesNotDuplicateTheNextStep() {
+    rule.setContent { KeiHomeTheme { MainNavigation(store) } }
+    page(0)
+    val click = checkNotNull(action("next").fetchSemanticsNode().config[SemanticsActions.OnClick].action)
+    rule.runOnUiThread { click(); click() }
+    page(1)
+    assertEquals(1, store.state.value)
+    val previous = checkNotNull(action("previous").fetchSemanticsNode().config[SemanticsActions.OnClick].action)
+    rule.runOnUiThread { previous(); previous() }
+    page(0)
+    assertEquals(0, store.state.value)
   }
 
   @Test fun resumedSetupKeepsTheFooterReachableWithLargeTextAndCanBeDeferred() {
@@ -223,8 +258,12 @@ class OnboardingNavigationTest {
     checkContentEnd()
     action("next").performClick()
     page(1)
-    rule.onNodeWithText(context.getString(R.string.scope_open_manager)).performScrollTo().assertIsDisplayed()
-    rule.onNodeWithText(context.getString(R.string.scope_surfaces_note)).performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_os4_framework_manager))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_os4_activation))
+      .performScrollTo().assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.setup_os4_scope))
+      .performScrollTo().assertIsDisplayed()
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("large-text")
     checkContentEnd()
@@ -245,6 +284,13 @@ class OnboardingNavigationTest {
     checkContentEnd()
     action("next").performClick()
     page(3)
+    for (title in listOf(
+      R.string.setup_os4_desktop_dock,
+      R.string.setup_os4_desktop_appearance,
+      R.string.setup_os4_desktop_launch,
+    )) {
+      rule.onNodeWithText(context.getString(title)).performScrollTo().assertIsDisplayed()
+    }
     checkContentEnd()
     action("next").performClick()
     page(4)

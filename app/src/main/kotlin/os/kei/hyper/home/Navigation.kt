@@ -107,13 +107,16 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     }
     entry<OnboardingRoute>(swipeDismiss = swipe) { route ->
       OnboardingScreen(model, page = route.page, replay = route.replay,
-        onBack = ::back, onExit = { finishSetup(route) },
+        onBack = { if (backStack.lastOrNull() == route) back() }, onExit = { if (backStack.lastOrNull() == route) finishSetup(route) },
         onNext = {
-          if (route.page == OnboardingPreferences.PAGE_COUNT - 1) finishSetup(route)
-          else backStack.add(route.copy(page = route.page + 1))
-        }, onOpenPack = ::open,
-        onOpenDesktop = { backStack.add(OnboardingDesktop) },
-        onOpenSettings = ::openSettings)
+          if (backStack.lastOrNull() == route) {
+            if (route.page == OnboardingPreferences.PAGE_COUNT - 1) finishSetup(route)
+            else backStack.add(route.copy(page = route.page + 1))
+          }
+        }, onOpenPack = { if (backStack.lastOrNull() == route) open(it) },
+        onOpenDesktop = { if (backStack.lastOrNull() == route) backStack.add(OnboardingDesktop) },
+        onOpenSettings = { if (backStack.lastOrNull() == route) openSettings(it) },
+        onOpenDesktopSection = { if (backStack.lastOrNull() == route) openDesktop(it) })
     }
     entry<OnboardingDesktop>(swipeDismiss = swipe) {
       OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)

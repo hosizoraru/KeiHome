@@ -32,6 +32,8 @@ GROUPS = {
         UI + "CacheStorageUiTest",)),
     "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (
         UI + "ScopeAuthorizationUiTest",)),
+    "ui-onboarding": ("device", "OS4 first use, resume, replay, optional routes and large text", (
+        UI + "OnboardingNavigationTest",)),
     "cache-budget": ("jvm", "Reminder preference and protected Perfect storage accounting", (
         "CacheReminderBudgetTest", "PerfectIconRepositoryTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (

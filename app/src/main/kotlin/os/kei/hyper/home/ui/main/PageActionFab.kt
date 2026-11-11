@@ -32,7 +32,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit,
   modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false,
   description: String = label,
-  onHeightChanged: (Int) -> Unit = {}) {
+  trailingIcon: Boolean = false, onHeightChanged: (Int) -> Unit = {}) {
   val foreground = if (enabled || busy) MiuixTheme.colorScheme.onPrimary
     else MiuixTheme.colorScheme.onSurfaceSecondary
   FloatingActionButton(modifier = modifier.wrapContentWidth().heightIn(min = 56.dp)
@@ -47,17 +47,21 @@ internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit
       else MiuixTheme.colorScheme.surfaceVariant) {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
-        Crossfade(busy, animationSpec = tween(160), label = "page-action-progress") { loading ->
-          if (loading) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp,
-            colors = ProgressIndicatorDefaults.progressIndicatorColors(
-              foregroundColor = foreground, backgroundColor = foreground.copy(alpha = 0.2f)))
-          else Icon(icon, null, modifier = Modifier.size(22.dp), tint = foreground)
+      val symbol: @Composable () -> Unit = {
+        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+          Crossfade(busy, animationSpec = tween(160), label = "page-action-progress") { loading ->
+            if (loading) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp,
+              colors = ProgressIndicatorDefaults.progressIndicatorColors(
+                foregroundColor = foreground, backgroundColor = foreground.copy(alpha = 0.2f)))
+            else Icon(icon, null, modifier = Modifier.size(22.dp), tint = foreground)
+          }
         }
       }
+      if (!trailingIcon) symbol()
       Text(label, modifier = Modifier.weight(1f, fill = false).clearAndSetSemantics {},
         style = MiuixTheme.textStyles.button, color = foreground,
         maxLines = 1, overflow = TextOverflow.Ellipsis)
+      if (trailingIcon) symbol()
     }
   }
 }

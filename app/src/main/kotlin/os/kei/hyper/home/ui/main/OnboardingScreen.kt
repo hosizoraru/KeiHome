@@ -1,19 +1,26 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,191 +29,105 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
-import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
-import top.yukonga.miuix.kmp.basic.FloatingToolbar
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Ok
-import top.yukonga.miuix.kmp.icon.glass.Rocket
+import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.blur.layerBackdrop
 
 @Composable
 internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
   onBack: () -> Unit, onExit: () -> Unit, onNext: () -> Unit,
-  onOpenPack: (String) -> Unit, onOpenDesktop: () -> Unit, onOpenSettings: (String) -> Unit) {
+  onOpenPack: (String) -> Unit, onOpenDesktop: () -> Unit, onOpenSettings: (String) -> Unit,
+  onOpenDesktopSection: (String) -> Unit) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
-  val locales = LocalConfiguration.current.locales.toLanguageTags()
-  LaunchedEffect(model, lifecycle, page, locales) {
+  LaunchedEffect(model, lifecycle, page) {
     if (page == 1 || page == 4) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      model.observePage(4, locales)
+      model.observeScopeStatus()
     }
   }
-  val titles = listOf(R.string.setup_welcome_title, R.string.setup_framework_title,
-    R.string.setup_icons_title, R.string.setup_desktop_title, R.string.setup_finish_title)
-  val summaries = listOf(R.string.setup_welcome_body, R.string.setup_framework_body,
-    R.string.setup_icons_body, R.string.setup_desktop_body, R.string.setup_finish_body)
-  val stepLabel = stringResource(R.string.setup_step, page + 1, OnboardingPreferences.PAGE_COUNT)
-  val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   var toolbarHeight by remember { mutableIntStateOf(0) }
-  val toolbarClearance = with(LocalDensity.current) { toolbarHeight.toDp() } + 24.dp
-  Scaffold(backdrop = backdrop,
-    modifier = Modifier.testTag("setup.page.$page"),
-    topBar = {
-      BlurredBar(backdrop, backdrop != null) {
-        TopAppBar(title = stringResource(R.string.setup_title), scrollBehavior = behavior,
-          color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-          actions = { TextButton(stringResource(if (replay) R.string.setup_exit else R.string.setup_later),
-            onClick = onExit, modifier = Modifier.testTag("setup.exit")) })
-      }
-    },
-    floatingToolbar = {
-      FloatingToolbar(modifier = Modifier.fillMaxWidth()
-        .onSizeChanged { toolbarHeight = it.height }.testTag("setup.toolbar"), cornerRadius = 28.dp,
-        outSidePadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-        showDivider = true) {
-        Row(Modifier.fillMaxWidth().padding(10.dp),
-          horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          if (page > 0 || replay) TextButton(stringResource(if (page == 0) R.string.pack_back
-            else R.string.setup_previous), onClick = onBack,
-            modifier = Modifier.weight(1f).testTag("setup.previous"))
-          TextButton(stringResource(if (page == 4) R.string.setup_finish else R.string.setup_next),
-            onClick = onNext, modifier = Modifier.weight(1f).testTag("setup.next"),
-            colors = ButtonDefaults.textButtonColors(color = MiuixTheme.colorScheme.primary,
-              textColor = MiuixTheme.colorScheme.onPrimary))
+  val clearance = with(LocalDensity.current) { toolbarHeight.toDp() } + 16.dp
+  val stepLabel = stringResource(R.string.setup_step, page + 1, OnboardingPreferences.PAGE_COUNT)
+  Scaffold(backdrop = backdrop, modifier = Modifier.testTag("setup.page.$page"), topBar = {
+    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
+      .padding(horizontal = 20.dp, vertical = 8.dp).heightIn(min = 48.dp),
+      verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+      Text(stringResource(R.string.app_name), style = MiuixTheme.textStyles.subtitle)
+      Row(Modifier.semantics { contentDescription = stepLabel },
+        horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(OnboardingPreferences.PAGE_COUNT) { index ->
+          val width by animateDpAsState(if (index == page) 24.dp else 6.dp, tween(200), label = "setup-step")
+          Box(Modifier.width(width).height(6.dp).background(
+            if (index <= page) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer,
+            CircleShape))
         }
       }
-    },
-  ) { insets ->
-    Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      key(page) {
-        // Bring-into-view must keep actionable rows outside both overlay bars.
-        Column(Modifier.fillMaxSize()
-          .padding(top = insets.calculateTopPadding() + 12.dp,
-            bottom = insets.calculateBottomPadding() + toolbarClearance)
-          .testTag("setup.content")
-          .nestedScroll(behavior.nestedScrollConnection).verticalScroll(rememberScrollState())
-          .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp)) {
-          Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp)
-            .semantics { contentDescription = stepLabel },
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            repeat(OnboardingPreferences.PAGE_COUNT) { index ->
-              Box(Modifier.weight(1f).height(4.dp)
-                .background(if (index <= page) MiuixTheme.colorScheme.primary
-                  else MiuixTheme.colorScheme.secondaryContainer, RoundedCornerShape(2.dp)))
-            }
-          }
-          Text(stepLabel, modifier = Modifier.padding(start = 4.dp),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(20.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              Icon(when (page) {
-                1 -> actionIcon(PageActionIcon.STATUS)
-                2 -> actionIcon(PageActionIcon.PACKS)
-                3 -> actionIcon(PageActionIcon.DESKTOP)
-                4 -> MiuixIcons.Glass.Ok
-                else -> MiuixIcons.Glass.Rocket
-              }, null, Modifier.size(40.dp), tint = MiuixTheme.colorScheme.primary)
-              Text(stringResource(titles[page]), style = MiuixTheme.textStyles.title2,
-                modifier = Modifier.semantics { heading() })
-              Text(stringResource(summaries[page]), style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-          }
-          when (page) {
-            0 -> Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.setup_feature_icons), summary = stringResource(R.string.setup_feature_icons_body))
-              BasicComponent(title = stringResource(R.string.setup_feature_desktop), summary = stringResource(R.string.setup_feature_desktop_body))
-              BasicComponent(title = stringResource(R.string.setup_feature_control), summary = stringResource(R.string.setup_feature_control_body))
-            }
-            1 -> {
-              val framework by model.framework.collectAsStateWithLifecycle()
-              SetupNote(stringResource(if (framework.connected) R.string.setup_service_connected
-                else R.string.setup_service_disconnected), stringResource(R.string.setup_activation_note))
-              StaticScopeCard(model)
-            }
-            2 -> {
-              SetupNote(stringResource(R.string.setup_native_icons_title),
-                stringResource(R.string.pack_system_appearance_note))
-              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                BasicComponent(title = stringResource(R.string.icon_pack_library), summary = stringResource(R.string.setup_library_body),
-                  onClick = { onOpenPack("library") })
-                BasicComponent(title = stringResource(R.string.perfect_icons_title), summary = stringResource(R.string.setup_perfect_body),
-                  onClick = { onOpenPack("perfect") })
-                BasicComponent(title = stringResource(R.string.apple_pack_title), summary = stringResource(R.string.setup_apple_body),
-                  onClick = { onOpenPack("apple") })
-                BasicComponent(title = stringResource(R.string.navigation_monet), summary = stringResource(R.string.setup_monet_body),
-                  onClick = { onOpenPack("monet") })
-                BasicComponent(title = stringResource(R.string.pack_completion_title), summary = stringResource(R.string.setup_fallback_body),
-                  onClick = { onOpenPack("fallback") })
-                BasicComponent(title = stringResource(R.string.pack_action_settings), summary = stringResource(R.string.pack_action_settings_summary),
-                  onClick = { onOpenPack("settings") })
-              }
-              SetupNote(stringResource(R.string.setup_icon_tip_title), stringResource(R.string.setup_icon_tip_body))
-              SetupNote(stringResource(R.string.setup_local_icons_title), stringResource(R.string.setup_local_icons_body))
-            }
-            3 -> Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.setup_open_desktop), summary = stringResource(R.string.setup_open_desktop_body),
-                onClick = onOpenDesktop)
-            }
-            4 -> {
-              StaticScopeCard(model, attentionOnly = true)
-              SetupNote(stringResource(R.string.setup_verify_title), stringResource(R.string.setup_finish_note_body))
-              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                BasicComponent(title = stringResource(R.string.settings_hook_section), summary = stringResource(R.string.setup_open_scope_body),
-                  onClick = { onOpenSettings("hook") })
-                BasicComponent(title = stringResource(R.string.settings_log_section), summary = stringResource(R.string.setup_open_logs_body),
-                  onClick = { onOpenSettings("log") })
-                BasicComponent(title = stringResource(R.string.settings_cache_section), summary = stringResource(R.string.setup_open_cache_body),
-                  onClick = { onOpenSettings("cache") })
-              }
-              SetupNote(stringResource(R.string.setup_logs_title), stringResource(R.string.setup_logs_body))
-            }
-          }
-          Spacer(Modifier.height(4.dp).testTag("setup.end"))
-        }
-      }
+      TextButton(stringResource(if (replay) R.string.setup_os4_exit else R.string.setup_os4_later),
+        onClick = onExit, modifier = Modifier.heightIn(min = 48.dp).testTag("setup.exit"))
     }
-  }
-}
-
-@Composable
-private fun SetupNote(title: String, body: String) {
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text(title, style = MiuixTheme.textStyles.body1)
-      Text(body, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+  }, floatingToolbar = {
+    Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)
+      .onSizeChanged { toolbarHeight = it.height }.testTag("setup.toolbar"),
+      verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+      if (page > 0 || replay) {
+        val previous = stringResource(if (page == 0) R.string.pack_back else R.string.setup_previous)
+        GlassIconButton(onClick = onBack, backdrop = backdrop, inheritTopBarMaterial = false,
+          style = GlassDefaults.style(LocalKeiHomeDarkTheme.current), size = 56.dp,
+          modifier = Modifier.testTag("setup.previous").semantics { role = Role.Button; contentDescription = previous }) {
+          Icon(MiuixIcons.Glass.Back, null, Modifier.size(24.dp))
+        }
+      } else Spacer(Modifier.size(56.dp))
+      PageActionFab(stringResource(when (page) {
+        0 -> R.string.setup_os4_start
+        4 -> R.string.setup_os4_done
+        else -> R.string.setup_os4_next
+      }), if (page == 4) MiuixIcons.Glass.Ok else MiuixIcons.Glass.ChevronForward,
+        onClick = onNext, trailingIcon = true, modifier = Modifier.widthIn(max = 260.dp).testTag("setup.next"))
+    }
+  }) { insets ->
+    Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+      contentAlignment = Alignment.TopCenter) {
+      key(page) {
+        Column(Modifier.widthIn(max = 640.dp).fillMaxSize()
+          .padding(top = insets.calculateTopPadding(), bottom = insets.calculateBottomPadding() + clearance)
+          .testTag("setup.content").verticalScroll(rememberScrollState())
+          .padding(horizontal = 24.dp, vertical = 12.dp),
+          verticalArrangement = Arrangement.spacedBy(24.dp)) {
+          OnboardingHero(page)
+          OnboardingStepContent(model, page, onOpenPack, onOpenDesktop, onOpenSettings, onOpenDesktopSection)
+          Spacer(Modifier.height(8.dp).testTag("setup.end"))
+        }
+      }
     }
   }
 }
@@ -221,7 +142,7 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(R.string.navigation_desktop),
-        color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
+        color = if (backdrop != null) androidx.compose.ui.graphics.Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } })

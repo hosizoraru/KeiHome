@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_os4_welcome_title">ホーム画面を、あなたらしく</string>
+    <string name="setup_os4_welcome_body">KeiHome を好みに合わせて。設定が自動で変わることはありません。</string>
+    <string name="setup_os4_framework_title">まずモジュールを準備</string>
+    <string name="setup_os4_framework_body">LSPosed で KeiHome を有効にし、ホストのスコープを許可します。先に進んで、あとから設定することもできます。</string>
+    <string name="setup_os4_icons_title">お気に入りのアイコンを</string>
+    <string name="setup_os4_icons_body">この端末でアイコンを生成。プレビューで確認してから適用できます。</string>
+    <string name="setup_os4_desktop_title">ホーム画面を、使いやすく</string>
+    <string name="setup_os4_desktop_body">Dock の質感、外観と文字、アイコンと起動。必要なものを選んで調整できます。</string>
+    <string name="setup_os4_finish_title">準備ができたら、始めよう</string>
+    <string name="setup_os4_finish_body">未完了の項目はあとから設定できます。このガイドは「設定」からいつでも見直せます。</string>
+    <string name="setup_os4_framework_manager">フレームワークを開く</string>
+    <string name="setup_os4_scope">スコープの許可</string>
+    <string name="setup_os4_scope_body">各ホストの許可状況とバージョンを確認</string>
+    <string name="setup_os4_activation">初回有効化後はシステムを一度再起動してください。以降は通常、自動でホットリロードされます。</string>
+    <string name="setup_os4_icons_more">アイコンの詳細設定</string>
+    <string name="setup_os4_desktop_dock">Dock の質感</string>
+    <string name="setup_os4_desktop_appearance">外観と文字</string>
+    <string name="setup_os4_desktop_launch">アイコンと起動</string>
+    <string name="setup_os4_help">お困りのときは</string>
+    <string name="setup_os4_help_body">Hook の問題は LSPosed ログ、アプリの問題はアプリログを確認してください。</string>
+    <string name="setup_os4_next">続ける</string>
+    <string name="setup_os4_start">設定を始める</string>
+    <string name="setup_os4_done">完了</string>
+    <string name="setup_os4_scopes_granted">許可済み %1$d / %2$d</string>
+    <string name="setup_os4_scopes_unknown">許可状況を要確認</string>
+    <string name="setup_os4_module_ready">フレームワーク接続済み</string>
+    <string name="setup_os4_module_pending">フレームワーク未接続</string>
+    <string name="setup_os4_framework_action_summary">モジュールの有効化と対象の管理</string>
+    <string name="setup_os4_icons_more_body">プレビュー、操作、表示の設定</string>
+    <string name="setup_os4_desktop_note">必要な項目だけを調整し、各カテゴリの状態カードで反映を確認できます。</string>
+    <string name="setup_os4_feature_icons">アイコン</string>
+    <string name="setup_os4_feature_desktop">ホーム設定</string>
+    <string name="setup_os4_feature_control">必要な機能</string>
+    <string name="setup_os4_later">後で</string>
+    <string name="setup_os4_exit">閉じる</string>
+</resources>

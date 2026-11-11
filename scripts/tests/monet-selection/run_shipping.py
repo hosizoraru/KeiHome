@@ -26,11 +26,26 @@ def main():
     digest = hashlib.sha256(elf.read_bytes()).hexdigest()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    versions = json.loads((HERE / "fixture_inventory.json").read_text())
+    matrix = args.matrix.resolve()
+    receipt = json.loads((matrix / "report.json").read_text())
+    if not receipt.get("passed"):
+        parser.error("matrix must have passed before checking the shipping payload")
+    suites = receipt.get("suites", list(receipt.get("results", {})))
+    if not {"selection", "tint", "image"}.issubset(suites):
+        parser.error("matrix must include selection, tint, and image layouts")
+    inventory = json.loads((HERE / "fixture_inventory.json").read_text())
+    versions = receipt["versions"]
+    if not versions or len(set(versions)) != len(versions) or any(v not in inventory for v in versions):
+        parser.error("invalid fixture versions in matrix receipt")
+    for version in versions:
+        library = (args.fixture_root / version / "libapp.so").resolve()
+        actual = hashlib.sha256(library.read_bytes()).hexdigest()
+        if receipt["fixtures_sha256"].get(str(library)) != actual:
+            parser.error(f"fixture changed since source matrix: {library}")
     commands = [("selection", [sys.executable, HERE / "test_bridge_paths.py", output, elf])]
     for index, version in enumerate(versions):
-        tint_layout = args.matrix / f"tint-{version}/resolved-layout.json"
-        image_layout = args.matrix / f"image/layout-{index}.json"
+        tint_layout = matrix / f"tint-{version}/resolved-layout.json"
+        image_layout = matrix / f"image/layout-{index}.json"
         for layout in (tint_layout, image_layout):
             if not layout.is_file():
                 parser.error(f"missing independent resolver layout: {layout}")
@@ -56,6 +71,8 @@ def main():
     passed = all(result["exit"] == 0 for result in results)
     (output / "report.json").write_text(json.dumps({
         "passed": passed, "elf": str(elf), "elf_sha256": digest,
+        "versions": versions, "source_matrix": str(matrix / "report.json"),
+        "source_matrix_sha256": hashlib.sha256((matrix / "report.json").read_bytes()).hexdigest(),
         "results": results,
         "limits": "Selection uses a bounded decoded instruction model; tint and image use Unicorn. "
                   "Resolver layouts come from host production source tests; no resolver in this SO is executed. "

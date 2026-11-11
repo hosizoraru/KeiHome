@@ -4,7 +4,7 @@ The fixtures are the user's exact launcher libraries, kept outside version
 control. The resolver uses mapped instruction contracts, without reading symbols.
 The symbol/debugdata files used during research are independent role oracles.
 
-The durable inventory is `fixtures.json`: 7722, 8593, 8602, 8604, 9209,
+The durable inventory is `fixtures.json`: 7722, 8593, 8602, 8604, 8607, 9209,
 9226 and 9239. Each exact ELF lives at
 `.artifacts/inputs/launchers/<version>/libapp.so`, next to its unpacked
 `debug.elf`. No fixture is copied into version control.
@@ -54,14 +54,17 @@ python scripts/tests/launcher-labels/test_bridge.py \
   --resolver /tmp/keihome-label-profile-test \
   .artifacts/inputs/launchers/8593/libapp.so \
   .artifacts/inputs/launchers/7722/libapp.so \
+  .artifacts/inputs/launchers/8593/libapp.so \
   .artifacts/inputs/launchers/8602/libapp.so \
   .artifacts/inputs/launchers/8604/libapp.so \
+  .artifacts/inputs/launchers/8607/libapp.so \
   .artifacts/inputs/launchers/9209/libapp.so \
   .artifacts/inputs/launchers/9226/libapp.so \
   .artifacts/inputs/launchers/9239/libapp.so
 ```
 
-The 4,802 execution cases across seven fixtures stub the original Dart measurement, prefix, allocation,
+The suite has 686 execution cases per fixture (5,488 for the full eight-fixture
+inventory). These stub the original Dart measurement, prefix, allocation,
 constructor, fade, visibility, editing and title-refresh callees. They assert original return
 PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
 width boundaries, preference changes, native pressure fallbacks and unchanged VM
@@ -77,6 +80,17 @@ initialization instructions from each fixture and assert that the Stack is
 initialized before visibility can trigger GC. They do not run Dart GC or prove
 Flutter rendering. Device acceptance is a separate required check after a fresh
 native load.
+
+The 8607 fixture passes the existing production graph without adding patterns.
+Its `libapp.so` is byte-identical to the archived 8604 fixture; fixture names
+and digests remain test provenance, never runtime admission criteria.
+Its focused source and archived 106000410 linked-bridge evidence lives under
+`.artifacts/research/oem-refresh-20261111/labels-highlight/labels-8607/`.
+That run checks five independent debug-symbol roles, 19 rejection mutations and
+686 execution cases for each bridge. The archived unstripped payload is
+`.artifacts/releases/106000410/libkeihome_hyos_lsp.so`; that archive has no
+`symbols/arm64-v8a/` subdirectory. Linked checks authenticate and execute the
+bridge, while resolver checks compile current C++ source on the host.
 
 `generate_variants.py` reproduces the reviewed newer instruction shapes from
 the external 9209/9226/9239 debug-data oracles. It covers inline title configuration,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Material source/rejection suite: five AOTs and a native base negative image."""
+"""Material source/rejection suite: retained AOTs and a native base negative image."""
 import argparse
 import hashlib
 import json
@@ -31,6 +31,8 @@ def fingerprints():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sanitize", action="store_true")
+    parser.add_argument("--versions", nargs="+", choices=VERSIONS, default=VERSIONS,
+                        help="fixture subset; defaults to the complete retained matrix")
     parser.add_argument("--export-dir", type=Path, default=ORACLES,
                         help="write resolved TSVs, test log and JSON report")
     parser.add_argument("--negative-image", type=Path,
@@ -65,7 +67,7 @@ def main():
             report_path.write_text(json.dumps(report, indent=2) + "\n")
             compile_result.check_returncode()
         fixtures = []
-        for version in VERSIONS:
+        for version in args.versions:
             fixtures += [str(ROOT / ".artifacts/inputs/launchers" / version / "libapp.so"),
                          str(ORACLES / f"material-{version}.tsv")]
         environment = dict(os.environ, KEIHOME_MATERIAL_EXPORT_DIR=str(args.export_dir.resolve()))
@@ -89,9 +91,9 @@ def main():
                 raise AssertionError(f"duplicate fixture result: {key}")
             cases[key] = dict(checks=int(checks), rejections=int(rejections),
                               image=path)
-        if set(cases) != set(VERSIONS) | {"negative"}:
+        if set(cases) != set(args.versions) | {"negative"}:
             raise AssertionError(f"missing fixture results: {cases.keys()}")
-        for version in VERSIONS:
+        for version in args.versions:
             extra_path = args.export_dir / f"material-extra-resolved-{version}.tsv"
             folder_path = args.export_dir / f"material-folder-refresh-resolved-{version}.tsv"
             extra, folder = fields(extra_path), fields(folder_path)

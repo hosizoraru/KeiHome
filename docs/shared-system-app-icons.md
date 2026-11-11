@@ -106,8 +106,82 @@ length and modification time. Raw inputs and SHA-256 receipts live under
 `scripts/tests/sidebar-profile/securitycenter_matrix.py`. Evidence is retained
 under `.artifacts/research/securitycenter-matrix-20261111/`.
 
-This matrix does not install all seven SecurityCenter applications or establish
-their full visual behavior on seven devices. The existing Sidebar visual
+The added eighth archive, 13.8.1-261023.0.1 (versionCode 40001381), passes a
+focused independent DexSQL oracle on 2026-11-11. Its actual SHA-256 is
+`bec1ab84a5c94974b5c57a0626bfe21c1a2be962851b30eb0b27d7f9fae58c6c`
+and its size is 66,701,341 bytes, both matching the archived provenance.
+The selected role descriptors, request edges and field/hierarchy relations are
+identical to the retained 13.8.0 JSON proof, including rail owner `Lz7/c;`;
+the APK hashes differ. The existing structural production profile needs no
+adaptation for this oracle. Observed descriptors are evidence, not production
+lookup keys. The focused run finds
+32 URI seeds, unique grid/rail roles and two request wrappers, and cross-checks
+11 call edges, six field reads and six URI literals against decoded methods.
+Connected DexSQL MCP separately confirms the seed count and selected delivery
+edges. Evidence, exact SQL, decoded instructions and command receipts are in
+`.artifacts/research/oem-refresh-20261111/securitycenter/dexsql-final/`.
+The earlier seven-fixture evidence remains intact. A subsequent device run
+reran all eight archived fixtures, including the new 13.8.1 sample.
+
+The durable runner now accepts 1..16 archives, supports `--output-root` beneath
+`.artifacts/research/`, and refuses to reuse any existing output directory.
+Every run emits a verified `device-fixtures.json` for all archived inputs and
+a `device-push.sh` with exact source/destination paths; the runner does not
+execute its staging commands. Even a
+focused oracle run verifies all inventory hashes, byte sizes and actual package
+metadata. The current inventory contains eight distinct hashes and retains
+the two different 40001366 samples. Neither version metadata nor inventory
+hashes admit a production profile.
+
+`HyperOsSidebarMatrixDeviceTest` now requires this inventory beside the APKs,
+checks actual metadata and cached SHA-256 per sample, and explicitly rejects
+every same-versionCode/different-hash proof after replacement at one fixed
+path. The diagnostic/test build and corrected eight-fixture device run passed:
+`HyperOsSidebarMatrixDeviceTest#archivedApksResolveAndRestoreInIndependentLoaders`
+completed as one instrumentation test in 8.395 seconds, with eight fixture
+records, `sameVersionRejections=1` and two discovered request methods per profile.
+All eight APKs replaced the same private code-cache pathname,
+`/data/data/os.kei.hyper.home/code_cache/sidebar-matrix-9036626443879724816.apk`,
+and resolved/restored through distinct loaders. Their source hashes matched
+the inventory, including both different-hash 40001366 builds. Resolved grid/rail
+owners span `w7.a`/`a8.c` and `v7.a`/`z7.c`; these are observations, not lookup keys.
+The new 13.8.1 sample recorded 289 ms profile resolution and 83 ms cache
+restoration. These are individual resolve/cache latency samples from one
+diagnostic run, not FPS, frame-time or statistical benchmark results.
+The exact boundary and rows are retained in
+`.artifacts/research/oem-refresh-20261111/securitycenter/device-acceptance.json`,
+`device-private-test.log` and `device-matrix-logcat.txt`.
+
+The initial device run failed with `EACCES` reading `/sdcard/Download` inventory
+before any resolver ran.
+The corrected staging script uses `adb shell -T run-as os.kei.hyper.home` to
+create the app-private cache directory and stream each APK/inventory through
+`tee`, with stdin redirected from the host file and stdout to `/dev/null`. `shell -T`
+forwards stdin without a PTY; the proposed `exec-out` transport blocked `tee`
+and is not used. No storage permission grant is required. The Kotlin edit set
+is unchanged by the staging correction. The successful focused run used:
+
+```sh
+export SIDEBAR_SERIAL='MAIN_OWNED_TARGET'
+bash .artifacts/research/oem-refresh-20261111/securitycenter/run-as-staging/device-push.sh
+adb -s "$SIDEBAR_SERIAL" shell am instrument -w -r \
+  -e class os.kei.hyper.home.xposed.HyperOsSidebarMatrixDeviceTest#archivedApksResolveAndRestoreInIndependentLoaders \
+  -e sidebarFixtureDirectory /data/user/0/os.kei.hyper.home/cache/keihome-sidebar-matrix \
+  os.kei.hyper.home.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The directory must contain exactly the inventory's eight APK basenames and
+`device-fixtures.json`. The new sample's destination is
+`/data/user/0/os.kei.hyper.home/cache/keihome-sidebar-matrix/13.8.1-261023.0.1-bec1ab84a5c9.apk`.
+The previous `dexsql-final/` staging script and receipts remain historical;
+`run-as-staging/` contains the corrected script and the same verified inventory.
+Independent-loader DexKit discovery, reflection and JSON-cache restoration are
+accepted for all eight archived fixtures. Installed-host resource IDs and
+actual sidebar visual behavior remain a separate acceptance boundary. Main
+owns cleanup of its private and earlier shared staging directories.
+
+This matrix does not install all archived SecurityCenter applications or establish
+their full visual behavior on every device. The existing Sidebar visual
 acceptance remains for the installed Phone AVD host.
 
 New scope authorization and first target loading are separate from ordinary

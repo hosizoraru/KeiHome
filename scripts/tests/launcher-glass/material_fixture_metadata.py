@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 OUT = Path(os.environ.get("KEIHOME_MATERIAL_METADATA_DIR",
                          ROOT / ".artifacts/research/dock-material-20261105/material-sidecar"))
-VERSIONS = ("7722", "8593", "8602", "9209", "9226", "8604", "9239")
+VERSIONS = ("7722", "8593", "8602", "9209", "9226", "8604", "9239", "8607")
 spec = importlib.util.spec_from_file_location("material_elf", HERE.parent / "icon-highlight/elf_fixture.py")
 elf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(elf)

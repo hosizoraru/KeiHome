@@ -200,7 +200,7 @@ def resolver_tests(lib, image, template):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("images", nargs="*", type=Path,
-                   help="exact ELFs; defaults to the seven-launcher regression inventory")
+                   help="exact ELFs; defaults to the shared launcher regression inventory")
     p.add_argument("--inventory", type=Path,
                    default=Path(__file__).parents[1] / "launcher-labels/fixtures.json")
     p.add_argument("--payload", type=Path, help="also authenticate and execute the linked highlight template")

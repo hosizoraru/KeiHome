@@ -1,8 +1,8 @@
 # Native wallpaper material checks
 
 Production resolves Flutter AOT source relationships; the fixture symbol/address
-oracles here are host-only. Keep the seven exact launcher inputs in
-`.artifacts/inputs/launchers/{7722,8593,8602,8604,9209,9226,9239}/`.
+oracles here are host-only. Keep the eight exact launcher inputs in
+`.artifacts/inputs/launchers/{7722,8593,8602,8604,8607,9209,9226,9239}/`.
 Set `KEIHOME_MATERIAL_METADATA_DIR` to an evidence directory when regenerating
 source oracles and running `run_material_tests.py`, so an earlier checkpoint
 is retained. The extra/native-style generators use the same version inventory.
@@ -45,8 +45,8 @@ uses clang++, ASan and UBSan. The linked suite covers native and forced choices,
 live subject guards, no wallpaper writes, relocating roots and reentrant/newer
 revisions. Host execution does not establish real VM GC or GPU correctness;
 device screenshots, process identities and trace acceptance remain separate.
-The pair regression contains 3,656 cases, including 1,008 native fixture scenarios
-across all seven binaries. It executes both role shifts, all nine valid pairs,
+The pair regression contains 2,648 shared cases plus 144 native scenarios per
+selected fixture. It executes both role shifts, all nine valid pairs,
 reserved-field fallback, register/flags preservation and original native choices.
 The source-only report is not a final linked shipping receipt.
 

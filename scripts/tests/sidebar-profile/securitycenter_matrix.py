@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 INPUTS = ROOT / ".artifacts/inputs/securitycenter"
 OUTPUTS = ROOT / ".artifacts/research/securitycenter-matrix-20261111/dexsql"
+RESEARCH = ROOT / ".artifacts/research"
+MAX_FIXTURES = 16
 SOURCE = ROOT / "app/src/main/kotlin/os/kei/hyper/home/xposed/HyperOsSidebarProfile.kt"
 STRING = "Ljava/lang/String;"
 IMAGE = "Landroid/widget/ImageView;"
@@ -60,6 +62,25 @@ def single(items, role):
     return items[0]
 
 
+def select_inputs(root, only=None):
+    apks = sorted(root.glob("*/securitycenter.apk"))
+    require(1 <= len(apks) <= MAX_FIXTURES,
+            f"Expected 1..{MAX_FIXTURES} archived inputs, got {len(apks)}")
+    selected = [apk for apk in apks if only is None or only in apk.parent.name]
+    require(selected, f"No archived input matches --only {only!r}")
+    return selected
+
+
+def claim_output(path, research=RESEARCH):
+    path = path.resolve()
+    research = research.resolve()
+    require(path.is_relative_to(research) and path != research,
+            "Output root must be a new directory below .artifacts/research")
+    # Exclusive creation also preserves partial runs without a run.json receipt.
+    path.mkdir(parents=True, exist_ok=False)
+    return path
+
+
 def table_rows(text):
     # CLI 0.1.1 emits ASCII tables; selected values cannot contain pipes/newlines.
     lines = [line for line in text.splitlines() if line.startswith("|")]
@@ -96,6 +117,52 @@ def image_request(method):
         and 2 <= int(method["param_count"]) <= 6
         and params(method)[:2] == [STRING, IMAGE]
     )
+
+
+def package_metadata(badging):
+    match = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",
+                      badging, re.MULTILINE)
+    require(match is not None, "Cannot parse aapt2 package metadata")
+    metadata = dict(zip(("package", "versionCode", "versionName"), match.groups()))
+    require(metadata["package"] == "com.miui.securitycenter", "Wrong APK package")
+    return metadata
+
+
+def fixture_inventory(apks, runner):
+    fixtures = []
+    for apk in apks:
+        provenance = json.loads((apk.parent / "provenance.json").read_text())
+        size = apk.stat().st_size
+        require(1 <= size <= 512 * 1024 * 1024, "APK outside production fingerprint size budget")
+        digest = sha256(apk)
+        require(digest == provenance["sha256"], f"SHA256 provenance mismatch: {apk}")
+        require(size == provenance["bytes"], f"Size provenance mismatch: {apk}")
+        identifier = apk.parent.name.split("_", 1)[-1]
+        metadata = package_metadata(runner.run(
+            [runner.aapt2, "dump", "badging", apk], f"inventory-{identifier}-badging"))
+        fixtures.append({
+            "id": identifier, "file": identifier + ".apk",
+            "apk": str(apk.relative_to(ROOT)), "sha256": digest, "bytes": size, **metadata,
+        })
+    require(len({fixture["file"] for fixture in fixtures}) == len(fixtures),
+            "Duplicate device fixture filename")
+    return {"schema": 1, "fixtures": fixtures}
+
+
+def write_device_push(output, inventory):
+    destination = "cache/keihome-sidebar-matrix"
+    run_as = 'adb -s "$SIDEBAR_SERIAL" shell -T run-as os.kei.hyper.home '
+    lines = [
+        "#!/usr/bin/env bash", "set -euo pipefail",
+        ': "${SIDEBAR_SERIAL:?Set SIDEBAR_SERIAL to the main-owned Android target}"',
+        run_as + f"mkdir -p {destination}",
+    ]
+    for fixture in inventory["fixtures"]:
+        lines.append(run_as + "tee " + shlex.quote(destination + "/" + fixture["file"])
+                     + " < " + shlex.quote(str(ROOT / fixture["apk"])) + " > /dev/null")
+    lines.append(run_as + "tee " + destination + "/device-fixtures.json"
+                 + " < " + shlex.quote(str(output / "device-fixtures.json")) + " > /dev/null")
+    (output / "device-push.sh").write_text("\n".join(lines) + "\n")
 
 
 class Runner:
@@ -549,8 +616,7 @@ def report(output, results, source_hash, source_changed):
         "- Descriptor definitions are reconciled across DEX files; duplicate definitions, row truncation, "
         "missing roles, tool errors and timeouts fail the APK. Errors never count as absence.",
         "- Selected SQL call edges, field reads and six URI literals are cross-checked against decoded "
-        "instructions. Direct static call edges do not assert that every branch executes in one invocation. "
-        "Here each wrapper branches on the option object's K() boolean, reaching native h(...) or i(...).",
+        "instructions. Direct static call edges do not assert that every branch executes in one invocation.",
         "",
         "## Renaming and exact relations",
         "",
@@ -567,11 +633,11 @@ def report(output, results, source_hash, source_changed):
             )
     lines += [
         "",
-        "Across this corpus the request owner `Lcom/miui/common/utils/w0;`, native owner `Lyl/e;`, "
-        "wrapper names `e`/`g`, native request names `h`/`i`, and cancellation `w0.a` -> `e.b` remain "
-        "stable. Grid binder name `H`, rail binder name `e`, package getter `n`, model getter `g` and "
-        "image getter `v` also remain stable; their obfuscated owning/parameter classes can change. "
-        "Exact descriptors for every row follow.",
+        "Only the selected archives were checked in this run. Exact descriptors for every row follow; "
+        "role selection uses relationships, not obfuscated names, versions or hash admission. "
+        "Historical results are retained in their original output roots.",
+        "The device-fixtures.json inventory verifies bytes/provenance and package metadata for "
+        "all archives, including unselected archives; it is not structural or runtime acceptance.",
     ]
     previous = None
     for result in results:
@@ -603,7 +669,8 @@ def report(output, results, source_hash, source_changed):
         "", "## Reproduction and bounds", "",
         "See scripts/tests/sidebar-profile/README.md. Every CLI argv and shell-rendered command, "
         "exit status and duration is recorded in each commands.jsonl; numbered .sql files preserve exact SQL. "
-        "Two DexSQL workers, seven APKs maximum, one APK at a time, 110 subprocesses/480 seconds per APK, "
+        f"Two DexSQL workers, {MAX_FIXTURES} APKs maximum, one APK at a time, "
+        "110 subprocesses/480 seconds per APK, "
         "45 seconds per subprocess by default, 32 MiB retained stdout/stderr per APK, 4096 rows per general "
         "query, 128 seeds/getters/callers, hierarchy depth 12 and 24 decoded methods are hard bounds. "
         "Limits are enforced as failures, not silent partial success.",
@@ -618,55 +685,51 @@ def main():
     parser.add_argument("--aapt2", default=str(Path.home() / "Library/Android/sdk/build-tools/37.0.0/aapt2"))
     parser.add_argument("--timeout", type=int, default=45, choices=range(1, 61))
     parser.add_argument("--only", help="Optional archive directory substring, still under fixed input root")
+    parser.add_argument("--output-root", type=Path, default=OUTPUTS,
+                        help="New directory below .artifacts/research; existing paths are refused")
     args = parser.parse_args()
     require(args.dexsql is not None, "dexsql not found")
-    apks = sorted(INPUTS.glob("*/securitycenter.apk"))
-    require(1 <= len(apks) <= 7, f"Expected 1..7 archives, got {len(apks)}")
-    if args.only:
-        apks = [apk for apk in apks if args.only in apk.parent.name]
-        require(apks, "No matching archive")
-    else:
-        require(len(apks) == 7, "Full matrix requires exactly seven archives")
-    OUTPUTS.mkdir(parents=True, exist_ok=True)
-    # Fail before overwriting another run's evidence, including a partial run.
-    require(not (OUTPUTS / "run.json").exists(), "Output already contains a run; preserve it before rerunning")
+    try:
+        inventory_apks = select_inputs(INPUTS)
+        apks = select_inputs(INPUTS, args.only)
+        output_root = claim_output(args.output_root)
+    except (RuntimeError, OSError) as error:
+        parser.error(str(error))
     source = SOURCE.read_bytes()
     source_hash = hashlib.sha256(source).hexdigest()
-    (OUTPUTS / "production-contract.kt.txt").write_bytes(source)
+    (output_root / "production-contract.kt.txt").write_bytes(source)
     run = {
         "started": datetime.now(timezone.utc).isoformat(), "argv": sys.argv,
         "source_path": str(SOURCE.relative_to(ROOT)), "source_sha256": source_hash,
         "runner_sha256": sha256(Path(__file__)),
-        "bounds": {"apks": 7, "threads": 2, "queries_rows": 4096, "seeds": 128,
+        "output_root": str(output_root.relative_to(ROOT)),
+        "selected_inputs": [str(apk.relative_to(ROOT)) for apk in apks],
+        "bounds": {"apks": MAX_FIXTURES, "threads": 2, "queries_rows": 4096, "seeds": 128,
                    "subprocesses_per_apk": 110, "seconds_per_apk": 480,
                    "seconds_per_subprocess": args.timeout, "evidence_bytes_per_apk": 33554432},
     }
-    dump(OUTPUTS / "run.json", run)
-    tool_runner = Runner(OUTPUTS, args.dexsql, args.aapt2, args.timeout)
+    dump(output_root / "run.json", run)
+    tool_runner = Runner(output_root, args.dexsql, args.aapt2, args.timeout)
     tool_runner.run([args.dexsql, "--version"], "dexsql-version")
     tool_runner.run([args.dexsql, "tables", "--input", apks[0]], "dexsql-schema")
     for command in ("query", "decode"):
         tool_runner.run([args.dexsql, command, "--help"], f"dexsql-{command}-help")
     tool_runner.run([args.aapt2, "version"], "aapt2-version")
+    inventory = fixture_inventory(inventory_apks, tool_runner)
+    dump(output_root / "device-fixtures.json", inventory)
+    write_device_push(output_root, inventory)
+    run["inventory_count"] = len(inventory["fixtures"])
+    fixture_by_path = {fixture["apk"]: fixture for fixture in inventory["fixtures"]}
     results = []
     for apk in apks:
         identifier = apk.parent.name.split("_", 1)[-1]
-        output = OUTPUTS / identifier
+        output = output_root / identifier
         output.mkdir(exist_ok=False)
-        result = {"id": identifier, "apk": str(apk.relative_to(ROOT)), "sha256": sha256(apk),
-                  "bytes": apk.stat().st_size, "status": "FAIL"}
+        result = {**fixture_by_path[str(apk.relative_to(ROOT))], "status": "FAIL"}
         runner = Runner(output, args.dexsql, args.aapt2, args.timeout)
         try:
             provenance = json.loads((apk.parent / "provenance.json").read_text())
             dump(output / "input-provenance.json", provenance)
-            require(result["sha256"] == provenance["sha256"], "SHA256 provenance mismatch")
-            require(result["bytes"] == provenance["bytes"], "Size provenance mismatch")
-            badging = runner.run([args.aapt2, "dump", "badging", apk], "aapt2-badging")
-            match = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",
-                              badging, re.MULTILINE)
-            require(match is not None, "Cannot parse aapt2 package metadata")
-            result.update(zip(("package", "versionCode", "versionName"), match.groups()))
-            require(result["package"] == "com.miui.securitycenter", "Wrong APK package")
             result["proof"] = Analysis(runner, apk).analyze()
             result["status"] = result["proof"]["status"]
         except Exception as error:
@@ -680,9 +743,9 @@ def main():
                source_changed_during_run=sha256(SOURCE) != source_hash,
                passed=sum(result["status"] == "SQL_SHAPE_MATCH" for result in results),
                failed=sum(result["status"] != "SQL_SHAPE_MATCH" for result in results))
-    dump(OUTPUTS / "run.json", run)
-    dump(OUTPUTS / "matrix.json", results)
-    report(OUTPUTS, results, source_hash, run["source_changed_during_run"])
+    dump(output_root / "run.json", run)
+    dump(output_root / "matrix.json", results)
+    report(output_root, results, source_hash, run["source_changed_during_run"])
     return 1 if run["failed"] else 0
 
 

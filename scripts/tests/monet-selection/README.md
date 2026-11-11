@@ -29,7 +29,7 @@ each fixture. These are optimized host measurements, not Android launch times.
 `app/src/main/cpp/monet_selection_patterns.h` contains generated instruction-body
 hashes, four-word scan prefixes and function-relative graph edges. It contains
 no image RVA table, complete extracted functions or image SHA allowlist. Generate
-it from all seven external fixtures listed in `fixture_inventory.json` with
+it from all eight external fixtures listed in `fixture_inventory.json` with
 repeatable `--fixture LIB DEBUG` arguments. For example:
 
 ```sh
@@ -44,7 +44,7 @@ file for comparison. Keep fixture binaries, decompilation, and generated audit
 JSON outside the repository. The JSON intentionally includes observed RVAs as
 evidence; the production header does not.
 
-The shared offline inventory includes 7722, 8593, 8602, 8604, 9209, 9226 and
+The shared offline inventory includes 7722, 8593, 8602, 8604, 8607, 9209, 9226 and
 9239. Run all four suites and verify all three generated contract headers with:
 
 ```sh
@@ -56,6 +56,23 @@ NDK_DIR=/opt/homebrew/share/android-ndk /path/to/python \
 Each fixture directory contains `libapp.so` and `debug.elf`. The interpreter
 must provide the pinned Capstone, Unicorn and pyelftools dependencies. Output
 contains full commands, per-file source/fixture SHA256s and suite receipts.
+
+To limit admission checks to selection, tint, image recovery, and the isolated
+theme-night candidate, add `--suite selection --suite tint --suite image
+--suite theme-night`. This also authenticates the candidate's checked-in contracts
+and checks its profiles against the independent debug-symbol oracle. Theme-night
+remains disabled and outside the production native target. The 8607 fixture
+passes the existing contracts; admission adds no runtime version, RVA, or
+whole-image hash allowlist.
+
+Add `--fixture-version 8607` for bounded admission of just the new mapped
+input. All eight fixtures still participate in contract regeneration. Production
+headers must match byte-for-byte; every checked-in theme-night candidate contract
+must be reproduced, while extra generated candidate shapes remain unadmitted.
+Resolver and bridge execution uses only the selected input.
+`run_shipping.py` takes its fixture order from the completed matrix receipt and
+checks fixture hashes, so a focused matrix cannot accidentally reuse another
+variant's image-recovery layout.
 
 To check an existing unstripped shipping SO without rebuilding it:
 

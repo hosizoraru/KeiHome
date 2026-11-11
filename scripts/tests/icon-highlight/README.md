@@ -6,7 +6,7 @@ libraries, bridge objects and results stay under `--output`.
 
 With no positional ELFs, the runner uses the shared test-only
 `scripts/tests/launcher-labels/fixtures.json` inventory: 7722, 8593, 8602,
-8604, 9209, 9226 and 9239. Explicit ELF paths or `--inventory` override it.
+8604, 8607, 9209, 9226 and 9239. Explicit ELF paths or `--inventory` override it.
 Install pinned Python dependencies with
 `python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt`.
 Add `--payload /absolute/path/to/current/unstripped/libkeihome_hyos_lsp.so`
@@ -15,6 +15,13 @@ authenticates all 64 template bytes against freshly assembled current source,
 and records the full SO, source and bridge SHA-256 values in `payload.json`.
 Run once without `--payload` and once with it for separate source/linked
 execution evidence. Authentication covers the bridge, not other payload C++.
+
+8607 passes without changing production patterns. Focused evidence is retained
+under `.artifacts/research/oem-refresh-20261111/labels-highlight/` in
+`highlight-8607-source/` and `highlight-8607-linked/`. Each run performs 242
+resolver/builder checks, 288 native baselines and 1,440 patched executions
+(including 1,120 disabled bypasses), plus 945 exact-patch assertions. The linked run uses
+the archived `.artifacts/releases/106000410/libkeihome_hyos_lsp.so`.
 
 Requires Python with Unicorn, a host `clang++`, and the NDK LLVM tools. Example:
 

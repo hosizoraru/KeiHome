@@ -16,7 +16,7 @@ struct Header {
 struct Program { uint32_t type, flags; uint64_t offset, va, pa, filesz, memsz, align; };
 
 int main(int argc, char** argv) {
-    if (argc != 2) return 2;
+    if (argc != 2 && !(argc == 3 && strcmp(argv[2], "--expect-rejection") == 0)) return 2;
     std::ifstream input(argv[1], std::ios::binary);
     std::vector<uint8_t> file((std::istreambuf_iterator<char>(input)), {});
     assert(file.size() >= sizeof(Header));
@@ -43,6 +43,12 @@ int main(int argc, char** argv) {
     MonetSelectionImageView view{base, ranges.data(), ranges.size()};
     ThemeNightProfile profile{};
     const char* reason = nullptr;
+    if (argc == 3) {
+        assert(!ResolveThemeNight(view, &profile, &reason));
+        assert(reason);
+        printf("{\"accepted\":false,\"reason\":\"%s\"}\n", reason);
+        return 0;
+    }
     if (!ResolveThemeNight(view, &profile, &reason)) {
         fprintf(stderr, "Rejected %s: %s\n", argv[1], reason); return 1;
     }

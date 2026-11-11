@@ -9,6 +9,7 @@ from itertools import product
 from pathlib import Path
 from elftools.elf.elffile import ELFFile
 from arm64_support import Payload, HEAP, STACK, TRAP, read64, write64, xreg
+from material_fixture_metadata import VERSIONS
 from unicorn import UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE
 from unicorn.arm64_const import (
     UC_ARM64_REG_SP, UC_ARM64_REG_PC, UC_ARM64_REG_NZCV, UC_ARM64_REG_Q0,
@@ -763,6 +764,9 @@ def main():
     ap.add_argument("--report", type=Path)
     ap.add_argument("--fixtures", type=Path)
     ap.add_argument("--metadata", type=Path)
+    ap.add_argument("--versions", nargs="+",
+                    choices=VERSIONS, default=VERSIONS,
+                    help="native fixture subset; defaults to all retained Phone fixtures")
     args = ap.parse_args()
     if bool(args.fixtures) != bool(args.metadata):
         ap.error("--fixtures and --metadata must be supplied together")
@@ -793,7 +797,7 @@ def execute(args):
             p, args.fixtures / version / "libapp.so",
             args.metadata / f"material-{version}.tsv", scope)
             for scope in ("Dock", "searchCapsule")}
-            for version in ("7722", "8593", "8602", "9209", "9226", "8604", "9239")}
+            for version in args.versions}
     result["cases"] = sum(result[key] for key in
                           ("choose", "choose_conditions", "refresh", "runtime",
                            "policy", "pair_policy", "publication_races"))

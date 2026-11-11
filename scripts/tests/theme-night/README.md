@@ -85,6 +85,34 @@ direction, not a proven replacement bridge.
 
 ## Host-only resolver command
 
+The repeatable runner supports the shared external fixture inventory, including
+8607. It checks every resolved role against the independent debug-symbol oracle,
+runs the bounded positive/rejection mutations, and records source and fixture
+hashes. A single-image run does not need to reproduce the complete contract set:
+
+```bash
+/path/to/test-venv/bin/python scripts/tests/theme-night/validate.py \
+  --library .artifacts/inputs/launchers/8607/libapp.so \
+  --output /external/research/theme-night-8607
+```
+
+Supply the supported 7722/8593/8602/8604/8607 libraries with repeatable `--library`
+and `--verify-generated` to reproduce the candidate header. Alternatively use
+`monet-selection/run_matrix.py --suite theme-night` with the shared fixture root.
+This checks the isolated source candidate only; the production target and linked
+shipping payload do not contain this feature.
+
+Full-inventory regeneration during 8607 admission identified two extra normalized
+`BitmapLocal` digests for 9209/9226 and 9239 (241 words each). They remain evidence
+only: the candidate header is byte-identical to HEAD 4899553. A temporary expanded
+candidate passed all eight fixtures, but those results do not describe this final
+source checkpoint. The final candidate supports 7722/8593/8602/8604/8607, with
+six positive / 32 rejection mutations per supported fixture. The matrix verifies
+that every complete checked-in contract is reproduced from the inventory without
+admitting extra generated shapes. Use repeatable `--reject-library` for the
+9209/9226/9239 inputs to verify the original fail-closed behavior. No resolver
+guard changed.
+
 Run from the repository root; fixtures remain external:
 
 ```bash

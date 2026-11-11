@@ -96,10 +96,12 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--launcher-root", type=Path,
                         default=HERE.parents[2] / ".artifacts/inputs/launchers")
-    args = parser.parse_args()
     fixtures = json.loads((HERE / "fixtures.json").read_text())
+    parser.add_argument("--versions", nargs="+", choices=tuple(fixtures),
+                        default=tuple(fixtures), help="fixture subset; defaults to all")
+    args = parser.parse_args()
     print(json.dumps([inspect(version, entry, args.launcher_root, args.binary)
-                      for version, entry in fixtures.items()], indent=2))
+                      for version, entry in fixtures.items() if version in args.versions], indent=2))
 
 
 if __name__ == "__main__":

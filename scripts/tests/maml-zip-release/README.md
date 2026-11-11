@@ -1,7 +1,7 @@
 # Rust MAML ZIP metadata release
 
-Run the durable framework inventory plus the 9239 launcher widget-SDK negative
-fixture from the repository root:
+Run the durable framework inventory plus the 8607 and 9239 launcher widget-SDK
+negative fixtures from the repository root:
 
 ```sh
 python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt
@@ -14,11 +14,18 @@ fixtures separate from the launcher's `libnative_widget_sdk.so`. The runner
 obtains framework release RVAs from independent debug symbols, runs both host
 ownership suites, regenerates their graph patterns under `--output` and
 compares them byte-for-byte with production. It never writes production output.
-For the exact 9239 widget SDK it requires both absence of `zip_archive`
+For each exact launcher widget SDK it requires both absence of `zip_archive`
 symbols/release roots and rejection by the production mapped-code resolver
 with a zero output address. This is a negative regression fixture, not newly
 admitted SDK support. `--sanitizers` also runs the queue/priority suite under
 ASan+UBSan and TSan. `results.json` records fixture hashes and outcomes.
+
+The focused 8607 evidence is retained under
+`.artifacts/research/oem-refresh-20261111/labels-highlight/maml-8607/`.
+Its widget SDK is byte-identical to the archived 8602 and 8604 SDKs. It has no
+ZIP role symbols and remains rejected with a zero output address. This check
+compiles the current resolver on the host; it does not execute the shipping
+MAML C++ code or establish positive launcher-SDK support.
 
 The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
 ring. The host test covers 9,095 exactly-once releases, initialization failures,

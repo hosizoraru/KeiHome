@@ -1,11 +1,16 @@
 # Dock glass checks
 
 The current Phone inventory in `fixtures.json` includes 7722, 8593, 8602, 8604,
-9209, 9226 and 9239. Regenerate strict patterns with `generate_patterns.py`;
+8607, 9209, 9226 and 9239. Regenerate strict patterns with `generate_patterns.py`;
 `verify_fixture_oracle.py --binary PATH` independently compares every inventory
 entry to native debugdata and caller relationships. See the
 [9239 checkpoint](../../../docs/launcher-9239-compatibility.md) for the final
 shipping-payload and device boundary.
+
+Use `verify_fixture_oracle.py --versions 8607 --binary PATH` for a new fixture's
+independent role comparison without repeating the complete retained matrix.
+The 8607 AOT image equals 8604 byte for byte; its APK and Rust base remain separate
+inputs. Shared production contracts are unchanged.
 
 See [feature and acceptance boundaries](../../../docs/dock-glass.md) and
 [refresh contract](../../../docs/dock-glass-refresh.md).

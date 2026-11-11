@@ -27,6 +27,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.awaitCancellation
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
@@ -59,7 +63,8 @@ private val IconPackEntry.quietSnapshot: Boolean
     (dark as? IconPackArtwork.Archive)?.snapshot == true
 
 @Composable
-internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
+internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit = {}) {
+  ObservePerfectResources(vm.perfectPacks)
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val preview by vm.perfectPacks.previewState.collectAsStateWithLifecycle()
   val apps by vm.apps.collectAsStateWithLifecycle()
@@ -91,8 +96,12 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
         }
     }
   }
-  LaunchedEffect(vm, state.options, state.catalog?.sourceHash, state.busy) {
-    if (!state.busy && state.ready) vm.perfectPacks.loadPreview()
+  val lifecycle = LocalLifecycleOwner.current.lifecycle
+  LaunchedEffect(vm, lifecycle, state.options, state.catalog?.sourceHash, state.busy) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+      if (!state.busy && state.ready) vm.perfectPacks.loadPreview()
+      awaitCancellation()
+    }
   }
   PerfectSubpage(stringResource(R.string.perfect_icons_preview_title), onBack,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
@@ -132,15 +141,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
           Text(stringResource(R.string.perfect_icons_preview_options_scope),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
-          summary = stringResource(R.string.perfect_icons_dynamic_summary),
-          checked = state.options.dynamic, enabled = !state.busy,
-          onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(dynamic = it)) })
-        SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
-          summary = stringResource(if (state.options.staticNight) R.string.perfect_icons_night_enabled
-            else R.string.perfect_icons_night_disabled),
-          checked = state.options.staticNight, enabled = !state.busy,
-          onCheckedChange = { vm.perfectPacks.setOptions(state.options.copy(staticNight = it)) })
+
       }
       if (preview.loading || !state.ready || preview.failed) {
         Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -149,7 +150,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit) {
           if (!state.ready || preview.failed) BasicComponent(
             title = stringResource(if (!state.ready) R.string.perfect_git_style_missing else R.string.perfect_icons_error),
             summary = stringResource(if (!state.ready) R.string.perfect_git_style_needed
-              else R.string.perfect_icons_preview_error))
+              else R.string.perfect_icons_preview_error),
+            onClick = if (!state.ready) onOpenResources else null)
         }
       }
     }

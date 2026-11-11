@@ -63,7 +63,7 @@
   <string name="perfect_icons_revision_short">ソース %1$s</string>
   <string name="perfect_icons_sources_storage">出典とストレージ</string>
   <string name="perfect_icons_sources_row_summary">クレジット、完全なリビジョン、スナップショット詳細とキャッシュ管理</string>
-  <string name="perfect_icons_preview_title">プレビューと効果</string>
+  <string name="perfect_icons_preview_title">アイコンプレビュー</string>
   <string name="perfect_icons_preview_row_summary">選択中のスタイルの例をローカルから表示</string>
   <string name="perfect_icons_preview_style">スタイル：%1$s</string>
   <string name="perfect_icons_preview_summary">未インストールのアプリを含め、最大 24 件のローカルサンプルを表示します。動的アイコンは静止画像で表示します。</string>

@@ -159,6 +159,7 @@ class PerfectGitRepositoryTest {
 
   @Test fun replacementIndexDropsDeletedAndRenamedResourcesFromGeneration() = runBlocking {
     val f = Fixture(temporary.newFolder())
+    f.repository.setOptions(PerfectIconOptions())
     f.repository.catalog(refresh = true)
     val oldHash = f.repository.catalog()?.sourceHash
     f.backend.revision = "b".repeat(40)
@@ -198,6 +199,7 @@ class PerfectGitRepositoryTest {
 
   @Test fun corruptObjectIsReportedAndNeverPublishedAsGeneratedArchive() = runBlocking {
     val f = Fixture(temporary.newFolder())
+    f.repository.setOptions(PerfectIconOptions())
     f.repository.catalog(refresh = true)
     val sha = f.backend.objects.keys.first()
     f.backend.objects[sha] = byteArrayOf(0)
@@ -214,6 +216,9 @@ class PerfectGitRepositoryTest {
     val exclusive = png(50)
     f.backend.files[exclusivePath] = exclusive
     f.repository.catalog(refresh = true, styles = setOf("default", "HyperOS4"))
+    val footprints = f.repository.catalog()!!.styleDetails
+    assertEquals(footprints.getValue("default").sharedBytes, footprints.getValue("HyperOS4").sharedBytes)
+    footprints.values.forEach { assertEquals(it.bytes, it.ownBytes + it.sharedBytes) }
     val history = f.repository.syncHistory()
     f.time += 5000
     val before = f.repository.resourceBytes()
@@ -222,6 +227,8 @@ class PerfectGitRepositoryTest {
     assertTrue(released > 0)
     assertEquals(before - released, f.repository.resourceBytes())
     assertEquals(listOf("default"), f.repository.catalog()?.downloadedStyles)
+    assertEquals(footprints.getValue("default"), f.repository.catalog()!!.styleDetails.getValue("default"))
+    assertFalse(f.repository.catalog()!!.styleDetails.containsKey("HyperOS4"))
     assertEquals(history, f.repository.syncHistory())
     assertEquals(fetched, f.backend.fetches)
     assertEquals(0, f.backend.checks)
@@ -243,6 +250,7 @@ class PerfectGitRepositoryTest {
 
   @Test fun boundedMaintenanceOnNewRevisionKeepsSameStyleOfflineReady() = runBlocking {
     val f = Fixture(temporary.newFolder())
+    f.repository.setOptions(PerfectIconOptions())
     f.repository.catalog(refresh = true)
     f.backend.revision = "b".repeat(40)
     f.backend.compact = true

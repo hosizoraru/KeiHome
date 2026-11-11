@@ -43,6 +43,7 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
+import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
@@ -82,10 +83,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
   var localLoadRequested by remember(vm) { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
-  LaunchedEffect(vm) {
-    vm.perfectPacks.load()
-    localLoadRequested = true
-  }
+  ObservePerfectResources(vm.perfectPacks)
+  LaunchedEffect(vm) { localLoadRequested = true }
   LaunchedEffect(vm, lifecycle, locales) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       coroutineScope { launch { vm.observePage(3, locales) } }
@@ -134,6 +133,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
       bottom = padding.calculateBottomPadding() + actionBottom)) {
       item("status") {
         val catalog = state.catalog
+        val downloadedCount = catalog?.downloadedStyles?.size ?: 0
         val style = state.options.style.takeUnless { it.isBlank() || it == "default" }
           ?: stringResource(R.string.perfect_icons_style_default)
         StatusOverviewCard(
@@ -146,6 +146,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             localLoading -> R.string.perfect_icons_loading
             state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
             state.updateAvailable -> R.string.perfect_git_update_available
+            downloadedCount > 0 && !state.ready -> R.string.perfect_local_available
             catalog != null && !state.ready -> R.string.perfect_git_style_missing
             state.syncIssue != null -> if (state.ready) R.string.perfect_icons_catalog_ready
               else R.string.perfect_icons_catalog_missing
@@ -156,6 +157,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           }),
           summary = when {
             localLoading -> stringResource(R.string.pack_local_catalog_loading)
+            downloadedCount > 0 && !state.ready -> stringResource(R.string.perfect_local_selection_missing, downloadedCount, style)
             !state.ready -> stringResource(R.string.perfect_git_overview_summary)
             else -> stringResource(R.string.perfect_icons_preview_style, style)
           },
@@ -177,8 +179,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
               verticalArrangement = Arrangement.spacedBy(6.dp)) {
               PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
               if (catalog != null) {
-                MetadataPill(stringResource(if (state.ready) R.string.perfect_git_downloaded
-                  else R.string.perfect_git_not_downloaded), color,
+                MetadataPill(stringResource(R.string.perfect_resource_downloaded_count, downloadedCount), MiuixTheme.colorScheme.primary)
+                if (!state.ready) MetadataPill(stringResource(R.string.perfect_git_not_downloaded), color,
                   Modifier.testTag("icon-packs.perfect.style-readiness"))
                 MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
                 val revision = catalog.revision.ifEmpty { catalog.sourceHash }
@@ -192,7 +194,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
         )
-        if (state.busy || localLoading || state.error != null || cooling) {
+        PerfectDownloadStatusCard(state)
+        if ((state.busy && !state.refreshing) || localLoading || state.error != null || cooling) {
           Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
               if (state.busy || localLoading) {
@@ -234,8 +237,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             enabled = !busy, onClick = { onNavigate("perfect-sources") },
             modifier = Modifier.testTag("icon-packs.perfect.sources"))
           BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
-            summary = stringResource(R.string.perfect_git_preview_summary),
-            enabled = !busy, onClick = { onNavigate("perfect-preview") },
+            summary = stringResource(if (state.ready) R.string.perfect_git_preview_summary else R.string.perfect_preview_choose),
+            enabled = !busy, onClick = { onNavigate(if (state.ready) "perfect-preview" else "perfect-sources") },
             modifier = Modifier.testTag("icon-packs.perfect.preview"))
         }
       }
@@ -303,12 +306,12 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
 }
 
 @Composable
-private fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<String>?,
+internal fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<String>?,
   downloadedStyles: List<String>, enabled: Boolean, onOptionsChange: (PerfectIconOptions) -> Unit) {
   Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
     val styles = remember(catalogStyles, options.style) {
-      (listOf("") + catalogStyles.orEmpty() + options.style)
-        .map { it.takeUnless { style -> style == "default" }.orEmpty() }.distinct()
+      PerfectIconStyles.ordered(listOf("") + catalogStyles.orEmpty() + options.style)
+        .map { it.takeUnless { style -> style == "default" }.orEmpty() }
     }
     val defaultStyle = stringResource(R.string.perfect_icons_style_default)
     val downloaded = stringResource(R.string.perfect_git_downloaded)
@@ -327,6 +330,16 @@ private fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<
       onSelectedIndexChange = { index -> styles.getOrNull(index)?.let {
         onOptionsChange(options.copy(style = it))
       } })
+    SwitchPreference(title = stringResource(R.string.perfect_icons_dynamic),
+      summary = stringResource(R.string.perfect_icons_dynamic_summary),
+      checked = options.dynamic, enabled = enabled,
+      modifier = Modifier.testTag("perfect.options.dynamic"),
+      onCheckedChange = { onOptionsChange(options.copy(dynamic = it)) })
+    SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
+      summary = stringResource(if (options.staticNight) R.string.perfect_icons_night_enabled else R.string.perfect_icons_night_disabled),
+      checked = options.staticNight, enabled = enabled,
+      modifier = Modifier.testTag("perfect.options.night"),
+      onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) })
     SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
       summary = stringResource(R.string.perfect_icons_installed_summary),
       checked = options.installedOnly, enabled = enabled,

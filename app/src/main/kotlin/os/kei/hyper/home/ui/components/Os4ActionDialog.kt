@@ -45,25 +45,33 @@ internal fun Os4ActionDialog(
   onDismissRequest: () -> Unit,
   title: String,
   summary: String,
-  icon: ImageVector,
+  icon: ImageVector? = null,
   actions: List<Os4DialogAction>,
+  artwork: (@Composable () -> Unit)? = null,
+  details: @Composable () -> Unit = {},
 ) {
   val maxHeight = LocalWindowInfo.current.containerDpSize.height * 0.7f
   Os4Dialog(show, onDismissRequest, modifier = Modifier.semantics { paneTitle = title }) {
     // The MIUIX host already supplies 24dp insets. Keep only spacing between content here.
-    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
+    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight),
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(16.dp)) {
-      Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
-        .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
-        contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(21.dp),
-          tint = MiuixTheme.colorScheme.onSurface)
+      Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (artwork != null) artwork()
+        else if (icon != null) Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
+          .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
+          contentAlignment = Alignment.Center) {
+          Icon(icon, contentDescription = null, modifier = Modifier.size(21.dp),
+            tint = MiuixTheme.colorScheme.onSurface)
+        }
+        Text(title, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.title4,
+          fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+        Text(summary, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.body1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        details()
       }
-      Text(title, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.title4,
-        fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
-      Text(summary, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.body1,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
       Os4DialogActions(actions, Modifier.padding(top = 8.dp))
     }
   }

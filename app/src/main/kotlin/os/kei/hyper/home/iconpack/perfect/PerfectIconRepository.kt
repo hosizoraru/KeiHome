@@ -93,6 +93,7 @@ class PerfectIconRepository internal constructor(
   private val renderedDir get() = File(root, "rendered-static-night")
   // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
   private var fallbackIndex: FallbackIndex? = null
+  private var styleSizeCache: Pair<String, Map<String, PerfectIconStyleDetails>>? = null
   private val syncHistory = PerfectSyncHistory(settings::read, settings::write, now)
   private val localHealthProbe = PerfectLocalHealthProbe()
 
@@ -163,11 +164,11 @@ class PerfectIconRepository internal constructor(
   }
 
   fun options(): PerfectIconOptions = runCatching {
-    val json = JSONObject(settings.read("options") ?: return PerfectIconOptions())
+    val json = JSONObject(settings.read("options") ?: return PerfectIconStyles.initialOptions)
     PerfectIconOptions(json.getString("style"), json.getBoolean("installedOnly"), json.getBoolean("dynamic"),
       json.optBoolean("staticNight", false))
       .also { PerfectIconFormat.style(it.style) }
-  }.getOrDefault(PerfectIconOptions())
+  }.getOrDefault(PerfectIconStyles.initialOptions)
 
   fun setOptions(options: PerfectIconOptions) {
     PerfectIconFormat.style(options.style)
@@ -619,8 +620,6 @@ class PerfectIconRepository internal constructor(
     val remoteSubject: String = "",
     val transferredBytes: Long = 0,
   ) {
-    val catalog get() = PerfectIconCatalog(revision, styles, updatedAt, count, downloadedAt, sourceHash,
-      upToDate, archiveBytes, downloadedStyles, remoteCommittedAt, remoteSubject, transferredBytes, gitStore.isNotEmpty())
     fun json(): JSONObject = JSONObject().put("version", if (gitStore.isEmpty()) 2 else 3)
       .put("revision", revision).put("sourceHash", sourceHash)
       .put("archiveBytes", archiveBytes).put("styles", JSONArray(styles)).put("updatedAt", updatedAt)
@@ -630,6 +629,38 @@ class PerfectIconRepository internal constructor(
       .put("transferredBytes", transferredBytes)
       .put("entries", JSONArray(entries.map { JSONArray(listOf(it.path, it.sha, it.size, it.crc)) }))
   }
+
+  private val Snapshot.catalog: PerfectIconCatalog
+    get() {
+      // Old snapshots already contain this index; no resource-tree walk or redownload is needed.
+      val sizeKey = "$sourceHash\n${downloadedStyles.joinToString("\n")}"
+      val sizes = styleSizeCache?.takeIf { it.first == sizeKey }?.second ?: run {
+        val byPath = entries.associateBy { it.path }
+        val paths = byPath.keys.toList()
+        downloadedStyles.associateWith { style ->
+          val objects = HashMap<String, Long>()
+          val sharedObjects = HashSet<String>()
+          val selectedStyle = style.ifEmpty { "default" }
+          PerfectIconSelection.paths(paths, setOf(selectedStyle)).forEach { path ->
+            val entry = byPath.getValue(path)
+            val previous = objects.putIfAbsent(entry.sha, entry.size)
+            require(previous == null || previous == entry.size) { "Inconsistent resource object size" }
+            if (!path.startsWith("themes/$selectedStyle/")) sharedObjects += entry.sha
+          }
+          val bytes = objects.values.fold(0L, Math::addExact)
+          val sharedBytes = sharedObjects.fold(0L) { sum, sha -> Math.addExact(sum, objects.getValue(sha)) }
+          PerfectIconStyleDetails(bytes = bytes, ownBytes = bytes - sharedBytes, sharedBytes = sharedBytes)
+        }.also { styleSizeCache = sizeKey to it }
+      }
+      val artwork = if (gitStore.isNotEmpty()) git?.styleIcons(revision).orEmpty() else emptyMap()
+      val details = styles.mapNotNull { style ->
+        if (style !in sizes && style !in artwork) null else
+          style to (sizes[style] ?: PerfectIconStyleDetails()).copy(iconFile = artwork[style])
+      }.toMap()
+      return PerfectIconCatalog(revision, styles, updatedAt, count, downloadedAt, sourceHash,
+        upToDate, archiveBytes, downloadedStyles, remoteCommittedAt, remoteSubject, transferredBytes,
+        gitStore.isNotEmpty(), details)
+    }
 
   private fun archive(snapshot: Snapshot) = File(sourceDir, "${snapshot.sourceHash}.zip")
 

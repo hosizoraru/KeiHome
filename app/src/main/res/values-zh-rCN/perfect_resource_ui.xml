@@ -13,7 +13,7 @@
   <string name="perfect_resource_empty_summary">下载需要的样式，之后可离线预览和生成。</string>
   <string name="perfect_resource_style_count">已下载 %1$d / %2$d</string>
   <string name="perfect_resource_filter_empty">暂无已下载样式，可切换到全部风格。</string>
-  <string name="perfect_resource_style_ready">资源已下载。可在总览选择此样式，预览或生成图标包。</string>
+  <string name="perfect_resource_style_ready">资源已下载，可直接预览此样式或更新资源。</string>
   <string name="perfect_resource_style_missing">下载此样式及必需的共享资源，不会自动应用图标包。</string>
   <string name="perfect_resource_local_revision">本地版本 %1$s</string>
   <string name="perfect_resource_cache_size">可重建缓存 %1$s</string>

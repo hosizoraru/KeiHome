@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_transfer_title">正在下载 Perfect 样式</string>
+  <string name="perfect_transfer_selected_styles">所选样式</string>
+  <string name="perfect_transfer_style">样式：%1$s</string>
+  <string name="perfect_transfer_preparing">正在准备所选资源…</string>
+  <string name="perfect_transfer_checking">正在检查远端版本…</string>
+  <string name="perfect_transfer_tree">正在读取资源索引…</string>
+  <string name="perfect_transfer_receiving">正在接收资源…</string>
+  <string name="perfect_transfer_verifying">正在校验本地资源…</string>
+  <string name="perfect_transfer_processing">正在处理资源…</string>
+  <string name="perfect_transfer_task_progress">当前任务进度</string>
+  <string name="perfect_transfer_count">当前任务：%1$d / %2$d</string>
+  <string name="perfect_transfer_task">当前任务：%1$s</string>
+  <string name="perfect_transfer_received">已接收 %1$s</string>
+  <string name="perfect_transfer_elapsed">已用时 %1$s</string>
+  <string name="perfect_transfer_average">同步均速 %1$s/秒</string>
+</resources>

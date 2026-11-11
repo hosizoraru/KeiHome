@@ -63,7 +63,7 @@
   <string name="perfect_icons_revision_short">源版本 %1$s</string>
   <string name="perfect_icons_sources_storage">来源与存储</string>
   <string name="perfect_icons_sources_row_summary">署名、完整版本、本地快照详情与缓存管理</string>
-  <string name="perfect_icons_preview_title">预览与效果</string>
+  <string name="perfect_icons_preview_title">图标预览</string>
   <string name="perfect_icons_preview_row_summary">从本地快照浏览当前所选样式的示例</string>
   <string name="perfect_icons_preview_style">样式：%1$s</string>
   <string name="perfect_icons_preview_summary">最多展示 24 个本地样例，包含未安装的应用；动态图标显示静态快照。</string>

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.main
 
 import android.content.Context
+import android.os.SystemClock
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.os.Process
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import os.kei.hyper.home.data.AppLocalStorage
@@ -33,6 +35,7 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconResult
+import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
 import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
 
@@ -56,6 +59,8 @@ internal data class PerfectPackState(
   val loading: Boolean = false,
   val checking: Boolean = false,
   val refreshing: Boolean = false,
+  val syncingStyles: Set<String> = emptySet(),
+  val syncStartedAtElapsedMillis: Long = 0,
   val generating: Boolean = false,
   val clearingCache: Boolean = false,
   val deletingResources: Boolean = false,
@@ -95,10 +100,12 @@ internal class PerfectPackController(
 ) {
   private val app = context.applicationContext
   private val storage by lazy { AppLocalStorage.open(app, "perfect_icons_ui_v1") }
-  private val mutableState = MutableStateFlow(PerfectPackState())
+  private val mutableState = MutableStateFlow(PerfectPackState(options = PerfectIconStyles.initialOptions))
   val state = mutableState.asStateFlow()
   private val mutablePreview = MutableStateFlow(PerfectPackPreviewState())
   val previewState = mutablePreview.asStateFlow()
+  @Volatile private var loaded = false
+  private var localRefreshJob: Job? = null
 
   fun loadPreview(refresh: Boolean = false) {
     val current = state.value
@@ -154,7 +161,7 @@ internal class PerfectPackController(
   }
 
   fun load() {
-    if (state.value.busy) return
+    if (loaded || state.value.busy) return
     mutableState.update { it.copy(loading = true, error = null) }
     scope.launch {
       var failure = PerfectPackError.LOCAL
@@ -164,6 +171,7 @@ internal class PerfectPackController(
           val remote = repository.remoteStatus()
           mutableState.update { it.copy(options = options, remote = remote) }
           val catalog = repository.catalog(refresh = false)
+          loaded = true
           mutableState.update { it.copy(options = options, catalog = catalog) }
           val saved = storage.getString("last_generated", null)?.let(::JSONObject)
           if (saved != null) {
@@ -262,14 +270,29 @@ internal class PerfectPackController(
     }
   }
 
-  fun setOptions(options: PerfectIconOptions) {
+  /** Reconcile resumes without flashing a loading card or performing network work. */
+  fun refreshLocal() {
+    if (!loaded || state.value.busy || localRefreshJob?.isActive == true) return
+    val expected = state.value
+    localRefreshJob = scope.launch { updateCache(expected) }
+  }
+
+  fun previewStyle(style: String, onReady: () -> Unit) {
+    if (state.value.catalog?.downloadedStyles?.contains(style.ifEmpty { "default" }) != true) return
+    setOptions(state.value.options.copy(style = style.takeUnless { it == "default" }.orEmpty()), onReady)
+  }
+
+  fun setOptions(options: PerfectIconOptions, onSaved: () -> Unit = {}) {
     if (state.value.busy) return
+    if (options == state.value.options) { onSaved(); return }
     mutableState.update { it.copy(loading = true, error = null) }
     scope.launch {
+      var saved = false
       try {
         withContext(Dispatchers.IO) { repository.setOptions(options) }
         mutablePreview.value = PerfectPackPreviewState()
         mutableState.update { it.copy(options = options) }
+        saved = true
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
@@ -277,6 +300,7 @@ internal class PerfectPackController(
       } finally {
         mutableState.update { it.copy(loading = false) }
       }
+      if (saved) onSaved()
     }
   }
 
@@ -323,7 +347,8 @@ internal class PerfectPackController(
   private fun syncStyles(styles: Set<String>, forceDownload: Boolean) {
     if (!canStart()) return
     mutableState.update { it.copy(refreshing = true, progress = null, clearedBytes = null,
-      deletedBytes = null, error = null) }
+      deletedBytes = null, error = null, syncingStyles = styles,
+      syncStartedAtElapsedMillis = SystemClock.elapsedRealtime()) }
     scope.launch {
       try {
         val catalog = withContext(Dispatchers.IO) {
@@ -346,7 +371,8 @@ internal class PerfectPackController(
       } finally {
         withContext(NonCancellable) {
           updateCache()
-          mutableState.update { it.copy(refreshing = false, progress = null) }
+          mutableState.update { it.copy(refreshing = false, progress = null,
+            syncingStyles = emptySet(), syncStartedAtElapsedMillis = 0) }
         }
       }
     }
@@ -385,6 +411,7 @@ internal class PerfectPackController(
           val targets = iconPackTargets(app) { coroutineContext.ensureActive() }
           mutableState.update { it.copy(pack = iconPackCardData(pack, targets)) }
           val catalog = repository.catalog(refresh = false)
+          loaded = true
           mutableState.update { it.copy(catalog = catalog ?: it.catalog) }
         }
       } catch (cancelled: CancellationException) {
@@ -410,7 +437,7 @@ internal class PerfectPackController(
   private fun canStart(): Boolean = !state.value.busy &&
     state.value.retryAtMillis <= System.currentTimeMillis()
 
-  private suspend fun updateCache() {
+  private suspend fun updateCache(expected: PerfectPackState? = null) {
     withContext(Dispatchers.IO) {
       try {
         val bytes = repository.cacheBytes()
@@ -425,7 +452,7 @@ internal class PerfectPackController(
             PerfectSyncFailure.INTERRUPTED -> PerfectSyncIssue.INTERRUPTED
             null -> null
           }
-        mutableState.update { it.copy(cacheBytes = bytes, resourceBytes = resourceBytes,
+        mutableState.update { if (expected != null && it !== expected) it else it.copy(cacheBytes = bytes, resourceBytes = resourceBytes,
           retryAtMillis = retry, remote = remote,
           syncIssue = issue,
           syncIssueAtMillis = if (issue == PerfectSyncIssue.CORRUPT) local.corruptAtMillis else history.issueAtMillis,
@@ -434,7 +461,7 @@ internal class PerfectPackController(
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
-        mutableState.update { it.copy(error = it.error ?: PerfectPackError.LOCAL) }
+        mutableState.update { if (expected != null && it !== expected) it else it.copy(error = it.error ?: PerfectPackError.LOCAL) }
       }
     }
   }

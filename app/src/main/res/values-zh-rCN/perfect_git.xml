@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="perfect_git_overview_summary">选择风格并在资源管理中下载，即可离线预览和生成。</string>
-  <string name="perfect_git_preview_summary">查看图标并设置效果</string>
+  <string name="perfect_git_preview_summary">查看当前生成选项下的图标效果</string>
   <string name="perfect_git_check">检查更新</string>
   <string name="perfect_git_checking">正在检查远端版本与文件列表</string>
   <string name="perfect_git_sync">同步资源</string>

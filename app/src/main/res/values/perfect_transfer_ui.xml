@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_transfer_title">Downloading Perfect styles</string>
+  <string name="perfect_transfer_selected_styles">Selected styles</string>
+  <string name="perfect_transfer_style">Style: %1$s</string>
+  <string name="perfect_transfer_preparing">Preparing selected resources…</string>
+  <string name="perfect_transfer_checking">Checking the remote version…</string>
+  <string name="perfect_transfer_tree">Reading the resource index…</string>
+  <string name="perfect_transfer_receiving">Receiving resources…</string>
+  <string name="perfect_transfer_verifying">Verifying local resources…</string>
+  <string name="perfect_transfer_processing">Processing resources…</string>
+  <string name="perfect_transfer_task_progress">Current task progress</string>
+  <string name="perfect_transfer_count">Current task: %1$d / %2$d</string>
+  <string name="perfect_transfer_task">Current task: %1$s</string>
+  <string name="perfect_transfer_received">Received %1$s</string>
+  <string name="perfect_transfer_elapsed">Elapsed %1$s</string>
+  <string name="perfect_transfer_average">Sync average %1$s/s</string>
+</resources>

@@ -46,8 +46,9 @@ python3 scripts/checks.py ui-actions --method syncIssuePillsKeepTheLastSuccessAn
 
 `perfect-sync` includes selective Git objects, resource-graph deletion, offline
 readiness and last-good snapshot preservation. `ui-perfect` covers the resource
-manager's batch selection and MIUIX OS4 confirmations, without network or real
-source deletion. Actual transport acceptance is opt-in:
+manager's batch selection, four-action downloaded-style dialogs, resource sizes,
+overview generation switches and temporary transfer status, without network or
+real source deletion. Actual transport acceptance is opt-in:
 
 ```sh
 adb -s emulator-5580 shell am instrument -w \

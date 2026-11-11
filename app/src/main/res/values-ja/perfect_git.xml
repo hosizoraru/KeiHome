@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="perfect_git_overview_summary">リソース管理でスタイルを取得すると、オフラインでプレビューや生成ができます。</string>
-  <string name="perfect_git_preview_summary">アイコンの表示と効果の設定</string>
+  <string name="perfect_git_preview_summary">現在の生成設定でアイコンを確認</string>
   <string name="perfect_git_check">更新を確認</string>
   <string name="perfect_git_checking">リモートのバージョンとファイル一覧を確認中</string>
   <string name="perfect_git_sync">リソースを同期</string>

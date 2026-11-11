@@ -24,6 +24,22 @@ data class PerfectIconCatalog(
   val remoteSubject: String = "",
   val transferredBytes: Long = 0,
   val gitBacked: Boolean = false,
+  val styleDetails: Map<String, PerfectIconStyleDetails> = emptyMap(),
+)
+
+/**
+ * Uncompressed bytes of this style's selected resource graph, including required shared/base
+ * resources, with repeated Git blob hashes counted once. Excludes physical Git/cache overhead.
+ * A blob referenced by both own and shared paths belongs to sharedBytes, so ownBytes + sharedBytes
+ * equals bytes. The ownBytes default preserves totals in fixtures constructed with bytes alone.
+ * Bytes are known for downloaded styles; an artwork-only entry uses zero.
+ * Missing source artwork stays null.
+ */
+data class PerfectIconStyleDetails(
+  val bytes: Long = 0,
+  val iconFile: File? = null,
+  val ownBytes: Long = bytes,
+  val sharedBytes: Long = 0,
 )
 
 data class PerfectIconProgress(val done: Int, val total: Int, val label: String)

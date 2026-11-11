@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="perfect_git_overview_summary">Download styles in Resource management to preview and generate offline.</string>
-  <string name="perfect_git_preview_summary">Browse icons and configure effects</string>
+  <string name="perfect_git_preview_summary">Preview icons using the current generation options</string>
   <string name="perfect_git_check">Check for updates</string>
   <string name="perfect_git_checking">Checking remote version and file list</string>
   <string name="perfect_git_sync">Sync resources</string>

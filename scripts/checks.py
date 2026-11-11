@@ -55,8 +55,8 @@ GROUPS = {
     "perfect-sync": ("jvm", "Sync history, health, cached source and cancellation", (
         "PerfectSyncHistoryTest", "PerfectIconSyncHealthTest", "PerfectLocalHealthProbeTest",
         "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest", "PerfectGitRepositoryTest",
-        "PerfectIconGitTest", "PerfectPackStateTest")),
-    "ui-perfect": ("device", "Perfect resources, readiness and OS4 destructive confirmations", (
+        "PerfectIconGitTest", "PerfectPackStateTest", "PerfectIconStyleMetadataTest", "PerfectIconStylesTest")),
+    "ui-perfect": ("device", "Perfect page options, style actions, transfer status and OS4 confirmations", (
         "os.kei.hyper.home.ui.main.PerfectGitUiTest",)),
     "scope": ("jvm", "Scope authorization requests and missing targets", (
         "StaticScopeRequestsTest",)),

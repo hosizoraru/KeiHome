@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_transfer_title">Perfect スタイルをダウンロード中</string>
+  <string name="perfect_transfer_selected_styles">選択したスタイル</string>
+  <string name="perfect_transfer_style">スタイル：%1$s</string>
+  <string name="perfect_transfer_preparing">選択したリソースを準備中…</string>
+  <string name="perfect_transfer_checking">リモートのバージョンを確認中…</string>
+  <string name="perfect_transfer_tree">リソースの索引を読み込み中…</string>
+  <string name="perfect_transfer_receiving">リソースを受信中…</string>
+  <string name="perfect_transfer_verifying">ローカルリソースを検証中…</string>
+  <string name="perfect_transfer_processing">リソースを処理中…</string>
+  <string name="perfect_transfer_task_progress">現在のタスクの進捗</string>
+  <string name="perfect_transfer_count">現在のタスク：%1$d / %2$d</string>
+  <string name="perfect_transfer_task">現在のタスク：%1$s</string>
+  <string name="perfect_transfer_received">受信済み %1$s</string>
+  <string name="perfect_transfer_elapsed">経過時間 %1$s</string>
+  <string name="perfect_transfer_average">同期の平均速度 %1$s/秒</string>
+</resources>

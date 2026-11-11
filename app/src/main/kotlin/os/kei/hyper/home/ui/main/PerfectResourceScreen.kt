@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
+
 import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -72,10 +74,10 @@ import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit) {
+internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit, onPreview: (String) -> Unit = {}) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
-  LaunchedEffect(vm) { vm.perfectPacks.load() }
+  ObservePerfectResources(vm.perfectPacks)
   LaunchedEffect(state.retryAtMillis) {
     val remaining = state.retryAtMillis - System.currentTimeMillis()
     if (remaining > 0) delay(remaining)
@@ -86,14 +88,15 @@ internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit) {
     onBack = onBack, onCheck = vm.perfectPacks::checkUpdates,
     onDownload = vm.perfectPacks::downloadStyles, onRemove = vm.perfectPacks::removeStyles,
     onRepair = vm.perfectPacks::repairResources,
-    onDelete = vm.perfectPacks::deleteResources, onClearCache = vm.perfectPacks::clearDownloads)
+    onDelete = vm.perfectPacks::deleteResources, onClearCache = vm.perfectPacks::clearDownloads,
+    onPreview = onPreview)
 }
 
 @Composable
 internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   onBack: () -> Unit, onCheck: () -> Unit, onDownload: (Set<String>) -> Unit,
   onRemove: (Set<String>) -> Unit, onRepair: () -> Unit,
-  onDelete: () -> Unit, onClearCache: () -> Unit) {
+  onDelete: () -> Unit, onClearCache: () -> Unit, onPreview: (String) -> Unit = {}) {
   val context = LocalContext.current
   val uri = LocalUriHandler.current
   val cooling = state.retryAtMillis > System.currentTimeMillis()
@@ -102,11 +105,10 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     state.catalog?.downloadedStyles.orEmpty().map { it.ifEmpty { "default" } }.toSet()
   }
   val available = remember(state.catalog, state.remote, downloaded) {
-    (state.remote?.availableStyles?.takeIf { it.isNotEmpty() }
+    PerfectIconStyles.ordered((state.remote?.availableStyles?.takeIf { it.isNotEmpty() }
       ?: state.catalog?.styles?.takeIf { it.isNotEmpty() }
       ?: listOf("default", "HyperOS4")).plus(downloaded)
-      .map { it.ifEmpty { "default" } }.distinct()
-      .sortedWith(compareBy<String> { it != "default" }.thenBy { it })
+    )
   }
   var selecting by rememberSaveable { mutableStateOf(false) }
   var selection by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -169,13 +171,32 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
 
     focusedStyle?.let { style ->
       val styleName = if (style == "default") defaultName else style
+      val detail = state.catalog?.styleDetails?.get(style)
+      val identity = state.catalog?.sourceHash.orEmpty()
       Os4ActionDialog(true, { focusedStyle = null }, title = if (style in downloaded) styleName
         else stringResource(R.string.perfect_resource_download_title, styleName),
         summary = stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
-          else R.string.perfect_resource_style_missing), icon = actionIcon(PageActionIcon.FETCH),
+          else R.string.perfect_resource_style_missing),
+        artwork = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, identity, 48.dp) } },
+        details = {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            MetadataPill(stringResource(if (style in downloaded) R.string.perfect_git_downloaded
+              else R.string.perfect_git_not_downloaded), MiuixTheme.colorScheme.primary)
+            if (detail != null && detail.bytes > 0)
+              MetadataPill(stringResource(R.string.perfect_resource_style_bytes, Formatter.formatFileSize(context, detail.bytes)), MiuixTheme.colorScheme.onSurfaceSecondary,
+                Modifier.testTag("perfect.resources.style-size"))
+            if (detail != null && detail.sharedBytes > 0) {
+              MetadataPill(stringResource(R.string.perfect_resource_own_bytes, Formatter.formatFileSize(context, detail.ownBytes)),
+                MiuixTheme.colorScheme.onSurfaceSecondary, Modifier.testTag("perfect.resources.style-own-size"))
+              MetadataPill(stringResource(R.string.perfect_resource_shared_bytes, Formatter.formatFileSize(context, detail.sharedBytes)),
+                MiuixTheme.colorScheme.onSurfaceSecondary, Modifier.testTag("perfect.resources.style-shared-size"))
+            }
+            (state.catalog?.revision ?: state.remote?.revision)?.takeIf { it.isNotBlank() }?.let {
+              MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
+          }
+        },
         actions = buildList {
-          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.perfect_resource_close
-            else R.string.logs_cancel), { focusedStyle = null }))
           add(Os4DialogAction(stringResource(if (style in downloaded) R.string.action_label_update
             else R.string.action_label_download), enabled = !busy && !cooling,
             role = GlassDialogButtonRole.Primary, tag = "perfect.resources.style-download",
@@ -184,6 +205,11 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
             enabled = !busy, role = GlassDialogButtonRole.Destructive, onClick = {
               focusedStyle = null; removalTargets = setOf(style)
             }))
+          if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_preview),
+            enabled = !busy, tag = "perfect.resources.style-preview",
+            onClick = { focusedStyle = null; onPreview(style) }))
+          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.perfect_resource_close
+            else R.string.logs_cancel), { focusedStyle = null }))
         })
     }
     Os4Dialog(showInfo, { showInfo = false }, title = stringResource(R.string.perfect_resource_info)) {
@@ -313,14 +339,14 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         compactSymbol = true, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("perfect.resources.status"), badgeContent = { color ->
           FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             MetadataPill(stringResource(R.string.perfect_resource_style_count, downloaded.size, available.size), color)
-            MetadataPill(Formatter.formatFileSize(context, state.resourceBytes), color)
+          MetadataPill(stringResource(R.string.perfect_resource_occupied_bytes, Formatter.formatFileSize(context, state.resourceBytes)), color)
             (state.catalog?.revision ?: state.remote?.revision)?.let {
               MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), color)
             }
             PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
           }
         })
-      if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+      if (busy && !state.refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
       if (cooling) Text(stringResource(R.string.perfect_icons_error_cooldown), Modifier.padding(16.dp),
         style = MiuixTheme.textStyles.footnote1)
       state.error?.let { Text(stringResource(perfectErrorResource(it)), Modifier.padding(16.dp), color = MiuixTheme.colorScheme.error) }
@@ -328,6 +354,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         Modifier.padding(16.dp), color = MiuixTheme.colorScheme.onSurfaceSecondary,
         style = MiuixTheme.textStyles.footnote1)
     }
+    if (state.refreshing) item(key = "transfer") { PerfectDownloadStatusCard(state) }
     item(key = "styles-title") {
       SmallTitle(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded
         else R.string.perfect_resource_styles), Modifier.padding(horizontal = 12.dp))
@@ -338,15 +365,23 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     }
     items(visible, key = { "style:$it" }, contentType = { "style" }) { style ->
       Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)) {
+        val detail = state.catalog?.styleDetails?.get(style)
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
+          startAction = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, state.catalog?.sourceHash.orEmpty()) } },
           onClick = { if (selecting) toggle(style) else focusedStyle = style }, endActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+              Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
               MetadataPill(stringResource(when {
                 style !in downloaded -> R.string.perfect_git_not_downloaded
                 (state.syncIssue == PerfectSyncIssue.CORRUPT) -> R.string.perfect_resource_incomplete
                 else -> R.string.perfect_git_downloaded
               }), if (style in downloaded && !(state.syncIssue == PerfectSyncIssue.CORRUPT)) MiuixTheme.colorScheme.primary
                 else MiuixTheme.colorScheme.onSurfaceSecondary)
+              if (style in downloaded && detail != null && detail.bytes > 0)
+                Text(stringResource(R.string.perfect_resource_style_bytes, Formatter.formatFileSize(context, detail.bytes)), style = MiuixTheme.textStyles.footnote2,
+                  color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                  modifier = Modifier.testTag("perfect.resources.size.$style"))
+              }
               if (selecting) Checkbox(state = if (style in selected) ToggleableState.On else ToggleableState.Off, onClick = { toggle(style) },
                 enabled = !busy, modifier = Modifier.testTag("perfect.resources.select.$style"))
               else Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null,

@@ -45,6 +45,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
+import os.kei.hyper.home.iconpack.perfect.PerfectIconStyleDetails
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -226,7 +227,7 @@ class PerfectGitUiTest {
     assertTrue("The selection toolbar must not cover the last style", row.bottom <= controls.top)
   }
 
-  @Test fun largeTextStyleDialogKeepsAllThreeActionsVisibleAndRequiresExplicitConfirmation() {
+  @Test fun largeTextStyleDialogKeepsAllFourActionsVisibleAndRequiresExplicitConfirmation() {
     val requests = mutableListOf<Set<String>>()
     setResourceContent(resourceState(), fontScale = 1.6f, onDownload = { requests += it })
     compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
@@ -234,6 +235,7 @@ class PerfectGitUiTest {
     waitForDisplayed(hasTestTag("perfect.resources.style-download"), "large-style-dialog")
     val update = compose.onNodeWithTag("perfect.resources.style-download").assertIsDisplayed()
     compose.onNodeWithText(context.getString(R.string.perfect_resource_remove_short)).assertIsDisplayed()
+    compose.onNodeWithTag("perfect.resources.style-preview").assertIsDisplayed()
     val close = compose.onNodeWithText(context.getString(R.string.perfect_resource_close)).assertIsDisplayed()
     assertTrue(update.fetchSemanticsNode().boundsInRoot.bottom <= close.fetchSemanticsNode().boundsInRoot.top)
     compose.runOnIdle { assertEquals(emptyList<Set<String>>(), requests) }
@@ -241,16 +243,63 @@ class PerfectGitUiTest {
     compose.runOnIdle { assertEquals(listOf(setOf("default")), requests) }
   }
 
+  @Test fun downloadedStyleShowsItsSizeAndPreviewDoesNotStartDownloadOrDeletion() {
+    val previews = mutableListOf<String>()
+    val requests = mutableListOf<Set<String>>()
+    val initial = resourceState()
+    val state = initial.copy(catalog = initial.catalog!!.copy(
+      styleDetails = mapOf("default" to PerfectIconStyleDetails(bytes = 4L * 1024 * 1024,
+        ownBytes = 1024L * 1024, sharedBytes = 3L * 1024 * 1024))))
+    setResourceContent(state, onDownload = { requests += it }, onRemove = { requests += it },
+      onPreview = { previews += it })
+    compose.onNodeWithTag("perfect.resources.size.default", useUnmergedTree = true).assertIsDisplayed()
+    compose.onNodeWithTag("perfect.resources.style.default").performClick()
+    waitForDisplayed(hasTestTag("perfect.resources.style-preview"), "downloaded-style-details")
+    compose.onNodeWithTag("perfect.resources.style-own-size", useUnmergedTree = true).assertIsDisplayed()
+    compose.onNodeWithTag("perfect.resources.style-shared-size", useUnmergedTree = true).assertIsDisplayed()
+    compose.onNodeWithTag("perfect.resources.style-preview").performClick()
+    compose.runOnIdle {
+      assertEquals(listOf("default"), previews)
+      assertTrue(requests.isEmpty())
+    }
+    compose.onAllNodesWithTag("perfect.resources.style-preview").assertCountEquals(0)
+  }
+
+  @Test fun transferDetailsDisappearAfterSyncCompletes() {
+    var state by mutableStateOf(resourceState().copy(refreshing = true,
+      syncingStyles = setOf("HyperOS4"), syncStartedAtElapsedMillis = android.os.SystemClock.elapsedRealtime() - 2_000))
+    compose.setContent { KeiHomeTheme { PerfectDownloadStatusCard(state) } }
+    compose.onNodeWithTag("perfect.transfer").assertIsDisplayed()
+    compose.onNodeWithTag("perfect.transfer.style.HyperOS4").assertIsDisplayed()
+    compose.runOnIdle { state = state.copy(refreshing = false) }
+    compose.onAllNodesWithTag("perfect.transfer").assertCountEquals(0)
+  }
+
+  @Test fun importantGenerationOptionsAreEditableOnTheOverview() {
+    var options by mutableStateOf(PerfectIconOptions())
+    compose.setContent {
+      KeiHomeTheme {
+        PerfectPackOptions(options, listOf("default"), listOf("default"), true) { options = it }
+      }
+    }
+    val initial = options
+    compose.onNodeWithTag("perfect.options.dynamic").performClick()
+    compose.runOnIdle { assertEquals(!initial.dynamic, options.dynamic) }
+    compose.onNodeWithTag("perfect.options.night").performClick()
+    compose.runOnIdle { assertEquals(!initial.staticNight, options.staticNight) }
+  }
+
   private fun setResourceContent(state: PerfectPackState, onDownload: (Set<String>) -> Unit = {},
     onRemove: (Set<String>) -> Unit = {}, backHost: Os4NavigationTestHost = Os4NavigationTestHost(),
-    onBack: () -> Unit = {}, onCheck: () -> Unit = {}, fontScale: Float? = null) {
+    onBack: () -> Unit = {}, onCheck: () -> Unit = {}, onPreview: (String) -> Unit = {}, fontScale: Float? = null) {
     compose.setContent {
       backHost.Provide {
         KeiHomeTheme {
           val density = LocalDensity.current
           CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
             PerfectResourceContent(state, busy = state.busy, onBack = onBack, onCheck = onCheck,
-              onDownload = onDownload, onRemove = onRemove, onRepair = {}, onDelete = {}, onClearCache = {})
+              onDownload = onDownload, onRemove = onRemove, onRepair = {}, onDelete = {}, onClearCache = {},
+              onPreview = onPreview)
           }
         }
       }

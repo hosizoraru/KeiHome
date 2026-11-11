@@ -13,7 +13,7 @@
   <string name="perfect_resource_empty_summary">必要なスタイルをダウンロードすると、オフラインでプレビューと生成ができます。</string>
   <string name="perfect_resource_style_count">取得済み %1$d / %2$d</string>
   <string name="perfect_resource_filter_empty">取得済みのスタイルはありません。すべてのスタイルに切り替えてください。</string>
-  <string name="perfect_resource_style_ready">取得済みです。概要でこのスタイルを選ぶと、プレビューや生成ができます。</string>
+  <string name="perfect_resource_style_ready">取得済みです。このスタイルを直接プレビュー、またはリソースを更新できます。</string>
   <string name="perfect_resource_style_missing">このスタイルと必要な共通リソースを取得します。アイコンパックは自動適用されません。</string>
   <string name="perfect_resource_local_revision">ローカルリビジョン %1$s</string>
   <string name="perfect_resource_cache_size">再生成できるキャッシュ %1$s</string>

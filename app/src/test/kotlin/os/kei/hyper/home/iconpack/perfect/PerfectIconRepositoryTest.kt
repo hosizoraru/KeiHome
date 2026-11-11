@@ -435,13 +435,31 @@ class PerfectIconRepositoryTest {
   @Test fun localCatalogAndMissingSnapshotGenerationNeverUseNetwork() = runBlocking {
     val f = Fixture(temporary.newFolder())
     assertNull(f.repo.catalog())
-    assertEquals(PerfectIconOptions(), f.repo.options())
+    assertEquals(PerfectIconStyles.initialOptions, f.repo.options())
     rejectedSuspend { f.repo.generate(PerfectIconOptions(), setOf("third.party")) {} }
     assertEquals(0L, f.repo.cacheBytes())
     assertTrue(f.http.calls.isEmpty())
     val options = PerfectIconOptions("default", false, false)
     f.repo.setOptions(options)
     assertEquals(options, f.repo.options())
+  }
+
+  @Test fun optionsAreInitialOnlyForMissingOrInvalidSettingsAndPreserveSavedEmptyStyle() {
+    val f = Fixture(temporary.newFolder())
+    assertEquals("HyperOS4", f.repo.options().style)
+    assertTrue(f.settings.values.isEmpty())
+    listOf("", "default", "HyperOS3", "other-style").forEach { style ->
+      val saved = PerfectIconOptions(style, installedOnly = false, dynamic = false, staticNight = true)
+      f.repo.setOptions(saved)
+      assertEquals(saved, f.repo.options())
+    }
+    listOf("broken JSON", """{"style":"HyperOS4"}""",
+      """{"style":"../outside","installedOnly":true,"dynamic":true}""").forEach { invalid ->
+      f.settings.values["options"] = invalid
+      assertEquals(PerfectIconStyles.initialOptions, f.repo.options())
+      assertEquals(invalid, f.settings.values["options"])
+    }
+    assertEquals("", PerfectIconOptions().style)
   }
 
   @Test fun explicitRefreshMakesExactlyOneCodeloadRequestAndNoRestOrRawRequests() = runBlocking {

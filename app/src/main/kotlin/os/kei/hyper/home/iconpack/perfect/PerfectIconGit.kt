@@ -75,6 +75,8 @@ internal interface PerfectIconGitBackend {
   fun exists(store: String): Boolean
   fun stamp(store: String): String
   fun maintenanceNeeded(store: String, liveBytes: Long): Boolean = false
+  /** Reserved for verified pack logos. Current source preview sheets are not pack icons. */
+  fun styleIcons(revision: String): Map<String, File> = emptyMap()
   fun published(store: String, revision: String)
 }
 

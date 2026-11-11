@@ -1,0 +1,11 @@
+<resources>
+  <string name="perfect_resource_style_bytes">リソース %1$s</string>
+  <string name="perfect_local_available">ダウンロード済みリソースあり</string>
+  <string name="perfect_local_selection_missing">%1$d 個のスタイルを取得済みです。選択中の %2$s は未取得です。</string>
+  <string name="perfect_resource_downloaded_count">%1$d 個のスタイルを取得済み</string>
+  <string name="perfect_resource_preview">プレビュー</string>
+  <string name="perfect_preview_choose">リソース管理で取得済みスタイルを選択してプレビューします。</string>
+  <string name="perfect_resource_own_bytes">固有 %1$s</string>
+  <string name="perfect_resource_shared_bytes">共有 %1$s</string>
+  <string name="perfect_resource_occupied_bytes">使用量 %1$s</string>
+</resources>

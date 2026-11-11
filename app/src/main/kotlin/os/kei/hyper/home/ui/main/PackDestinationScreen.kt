@@ -59,11 +59,13 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   if (section == "perfect-preview") {
-    PerfectPackPreviewScreen(model, onBack)
+    PerfectPackPreviewScreen(model, onBack) { onNavigate("perfect-sources") }
     return
   }
   if (section == "perfect-sources" || section == "perfect-credits") {
-    PerfectPackSourcesScreen(model, onBack)
+    PerfectResourceScreen(model, onBack) { style ->
+      model.perfectPacks.previewStyle(style) { onNavigate("perfect-preview") }
+    }
     return
   }
   if (section in setOf("apple", "apple-mappings", "apple-matched", "apple-search")) {

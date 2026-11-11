@@ -140,7 +140,8 @@ internal fun MainNavigation(
     }
     entry<PackRoute>(swipeDismiss = swipe) { route ->
       PackDestinationScreen(model, route.section,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::open)
+        onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
+        onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) })
     }
     entry<SettingsRoute>(swipeDismiss = swipe) { route ->
       SettingsDestinationScreen(model, route.section,

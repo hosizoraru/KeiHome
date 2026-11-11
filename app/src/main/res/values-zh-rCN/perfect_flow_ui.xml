@@ -1,0 +1,11 @@
+<resources>
+  <string name="perfect_resource_style_bytes">资源 %1$s</string>
+  <string name="perfect_local_available">已有下载资源</string>
+  <string name="perfect_local_selection_missing">已下载 %1$d 个样式，当前选择的%2$s尚未下载。</string>
+  <string name="perfect_resource_downloaded_count">已下载 %1$d 个样式</string>
+  <string name="perfect_resource_preview">预览</string>
+  <string name="perfect_preview_choose">前往资源管理，选择已下载的样式预览。</string>
+  <string name="perfect_resource_own_bytes">独有 %1$s</string>
+  <string name="perfect_resource_shared_bytes">共享 %1$s</string>
+  <string name="perfect_resource_occupied_bytes">占用 %1$s</string>
+</resources>

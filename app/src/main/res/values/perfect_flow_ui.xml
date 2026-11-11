@@ -1,0 +1,11 @@
+<resources>
+  <string name="perfect_resource_style_bytes">Resources %1$s</string>
+  <string name="perfect_local_available">Downloaded resources available</string>
+  <string name="perfect_local_selection_missing">%1$d styles downloaded; %2$s is not downloaded.</string>
+  <string name="perfect_resource_downloaded_count">%1$d styles downloaded</string>
+  <string name="perfect_resource_preview">Preview</string>
+  <string name="perfect_preview_choose">Choose a downloaded style in resource management to preview it.</string>
+  <string name="perfect_resource_own_bytes">Own %1$s</string>
+  <string name="perfect_resource_shared_bytes">Shared %1$s</string>
+  <string name="perfect_resource_occupied_bytes">Storage %1$s</string>
+</resources>

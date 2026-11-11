@@ -37,6 +37,43 @@ The application never checks out or executes upstream scripts.
    additional child page is needed. Destructive actions retain MIUIX OS4
    confirmation. New selection and refresh actions are disabled while busy.
 
+### Page relationships and local state
+
+The overview owns style, original dynamic-resource and light/dark generation
+options. Preview focuses on visual samples and filtering. A downloaded style's
+dialog offers **Update / Delete / Preview / Close**; Preview selects that style
+before navigation without generating or applying a theme.
+
+The overview distinguishes having downloaded resources from having its current
+style ready. If that style is missing, its preview entry opens resource
+management. Returning from a child page reconciles local metadata silently,
+without another network check or replaying initial imports. Reconciliation
+started before a newer operation cannot overwrite that operation's state.
+Only the visible, resumed preview requests preview generation.
+
+First-use settings select **HyperOS4**. Explicitly saved choices, including the
+empty native-default token, remain unchanged. Both style controls and resource
+lists prioritize **HyperOS4 / HyperOSClassic / HyperOS3 / Hyper / default**,
+then other available names. Repository layout and rendering tokens are unchanged.
+
+A temporary sync card shows requested styles, stage, actual transfer/count
+progress and elapsed time. Its clock updates at most once per second while
+visible and resumed. Whole-sync average transfer speed is labeled as such;
+unavailable byte totals are not invented. The card disappears after completion
+or failure.
+
+Downloaded rows and dialogs show the complete logical resources required by that
+style, including its shared/base dependencies, deduplicated by Git object ID. The
+dialog separates own-only and shared bytes; an object present in both belongs to
+the shared category once. Overall storage is measured separately and includes
+compressed Git packs, indexes, metadata and local preview/extraction caches,
+so it is not a sum of style sizes.
+Optional pack artwork is decoded off the main thread using a bounded bitmap
+cache. At upstream `fb8b5c9`, the identified EMUI `icon_small.jpg` files are
+multi-icon preview sheets, not pack logos, so they are not exposed as pack
+artwork. Existing HyperOS4 downloads need no sync, migration or deletion for
+these metadata changes.
+
 The resource selection follows the existing formatter's rules: complete static
 layer pairs, style-specific flat/layer overrides and complete native dynamic
 groups. Common and base resources are dependencies rather than extra styles.

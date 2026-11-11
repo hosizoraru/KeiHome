@@ -63,7 +63,7 @@
   <string name="perfect_icons_revision_short">Source %1$s</string>
   <string name="perfect_icons_sources_storage">Sources and storage</string>
   <string name="perfect_icons_sources_row_summary">Credits, full revision, snapshot details, and cache management</string>
-  <string name="perfect_icons_preview_title">Preview and effects</string>
+  <string name="perfect_icons_preview_title">Icon preview</string>
   <string name="perfect_icons_preview_row_summary">Browse a local sample of the currently selected style</string>
   <string name="perfect_icons_preview_style">Style: %1$s</string>
   <string name="perfect_icons_preview_summary">Up to 24 local samples, including apps not installed. Dynamic artwork uses quiet snapshots.</string>

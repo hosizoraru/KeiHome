@@ -27,6 +27,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import os.kei.hyper.home.data.DiskCacheUsage
+import os.kei.hyper.home.data.measureDiskCache
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.GeneratedIconPng
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
@@ -413,6 +415,16 @@ class PerfectIconRepository internal constructor(
         work.deleteRecursively()
       }
     }
+  }
+
+  /**
+   * Full local footprint, including protected source/catalog/publications; no download lock or decoding.
+   * Concurrent writes may change this snapshot; traversal failures are reported through complete.
+   */
+  internal suspend fun storageUsage(): DiskCacheUsage = withContext(ioDispatcher) {
+    val coroutine = currentCoroutineContext()
+    coroutine.ensureActive()
+    measureDiskCache(root) { coroutine.ensureActive() }
   }
 
   /** Exactly the bytes clearDownloadCache can remove; usable repository/publications are excluded. */

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="storage_used">Local storage</string>
+    <string name="storage_warning">Consider cleaning</string>
+    <string name="storage_partial">Partial count</string>
+    <string name="storage_ok">Within budget</string>
+    <string name="storage_measuring">Measuring…</string>
+    <string name="storage_budget_caption">Reminder at %1$s</string>
+    <string name="storage_refresh_failed">Refresh failed · last measured %1$s</string>
+    <string name="storage_memory">Preview memory</string>
+    <string name="storage_budget_title">Cleanup reminder</string>
+    <string name="storage_budget_help">Automatic: 500 MB, or 1 GB with Perfect resources. This is a reminder threshold; it does not limit downloads or delete files.</string>
+    <string name="storage_clear_help">The clear button frees preview memory, which is outside the chart. Manage Apple and Perfect resources from their rows; usable source files and completed packs are retained.</string>
+    <string name="storage_icons">Icon snapshots</string>
+    <string name="storage_builtin">Built-in copies</string>
+    <string name="storage_transfer">Transfers</string>
+    <string name="storage_temporary">Temporary files</string>
+    <string name="storage_apple">Apple resources</string>
+    <string name="storage_perfect">Perfect resources</string>
+    <string name="storage_graph_description">Storage: %1$s used; reminder at %2$s</string>
+    <string name="storage_budget_auto">Automatic · %1$s</string>
+    <string name="storage_budget_custom">Custom · %1$s</string>
+    <string name="storage_modify">Edit</string>
+    <string name="storage_budget_mb">Size in MB</string>
+    <string name="storage_budget_range">50–20000 MB</string>
+    <string name="storage_auto">Auto</string>
+    <string name="storage_cancel">Cancel</string>
+    <string name="storage_save">Save</string>
+    <string name="storage_measured">Measured %1$s</string>
+    <string name="storage_read_failed">Could not measure</string>
+    <string name="storage_used_pill">Used %1$s</string>
+    <string name="storage_budget_pill">Reminder %1$s</string>
+</resources>

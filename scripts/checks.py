@@ -28,6 +28,10 @@ GROUPS = {
         UI + "AboutCopyUiTest",)),
     "ui-settings-search": ("device", "Settings search, preview placement and persistence", (
         UI + "SettingsSearchUiTest",)),
+    "ui-cache": ("device", "Cache pills, equal chart columns, reminder editor and resource links", (
+        UI + "CacheStorageUiTest",)),
+    "cache-budget": ("jvm", "Reminder preference and protected Perfect storage accounting", (
+        "CacheReminderBudgetTest", "PerfectIconRepositoryTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
         UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (

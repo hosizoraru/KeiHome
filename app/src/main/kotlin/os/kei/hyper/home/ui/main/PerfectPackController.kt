@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import os.kei.hyper.home.data.AppLocalStorage
+import os.kei.hyper.home.data.DiskCacheUsage
 import os.kei.hyper.home.data.iconPackTargets
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -179,6 +180,8 @@ internal class PerfectPackController(
   }
 
   suspend fun cacheBytes(): Long = repository.cacheBytes()
+
+  internal suspend fun storageUsage(): DiskCacheUsage = repository.storageUsage()
 
   fun clearDownloads() {
     if (state.value.busy) return

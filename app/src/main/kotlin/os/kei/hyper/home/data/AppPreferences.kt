@@ -62,6 +62,7 @@ internal data class AppPreferencesState(
   val monetInspiration: Boolean? = null,
   val compactPackHints: Boolean = false,
   val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.IOS_LIKE,
+  val cacheReminderBytes: Long = 0L,
 )
 
 internal class AppPreferences internal constructor(
@@ -117,6 +118,8 @@ internal class AppPreferences internal constructor(
     navigationBarStyle = AppNavigationBarStyle.entries.firstOrNull {
       it.name == preferences.getString("navigation_bar_style", null)
     } ?: AppNavigationBarStyle.IOS_LIKE,
+    cacheReminderBytes = preferences.getLong("cache_reminder_bytes", 0L)
+      .takeIf(CacheReminderBudget::isValidCustom) ?: 0L,
   )
 
   fun setAppearance(value: AppAppearance) {
@@ -132,6 +135,14 @@ internal class AppPreferences internal constructor(
   fun setNavigationBarStyle(value: AppNavigationBarStyle) {
     preferences.edit().putString("navigation_bar_style", value.name).apply()
     state.update { it.copy(navigationBarStyle = value) }
+  }
+
+  fun setCacheReminderBytes(value: Long) {
+    require(value == 0L || CacheReminderBudget.isValidCustom(value)) {
+      "Cache reminder must be automatic (0) or between ${CacheReminderBudget.MIN_BYTES} and ${CacheReminderBudget.MAX_BYTES} bytes"
+    }
+    preferences.edit().putLong("cache_reminder_bytes", value).apply()
+    state.update { it.copy(cacheReminderBytes = value) }
   }
 
   fun setPageUserScroll(value: Boolean) {

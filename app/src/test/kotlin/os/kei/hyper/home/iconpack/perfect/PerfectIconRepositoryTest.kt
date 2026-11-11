@@ -7,6 +7,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.file.Files
 import java.util.zip.CRC32
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.ZipEntry
@@ -16,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -758,9 +760,20 @@ class PerfectIconRepositoryTest {
     first.file.copyTo(imported, overwrite = true)
     val before = f.repo.cacheBytes()
     val blobs = File(f.root, "blobs").listFiles()!!.sumOf { it.length() }
+    val source = File(f.root, "source").listFiles()!!.single()
+    val protectedBytes = source.length() + File(f.root, "catalog.json").length() + first.file.length()
+    val storageBefore = f.repo.storageUsage()
+    assertTrue(storageBefore.complete)
+    assertEquals(protectedBytes + before, storageBefore.total)
     assertEquals(blobs, before)
     assertEquals(blobs, f.repo.clearDownloadCache())
     assertEquals(before - blobs, f.repo.cacheBytes())
+    assertEquals(0L, f.repo.cacheBytes())
+    val storageAfter = f.repo.storageUsage()
+    assertTrue(storageAfter.complete)
+    assertEquals(protectedBytes, storageAfter.total)
+    assertTrue(storageAfter.total > source.length())
+    assertEquals(catalog!!.archiveBytes, source.length())
     assertEquals(catalog, f.repo.catalog())
     assertTrue(first.file.exists())
     assertTrue(imported.exists())
@@ -768,6 +781,64 @@ class PerfectIconRepositoryTest {
     assertEquals(2, again.downloaded)
     assertEquals(1, f.http.calls.size)
     assertEquals(first.file, again.file)
+  }
+
+  @Test fun storageUsageCountsMetadataWithoutDecodingOrFollowingLinks() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    File(f.root, "catalog.json").writeBytes(ByteArray(7))
+    File(f.root, "source").mkdirs()
+    File(f.root, "source/invalid.zip").writeBytes(ByteArray(13))
+    File(f.root, "generated").mkdirs()
+    File(f.root, "generated/invalid.zip").writeBytes(ByteArray(17))
+    val external = temporary.newFolder()
+    val externalFile = File(external, "unrelated.zip").apply { writeBytes(ByteArray(100)) }
+    Files.createSymbolicLink(File(f.root, "external-file").toPath(), externalFile.toPath())
+    Files.createSymbolicLink(File(f.root, "external-directory").toPath(), external.toPath())
+
+    val usage = f.repo.storageUsage()
+    assertTrue(usage.complete)
+    assertEquals(37L, usage.total)
+    assertEquals(0L, f.repo.cacheBytes())
+    assertTrue(f.http.calls.isEmpty())
+    assertTrue(f.settings.values.isEmpty())
+  }
+
+  @Test fun storageUsageOfMissingResourcesIsCompleteAndDoesNotCreateOrDownload() = runBlocking {
+    val root = File(temporary.newFolder(), "absent")
+    val f = Fixture(root)
+    val usage = f.repo.storageUsage()
+    assertEquals(0L, usage.total)
+    assertTrue(usage.complete)
+    assertFalse(root.exists())
+    assertTrue(f.http.calls.isEmpty())
+  }
+
+  @Test fun storageUsageDoesNotWaitForAnActiveDownloadMutex() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val started = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    f.http.intercept = {
+      started.complete(Unit)
+      release.await()
+      throw IOException("End blocked download fixture")
+    }
+    val download = async {
+      try {
+        f.repo.catalog(true)
+        fail("Expected fixture download failure")
+      } catch (_: IOException) { }
+    }
+    started.await()
+    try {
+      val usage = withTimeout(5_000) { f.repo.storageUsage() }
+      assertEquals(0L, usage.total)
+      assertTrue(usage.complete)
+      assertFalse(download.isCompleted)
+    } finally {
+      release.complete(Unit)
+    }
+    download.await()
+    assertEquals(1, f.http.calls.size)
   }
 
   @Test fun clearingCacheIsSerializedWithGeneration() = runBlocking {

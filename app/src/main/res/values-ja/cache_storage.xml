@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="storage_used">ローカル使用量</string>
+    <string name="storage_warning">消去を検討</string>
+    <string name="storage_partial">一部のみ集計</string>
+    <string name="storage_ok">範囲内</string>
+    <string name="storage_measuring">集計中…</string>
+    <string name="storage_budget_caption">%1$s で通知</string>
+    <string name="storage_refresh_failed">更新失敗 · 前回の集計 %1$s</string>
+    <string name="storage_memory">プレビューのメモリ</string>
+    <string name="storage_budget_title">消去の目安</string>
+    <string name="storage_budget_help">自動では 500 MB、Perfect のリソースがある場合は 1 GB。通知の目安であり、ダウンロードの制限や自動削除は行いません。</string>
+    <string name="storage_clear_help">消去ボタンは図に含まれないプレビューのメモリを解放します。Apple と Perfect のリソースは各項目から管理でき、利用可能なソースと生成済みパックは保持されます。</string>
+    <string name="storage_icons">アイコン画像</string>
+    <string name="storage_builtin">内蔵コピー</string>
+    <string name="storage_transfer">入出力</string>
+    <string name="storage_temporary">一時ファイル</string>
+    <string name="storage_apple">Apple リソース</string>
+    <string name="storage_perfect">Perfect リソース</string>
+    <string name="storage_graph_description">使用量 %1$s、通知の目安 %2$s</string>
+    <string name="storage_budget_auto">自動 · %1$s</string>
+    <string name="storage_budget_custom">指定 · %1$s</string>
+    <string name="storage_modify">変更</string>
+    <string name="storage_budget_mb">容量（MB）</string>
+    <string name="storage_budget_range">50–20000 MB</string>
+    <string name="storage_auto">自動</string>
+    <string name="storage_cancel">キャンセル</string>
+    <string name="storage_save">保存</string>
+    <string name="storage_measured">集計 %1$s</string>
+    <string name="storage_read_failed">集計できませんでした</string>
+    <string name="storage_used_pill">使用 %1$s</string>
+    <string name="storage_budget_pill">目安 %1$s</string>
+</resources>

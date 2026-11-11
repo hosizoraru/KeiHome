@@ -144,7 +144,7 @@ class SystemFallbackPreferencesTest {
     ) { _, method, args ->
       when (method.name) {
         "getAll" -> values.toMap()
-        "getString", "getBoolean" -> values[args!![0] as String] ?: args[1]
+        "getString", "getBoolean", "getLong" -> values[args!![0] as String] ?: args[1]
         "contains" -> values.containsKey(args!![0] as String)
         "edit" -> editor()
         else -> error("Unexpected preference call: ${method.name}")

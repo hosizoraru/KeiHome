@@ -510,6 +510,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   internal suspend fun appleDownloadCacheBytes(): Long = appleRepository.cacheBytes()
   internal suspend fun perfectDownloadCacheBytes(): Long = perfectPacks.cacheBytes()
+  internal suspend fun perfectStorageUsage() = perfectPacks.storageUsage()
 
   internal fun previewCacheBytes(): Long =
     previews.sizeBytes().toLong() + packPreviews.sizeBytes() + currentPreviews.sizeBytes()

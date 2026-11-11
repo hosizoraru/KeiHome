@@ -43,6 +43,7 @@ internal enum class SettingsSection(val route: String, @param:StringRes val titl
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
   CACHE("cache", R.string.settings_cache_section, R.string.settings_cache_summary),
   LOG("log", R.string.settings_log_section, R.string.settings_log_summary),
+  RELEASE_NOTES("release-notes", R.string.release_notes_title, R.string.release_notes_summary),
   ABOUT("about", R.string.polish_settings_about, R.string.settings_about_summary),
 }
 
@@ -65,15 +66,27 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             SettingsSection.HOOK -> MiuixIcons.Glass.Link
             SettingsSection.CACHE -> MiuixIcons.Glass.Folder
             SettingsSection.LOG -> MiuixIcons.Glass.Notes
+            SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
             SettingsSection.ABOUT -> MiuixIcons.Glass.Info
           }
           BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-            onClick = { onNavigate(section.route) },
+            onClick = { onNavigate(section.route) }, modifier = Modifier.testTag("settings.entry.${section.route}"),
             startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
             endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
     } else {
+      if (listOf(stringResource(R.string.release_notes_title), stringResource(R.string.release_notes_summary),
+          stringResource(R.string.release_notes_search_keywords))
+          .any { it.contains(query.trim(), ignoreCase = true) }) {
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+          BasicComponent(title = stringResource(R.string.release_notes_title),
+            summary = stringResource(R.string.release_notes_summary),
+            modifier = Modifier.testTag("settings.entry.release-notes"),
+            onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
+            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+        }
+      }
       if (listOf(stringResource(R.string.setup_title), stringResource(R.string.setup_replay_summary),
           stringResource(R.string.setup_search_keywords))
           .any { it.contains(query.trim(), ignoreCase = true) }) {

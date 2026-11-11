@@ -63,6 +63,10 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     LogSettingsScreen(onBack)
     return
   }
+  if (route == SettingsSection.RELEASE_NOTES.route) {
+    ReleaseNotesScreen(onBack)
+    return
+  }
   val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
   val license = bundledLicenseForRoute(route)
   val component = thirdPartyComponentForRoute(route)

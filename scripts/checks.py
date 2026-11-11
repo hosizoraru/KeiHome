@@ -12,6 +12,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "release-notes": ("jvm", "Fresh installs, real upgrades, skipped releases and acknowledgment", (
+        "ReleaseNotesPolicyTest",)),
+    "ui-release-notes": ("device", "Changelog navigation, persistence, disclosures and large text", (
+        "os.kei.hyper.home.data.ReleaseNotesPreferencesTest",
+        "os.kei.hyper.home.ui.main.ReleaseNotesNavigationTest")),
     "ui-actions": ("device", "FABs, disclosures, links and metadata pills", (
         UI + "UiActionPolishDeviceTest",)),
     "ui-navigation": ("device", "Both navbar styles, tabs, themes and large text", (

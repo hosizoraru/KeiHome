@@ -18,7 +18,7 @@ import top.yukonga.miuix.kmp.icon.glass.Update
 
 internal enum class PageActionIcon {
   UPDATE, APPLY, GENERATE, EXPORT, CLEAR, FETCH, OPEN_EXTERNAL, OPEN_INTERNAL,
-  STATUS, APPS, PACKS, DESKTOP, SETTINGS, IMPORT, SEARCH, MATCH,
+  STATUS, APPS, PACKS, DESKTOP, SETTINGS, IMPORT, SEARCH, MATCH, HISTORY,
 }
 
 /** Keep operation glyphs semantic; rereading a list is separate from updating imported resources. */
@@ -40,4 +40,5 @@ internal fun actionIcon(action: PageActionIcon): ImageVector = when (action) {
   PageActionIcon.STATUS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_activity)
   PageActionIcon.PACKS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_shapes)
   PageActionIcon.DESKTOP -> MiuixIcons.Home
+  PageActionIcon.HISTORY -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_history)
 }

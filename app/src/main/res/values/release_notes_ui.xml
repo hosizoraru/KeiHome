@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="release_notes_title">Release notes</string>
+    <string name="release_notes_summary">See new features and improvements in each version</string>
+    <string name="release_notes_search_keywords">release changelog history versions</string>
+    <string name="release_notes_ui_title">@string/release_notes_title</string>
+    <string name="release_notes_ui_current_version">Current version %1$s</string>
+    <string name="release_notes_ui_first_public">First public release %1$s</string>
+    <string name="release_notes_ui_pending">Release notes for the current version will be added before release.</string>
+    <string name="release_notes_ui_pending_badge">Notes pending</string>
+    <string name="release_notes_ui_continue">Continue</string>
+    <string name="release_notes_ui_expand">Expand release notes for %1$s</string>
+    <string name="release_notes_ui_collapse">Collapse release notes for %1$s</string>
+    <string name="release_notes_ui_expanded">Expanded</string>
+    <string name="release_notes_ui_collapsed">Collapsed</string>
+    <string name="release_notes_ui_unread">Unread</string>
+    <string name="release_notes_ui_date_unavailable">Date unavailable</string>
+    <string name="release_notes_ui_empty">No release notes are available for this version yet.</string>
+    <string name="release_notes_ui_item_number">%1$d.</string>
+</resources>

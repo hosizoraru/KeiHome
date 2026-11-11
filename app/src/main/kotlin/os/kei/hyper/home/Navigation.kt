@@ -28,9 +28,11 @@ import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.PackDestinationScreen
 import os.kei.hyper.home.ui.main.SettingsDestinationScreen
+import os.kei.hyper.home.ui.main.ReleaseNotesScreen
 import os.kei.hyper.home.ui.main.OnboardingScreen
 import os.kei.hyper.home.ui.main.OnboardingDesktopScreen
 import os.kei.hyper.home.data.OnboardingPreferences
+import os.kei.hyper.home.data.ReleaseNotesPreferences
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
@@ -40,7 +42,10 @@ import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences.get(LocalContext.current)) {
+internal fun MainNavigation(
+  setup: OnboardingPreferences = OnboardingPreferences.get(LocalContext.current),
+  releaseNotesPreferences: ReleaseNotesPreferences? = null,
+) {
   val model: HomeViewModel = viewModel()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   DisposableEffect(model, lifecycle) {
@@ -51,8 +56,12 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     onDispose { lifecycle.removeObserver(observer) }
   }
   NativeIconAutoNavigation(model)
+  val releaseState = releaseNotesPreferences?.state?.collectAsStateWithLifecycle()?.value
+  val pending = releaseState?.pendingVersions.orEmpty()
+  val pendingVersion = releaseState?.pendingVersion.orEmpty()
   val initialRoutes = remember(setup) {
-    if (setup.state.value == OnboardingPreferences.COMPLETE) listOf<HomeRoute>(Main)
+    if (setup.state.value == OnboardingPreferences.COMPLETE)
+      listOfNotNull(Main, ReleaseNotesUpgradeRoute.takeIf { pendingVersion.isNotEmpty() })
     else (0..setup.state.value).map { OnboardingRoute(it) }
   }
   val backStack = rememberNavBackStack<HomeRoute>(*initialRoutes.toTypedArray())
@@ -69,6 +78,11 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
       backStack.add(Main)
     }
   }
+  LaunchedEffect(progress, pendingVersion, current) {
+    if (pendingVersion.isEmpty()) backStack.removeAll { it == ReleaseNotesUpgradeRoute }
+    if (progress == OnboardingPreferences.COMPLETE && pendingVersion.isNotEmpty() &&
+      backStack.size == 1 && current == Main) backStack.add(ReleaseNotesUpgradeRoute)
+  }
   val swipe = if (LocalLayoutDirection.current == LayoutDirection.Rtl)
     NavSwipeDirection.RightToLeft else NavSwipeDirection.LeftToRight
   fun open(section: String) {
@@ -83,7 +97,10 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
     if (DesktopSection.entries.none { it != DesktopSection.OVERVIEW && it.route == section }) return
     backStack.add(DesktopRoute(section))
   }
-  fun back() { if (backStack.size > 1) backStack.removeLastOrNull() }
+  fun back() {
+    if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) releaseNotesPreferences?.acknowledge()
+    if (backStack.size > 1) backStack.removeLastOrNull()
+  }
   fun finishSetup(route: OnboardingRoute) {
     setup.complete()
     if (route.replay) {
@@ -129,6 +146,11 @@ internal fun MainNavigation(setup: OnboardingPreferences = OnboardingPreferences
       SettingsDestinationScreen(model, route.section,
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings,
         onOpenPackSection = ::open)
+    }
+    entry<ReleaseNotesUpgradeRoute> {
+      ReleaseNotesScreen(onBack = ::back, highlightedVersions = pending.toSet(), onContinue = {
+        if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) back()
+      })
     }
   }
 }

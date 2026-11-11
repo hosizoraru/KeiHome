@@ -1,0 +1,48 @@
+<resources>
+    <string name="release_notes_1_4_0_introduction">Built for the Rust + Flutter HyperOS system launcher, with dynamic compatibility discovery, API 102 automatic hot reload, and in-app feature and connection status.</string>
+    <string-array name="release_notes_1_4_0_changes">
+        <item>Automatic light and dark icons\nSupported icons in the built-in Default / Classic / Boundless packs follow the system appearance without importing another icon pack.</item>
+        <item>Monet themed icons\nEnable Monet colors for supported icons and follow the system appearance. Choose AOSP or ColorOS-inspired color styles, or custom colors.</item>
+        <item>APK icon packs\nGenerate, import and automatically apply an icon scheme in one action. Get compatibility update reminders or manually update applied icons.</item>
+        <item>MTZ / ZIP icon imports\nImport compatible third-party MTZ / ZIP icon packs and use their existing light, dark, palette-aware and dynamic resources.</item>
+        <item>Built-in ColorOS icon schemes\nChoose Classic, Daylight, Night Shadow, Material, Pebble and ART+ redraws with their supported light and dark artwork, plus the Inspiration Monet scheme.</item>
+        <item>Icon completion and fallback\nTry name matching for system apps missing from a pack and fall back to the selected HyperOS built-in icons. Additional ColorOS fallback resources fill gaps while prioritizing existing app support for light, dark and Monet icons.</item>
+        <item>Icon previews\nCheck app coverage and support for light, dark and Monet icons, and preview icons and fallbacks under the current scheme.</item>
+        <item>Native soft-glass Dock\nReuse native glass materials and animations, with an unlock entrance animation, adaptive width for 1–5 apps, and different corner policies.</item>
+        <item>Long app names\nChoose two-line labels or scrolling long names. Scrolling pauses while organizing the home screen to preserve native drag and selection interactions.</item>
+        <item>System environment information\nView the device model, system and launcher versions, and the Rust / Flutter runtime information used by the launcher for troubleshooting and feedback.</item>
+        <item>Preserve system materials\nRestore supported system materials and icon highlights when using third-party packs, while respecting system power-saving and blur settings.</item>
+        <item>ColorOS-style launch background adaptation at night\nDim light solid-color launch backgrounds when an app is in dark mode, while preserving brand colors, custom launch icons and snapshots.</item>
+    </string-array>
+    <string name="release_notes_1_4_0_footnote">Note: Icon effects depend on the resources supplied by the pack and app. Dynamic and launch-background effects depend on their actual system application. Imported or updated packs must be applied. Some settings take effect after reopening a panel or on the next cold start; see the in-app guidance.</string>
+
+    <string-array name="release_notes_1_5_0_changes">
+        <item>Fixed Dock glass disappearing with five apps on launcher 9226 under some DPI and icon-size combinations.</item>
+        <item>Completed dynamic compatibility for Monet, Dock and related features on launcher 8604, and fixed a listener-retirement race during automatic hot reload.</item>
+        <item>Added Pad-style Dock corners, a screen-concentric reference and a custom radius, plus height and vertical-position controls.</item>
+        <item>Improved resource cleanup when opening apps, returning home and dragging across pages or with multiple selections. Corrected edit-mode animation coordination and reduced some main-thread work.</item>
+        <item>Improved image reuse, packaging and Monet configuration synchronization during icon generation to reduce redundant resources and configuration reads.</item>
+        <item>Added “Only generate icons for installed apps”, off by default, to optionally reduce the generation scope.</item>
+        <item>Improved waiting and automatic rechecking for large packs and slow theme operations to reduce false import or application failures. Fixed some source-identification and completion-status refresh issues.</item>
+        <item>Moved “Icon packs and actions” into a separate Settings page. Standardized update, export and cleanup floating actions, and improved onboarding and large-text layouts.</item>
+        <item>Improved log filenames with device, system and launcher versions. Clarified that feature issues require LSPosed logs; app logs cover issues within this app only.</item>
+    </string-array>
+
+    <string name="release_notes_1_6_0_introduction">Added Apple icon schemes and the Perfect Icons Completion Project, expanded icon-pack support across system surfaces, and improved dynamic resources and launcher compatibility.</string>
+    <string-array name="release_notes_1_6_0_changes">
+        <item>Added Apple icon schemes with iOS, iPadOS or macOS artwork, light and dark appearances, resolution and corner options, local caching, manual and batch matching, and mapping import and export.</item>
+        <item>Added a Perfect Icons Completion Project page for resource synchronization, style selection, local generation and previews. Downloaded resources can also supply fallback icons for uncovered system apps.</item>
+        <item>Improved recognition and import of native layers, light and dark variants, and supported dynamic resources in MTZ / ZIP packs. Apple Calendar and Clock can use native dynamic resources; previews remain static snapshots.</item>
+        <item>Added optional dark adaptation for Perfect Icons Completion Project artwork, covering static layered icons and eligible dynamic layers. Existing independent dark resources take priority, and preview options stay consistent with generation.</item>
+        <item>Supported recent-task icons, notification app icons, HyperOS system share targets, Settings app management and details, and Security Sidebar icons now follow the current pack, appearance and Monet colors. Security compatibility caches detect APK-content changes to avoid reusing outdated results when version numbers stay the same.</item>
+        <item>Fixed undersized ColorOS fallback icons for Download Manager and some preinstalled non-system apps. Factory packages and signatures identify eligible native artwork. Added mappings from Themes and Theme Store to the ColorOS Theme Store icon.</item>
+        <item>Improved Monet integration and light/dark previews for supported APK and MTZ packs. Preserved declared names, versions, authors and designers to reduce unknown names and source-identification errors.</item>
+        <item>Improved archive reading, nested-resource accounting and raw-entry copying for large packs to reduce repeated decompression, image copying and preview-cache usage. Failed synchronization or generation preserves the last usable resources.</item>
+        <item>Improved retirement of old listeners, caches and background tasks during API 102 hot reload to reduce cross-process reload failures and missed appearance updates. Older recent-task icons can also refresh within the supported scope.</item>
+        <item>Improved compatibility with launcher 9239 for Dock, Monet and related features, while retaining native behavior where unsupported.</item>
+        <item>Recognized Pad devices and actual launcher capabilities, retaining the native Pad Dock. Unsupported phone-specific features show compatibility status rather than applying phone layouts, and saved choices are preserved.</item>
+        <item>Reduced repetitive guidance and action labels on icon-pack pages, added optional top-bar help, and made Apply, Update and declared author information easier to find. Fixed bottom-navigation jumps and improved large-text layouts.</item>
+        <item>Improved first-activation, scope-authorization and onboarding guidance, distinguishing authorization, loading and actual feature status. One system restart is recommended after first authorization; later updates normally use automatic hot reload.</item>
+    </string-array>
+    <string name="release_notes_1_6_0_footnote">Icon effects depend on pack resources and system support. Update or regenerate and apply existing schemes to receive resource corrections. New scopes require framework authorization and their processes must load the module. Unsupported surfaces retain native icons.</string>
+</resources>

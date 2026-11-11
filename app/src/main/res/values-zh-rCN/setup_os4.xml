@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="setup_os4_welcome_title">你的桌面，由你定义</string>
-    <string name="setup_os4_welcome_body">按你的喜好设置 KeiHome，不会自动更改设置。</string>
+    <string name="setup_os4_welcome_body">从图标到桌面，按喜好一步步设置。</string>
     <string name="setup_os4_framework_title">先让模块准备好</string>
     <string name="setup_os4_framework_body">在 LSPosed 中启用 KeiHome 并授权宿主作用域，也可以先继续，稍后完善。</string>
     <string name="setup_os4_icons_title">选一套喜欢的图标</string>

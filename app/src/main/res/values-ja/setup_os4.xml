@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="setup_os4_welcome_title">ホーム画面を、あなたらしく</string>
-    <string name="setup_os4_welcome_body">KeiHome を好みに合わせて。設定が自動で変わることはありません。</string>
+    <string name="setup_os4_welcome_body">アイコンからホーム画面まで、好みに合わせて設定しましょう。</string>
     <string name="setup_os4_framework_title">まずモジュールを準備</string>
     <string name="setup_os4_framework_body">LSPosed で KeiHome を有効にし、ホストのスコープを許可します。先に進んで、あとから設定することもできます。</string>
     <string name="setup_os4_icons_title">お気に入りのアイコンを</string>

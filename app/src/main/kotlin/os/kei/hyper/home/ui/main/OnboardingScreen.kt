@@ -31,6 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -77,6 +81,7 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
   val backdrop = rememberKeiHomeBlurBackdrop()
   var toolbarHeight by remember { mutableIntStateOf(0) }
   val clearance = with(LocalDensity.current) { toolbarHeight.toDp() } + 16.dp
+  val surface = MiuixTheme.colorScheme.surface
   val stepLabel = stringResource(R.string.setup_step, page + 1, OnboardingPreferences.PAGE_COUNT)
   Scaffold(backdrop = backdrop, modifier = Modifier.testTag("setup.page.$page"), topBar = {
     Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
@@ -118,10 +123,20 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
       contentAlignment = Alignment.TopCenter) {
       key(page) {
+        val footerInset = insets.calculateBottomPadding() + clearance
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize()
-          .padding(top = insets.calculateTopPadding(), bottom = insets.calculateBottomPadding() + clearance)
-          .testTag("setup.content").verticalScroll(rememberScrollState())
-          .padding(horizontal = 24.dp, vertical = 12.dp),
+          .padding(top = insets.calculateTopPadding())
+          .testTag("setup.content").drawWithCache {
+            val fadeHeight = (footerInset + 24.dp).toPx().coerceAtMost(size.height)
+            val start = size.height - fadeHeight
+            val fade = Brush.verticalGradient(listOf(surface.copy(alpha = 0f),
+              surface.copy(alpha = .6f), surface), startY = start, endY = size.height)
+            onDrawWithContent {
+              drawContent()
+              drawRect(fade, topLeft = Offset(0f, start), size = Size(size.width, fadeHeight))
+            }
+          }.verticalScroll(rememberScrollState())
+          .padding(horizontal = 24.dp, vertical = 12.dp).padding(bottom = footerInset),
           verticalArrangement = Arrangement.spacedBy(24.dp)) {
           OnboardingHero(page)
           OnboardingStepContent(model, page, onOpenPack, onOpenDesktop, onOpenSettings, onOpenDesktopSection)

@@ -1,15 +1,17 @@
 # OS4 first-use guide
 
 KeiHome's five-step MIUIX guide introduces the app, framework and scope setup,
-icon sources, desktop categories, and follow-up checks. Setup is optional: each
-page can be left without enabling features or applying a theme.
+icon sources, desktop categories, and follow-up checks. Each step can be skipped
+or revisited; feature controls remain in their existing pages.
 
 ## Layout and interaction
 
 The OS4 rewrite uses a centered illustrated heading, compact progress dots,
 short grouped links, and separate floating Back and Continue controls. The footer
-has no enclosing opaque panel. Its measured height and navigation safe area are
-reserved outside the scrolling viewport, keeping the last link above the actions.
+has no enclosing opaque panel. Content scrolls behind the controls through a
+cached gradient matching the theme surface. The measured action height and
+navigation safe area are reserved inside the scrolling content, so the last link
+can still be scrolled fully above the controls without a hard blank band.
 Content and controls are centered within a 640dp maximum width on wider windows.
 The artwork shrinks at larger font scales; content remains scrollable.
 
@@ -25,8 +27,9 @@ copied, and the configured device's setup wizard was not rerun or reset.
 
 ## Five steps
 
-1. **Welcome:** three concise feature tiles, with an explicit statement that
-   visiting the guide does not change settings.
+1. **Welcome:** three concise feature tiles and a short invitation to personalize
+   icons and the desktop. Copy avoids promises that initialization or dependent
+   feature rules never change a setting.
 2. **Framework:** actual connection and grant-count pills, an explicit request
    action when scopes can be requested, and links to the framework manager and
    dedicated scope viewer. The old all-in-one scope card is not embedded here.

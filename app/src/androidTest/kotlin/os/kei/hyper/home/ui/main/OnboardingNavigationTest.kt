@@ -67,9 +67,16 @@ class OnboardingNavigationTest {
 
   private fun openLink(title: Int) {
     val link = rule.onNodeWithText(context.getString(title)).performScrollTo()
+    val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
+    val safeBottom = toolbar.top - 48f * context.resources.displayMetrics.density
+    val bottom = link.fetchSemanticsNode().boundsInRoot.bottom
+    if (bottom > safeBottom) {
+      // Scroll past the floating controls and fade, just as a further upward swipe would.
+      action("content").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, bottom - safeBottom) }
+      rule.waitForIdle()
+    }
     val center = link.fetchSemanticsNode().boundsInRoot.center
     val viewport = action("content").fetchSemanticsNode().boundsInRoot
-    val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
     assertTrue("Link must stay inside the unobscured viewport", viewport.contains(center))
     assertTrue("Link must not be covered by the floating toolbar", center.y < toolbar.top)
     link.performClick()
@@ -98,6 +105,9 @@ class OnboardingNavigationTest {
     rule.waitForIdle()
     val end = action("end").fetchSemanticsNode().boundsInRoot
     val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
+    val viewport = action("content").fetchSemanticsNode().boundsInRoot
+    assertTrue("content continues behind the floating controls instead of ending in a blank band",
+      viewport.bottom > toolbar.bottom)
     check(end.bottom <= toolbar.top + 1f) { "Step $currentPage content ends behind the floating toolbar" }
     action("next").assertIsDisplayed().assertIsEnabled()
     screenshot("$capturePrefix-step-$currentPage-end")

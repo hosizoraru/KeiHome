@@ -50,6 +50,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  if (section == "settings") {
+    PackSettingsScreen(model, onBack)
+    return
+  }
   if (section == "perfect") {
     PerfectPackScreen(model, onBack, onNavigate)
     return

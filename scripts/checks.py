@@ -22,6 +22,8 @@ GROUPS = {
         UI + "ThemeEffectsCardTest",)),
     "ui-color-editor": ("device", "Color input, confirmation and draft recreation", (
         UI + "MonetColorEditorTest",)),
+    "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
+        UI + "PackSettingsNavigationTest",)),
     "ui-settings": ("jvm", "Appearance preferences and recovery", (
         "ThemeEffectsPreferencesTest", "ThemeEffectsRecoveryTest", "ThemeEffectsScopeTest")),
     "pack-time": ("jvm", "Compact dates, locales, time zones and year boundaries", (

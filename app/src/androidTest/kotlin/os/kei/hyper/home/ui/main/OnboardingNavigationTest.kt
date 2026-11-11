@@ -156,7 +156,7 @@ class OnboardingNavigationTest {
     back()
     page(2)
     openLink(R.string.pack_action_settings)
-    settleTransition()
+    packPage("settings")
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     back()
     page(2)

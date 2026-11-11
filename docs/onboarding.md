@@ -177,3 +177,9 @@ cache note. On step 5, open System and Hook and return. Check that the last item
 clears the floating toolbar, that scope grants and reported loading stay distinct,
 and that unavailable hosts are not presented as active features. Retain coverage
 for Back, later/replay, light/dark mode and enlarged display size.
+## Icon pack preferences shortcut
+
+The icon step now opens **Icon packs > More settings** as a Packs child.
+Returning restores the same wizard step. Its generation/application and
+experience cards use the same saved preferences as global Settings search;
+the Settings root no longer exposes a separate icon-pack actions entry.

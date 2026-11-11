@@ -42,6 +42,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBack: () -> Unit,
   onNavigate: (String) -> Unit, onOpenPackSection: (String) -> Unit) {
+  // Retain restored navigation state from before these preferences moved to Packs.
+  if (route == SettingsSection.PACKS.route) {
+    PackSettingsScreen(model, onBack)
+    return
+  }
   if (route == SettingsSection.ABOUT.route || route == "about/environment") {
     AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
       focusEnvironment = route == "about/environment")

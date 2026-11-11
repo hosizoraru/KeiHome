@@ -6,8 +6,10 @@
   <string name="top_bar_gaussian">Gaussian</string>
   <string name="top_bar_progressive">Progressive</string>
   <string name="pack_update_available">Icons can be completed or updated. Use Update icon pack.</string>
-  <string name="pack_action_settings">Icon pack actions</string>
-  <string name="pack_action_settings_summary">Automatic application, all-app or installed-only generation, and remembered choices</string>
+  <string name="pack_action_settings">More settings</string>
+  <string name="pack_action_settings_summary">Auto-apply, generation scope and preferences</string>
+  <string name="pack_settings_generation">Generation &amp; application</string>
+  <string name="pack_settings_experience">Experience</string>
   <string name="pack_auto_apply">Apply after generation</string>
   <string name="pack_auto_apply_summary">Automatically apply installed or updated icons through system Themes, then return.</string>
   <string name="pack_installed_icons_only">Only generate icons for installed apps</string>

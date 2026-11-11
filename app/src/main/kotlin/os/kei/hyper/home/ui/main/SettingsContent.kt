@@ -231,22 +231,9 @@ internal fun SettingsContent(
       }
     }
     if (autoApply || installedIconsOnly || rememberMenus || compactPackHints) {
-      SmallTitle(stringResource(R.string.pack_action_settings))
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        if (autoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
-          summary = stringResource(R.string.pack_auto_apply_summary), checked = preferences.autoApplyIconPack,
-          onCheckedChange = onAutoApplyChange)
-        if (installedIconsOnly) SwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
-          summary = stringResource(R.string.pack_installed_icons_only_summary), checked = preferences.installedIconsOnly,
-          onCheckedChange = onInstalledIconsOnlyChange)
-        if (rememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
-          summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
-          onCheckedChange = onRememberMenusChange)
-        if (compactPackHints) SwitchPreference(title = stringResource(R.string.pack_compact_hints_title),
-          summary = stringResource(R.string.pack_compact_hints_summary), checked = preferences.compactPackHints,
-          onCheckedChange = onCompactPackHintsChange,
-          modifier = Modifier.testTag("settings.compact-pack-hints"))
-      }
+      PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
+        onRememberMenusChange, onCompactPackHintsChange,
+        autoApply, installedIconsOnly, rememberMenus, compactPackHints)
     }
     if (pageScroll || pagerMode) {
       SmallTitle(stringResource(R.string.browser_pager_title))

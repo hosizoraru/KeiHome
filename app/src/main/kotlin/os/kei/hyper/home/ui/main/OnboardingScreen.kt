@@ -171,7 +171,7 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
                 BasicComponent(title = stringResource(R.string.pack_completion_title), summary = stringResource(R.string.setup_fallback_body),
                   onClick = { onOpenPack("fallback") })
                 BasicComponent(title = stringResource(R.string.pack_action_settings), summary = stringResource(R.string.pack_action_settings_summary),
-                  onClick = { onOpenSettings("pack-actions") })
+                  onClick = { onOpenPack("settings") })
               }
               SetupNote(stringResource(R.string.setup_icon_tip_title), stringResource(R.string.setup_icon_tip_body))
               SetupNote(stringResource(R.string.setup_local_icons_title), stringResource(R.string.setup_local_icons_body))

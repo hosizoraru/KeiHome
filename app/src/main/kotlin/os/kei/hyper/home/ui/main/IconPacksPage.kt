@@ -128,6 +128,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
               else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
             { onNavigate("fallback") })
         }
+        item("settings") { PackNavigationCard(stringResource(R.string.pack_action_settings),
+          stringResource(R.string.pack_action_settings_summary), { onNavigate("settings") }) }
       }
       "library" -> {
         item("builtin") { PackNavigationCard(stringResource(R.string.pack_builtin),

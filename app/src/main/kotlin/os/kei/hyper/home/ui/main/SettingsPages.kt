@@ -57,7 +57,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
       label = stringResource(R.string.settings_search))
     if (query.isBlank()) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        SettingsSection.entries.forEach { section ->
+        SettingsSection.entries.filter { it != SettingsSection.PACKS }.forEach { section ->
           val icon = when (section) {
             SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
             SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)

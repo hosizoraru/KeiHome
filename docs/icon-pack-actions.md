@@ -191,3 +191,12 @@ Monet remains off with the existing Classic ART+ / Default fallback.
 
 This acceptance does not close the separate native launcher/watchdog,
 dual-display or physical-device investigations.
+## Preferences location
+
+Icon pack preferences are under **Icon packs > More settings**. Generation and
+application options share one card; remembered choices and compact help share
+another. Existing preference keys and values are preserved. The setup wizard
+opens this same Packs child and returns to its original step. The Settings
+root no longer lists this page; global preference search still finds its
+individual switches. The old `pack-actions` Settings route remains a restored
+state alias.

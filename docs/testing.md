@@ -17,6 +17,7 @@ does not automatically run navigation, color editing or native tests.
 | Status cards and detail navigation | `ui-status` |
 | Theme-effect controls | `ui-theme-effects` |
 | Color editor, input validation, draft lifecycle | `ui-color-editor` |
+| Pack preferences navigation and wizard shortcut | `ui-pack-settings` |
 | Appearance preferences/recovery | `ui-settings` |
 | Date/time display | `pack-time`; pill test only if its layout changes |
 | Perfect source/sync/history/health | `perfect-sync` |

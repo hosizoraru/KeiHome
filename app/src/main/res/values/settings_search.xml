@@ -11,7 +11,7 @@
     <string name="settings_hook_section">Scope authorization</string>
     <string name="settings_hook_summary">View static scope access</string>
     <string name="settings_cache_section">Cache management</string>
-    <string name="settings_cache_summary">Icon previews and clearing cached images</string>
+    <string name="settings_cache_summary">Storage usage and cache cleanup</string>
     <string name="settings_about_summary">Version, source code and open-source notices</string>
     <string name="settings_source">Project source</string>
     <string name="settings_source_private">In development · open source planned</string>

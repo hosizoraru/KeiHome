@@ -9,7 +9,6 @@ import java.io.File
 import java.util.zip.ZipFile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -40,7 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,9 +59,14 @@ import os.kei.hyper.home.MainActivity
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppIconPreviews
+import os.kei.hyper.home.data.AppTopBarBlur
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.ui.components.about.AboutBackground
+import os.kei.hyper.home.ui.components.LocalKeiHomeTopBarBlur
+import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -69,9 +74,14 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassIconButton
+import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.Copy
+import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -92,20 +102,53 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   LaunchedEffect(model, lifecycle) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeAboutIcon() }
   }
-  AboutBackground {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+  val context = LocalContext.current
+  val appName = stringResource(R.string.app_name)
+  val version = stringResource(R.string.polish_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+  val copyVersion = {
+    context.getSystemService(ClipboardManager::class.java)
+      .setPrimaryClip(ClipData.newPlainText(appName, "$appName $version\n${BuildConfig.APPLICATION_ID}"))
+  }
+  val backdrop = rememberKeiHomeBlurBackdrop()
+  Scaffold(containerColor = Color.Transparent, backdrop = backdrop, topBar = {
+    if (backdrop != null) {
+      val style = GlassDefaults.style(LocalKeiHomeDarkTheme.current)
+      // Keep the animated About background visible through the native toolbar band.
+      GlassTopAppBar(title = "", backdrop = backdrop, style = style, bandBrush = SolidColor(Color.Transparent),
+        progressiveBlur = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE,
+        navigationIcon = {
+          GlassIconButton(onClick = onBack, backdrop = backdrop, style = style) {
+            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          }
+        }, actions = {
+          GlassIconButton(onClick = copyVersion, backdrop = backdrop, style = style,
+            modifier = Modifier.testTag("aboutCopy")) {
+            Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
+          }
+        })
+    } else {
+      TopAppBar(title = "", color = Color.Transparent,
+        navigationIcon = { IconButton(onClick = onBack) {
+          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+        } }, actions = {
+          IconButton(onClick = copyVersion, modifier = Modifier.testTag("aboutCopy")) {
+            Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
+          }
+        })
+    }
+  }) { insets ->
+    BoxWithConstraints(Modifier.fillMaxSize()
+      .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val heroHeight = (maxHeight * 0.47f).coerceAtLeast(260.dp)
-      Column(Modifier.fillMaxSize().verticalScroll(aboutScroll).statusBarsPadding()
-        .navigationBarsPadding().padding(horizontal = 16.dp)) {
-        Spacer(Modifier.height(48.dp))
-        Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
-        AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices, onBackground = true)
-        Spacer(Modifier.height(12.dp))
-        AboutDetails()
-        Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
-      }
-      IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(start = 8.dp)) {
-        Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+      AboutBackground {
+        Column(Modifier.fillMaxSize().testTag("about.scroll").verticalScroll(aboutScroll)
+          .navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding())) {
+          Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
+          AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices, onBackground = true)
+          Spacer(Modifier.height(12.dp))
+          AboutDetails()
+          Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
+        }
       }
     }
   }
@@ -113,24 +156,18 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
 
 @Composable
 internal fun AboutHero(model: HomeViewModel) {
-  val context = LocalContext.current
   val appName = stringResource(R.string.app_name)
   val version = stringResource(R.string.polish_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
-  val copy = stringResource(R.string.polish_copy_version)
   val dark = LocalKeiHomeDarkTheme.current
   val titleColors = if (dark) listOf(Color(0xff85dcea), Color(0xffa9a4ff))
     else listOf(Color(0xff155d7b), Color(0xff5044a6))
-  Column(Modifier.fillMaxWidth().clickable(onClickLabel = copy) {
-    context.getSystemService(ClipboardManager::class.java)
-      .setPrimaryClip(ClipData.newPlainText(appName, "$appName $version\n${BuildConfig.APPLICATION_ID}"))
-  }.padding(horizontal = 12.dp, vertical = 16.dp),
+  Column(Modifier.fillMaxWidth().testTag("about.hero").padding(horizontal = 12.dp, vertical = 16.dp),
     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
     AboutAppIcon(model)
     Text(appName, style = MiuixTheme.textStyles.title1.copy(brush = Brush.linearGradient(titleColors),
       fontSize = 36.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
     Text(version, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
       textAlign = TextAlign.Center)
-    Text(copy, style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
   }
 }
 

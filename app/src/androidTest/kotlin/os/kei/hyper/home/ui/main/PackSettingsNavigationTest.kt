@@ -1,6 +1,9 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
@@ -20,6 +23,7 @@ import org.junit.Test
 import os.kei.hyper.home.MainNavigation
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppLocalStorage
+import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
@@ -54,6 +58,18 @@ class PackSettingsNavigationTest {
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.pack_installed_icons_only)).assertIsDisplayed()
     rule.onNodeWithTag("settings.compact-pack-hints").assertExists()
+    val preferences = AppPreferences.get(context)
+    val original = preferences.state.value.showIconPreviews
+    try {
+      rule.onNodeWithTag("settings.icon-previews").performScrollTo().assertIsDisplayed()
+      rule.onNode(isToggleable() and (hasTestTag("settings.icon-previews") or
+        hasAnyAncestor(hasTestTag("settings.icon-previews"))), useUnmergedTree = true).performClick()
+      rule.runOnIdle {
+        org.junit.Assert.assertEquals(!original, preferences.state.value.showIconPreviews)
+      }
+    } finally {
+      rule.runOnIdle { preferences.setShowIconPreviews(original) }
+    }
     rule.onNodeWithContentDescription(context.getString(R.string.pack_back)).performClick()
     rule.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable()).assertIsSelected()
     rule.onNodeWithText(context.getString(R.string.pack_action_settings)).assertExists()

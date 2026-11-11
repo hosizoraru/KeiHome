@@ -17,6 +17,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -24,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.libxposed.service.HookedTarget
@@ -32,10 +37,13 @@ import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
+import java.util.UUID
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppPreferencesState
+import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.IconPackAppearance
+import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
@@ -142,6 +150,93 @@ class SettingsSearchUiTest {
       rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOff()
     }
     rule.runOnIdle { assertEquals(listOf(true, false, true, false, true, false), changes) }
+  }
+
+  @Test fun iconPreviewsBelongToPacksAndRemainSearchableWithTheSameSavedPreference() {
+    val locale = mutableStateOf("en")
+    val query = mutableStateOf("")
+    val section = mutableStateOf<SettingsSection?>(SettingsSection.CACHE)
+    val storageName = "preview_setting_${UUID.randomUUID()}"
+    val storage = context.getSharedPreferences(storageName, Context.MODE_PRIVATE)
+    storage.edit().putBoolean("icon_previews", false).commit()
+    val preferences = AppPreferences(storage, SystemIconFallback.entries)
+    try {
+      rule.setContent {
+        val configuration = Configuration(context.resources.configuration).apply {
+          setLocales(LocaleList.forLanguageTags(locale.value))
+        }
+        val localizedContext = context.createConfigurationContext(configuration)
+        CompositionLocalProvider(LocalContext provides localizedContext, LocalConfiguration provides configuration) {
+          KeiHomeTheme {
+            val state by preferences.state.collectAsStateWithLifecycle()
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+              SettingsContent(state, {}, {}, preferences::setShowIconPreviews, {}, {}, {}, {}, {}, {}, {},
+                ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
+                query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
+                onNavigationBarStyleChange = {}) {}
+            }
+          }
+        }
+      }
+      rule.onNodeWithTag("settings.icon-previews").assertDoesNotExist()
+      rule.onNodeWithText(context.getString(R.string.polish_previews_title)).assertDoesNotExist()
+      for (tag in listOf("en", "zh-CN", "ja")) {
+        val configuration = Configuration(context.resources.configuration).apply {
+          setLocales(LocaleList.forLanguageTags(tag))
+        }
+        val resources = context.createConfigurationContext(configuration).resources
+        val title = resources.getString(R.string.polish_previews_title)
+        rule.runOnIdle {
+          locale.value = tag
+          query.value = title
+          section.value = null
+        }
+        rule.onNodeWithTag("settings.icon-previews").assertExists()
+        rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOff().performClick()
+        rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOn()
+        rule.runOnIdle {
+          assertTrue(storage.getBoolean("icon_previews", false))
+          assertTrue(AppPreferences(storage, SystemIconFallback.entries).state.value.showIconPreviews)
+          query.value = resources.getString(R.string.polish_previews_summary)
+        }
+        rule.onNodeWithText(title).assertExists()
+        rule.onNodeWithText(resources.getString(R.string.pack_settings_experience)).assertExists()
+        rule.runOnIdle { section.value = SettingsSection.CACHE }
+        rule.onNodeWithTag("settings.icon-previews").assertDoesNotExist()
+        rule.runOnIdle { section.value = SettingsSection.APP }
+        rule.onNodeWithTag("settings.icon-previews").assertDoesNotExist()
+        rule.runOnIdle { section.value = SettingsSection.PACKS }
+        rule.onNodeWithTag("settings.icon-previews").assertExists()
+        rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOn().performClick()
+        rule.onNode(isToggleable(), useUnmergedTree = true).assertIsOff()
+        rule.runOnIdle {
+          assertEquals(false, storage.getBoolean("icon_previews", true))
+          assertEquals(false, AppPreferences(storage, SystemIconFallback.entries).state.value.showIconPreviews)
+          query.value = resources.getString(R.string.pack_settings_experience)
+        }
+        rule.onNodeWithTag("settings.icon-previews").assertExists()
+      }
+    } finally {
+      context.deleteSharedPreferences(storageName)
+    }
+  }
+
+  @Test fun legacyAboutSearchResultDisplaysVersionWithoutACopyAction() {
+    rule.setContent {
+      KeiHomeTheme {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+          SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+            ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
+            context.getString(R.string.app_name), null, onOpenNotices = {}, launcherLabelsContent = {},
+            dockGlassContent = {}, onNavigationBarStyleChange = {}) {}
+        }
+      }
+    }
+    rule.onNodeWithTag("settings.about-version").assertExists().assertHasNoClickAction()
+      .assert(!hasAnyDescendant(hasClickAction()))
+    rule.onNodeWithText(context.getString(R.string.app_name)).assertExists()
+    rule.onNodeWithText(context.getString(R.string.polish_about_version,
+      BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)).assertExists()
   }
 
   @Test fun compactAppearanceControlDoesNotReserveAnEmptySummaryLine() {

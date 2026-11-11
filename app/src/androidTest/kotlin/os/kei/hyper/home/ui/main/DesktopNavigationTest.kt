@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -48,6 +50,9 @@ class DesktopNavigationTest {
 
   private fun back() {
     val buttons = rule.onAllNodesWithContentDescription(context.getString(R.string.pack_back))
+    rule.waitUntil(10_000) {
+      buttons.fetchSemanticsNodes().indices.count { buttons[it].isDisplayed() } == 1
+    }
     val visible = buttons.fetchSemanticsNodes().indices.single { buttons[it].isDisplayed() }
     buttons[visible].performClick()
   }
@@ -64,9 +69,11 @@ class DesktopNavigationTest {
     for (section in listOf("dock", "appearance", "icons")) {
       rule.onNodeWithTag("desktop.open.$section").performScrollTo().performClick()
       waitForTag("desktop.page.$section")
-      val symbols = rule.onAllNodesWithTag("status.overview.symbol", useUnmergedTree = true)
-      val symbol = symbols.fetchSemanticsNodes().indices.single { symbols[it].isDisplayed() }
-      symbols[symbol].assertWidthIsEqualTo(80.dp).assertHeightIsEqualTo(80.dp)
+      rule.onNode(
+        hasTestTag("status.overview.symbol") and
+          hasAnyAncestor(hasTestTag("desktop.status.$section")),
+        useUnmergedTree = true,
+      ).assertWidthIsEqualTo(80.dp).assertHeightIsEqualTo(80.dp)
       when (section) {
         "dock" -> {
           rule.onNodeWithTag("desktop.status.dock").assertExists()

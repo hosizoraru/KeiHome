@@ -66,6 +66,10 @@ PackageManager on IO at lifecycle/explicit-refresh boundaries. It does not load
 APK contents or poll package metadata. Connection fault and version pills have
 independent colors.
 
-Current live acceptance is blocked by the host-emulator incident documented in
-`development-avd-recovery-20261111.md`; the new material pair and progress UI
-must not be reported as fully device-accepted yet.
+After authorized reinstallation and managed cold startup, the Phone AVD passed
+the focused navigation/progress checks and live material-pair acknowledgements.
+Schema-8 reports carry capabilities 127; independent values, Follow Dock and
+restoration all used the same Launcher PID/start identity. See
+`development-avd-recovery-20261111.md` for the test-selector rerun and separate
+unresolved emulator host crashes. This does not establish physical-device or
+warm-reboot stability.

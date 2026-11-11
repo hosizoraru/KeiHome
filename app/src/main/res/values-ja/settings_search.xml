@@ -11,7 +11,7 @@
     <string name="settings_hook_section">スコープ許可</string>
     <string name="settings_hook_summary">静的スコープの許可状況を確認</string>
     <string name="settings_cache_section">キャッシュ管理</string>
-    <string name="settings_cache_summary">アイコンプレビューとキャッシュの消去</string>
+    <string name="settings_cache_summary">キャッシュの使用量と消去</string>
     <string name="settings_about_summary">バージョン、ソースとオープンソース表記</string>
     <string name="settings_source">プロジェクトのソース</string>
     <string name="settings_source_private">開発中 · 今後公開予定</string>

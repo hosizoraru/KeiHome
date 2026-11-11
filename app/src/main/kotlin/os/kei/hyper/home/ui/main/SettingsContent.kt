@@ -1,14 +1,11 @@
 package os.kei.hyper.home.ui.main
 
 import android.app.LocaleManager
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.os.LocaleList
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,11 +27,8 @@ import os.kei.hyper.home.data.AppPreferencesState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -129,7 +123,8 @@ internal fun SettingsContent(
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
     R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
-  val previews = matches(SettingsSection.CACHE, R.string.polish_settings_previews, R.string.polish_previews_title, R.string.polish_previews_summary)
+  val previews = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_settings_experience,
+    R.string.polish_previews_title, R.string.polish_previews_summary)
   val clear = matches(SettingsSection.CACHE, R.string.polish_settings_previews, R.string.polish_clear_previews, R.string.polish_clear_previews_summary)
   val about = matches(SettingsSection.ABOUT, R.string.polish_settings_about, R.string.app_name, R.string.polish_about_version,
     extra = "${BuildConfig.VERSION_NAME} ${BuildConfig.VERSION_CODE} commit")
@@ -212,10 +207,10 @@ internal fun SettingsContent(
       if (dockGlass) dockGlassContent()
     }
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange)
-    if (autoApply || installedIconsOnly || rememberMenus || compactPackHints) {
+    if (autoApply || installedIconsOnly || rememberMenus || compactPackHints || previews) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
-        onRememberMenusChange, onCompactPackHintsChange,
-        autoApply, installedIconsOnly, rememberMenus, compactPackHints)
+        onRememberMenusChange, onCompactPackHintsChange, onPreviewsChange,
+        autoApply, installedIconsOnly, rememberMenus, compactPackHints, previews)
     }
     if (pageScroll || pagerMode) {
       SmallTitle(stringResource(R.string.browser_pager_title))
@@ -230,13 +225,12 @@ internal fun SettingsContent(
           onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
       }
     }
-    if (previews || clear) {
+    if (clear && section != SettingsSection.CACHE) {
       SmallTitle(
         stringResource(R.string.polish_settings_previews),
         modifier = Modifier.semantics { heading() },
       )
-      PreviewPreferences(preferences.showIconPreviews, onPreviewsChange, onClearIconCache, previews,
-        clear && section != SettingsSection.CACHE)
+      PreviewCachePreference(onClearIconCache)
     }
     if (about || aboutPackage || aboutApi) {
       if (section != SettingsSection.ABOUT) SmallTitle(
@@ -299,23 +293,13 @@ private fun LanguagePreference() {
 }
 
 @Composable
-private fun PreviewPreferences(
-  showPreviews: Boolean,
-  onPreviewsChange: (Boolean) -> Unit,
+private fun PreviewCachePreference(
   onClearIconCache: () -> Unit,
-  showToggle: Boolean,
-  showClear: Boolean,
 ) {
   val context = LocalContext.current
   val clearedMessage = stringResource(R.string.polish_previews_cleared)
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    if (showToggle) SwitchPreference(
-      title = stringResource(R.string.polish_previews_title),
-      summary = stringResource(R.string.polish_previews_summary),
-      checked = showPreviews,
-      onCheckedChange = onPreviewsChange,
-    )
-    if (showClear) BasicComponent(
+    BasicComponent(
       title = stringResource(R.string.polish_clear_previews),
       summary = stringResource(R.string.polish_clear_previews_summary),
       onClick = {
@@ -341,24 +325,11 @@ private fun AboutCard(showVersion: Boolean, showPackage: Boolean, showApi: Boole
     context.applicationInfo.minSdkVersion,
     context.applicationInfo.targetSdkVersion,
   )
-  val versionInfo = "$appName $version\n${BuildConfig.APPLICATION_ID}\n$platform"
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     if (showVersion) BasicComponent(
+      modifier = Modifier.testTag("settings.about-version"),
       title = appName,
       summary = version,
-      onClickLabel = stringResource(R.string.polish_copy_version),
-      onClick = {
-        context.getSystemService(ClipboardManager::class.java)
-          .setPrimaryClip(ClipData.newPlainText(appName, versionInfo))
-      },
-      endActions = {
-        Icon(
-          imageVector = MiuixIcons.Glass.Copy,
-          contentDescription = null,
-          modifier = Modifier.size(22.dp),
-          tint = MiuixTheme.colorScheme.onSurfaceSecondary,
-        )
-      },
     )
     if (showPackage) BasicComponent(
       title = stringResource(R.string.polish_about_package),

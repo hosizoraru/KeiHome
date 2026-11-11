@@ -24,6 +24,10 @@ GROUPS = {
         UI + "MonetColorEditorTest",)),
     "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
         UI + "PackSettingsNavigationTest",)),
+    "ui-about": ("device", "Fixed About copy action, scrolling and hero semantics", (
+        UI + "AboutCopyUiTest",)),
+    "ui-settings-search": ("device", "Settings search, preview placement and persistence", (
+        UI + "SettingsSearchUiTest",)),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
         UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (

@@ -57,7 +57,7 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
-          model.preferences::setCompactPackHints)
+          model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews)
       }
     }
   }
@@ -70,10 +70,12 @@ internal fun PackSettingsContent(
   onInstalledOnly: (Boolean) -> Unit,
   onRememberMenus: (Boolean) -> Unit,
   onCompactHints: (Boolean) -> Unit,
+  onPreviews: (Boolean) -> Unit,
   showAutoApply: Boolean = true,
   showInstalledOnly: Boolean = true,
   showRememberMenus: Boolean = true,
   showCompactHints: Boolean = true,
+  showPreviews: Boolean = true,
 ) {
   if (showAutoApply || showInstalledOnly) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
@@ -86,7 +88,7 @@ internal fun PackSettingsContent(
         onCheckedChange = onInstalledOnly)
     }
   }
-  if (showRememberMenus || showCompactHints) {
+  if (showRememberMenus || showCompactHints || showPreviews) {
     SmallTitle(stringResource(R.string.pack_settings_experience))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       if (showRememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
@@ -95,6 +97,9 @@ internal fun PackSettingsContent(
       if (showCompactHints) SwitchPreference(title = stringResource(R.string.pack_compact_hints_title),
         summary = stringResource(R.string.pack_compact_hints_summary), checked = preferences.compactPackHints,
         onCheckedChange = onCompactHints, modifier = Modifier.testTag("settings.compact-pack-hints"))
+      if (showPreviews) SwitchPreference(title = stringResource(R.string.polish_previews_title),
+        summary = stringResource(R.string.polish_previews_summary), checked = preferences.showIconPreviews,
+        onCheckedChange = onPreviews, modifier = Modifier.testTag("settings.icon-previews"))
     }
   }
 }

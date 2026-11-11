@@ -23,6 +23,17 @@ Existing suitable MIUIX icons remain the first choice. The supplemental
 `com.composables:icons-lucide-android:2.2.1` resource dependency is the same
 coordinate used by KeiOS; no application implementation was copied.
 
+About uses a fixed MIUIX OS4 TopBar with Back and Copy glass icon actions.
+Copy keeps its localized accessibility description and version/package payload
+while the content scrolls. The hero has no copy action or visible copy prompt.
+The legacy About search result is informational. Both toolbar blur modes and
+direct navigation to the environment information retain the copy action.
+
+The icon preview preference belongs to Icon packs > More settings > Usage
+experience. Cache management contains storage information and cleanup only.
+The existing `icon_previews` preference key/default are retained, and global
+Settings search still finds and changes the same preference.
+
 `PageActionFab` measures its content instead of imposing the former 164dp
 minimum width. Its caption stays on one line within available width; its
 minimum touch height is 56dp. Busy actions retain their accessible description

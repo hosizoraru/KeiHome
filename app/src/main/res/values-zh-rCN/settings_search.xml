@@ -11,7 +11,7 @@
     <string name="settings_hook_section">作用域授权</string>
     <string name="settings_hook_summary">查看静态作用域授权情况</string>
     <string name="settings_cache_section">缓存管理</string>
-    <string name="settings_cache_summary">图标预览与缓存清理</string>
+    <string name="settings_cache_summary">缓存用量与清理</string>
     <string name="settings_about_summary">版本、源码与开源组件声明</string>
     <string name="settings_source">项目源码</string>
     <string name="settings_source_private">开发中，后续开源</string>

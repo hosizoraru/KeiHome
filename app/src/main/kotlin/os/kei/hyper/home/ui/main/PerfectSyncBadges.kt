@@ -36,11 +36,13 @@ private fun compactSyncTime(millis: Long, nowMillis: Long): String {
 
 /** Keep the last successful time alongside the persistent last-attempt outcome. */
 @Composable
-internal fun PerfectSyncBadges(state: PerfectPackState, color: Color) {
+internal fun PerfectSyncBadges(
+  state: PerfectPackState, color: Color, showRemote: Boolean = true, showSuccess: Boolean = true,
+) {
   val locale = LocalConfiguration.current.locales[0]
-  val nowMillis = perfectBadgeTime(state.remote != null || state.lastSuccessfulSyncAtMillis > 0 ||
-    state.catalog != null || state.syncIssue != null)
-  state.remote?.let { remote ->
+  val nowMillis = perfectBadgeTime((showRemote && state.remote != null) ||
+    (showSuccess && (state.lastSuccessfulSyncAtMillis > 0 || state.catalog != null)))
+  state.remote?.takeIf { showRemote }?.let { remote ->
     val label = stringResource(when {
       state.catalog == null -> R.string.perfect_git_remote_available
       state.updateAvailable -> R.string.perfect_git_update_available
@@ -73,7 +75,7 @@ internal fun PerfectSyncBadges(state: PerfectPackState, color: Color) {
     }
   }
   val successfulAt = state.lastSuccessfulSyncAtMillis.takeIf { it > 0 } ?: state.catalog?.updatedAt ?: 0
-  if (successfulAt > 0) {
+  if (showSuccess && successfulAt > 0) {
     val fullLabel = stringResource(R.string.perfect_icons_catalog_detail, perfectSyncTime(successfulAt))
     MetadataPill(stringResource(R.string.sync_badge_success, compactSyncTime(successfulAt, nowMillis)), color,
       Modifier.testTag("perfect.sync.success").clearAndSetSemantics { contentDescription = fullLabel })

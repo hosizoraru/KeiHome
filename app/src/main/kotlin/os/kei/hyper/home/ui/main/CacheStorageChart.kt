@@ -59,7 +59,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
     animationSpec = tween(800), label = "cache storage fill") }
   val scheme = MiuixTheme.colorScheme
   Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp),
-    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    horizontalArrangement = Arrangement.spacedBy(32.dp)) {
     Box(Modifier.weight(1f).fillMaxHeight().testTag("cache.storage.graph-region")) {
       Cylinder(fractions, scheme.surfaceContainerHigh, Modifier.fillMaxWidth().fillMaxHeight()
       .padding(horizontal = 12.dp, vertical = 8.dp).semantics {
@@ -68,7 +68,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       }.testTag("cache.storage.cylinder"))
     }
     Column(Modifier.weight(1f).testTag("cache.storage.legend"),
-      verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      verticalArrangement = Arrangement.spacedBy(12.dp)) {
       bytes.forEachIndexed { index, value ->
         val destination = when (index) { 4 -> "apple"; 5 -> "perfect"; else -> null }
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp)

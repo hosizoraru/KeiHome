@@ -2,7 +2,8 @@
 
 Cache management presents a compact status card with usage, reminder threshold,
 measurement time and health pills. The cylinder and category legend occupy equal
-widths. The OS4 edit icon immediately before toolbar Refresh opens the reminder
+widths, with a 32 dp gutter and 12 dp between category rows. The OS4 edit icon
+immediately before toolbar Refresh opens the reminder
 editor; the footer only explains cleanup scope and shows preview RAM.
 Six colors identify snapshots, built-in copies, transfers, temporary
 files, Apple downloads and Perfect resources. Apple/Perfect rows open their

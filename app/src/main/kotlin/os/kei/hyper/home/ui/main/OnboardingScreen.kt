@@ -37,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -154,9 +155,12 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus(DesktopSection.OVERVIEW) }
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
+  val behavior = top.yukonga.miuix.kmp.basic.MiuixScrollBehavior()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(R.string.navigation_desktop),
+        modifier = Modifier.testTag("setup.desktop.topbar"),
+        scrollBehavior = behavior,
         color = if (backdrop != null) androidx.compose.ui.graphics.Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
@@ -164,7 +168,9 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
     }
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState())
+      Column(Modifier.fillMaxSize().testTag("setup.desktop.content")
+        .nestedScroll(behavior.nestedScrollConnection)
+        .verticalScroll(rememberScrollState()).padding(insets)
         .padding(16.dp)) { DesktopPage(model, onOpenSection) }
     }
   }

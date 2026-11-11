@@ -103,7 +103,8 @@ controls/opaque surfaces remain usable.
 Ordinary scrolling child pages use the shared toolbar and connect their scroll
 behavior to the content. Insets belong inside the scrollable content so it can
 pass behind the progressive material; an outer top inset blocks that effect.
-Release history and Logs follow this contract. About intentionally keeps its
+Release history, Logs and the guide's Desktop overview follow this contract.
+About intentionally keeps its
 own animated background and specialized toolbar treatment.
 
 ## Components and ownership

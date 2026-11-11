@@ -187,6 +187,9 @@ class OnboardingNavigationTest {
     page(3)
     openLink(R.string.setup_open_desktop)
     destination("desktop.settings")
+    val desktopContent = rule.onNodeWithTag("setup.desktop.content").fetchSemanticsNode().boundsInRoot
+    val desktopToolbar = rule.onNodeWithTag("setup.desktop.topbar").fetchSemanticsNode().boundsInRoot
+    assertTrue("Desktop overview must scroll beneath its toolbar", desktopContent.top < desktopToolbar.bottom)
     back()
     page(3)
     openLink(R.string.setup_os4_desktop_dock)

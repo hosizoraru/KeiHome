@@ -79,6 +79,13 @@ Object type, size and Git identity are verified; unsafe source paths, symlinks
 and submodules are rejected. Repository scripts are data outside the selected
 resource graph and are not run.
 
+Android does not provide JMX or Kerberos classes referenced by JGit's desktop
+paths. Release R8 rules explicitly disable file-cache JMX publication and
+suppress only the concrete optional missing types. HTTP 401/407 are rejected
+before JGit authentication selection, so SPNEGO is not an anonymous fallback.
+There is no blanket keep/dontwarn rule for JGit. Release transport is checked
+through the real application after shrinking.
+
 Anonymous Git still depends on network/site availability. The transfer includes
 protocol and metadata overhead; compressed image changes generally require
 whole changed blobs. There is no promise of pixel-level deltas or a fixed speed

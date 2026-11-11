@@ -20,3 +20,28 @@
 -keep class os.kei.hyper.home.xposed.IconResourceProbeService {
     *;
 }
+
+# JGit's desktop JMX monitor has no Android runtime. The source store uses DFS;
+# also fold off the file-cache monitoring switch in the optimized build.
+-assumevalues class org.eclipse.jgit.storage.file.WindowCacheConfig {
+    public boolean getExposeStatsViaJmx() return false;
+}
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn javax.management.InstanceAlreadyExistsException
+-dontwarn javax.management.InstanceNotFoundException
+-dontwarn javax.management.JMException
+-dontwarn javax.management.MBeanRegistrationException
+-dontwarn javax.management.MBeanServer
+-dontwarn javax.management.MalformedObjectNameException
+-dontwarn javax.management.NotCompliantMBeanException
+-dontwarn javax.management.ObjectInstance
+-dontwarn javax.management.ObjectName
+
+# Anonymous transport rejects HTTP 401/407 before JGit authentication selection.
+# Kerberos/SPNEGO is consequently unreachable and is not provided on Android.
+-dontwarn org.ietf.jgss.GSSContext
+-dontwarn org.ietf.jgss.GSSCredential
+-dontwarn org.ietf.jgss.GSSException
+-dontwarn org.ietf.jgss.GSSManager
+-dontwarn org.ietf.jgss.GSSName
+-dontwarn org.ietf.jgss.Oid

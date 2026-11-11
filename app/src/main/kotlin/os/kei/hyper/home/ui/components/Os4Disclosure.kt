@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +36,7 @@ internal fun Os4DisclosureHeader(
   stateLabel: String,
   onToggle: () -> Unit,
   modifier: Modifier = Modifier,
+  titleContent: (@Composable () -> Unit)? = null,
   bottomAction: (@Composable () -> Unit)? = null,
 ) {
   val rotation by animateFloatAsState(
@@ -42,17 +44,25 @@ internal fun Os4DisclosureHeader(
     animationSpec = spring(dampingRatio = 1f, stiffness = 500f),
     label = "disclosure-chevron",
   )
-  BasicComponent(
+  val indicator: @Composable RowScope.() -> Unit = {
+    Icon(MiuixIcons.Glass.ChevronForward, null,
+      modifier = Modifier.size(24.dp).testTag("disclosure.indicator").graphicsLayer { rotationZ = rotation },
+      tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+  }
+  if (titleContent != null) {
+    BasicComponent(
+      modifier = modifier.semantics { stateDescription = stateLabel },
+      onClick = onToggle, onClickLabel = actionLabel, role = Role.Button,
+      insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+      bottomAction = bottomAction, endActions = indicator,
+    ) { titleContent() }
+  } else BasicComponent(
     title = title, summary = summary,
     modifier = modifier.semantics { stateDescription = stateLabel },
     onClick = onToggle, onClickLabel = actionLabel, role = Role.Button,
     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     bottomAction = bottomAction,
-    endActions = {
-      Icon(MiuixIcons.Glass.ChevronForward, null,
-        modifier = Modifier.size(24.dp).testTag("disclosure.indicator").graphicsLayer { rotationZ = rotation },
-        tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-    },
+    endActions = indicator,
   )
 }
 

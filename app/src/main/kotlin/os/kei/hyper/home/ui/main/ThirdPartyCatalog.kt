@@ -54,6 +54,8 @@ internal val thirdPartyComponents = listOf(
     "https://github.com/Kotlin", groups = listOf("org.jetbrains.kotlinx")),
   ThirdPartyComponent("mmkv", "Tencent MMKV", R.string.notices_role_mmkv,
     "https://github.com/Tencent/MMKV", listOf("mmkv"), listOf("com.tencent")),
+  ThirdPartyComponent("commonmark", "CommonMark", R.string.notices_role_markdown,
+    "https://github.com/commonmark/commonmark-java", listOf("commonmark"), listOf("org.commonmark")),
   ThirdPartyComponent("dexkit", "DexKit", R.string.notices_role_dexkit,
     "https://github.com/LuckyPray/DexKit",
     listOf("dexkit-apache", "dexkit-lgpl", "gpl", "dexkit-source"), listOf("org.luckypray")),

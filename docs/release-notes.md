@@ -2,9 +2,11 @@
 
 Settings has a dedicated OS4 release-history page and a searchable entry.
 Each release has its own disclosure card. The installed release opens by
-default; when its notes have not been authored, the newest available release
-opens and the page says that current-version notes are pending. Other cards
-remain collapsed until opened. Independent expansion and scroll state survive
+default; when its notes have not been authored, its card contains only a concise
+placeholder. The page has no duplicate current-version or first-public-release pills. Other cards
+remain collapsed until opened. Compact ISO dates sit to the right of each version,
+with wrapping on narrow or large-text windows. Markdown is parsed with CommonMark
+and rendered with native MIUIX text, lists and theme colors. Independent expansion and scroll state survive
 saved-state restoration.
 
 Dates are derived from each release tag's **target commit committer timestamp**,
@@ -28,6 +30,11 @@ network requests, APK inspection or native hooks.
   are excluded; newly encountered recorded versions have an unread pill.
 - The manual Settings entry remains available independently of startup.
 
+The scrolling viewport extends behind the toolbar, with the scaffold's top
+inset applied inside the scrollable content. This lets the shared MIUIX chrome
+render the selected progressive or Gaussian material; OFF retains an opaque
+toolbar. Large text and the floating Continue action retain their own clearance.
+
 The single MMKV snapshot stores the observed prefix, acknowledged release,
 pending target prefix and pending recorded versions. No build numbers are used
 to decide presentation. On first migration from a build without this snapshot,
@@ -42,7 +49,7 @@ The catalog begins with 1.4.0. Chinese 1.4.0 and 1.5.0 notes use the user's
 public text; English and Japanese are translations. 1.6.0 describes the final
 changes from `v1.5.0` to `v1.6.0`. See
 [content provenance](release-notes-history.md) and the standalone
-[1.6.0 notes](releases/1.6.0.md). There are no 1.7.0 content entries yet.
+[1.6.0 notes](releases/1.6.0.md). 1.7.0 has only a one-sentence placeholder; its actual release notes remain unwritten.
 The local `v1.7.0` tag points to the version-prefix advancement commit and does
 not publish a remote release.
 

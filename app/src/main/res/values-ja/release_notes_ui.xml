@@ -4,10 +4,6 @@
     <string name="release_notes_summary">各バージョンの新機能と改善を確認</string>
     <string name="release_notes_search_keywords">更新 リリース 変更履歴 履歴 バージョン release changelog history versions</string>
     <string name="release_notes_ui_title">@string/release_notes_title</string>
-    <string name="release_notes_ui_current_version">現在のバージョン %1$s</string>
-    <string name="release_notes_ui_first_public">最初の公開バージョン %1$s</string>
-    <string name="release_notes_ui_pending">現在のバージョンの更新内容は、リリース前に追加されます。</string>
-    <string name="release_notes_ui_pending_badge">更新内容は準備中</string>
     <string name="release_notes_ui_continue">続ける</string>
     <string name="release_notes_ui_expand">%1$s の更新内容を展開</string>
     <string name="release_notes_ui_collapse">%1$s の更新内容を折りたたむ</string>
@@ -16,5 +12,4 @@
     <string name="release_notes_ui_unread">未読</string>
     <string name="release_notes_ui_date_unavailable">日付不明</string>
     <string name="release_notes_ui_empty">このバージョンの更新履歴はまだありません。</string>
-    <string name="release_notes_ui_item_number">%1$d.</string>
 </resources>

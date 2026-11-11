@@ -1,4 +1,5 @@
 <resources>
+    <string name="release_notes_1_7_0_placeholder">Release notes will be added before publication.</string>
     <string name="release_notes_1_4_0_introduction">Built for the Rust + Flutter HyperOS system launcher, with dynamic compatibility discovery, API 102 automatic hot reload, and in-app feature and connection status.</string>
     <string-array name="release_notes_1_4_0_changes">
         <item>Automatic light and dark icons\nSupported icons in the built-in Default / Classic / Boundless packs follow the system appearance without importing another icon pack.</item>

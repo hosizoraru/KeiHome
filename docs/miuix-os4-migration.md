@@ -100,6 +100,12 @@ choice. This controls application chrome, not the launcher's Dock material.
 When off or unsupported, no page backdrop is allocated and ordinary OS4
 controls/opaque surfaces remain usable.
 
+Ordinary scrolling child pages use the shared toolbar and connect their scroll
+behavior to the content. Insets belong inside the scrollable content so it can
+pass behind the progressive material; an outer top inset blocks that effect.
+Release history and Logs follow this contract. About intentionally keeps its
+own animated background and specialized toolbar treatment.
+
 ## Components and ownership
 
 | Surface | Adapter / behavior |

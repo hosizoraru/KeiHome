@@ -21,6 +21,7 @@ import os.kei.hyper.home.MainNavigation
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppLocalStorage
 import os.kei.hyper.home.data.AppPreferences
+import os.kei.hyper.home.data.AppTopBarBlur
 import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.data.ReleaseNotesPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
@@ -34,11 +35,13 @@ class ReleaseNotesNavigationTest {
   @get:Rule(order = 1) val rule = createAndroidComposeRule<ComponentActivity>()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val stores = mutableListOf<String>()
+  private var previousBlur: AppTopBarBlur? = null
   private fun id() = "release_ui_${UUID.randomUUID()}".also(stores::add)
   private fun setup(complete: Boolean) =
     OnboardingPreferences(context, id(), existingConfiguration = complete)
 
   @After fun clean() {
+    previousBlur?.let { AppPreferences.get(context).setTopBarBlur(it) }
     stores.forEach { AppLocalStorage.open(context, it).close(); MMKV.removeStorage(it) }
   }
 
@@ -59,9 +62,13 @@ class ReleaseNotesNavigationTest {
     val before = AppPreferences.get(context).state.value
     rule.setContent { KeiHomeTheme { MainNavigation(onboarding, update) } }
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
-    rule.onNodeWithTag("release-notes.body.1.6.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.7.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.6.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.5.0").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.release.1.7.0").assertDoesNotExist()
+    val version = rule.onNodeWithTag("release-notes.version.1.7.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val date = rule.onNodeWithTag("release-notes.date.1.7.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    assertTrue("Date must be on the right of the version", date.left >= version.right)
+    assertTrue("Date and version must share a row", date.top < version.bottom && date.bottom > version.top)
     shot("upgrade")
     rule.onNodeWithTag("release-notes.continue").performClick()
     rule.onNodeWithTag("release-notes.page").assertDoesNotExist()
@@ -71,8 +78,8 @@ class ReleaseNotesNavigationTest {
     rule.onNodeWithTag("settings.entry.release-notes").performScrollTo().performClick()
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
     rule.onNodeWithTag("release-notes.continue").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.toggle.1.6.0").performClick()
-    rule.onNodeWithTag("release-notes.body.1.6.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.toggle.1.7.0").performClick()
+    rule.onNodeWithTag("release-notes.body.1.7.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.date.1.5.0", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
     shot("manual-collapsed")
     rule.onNodeWithTag("release-notes.toggle.1.5.0").performClick()
@@ -131,7 +138,7 @@ class ReleaseNotesNavigationTest {
         KeiHomeTheme { ReleaseNotesScreen({}, onContinue = {}) }
       }
     }
-    rule.onNodeWithTag("release-notes.toggle.1.6.0").performScrollTo().performClick()
+    rule.onNodeWithTag("release-notes.toggle.1.7.0").performScrollTo().performClick()
     rule.onNodeWithTag("release-notes.toggle.1.4.0").performScrollTo().performClick()
     rule.onNodeWithTag("release-notes.end").performScrollTo().assertIsDisplayed()
     rule.onNodeWithTag("release-notes.content").performTouchInput { swipeUp() }
@@ -154,5 +161,22 @@ class ReleaseNotesNavigationTest {
     rule.onNodeWithTag("release-notes.date.1.6.0", useUnmergedTree = true).assertIsDisplayed()
     rule.onNodeWithTag("release-notes.date.1.4.0", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
     shot("light-collapsed")
+  }
+
+  @Test fun scrolledNotesPassBehindTheToolbarAcrossAllMaterialSettings() {
+    val preferences = AppPreferences.get(context)
+    previousBlur = preferences.state.value.topBarBlur
+    rule.setContent { KeiHomeTheme { ReleaseNotesScreen({}) } }
+    rule.onNodeWithTag("release-notes.toggle.1.4.0").performScrollTo().performClick()
+    for (mode in AppTopBarBlur.entries) {
+      rule.runOnIdle { preferences.setTopBarBlur(mode) }
+      rule.onNodeWithTag("release-notes.content").performTouchInput { swipeUp() }
+      rule.waitForIdle()
+      val viewport = rule.onNodeWithTag("release-notes.content").fetchSemanticsNode().boundsInRoot
+      val toolbar = rule.onNodeWithTag("release-notes.topbar").fetchSemanticsNode().boundsInRoot
+      assertTrue("Scrollable content must extend beneath the $mode toolbar", viewport.top < toolbar.bottom)
+      rule.onNodeWithTag("release-notes.back").assertIsDisplayed().assertHasClickAction()
+      shot("toolbar-${mode.name.lowercase()}")
+    }
   }
 }

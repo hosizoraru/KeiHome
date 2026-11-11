@@ -27,8 +27,9 @@ English and Japanese faithfully translate these announcements, using existing
 localized style names.
 
 The new `v1.7.0` tag does not publish release notes. There is deliberately no
-1.7.0 entry or 1.7.0 content resource yet. Development builds must not silently
-relabel 1.6.0 notes as 1.7.0 notes.
+1.7.0 release text in this historical audit. The current catalog adds only a
+one-sentence 1.7.0 placeholder. Development builds must not silently relabel
+1.6.0 notes as 1.7.0 notes.
 
 ## 1.6.0 editorial boundary
 
@@ -81,7 +82,7 @@ The following later work is deliberately absent from 1.6.0 notes:
 ## Focused content validation
 
 Content-only checks verified XML parsing, identical resource names and array
-lengths across all three locales (12 / 9 / 13), absence of 1.7.0 content, exact
+lengths across all three locales (12 / 9 / 13), absence of authored 1.7.0 release text (the UI now has a placeholder), exact
 tag target hashes/timestamps, and inclusion of the cited implementation commits
 in the requested historical range. The Chinese 1.4.0 and 1.5.0 strings were
 compared directly against the complete supplied announcement, including the

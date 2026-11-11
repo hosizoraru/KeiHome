@@ -126,6 +126,7 @@ dependencies {
   implementation(libs.material.color.utilities)
   implementation(libs.mmkv)
   implementation(libs.zipflinger)
+  implementation(libs.commonmark)
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)

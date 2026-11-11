@@ -45,6 +45,7 @@ internal val bundledLicenses = listOf(
   BundledLicense("gpl", "GNU GPL 3.0", "licenses/GPL-3.0.txt"),
   BundledLicense("materialkolor", "MaterialKolor · MIT", "licenses/MaterialKolor-MIT.txt"),
   BundledLicense("mmkv", "MMKV · BSD 3-Clause", "licenses/MMKV-BSD-3-Clause.txt"),
+  BundledLicense("commonmark", "CommonMark · BSD 2-Clause", "licenses/CommonMark-BSD-2-Clause.txt"),
   BundledLicense("libcxx", "libc++ · Apache 2.0 / LLVM", "licenses/libcxx-LICENSE.txt"),
   BundledLicense("lsplt", "LSPlt · LGPL 3.0", "licenses/LSPlt-LGPL-3.0.txt"),
   BundledLicense("lucide-isc", "Lucide Icons · ISC / MIT", "licenses/Lucide-ISC.txt"),

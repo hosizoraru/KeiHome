@@ -4,10 +4,6 @@
     <string name="release_notes_summary">查看各版本的新功能与改进</string>
     <string name="release_notes_search_keywords">更新 发布 日志 历史 版本 release changelog history versions</string>
     <string name="release_notes_ui_title">@string/release_notes_title</string>
-    <string name="release_notes_ui_current_version">当前版本 %1$s</string>
-    <string name="release_notes_ui_first_public">首个公开版本 %1$s</string>
-    <string name="release_notes_ui_pending">当前版本日志将在发布前补充</string>
-    <string name="release_notes_ui_pending_badge">日志待补充</string>
     <string name="release_notes_ui_continue">继续</string>
     <string name="release_notes_ui_expand">展开 %1$s 的更新日志</string>
     <string name="release_notes_ui_collapse">收起 %1$s 的更新日志</string>
@@ -16,5 +12,4 @@
     <string name="release_notes_ui_unread">未读</string>
     <string name="release_notes_ui_date_unavailable">日期暂无</string>
     <string name="release_notes_ui_empty">此版本暂无可用的更新日志。</string>
-    <string name="release_notes_ui_item_number">%1$d.</string>
 </resources>

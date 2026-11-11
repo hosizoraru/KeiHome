@@ -1,4 +1,5 @@
 <resources>
+    <string name="release_notes_1_7_0_placeholder">更新内容はリリース前に追記します。</string>
     <string name="release_notes_1_4_0_introduction">Rust + Flutter を採用した HyperOS システムランチャー向けに、動的解析による互換対応、API 102 の自動ホットリロード、アプリ内での機能の適用状況と接続状態の確認を提供します。</string>
     <string-array name="release_notes_1_4_0_changes">
         <item>アイコンのライト／ダーク自動切り替え\nシステム標準の「デフォルト / クラシック / バウンドレス」アイコンパックでは、対応アイコンがシステムのライト／ダーク設定に追従します。別のアイコンパックを読み込む必要はありません。</item>

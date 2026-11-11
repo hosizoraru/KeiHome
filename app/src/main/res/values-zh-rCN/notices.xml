@@ -31,4 +31,5 @@
     <string name="notices_role_glass">经 MIUIX 改编的玻璃与动画示例 · Apache 2.0</string>
     <string name="notices_role_native">原生 Hook 基础设施参考 · Apache 2.0</string>
     <string name="notices_role_history">早期原生后端，当前载荷未包含 · LGPL 3.0</string>
+    <string name="notices_role_markdown">更新日志 Markdown 解析 · BSD 2-Clause</string>
 </resources>

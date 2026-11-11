@@ -31,4 +31,5 @@
     <string name="notices_role_glass">MIUIX 経由のガラスとアニメーションのサンプル改編 · Apache 2.0</string>
     <string name="notices_role_native">ネイティブ Hook 基盤の参考実装 · Apache 2.0</string>
     <string name="notices_role_history">以前のネイティブバックエンド。現在のペイロードには含まれません · LGPL 3.0</string>
+    <string name="notices_role_markdown">更新履歴の Markdown 解析 · BSD 2-Clause</string>
 </resources>

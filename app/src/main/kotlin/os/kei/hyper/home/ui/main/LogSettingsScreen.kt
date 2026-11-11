@@ -27,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -57,6 +58,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -96,9 +98,11 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   val levelLabels = listOf(R.string.logs_level_verbose, R.string.logs_level_debug, R.string.logs_level_info,
     R.string.logs_level_warn, R.string.logs_level_error, R.string.logs_level_off)
   val backdrop = rememberKeiHomeBlurBackdrop()
+  val behavior = MiuixScrollBehavior()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(R.string.settings_log_section),
+        scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
           IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
@@ -136,6 +140,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
     val openFrameworkLogs = rememberFrameworkManagerAction(os.kei.hyper.home.status.FrameworkManagerProtocol.LOGS)
     Column(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
+      .nestedScroll(behavior.nestedScrollConnection)
       .verticalScroll(rememberScrollState())
       .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
         bottom = padding.calculateBottomPadding() + actionBottomPadding),

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,18 +30,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.ReleaseNote
@@ -100,6 +96,7 @@ internal fun ReleaseNotesScreen(
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(
           title = stringResource(R.string.release_notes_ui_title),
+          modifier = Modifier.testTag("release-notes.topbar"),
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behavior,
           navigationIcon = {
@@ -132,10 +129,6 @@ internal fun ReleaseNotesScreen(
       Column(
         Modifier.widthIn(max = 840.dp).fillMaxSize()
           .testTag("release-notes.content")
-          .padding(
-            top = insets.calculateTopPadding(),
-            bottom = insets.calculateBottomPadding(),
-          )
           .drawWithCache {
             val fadeHeight = if (onContinue == null) 0f else (actionClearance + 24.dp).toPx().coerceAtMost(size.height)
             val start = size.height - fadeHeight
@@ -150,33 +143,11 @@ internal fun ReleaseNotesScreen(
           .verticalScroll(scroll)
           .padding(
             start = 16.dp, end = 16.dp,
-            top = 12.dp, bottom = actionClearance + 12.dp,
+            top = insets.calculateTopPadding() + 12.dp,
+            bottom = insets.calculateBottomPadding() + actionClearance + 12.dp,
           ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-          verticalArrangement = Arrangement.spacedBy(10.dp)) {
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            MetadataPill(
-              stringResource(R.string.release_notes_ui_current_version, currentVersion.substringBefore('+')),
-              MiuixTheme.colorScheme.primary,
-            )
-            if (currentRelease == null) {
-              MetadataPill(stringResource(R.string.release_notes_ui_pending_badge),
-                MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-            ReleaseNotesCatalog.releases.lastOrNull()?.let { first ->
-              MetadataPill(stringResource(R.string.release_notes_ui_first_public, first.version),
-                MiuixTheme.colorScheme.onSurfaceSecondary)
-            }
-          }
-          if (currentRelease == null) {
-            Text(stringResource(R.string.release_notes_ui_pending),
-              style = MiuixTheme.textStyles.body2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-        }
         releases.forEach { release ->
           key(release.version) {
             ReleaseNotesCard(
@@ -209,12 +180,11 @@ private fun ReleaseNotesCard(
   highlighted: Boolean,
   onToggle: () -> Unit,
 ) {
-  val locale = LocalConfiguration.current.locales[0]
-  val date = remember(release.committedAt, locale) {
+  val date = remember(release.committedAt) {
     runCatching {
       // Keep the target commit's own calendar date; the tag creation date is unrelated.
       OffsetDateTime.parse(release.committedAt).toLocalDate()
-        .format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
+        .format(DateTimeFormatter.ISO_LOCAL_DATE)
     }.getOrNull()
   }
   Card(Modifier.fillMaxWidth().testTag("release-notes.release.${release.version}"),
@@ -232,9 +202,11 @@ private fun ReleaseNotesCard(
       ),
       onToggle = onToggle,
       modifier = Modifier.testTag("release-notes.toggle.${release.version}").semantics { heading() },
-      bottomAction = {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      titleContent = {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+          Text(release.version, style = MiuixTheme.textStyles.headline1,
+            modifier = Modifier.testTag("release-notes.version.${release.version}"))
           MetadataPill(date ?: stringResource(R.string.release_notes_ui_date_unavailable),
             MiuixTheme.colorScheme.onSurfaceSecondary,
             Modifier.testTag("release-notes.date.${release.version}"))
@@ -246,37 +218,30 @@ private fun ReleaseNotesCard(
       },
     )
     Os4DisclosureContent(expanded) {
-      Column(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 20.dp)
-          .testTag("release-notes.body.${release.version}"),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-      ) {
-        if (release.introduction != 0) {
-          Text(stringResource(release.introduction), style = MiuixTheme.textStyles.body2)
-        }
-        stringArrayResource(release.changes).forEachIndexed { index, change ->
-          ReleaseNotesChange(index + 1, change)
-        }
-        if (release.footnote != 0) {
-          Text(stringResource(release.footnote), style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-      }
+      ReleaseNotesBody(release)
     }
   }
 }
 
 @Composable
-private fun ReleaseNotesChange(number: Int, change: String) {
-  val title = change.substringBefore('\n').trim()
-  val body = change.substringAfter('\n', "").trim()
-  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-    Text(stringResource(R.string.release_notes_ui_item_number, number),
-      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.primary)
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text(title, style = if (body.isEmpty()) MiuixTheme.textStyles.body2
-        else MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold))
-      if (body.isNotEmpty()) Text(body, style = MiuixTheme.textStyles.body2)
-    }
+private fun ReleaseNotesBody(release: ReleaseNote) {
+  val intro = if (release.introduction == 0) "" else stringResource(release.introduction)
+  val changes = if (release.changes == 0) emptyList() else stringArrayResource(release.changes).toList()
+  val footnote = if (release.footnote == 0) "" else stringResource(release.footnote)
+  val markdown = remember(intro, changes, footnote) {
+    buildString {
+      if (intro.isNotBlank()) append(intro).append("\n\n")
+      changes.forEachIndexed { index, change ->
+        val title = change.substringBefore('\n')
+        val body = change.substringAfter('\n', "")
+        val item = if (body.isBlank()) change else "**$title**\n\n$body"
+        append("${index + 1}. ").append(item.replace("\n", "\n    ")).append("\n\n")
+      }
+      if (footnote.isNotBlank()) append("> ").append(footnote.replace("\n", "\n> "))
+    }.trim()
+  }
+  Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
+    .testTag("release-notes.body.${release.version}")) {
+    ReleaseNotesMarkdown(markdown)
   }
 }

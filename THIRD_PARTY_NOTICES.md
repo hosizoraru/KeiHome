@@ -1,5 +1,14 @@
 # Third-party notices
 
+## CommonMark
+
+`org.commonmark:commonmark` parses bundled release-note Markdown. Rendering uses
+MIUIX typography and native Compose text without a WebView or remote assets.
+CommonMark Java is BSD 2-Clause licensed:
+<https://github.com/commonmark/commonmark-java>.
+The complete copyright notice, terms and disclaimer are bundled as
+`assets/licenses/CommonMark-BSD-2-Clause.txt`.
+
 ## Lucide Icons for Android
 
 `com.composables:icons-lucide-android` 2.2.1 supplies a small set of semantic

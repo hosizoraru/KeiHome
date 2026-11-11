@@ -63,7 +63,8 @@ class ReleaseNotesNavigationTest {
     rule.setContent { KeiHomeTheme { MainNavigation(onboarding, update) } }
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
     rule.onNodeWithTag("release-notes.body.1.7.0").assertExists()
-    rule.onNodeWithTag("release-notes.body.1.6.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.body.1.6.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.5.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.5.0").assertDoesNotExist()
     val version = rule.onNodeWithTag("release-notes.version.1.7.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     val date = rule.onNodeWithTag("release-notes.date.1.7.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot

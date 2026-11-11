@@ -30,6 +30,12 @@ network requests, APK inspection or native hooks.
   are excluded; newly encountered recorded versions have an unread pill.
 - The manual Settings entry remains available independently of startup.
 
+`ReleaseNote.expandOnUpgrade` controls the cards initially expanded during the
+one-time upgrade presentation. For 1.7.0 this includes 1.7.0 and 1.6.0; older
+unread versions remain available without being forced open. Manual Settings
+entry always defaults to the current release only. The selection is authored
+before release and does not change the prefix-based automatic presentation rule.
+
 The scrolling viewport extends behind the toolbar, with the scaffold's top
 inset applied inside the scrollable content. This lets the shared MIUIX chrome
 render the selected progressive or Gaussian material; OFF retains an opaque

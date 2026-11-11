@@ -75,12 +75,11 @@ internal fun ReleaseNotesScreen(
       parsedCurrent != null && version != null && version <= parsedCurrent
     }
   }
-  val currentRelease = releases.firstOrNull { ReleaseVersion.parse(it.version) == parsedCurrent }
-  val defaultOpen = currentRelease ?: releases.firstOrNull()
   var openedVersions by rememberSaveable(
     currentVersion,
+    onContinue != null,
     stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it }),
-  ) { mutableStateOf(listOfNotNull(defaultOpen?.version)) }
+  ) { mutableStateOf(ReleaseNotesCatalog.initiallyExpandedVersions(currentVersion, upgrade = onContinue != null)) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionClearance = if (onContinue != null) {
     maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)

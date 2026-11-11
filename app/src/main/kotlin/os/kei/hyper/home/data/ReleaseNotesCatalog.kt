@@ -12,6 +12,7 @@ internal data class ReleaseNote(
   @param:StringRes val introduction: Int = 0,
   @param:ArrayRes val changes: Int = 0,
   @param:StringRes val footnote: Int = 0,
+  val expandOnUpgrade: List<String> = emptyList(),
 )
 
 internal object ReleaseNotesCatalog {
@@ -23,6 +24,7 @@ internal object ReleaseNotesCatalog {
       commit = "8b71d5ae41eaca2a820d8a1105703074ef22425f",
       committedAt = "2026-11-11T17:53:39+08:00",
       introduction = R.string.release_notes_1_7_0_placeholder,
+      expandOnUpgrade = listOf("1.7.0", "1.6.0"),
     ),
     ReleaseNote(
       version = "1.6.0",
@@ -50,4 +52,14 @@ internal object ReleaseNotesCatalog {
       footnote = R.string.release_notes_1_4_0_footnote,
     ),
   )
+
+  fun initiallyExpandedVersions(currentVersion: String, upgrade: Boolean): List<String> {
+    val current = ReleaseVersion.parse(currentVersion) ?: return emptyList()
+    val visible = releases.filter { ReleaseVersion.parse(it.version)!! <= current }
+    val currentRelease = visible.firstOrNull { ReleaseVersion.parse(it.version) == current }
+    val defaultRelease = currentRelease ?: visible.firstOrNull() ?: return emptyList()
+    val configured = if (upgrade) currentRelease?.expandOnUpgrade.orEmpty() else emptyList()
+    val available = visible.mapTo(mutableSetOf()) { it.version }
+    return (listOf(defaultRelease.version) + configured).filter { it in available }.distinct()
+  }
 }

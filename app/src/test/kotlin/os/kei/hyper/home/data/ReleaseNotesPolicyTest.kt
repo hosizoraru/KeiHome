@@ -83,4 +83,20 @@ class ReleaseNotesPolicyTest {
     assertNull(ReleaseVersion.parse("1.0"))
     assertNull(ReleaseVersion.parse("1.0.no"))
   }
+
+  @Test fun upgradeUsesTheReleaseAuthorsExpansionSelection() {
+    assertEquals(listOf("1.7.0", "1.6.0"),
+      ReleaseNotesCatalog.initiallyExpandedVersions("1.7.0+g1234567.b0999", upgrade = true))
+  }
+
+  @Test fun manualHistoryOpensOnlyTheCurrentRelease() {
+    assertEquals(listOf("1.7.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.7.0", upgrade = false))
+    assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = false))
+  }
+
+  @Test fun unconfiguredReleasesDoNotInheritAnotherReleasesExpansionSelection() {
+    assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = true))
+    assertEquals(listOf("1.7.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0", upgrade = true))
+    assertEquals(emptyList<String>(), ReleaseNotesCatalog.initiallyExpandedVersions("broken", upgrade = true))
+  }
 }

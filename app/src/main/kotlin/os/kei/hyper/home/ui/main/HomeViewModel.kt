@@ -258,7 +258,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         iconPacks.map { Triple(it.packs, it.nativeSources, it.nativeImporting) }.distinctUntilChanged(),
         preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
         preferences.state.map { Triple(it.systemAppNameMatching, it.colorOsForOtherPacks,
-          it.installedIconsOnly) }.distinctUntilChanged(),
+          it.installedIconsOnly to it.completeSystemIconConfig) }.distinctUntilChanged(),
         packageInventoryRevision) { _, _, _, _, _ -> Unit }
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
@@ -287,7 +287,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             caller.ensureActive()
           }
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
-            installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource) {
+            installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource,
+            completeSystemIconConfig = preferences.state.value.completeSystemIconConfig) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
@@ -591,7 +592,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       try {
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
-          selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly)
+          selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly,
+          selected.completeSystemIconConfig)
         if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)

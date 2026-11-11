@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="complete_system_icon_config_title">アイコン設定を自動補完</string>
+    <string name="complete_system_icon_config_summary">不足するシステムアイコン設定を補い、作者の設定は保持します。インポート済みアイコンの更新で反映されます。</string>
+</resources>

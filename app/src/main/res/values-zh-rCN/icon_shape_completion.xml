@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="complete_system_icon_config_title">自动补全图标配置</string>
+    <string name="complete_system_icon_config_summary">缺少系统图标配置时自动补全，保留作者已有配置。更新导入的图标后生效。</string>
+</resources>

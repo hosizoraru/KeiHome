@@ -53,6 +53,7 @@ internal data class AppPreferencesState(
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
+  val completeSystemIconConfig: Boolean = true,
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
   val colorOsForOtherPacks: Boolean = false,
@@ -103,6 +104,7 @@ internal class AppPreferences internal constructor(
       runCatching { SystemIconFallback.valueOf(name) }.getOrNull()
         ?.takeIf { it.isPerfect || it in systemIconFallbackChoices }
     } ?: SystemIconFallback.DEFAULT,
+    completeSystemIconConfig = preferences.getBoolean("complete_system_icon_config", true),
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     colorOsForOtherPacks = preferences.getBoolean("coloros_other_packs", false),
@@ -228,6 +230,11 @@ internal class AppPreferences internal constructor(
       (value in systemIconFallbackChoices || value.isPerfect))
     preferences.edit().putString("system_icon_fallback", value.name).apply()
     state.update { it.copy(systemIconFallback = value) }
+  }
+
+  fun setCompleteSystemIconConfig(value: Boolean) {
+    preferences.edit().putBoolean("complete_system_icon_config", value).apply()
+    state.update { it.copy(completeSystemIconConfig = value) }
   }
 
   fun setPerfectFallbackExpanded(value: Boolean) {

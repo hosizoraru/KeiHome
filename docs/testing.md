@@ -31,6 +31,7 @@ does not automatically run navigation, color editing or native tests.
 | Date/time display | `pack-time`; pill test only if its layout changes |
 | Perfect source/sync/history/health | `perfect-sync` |
 | Scope requests and authorization state | `scope`; manual onboarding check if wording/flow changes |
+| Native icon config completion, generation flags and import boundaries | `icon-shape`; `icon-shape-device` for archive and raster checks |
 | Reload retirement bookkeeping | `hook-lifecycle`; normal deployment/handoff checks when runtime changes |
 | Broad infrastructure/dependency changes or release gate | `release-jvm`, appropriate lint and affected device/native suites |
 

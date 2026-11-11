@@ -26,6 +26,33 @@ class SystemFallbackPreferencesTest {
     assertFalse(preferences.state.value.perfectFallbackExpanded)
   }
 
+  @Test fun systemIconConfigCompletionDefaultsOnWithoutWritingToLegacyPreferences() {
+    val store = Store(mutableMapOf("system_app_name_matching" to false, "remember_menus" to false))
+    val before = store.values.toMap()
+    assertTrue(AppPreferencesState().completeSystemIconConfig)
+    assertTrue(store.open().state.value.completeSystemIconConfig)
+    assertEquals(before, store.values)
+  }
+
+  @Test fun systemIconConfigCompletionPersistsBothChoicesAndPreservesOtherSettings() {
+    val store = Store(mutableMapOf(
+      "system_icon_fallback" to SystemIconFallback.CLASSIC.name,
+      "perfect_fallback_expanded" to true,
+      "system_app_name_matching" to false,
+      "coloros_component_com.example.app" to true,
+    ))
+    val originalValues = store.values.toMap()
+    val originalState = store.open().state.value
+    var preferences = store.open()
+    for (enabled in listOf(false, true, false)) {
+      preferences.setCompleteSystemIconConfig(enabled)
+      assertEquals(originalState.copy(completeSystemIconConfig = enabled), preferences.state.value)
+      assertEquals(originalValues + ("complete_system_icon_config" to enabled), store.values)
+      preferences = store.open()
+      assertEquals(originalState.copy(completeSystemIconConfig = enabled), preferences.state.value)
+    }
+  }
+
   @Test fun compactPackHintsDefaultOffWithoutWritingToLegacyPreferences() {
     val store = Store(mutableMapOf("remember_menus" to false, "icon_previews" to false))
     val before = store.values.toMap()

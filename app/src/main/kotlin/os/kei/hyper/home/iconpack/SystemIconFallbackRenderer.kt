@@ -173,7 +173,8 @@ internal class SystemIconFallbackRenderer(
       catch (_: android.content.res.Resources.NotFoundException) { null }
   }
 
-  private fun renderAdaptive(source: AdaptiveIconDrawable, size: Int, check: () -> Unit): Bitmap {
+  /** Shared raster path for native layers and APK adaptives; also exercised by edge fixtures. */
+  internal fun renderAdaptive(source: AdaptiveIconDrawable, size: Int, check: () -> Unit): Bitmap {
     check()
     val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     try {

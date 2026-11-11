@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="complete_system_icon_config_title">Auto-complete icon configuration</string>
+    <string name="complete_system_icon_config_summary">Fill missing system icon settings while keeping authored configuration. Update imported icons to apply.</string>
+</resources>

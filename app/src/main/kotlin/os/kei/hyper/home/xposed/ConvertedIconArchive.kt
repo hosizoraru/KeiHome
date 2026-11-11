@@ -120,15 +120,18 @@ internal object ConvertedIconArchive {
         val provenance = entry.name == SystemIconFallbackManifest.PATH
         val generation = entry.name == os.kei.hyper.home.iconpack.IconGenerationManifest.PATH
         val metadata = entry.name == os.kei.hyper.home.iconpack.IconThemeMetadata.PATH
-        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource || generation || metadata) &&
+        val shape = entry.name == os.kei.hyper.home.iconpack.NativeIconShapeConfig.PATH
+        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource || generation || metadata || shape) &&
           entry.name.length <= 300 && names.add(entry.name) && names.size <= 20000) {
           "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
         }
         val manifest = fancy?.groupValues?.get(2) == "manifest.xml"
-        val limit = minOf(if (buildSource || metadata) 4096L else if (manifest) 64L * 1024 else 8L * 1024 * 1024, MAX_BYTES - total)
+        val limit = minOf(if (shape) os.kei.hyper.home.iconpack.NativeIconShapeConfig.MAX_BYTES.toLong()
+          else if (buildSource || metadata) 4096L else if (manifest) 64L * 1024 else 8L * 1024 * 1024, MAX_BYTES - total)
         val bytes = readIconEntry(zip, entry, limit)
         total += bytes.size
         if (buildSource) os.kei.hyper.home.iconpack.IconBuildInventory.decodeSource(bytes)
+        else if (shape) os.kei.hyper.home.iconpack.NativeIconShapeConfig.validateGenerated(bytes)
         else if (generation) os.kei.hyper.home.iconpack.IconGenerationManifest.decode(bytes)
         else if (metadata) requireNotNull(os.kei.hyper.home.iconpack.IconThemeMetadata.decode(bytes))
         else if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)

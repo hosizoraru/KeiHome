@@ -52,6 +52,12 @@ GROUPS = {
         "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest")),
     "scope": ("jvm", "Scope authorization requests and missing targets", (
         "StaticScopeRequestsTest",)),
+    "icon-shape": ("jvm", "Native config completion, generation flags and converted archive boundaries", (
+        "NativeIconShapeConfigTest", "IconGenerationManifestTest", "ConvertedIconArchiveTest",
+        "IconPackUpdateNoticeTest", "SystemFallbackPreferencesTest")),
+    "icon-shape-device": ("device", "Native archive preservation, completion policy and fallback alpha edges", (
+        "os.kei.hyper.home.iconpack.NativeIconShapeCompletionDeviceTest",
+        "os.kei.hyper.home.iconpack.SystemIconFallbackEdgeTest")),
     "hook-lifecycle": ("jvm", "Generation retirement bookkeeping (no device action)", (
         "ModuleRetirementMaintenanceTest",)),
     "release-jvm": ("jvm", "Full JVM suite; opt in for broad changes or releases", ()),

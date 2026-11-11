@@ -100,9 +100,23 @@ class IconPackUpdateNoticeTest {
       assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
         emptySet(), installedOnly = installedOnly))
       val updated = applied.copy(generation = IconGenerationManifest.decode(
-        legacy.copy(schemaVersion = 2, installedOnly = installedOnly).encode()))
+        legacy.copy(schemaVersion = 3, installedOnly = installedOnly).encode()))
       assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
         emptySet(), installedOnly = installedOnly))
+    }
+  }
+
+  @Test fun shapePolicyChangesAndVersionTwoResourcesNeedOneUpdateWithoutAnEndlessNotice() {
+    val old = source.copy(generation = IconGenerationManifest(
+      considered = setOf(target.flattened), schemaVersion = 2))
+    assertTrue(iconPackNeedsUpdate(pack, old, listOf(target), SystemIconFallback.DEFAULT, emptySet()))
+    for (enabled in listOf(false, true)) {
+      val current = old.copy(generation = IconGenerationManifest(
+        considered = setOf(target.flattened), completeSystemIconConfig = enabled))
+      assertFalse(iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), completeSystemIconConfig = enabled))
+      assertTrue(iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT,
+        emptySet(), completeSystemIconConfig = !enabled))
     }
   }
 

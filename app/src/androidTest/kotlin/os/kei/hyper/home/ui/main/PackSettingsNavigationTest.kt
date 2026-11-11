@@ -59,6 +59,18 @@ class PackSettingsNavigationTest {
     rule.onNodeWithText(context.getString(R.string.pack_installed_icons_only)).assertIsDisplayed()
     rule.onNodeWithTag("settings.compact-pack-hints").assertExists()
     val preferences = AppPreferences.get(context)
+    val originalCompletion = preferences.state.value.completeSystemIconConfig
+    try {
+      rule.onNodeWithTag("icon-packs.complete-system-icon-config").performScrollTo().assertIsDisplayed()
+      rule.onNode(isToggleable() and (hasTestTag("icon-packs.complete-system-icon-config") or
+        hasAnyAncestor(hasTestTag("icon-packs.complete-system-icon-config"))),
+        useUnmergedTree = true).performClick()
+      rule.runOnIdle {
+        org.junit.Assert.assertEquals(!originalCompletion, preferences.state.value.completeSystemIconConfig)
+      }
+    } finally {
+      rule.runOnIdle { preferences.setCompleteSystemIconConfig(originalCompletion) }
+    }
     val original = preferences.state.value.showIconPreviews
     try {
       rule.onNodeWithTag("settings.icon-previews").performScrollTo().assertIsDisplayed()
@@ -79,7 +91,7 @@ class PackSettingsNavigationTest {
     store.visit(2)
     rule.setContent { KeiHomeTheme { MainNavigation(store) } }
     waitForTag("setup.page.2")
-    rule.onNodeWithText(context.getString(R.string.pack_action_settings)).performScrollTo().performClick()
+    rule.onNodeWithText(context.getString(R.string.setup_os4_icons_more)).performScrollTo().performClick()
     waitForTag("icon-packs.settings")
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     rule.onNodeWithContentDescription(context.getString(R.string.pack_back)).performClick()

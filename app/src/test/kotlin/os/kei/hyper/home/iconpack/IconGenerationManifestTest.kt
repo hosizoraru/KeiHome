@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IconGenerationManifestTest {
+  @Test fun shapeCompletionPolicyRoundTripsAndLegacySchemasKeepTheirMeaning() {
+    for (enabled in listOf(false, true)) {
+      val value = IconGenerationManifest(completeSystemIconConfig = enabled)
+      assertEquals(3, value.schemaVersion)
+      assertEquals(value, IconGenerationManifest.decode(value.encode()))
+    }
+    val old = "KeiHomeIconGeneration2\nscope\tall\n".toByteArray()
+    assertFalse(IconGenerationManifest.decode(old).completeSystemIconConfig)
+    assertArrayEquals(old, IconGenerationManifest.decode(old).encode())
+    for (text in listOf("KeiHomeIconGeneration3\nscope\tall\n",
+      "KeiHomeIconGeneration3\nscope\tall\nshape\tunknown\n",
+      "KeiHomeIconGeneration3\nscope\tall\nshape\tcomplete\nshape\toriginal\n",
+      "KeiHomeIconGeneration2\nscope\tall\nshape\tcomplete\n")) {
+      assertTrue(runCatching { IconGenerationManifest.decode(text.toByteArray()) }.isFailure)
+    }
+  }
+
   @Test fun preservesSourceCountsDecisionsAndIndependentNativeFingerprints() {
     val value = IconGenerationManifest(setOf("mark.via"), setOf("mark.via", "com.apple.android.music.Main"),
       mapOf("mark.via" to "none", "com.apple.android.music" to "a".repeat(64)))
@@ -43,6 +60,7 @@ class IconGenerationManifestTest {
         considered = setOf("os.test.other", "os.test.app/os.test.app.Main"),
         nativeAdaptations = mapOf("os.test.other" to "a".repeat(64), "os.test.app" to "none"),
         installedOnly = installedOnly,
+        schemaVersion = 2,
       )
       val scope = if (installedOnly) "installed" else "all"
       val bytes = ("KeiHomeIconGeneration2\nscope\t$scope\n" +

@@ -57,7 +57,8 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
-          model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews)
+          model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews,
+          onCompleteSystemIconConfig = model.preferences::setCompleteSystemIconConfig)
       }
     }
   }
@@ -76,8 +77,9 @@ internal fun PackSettingsContent(
   showRememberMenus: Boolean = true,
   showCompactHints: Boolean = true,
   showPreviews: Boolean = true,
+  onCompleteSystemIconConfig: ((Boolean) -> Unit)? = null,
 ) {
-  if (showAutoApply || showInstalledOnly) {
+  if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       if (showAutoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
@@ -86,6 +88,12 @@ internal fun PackSettingsContent(
       if (showInstalledOnly) SwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
         summary = stringResource(R.string.pack_installed_icons_only_summary), checked = preferences.installedIconsOnly,
         onCheckedChange = onInstalledOnly)
+      if (onCompleteSystemIconConfig != null) SwitchPreference(
+        title = stringResource(R.string.complete_system_icon_config_title),
+        summary = stringResource(R.string.complete_system_icon_config_summary),
+        checked = preferences.completeSystemIconConfig,
+        onCheckedChange = onCompleteSystemIconConfig,
+        modifier = Modifier.testTag("icon-packs.complete-system-icon-config"))
     }
   }
   if (showRememberMenus || showCompactHints || showPreviews) {

@@ -37,6 +37,8 @@ import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 import os.kei.hyper.home.iconpack.IconPackExportResult
 import os.kei.hyper.home.iconpack.NativeIconAdaptations
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
 internal data class IconPackHandoff(
@@ -56,7 +58,7 @@ internal object IconPackHandoffs {
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
-    installedOnly: Boolean = false): IconPackHandoff {
+    installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true): IconPackHandoff {
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
@@ -157,6 +159,7 @@ internal object IconPackHandoffs {
             .mapTo(linkedSetOf()) { it.flattened },
           NativeIconAdaptations(context).read(nativeTargets) { caller.ensureActive() },
           installedOnly = installedOnly,
+          completeSystemIconConfig = completeSystemIconConfig,
         )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
@@ -173,6 +176,25 @@ internal object IconPackHandoffs {
               metadata(pack.description.author ?: pack.description.designer, 120),
             ).encode(),
           )
+          if (completeSystemIconConfig) {
+            NativeAdaptiveIconMask.load()?.pathData?.let { mask ->
+              ZipFile(icons).use { source ->
+                val entry = source.getEntry(NativeIconShapeConfig.PATH)
+                val legacyStyle = NativeIconShapeConfig.hasLegacyStyle(source.entries().asSequence().map { it.name })
+                if (!legacyStyle && (entry == null || entry.size in 0..NativeIconShapeConfig.MAX_BYTES.toLong())) {
+                  val original = entry?.let {
+                    source.getInputStream(it).use { input -> input.readNBytes(NativeIconShapeConfig.MAX_BYTES + 1) }
+                  }
+                  if (original == null || original.size <= NativeIconShapeConfig.MAX_BYTES) {
+                    val completed = NativeIconShapeConfig.complete(original, mask)
+                    if (completed != null && (original == null || !completed.contentEquals(original))) {
+                      stamps[NativeIconShapeConfig.PATH] = completed
+                    }
+                  }
+                }
+              }
+            }
+          }
           RawIconArchive.write(icons, stampedIcons,
             includes = { it != IconBuildInventory.NAMES_PATH }, replacements = stamps,
             check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)

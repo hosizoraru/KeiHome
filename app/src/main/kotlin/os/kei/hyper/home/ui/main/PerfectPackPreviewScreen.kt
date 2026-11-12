@@ -197,13 +197,13 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
               val image = remember(bitmap) { bitmap?.asImageBitmap() }
               Column(slotModifier, horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconPreviewArtworkFrame(dark) {
+                IconPreviewArtworkFrame {
                   Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
                     when {
                       previews == null -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
                       image != null -> Image(image, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
                       else -> Text(stringResource(R.string.browser_preview_unavailable),
-                        style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
+                        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
                     }
                   }
                 }

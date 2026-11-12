@@ -3,20 +3,22 @@ package os.kei.hyper.home.ui.main
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +28,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -442,44 +443,47 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       if (pack.colorOsProfile != null) Text(stringResource(R.string.icon_pack_coloros_originals, card.originalApps, card.dynamicApps),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      if (card.previewEntries.isNotEmpty()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          card.previewEntries.forEach { entry ->
-            PackIconPair(pack, entry, previews, previewAppearance, Modifier.weight(1f), compact = true)
-          }
-        }
-      }
       val actionDescription = stringResource(when {
         nativeId != null && generated -> R.string.icon_pack_native_update
         nativeId != null -> R.string.icon_pack_native_open
         else -> R.string.icon_pack_native_import
       })
       val updateDescription = stringResource(R.string.icon_pack_native_update)
-      FlowRow(Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PackActionButton(stringResource(when {
-          importing -> R.string.pack_action_importing_short
-          nativeId != null && generated -> R.string.pack_action_update_short
-          nativeId != null -> R.string.pack_action_apply_short
-          else -> R.string.pack_action_import_short
-        }), onClick = {
-          // Generated packs retain their source ID while their content and native theme record change.
-          if (nativeId == null || generated) onImport() else {
-            openFailed = runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(nativeId)) }.isFailure
+      Row(Modifier.fillMaxWidth().testTag("pack.preview.actions"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        BoxWithConstraints(Modifier.weight(1f).testTag("pack.preview.strip")) {
+          val count = ((maxWidth.value + 6f) / 38f).toInt().coerceIn(0, 6)
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            card.previewEntries.take(count).forEach { entry ->
+              PackIconPair(pack, entry, previews, previewAppearance, Modifier.width(32.dp), compact = true)
+            }
           }
-        }, modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $actionDescription" },
-          enabled = !importing && if (generated) enabled && card.matchedApps > 0
-          else nativeId != null || (enabled && (card.matchedApps > 0 ||
-            pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)),
-          primary = true, operation = when {
-            nativeId == null -> PageActionIcon.IMPORT
-            generated -> PageActionIcon.UPDATE
-            else -> PageActionIcon.APPLY
-          })
-        if (!generated && nativeId != null) PackActionButton(stringResource(R.string.pack_action_update_short),
-          modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" },
-          onClick = onImport, enabled = enabled && !importing)
+        }
+        Column(Modifier.widthIn(max = 192.dp).testTag("pack.actions"),
+          horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          PackActionButton(stringResource(when {
+            importing -> R.string.pack_action_importing_short
+            nativeId != null && generated -> R.string.pack_action_update_short
+            nativeId != null -> R.string.pack_action_apply_short
+            else -> R.string.pack_action_import_short
+          }), onClick = {
+            // Generated packs retain their source ID while their content and native theme record change.
+            if (nativeId == null || generated) onImport() else {
+              openFailed = runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(nativeId)) }.isFailure
+            }
+          }, modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $actionDescription" },
+            enabled = !importing && if (generated) enabled && card.matchedApps > 0
+            else nativeId != null || (enabled && (card.matchedApps > 0 ||
+              pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS)),
+            primary = true, operation = when {
+              nativeId == null -> PageActionIcon.IMPORT
+              generated -> PageActionIcon.UPDATE
+              else -> PageActionIcon.APPLY
+            })
+          if (!generated && nativeId != null) PackActionButton(stringResource(R.string.pack_action_update_short),
+            modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $updateDescription" },
+            onClick = onImport, enabled = enabled && !importing)
+        }
       }
       if (result != null && !result.imported) {
         Text(stringResource(when (result.status) {
@@ -536,16 +540,16 @@ internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, reposi
       ColorFilter.lighting(Color(IconPackAppearance.DIM_COLOR_MULTIPLY).copy(alpha = 1f), Color.Black)
     } else null
   }
-  Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+  Column(modifier.testTag("pack.preview.pair"), horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp)) {
     val appearances = if (distinctOnly && entry.light == entry.dark) listOf(light to false)
       else listOf(light to false, dark to true)
     appearances.forEach { (bitmap, isDark) ->
-      Box(Modifier.size(if (compact) 32.dp else 50.dp).clip(RoundedCornerShape(if (compact) 8.dp else 12.dp))
-        .background(if (isDark) Color(0xff232428) else Color(0xfff0f1f4)), contentAlignment = Alignment.Center) {
+      Box(Modifier.size(if (compact) 32.dp else 50.dp), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),
-          Modifier.size(if (compact) 27.dp else 40.dp), colorFilter = if (isDark) nightFilter else null)
+          Modifier.fillMaxSize(), colorFilter = if (isDark) nightFilter else null)
         else if (preview == null) CircularProgressIndicator(size = if (compact) 14.dp else 18.dp, strokeWidth = 2.dp)
-        else Text("—", color = if (isDark) Color.White else Color.DarkGray)
+        else Text("—", color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
   }
@@ -557,7 +561,8 @@ internal fun PackStyleThumbnail(pack: IconPackDescriptor, entry: IconPackEntry,
   val configuration = LocalConfiguration.current
   val dark = appearance.sourceDarkMode(configuration.uiMode and
     android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES)
-  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration.toString()) {
+  val maskRevision by repository.revision.collectAsStateWithLifecycle()
+  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration.toString(), maskRevision) {
     produceState<IconPackPreviews?>(null) { value = repository.load(pack, entry, 144) }
   }
   val artwork = if (dark) preview?.dark else preview?.light

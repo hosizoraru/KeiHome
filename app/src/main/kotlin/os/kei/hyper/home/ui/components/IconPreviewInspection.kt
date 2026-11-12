@@ -1,6 +1,5 @@
 package os.kei.hyper.home.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -8,8 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -17,8 +14,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
@@ -27,13 +22,11 @@ internal enum class IconPreviewMode { LIGHT, DARK, COMPARE }
 
 @Composable
 internal fun IconPreviewArtworkFrame(
-  dark: Boolean,
   modifier: Modifier = Modifier,
   content: @Composable BoxScope.() -> Unit,
 ) {
-  Box(modifier.clip(RoundedCornerShape(16.dp))
-    .background(if (dark) Color(0xff232428) else Color(0xfff0f1f4)).padding(12.dp),
-    contentAlignment = Alignment.Center, content = content)
+  // Render the worker's masked artwork without another backplate, inset or corner shape.
+  Box(modifier, contentAlignment = Alignment.Center, content = content)
 }
 
 @Composable

@@ -21,6 +21,7 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
 
 class PackGuidanceDeviceTest {
   private val rule = createComposeRule()
@@ -29,10 +30,10 @@ class PackGuidanceDeviceTest {
   private fun text(id: Int) = context.getString(id)
 
   @Test fun sharedGuidanceCollapsesAndCanBeReadFromTheHelpDialog() {
-    rule.setContent { KeiHomeTheme { Column {
+    rule.setContent { KeiHomeTheme { KeiHomeScaffold { Column {
       PackHelpAction(listOf("Help-only explanation"))
       PackGuidanceCard(listOf("Brief explanation", "Page explanation"))
-    } } }
+    } } } }
     rule.onNodeWithText("Brief explanation").assertExists()
     rule.onNodeWithText("Page explanation").assertDoesNotExist()
     rule.onNodeWithText(text(R.string.pack_guidance_title)).performClick()

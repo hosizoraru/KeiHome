@@ -32,6 +32,14 @@ concurrent work; successful removal clears catalog previews and immediately
 updates the list/count. A later import of the same source works normally.
 Deletion validates the content-addressed ID and never follows symbolic links.
 
+The preview pairs and import/apply/update actions share one row. The preview
+strip uses 32 dp artwork with 6 dp column spacing and retains up to six
+representative entries; the available width determines how many pairs are
+actually loaded. The right-hand action column stays accessible as font size
+increases. Shared cards use this layout for installed/file APK packs, MTZ/ZIP,
+built-ins and generated sources. Import eligibility and secondary update actions
+are unchanged.
+
 ## UI
 
 The built-in HyperOS card uses native MIUIX text buttons with a tinted pill

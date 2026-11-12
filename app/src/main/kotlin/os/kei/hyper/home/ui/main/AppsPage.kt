@@ -349,7 +349,7 @@ private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
         backgroundMask, maskPathData)
     }
     if (surfaceDark == null) artwork()
-    else IconPreviewArtworkFrame(surfaceDark) { artwork() }
+    else IconPreviewArtworkFrame { artwork() }
     Text(if (original) stringResource(R.string.browser_preview_original, label) else label,
       style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
       textAlign = TextAlign.Center, maxLines = 2)

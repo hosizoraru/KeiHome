@@ -163,8 +163,8 @@ internal fun iconPackCardData(pack: IconPackDescriptor, targets: List<IconPackCo
     pack.colorOsProfile.source(it)?.requiresLiveIcon == true
   }.map { it.packageName }.toSet()
   return IconPackCardData(pack, matches.map { it.first }.distinct().size,
-    matches.map { it.second }.distinctBy { it.key }.take(4)
-      .ifEmpty { pack.entries.filter { it.light != null || it.dark != null }.take(4) },
+    matches.map { it.second }.distinctBy { it.key }.take(6)
+      .ifEmpty { pack.entries.filter { it.light != null || it.dark != null }.take(6) },
     originalApps = if (pack.colorOsProfile == null) 0 else
       (targets.map { it.packageName }.toSet() - matches.map { it.first }.toSet() - dynamicPackages).size,
     dynamicApps = dynamicPackages.size)

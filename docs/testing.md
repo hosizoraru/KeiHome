@@ -14,6 +14,7 @@ does not automatically run navigation, color editing or native tests.
 | --- | --- |
 | FAB, centered action, disclosure, metadata pill | `ui-actions`; affected screen screenshot |
 | Navbar, tabs, themes or font geometry | `ui-navigation` |
+| Glass/opaque dropdowns, preference selection, popup coordinates or Back | `ui-menus` |
 | Status cards and detail navigation | `ui-status` |
 | Theme-effect controls | `ui-theme-effects` |
 | Color editor, input validation, draft lifecycle | `ui-color-editor` |

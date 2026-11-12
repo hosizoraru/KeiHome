@@ -40,6 +40,7 @@ import org.junit.Test
 import org.junit.rules.RuleChain
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -65,7 +66,7 @@ class Os4DropdownMenuDeviceTest {
 
   @Test
   @SdkSuppress(minSdkVersion = 33)
-  fun glassMenuKeepsRootCoordinatesInRtl() {
+  fun glassMenuKeepsWindowCoordinatesInRtl() {
     assumeTrue(isRuntimeShaderSupported())
     exerciseMenu(glass = true, direction = LayoutDirection.Rtl)
   }
@@ -73,6 +74,66 @@ class Os4DropdownMenuDeviceTest {
   @Test
   fun nullBackdropUsesOpaqueNativeGroupedMenu() {
     exerciseMenu(glass = false, direction = LayoutDirection.Ltr)
+  }
+
+  @Test
+  @SdkSuppress(minSdkVersion = 33)
+  fun glassPreferenceCommitsOnceAndBackKeepsSelection() {
+    assumeTrue(isRuntimeShaderSupported())
+    exercisePreference(glass = true)
+  }
+
+  @Test
+  fun opaquePreferenceCommitsOnceAndBackKeepsSelection() {
+    exercisePreference(glass = false)
+  }
+
+  private fun exercisePreference(glass: Boolean) {
+    val selection = mutableIntStateOf(0)
+    var callbacks = 0
+    compose.setContent {
+      backHost.Provide {
+        MiuixTheme {
+          val backdrop = if (glass) rememberLayerBackdrop() else null
+          CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
+            Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { padding ->
+              Box(Modifier.fillMaxSize().padding(padding).then(
+                backdrop?.let { Modifier.layerBackdrop(it) } ?: Modifier,
+              ).background(MiuixTheme.colorScheme.surface)) {
+                Os4DropdownPreference(
+                  title = "Appearance",
+                  items = listOf("Current", "Alternate"),
+                  selectedIndex = selection.intValue,
+                  modifier = Modifier.padding(start = 24.dp, top = 64.dp, end = 24.dp)
+                    .testTag("preference"),
+                  onSelectedIndexChange = {
+                    callbacks++
+                    selection.intValue = it
+                  },
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+    compose.onNodeWithTag("preference").performClick()
+    compose.onNodeWithText("Alternate").assertIsDisplayed().performClick()
+    compose.waitUntil(timeoutMillis = 5_000) {
+      compose.onAllNodes(hasText("Current")).fetchSemanticsNodes().isEmpty()
+    }
+    compose.runOnIdle {
+      assertEquals(1, selection.intValue)
+      assertEquals(1, callbacks)
+    }
+    compose.onNodeWithTag("preference").performClick()
+    compose.onNodeWithText("Current").assertIsDisplayed()
+    completeBackEvent()
+    compose.waitUntil(timeoutMillis = 5_000) {
+      compose.onAllNodes(hasText("Current")).fetchSemanticsNodes().isEmpty()
+    }
+    compose.onNodeWithText("Alternate").assertIsDisplayed()
+    compose.runOnIdle { assertEquals(1, callbacks) }
   }
 
   private fun exerciseMenu(glass: Boolean, direction: LayoutDirection) {

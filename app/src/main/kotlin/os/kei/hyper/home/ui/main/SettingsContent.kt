@@ -26,10 +26,9 @@ import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferencesState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownItem
+import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -165,9 +164,9 @@ internal fun SettingsContent(
           os.kei.hyper.home.data.AppColorMode.MONET -> preferences.appearance.ordinal + 3
           os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS -> 6
         }
-        if (colorMode) OverlaySpinnerPreference(title = stringResource(R.string.browser_ui_palette),
+        if (colorMode) Os4DropdownPreference(title = stringResource(R.string.browser_ui_palette),
           summary = stringResource(R.string.browser_ui_palette_hint),
-          items = labels.map { DropdownItem(text = stringResource(it)) }, selectedIndex = selected,
+          items = labels.map { stringResource(it) }, selectedIndex = selected,
           onSelectedIndexChange = { index ->
             if (index == 6) onColorModeChange(os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS)
             else {
@@ -178,19 +177,19 @@ internal fun SettingsContent(
         if (appearance)
           AppearancePreference(preferences.appearance, onAppearanceChange)
         if (language) LanguagePreference()
-        if (navigationBarStyle) OverlaySpinnerPreference(
+        if (navigationBarStyle) Os4DropdownPreference(
           title = stringResource(R.string.navigation_bar_style_title),
           summary = stringResource(R.string.navigation_bar_style_summary),
           items = listOf(R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass)
-            .map { DropdownItem(text = stringResource(it)) },
+            .map { stringResource(it) },
           selectedIndex = preferences.navigationBarStyle.ordinal,
           onSelectedIndexChange = { onNavigationBarStyleChange(AppNavigationBarStyle.entries[it]) },
           modifier = Modifier.testTag("settings.navigation-bar-style"),
         )
-        if (blur) OverlaySpinnerPreference(title = stringResource(R.string.top_bar_blur),
+        if (blur) Os4DropdownPreference(title = stringResource(R.string.top_bar_blur),
           summary = stringResource(R.string.top_bar_blur_summary),
           items = listOf(R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
-            .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.topBarBlur.ordinal,
+            .map { stringResource(it) }, selectedIndex = preferences.topBarBlur.ordinal,
           onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
       }
     }
@@ -217,10 +216,10 @@ internal fun SettingsContent(
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         if (pageScroll) SwitchPreference(title = stringResource(R.string.browser_page_scroll),
           checked = preferences.pageUserScroll, onCheckedChange = onPageUserScrollChange)
-        if (pagerMode) OverlaySpinnerPreference(title = stringResource(R.string.browser_pager_mode),
+        if (pagerMode) Os4DropdownPreference(title = stringResource(R.string.browser_pager_mode),
           summary = stringResource(R.string.browser_pager_hint),
           items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross)
-            .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.pagerGesture.ordinal,
+            .map { stringResource(it) }, selectedIndex = preferences.pagerGesture.ordinal,
           enabled = preferences.pageUserScroll,
           onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
       }
@@ -254,9 +253,9 @@ private fun AppearancePreference(appearance: AppAppearance, onChange: (AppAppear
   val light = stringResource(R.string.polish_appearance_light)
   val dark = stringResource(R.string.polish_appearance_dark)
   val items = remember(system, light, dark) {
-    listOf(DropdownItem(text = system), DropdownItem(text = light), DropdownItem(text = dark))
+    listOf(system, light, dark)
   }
-  OverlaySpinnerPreference(
+  Os4DropdownPreference(
     title = stringResource(R.string.polish_appearance_title),
     summary = stringResource(R.string.polish_appearance_summary),
     items = items,
@@ -278,9 +277,9 @@ private fun LanguagePreference() {
   val english = stringResource(R.string.language_english)
   val japanese = stringResource(R.string.language_japanese)
   val items = remember(system, chinese, english, japanese) {
-    listOf(system, chinese, english, japanese).map { DropdownItem(text = it) }
+    listOf(system, chinese, english, japanese)
   }
-  OverlaySpinnerPreference(
+  Os4DropdownPreference(
     title = stringResource(R.string.settings_language),
     items = items,
     selectedIndex = AppLanguage.entries.indexOf(language),

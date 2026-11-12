@@ -2,11 +2,14 @@ package os.kei.hyper.home.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -33,7 +36,9 @@ internal fun KeiHomeGlassNavigationBar(
     items.map { GlassNavigationItem(icon = it.icon, label = it.label) }
   }
   val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-  Box(modifier.fillMaxWidth().padding(bottom = if (bottomInset == 0.dp) 36.dp else bottomInset + 8.dp),
+  Box(modifier.fillMaxWidth()
+    .padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues())
+    .padding(bottom = if (bottomInset == 0.dp) 36.dp else bottomInset + 8.dp),
     contentAlignment = Alignment.Center) {
     Box(Modifier.padding(horizontal = 16.dp).widthIn(max = 560.dp).fillMaxWidth()) {
       GlassNavigationBar(items = glassItems, selectedIndex = selectedIndex, onSelect = onSelect,

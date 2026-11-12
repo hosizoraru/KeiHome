@@ -34,7 +34,10 @@ GROUPS = {
     "ui-actions": ("device", "FABs, disclosures, links and metadata pills", (
         UI + "UiActionPolishDeviceTest",)),
     "ui-navigation": ("device", "Both navbar styles, tabs, themes and large text", (
-        UI + "Os4ChromeDeviceTest",)),
+        UI + "Os4ChromeDeviceTest", UI + "MainTabNavigationDeviceTest",
+        "os.kei.hyper.home.data.PagerGestureMigrationDeviceTest")),
+    "ui-menus": ("device", "Native Glass/opaque menus, preferences, coordinates and Back", (
+        UI + "Os4DropdownMenuDeviceTest",)),
     "ui-status": ("device", "Status cards, disclosures and detail navigation", (
         UI + "MonetStatusContentTest",)),
     "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (

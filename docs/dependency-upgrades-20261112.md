@@ -69,3 +69,36 @@ Review the six commits after the previous pin:
 
 The pager migration is independent of navigation-bar appearance. Both selectable
 **iOS-like** and **OS4 Glass** bars remain, including the existing Desktop glyph.
+
+## Independent OS4 UI follow-up
+
+InstallerX-Revived's current checkout was inspected read-only for interaction
+patterns and public MIUIX API usage. Its GPL implementation and assets were not
+copied or translated.
+
+App settings now use native `GlassDropdownPreference` for palette, appearance,
+language, bar style, top-bar blur and pager interaction. A small KeiHome adapter
+supplies the app's backdrop and light/dark material; native opaque fallback,
+selection, disabled state and Back handling remain available.
+
+The OS4 navigation bar now consumes horizontal safe-drawing insets explicitly
+while retaining its existing independent bottom-spacing policy. Native bar
+insets stay disabled to avoid applying them twice.
+
+## Focused validation and limits
+
+- Debug APK, Android test APK and Release Lint pass with Kotlin 2.5.0-RC.
+- Eight focused device tests pass: persisted pager migration, native grouped
+  menus in LTR/RTL, opaque menus, Glass/opaque preferences, both navigation styles
+  and tab interruption/selection.
+- The first Debug update lacked the required system-server initialization log;
+  its reload is **not accepted**. Retirement/adoption and active worker evidence
+  were present. A managed thread dump showed no blocked initialization callback;
+  the cause of the missing acknowledgement remains undetermined.
+- The following minified candidate Release completed the strict initialization
+  and retirement/adoption checks without restarting critical processes.
+- Final artifact identities, selected JVM checks, library/entry probe results,
+  real-app screenshots and the clean Release handoff are recorded separately in
+  `.artifacts/research/dependencies-os4-20261112/acceptance.json`.
+
+No repository tag, push or public release is part of this dependency/UI task.

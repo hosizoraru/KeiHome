@@ -1,5 +1,7 @@
 # Icon completion and system fallback
 
+The optional sharing/name rules are configured in [Recommended mappings](recommended-icon-mappings.md). Existing choices are preserved; generated themes require updating and reapplying after a change.
+
 Custom icon packs now have an independent HyperOS system-app fallback choice:
 Default (the default), Classic, or Boundless. It applies to ColorOS, APK, MTZ and
 ZIP imports. Choosing a style does not apply a theme or change Monet by itself.

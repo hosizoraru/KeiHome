@@ -110,3 +110,6 @@ test APKs, then run `python3 scripts/checks.py ui-i18n --serial DEVICE --run`.
 This checks English, Simplified Chinese and Japanese clear descriptions,
 decorative search semantics, disabled input, text entry and IME callbacks.
 Translation-only changes do not require unrelated native or full app suites.
+
+- `recommended-mappings`: mapping choices, legacy generation metadata, synthetic alias ownership and update identity.
+- `ui-recommended-mappings`: OS4 switches/navigation, previews, native/static exports and snapshot handoffs; uses private fixtures without applying a theme.

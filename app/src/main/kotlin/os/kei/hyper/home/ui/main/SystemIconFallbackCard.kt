@@ -256,11 +256,6 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
         },
         verifyStyle = { style -> PerfectSystemFallback.open(context, style).use { it.validate() } },
         onOpenPerfectIcons = onOpenPerfectIcons?.let { open -> { open("perfect-sources") } })
-      SwitchPreference(title = stringResource(R.string.system_name_matching_title),
-        summary = stringResource(R.string.system_name_matching_summary),
-        checked = preferences.systemAppNameMatching, enabled = !busy,
-        onCheckedChange = model.preferences::setSystemAppNameMatching,
-        modifier = Modifier.testTag("icon-packs.system-name-matching"))
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val applied = source?.systemFallback

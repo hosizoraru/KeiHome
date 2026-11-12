@@ -1,5 +1,7 @@
 # Telegram channel icons: verified identities and preservation policy
 
+The optional sharing/name rules are configured in [Recommended mappings](recommended-icon-mappings.md). Existing choices are preserved; generated themes require updating and reapplying after a change.
+
 Research date: 2026-11-12. Read-only official-source research and inspection of
 the three installed packages on Phone AVD `emulator-5580`. No physical device,
 installation, login, component switch, production code or test was touched.

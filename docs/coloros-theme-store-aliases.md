@@ -1,5 +1,7 @@
 # ColorOS theme-store aliases
 
+The optional sharing/name rules are configured in [Recommended mappings](recommended-icon-mappings.md). Existing choices are preserved; generated themes require updating and reapplying after a change.
+
 ColorOS built-in packs use the canonical `com.heytap.themestore` artwork for both HyperOS theme applications:
 
 - `com.android.thememanager` (主题壁纸)

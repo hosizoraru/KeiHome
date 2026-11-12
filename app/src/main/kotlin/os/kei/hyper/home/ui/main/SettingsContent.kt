@@ -26,9 +26,12 @@ import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferencesState
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -62,6 +65,7 @@ internal fun SettingsContent(
   staticScopeContent: @Composable () -> Unit = {},
   onCompactPackHintsChange: (Boolean) -> Unit = {},
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
+  onOpenRecommendedMappings: (() -> Unit)? = null,
   fallbackContent: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
@@ -88,6 +92,12 @@ internal fun SettingsContent(
   val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
+  val recommendedMappings = migratedSearch && onOpenRecommendedMappings != null &&
+    matches(SettingsSection.PACKS, R.string.recommended_mappings_title,
+      R.string.recommended_mappings_entry, R.string.recommended_mappings_search_keywords,
+      R.string.system_name_matching_title, R.string.system_name_matching_summary,
+      R.string.recommended_mappings_telegram_title, R.string.recommended_mappings_telegram_summary,
+      R.string.recommended_mappings_coloros_title, R.string.recommended_mappings_coloros_summary)
   val fallback = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
     R.string.system_fallback_classic, R.string.system_fallback_boundless,
@@ -134,7 +144,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
+    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -149,6 +159,15 @@ internal fun SettingsContent(
     if (fallback) {
       SmallTitle(stringResource(R.string.settings_icon_fallback_section), modifier = Modifier.semantics { heading() })
       fallbackContent()
+    }
+    if (recommendedMappings) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        BasicComponent(title = stringResource(R.string.recommended_mappings_title),
+          summary = stringResource(R.string.recommended_mappings_entry),
+          modifier = Modifier.testTag("settings.entry.recommended-mappings"),
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+          onClick = onOpenRecommendedMappings)
+      }
     }
     if (colorMode || appearance || language || blur || navigationBarStyle) {
       SmallTitle(

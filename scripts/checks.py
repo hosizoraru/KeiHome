@@ -12,6 +12,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "recommended-mappings": ("jvm", "Mapping choices, legacy defaults, alias ownership and update identity", (
+        "RecommendedIconMappingsTest", "TelegramChannelIconsTest", "BuiltinColorOsMappingsTest",
+        "IconGenerationManifestTest", "IconPackUpdateNoticeTest", "SettingsSearchTest")),
+    "ui-recommended-mappings": ("device", "Recommended mapping navigation, OS4 controls and actual generation", (
+        UI + "RecommendedMappingsUiTest", UI + "RecommendedMappingsNavigationTest",
+        "os.kei.hyper.home.iconpack.RecommendedMappingPipelineDeviceTest")),
     "icon-preservation": ("jvm", "Preserved packages, Telegram channels and applied generation notices", (
         "PreservedIconsTest", "TelegramChannelIconsTest", "PreservedIconResourcesTest",
         "IconGenerationManifestTest", "IconPackUpdateNoticeTest")),

@@ -141,6 +141,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     },
     onCompactPackHintsChange = model.preferences::setCompactPackHints,
     onNavigationBarStyleChange = onNavigationBarStyleChange,
+    onOpenRecommendedMappings = onOpenPerfectIcons?.let { open -> { open("recommended-mappings") } },
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

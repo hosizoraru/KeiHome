@@ -67,6 +67,10 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     PreservedIconsScreen(model, onBack)
     return
   }
+  if (section == "recommended-mappings") {
+    RecommendedMappingsScreen(model, onBack)
+    return
+  }
   if (section == "perfect") {
     PerfectPackScreen(model, onBack, onNavigate)
     return
@@ -163,6 +167,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null) },
               modifier = Modifier.testTag("icon-packs.open-preserved-icons"),
               onClick = { onNavigate("preserved-icons") })
+            BasicComponent(title = stringResource(R.string.recommended_mappings_title),
+              summary = stringResource(R.string.recommended_mappings_entry),
+              startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null) },
+              modifier = Modifier.testTag("icon-packs.open-recommended-mappings"),
+              onClick = { onNavigate("recommended-mappings") })
           }
           SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
           IconPackRefreshFeedback(model)

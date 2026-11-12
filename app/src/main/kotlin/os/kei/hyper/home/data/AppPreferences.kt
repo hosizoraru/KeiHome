@@ -54,6 +54,8 @@ internal data class AppPreferencesState(
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
+  val nativeSystemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
+  val perfectIconCompletionStyle: String = SystemIconFallback.DEFAULT_PERFECT_STYLE,
   val completeSystemIconConfig: Boolean = true,
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
@@ -107,6 +109,16 @@ internal class AppPreferences internal constructor(
       runCatching { SystemIconFallback.valueOf(name) }.getOrNull()
         ?.takeIf { it.isPerfect || it in systemIconFallbackChoices }
     } ?: SystemIconFallback.DEFAULT,
+    nativeSystemIconFallback = preferences.getString("native_system_icon_fallback",
+      preferences.getString("system_icon_fallback", null))?.let { name ->
+      runCatching { SystemIconFallback.valueOf(name) }.getOrNull()
+        ?.takeIf { it in systemIconFallbackChoices }
+    } ?: SystemIconFallback.DEFAULT,
+    perfectIconCompletionStyle = (preferences.getString("perfect_completion_style", null)
+      ?: preferences.getString("system_icon_fallback", null)?.let { name ->
+        runCatching { SystemIconFallback.valueOf(name).perfectStyle }.getOrNull()
+      })?.takeIf { runCatching { SystemIconFallback.perfect(it) }.isSuccess }
+      ?: SystemIconFallback.DEFAULT_PERFECT_STYLE,
     completeSystemIconConfig = preferences.getBoolean("complete_system_icon_config", true),
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
@@ -237,8 +249,17 @@ internal class AppPreferences internal constructor(
   fun setSystemIconFallback(value: SystemIconFallback) {
     require(SystemIconFallback.valueOf(value.name) == value &&
       (value in systemIconFallbackChoices || value.isPerfect))
-    preferences.edit().putString("system_icon_fallback", value.name).apply()
-    state.update { it.copy(systemIconFallback = value) }
+    val native = value.takeUnless { it.isPerfect } ?: state.value.nativeSystemIconFallback
+    val perfectStyle = value.perfectStyle ?: state.value.perfectIconCompletionStyle
+    preferences.edit().putString("system_icon_fallback", value.name)
+      .putString("native_system_icon_fallback", native.name)
+      .putString("perfect_completion_style", perfectStyle).apply()
+    state.update { it.copy(systemIconFallback = value, nativeSystemIconFallback = native,
+      perfectIconCompletionStyle = perfectStyle) }
+  }
+
+  fun setPerfectIconCompletion(style: String?) {
+    setSystemIconFallback(style?.let(SystemIconFallback::perfect) ?: state.value.nativeSystemIconFallback)
   }
 
   fun setCompleteSystemIconConfig(value: Boolean) {

@@ -13,9 +13,10 @@ internal data class SystemIconFallback private constructor(val name: String) {
     val entries = listOf(DEFAULT, CLASSIC, BOUNDLESS)
     const val DEFAULT_PERFECT_STYLE = "HyperOS4"
     private const val PERFECT_PREFIX = "PERFECT:"
-    private const val SOURCE_SUFFIX = ":system-fallback-v3:"
+    private const val SOURCE_SUFFIX = ":system-fallback-v4:"
     fun baseSourceId(id: String): String =
       id.substringBefore(":system-fallback-v1:").substringBefore(":system-fallback-v2:")
+        .substringBefore(":system-fallback-v3:")
         .substringBefore(SOURCE_SUFFIX)
     fun perfect(style: String): SystemIconFallback {
       require(style.length in 1..128 && style.isNotBlank() && style !in setOf(".", "..") &&

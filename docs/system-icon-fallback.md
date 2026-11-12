@@ -1,9 +1,32 @@
-# System-app fallback artwork
+# Icon completion and system fallback
 
 Custom icon packs now have an independent HyperOS system-app fallback choice:
 Default (the default), Classic, or Boundless. It applies to ColorOS, APK, MTZ and
 ZIP imports. Choosing a style does not apply a theme or change Monet by itself.
 Generate the pack, then apply it through the native Themes detail page.
+
+Perfect Icons is a separate completion option. Its explicit resources can cover
+ordinary apps as well as system apps, including apps absent from the ColorOS
+redraw collection. It works with a ColorOS primary pack, with another primary
+pack plus ColorOS supplementation, and without ColorOS supplementation.
+
+Enabling Perfect completion suspends the native system fallback selector. Turning
+it off restores the previously selected native fallback, including after process
+recreation. The remembered Perfect style is independent of the style currently
+selected in Perfect resource management. Existing saved `PERFECT:<style>` choices
+migrate without a download or a change to the active theme.
+
+The page order is ColorOS supplementation, Perfect completion and style/resources,
+native system fallback, then name matching. The original-icon preservation entry
+remains before these settings. Perfect artwork is labeled completion in the app
+list and applied-pack information; built-in HyperOS artwork retains fallback wording.
+
+Enabling or selecting Perfect completion rechecks the local catalog and validates
+the chosen style on a worker. Any usable downloaded style qualifies; HyperOS4 is
+recommended rather than required. Missing resources leave the setting unchanged
+and offer an OS4 dialog leading to resource management. Navigation never starts a
+download. A deleted saved style remains visible with a missing-resource warning,
+and returning from resource management refreshes the page.
 
 The icon-pack home page can regenerate the currently applied pack when its
 original source is known. It retains the original ColorOS style, ART+ choice and
@@ -18,18 +41,59 @@ from the library. Native HyperOS themes retain their own behavior.
    default under Icon packs > Completion and fallback. The app or launcher activity label
    is compared with resource names and a small set of equivalent OEM roles
    (phone manager, theme store, app/software store). Ambiguous artwork is rejected.
-3. Use the selected native fallback when the pack has no safe match.
-4. If that preset has no supported resource, use native Default resources.
-5. If no safe resource can be rendered, retain the existing launcher fallback.
+3. When enabled, use explicit ColorOS supplemental artwork for remaining targets.
+4. Use the selected Perfect style's explicit static resources for remaining targets,
+   or the selected native fallback for eligible system apps when Perfect is off.
+5. ColorOS generic synthesis can still handle a Perfect miss. If a selected native
+   preset has no supported resource, use native Default resources.
+6. If no safe resource can be rendered, retain the existing launcher fallback.
+
+Existing native light/dark and Monet adaptation, live clock/calendar handling,
+explicit primary mappings, and original-icon exclusions keep their protection.
+Perfect does not run the native Default renderer on a miss: its independent
+setting and the native fallback setting are mutually exclusive. ColorOS remains
+an independent supplement.
+
+Without installed-only generation, the downloaded Perfect style's explicit static
+names are included for future installations too, after original-icon exclusions.
+Installed-only generation retains its existing restriction. No coverage counts
+are hardcoded, and missing third-party icons never become eligible for native
+system fallback merely because they have a package-name prefix.
 
 System eligibility uses `ApplicationInfo` system/updated-system flags. It does
 not use package-name prefixes. Ordinary user apps retain the previous handling.
 Known OEM package identities only help index equivalent artwork and disambiguate
 the HyperOS Security Center label `安全服务`; they do not make an app eligible for
-name matching. Native MTZ/MIUI_ICONS sources keep their original resource logic.
+name matching. Native MTZ/MIUI_ICONS sources keep their original resource logic;
+additional completion resources are merged only into gaps.
 Changing the switch requires regenerating and applying the converted pack.
 Live clocks and calendars are excluded from static system fallback rendering;
 existing native programs and ColorOS live templates remain responsible for them.
+
+## Lookup cost and source lifetime
+
+Each generation pins one local source snapshot and builds a bounded static-name
+index. Lookups use that index, verified local blobs and at most one lazily opened
+source reader. They do not parse the catalog, open Git, query refs, list a directory
+or stamp Git on each icon. Package metadata is batched for Perfect completion
+rather than queried once for every offline target.
+
+Cheap file-identity guards reject removal or replacement during a generation.
+End validation checks the catalog/source identity again and closes the reader.
+Cancellation and unsuccessful generation close it too. Source changes do not
+silently combine old and new icons in a published archive.
+
+The generation source identity is now `system-fallback-v4`. Older v1/v2/v3 IDs
+still resolve to their original imported source, but an existing generated pack
+requires one regeneration/application to acquire the wider completion policy.
+Changing a preference does not retroactively modify the applied theme.
+
+Focused checks:
+
+```sh
+python3 scripts/checks.py icon-completion --run
+python3 scripts/checks.py icon-completion-device --serial emulator-5580 --run
+```
 
 The built-in pack page offers direct entries to the Themes icon catalog and
 Launcher icon-style settings. About shows the marketed device name (falling

@@ -645,6 +645,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     preferences.setSystemIconFallback(value)
   }
 
+  fun setPerfectIconCompletion(style: String?) {
+    preferences.setPerfectIconCompletion(style)
+  }
+
   fun setPreservedIconPackages(packages: Set<String>) {
     preferences.setPreservedIconPackages(packages)
     packPreviews.clear()

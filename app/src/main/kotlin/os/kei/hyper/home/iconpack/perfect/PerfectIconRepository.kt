@@ -9,8 +9,11 @@ import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
+import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.CRC32
@@ -100,62 +103,231 @@ class PerfectIconRepository internal constructor(
   private val localHealthProbe = PerfectLocalHealthProbe()
 
   private data class FallbackIndex(
-    val stamp: String,
+    val stamp: LocalFileStamp,
     val snapshot: Snapshot,
     val entries: Map<String, PerfectIconSourceEntry>,
-    val plans: LinkedHashMap<String, PerfectIconPlan> = linkedMapOf(),
+    val plans: LinkedHashMap<String, Map<String, List<PerfectIconBlob>>> = linkedMapOf(),
   )
 
   internal data class FallbackIcon(val layers: List<ByteArray>)
 
-  /** Local, hash-checked static artwork only; never invokes the network or changes pack options. */
-  internal suspend fun fallbackIcon(style: String, names: List<String>, expectedSourceHash: String? = null): FallbackIcon? = withContext(ioDispatcher) {
+  internal interface FallbackLookupSession {
+    val sourceHash: String
+    val nativeNames: Set<String>
+    suspend fun icon(names: List<String>): FallbackIcon?
+    /** Recheck the published hash before accepting the completed preview/export. */
+    suspend fun validate()
+    suspend fun close()
+  }
+
+  private data class LocalFileStamp(
+    val key: Any?,
+    val modified: java.nio.file.attribute.FileTime,
+    val created: java.nio.file.attribute.FileTime,
+    val size: Long,
+  )
+
+  private fun localFileStamp(file: File, directory: Boolean = false): LocalFileStamp {
+    val attributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+    require(if (directory) attributes.isDirectory else attributes.isRegularFile) {
+      "Perfect Icons local resources are unavailable"
+    }
+    return LocalFileStamp(attributes.fileKey(), attributes.lastModifiedTime(), attributes.creationTime(), attributes.size())
+  }
+
+  private data class FallbackSourceStamp(val file: LocalFileStamp, val tip: LocalFileStamp? = null)
+
+  private fun fallbackSourceStamp(snapshot: Snapshot): FallbackSourceStamp {
+    require(settings.read("corruptSourceHash") != snapshot.sourceHash) {
+      "Perfect Icons local source is unavailable"
+    }
+    return if (snapshot.gitStore.isNotEmpty()) {
+      // Packs live directly in this directory. No directory listing or Git/ref access on the lookup path.
+      val directory = File(root, "git/${snapshot.gitStore}")
+      FallbackSourceStamp(localFileStamp(directory, directory = true), localFileStamp(File(directory, "tip")))
+    } else FallbackSourceStamp(localFileStamp(archive(snapshot)))
+  }
+
+  /** One immutable static ID index and one lazy reader; no network, generation, or decoded image cache. */
+  internal suspend fun openFallbackSession(style: String): FallbackLookupSession = withContext(ioDispatcher) {
     mutex.withLock {
       val index = fallbackIndex(style)
-      require(expectedSourceHash == null || expectedSourceHash == index.snapshot.sourceHash) {
-        "Perfect Icons source changed during generation; retry with the current local resources"
-      }
-      val plan = index.plans.getOrPut(style) {
-        fun branch(prefix: String) = index.snapshot.entries.filter { it.path.startsWith("$prefix/") }.map {
-          PerfectIconBlob(it.path.removePrefix("$prefix/"), it.sha, it.size, it.path)
+      val sourceStamp = fallbackSourceStamp(index.snapshot)
+      val gitStamp = index.snapshot.gitStore.takeIf { it.isNotEmpty() }?.let { requireNotNull(git).stamp(it) }
+      val coroutine = currentCoroutineContext()
+      val icons = index.plans.getOrPut(style) {
+        fun branch(prefix: String) = index.snapshot.entries.mapNotNull {
+          coroutine.ensureActive()
+          if (it.path.startsWith("$prefix/"))
+            PerfectIconBlob(it.path.removePrefix("$prefix/"), it.sha, it.size, it.path) else null
         }
-        PerfectIconFormat.plan(branch("icons"), branch("themes/$style/icons"), emptyList(), emptyList(),
+        val plan = PerfectIconFormat.plan(branch("icons"), branch("themes/$style/icons"), emptyList(), emptyList(),
           PerfectIconOptions(style, installedOnly = false, dynamic = false), emptySet())
+        Collections.unmodifiableMap(plan.staticIds.associateWith { name ->
+          coroutine.ensureActive()
+          val prefix = "res/drawable-xxhdpi/$name"
+          Collections.unmodifiableList(plan.files["$prefix.png"]?.let(::listOf)
+            ?: listOf(plan.files.getValue("$prefix/0.png"), plan.files.getValue("$prefix/1.png")))
+        })
       }
       while (index.plans.size > 2) index.plans.remove(index.plans.keys.first())
-      val blobs = names.asSequence().filter(PerfectIconFormat::id).mapNotNull { name ->
-        plan.files["res/drawable-xxhdpi/$name.png"]?.let { return@mapNotNull listOf(it) }
-        val layers = (0..1).mapNotNull { plan.files["res/drawable-xxhdpi/$name/$it.png"] }
-        layers.takeIf { it.size == 2 }
-      }.firstOrNull() ?: return@withLock null
-      val coroutine = currentCoroutineContext()
-      var reader: PerfectGitReader? = null
-      var extracted = false
-      try {
-        FallbackIcon(blobs.map { blob ->
-          coroutine.ensureActive()
-          val bytes = if (cachedBlob(blob)) blobFile(blob.sha).readBytes() else {
-            val source = reader ?: openSource(index.snapshot).also { reader = it }
-            sourceBytes(source, blob, requireNotNull(index.entries[blob.source])).also {
-              atomic(blobFile(blob.sha), it) { coroutine.ensureActive() }
-              extracted = true
-            }
-          }
-          PerfectIconFormat.png(bytes, square = true)
-          bytes
-        }).also { if (extracted) trimBlobs(blobs.mapTo(hashSetOf()) { it.sha }) }
-      } finally { reader?.close() }
+      LocalFallbackSession(style, index, icons, sourceStamp, gitStamp).also { it.checkAvailable() }
     }
   }
 
+  private inner class LocalFallbackSession(
+    private val style: String,
+    private val index: FallbackIndex,
+    private val icons: Map<String, List<PerfectIconBlob>>,
+    private val sourceStamp: FallbackSourceStamp,
+    private val gitStamp: String?,
+  ) : FallbackLookupSession {
+    override val sourceHash = index.snapshot.sourceHash
+    override val nativeNames: Set<String> = Collections.unmodifiableSet(icons.keys)
+    private var invalidated = false
+    private var extracted = false
+    private var closed = false
+    private var reader: PerfectGitReader? = null
+
+    fun checkAvailable() {
+      check(!closed) { "Perfect Icons lookup session is closed" }
+      check(!invalidated) { "Perfect Icons lookup session is no longer valid; open a new session" }
+      try {
+        require(localFileStamp(snapshotFile) == index.stamp && fallbackSourceStamp(index.snapshot) == sourceStamp) {
+          "Perfect Icons source changed during generation; retry with the current local resources"
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (failure: Exception) {
+        invalidated = true
+        throw failure
+      }
+    }
+
+    override suspend fun icon(names: List<String>): FallbackIcon? = withContext(ioDispatcher) {
+      mutex.withLock {
+        try {
+          val coroutine = currentCoroutineContext()
+          coroutine.ensureActive()
+          // Check even misses and cache hits: removed resources must never be revived by a pinned index.
+          checkAvailable()
+          val blobs = names.asSequence().mapNotNull { name ->
+            coroutine.ensureActive()
+            icons[name]
+          }.firstOrNull() ?: return@withLock null
+          FallbackIcon(blobs.map { blob ->
+            coroutine.ensureActive()
+            val file = blobFile(blob.sha)
+            val bytes = fallbackCachedBlob(blob) ?: run {
+              val source = reader ?: openSource(index.snapshot).also { reader = it }
+              sourceBytes(source, blob, index.entries.getValue(blob.source)).also {
+                atomic(file, it) { coroutine.ensureActive() }
+                extracted = true
+              }
+            }
+            coroutine.ensureActive()
+            PerfectIconFormat.png(bytes, square = true)
+            bytes
+          }).also {
+            checkAvailable()
+          }
+        } catch (failure: Throwable) {
+          try { closeReader() } catch (closing: Exception) { failure.addSuppressed(closing) }
+          throw failure
+        }
+      }
+    }
+
+    override suspend fun validate() = withContext(ioDispatcher) {
+      mutex.withLock {
+        try {
+          currentCoroutineContext().ensureActive()
+          checkAvailable()
+          val current = localSnapshot() ?: throw IOException("Perfect Icons local resources are unavailable")
+          if (!(current.sourceHash == sourceHash && style in current.downloadedStyles &&
+            current.revision == index.snapshot.revision && current.entries == index.snapshot.entries &&
+            current.gitStore == index.snapshot.gitStore &&
+            (gitStamp == null || requireNotNull(git).stamp(current.gitStore) == gitStamp))) {
+            invalidated = true
+            throw IOException("Perfect Icons source changed during generation; retry with the current local resources")
+          }
+          currentCoroutineContext().ensureActive()
+          checkAvailable()
+          // Do directory maintenance once at batch completion, rather than scanning an expanding cache per icon.
+          if (extracted) {
+            trimBlobs(icons.values.flatten().mapTo(hashSetOf()) { it.sha })
+            extracted = false
+          }
+        } catch (cancelled: CancellationException) {
+          try { closeReader() } catch (closing: Exception) { cancelled.addSuppressed(closing) }
+          throw cancelled
+        } catch (failure: Exception) {
+          invalidated = true
+          try { closeReader() } catch (closing: Exception) { failure.addSuppressed(closing) }
+          throw failure
+        } finally { closeReader() }
+      }
+    }
+
+    private fun closeReader() {
+      val old = reader
+      reader = null
+      old?.close()
+    }
+
+    override suspend fun close() = withContext(ioDispatcher + NonCancellable) {
+      mutex.withLock {
+        closed = true
+        closeReader()
+      }
+    }
+  }
+
+  private suspend fun fallbackCachedBlob(blob: PerfectIconBlob): ByteArray? {
+    require(blob.size in 0..PerfectIconFormat.MAX_BLOB.toLong()) { "Selected source resource exceeds size limit" }
+    val file = blobFile(blob.sha)
+    if (!file.isFile || file.length() != blob.size) return null
+    val coroutine = currentCoroutineContext()
+    val bytes = try {
+      file.inputStream().use { input ->
+        val bytes = ByteArray(blob.size.toInt())
+        var offset = 0
+        while (offset < bytes.size) {
+          coroutine.ensureActive()
+          val count = input.read(bytes, offset, minOf(32 * 1024, bytes.size - offset))
+          if (count < 0) return null
+          offset += count
+        }
+        if (input.read() != -1) return null
+        bytes
+      }
+    } catch (_: IOException) {
+      return null
+    }
+    coroutine.ensureActive()
+    return bytes.takeIf { PerfectIconFormat.sha(it) == blob.sha }
+  }
+
+  /** Compatibility for one-off callers; batch callers should retain one lookup session. */
+  internal suspend fun fallbackIcon(style: String, names: List<String>, expectedSourceHash: String? = null): FallbackIcon? {
+    val source = openFallbackSession(style)
+    require(expectedSourceHash == null || expectedSourceHash == source.sourceHash) {
+      "Perfect Icons source changed during generation; retry with the current local resources"
+    }
+    return try {
+      source.icon(names).also { source.validate() }
+    } finally { source.close() }
+  }
+
   internal suspend fun fallbackSourceHash(style: String): String = withContext(ioDispatcher) {
-    mutex.withLock { fallbackIndex(style).snapshot.sourceHash }
+    mutex.withLock {
+      fallbackIndex(style).snapshot.also { fallbackSourceStamp(it) }.sourceHash
+    }
   }
 
   private fun fallbackIndex(style: String): FallbackIndex {
     PerfectIconFormat.style(style)
-    val attributes = Files.readAttributes(snapshotFile.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
-    val stamp = "${attributes.fileKey()}:${attributes.lastModifiedTime()}:${attributes.size()}"
+    val stamp = localFileStamp(snapshotFile)
     val index = fallbackIndex?.takeIf { it.stamp == stamp } ?: run {
       val snapshot = localSnapshot() ?: throw IOException("Perfect Icons local resources are unavailable")
       FallbackIndex(stamp, snapshot, snapshot.entries.associateBy { it.path }).also { fallbackIndex = it }

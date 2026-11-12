@@ -123,6 +123,39 @@ class SystemFallbackPreferencesTest {
     assertEquals(selected, store.open().state.value.systemIconFallback)
   }
 
+  @Test fun independentCompletionDisablesNativeFallbackAndRestoresItsChoice() {
+    val store = Store()
+    val preferences = store.open()
+    preferences.setSystemIconFallback(SystemIconFallback.CLASSIC)
+    preferences.setPerfectIconCompletion("OriginOS")
+    assertEquals(SystemIconFallback.perfect("OriginOS"), preferences.state.value.systemIconFallback)
+    val reopened = store.open()
+    assertEquals(SystemIconFallback.CLASSIC, reopened.state.value.nativeSystemIconFallback)
+    assertEquals("OriginOS", reopened.state.value.perfectIconCompletionStyle)
+    reopened.setPerfectIconCompletion(null)
+    assertEquals(SystemIconFallback.CLASSIC, store.open().state.value.systemIconFallback)
+    assertEquals("OriginOS", store.open().state.value.perfectIconCompletionStyle)
+  }
+
+  @Test fun legacyPerfectSelectionMigratesWithoutLosingItsStyleOrRequiringDownloads() {
+    val store = Store(mutableMapOf("system_icon_fallback" to "PERFECT:OriginOS"))
+    val preferences = store.open()
+    assertEquals(SystemIconFallback.perfect("OriginOS"), preferences.state.value.systemIconFallback)
+    assertEquals("OriginOS", preferences.state.value.perfectIconCompletionStyle)
+    assertEquals(SystemIconFallback.DEFAULT, preferences.state.value.nativeSystemIconFallback)
+    preferences.setPerfectIconCompletion(null)
+    assertEquals(SystemIconFallback.DEFAULT, store.open().state.value.systemIconFallback)
+  }
+
+  @Test fun unavailableRememberedNativeChoiceRestoresSupportedDefault() {
+    val store = Store(mutableMapOf("system_icon_fallback" to "PERFECT:HyperOS4",
+      "native_system_icon_fallback" to "CLASSIC"))
+    val preferences = store.open(listOf(SystemIconFallback.DEFAULT))
+    assertEquals(SystemIconFallback.DEFAULT, preferences.state.value.nativeSystemIconFallback)
+    preferences.setPerfectIconCompletion(null)
+    assertEquals(SystemIconFallback.DEFAULT, store.open().state.value.systemIconFallback)
+  }
+
   @Test fun invalidSavedValuesUseDefaultWithoutOverwritingStorage() {
     for (name in listOf("UNKNOWN", "PERFECT:", "PERFECT:../style", "PERFECT:..", "PERFECT:\n")) {
       val store = Store(mutableMapOf("system_icon_fallback" to name))

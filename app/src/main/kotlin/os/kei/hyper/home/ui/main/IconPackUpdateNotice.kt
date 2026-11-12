@@ -49,7 +49,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries)
   return eligible.any { target ->
     val aliases = nativeLauncherIconNames(target)
-    val perfect = fallback.isPerfect && target.packageName in systemPackages
+    val perfect = fallback.isPerfect
     if (aliases.any { it in names } || target.flattened in source.generation?.considered.orEmpty() ||
       pack.colorOsProfile?.source(target)?.requiresLiveIcon == true) false else {
       val mapped = target in components || IconPackComponent(target.packageName) in components

@@ -17,14 +17,15 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
 
 /**
- * Native system artwork, never inferred from a package-name prefix. Third-party applications
- * and live clock/calendar icons stay with their existing renderer.
+ * Native system artwork is never inferred from a package-name prefix. Explicit Perfect resources
+ * can complete third-party apps too; live clock/calendar icons keep their existing renderer.
  */
 internal class SystemIconFallbackRenderer(
   private val context: Context,
   private val style: SystemIconFallback,
   private val clipOutput: Boolean = true,
-) {
+  perfectOpener: (String) -> PerfectSystemFallback.Source = { PerfectSystemFallback.open(context, it) },
+) : java.io.Closeable {
   private val apps = mutableMapOf<String, ApplicationInfo?>()
   private val systemPackages = mutableMapOf<String, Boolean>()
   private val preinstalledPackages = mutableMapOf<String, Boolean>()
@@ -60,7 +61,25 @@ internal class SystemIconFallbackRenderer(
     }
   }
 
-  val perfectSourceHash: String? by lazy { style.perfectStyle?.let { PerfectSystemFallback.sourceHash(context, it) } }
+  private val perfectSourceHolder = lazy { style.perfectStyle?.let(perfectOpener) }
+  private val perfectSource get() = perfectSourceHolder.value
+  val perfectSourceHash: String? get() = perfectSource?.sourceHash
+  private val installedApps by lazy {
+    context.packageManager.getInstalledApplications(
+      PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())).associateBy { it.packageName }
+  }
+
+  fun completionTargets(): List<IconPackComponent> = perfectSource?.nativeNames.orEmpty().mapNotNull { name ->
+    val packageName = name.substringBefore('-')
+    val activity = name.substringAfter('-', "").takeIf { it.isNotEmpty() }
+    IconPackComponent.parse(if (activity == null) packageName else "$packageName/$activity")
+  }.distinct()
+
+  fun validateCompletionSource() { perfectSource?.validate() }
+  fun requiresLiveSource(target: IconPackComponent): Boolean = live(target)
+  override fun close() {
+    if (perfectSourceHolder.isInitialized()) perfectSource?.close()
+  }
 
   fun isSystem(target: IconPackComponent): Boolean {
     if (isSystem(target.packageName)) return true
@@ -80,13 +99,7 @@ internal class SystemIconFallbackRenderer(
   }
 
   private fun isSystem(packageName: String): Boolean = systemPackages.getOrPut(packageName) {
-    val app = if (apps.containsKey(packageName)) apps[packageName] else {
-      try {
-        context.packageManager.getApplicationInfo(packageName,
-          PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
-      } catch (_: PackageManager.NameNotFoundException) { null }
-        .also { apps[packageName] = it }
-    }
+    val app = application(packageName)
     app != null && (app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 ||
       SystemIconCompanions.matches(packageName, ::isSystem) { ui, host ->
         try { context.packageManager.checkSignatures(ui, host) == PackageManager.SIGNATURE_MATCH }
@@ -94,15 +107,25 @@ internal class SystemIconFallbackRenderer(
       })
   }
 
+  private fun application(packageName: String): ApplicationInfo? =
+    if (apps.containsKey(packageName)) apps[packageName] else {
+      (if (style.isPerfect) installedApps[packageName] else try {
+        context.packageManager.getApplicationInfo(packageName,
+          PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
+      } catch (_: PackageManager.NameNotFoundException) { null })
+        .also { apps[packageName] = it }
+    }
+
   fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? {
     check()
-    if (live(target) || !isSystem(target)) return null
+    if (live(target)) return null
     val names = nativeLauncherIconNames(target)
-    style.perfectStyle?.let { selected ->
-      PerfectSystemFallback.icon(context, selected, names, requireNotNull(perfectSourceHash))?.let { artwork ->
-        return renderPerfect(artwork.layers, size, check)
-      }
+    perfectSource?.icon(names)?.let { artwork ->
+      return renderPerfect(artwork.layers, size, check)
     }
+    // Perfect completion and native fallback are mutually exclusive user choices.
+    if (style.isPerfect) return null
+    if (!isSystem(target)) return null
     names.firstNotNullOfOrNull { preset[it] }?.let {
       return renderBitmap(it, size, shape, check)
     }
@@ -226,7 +249,8 @@ internal class SystemIconFallbackRenderer(
   private fun live(target: IconPackComponent): Boolean {
     if (target.packageName == "com.xiaomi.calendar" ||
       ColorOsFallbackRenderer.dynamicReason(target.packageName, null) != null) return true
-    val metadata = listOfNotNull(apps[target.packageName]?.metaData, target.className?.let {
+    val app = application(target.packageName) ?: return false
+    val metadata = listOfNotNull(app.metaData, target.className?.let {
       try {
         context.packageManager.getActivityInfo(android.content.ComponentName(target.packageName, it),
           PackageManager.ComponentInfoFlags.of(PackageManager.GET_META_DATA.toLong())).metaData

@@ -50,7 +50,7 @@ class IconPackUpdateNoticeTest {
     assertTrue(needed(current, pack.copy(source = IconPackSource.Installed("os.test.icons", 2, 200))))
   }
   @Test fun coveredLegacyFallbackNeedsOneRegenerationAfterNativeFallbackFixes() {
-    for (version in listOf(1, 2)) {
+    for (version in listOf(1, 2, 3)) {
       val legacy = IconBuildInventory.sourceIdentity(pack.copy(
         id = "${pack.id}:system-fallback-v$version:DEFAULT"))
       val applied = source.copy(nativeNames = setOf(target.packageName), buildSource = legacy)
@@ -332,7 +332,7 @@ class IconPackUpdateNoticeTest {
     }
   }
 
-  @Test fun perfectSystemTargetsRespectCompletedInventoryWithoutRepeatedUpdates() {
+  @Test fun perfectTargetsIncludeUserAppsAndRespectCompletedInventoryWithoutRepeatedUpdates() {
     val selected = SystemIconFallback.perfect("HyperOS4")
     val unmapped = pack.copy(entries = emptyList())
     for (considered in listOf(emptySet(), setOf(target.flattened))) {
@@ -345,7 +345,8 @@ class IconPackUpdateNoticeTest {
       assertEquals(if (considered.isEmpty()) 1 else 0, attempts)
       assertFalse(iconPackNeedsUpdate(unmapped, applied, listOf(target), selected,
         setOf(target.packageName)) { false })
-      assertFalse(iconPackNeedsUpdate(unmapped, applied, listOf(target), selected, emptySet()))
+      assertEquals(considered.isEmpty(),
+        iconPackNeedsUpdate(unmapped, applied, listOf(target), selected, emptySet()))
       val updated = applied.copy(nativeNames = setOf(target.packageName))
       assertFalse(iconPackNeedsUpdate(unmapped, updated, listOf(target), selected,
         setOf(target.packageName)) { fail("Covered Perfect target must not be retried"); true })

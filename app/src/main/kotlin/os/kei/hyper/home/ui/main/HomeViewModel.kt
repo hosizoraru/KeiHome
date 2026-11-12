@@ -150,6 +150,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val iconPackUpdateNeeded: StateFlow<Boolean>
     field = MutableStateFlow(false)
   private val packageInventoryRevision = MutableStateFlow(0)
+  internal val importedPackRevision: StateFlow<Int>
+    field = MutableStateFlow(0)
   val previews = IconPreviewRepository(application)
   val packPreviews = IconPackPreviewRepository(application)
   val currentPreviews = CurrentIconPreviewRepository(application,
@@ -162,6 +164,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
   internal val perfectPacks = PerfectPackController(application, viewModelScope,
     os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application), packRepository) {
+    importedPackRevision.value++
     iconPacksDirty = true
     viewModelScope.launch { readIconPacks() }
   }
@@ -565,12 +568,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun importIconPack(uri: Uri) {
-    if (iconPacks.value.importing) return
+    if (iconPacks.value.importing || iconPacks.value.removing != null) return
     iconPacks.update { it.copy(importing = true, error = null, importName = null) }
     viewModelScope.launch {
       try {
         when (val result = packRepository.import(uri)) {
           is IconPackImportResult.Success -> {
+            importedPackRevision.value++
             readIconPacks()
             iconPacks.update { it.copy(importName = result.pack.displayName) }
           }
@@ -580,8 +584,36 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  fun removeImportedIconPack(pack: IconPackDescriptor) {
+    val state = iconPacks.value
+    if (pack.source !is os.kei.hyper.home.iconpack.IconPackSource.Imported ||
+      state.removing != null || state.importing || state.nativeImporting != null) return
+    iconPacks.update { it.copy(removing = pack.id, error = null) }
+    viewModelScope.launch {
+      try {
+        iconPacksMutex.withLock {
+          packRepository.removeImported(pack)
+          importedPackRevision.value++
+          packPreviews.clear()
+          // Keep native associations: the system's imported/applied copy still exists.
+          iconPacks.update { it.copy(packs = it.packs.filterNot { card -> card.pack.id == pack.id },
+            importName = null) }
+        }
+      } catch (cancelled: CancellationException) {
+        iconPacksDirty = true
+        throw cancelled
+      } catch (failure: Exception) {
+        readIconPacks()
+        iconPacks.update { it.copy(error = failure.message.orEmpty()) }
+      } finally {
+        iconPacks.update { it.copy(removing = null) }
+      }
+    }
+  }
+
   fun importNativeIconPack(original: IconPackDescriptor, includePalette: Boolean = true,
     appearanceOverride: IconPackAppearance? = null) {
+    if (iconPacks.value.removing != null) return
     if (original.source is os.kei.hyper.home.iconpack.IconPackSource.Generated) {
       if (iconPacks.value.nativeImporting != null) return
       applePacks.generate { fresh -> importPreparedIconPack(fresh, includePalette, appearanceOverride) }

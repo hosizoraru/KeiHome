@@ -18,6 +18,20 @@ system-fallback choice. The existing menu-memory setting also controls sort
 persistence; disabling memory clears the saved order. Filtering never forces a
 nonmatching active pack into the results.
 
+The search row ends in a numeric pill: the total when all packs are shown, or
+visible/total after searching or filtering. Its accessibility label includes
+the full result count. This replaces the separate result-count sentence.
+
+Locally imported files have a red removal icon in the card header, including
+file-based APK imports. Installed APK packs have no removal action here.
+The OS4 Glass confirmation names the pack and explains that only KeiHome's
+private copy and catalog entry are removed. The original SAF/source file,
+exports, native import receipts and system Themes copy remain unchanged.
+Cancellation makes no change. Import and removal actions are guarded against
+concurrent work; successful removal clears catalog previews and immediately
+updates the list/count. A later import of the same source works normally.
+Deletion validates the content-addressed ID and never follows symbolic links.
+
 ## UI
 
 The built-in HyperOS card uses native MIUIX text buttons with a tinted pill

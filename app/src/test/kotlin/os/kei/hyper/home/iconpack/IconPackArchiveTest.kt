@@ -305,6 +305,38 @@ class IconPackArchiveTest {
     }
   }
 
+  @Test fun removalReleasesOwnedCopiesAndAllowsReimportWithoutChangingOriginalOrOtherPacks() {
+    val directory = File(temporary.root, "catalog")
+    val store = IconPackStore(directory)
+    val original = file(zip("res/drawable/org.example.png" to png))
+    val kept = store.import(zip("res/drawable/org.other.png" to png).inputStream(), "kept.zip").record
+    val imported = original.inputStream().use { store.import(it, "removed.zip") }.record
+    val originalBytes = original.readBytes()
+    val outside = temporary.newFile().apply { writeText("keep") }
+    java.nio.file.Files.createSymbolicLink(File(imported.originalFile.parentFile, "unexpected-link").toPath(),
+      outside.toPath())
+    store.remove(imported.id)
+    assertFalse(imported.originalFile.parentFile.exists())
+    assertEquals(listOf(kept.id), store.list().records.map { it.id })
+    assertArrayEquals(originalBytes, original.readBytes())
+    assertEquals("keep", outside.readText())
+    store.remove(imported.id)
+    val reimported = original.inputStream().use { store.import(it, "again.zip") }
+    assertFalse(reimported.alreadyPresent)
+    assertEquals(imported.id, reimported.record.id)
+  }
+
+  @Test fun removalRejectsTraversalAndLinkedPackDirectories() {
+    val directory = temporary.newFolder()
+    val store = IconPackStore(directory)
+    val outside = temporary.newFolder().apply { resolve("keep").writeText("untouched") }
+    assertThrows(IOException::class.java) { store.remove("../${outside.name}") }
+    val id = "a".repeat(64)
+    java.nio.file.Files.createSymbolicLink(File(directory, id).toPath(), outside.toPath())
+    assertThrows(IOException::class.java) { store.remove(id) }
+    assertEquals("untouched", outside.resolve("keep").readText())
+  }
+
   @Test fun importIsAtomicDeduplicatedAndDoesNotTrustDisplayNames() {
     val directory = File(temporary.root, "catalog")
     val store = IconPackStore(directory)

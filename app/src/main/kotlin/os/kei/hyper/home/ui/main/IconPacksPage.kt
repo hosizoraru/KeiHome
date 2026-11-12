@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +45,9 @@ import io.github.libxposed.service.HookedTarget
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.KeiHomeIconButton
+import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -67,6 +71,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 
 @Composable
@@ -97,6 +102,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     catalogPackRows(state, section, activePackId, query, sort.first, sort.second, filter)
   }
   val total = remember(state.packs, section) { catalogPackCount(state, section) }
+  var removingPack by remember { mutableStateOf<IconPackDescriptor?>(null) }
+  var confirmRemoval by remember { mutableStateOf(false) }
+  val busy = state.importing || state.nativeImporting != null || state.removing != null
   LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
@@ -162,15 +170,22 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
       else -> {
         item("search") {
-          LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-            onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.icon_pack_search))
+          Row(verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+              onExpandedChange = {}, modifier = Modifier.weight(1f).testTag("packs.search"),
+              label = stringResource(R.string.icon_pack_search))
+            val description = stringResource(R.string.pack_list_result_count, cards.size, total)
+            MetadataPill(if (cards.size == total) "$total" else "${cards.size}/$total",
+              MiuixTheme.colorScheme.primary, Modifier.testTag("packs.count").clearAndSetSemantics {
+                contentDescription = description
+              })
+          }
         }
-        item("filter-summary") {
+        if (filter.isActive) item("filter-summary") {
           Row(Modifier.fillMaxWidth().testTag("icon-packs.filter-summary"),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              Text(stringResource(R.string.pack_list_result_count, cards.size, total),
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
               if (filter.isActive) Text(packListFilterSummary(filter),
                 style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
             }
@@ -188,9 +203,14 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           IconPackCard(card, model.packPreviews, preferences.iconPackAppearance,
             state.nativeAssociations[preferences.systemIconFallback.sourceId(card.pack.id)],
             card.pack.id == activePackId, state.nativeImporting == preferences.systemIconFallback.sourceId(card.pack.id),
-            importReady && state.nativeImporting == null,
+            importReady && !busy,
             state.nativeResult?.takeIf { it.sourceId == preferences.systemIconFallback.sourceId(card.pack.id) },
-            onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
+            onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport,
+            onRemove = if (card.pack.source is IconPackSource.Imported) ({
+              removingPack = card.pack
+              confirmRemoval = true
+            }) else null, removeEnabled = !busy && !state.loading,
+            removing = state.removing == card.pack.id)
         }
         if (state.scanned && cards.isEmpty()) item("empty") {
           PackInfoCard(stringResource(if (filter.isActive) R.string.pack_list_filter_empty
@@ -202,7 +222,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
               PackActionButton(stringResource(if (state.importing) R.string.icon_pack_importing else
                 if (section == "installed") R.string.icon_pack_choose_apk_file else R.string.icon_pack_choose_file),
-                onClick = { picker.launch(arrayOf("*/*")) }, enabled = !state.importing, compact = false,
+                onClick = { picker.launch(arrayOf("*/*")) }, enabled = !busy, compact = false,
                 operation = PageActionIcon.IMPORT, modifier = Modifier.fillMaxWidth())
               state.importName?.let { Text(stringResource(R.string.icon_pack_imported_name, it)) }
               if (framework.snapshot?.themesInScope != true) Text(stringResource(R.string.icon_pack_scope_needed),
@@ -216,6 +236,20 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       IconPackRefreshFeedback(model)
     }
   }
+  Os4ActionDialog(confirmRemoval, { confirmRemoval = false },
+    title = stringResource(R.string.pack_remove_title),
+    summary = removingPack?.displayName.orEmpty(),
+    icon = actionIcon(PageActionIcon.CLEAR),
+    details = { Text(stringResource(R.string.pack_remove_message),
+      style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary) },
+    actions = listOf(
+      Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { confirmRemoval = false }),
+      Os4DialogAction(stringResource(R.string.pack_remove_action), onClick = {
+        confirmRemoval = false
+        removingPack?.let(model::removeImportedIconPack)
+      }, role = GlassDialogButtonRole.Destructive, enabled = confirmRemoval && !busy,
+        tag = "packs.remove.confirm"),
+    ))
 }
 
 @Composable
@@ -363,7 +397,8 @@ private fun themeEffectsTargetStatus(target: FrameworkTarget?): Int = when {
 internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepository,
   appearance: IconPackAppearance, nativeId: String?, current: Boolean, importing: Boolean, enabled: Boolean,
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit,
-  metadataContent: @Composable (() -> Unit)? = null) {
+  metadataContent: @Composable (() -> Unit)? = null,
+  onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false) {
   val context = LocalContext.current
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
@@ -372,7 +407,18 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   val previewAppearance = if (native) IconPackAppearance.SYSTEM else appearance
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text(pack.displayName, style = MiuixTheme.textStyles.body1, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(pack.displayName, style = MiuixTheme.textStyles.body1, maxLines = 2,
+          overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (onRemove != null) KeiHomeIconButton(onClick = onRemove, enabled = removeEnabled,
+          modifier = Modifier.testTag("pack.remove.${pack.id}").semantics {
+            if (removing) contentDescription = context.getString(R.string.pack_removing)
+          }) {
+          if (removing) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp)
+          else Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.pack_remove_named, pack.displayName),
+            Modifier.size(22.dp), tint = MiuixTheme.colorScheme.error)
+        }
+      }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val installed = pack.source as? IconPackSource.Installed
         val source = stringResource(if (installed != null) R.string.icon_pack_installed else R.string.icon_pack_imported)

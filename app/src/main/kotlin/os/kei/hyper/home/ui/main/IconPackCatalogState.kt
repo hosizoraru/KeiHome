@@ -22,6 +22,7 @@ internal data class IconPacksUiState(
   val loading: Boolean = false,
   val scanned: Boolean = false,
   val importing: Boolean = false,
+  val removing: String? = null,
   val error: String? = null,
   val importName: String? = null,
   val failedSources: Int = 0,

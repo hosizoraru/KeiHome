@@ -1,0 +1,9 @@
+<resources>
+    <string name="pack_remove_title">ローカルのアイコンパックを削除しますか？</string>
+    <string name="pack_remove_action">削除</string>
+    <string name="pack_removing">削除中</string>
+    <string name="pack_remove_named">%1$s を削除</string>
+    <string name="pack_remove_message">KeiHome に保存したコピーとリストの項目を削除します。元のファイルと、システムのテーマにインポート済みのコピーは残ります。再び使う場合は、ファイルを選んでインポートしてください。</string>
+    <string name="storage_imported">インポートしたコピー</string>
+    <string name="storage_imported_info">インポートした APK／MTZ／ZIP のコピー、展開したアイコンリソース、カタログ情報の使用量です。一時キャッシュの削除では残ります。アイコンライブラリの各ページで管理・削除できます。</string>
+</resources>

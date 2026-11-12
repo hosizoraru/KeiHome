@@ -111,6 +111,15 @@ internal class IconPackRepository(
     IconPackScanResult(packs.sortedBy { it.displayName.lowercase() }, failures, visibilityLimited = true)
   }
 
+  suspend fun removeImported(pack: IconPackDescriptor) = withContext(worker) {
+    val source = pack.source as? IconPackSource.Imported
+      ?: throw IconPackException("Only local imports can be removed")
+    require(pack.id == source.record.id)
+    store.remove(source.record.id)
+    synchronized(importedCache) { importedCache.remove(source.record.id) }
+    Unit
+  }
+
   suspend fun listImported(): IconPackScanResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val listing = store.list()

@@ -1,0 +1,9 @@
+<resources>
+    <string name="pack_remove_title">移除本地图标包？</string>
+    <string name="pack_remove_action">移除</string>
+    <string name="pack_removing">正在移除</string>
+    <string name="pack_remove_named">移除 %1$s</string>
+    <string name="pack_remove_message">移除 KeiHome 保存的副本及列表记录。原始文件和已导入系统主题的副本会保留。再次使用时，重新选择文件导入即可。</string>
+    <string name="storage_imported">导入副本</string>
+    <string name="storage_imported_info">统计导入的 APK／MTZ／ZIP 本地副本、解出的图标资源和目录记录。计入空间占用，清理临时缓存时保留，可前往图标库的对应页面管理和移除。</string>
+</resources>

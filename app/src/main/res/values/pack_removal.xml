@@ -1,0 +1,9 @@
+<resources>
+    <string name="pack_remove_title">Remove local icon pack?</string>
+    <string name="pack_remove_action">Remove</string>
+    <string name="pack_removing">Removing</string>
+    <string name="pack_remove_named">Remove %1$s</string>
+    <string name="pack_remove_message">Removes the copy saved in KeiHome and its list entry. Your original file and any copy already imported into system Themes are kept. To use it again, choose the file and import it again.</string>
+    <string name="storage_imported">Imported copies</string>
+    <string name="storage_imported_info">Local copies of imported APK / MTZ / ZIP files, extracted icon resources and catalog records. Counted in storage usage, but kept when clearing temporary caches. Manage and remove these copies on the corresponding pages in the icon library.</string>
+</resources>

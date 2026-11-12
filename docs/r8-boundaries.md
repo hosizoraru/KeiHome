@@ -8,6 +8,7 @@ ordinary reachability and dependency consumer rules over keeping whole packages.
 - `KeiHomeModule`: its complete small entry surface, including the name in
   `META-INF/xposed/java_init.list`, constructor and six API 102 callbacks. This
   preserves the established boundary across resident reload generations.
+  Code optimization is allowed; member shrinking and renaming remain blocked.
 - `KeiHomeApplication` and `MainActivity`: manifest component names, constructors,
   and creation callbacks.
 - `IconResourceProbeService`: its cross-UID component name, constructor, and
@@ -32,7 +33,7 @@ The November 12 audit retained its raw analysis and per-rule details under
 `.artifacts/research/cache-guide-release-20261112/r8/`.
 
 That baseline analysis identified member-wide constraints in the two entry
-rules. Only the probe rule is narrowed in the final configuration. A callback-only
+rules. In that baseline, only the probe rule was narrowed. A callback-only
 module rule passed an initial reload but a later mixed diagnostic/Release reload
 did not satisfy the complete initialization acknowledgement. Retirement,
 adoption and icon callbacks continued, so this does not establish the root cause.
@@ -41,6 +42,12 @@ rather than depending on an unverified optimization. No APK size or speed
 improvement is claimed. Do not remove manifest component guards solely because AAPT produced
 overlapping textual rules: optimized resource shrinking consumes manifest inputs
 separately.
+
+The subsequent API102 review permits code optimization while preserving the complete
+module class/member name and retention boundary. It does not restore callback-only
+guards. The AGP analyzer still attributes one class, eight fields and 26 methods to
+this rule, with `DONT_OBFUSCATE` and `DONT_SHRINK`; only `DONT_OPTIMIZE` is removed.
+See [the source review and validation contract](libxposed-api102-r8.md).
 
 After changing rules, build the signed minified Release, inspect its entry names
 and JGit properties, and validate normal API 102 hot reload on the authorized AVD.

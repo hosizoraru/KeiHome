@@ -26,6 +26,7 @@ does not automatically run navigation, color editing or native tests.
 | Version-prefix upgrade decisions and skipped release history | `release-notes`; `ui-release-notes` for navigation and large text |
 | Fixed cache reminder, log/export accounting and protected resources | `cache-budget` |
 | Hook key reuse and authenticated connection contracts | `hook-hot-paths`; [ART/member probe](../scripts/tests/hook-hot-paths/README.md) and the affected cache/host device tests |
+| API102 entry/R8 boundaries | `analyzeReleaseR8Config`; [entry probe](../scripts/tests/libxposed-entry/README.md), library probes and paired real API102 handoffs |
 | Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
 | Desktop capability and acknowledgement summaries | `desktop-state` |
 | Dock/search materials, persistence, leases and protocol | `desktop-materials` |

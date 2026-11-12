@@ -1,7 +1,8 @@
 # Loaded by name through META-INF/xposed/java_init.list. Keep this small module
 # boundary stable across resident generations; ordinary implementation classes
 # and the probe's private helpers can still be renamed and optimized.
--keep class os.kei.hyper.home.xposed.KeiHomeModule {
+# API 102 permits optimization; retain the complete member/name boundary.
+-keep,allowoptimization class os.kei.hyper.home.xposed.KeiHomeModule {
     *;
 }
 

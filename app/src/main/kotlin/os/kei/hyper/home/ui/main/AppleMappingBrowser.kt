@@ -51,7 +51,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -234,7 +234,7 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
             Text(row.target.label, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
               maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (app != null) {
-              Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(18.dp),
+              Icon(MiuixIcons.Glass.ChevronForward, null, Modifier.size(18.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceSecondary)
               Text(app.name, Modifier.weight(1f), style = MiuixTheme.textStyles.body1,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)

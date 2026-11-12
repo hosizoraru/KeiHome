@@ -43,7 +43,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Copy
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val PaletteFamilies = listOf("primary", "secondary", "tertiary", "neutral", "neutral-variant")

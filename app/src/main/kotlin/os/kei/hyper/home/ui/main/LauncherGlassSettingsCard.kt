@@ -16,7 +16,7 @@ import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 
 @Composable
 internal fun LauncherGlassSettingsCard(model: HomeViewModel) {

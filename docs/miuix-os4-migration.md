@@ -209,3 +209,55 @@ receipts are recorded under
 `.artifacts/research/miuix-os4-20261111/acceptance.json`.
 That record distinguishes device behavior from source review and records
 which app settings were restored.
+
+## Shared preference selector completion (2026-11-12)
+
+The full production UI audit found 20 remaining calls to upstream
+`OverlaySpinnerPreference`. All now import the app-owned compatibility adapter
+in `ui/components/OverlaySpinnerPreference.kt`, which delegates to the same
+`Os4DropdownPreference` / native `GlassDropdownPreference` used by the six App
+Settings selectors. This covers logs, Desktop/Dock/search, icon appearance,
+Perfect/ColorOS and Apple choices, plus Monet controls. Existing indices, values,
+callbacks and row spacing are preserved. Disabled and empty selectors expose
+disabled accessibility semantics, and invalid/disabled selections cannot invoke
+callbacks.
+
+New simple preference selectors must use one of these app adapters, rather than
+importing the upstream legacy preference. Grouped filters, sorting and cascading
+menus retain the OS4 `GlassIconDropdownMenu` adapter; their grouped behavior is
+intentional. The source scan found no remaining production imports of legacy
+Spinner, SuperDropdown, DropdownPreference or window-spinner controls. Native
+OS4 visuals remain independent of the user's iOS-like/OS4 Glass navbar choice.
+
+The focused device checks are `Os4SelectorPreferenceUiTest`,
+`PerfectCompletionUiTest` and `Os4DropdownMenuDeviceTest`. Validation and the
+per-file audit are retained under
+`.artifacts/research/perfect-completion-20261112/ui/selector-migration/`.
+
+## Remaining Glass surfaces (2026-11-12)
+
+The follow-up inventory compares production imports and their app-owned aliases
+against the public Glass API at `9d4b9c85`. Dialog actions now use native
+`GlassDialogButton` even without a backdrop; its opaque fallback retains button
+roles and colors. Perfect resource selection uses native `GlassIconButton` for
+its five enabled actions. Disabled actions retain the accessible noninteractive
+fallback because the native icon button has no `enabled` parameter.
+
+Search/clear glyphs and 19 disclosure glyphs use the corresponding Glass icons.
+Search input, ordinary content cards, switches, sliders and page actions retain
+the current MIUIX OS4 components: this revision has no public Glass search field,
+general text button or floating action button. The existing Glass top bars,
+menus and navigation wrappers remain in use, and the iOS-like navbar remains
+an explicit user choice.
+
+`Os4ItemDropdownPreference` handles selectors with individually unavailable
+choices, such as device-dependent Dock corner styles. The public string-only
+`GlassDropdownPreference` cannot express disabled entries, so this narrow
+adapter combines native `BasicComponent`, `GlassDropdownPopup` and
+`GlassPopupItem`. It retains disabled labels, accessibility state, original
+indices and callback order. Ordinary selectors keep the simpler native
+preference path. The popup portal stays mounted through its exit spring and
+stops accepting selections when closing or disabled.
+
+The API inventory, retained-component rationale and changed-file receipts are
+under `.artifacts/research/perfect-completion-20261112/ui/glass-audit/`.

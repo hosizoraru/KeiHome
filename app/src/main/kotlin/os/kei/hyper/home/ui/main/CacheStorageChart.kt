@@ -50,7 +50,7 @@ import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -111,7 +111,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
                 stringResource(R.string.storage_category_info, stringResource(storageLabels[index])),
                 Modifier.size(18.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
             }
-          } else if (destination != null || index == 6) Icon(MiuixIcons.Basic.ArrowRight, null,
+          } else if (destination != null || index == 6) Icon(MiuixIcons.Glass.ChevronForward, null,
             Modifier.size(14.dp), tint = scheme.onSurfaceVariantSummary)
         }
       }

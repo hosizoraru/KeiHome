@@ -195,8 +195,9 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
             browser.covered -> R.string.browser_badge_redrawn
             else -> R.string.browser_badge_original
           }
-          MetadataPill(if (browser.systemFallback != null) stringResource(R.string.system_fallback_badge,
-            systemFallbackName(browser.systemFallback)) else stringResource(label),
+          MetadataPill(if (browser.systemFallback != null) stringResource(
+            if (browser.systemFallback.isPerfect) R.string.perfect_completion_badge else R.string.system_fallback_badge,
+            browser.systemFallback.perfectStyle ?: systemFallbackName(browser.systemFallback)) else stringResource(label),
             if (source != null && browser.covered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary)
           if (browser.installed && !app.hasLauncher) MetadataPill(stringResource(R.string.browser_badge_no_launcher),
             MiuixTheme.colorScheme.onSurfaceSecondary)

@@ -17,7 +17,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -33,7 +33,7 @@ internal fun PackCompletionCard(
           else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
           style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
-      Icon(MiuixIcons.Basic.ArrowRight, null, Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      Icon(MiuixIcons.Glass.ChevronForward, null, Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     if (pending != null) NativeThemeLink(pending, autoApply = false, enabled = !importing)
   }

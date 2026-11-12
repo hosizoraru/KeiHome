@@ -40,7 +40,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -117,7 +117,7 @@ private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit)
           style = MiuixTheme.textStyles.body1,
         )
         Icon(
-          MiuixIcons.Basic.ArrowRight,
+          MiuixIcons.Glass.ChevronForward,
           contentDescription = null,
           tint = MiuixTheme.colorScheme.onSurfaceSecondary,
         )

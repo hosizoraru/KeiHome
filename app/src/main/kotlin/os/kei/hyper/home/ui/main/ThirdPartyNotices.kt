@@ -30,7 +30,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class BundledLicense(val key: String, val title: String, val asset: String)
@@ -127,7 +127,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
               title = component.name,
               summary = listOfNotNull(stringResource(component.description), versions.singleOrNull()).joinToString("\n"),
               onClick = { onNavigate("component/${component.key}") },
-              endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
+              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
             )
           }
         }
@@ -137,7 +137,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
       BasicComponent(title = stringResource(R.string.notices_full),
         summary = stringResource(R.string.notices_full_summary),
         onClick = { onNavigate("license/notices") },
-        endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+        endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
     }
   }
 }
@@ -172,7 +172,7 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
         val license = bundledLicenses.first { it.key == key }
         BasicComponent(title = if (key == "dexkit-source") stringResource(R.string.notices_source_offer) else license.title,
           onClick = { onNavigate("license/$key") },
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
       }
     }
     if (component.kind == AttributionKind.DEPENDENCY) {

@@ -1,6 +1,6 @@
 // Provenance: KeiHome-authored adapter; no reference-app code copied or translated.
 // Public API reference: https://github.com/compose-miuix-ui/miuix
-// Revision: ca674992c9645395cdb0d5109d66504ff53d018c (0.9.4-ca674992-SNAPSHOT).
+// Revision: 9d4b9c85c18707c7da12cf8c497ea57955fcf81e (0.9.4-9d4b9c85-SNAPSHOT).
 // Reviewed upstream Apache-2.0 sources under src/commonMain/kotlin/top/yukonga/miuix/kmp/:
 // miuix-glass: glass/{GlassDialog,GlassDialogSurface,GlassDialogButton,GlassPanel,Glass}.kt
 // miuix-material: material/{GlassMaterials,EdgeStroke}.kt
@@ -9,16 +9,13 @@ package os.kei.hyper.home.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
@@ -26,8 +23,6 @@ import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
 import top.yukonga.miuix.kmp.material.GlassMaterials
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-private val LocalGlassDialog = staticCompositionLocalOf { false }
 
 @Composable
 internal fun Os4Dialog(
@@ -48,8 +43,7 @@ internal fun Os4Dialog(
     dismiss { onDismissRequest(); true }
   }
   val dialogContent: @Composable () -> Unit = {
-    CompositionLocalProvider(LocalGlassDialog provides (backdrop != null),
-      LocalKeiHomeDarkTheme provides dark, content = content)
+    CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark, content = content)
   }
   // A null backdrop uses the component's opaque fallback and keeps the same return dispatcher.
   GlassDialog(show = show, backdrop = backdrop, modifier = dialogModifier, title = title,
@@ -67,18 +61,8 @@ internal fun Os4DialogButton(
   enabled: Boolean = true,
   role: GlassDialogButtonRole = GlassDialogButtonRole.Normal,
 ) {
-  if (LocalGlassDialog.current) {
-    GlassDialogButton(onClick = onClick, modifier = modifier, enabled = enabled, role = role) {
-      Text(text, style = MiuixTheme.textStyles.button, color = LocalContentColor.current)
-    }
-  } else {
-    val colors = when (role) {
-      GlassDialogButtonRole.Normal -> ButtonDefaults.textButtonColors()
-      GlassDialogButtonRole.Primary -> ButtonDefaults.textButtonColorsPrimary()
-      GlassDialogButtonRole.Destructive -> ButtonDefaults.textButtonColors(
-        textColor = MiuixTheme.colorScheme.error,
-        disabledTextColor = MiuixTheme.colorScheme.error.copy(alpha = 0.3f))
-    }
-    TextButton(text, onClick = onClick, modifier = modifier, enabled = enabled, colors = colors)
+  // The native action has no backdrop dependency, including on opaque dialog surfaces.
+  GlassDialogButton(onClick = onClick, modifier = modifier, enabled = enabled, role = role) {
+    Text(text, style = MiuixTheme.textStyles.button, color = LocalContentColor.current)
   }
 }

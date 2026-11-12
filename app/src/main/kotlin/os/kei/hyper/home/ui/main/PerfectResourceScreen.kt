@@ -26,6 +26,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,8 +65,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -246,10 +249,10 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
             style = MiuixTheme.textStyles.footnote1)
           Text(stringResource(R.string.perfect_resource_info_hint), style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          TextButton(stringResource(R.string.perfect_icons_source_icons),
+          Os4DialogButton(stringResource(R.string.perfect_icons_source_icons),
             onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
             modifier = Modifier.fillMaxWidth())
-          TextButton(stringResource(R.string.perfect_icons_source_packer),
+          Os4DialogButton(stringResource(R.string.perfect_icons_source_packer),
             onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") },
             modifier = Modifier.fillMaxWidth())
           Text(stringResource(R.string.perfect_icons_attribution), style = MiuixTheme.textStyles.footnote1)
@@ -416,10 +419,19 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
 private fun ResourceToolbarButton(tag: String, label: String, icon: ImageVector,
   enabled: Boolean = true, tint: Color = MiuixTheme.colorScheme.onSurface,
   onClick: () -> Unit) {
-  IconButton(onClick = onClick, enabled = enabled,
-    backgroundColor = Color.Transparent, minWidth = 48.dp, minHeight = 48.dp,
-    modifier = Modifier.testTag("perfect.resources.$tag")) {
+  val content: @Composable () -> Unit = {
     Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp),
       tint = if (enabled) tint else MiuixTheme.colorScheme.onSurfaceSecondary.copy(alpha = 0.38f))
+  }
+  if (enabled) {
+    GlassIconButton(onClick = onClick, modifier = Modifier.testTag("perfect.resources.$tag")
+      .semantics { role = Role.Button },
+      backdrop = LocalKeiHomeBackdrop.current, inheritTopBarMaterial = false,
+      style = GlassDefaults.style(LocalKeiHomeDarkTheme.current), size = 48.dp, content = content)
+  } else {
+    // GlassIconButton has no disabled API; keep the noninteractive accessible fallback.
+    IconButton(onClick = onClick, enabled = false,
+      backgroundColor = Color.Transparent, minWidth = 48.dp, minHeight = 48.dp,
+      modifier = Modifier.testTag("perfect.resources.$tag"), content = content)
   }
 }

@@ -64,11 +64,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -158,7 +158,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
             Text(stringResource(R.string.logs_source), style = MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.SemiBold),
               color = MiuixTheme.colorScheme.primary)
           }
-          Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.primary)
+          Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.primary)
         }
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {

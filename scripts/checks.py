@@ -38,6 +38,9 @@ GROUPS = {
         "os.kei.hyper.home.data.PagerGestureMigrationDeviceTest")),
     "ui-menus": ("device", "Native Glass/opaque menus, preferences, coordinates and Back", (
         UI + "Os4DropdownMenuDeviceTest",)),
+    "ui-os4-controls": ("device", "Glass selectors, disabled options, dialog actions and menus", (
+        UI + "Os4SelectorPreferenceUiTest", UI + "Os4DialogDeviceTest",
+        UI + "Os4DropdownMenuDeviceTest")),
     "ui-status": ("device", "Status cards, disclosures and detail navigation", (
         UI + "MonetStatusContentTest",)),
     "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (
@@ -88,6 +91,13 @@ GROUPS = {
         "PerfectIconGitTest", "PerfectPackStateTest", "PerfectIconStyleMetadataTest", "PerfectIconStylesTest")),
     "ui-perfect": ("device", "Perfect page options, style actions, transfer status and OS4 confirmations", (
         "os.kei.hyper.home.ui.main.PerfectGitUiTest",)),
+    "icon-completion": ("jvm", "Perfect completion, source sessions, native choice restoration and update detection", (
+        "SystemFallbackPreferencesTest", "SystemIconFallbackTest", "SystemFallbackChoicesTest",
+        "PerfectFallbackSessionTest", "PerfectIconRepositoryTest", "PerfectGitRepositoryTest",
+        "IconPackUpdateNoticeTest")),
+    "icon-completion-device": ("device", "Perfect/ColorOS export priority and local resource enable checks", (
+        "os.kei.hyper.home.iconpack.PerfectCompletionExportDeviceTest",
+        "os.kei.hyper.home.ui.main.PerfectCompletionUiTest")),
     "scope": ("jvm", "Scope authorization requests and missing targets", (
         "StaticScopeRequestsTest",)),
     "icon-shape": ("jvm", "Native config completion, generation flags and converted archive boundaries", (

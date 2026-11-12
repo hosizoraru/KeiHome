@@ -59,7 +59,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -145,7 +145,7 @@ internal fun ScopeAuthorizationPage(
         BasicComponent(title = stringResource(R.string.scope_open_manager),
           summary = stringResource(R.string.scope_page_manager_summary),
           startAction = { Icon(ImageVector.vectorResource(LucideR.drawable.lucide_ic_shield), null, Modifier.size(24.dp)) },
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
           onClick = managerAction)
       }
       Card(Modifier.fillMaxWidth()) {

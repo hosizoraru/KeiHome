@@ -108,7 +108,7 @@ private fun MonetPage(model: HomeViewModel) {
     (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
       runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
   top.yukonga.miuix.kmp.basic.Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference(
+    os.kei.hyper.home.ui.components.OverlaySpinnerPreference(
       title = stringResource(R.string.pack_monet_design),
       items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
       selectedIndex = if (inspiration) 1 else 0,

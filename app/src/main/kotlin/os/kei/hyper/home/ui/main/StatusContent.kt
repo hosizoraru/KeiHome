@@ -70,7 +70,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.Report
@@ -758,7 +758,7 @@ private fun DashboardFootnote(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun DashboardArrow() {
-  Icon(MiuixIcons.Basic.ArrowRight, contentDescription = null,
+  Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null,
     tint = MiuixTheme.colorScheme.onSurfaceSecondary)
 }
 

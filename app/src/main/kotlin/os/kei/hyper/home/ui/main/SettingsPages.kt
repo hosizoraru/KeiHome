@@ -27,7 +27,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Book
 import top.yukonga.miuix.kmp.icon.glass.Folder
 import top.yukonga.miuix.kmp.icon.glass.Info
@@ -71,7 +71,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
           BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
             onClick = { onNavigate(section.route) }, modifier = Modifier.testTag("settings.entry.${section.route}"),
             startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
-            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
     } else {
@@ -83,7 +83,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             summary = stringResource(R.string.release_notes_summary),
             modifier = Modifier.testTag("settings.entry.release-notes"),
             onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
-            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
         }
       }
       if (listOf(stringResource(R.string.setup_title), stringResource(R.string.setup_replay_summary),
@@ -92,7 +92,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.setup_title),
             summary = stringResource(R.string.setup_replay_summary), onClick = { onNavigate("setup") },
-            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
         }
       }
       if (listOf(stringResource(R.string.settings_log_section), stringResource(R.string.settings_log_summary))
@@ -100,7 +100,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.settings_log_section),
             summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
-            endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
@@ -135,7 +135,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
       Card(Modifier.fillMaxWidth()) {
         BasicComponent(title = stringResource(R.string.settings_hook_section),
           summary = stringResource(R.string.scope_page_entry_summary),
-          endActions = { Icon(MiuixIcons.Basic.ArrowRight, null) },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
           onClick = { onNavigate(SettingsSection.HOOK.route) })
       }
     },

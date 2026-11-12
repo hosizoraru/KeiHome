@@ -23,8 +23,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBarDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.basic.SearchCleanup
+import top.yukonga.miuix.kmp.icon.glass.Search
+import top.yukonga.miuix.kmp.icon.glass.Close
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -65,7 +65,7 @@ internal fun LocalizedInputField(
           start = SearchBarDefaults.LeadingIconStartPadding,
           end = SearchBarDefaults.LeadingIconEndPadding,
         ),
-        imageVector = MiuixIcons.Basic.Search,
+        imageVector = MiuixIcons.Glass.Search,
         tint = MiuixTheme.colorScheme.onSurfaceContainerHigh,
         contentDescription = null,
       )
@@ -81,7 +81,7 @@ internal fun LocalizedInputField(
         ) {
           Icon(
             modifier = Modifier.clip(CircleShape).clickable(enabled = enabled, role = Role.Button) { currentOnQueryChange("") },
-            imageVector = MiuixIcons.Basic.SearchCleanup,
+            imageVector = MiuixIcons.Glass.Close,
             tint = MiuixTheme.colorScheme.onSurfaceContainerHighest,
             contentDescription = stringResource(R.string.search_clear_text),
           )

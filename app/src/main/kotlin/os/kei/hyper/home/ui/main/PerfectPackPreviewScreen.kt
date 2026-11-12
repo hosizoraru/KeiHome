@@ -163,6 +163,57 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
           onSort = { sortName = PerfectPreviewSort.entries[it].name },
           onReverse = { reverse = !reverse }, modifier = Modifier.testTag("perfect.preview.sort"))
       }
+    }, floatingActionButton = {
+      // Overlay sheets need this Scaffold host, outside its recorded list layer.
+      focusedIcon?.let { (focusedPack, entry) ->
+        androidx.compose.runtime.key(focusedPack.id, entry.key) {
+          val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
+          val label = labels[identity] ?: entry.component?.packageName?.let(labels::get)
+          val configuration = LocalConfiguration.current.toString()
+          val previews by androidx.compose.runtime.key(focusedPack.id, focusedPack.source, entry, configuration, maskRevision) {
+            produceState<IconPackPreviews?>(null) {
+              value = vm.packPreviews.load(focusedPack, entry, sizePx = 256)
+            }
+          }
+          IconPreviewInspectionSheet(show = showInspection, onDismissRequest = { showInspection = false },
+            title = label ?: identity, modifier = Modifier.testTag("perfect.preview.details"),
+            onDismissFinished = { if (!showInspection) focusedIcon = null },
+            details = {
+              Text(focusedPack.displayName, style = MiuixTheme.textStyles.body2)
+              Text(identity, style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              entry.component?.let {
+                Text(it.flattened, style = MiuixTheme.textStyles.footnote2,
+                  color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              }
+              MetadataPill(stringResource(if (entry.quietSnapshot) R.string.perfect_icons_preview_snapshot
+                else R.string.perfect_icons_preview_static), MiuixTheme.colorScheme.onSurfaceSecondary)
+              if (entry.dark != null && entry.dark != entry.light)
+                MetadataPill(stringResource(R.string.perfect_icons_preview_dark), MiuixTheme.colorScheme.primary)
+            }) { mode ->
+            IconPreviewComparison(mode) { dark, slotModifier ->
+              val themeLabel = stringResource(if (dark) R.string.preview_glass_dark else R.string.preview_glass_light)
+              val bitmap = previews?.let { if (dark) it.dark else it.light }
+              val image = remember(bitmap) { bitmap?.asImageBitmap() }
+              Column(slotModifier, horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconPreviewArtworkFrame(dark) {
+                  Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
+                    when {
+                      previews == null -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+                      image != null -> Image(image, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
+                      else -> Text(stringResource(R.string.browser_preview_unavailable),
+                        style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
+                    }
+                  }
+                }
+                Text(themeLabel, style = MiuixTheme.textStyles.footnote2,
+                  color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              }
+            }
+          }
+        }
+      }
     }) {
     item("style") {
       Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -237,55 +288,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
     }
   }
-  focusedIcon?.let { (focusedPack, entry) ->
-    androidx.compose.runtime.key(focusedPack.id, entry.key) {
-      val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
-      val label = labels[identity] ?: entry.component?.packageName?.let(labels::get)
-      val configuration = LocalConfiguration.current.toString()
-      val previews by androidx.compose.runtime.key(focusedPack.id, focusedPack.source, entry, configuration, maskRevision) {
-        produceState<IconPackPreviews?>(null) {
-          value = vm.packPreviews.load(focusedPack, entry, sizePx = 256)
-        }
-      }
-      IconPreviewInspectionSheet(show = showInspection, onDismissRequest = { showInspection = false },
-        title = label ?: identity, modifier = Modifier.testTag("perfect.preview.details"),
-        onDismissFinished = { if (!showInspection) focusedIcon = null },
-        details = {
-          Text(focusedPack.displayName, style = MiuixTheme.textStyles.body2)
-          Text(identity, style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          entry.component?.let {
-            Text(it.flattened, style = MiuixTheme.textStyles.footnote2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-          MetadataPill(stringResource(if (entry.quietSnapshot) R.string.perfect_icons_preview_snapshot
-            else R.string.perfect_icons_preview_static), MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (entry.dark != null && entry.dark != entry.light)
-            MetadataPill(stringResource(R.string.perfect_icons_preview_dark), MiuixTheme.colorScheme.primary)
-        }) { mode ->
-        IconPreviewComparison(mode) { dark, slotModifier ->
-          val themeLabel = stringResource(if (dark) R.string.preview_glass_dark else R.string.preview_glass_light)
-          val bitmap = previews?.let { if (dark) it.dark else it.light }
-          val image = remember(bitmap) { bitmap?.asImageBitmap() }
-          Column(slotModifier, horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconPreviewArtworkFrame(dark) {
-              Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
-                when {
-                  previews == null -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
-                  image != null -> Image(image, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
-                  else -> Text(stringResource(R.string.browser_preview_unavailable),
-                    style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
-                }
-              }
-            }
-            Text(themeLabel, style = MiuixTheme.textStyles.footnote2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-        }
-      }
-    }
-  }
+
 }
 
 @Composable

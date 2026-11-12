@@ -290,6 +290,13 @@ guidance, cache explanations, cache threshold editing, Monet color editing
 and Perfect source information. It preserves composition locals, accessible
 dismissal, nested scrolling and the native exit transition. Destructive
 confirmations and action choosers retain `Os4ActionDialog`.
+Overlay sheets must be composed within their page's Scaffold provider. A
+sibling composed after `PerfectSubpage` has no dialog host and can receive
+clicks without displaying a panel. Perfect preview declares its inspection
+content in the Scaffold's floating slot, outside the recorded list layer.
+Source information already uses that slot; guidance and threshold editors
+are hosted by their page's toolbar. Standalone component tests are therefore
+supplemented by opening these panels in the actual navigation destinations.
 
 Apple mapping and matched-artwork pages have explicit selection mode and a
 Glass Panel toolbar. Matching keeps the existing batch/cooldown policy; the

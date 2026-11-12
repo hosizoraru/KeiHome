@@ -2,8 +2,83 @@ package os.kei.hyper.home.iconpack
 
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.data.RecommendedIconMappings
 
 class IconGenerationManifestTest {
+  @Test fun schemaEightRecordsEveryMappingSelectionInCanonicalMetadataBeforeDecisions() {
+    val selections = listOf(RecommendedIconMappings.NONE, RecommendedIconMappings(true, false),
+      RecommendedIconMappings(false, true), RecommendedIconMappings())
+    selections.forEachIndexed { bits, mappings ->
+      val value = IconGenerationManifest(
+        colorOsPackages = setOf("os.test.app"),
+        considered = setOf("os.test.app/os.test.app.Main"),
+        nativeAdaptations = mapOf("os.test.app" to "none"),
+        installedOnly = true,
+        activeLauncherTargets = setOf("os.test.app/os.test.app.Main"),
+        preservedIconPackages = setOf("os.test.preserved"),
+        recommendedMappings = mappings,
+      )
+      assertEquals(8, value.schemaVersion)
+      val canonical = ("KeiHomeIconGeneration8\nscope\tinstalled\nshape\toriginal\nmask\toriginal\n" +
+        "mappings\t$bits\ncoloros\tos.test.app\ntarget\tos.test.app/os.test.app.Main\n" +
+        "native\tos.test.app\tnone\nactive\tos.test.app/os.test.app.Main\npreserve\tos.test.preserved\n")
+        .toByteArray(Charsets.UTF_8)
+      assertArrayEquals(canonical, value.encode())
+      assertEquals(value, IconGenerationManifest.decode(canonical))
+      assertArrayEquals(canonical, IconGenerationManifest.decode(canonical).encode())
+    }
+    assertArrayEquals(
+      "KeiHomeIconGeneration8\nscope\tall\nshape\toriginal\nmask\toriginal\nmappings\t3\n"
+        .toByteArray(Charsets.UTF_8),
+      IconGenerationManifest().encode())
+  }
+
+  @Test fun allLegacySchemasKeepBothMappingsEnabledAndRejectEncodingDisabledSelections() {
+    for (schema in 1..7) {
+      val value = IconGenerationManifest(schemaVersion = schema)
+      val bytes = value.encode()
+      assertFalse(bytes.toString(Charsets.UTF_8).contains("mappings\t"))
+      val decoded = IconGenerationManifest.decode(bytes)
+      assertEquals(schema, decoded.schemaVersion)
+      assertEquals(RecommendedIconMappings(), decoded.recommendedMappings)
+      assertArrayEquals(bytes, decoded.encode())
+      for (bits in 0..2) {
+        assertThrows("schema=$schema bits=$bits", IllegalArgumentException::class.java) {
+          value.copy(recommendedMappings = RecommendedIconMappings.fromBits(bits)).encode()
+        }
+      }
+      assertThrows("schema=$schema", IllegalArgumentException::class.java) {
+        IconGenerationManifest.decode(bytes + "mappings\t3\n".toByteArray(Charsets.UTF_8))
+      }
+    }
+    val previous = ("KeiHomeIconGeneration7\nscope\tall\nshape\toriginal\nmask\toriginal\n" +
+      "preserve\tos.test.preserved\n").toByteArray(Charsets.UTF_8)
+    assertEquals(7, IconGenerationManifest.decode(previous).schemaVersion)
+    assertEquals(setOf("os.test.preserved"), IconGenerationManifest.decode(previous).preservedIconPackages)
+    assertArrayEquals(previous, IconGenerationManifest.decode(previous).encode())
+  }
+
+  @Test fun schemaEightRejectsMissingInvalidDuplicateAndNoncanonicalMappingMetadata() {
+    val header = "KeiHomeIconGeneration8\nscope\tall\nshape\toriginal\nmask\toriginal\n"
+    val malformedRows = listOf("", "mappings\t3\nmappings\t3\n", "mappings\t1\nmappings\t2\n",
+      "mappings\t3\textra\n", "mappings\t3\t\n") +
+      listOf("", "-1", "4", "255", "2147483648", "+1", "01", " 1", "1 ", "1.0", "true")
+        .map { "mappings\t$it\n" }
+    for (rows in malformedRows) {
+      assertThrows("rows=$rows", IllegalArgumentException::class.java) {
+        IconGenerationManifest.decode((header + rows).toByteArray(Charsets.UTF_8))
+      }
+    }
+    for (text in listOf(
+      "KeiHomeIconGeneration8\nmappings\t3\nscope\tall\nshape\toriginal\nmask\toriginal\n",
+      "${header}target\tos.test.app\nmappings\t3\n",
+    )) {
+      assertThrows(text, IllegalArgumentException::class.java) {
+        IconGenerationManifest.decode(text.toByteArray(Charsets.UTF_8))
+      }
+    }
+  }
+
   @Test fun preservedPackagesRoundTripWithoutChangingLegacySchemaMeaning() {
     val value = IconGenerationManifest(preservedIconPackages = setOf("android", "org.telegram.messenger.web", "os.kei"))
     assertEquals(value, IconGenerationManifest.decode(value.encode()))
@@ -29,7 +104,7 @@ class IconGenerationManifestTest {
   @Test fun shapeCompletionPolicyRoundTripsAndLegacySchemasKeepTheirMeaning() {
     for (enabled in listOf(false, true)) {
       val value = IconGenerationManifest(completeSystemIconConfig = enabled)
-      assertEquals(7, value.schemaVersion)
+      assertEquals(8, value.schemaVersion)
       assertEquals(value, IconGenerationManifest.decode(value.encode()))
     }
     val old = "KeiHomeIconGeneration2\nscope\tall\n".toByteArray()

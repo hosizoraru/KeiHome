@@ -10,6 +10,86 @@ class BuiltinColorOsMappingsTest {
     light = art("theme_light"), dark = art("theme_dark"))
   private val metadata = ColorOsIconSource("coloros-monochrome/theme.png", null, false)
 
+  @Test fun disablingRemovesOnlyTrackedSyntheticAliasesAndTheirProfileIcons() {
+    val own = IconPackEntry("own-theme", targets[0], light = art("own_day"), dark = art("own_night"))
+    val activity = IconPackComponent(targets[1].packageName, "com.miui.themestore.Feature")
+    val authoredAlias = IconPackEntry("authored-alias", activity, dark = art("feature_night"))
+    val ownMetadata = ColorOsIconSource(null, "own_theme", true)
+    val original = pack().let {
+      val profile = requireNotNull(it.colorOsProfile)
+      it.copy(entries = it.entries + own + authoredAlias,
+        colorOsProfile = profile.copy(icons = profile.icons +
+          mapOf(targets[0] to ownMetadata, activity to ownMetadata)))
+    }
+    val enabled = BuiltinColorOsMappings.selected(original, enabled = true)
+    assertEquals(setOf(targets[1]), enabled.recommendedAliases)
+    assertEquals(metadata, enabled.colorOsProfile!!.icons[targets[1]])
+    val disabled = BuiltinColorOsMappings.selected(enabled, enabled = false)
+    val disabledProfile = requireNotNull(disabled.colorOsProfile)
+    assertEquals(original.entries, disabled.entries)
+    assertEquals(original.colorOsProfile!!.icons, disabledProfile.icons)
+    assertFalse(disabled.entries.any { it.component == targets[1] })
+    assertFalse(disabledProfile.icons.containsKey(targets[1]))
+    assertSame(own, disabled.entries.single { it.component == targets[0] })
+    assertSame(authoredAlias, disabled.entries.single { it.component == activity })
+    assertEquals(ownMetadata, disabledProfile.source(activity))
+    assertEquals(art("own_day"), own.light)
+    assertEquals(art("own_night"), own.dark)
+    assertEquals(original.id, disabled.id)
+    assertSame(original.source, disabled.source)
+    assertEquals(3, original.entries.size)
+  }
+
+  @Test fun authoredThemeTargetsAreKeptEvenWhenTheyUseTheSameArtworkAsHeyTap() {
+    val authored = targets.map { theme.copy(key = "authored-${it.packageName}", component = it) }
+    val original = pack().let {
+      val profile = requireNotNull(it.colorOsProfile)
+      it.copy(entries = it.entries + authored, colorOsProfile = profile.copy(
+        icons = profile.icons + targets.associateWith { metadata }))
+    }
+    for (enabled in listOf(false, true, false)) {
+      val selected = BuiltinColorOsMappings.selected(original, enabled)
+      assertSame(original, selected)
+      assertTrue(selected.recommendedAliases.isEmpty())
+      authored.forEach { own -> assertSame(own, selected.entries.single { it.component == own.component }) }
+      assertEquals(original.colorOsProfile!!.icons, selected.colorOsProfile!!.icons)
+    }
+  }
+
+  @Test fun reEnablingAddsBackMissingAliasesAndProfileIconsWithoutDuplication() {
+    val own = IconPackEntry("own", targets[0], light = art("own"))
+    for (original in listOf(pack(), pack().copy(entries = listOf(theme, own)))) {
+      val expected = BuiltinColorOsMappings.selected(original, enabled = true)
+      var current = expected
+      repeat(3) {
+        current = BuiltinColorOsMappings.selected(current, enabled = false)
+        assertEquals(original.entries, current.entries)
+        assertEquals(original.colorOsProfile!!.icons, current.colorOsProfile!!.icons)
+        current = BuiltinColorOsMappings.selected(current, enabled = true)
+        assertEquals(expected.entries, current.entries)
+        assertEquals(expected.recommendedAliases, current.recommendedAliases)
+        assertEquals(expected.colorOsProfile!!.icons, current.colorOsProfile!!.icons)
+        assertSame(current, BuiltinColorOsMappings.selected(current, enabled = true))
+        targets.forEach { target -> assertEquals(1, current.entries.count { it.component == target }) }
+      }
+    }
+  }
+
+  @Test fun disabledThemeMappingBlocksNameMatcherBypassOnlyForColorOsProfiles() {
+    val original = pack()
+    val importedProfile = original.copy(source = IconPackSource.Installed("org.example.icons", 1, 0))
+    val expected = targets.map { it.packageName }.toSet()
+    for (candidate in listOf(original, BuiltinColorOsMappings.withAliases(original), importedProfile)) {
+      assertEquals(expected, BuiltinColorOsMappings.excludedNameMatches(candidate, enabled = false))
+      assertTrue(BuiltinColorOsMappings.excludedNameMatches(candidate, enabled = true).isEmpty())
+    }
+    for (candidate in listOf(original.copy(colorOsProfile = null), importedProfile.copy(colorOsProfile = null))) {
+      for (enabled in listOf(false, true)) {
+        assertTrue(BuiltinColorOsMappings.excludedNameMatches(candidate, enabled).isEmpty())
+      }
+    }
+  }
+
   @Test fun bothHyperOsPackagesUseCanonicalArtworkAndPaletteInEveryBuiltinStyle() {
     for (style in listOf("classic", "daylight", "nightshadow", "material", "pebble")) {
       for (artPlus in listOf("on", "off")) {

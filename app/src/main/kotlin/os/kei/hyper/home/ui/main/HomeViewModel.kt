@@ -261,9 +261,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (managed && !iconPacks.value.scanned) readIconPacks()
     }
     viewModelScope.launch {
-      preferences.state.map { it.completeSystemIconConfig }.distinctUntilChanged().collect {
+      preferences.state.map { Triple(it.completeSystemIconConfig, it.recommendedIconMappings, it.systemAppNameMatching) }.distinctUntilChanged().collect {
         clearPreviewCache()
         perfectPacks.invalidateMaskPreview()
+        if (iconPacks.value.scanned) readIconPacks()
       }
     }
     viewModelScope.launch {
@@ -274,12 +275,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           it.installedIconsOnly to it.completeSystemIconConfig) }.distinctUntilChanged(),
         packageInventoryRevision) { _, _, _, _, _ -> Unit }
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
-        .combine(preferences.state.map { it.preservedIconPackages }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(preferences.state.map { it.preservedIconPackages to it.recommendedIconMappings }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
           if (iconPacks.value.nativeImporting != null) return@withContext false
-          val pack = currentFallbackSource() ?: return@withContext false
+          val selected = preferences.state.value
+          val mappings = selected.recommendedIconMappings
+          val pack = os.kei.hyper.home.iconpack.BuiltinColorOsMappings.selected(
+            currentFallbackSource() ?: return@withContext false, mappings.colorOsThemeStores)
           val targets = launcherIconTargets()
           val system = application.packageManager.getInstalledApplications(
             android.content.pm.PackageManager.ApplicationInfoFlags.of(0)).filter {
@@ -289,24 +293,25 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           val fallback = preferences.state.value.systemIconFallback
           val perfectSource = if (fallback.isPerfect)
             os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application).catalog()?.sourceHash else null
-          val nameMatching = preferences.state.value.systemAppNameMatching &&
+          val nameMatching = selected.systemAppNameMatching &&
             pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS
           val caller = currentCoroutineContext()
-          val colorOsExtra = preferences.state.value.colorOsForOtherPacks
+          val colorOsExtra = selected.colorOsForOtherPacks
           val colorOsFallback = if (colorOsExtra && pack.colorOsProfile == null) packRepository.runtimeFallback() else null
           val exporter = os.kei.hyper.home.iconpack.IconPackExporter(application,
             os.kei.hyper.home.iconpack.IconPackLimits())
           val nameMatcher = os.kei.hyper.home.iconpack.SystemAppNameMatcher(application,
-            pack.entries, nameMatching)
+            pack.entries, nameMatching,
+            os.kei.hyper.home.iconpack.BuiltinColorOsMappings.excludedNameMatches(pack, mappings.colorOsThemeStores))
           val fingerprints = nativeIconAdaptations.read(source.generation?.nativeAdaptations?.keys.orEmpty()) {
             caller.ensureActive()
           }
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
-            installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource,
-            completeSystemIconConfig = preferences.state.value.completeSystemIconConfig,
+            installedOnly = selected.installedIconsOnly, perfectSource = perfectSource,
+            completeSystemIconConfig = selected.completeSystemIconConfig,
             iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
-            preservedPackages = preferences.state.value.preservedIconPackages) {
-            exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
+            preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings) {
+            exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
         } catch (failure: Exception) {
@@ -639,7 +644,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
           selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly,
-          selected.completeSystemIconConfig)
+          selected.completeSystemIconConfig, selected.recommendedIconMappings)
         if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)

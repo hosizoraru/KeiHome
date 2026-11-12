@@ -1,13 +1,16 @@
 package os.kei.hyper.home.iconpack
 
 import android.content.Context
+import os.kei.hyper.home.data.RecommendedIconMappings
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 
 /** Add closed image-only pairs; never copy or rewrite an authored third-party program. */
 internal object NativeTelegramChannelCompletion {
   fun additions(context: Context, pack: IconPackDescriptor, targets: List<IconPackComponent>, size: Int,
-    maskPolicy: IconMaskPolicy?, preserved: Set<String>, check: () -> Unit): Map<String, ByteArray> {
+    maskPolicy: IconMaskPolicy?, preserved: Set<String>, recommendedMappings: RecommendedIconMappings,
+    check: () -> Unit): Map<String, ByteArray> {
+    if (!recommendedMappings.telegramChannels) return emptyMap()
     val family = TelegramChannelIcons(pack.entries)
     val byComponent = pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
     val byName = pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
@@ -26,9 +29,9 @@ internal object NativeTelegramChannelCompletion {
     val written = hashSetOf<String>()
     val renderer = IconPackRenderer(context)
     renderer.open(pack, false, maskPolicy = maskPolicy, clipOutput = false,
-      preservedPackages = preserved).use { day ->
+      preservedPackages = preserved, recommendedMappings = recommendedMappings).use { day ->
       renderer.open(pack, true, maskPolicy = maskPolicy, clipOutput = false,
-        preservedPackages = preserved).use { night ->
+        preservedPackages = preserved, recommendedMappings = recommendedMappings).use { night ->
         fun png(session: IconPackRenderer.Session, target: IconPackComponent): ByteArray? {
           val raw = session.renderTarget(null, target, size, check) ?: return null
           val bitmap = session.maskOutput(raw)

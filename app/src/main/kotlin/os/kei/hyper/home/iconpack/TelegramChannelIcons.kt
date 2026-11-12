@@ -1,10 +1,10 @@
 package os.kei.hyper.home.iconpack
 
 /** Completes missing official-channel artwork without changing an explicit target selection. */
-internal class TelegramChannelIcons(entries: List<IconPackEntry>) {
+internal class TelegramChannelIcons(entries: List<IconPackEntry>, private val enabled: Boolean = true) {
   private data class Candidate(val entry: IconPackEntry, val family: String, val alias: Int)
 
-  private val candidates = entries.mapNotNull { entry ->
+  private val candidates = (if (enabled) entries else emptyList()).mapNotNull { entry ->
     val identity = entry.component ?: entry.nativeName?.let(::nativeComponent) ?: return@mapNotNull null
     val alias = aliasPriority(identity) ?: return@mapNotNull null
     Candidate(entry, identity.packageName, alias)
@@ -20,7 +20,7 @@ internal class TelegramChannelIcons(entries: List<IconPackEntry>) {
     existing: IconPackEntry?,
     supportsNight: (IconPackEntry) -> Boolean = ::declaredNight,
   ): IconPackEntry? {
-    if (aliasPriority(target) == null) return null
+    if (!enabled || aliasPriority(target) == null) return null
     if (!dark && existing?.light != null) return null
     if (dark && existing != null && supportsNight(existing)) return null
     for (family in FAMILIES) {

@@ -2,6 +2,7 @@ package os.kei.hyper.home.ui.main
 
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.data.RecommendedIconMappings
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
@@ -15,6 +16,84 @@ class IconPackUpdateNoticeTest {
 
   private fun needed(current: IconBrowserSource = source, original: IconPackDescriptor = pack) =
     iconPackNeedsUpdate(original, current, listOf(target), SystemIconFallback.DEFAULT, emptySet())
+
+  @Test fun mappingChangesInEitherDirectionNeedRegenerationAndMatchingSettingsStayClean() {
+    val preserved = setOf("os.test.preserved")
+    val adaptations = mapOf(target.flattened to "a".repeat(64))
+    val base = IconGenerationManifest(
+      considered = setOf(target.flattened), nativeAdaptations = adaptations,
+      installedOnly = true, completeSystemIconConfig = true,
+      activeLauncherTargets = setOf(target.flattened), preservedIconPackages = preserved)
+    fun needsUpdate(applied: IconBrowserSource, selected: RecommendedIconMappings) =
+      iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+        nameMatching = true, colorOsForOtherPacks = true, nativeAdaptations = adaptations,
+        installedOnly = true, completeSystemIconConfig = true, preservedPackages = preserved,
+        recommendedMappings = selected) {
+        fail("Fully covered targets must not retry completion when comparing mapping metadata")
+        false
+      }
+    for (savedBits in 0..3) {
+      val saved = RecommendedIconMappings.fromBits(savedBits)
+      val applied = source.copy(nativeNames = setOf(target.packageName),
+        systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, emptySet(),
+          nameMatching = true, colorOsFallback = true),
+        generation = IconGenerationManifest.decode(base.copy(recommendedMappings = saved).encode()))
+      assertFalse(needsUpdate(applied, saved))
+      for (selectedBits in 0..3) {
+        val selected = RecommendedIconMappings.fromBits(selectedBits)
+        assertEquals("saved=$savedBits selected=$selectedBits",
+          saved != selected, needsUpdate(applied, selected))
+        val regenerated = applied.copy(generation = IconGenerationManifest.decode(
+          base.copy(recommendedMappings = selected).encode()))
+        assertFalse("saved=$savedBits selected=$selectedBits", needsUpdate(regenerated, selected))
+      }
+    }
+  }
+
+  @Test fun absentOrLegacyMappingMetadataMeansBothEnabledEvenWhenInventoryIsUnknown() {
+    val legacy = IconGenerationManifest.decode(
+      "KeiHomeIconGeneration7\nscope\tall\nshape\toriginal\nmask\toriginal\n".toByteArray(Charsets.UTF_8))
+    assertEquals(7, legacy.schemaVersion)
+    for (generation in listOf(null, legacy)) {
+      for (names in listOf(setOf(target.packageName), null)) {
+        val applied = source.copy(nativeNames = names, generation = generation)
+        assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+          emptySet(), recommendedMappings = RecommendedIconMappings()))
+        for (bits in 0..2) {
+          val selected = RecommendedIconMappings.fromBits(bits)
+          assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+            emptySet(), recommendedMappings = selected))
+          val regenerated = applied.copy(generation = IconGenerationManifest.decode(
+            IconGenerationManifest(recommendedMappings = selected).encode()))
+          assertFalse(iconPackNeedsUpdate(pack, regenerated, listOf(target), SystemIconFallback.DEFAULT,
+            emptySet(), recommendedMappings = selected))
+        }
+      }
+    }
+  }
+
+  @Test fun matchingDisabledTelegramSettingDoesNotTurnNewChannelIntoAnUpdateTask() {
+    val donor = IconPackComponent("org.telegram.messenger")
+    val beta = IconPackComponent("org.telegram.messenger.beta", "org.telegram.messenger.DefaultIcon")
+    val donorEntry = entry.copy(component = donor,
+      light = IconPackArtwork.Resource(IconDrawableName("telegram", "drawable")),
+      dark = IconPackArtwork.Resource(IconDrawableName("telegram_night", "drawable")))
+    val original = pack.copy(entries = listOf(donorEntry))
+    val selected = RecommendedIconMappings(telegramChannels = false)
+    val applied = source.copy(pack = original, nativeNames = setOf(donor.packageName),
+      generation = IconGenerationManifest(recommendedMappings = selected))
+    assertFalse(iconPackNeedsUpdate(original, applied, listOf(beta),
+      SystemIconFallback.DEFAULT, emptySet(), recommendedMappings = selected) {
+      fail("Disabled channel mapping must not make a missing channel eligible for completion")
+      true
+    })
+    val enabled = applied.copy(generation = IconGenerationManifest())
+    assertTrue(iconPackNeedsUpdate(original, enabled, listOf(beta),
+      SystemIconFallback.DEFAULT, emptySet(), recommendedMappings = RecommendedIconMappings()) { true })
+    val regenerated = enabled.copy(generation = IconGenerationManifest(considered = setOf(beta.flattened)))
+    assertFalse(iconPackNeedsUpdate(original, regenerated, listOf(beta),
+      SystemIconFallback.DEFAULT, emptySet(), recommendedMappings = RecommendedIconMappings()))
+  }
 
   @Test fun stockPreviewFallbackDoesNotHideMissingMappedArtwork() { assertTrue(needed()) }
   @Test fun unavailableStaticArtworkDoesNotCreateAnUnresolvableNotice() {

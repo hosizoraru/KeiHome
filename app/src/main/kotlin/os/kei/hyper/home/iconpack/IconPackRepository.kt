@@ -1,6 +1,7 @@
 package os.kei.hyper.home.iconpack
 
 import android.content.Context
+import os.kei.hyper.home.data.RecommendedIconMappings
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -40,7 +41,8 @@ internal class IconPackRepository(
   fun invalidateInstalled() = synchronized(installedCache) { installedCache.clear() }
 
   suspend fun listBuiltins(): IconPackScanResult = withContext(worker) {
-    builtinMutex.withLock {
+    val mappings = RecommendedIconMappings.snapshot(application)
+    val result = builtinMutex.withLock {
       builtinCache?.let { return@withLock it }
       // Legacy per-version copies are regenerable. New builtins read directly from the APK.
       builtinRoot.deleteRecursively()
@@ -56,6 +58,7 @@ internal class IconPackRepository(
       }
       IconPackScanResult(packs, failures).also { builtinCache = it }
     }
+    result.copy(packs = result.packs.map { BuiltinColorOsMappings.selected(it, mappings.colorOsThemeStores) })
   }
 
   suspend fun listInstalled(): IconPackScanResult = withContext(worker) {
@@ -196,11 +199,13 @@ internal class IconPackRepository(
     installedOnly: Boolean = false,
     maskPolicy: IconMaskPolicy? = null,
     preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(application),
+    recommendedMappings: RecommendedIconMappings? = null,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
-      systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages) { caller.ensureActive() }
+      systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages,
+      recommendedMappings ?: RecommendedIconMappings.snapshot(application)) { caller.ensureActive() }
   }
 
   private var runtimeFallbackCache: IconPackDescriptor? = null

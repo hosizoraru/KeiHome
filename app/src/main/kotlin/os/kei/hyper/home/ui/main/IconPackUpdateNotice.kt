@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.data.RecommendedIconMappings
+import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
 import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconPackComponent
@@ -20,7 +22,10 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   iconMaskIdentity: String = if (completeSystemIconConfig)
     os.kei.hyper.home.iconpack.IconMaskPolicy.DEFAULT_IDENTITY else "original",
   preservedPackages: Set<String> = emptySet(),
+  recommendedMappings: RecommendedIconMappings = RecommendedIconMappings(),
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
+  val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
+  if ((source.generation?.recommendedMappings ?: RecommendedIconMappings()) != recommendedMappings) return true
   if (source.generation?.preservedIconPackages.orEmpty() != preservedPackages) return true
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||
     (source.generation?.completeSystemIconConfig ?: false) != completeSystemIconConfig ||
@@ -46,7 +51,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if (source.generation?.nativeAdaptations?.any { (target, fingerprint) ->
       nativeAdaptations[target]?.let { it != fingerprint } == true } == true) return true
   val components = pack.entries.mapNotNull { it.component }.toSet()
-  val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries)
+  val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
   return eligible.any { target ->
     val aliases = nativeLauncherIconNames(target)
     val perfect = fallback.isPerfect

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import os.kei.hyper.home.data.AppDisplayStorage
+import os.kei.hyper.home.data.RecommendedIconMappings
 
 /** Shared snapshots: the UI must not mutate or recycle these bitmaps. Null is an unavailable
  * preview, never a reason to substitute a recolored or unrelated application icon. */
@@ -62,7 +63,7 @@ internal class IconPackPreviewRepository(
 
   suspend fun load(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128,
     maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true,
-    preservedPackages: Set<String>? = null): IconPackPreviews {
+    preservedPackages: Set<String>? = null, recommendedMappings: RecommendedIconMappings? = null): IconPackPreviews {
     require(sizePx in 1..512)
     val requestedGeneration = synchronized(lock) { generation }
     return withContext(worker) {
@@ -70,13 +71,14 @@ internal class IconPackPreviewRepository(
       caller.ensureActive()
       val policy = maskPolicy ?: defaultMaskPolicy()
       val preserved = preservedPackages ?: os.kei.hyper.home.data.PreservedIcons.snapshot(application)
+      val mappings = recommendedMappings ?: RecommendedIconMappings.snapshot(application)
       val key = Key(pack.id, pack.source, entry.key, sizePx, Configuration(application.resources.configuration),
-        application.resources.displayMetrics.densityDpi, policy.identity, clipOutput, preserved)
+        application.resources.displayMetrics.densityDpi, policy.identity, clipOutput, preserved, mappings)
       synchronized(lock) { cache.get(key)?.let { return@withContext it } }
       fun render(dark: Boolean): Pair<Bitmap?, String?> = try {
         caller.ensureActive()
         val bitmap = renderer.open(pack, dark, maskPolicy = policy, clipOutput = clipOutput,
-          preservedPackages = preserved).use {
+          preservedPackages = preserved, recommendedMappings = mappings).use {
           it.render(entry, sizePx) { caller.ensureActive() }
         }
         bitmap to if (bitmap == null) "No static artwork for this mode" else null
@@ -96,7 +98,7 @@ internal class IconPackPreviewRepository(
   /** Never consult pending private mask settings when previewing a published theme. */
   suspend fun loadApplied(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128): IconPackPreviews =
     load(pack, entry, sizePx, maskPolicy = IconMaskPolicy(false), clipOutput = false,
-      preservedPackages = emptySet())
+      preservedPackages = emptySet(), recommendedMappings = RecommendedIconMappings.NONE)
 
   private fun defaultMaskPolicy(): IconMaskPolicy {
     val stamp = PolicyStamp(preferences.getBoolean("complete_system_icon_config", true),
@@ -120,7 +122,7 @@ internal class IconPackPreviewRepository(
   private data class PolicyStamp(val enabled: Boolean, val size: Long, val modified: Long, val generation: Long)
   private data class Key(val packId: String, val source: IconPackSource, val entry: String,
     val size: Int, val configuration: Configuration, val density: Int, val mask: String, val clipped: Boolean,
-    val preserved: Set<String>)
+    val preserved: Set<String>, val mappings: RecommendedIconMappings)
 }
 
 /** Used by preview and explicit static export, with one resource session for a batch. */
@@ -190,7 +192,9 @@ internal class IconPackRenderer(private val context: Context) {
 
   fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null,
     maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true,
-    preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(context)): Session {
+    preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(context),
+    recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context)): Session {
+    val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
     val resources = when (val source = pack.source) {
       is IconPackSource.Installed -> {
         val info = context.packageManager.getPackageInfo(source.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -203,7 +207,7 @@ internal class IconPackRenderer(private val context: Context) {
       is IconPackSource.Builtin -> null
       is IconPackSource.Generated -> null
     }
-    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput, preservedPackages)
+    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput, preservedPackages, recommendedMappings)
   }
 
   inner class Session(
@@ -214,6 +218,7 @@ internal class IconPackRenderer(private val context: Context) {
     maskPolicy: IconMaskPolicy?,
     private val clipOutput: Boolean,
     private val preservedPackages: Set<String>,
+    private val recommendedMappings: RecommendedIconMappings,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
     private val previewMask by lazy(LazyThreadSafetyMode.NONE) {
@@ -223,7 +228,7 @@ internal class IconPackRenderer(private val context: Context) {
     private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
     private val supplementState = lazy(LazyThreadSafetyMode.NONE) {
       supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false,
-        preservedPackages = preservedPackages) }
+        preservedPackages = preservedPackages, recommendedMappings = recommendedMappings) }
     }
     private val supplement by supplementState
     private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
@@ -232,7 +237,7 @@ internal class IconPackRenderer(private val context: Context) {
     private val nativeEntries by lazy(LazyThreadSafetyMode.NONE) {
       pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
     }
-    private val telegram by lazy(LazyThreadSafetyMode.NONE) { TelegramChannelIcons(pack.entries) }
+    private val telegram by lazy(LazyThreadSafetyMode.NONE) { TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels) }
     private val nightProofs = mutableMapOf<String, Boolean>()
     private val nightResourceState = lazy(LazyThreadSafetyMode.NONE) {
       if (dark) android else when (val source = pack.source) {
@@ -285,7 +290,7 @@ internal class IconPackRenderer(private val context: Context) {
     fun renderTarget(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int, check: () -> Unit): Bitmap? {
       if (target != null && target.packageName in preservedPackages)
         return OriginalAppIcons.render(context, target, sizePx, dark, check)
-      val bitmap = renderTargetArtwork(entry, target, sizePx, check, null) ?: return null
+      val bitmap = renderTargetArtwork(allowedEntry(entry), target, sizePx, check, null) ?: return null
       if (!clipOutput) return bitmap
       return maskOutput(bitmap)
     }
@@ -300,8 +305,14 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
-    fun completedEntry(target: IconPackComponent, existing: IconPackEntry?): IconPackEntry? =
-      telegram.donor(target, dark, existing, ::hasNight) ?: existing
+    fun completedEntry(target: IconPackComponent, existing: IconPackEntry?): IconPackEntry? {
+      val entry = allowedEntry(existing)
+      return telegram.donor(target, dark, entry, ::hasNight) ?: entry
+    }
+
+    private fun allowedEntry(entry: IconPackEntry?): IconPackEntry? = entry?.takeUnless {
+      !recommendedMappings.colorOsThemeStores && it.component in pack.recommendedAliases
+    }
 
     private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
       check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {

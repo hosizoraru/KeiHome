@@ -31,6 +31,8 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.iconpack.apple.AppleDynamicIconArchive
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.data.RecommendedIconMappings
+import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconThemeMetadata
@@ -58,7 +60,10 @@ internal object IconPackHandoffs {
     pack: IconPackDescriptor, targets: List<IconPackComponent>, appearance: IconPackAppearance,
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
-    installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true): IconPackHandoff {
+    installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true,
+    recommendedMappings: RecommendedIconMappings? = null): IconPackHandoff {
+    val mappings = recommendedMappings ?: withContext(Dispatchers.IO) { RecommendedIconMappings.snapshot(context) }
+    val pack = BuiltinColorOsMappings.selected(pack, mappings.colorOsThemeStores)
     val iconMask = withContext(Dispatchers.IO) {
       os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(context, completeSystemIconConfig)
     }
@@ -71,7 +76,7 @@ internal object IconPackHandoffs {
     val light = repository.exportNativeIcons(pack, exportTargets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
       colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
-      preservedPackages = preserved)
+      preservedPackages = preserved, recommendedMappings = mappings)
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -83,7 +88,7 @@ internal object IconPackHandoffs {
           IconPackAppearance.SYSTEM ->
             repository.exportNativeIcons(pack, exportTargets, darkMode = true, systemFallback = systemFallback,
               systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
-              installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved)
+              installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved, recommendedMappings = mappings)
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
@@ -171,6 +176,7 @@ internal object IconPackHandoffs {
           iconMaskIdentity = iconMask.identity,
           activeLauncherTargets = targets.filter { it.className != null }.mapTo(linkedSetOf()) { it.flattened },
           preservedIconPackages = preserved,
+          recommendedMappings = mappings,
         )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())

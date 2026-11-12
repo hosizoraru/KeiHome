@@ -14,6 +14,45 @@ class TelegramChannelIconsTest {
   private val families = listOf(store, web, beta)
   private val legacy = "org.telegram.ui.LaunchActivity"
 
+  @Test fun disabledMappingNeverSelectsDonorsOrQueriesExistingOrDonorNightProof() {
+    for (target in families) {
+      val donor = componentEntry(families.first { it != target })
+      val own = componentEntry(target)
+      val shared = resource("shared_day_night")
+      val entries = listOf(donor, own)
+      val icons = TelegramChannelIcons(entries, enabled = false)
+      for (alias in listOf<String?>(null, ".DefaultIcon", "$store.DefaultIcon", legacy)) {
+        for (dark in listOf(false, true)) {
+          for (existing in listOf(null, own, own.copy(light = shared, dark = shared), own.copy(dark = null))) {
+            assertNull(icons.donor(IconPackComponent(target, alias), dark, existing) {
+              error("Disabled mappings must not query night proof for existing icons or donors")
+            })
+          }
+        }
+      }
+      assertEquals(listOf(donor, own), entries)
+    }
+  }
+
+  @Test fun reEnablingRestoresMissingDefaultArtworkWhileKeepingOwnAndAlternateIcons() {
+    val donor = componentEntry(store)
+    val own = componentEntry(web).copy(light = resource("own_day"), dark = resource("own_night"))
+    val entries = listOf(donor, own)
+    for (enabled in listOf(true, false, true)) {
+      val icons = TelegramChannelIcons(entries, enabled)
+      for (dark in listOf(false, true)) {
+        assertSame(if (enabled) donor else null, icons.donor(IconPackComponent(beta), dark, null))
+        assertNull(icons.donor(IconPackComponent(web), dark, own))
+        assertNull(icons.donor(IconPackComponent(beta, ".BlueIcon"), dark, null) {
+          error("Selected alternate icons must not query donors")
+        })
+      }
+      assertSame(own, entries.single { it.component == IconPackComponent(web) })
+      assertEquals(resource("own_day"), own.light)
+      assertEquals(resource("own_night"), own.dark)
+    }
+  }
+
   @Test fun offlineTargetsExposeOnlyTheThreePackageTargetsInFamilyPriorityOrder() {
     val expected = listOf(IconPackComponent(store), IconPackComponent(web), IconPackComponent(beta))
     assertEquals(expected, TelegramChannelIcons.offlineTargets())

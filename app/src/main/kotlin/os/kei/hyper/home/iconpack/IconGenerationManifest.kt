@@ -1,19 +1,23 @@
 package os.kei.hyper.home.iconpack
 
+import os.kei.hyper.home.data.RecommendedIconMappings
+
 /** Applied generation decisions, independent of preview additions and catalog size. */
 internal data class IconGenerationManifest(
   val colorOsPackages: Set<String> = emptySet(),
   val considered: Set<String> = emptySet(),
   val nativeAdaptations: Map<String, String> = emptyMap(),
   val installedOnly: Boolean = false,
-  val schemaVersion: Int = 7,
+  val schemaVersion: Int = 8,
   val completeSystemIconConfig: Boolean = false,
   val iconMaskIdentity: String = if (completeSystemIconConfig) IconMaskPolicy.DEFAULT_IDENTITY else "original",
   val activeLauncherTargets: Set<String> = emptySet(),
   val preservedIconPackages: Set<String> = emptySet(),
+  val recommendedMappings: RecommendedIconMappings =
+    RecommendedIconMappings(),
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..7 && (schemaVersion != 1 || !installedOnly) &&
+    require(schemaVersion in 1..8 && (schemaVersion != 1 || !installedOnly) &&
       (schemaVersion >= 3 || !completeSystemIconConfig))
     require(validMaskIdentity(iconMaskIdentity) &&
       (completeSystemIconConfig == (iconMaskIdentity != "original")))
@@ -22,10 +26,12 @@ internal data class IconGenerationManifest(
     require((schemaVersion >= 7 || preservedIconPackages.isEmpty()) &&
       preservedIconPackages.size <= 4096 &&
       preservedIconPackages.all(os.kei.hyper.home.data.PreservedIcons::isValidPackageName))
+    require(schemaVersion >= 8 || recommendedMappings == RecommendedIconMappings())
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
     (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
     (if (schemaVersion >= 4) listOf("mask\t$iconMaskIdentity") else emptyList()) +
+    (if (schemaVersion >= 8) listOf("mappings\t${recommendedMappings.bits}") else emptyList()) +
     colorOsPackages.sorted().map { "coloros\t$it" } + considered.sorted().map { "target\t$it" } +
     nativeAdaptations.toSortedMap().map { (key, value) -> "native\t$key\t$value" } +
     activeLauncherTargets.sorted().map { "active\t$it" } +
@@ -49,6 +55,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration5" -> 5
         "KeiHomeIconGeneration6" -> 6
         "KeiHomeIconGeneration7" -> 7
+        "KeiHomeIconGeneration8" -> 8
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
@@ -58,10 +65,15 @@ internal data class IconGenerationManifest(
       var scope: String? = null
       var shape: String? = null
       var mask: String? = null
+      var mappings: RecommendedIconMappings? = null
       fun target(value: String) = IconPackComponent.parse(value)?.flattened == value
       lines.drop(1).dropLast(1).forEach { line ->
         val row = line.split('\t')
         when (row.first()) {
+          "mappings" -> {
+            require(schema >= 8 && row.size == 2 && mappings == null && row[1] in listOf("0", "1", "2", "3"))
+            mappings = RecommendedIconMappings.fromBits(row[1].toInt())
+          }
           "scope" -> {
             require(schema >= 2 && row.size == 2 && scope == null && row[1] in setOf("all", "installed"))
             scope = row[1]
@@ -88,8 +100,10 @@ internal data class IconGenerationManifest(
       require(schema == 1 || scope != null)
       require(schema < 3 || shape != null)
       require(schema < 4 || mask != null)
+      require(schema < 8 || mappings != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
-        mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved).also {
+        mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved,
+        mappings ?: RecommendedIconMappings()).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }

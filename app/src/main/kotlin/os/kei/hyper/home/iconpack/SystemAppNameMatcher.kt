@@ -7,7 +7,8 @@ import android.content.pm.PackageManager
 import java.util.Locale
 
 /** Optional label fallback for system/verified native factory apps, after exact appfilter matching. */
-internal class SystemAppNameMatcher(private val context: Context, entries: List<IconPackEntry>, private val enabled: Boolean) {
+internal class SystemAppNameMatcher(private val context: Context, entries: List<IconPackEntry>, private val enabled: Boolean,
+  private val excludedPackages: Set<String> = emptySet()) {
   private val pm = context.packageManager
   private val byArtworkName = HashMap<String, IconPackEntry>()
   private val ambiguousArtwork = HashSet<String>()
@@ -35,7 +36,7 @@ internal class SystemAppNameMatcher(private val context: Context, entries: List<
   }
 
   fun match(target: IconPackComponent): IconPackEntry? {
-    if (!enabled) return null
+    if (!enabled || target.packageName in excludedPackages) return null
     val label = labels.getOrPut(target) {
       val app = try { pm.getApplicationInfo(target.packageName, PackageManager.ApplicationInfoFlags.of(0)) }
         catch (_: PackageManager.NameNotFoundException) { return@getOrPut null }

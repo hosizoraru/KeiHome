@@ -1,6 +1,7 @@
 package os.kei.hyper.home.iconpack
 
 import android.content.Context
+import os.kei.hyper.home.data.RecommendedIconMappings
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
@@ -39,15 +40,18 @@ internal class IconPackExporter(private val context: Context, private val limits
   /** Probe only missing candidates; use the same guarded renderers and live-source policy. */
   fun canComplete(pack: IconPackDescriptor, target: IconPackComponent,
     systemFallback: SystemIconFallback, systemAppNameMatching: Boolean = false,
-    nameMatcher: SystemAppNameMatcher? = null, colorOsFallback: IconPackDescriptor? = null, check: () -> Unit): Boolean {
+    nameMatcher: SystemAppNameMatcher? = null, colorOsFallback: IconPackDescriptor? = null,
+    recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context), check: () -> Unit): Boolean {
+    val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
     val entry = pack.entries.firstOrNull { it.component == target }
       ?: pack.entries.firstOrNull { it.component == IconPackComponent(target.packageName) }
-      ?: (nameMatcher ?: SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)).match(target)
+      ?: (nameMatcher ?: SystemAppNameMatcher(context, pack.entries, systemAppNameMatching,
+        BuiltinColorOsMappings.excludedNameMatches(pack, recommendedMappings.colorOsThemeStores))).match(target)
     if (pack.colorOsProfile?.source(target)?.requiresLiveIcon == true || livePolicy(pack)(target, entry)) return false
     return try {
       SystemIconFallbackRenderer(context, systemFallback, clipOutput = false, perfectOpener = perfectSources).use { system ->
         val colorOs = (pack.colorOsProfile ?: colorOsFallback?.colorOsProfile)?.let { ColorOsFallbackRenderer(context, style = it.style) }
-        IconPackRenderer(context).open(pack, false, colorOsFallback, clipOutput = false).use { renderer ->
+        IconPackRenderer(context).open(pack, false, colorOsFallback, clipOutput = false, recommendedMappings = recommendedMappings).use { renderer ->
           val missingMode = entry == null || (colorOs != null && entry.artwork(false) == null)
           val bitmap = renderer.renderTarget(entry, target, 48, check)
             ?: if (missingMode && system.requiresLiveSource(target)) null
@@ -122,9 +126,11 @@ internal class IconPackExporter(private val context: Context, private val limits
     sizePx: Int, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsFallback: IconPackDescriptor? = null,
     installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null,
-    preservedPackages: Set<String> = PreservedIcons.snapshot(context), check: () -> Unit,
+    preservedPackages: Set<String> = PreservedIcons.snapshot(context),
+    recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context), check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
+    val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
     // Explicit local supplemental artwork can also cover future installs.
     systemFallback?.let { SystemIconFallbackRenderer(context, it, clipOutput = false,
       perfectOpener = perfectSources) }.use { systemRenderer ->
@@ -135,7 +141,8 @@ internal class IconPackExporter(private val context: Context, private val limits
       val candidates = targets + if (installedOnly) emptyList() else
         (if (pack.colorOsProfile != null) pack.entries.mapNotNull { it.component }
         else colorOsFallback?.entries.orEmpty().mapNotNull { it.component }) +
-          TelegramChannelIcons.offlineTargets().filterNot { it.packageName in alternateChannels } +
+          (if (recommendedMappings.telegramChannels) TelegramChannelIcons.offlineTargets() else emptyList())
+            .filterNot { it.packageName in alternateChannels } +
           offlineCompletionTargets(systemRenderer?.completionTargets().orEmpty(),
             targets + pack.entries.mapNotNull { it.component } +
               colorOsFallback?.entries.orEmpty().mapNotNull { it.component },
@@ -147,7 +154,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }.distinct().filterNot { it.packageName in preservedPackages }
       if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
         val result = exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly,
-          maskPolicy, preservedPackages, check)
+          maskPolicy, preservedPackages, recommendedMappings, check)
         try {
           systemRenderer?.validateCompletionSource()
           return result
@@ -159,7 +166,8 @@ internal class IconPackExporter(private val context: Context, private val limits
       val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
       val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
       val requiresLive = livePolicy(pack)
-      val nameMatcher = SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)
+      val nameMatcher = SystemAppNameMatcher(context, pack.entries, systemAppNameMatching,
+        BuiltinColorOsMappings.excludedNameMatches(pack, recommendedMappings.colorOsThemeStores))
       fun match(target: IconPackComponent) = componentEntries[target]
         ?: componentEntries[IconPackComponent(target.packageName)]
         ?: nativeLauncherIconNames(target).firstNotNullOfOrNull(nativeEntries::get)
@@ -196,7 +204,8 @@ internal class IconPackExporter(private val context: Context, private val limits
         }
         var paletteBackground = mask?.let(::scaledPng)
         IconPackRenderer(context).open(pack, darkMode, colorOsFallback,
-          maskPolicy = maskPolicy, clipOutput = false, preservedPackages = preservedPackages).use { renderer ->
+          maskPolicy = maskPolicy, clipOutput = false, preservedPackages = preservedPackages,
+          recommendedMappings = recommendedMappings).use { renderer ->
           try {
           ZipOutputStream(LimitedOutput(archive.outputStream(), limits.maxInputBytes)).use { zip ->
             fun write(name: String, png: ByteArray) {
@@ -331,7 +340,8 @@ internal class IconPackExporter(private val context: Context, private val limits
   private fun exportNativeModule(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
     systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean,
-    maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>, check: () -> Unit,
+    maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>,
+    recommendedMappings: RecommendedIconMappings, check: () -> Unit,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -373,7 +383,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }
       val paletteNames = appendNativeMonet(archive, index.entries, targets, check)
       val family = NativeTelegramChannelCompletion.additions(context, pack, targets, size, maskPolicy,
-        preservedPackages, check)
+        preservedPackages, recommendedMappings, check)
       if (family.isNotEmpty()) {
         val completed = File.createTempFile("icons-channels-", ".zip", directory)
         try {
@@ -386,7 +396,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val originalNames = index.entries.mapNotNull { it.nativeName }.toSet()
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
-          systemFallback ?: SystemIconFallback.DEFAULT, size, maskPolicy, preservedPackages, check)
+          systemFallback ?: SystemIconFallback.DEFAULT, size, maskPolicy, preservedPackages, recommendedMappings, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, maskPolicy, check); null }
       val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty()) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
@@ -466,7 +476,7 @@ internal class IconPackExporter(private val context: Context, private val limits
   /** Add only uncovered names; supplied native animations, night trees and artwork stay authoritative. */
   private fun appendColorOsFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
     fallback: IconPackDescriptor, style: SystemIconFallback, size: Int,
-    maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>,
+    maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>, recommendedMappings: RecommendedIconMappings,
     check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
     require(fallback.colorOsProfile != null && fallback.format == IconPackFormat.CLASSIC_ZIP)
     val protected = java.util.zip.ZipFile(archive).use { source ->
@@ -476,12 +486,12 @@ internal class IconPackExporter(private val context: Context, private val limits
     if (missing.isEmpty()) return emptySet<String>() to emptySet<IconPackComponent>()
     // The outer export already expanded offline targets and resolved their ownership.
     val day = export(fallback, missing, false, size, style, installedOnly = true,
-      maskPolicy = maskPolicy, preservedPackages = preservedPackages, check = check)
+      maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings, check = check)
     var night: IconPackExportResult? = null
     val copy = File.createTempFile("native-coloros-fallback-", ".zip", archive.parentFile)
     try {
       night = export(fallback, missing, true, size, style, installedOnly = true,
-        maskPolicy = maskPolicy, preservedPackages = preservedPackages, check = check)
+        maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings, check = check)
       val additions = linkedMapOf<String, ByteArray>()
       val systemNames = linkedSetOf<String>()
       var perfectSource: String? = null

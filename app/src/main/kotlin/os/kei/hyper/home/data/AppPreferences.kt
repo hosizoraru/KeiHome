@@ -59,6 +59,8 @@ internal data class AppPreferencesState(
   val completeSystemIconConfig: Boolean = true,
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
+  val telegramChannelMapping: Boolean = true,
+  val colorOsThemeStoreMapping: Boolean = true,
   val colorOsForOtherPacks: Boolean = false,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
   val colorOsArtPlus: Boolean = true,
@@ -67,7 +69,10 @@ internal data class AppPreferencesState(
   val compactPackHints: Boolean = false,
   val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.IOS_LIKE,
   val cacheReminderBytes: Long = 0L,
-)
+) {
+  val recommendedIconMappings: RecommendedIconMappings
+    get() = RecommendedIconMappings(telegramChannelMapping, colorOsThemeStoreMapping)
+}
 
 internal class AppPreferences internal constructor(
   private val preferences: SharedPreferences,
@@ -122,6 +127,8 @@ internal class AppPreferences internal constructor(
     completeSystemIconConfig = preferences.getBoolean("complete_system_icon_config", true),
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
+    telegramChannelMapping = preferences.getBoolean(RecommendedIconMappings.TELEGRAM_KEY, true),
+    colorOsThemeStoreMapping = preferences.getBoolean(RecommendedIconMappings.THEME_STORE_KEY, true),
     colorOsForOtherPacks = preferences.getBoolean("coloros_other_packs", false),
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
       it.name == preferences.getString("color_os_style", null)
@@ -275,6 +282,16 @@ internal class AppPreferences internal constructor(
   fun setSystemAppNameMatching(value: Boolean) {
     preferences.edit().putBoolean("system_app_name_matching", value).apply()
     state.update { it.copy(systemAppNameMatching = value) }
+  }
+
+  fun setTelegramChannelMapping(value: Boolean) {
+    preferences.edit().putBoolean(RecommendedIconMappings.TELEGRAM_KEY, value).apply()
+    state.update { it.copy(telegramChannelMapping = value) }
+  }
+
+  fun setColorOsThemeStoreMapping(value: Boolean) {
+    preferences.edit().putBoolean(RecommendedIconMappings.THEME_STORE_KEY, value).apply()
+    state.update { it.copy(colorOsThemeStoreMapping = value) }
   }
 
   fun setColorOsForOtherPacks(value: Boolean) {

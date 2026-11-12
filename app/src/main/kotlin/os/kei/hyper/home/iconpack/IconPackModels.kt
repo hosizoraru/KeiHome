@@ -190,6 +190,8 @@ internal data class IconPackDescriptor(
   val directives: List<IconPackDirective> = emptyList(),
   val colorOsProfile: ColorOsPackProfile? = null,
   val builtinKey: String? = null,
+  /** Only synthetic aliases are removable; authored package/activity entries always win. */
+  val recommendedAliases: Set<IconPackComponent> = emptySet(),
 ) {
   /** Only an observed hash from the native integration establishes a loaded-theme relationship. */
   fun matchesLoadedIcons(observedSha256: String?): Boolean = observedSha256 != null &&

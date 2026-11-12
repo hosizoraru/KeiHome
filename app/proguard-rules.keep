@@ -1,14 +1,8 @@
-# Loaded by name through META-INF/xposed/java_init.list. Keep the callbacks
-# because LSPosed invokes them through the API rather than through a
-# direct app call graph. Private helpers can still be renamed and optimized.
--keep,allowoptimization class os.kei.hyper.home.xposed.KeiHomeModule {
-    public <init>();
-    public void onModuleLoaded(io.github.libxposed.api.XposedModuleInterface$ModuleLoadedParam);
-    public void onPackageLoaded(io.github.libxposed.api.XposedModuleInterface$PackageLoadedParam);
-    public void onPackageReady(io.github.libxposed.api.XposedModuleInterface$PackageReadyParam);
-    public void onSystemServerStarting(io.github.libxposed.api.XposedModuleInterface$SystemServerStartingParam);
-    public boolean onHotReloading(io.github.libxposed.api.XposedModuleInterface$HotReloadingParam);
-    public void onHotReloaded(io.github.libxposed.api.XposedModuleInterface$HotReloadedParam);
+# Loaded by name through META-INF/xposed/java_init.list. Keep this small module
+# boundary stable across resident generations; ordinary implementation classes
+# and the probe's private helpers can still be renamed and optimized.
+-keep class os.kei.hyper.home.xposed.KeiHomeModule {
+    *;
 }
 
 # Android instantiates these components from the manifest. The probe service

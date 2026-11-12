@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -69,9 +70,11 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.Locale
 
 @Composable
 internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit, onPreview: (String) -> Unit = {}) {
@@ -112,13 +115,22 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   }
   var selecting by rememberSaveable { mutableStateOf(false) }
   var selection by rememberSaveable { mutableStateOf(listOf<String>()) }
-  var downloadedOnly by rememberSaveable { mutableStateOf(false) }
-  val visible = remember(available, downloaded, downloadedOnly) {
-    if (downloadedOnly) available.filter { it in downloaded } else available
+  var filterName by rememberSaveable { mutableStateOf(PerfectResourceFilter.ALL.name) }
+  var sortName by rememberSaveable { mutableStateOf(PerfectResourceSort.RECOMMENDED.name) }
+  var reverse by rememberSaveable { mutableStateOf(false) }
+  val filter = PerfectResourceFilter.entries.firstOrNull { it.name == filterName } ?: PerfectResourceFilter.ALL
+  val sort = PerfectResourceSort.entries.firstOrNull { it.name == sortName } ?: PerfectResourceSort.RECOMMENDED
+  val locales = LocalConfiguration.current.locales.toLanguageTags()
+  val sizes = remember(state.catalog) { state.catalog?.styleDetails?.mapValues { it.value.bytes }.orEmpty() }
+  val visible = remember(available, downloaded, sizes, filter, sort, reverse, defaultName, locales) {
+    perfectResourceRows(available, downloaded, sizes, filter, sort, reverse, defaultName,
+      Locale.forLanguageTag(locales.substringBefore(',')))
   }
   val selected = selection.filter { it in visible }
   val selectedDownloaded = selected.filter { it in downloaded }
-  LaunchedEffect(visible) { selection = selection.filter { it in visible } }
+  LaunchedEffect(visible) { selection = retainedPerfectSelection(selection, visible) }
+  val filterLabels = listOf(R.string.perfect_git_filter_all, R.string.perfect_git_filter_downloaded,
+    R.string.perfect_list_not_downloaded)
   fun exitSelection() { selecting = false; selection = emptyList() }
   fun toggle(style: String) {
     selection = if (style in selection) selection - style else selection + style
@@ -252,18 +264,25 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     else stringResource(R.string.perfect_git_resources),
     onBack = { if (selecting) exitSelection() else onBack() },
     actions = {
-      OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
-        DropdownItem(text = stringResource(R.string.perfect_git_filter_all), selected = !downloadedOnly,
-          onClick = { if (downloadedOnly) { selection = emptyList(); downloadedOnly = false } }),
-        DropdownItem(text = stringResource(R.string.perfect_git_filter_downloaded), selected = downloadedOnly,
-          onClick = { if (!downloadedOnly) { selection = emptyList(); downloadedOnly = true } })))),
+      OverlayIconCascadingDropdownMenu(entries = listOf(
+        DropdownEntry(items = PerfectResourceFilter.entries.map {
+          DropdownItem(text = stringResource(filterLabels[it.ordinal]), selected = filter == it,
+            onClick = { filterName = it.name })
+        }),
+        DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.browser_reset),
+          onClick = { filterName = PerfectResourceFilter.ALL.name }))),
+        ),
         modifier = Modifier.testTag("perfect.resources.filter")) {
-        Icon(ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_filter),
+        Icon(MiuixIcons.Glass.Filter,
           contentDescription = stringResource(R.string.perfect_resource_filter_description,
-            stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded else R.string.perfect_git_filter_all)),
+            stringResource(filterLabels[filter.ordinal])),
           modifier = Modifier.size(24.dp),
-          tint = if (downloadedOnly) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
+          tint = if (filter != PerfectResourceFilter.ALL) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
       }
+      if (!selecting) PerfectListSortMenu(listOf(R.string.perfect_list_recommended, R.string.perfect_list_name,
+        R.string.perfect_list_downloads, R.string.perfect_list_size), sort.ordinal, reverse,
+        onSort = { sortName = PerfectResourceSort.entries[it].name },
+        onReverse = { reverse = !reverse }, modifier = Modifier.testTag("perfect.resources.sort"))
       if (!selecting) IconButton(
         enabled = !busy && visible.isNotEmpty(),
         modifier = Modifier.testTag("perfect.resources.selection-mode"),
@@ -356,8 +375,8 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     }
     if (state.refreshing) item(key = "transfer") { PerfectDownloadStatusCard(state) }
     item(key = "styles-title") {
-      SmallTitle(stringResource(if (downloadedOnly) R.string.perfect_git_filter_downloaded
-        else R.string.perfect_resource_styles), Modifier.padding(horizontal = 12.dp))
+      SmallTitle(stringResource(if (filter == PerfectResourceFilter.ALL) R.string.perfect_resource_styles
+        else filterLabels[filter.ordinal]), Modifier.padding(horizontal = 12.dp))
     }
     if (visible.isEmpty()) item(key = "empty") {
       Text(stringResource(R.string.perfect_resource_filter_empty), Modifier.padding(horizontal = 16.dp),

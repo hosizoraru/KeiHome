@@ -32,6 +32,27 @@ internal data class IconPacksUiState(
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,
 )
 
+internal enum class IconPackCatalogStatus { ALL, CURRENT, OTHER }
+internal enum class IconPackCatalogMatches { ALL, MATCHED, UNMATCHED }
+
+internal data class IconPackCatalogFilter(
+  val status: IconPackCatalogStatus = IconPackCatalogStatus.ALL,
+  val matches: IconPackCatalogMatches = IconPackCatalogMatches.ALL,
+) {
+  val isActive: Boolean get() = status != IconPackCatalogStatus.ALL || matches != IconPackCatalogMatches.ALL
+
+  fun accepts(card: IconPackCardData, activePackId: String?): Boolean =
+    when (status) {
+      IconPackCatalogStatus.ALL -> true
+      IconPackCatalogStatus.CURRENT -> card.pack.id == activePackId
+      IconPackCatalogStatus.OTHER -> card.pack.id != activePackId
+    } && when (matches) {
+      IconPackCatalogMatches.ALL -> true
+      IconPackCatalogMatches.MATCHED -> card.matchedApps > 0
+      IconPackCatalogMatches.UNMATCHED -> card.matchedApps == 0
+    }
+}
+
 /** Reuse an imported component only while its fallback choice still matches the requested one. */
 internal fun pendingNativeApplication(state: IconPacksUiState, activeId: String?,
   fallback: SystemIconFallback? = null) =
@@ -49,7 +70,8 @@ internal fun activeCatalogPackId(activeId: String?, state: IconPacksUiState): St
 }
 
 internal fun catalogPackRows(state: IconPacksUiState, section: String, activePackId: String?,
-  query: String, order: Int, reverse: Boolean): List<IconPackCardData> {
+  query: String, order: Int, reverse: Boolean,
+  filter: IconPackCatalogFilter = IconPackCatalogFilter()): List<IconPackCardData> {
   val needle = query.trim().lowercase(Locale.ROOT)
   fun identity(card: IconPackCardData): String = when (val source = card.pack.source) {
     is IconPackSource.Installed -> source.packageName
@@ -71,14 +93,21 @@ internal fun catalogPackRows(state: IconPacksUiState, section: String, activePac
     else -> name
   }.let { if (reverse) it.reversed() else it }
   return state.packs.asSequence().filter { card ->
-    card.pack.builtinKey == null && card.pack.source !is IconPackSource.Generated && when (section) {
-      "installed" -> card.pack.format == IconPackFormat.INSTALLED_APK || card.pack.format == IconPackFormat.APK
-      "imported" -> card.pack.format != IconPackFormat.INSTALLED_APK && card.pack.format != IconPackFormat.APK
-      else -> false
-    } && (needle.isEmpty() || card.pack.displayName.lowercase(Locale.ROOT).contains(needle) ||
+    catalogSectionContains(card, section) && filter.accepts(card, activePackId) &&
+      (needle.isEmpty() || card.pack.displayName.lowercase(Locale.ROOT).contains(needle) ||
       identity(card).lowercase(Locale.ROOT).contains(needle))
   }.sortedWith(compareByDescending<IconPackCardData> { it.pack.id == activePackId }.then(comparator)).toList()
 }
+
+internal fun catalogPackCount(state: IconPacksUiState, section: String): Int =
+  state.packs.count { catalogSectionContains(it, section) }
+
+private fun catalogSectionContains(card: IconPackCardData, section: String): Boolean =
+  card.pack.builtinKey == null && card.pack.source !is IconPackSource.Generated && when (section) {
+    "installed" -> card.pack.format == IconPackFormat.INSTALLED_APK || card.pack.format == IconPackFormat.APK
+    "imported" -> card.pack.format != IconPackFormat.INSTALLED_APK && card.pack.format != IconPackFormat.APK
+    else -> false
+  }
 
 /** Reverse receipts are authoritative. Older owned ColorOS components can be recovered only
  * when their known source and generated title resolve to a single original configuration. */

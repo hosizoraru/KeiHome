@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pack_list_filter_status">Application status</string>
+    <string name="pack_list_filter_matches">Installed app matches</string>
+    <string name="pack_list_filter_all">All</string>
+    <string name="pack_list_filter_current">Current</string>
+    <string name="pack_list_filter_other">Other</string>
+    <string name="pack_list_filter_matched">Matches installed apps</string>
+    <string name="pack_list_filter_unmatched">No matches</string>
+    <string name="pack_list_filter_reset">Reset filters</string>
+    <string name="pack_list_filter_description">Filter icon packs: %1$s</string>
+    <string name="pack_list_result_count">%1$d of %2$d icon packs</string>
+    <string name="pack_list_filter_empty">No icon packs match the search and filters.</string>
+</resources>

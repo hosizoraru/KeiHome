@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,6 +37,8 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
 import os.kei.hyper.home.iconpack.IconPackEntry
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -54,8 +58,10 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.icon.glass.Filter
+import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import java.util.Locale
 
 private val IconPackEntry.quietSnapshot: Boolean
   get() = (light as? IconPackArtwork.Archive)?.snapshot == true ||
@@ -68,12 +74,25 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   val preview by vm.perfectPacks.previewState.collectAsStateWithLifecycle()
   val apps by vm.apps.collectAsStateWithLifecycle()
   val labels = remember(apps.capabilities) {
-    apps.capabilities.orEmpty().groupBy { it.packageName }.mapValues { (_, values) ->
+    val preferred = apps.capabilities.orEmpty().groupBy { it.packageName }.mapValues { (_, values) ->
       (values.firstOrNull { it.personalProfile } ?: values.first()).label
+    }
+    buildMap {
+      putAll(preferred)
+      apps.capabilities.orEmpty().forEach { app ->
+        nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName)).forEach {
+          putIfAbsent(it, preferred.getValue(app.packageName))
+        }
+      }
     }
   }
   var query by rememberSaveable(state.options.style) { mutableStateOf("") }
   var filter by rememberSaveable { mutableIntStateOf(0) }
+  var installedOnly by rememberSaveable { mutableStateOf(false) }
+  var sortName by rememberSaveable { mutableStateOf(PerfectPreviewSort.ORIGINAL.name) }
+  var reverse by rememberSaveable { mutableStateOf(false) }
+  val sort = PerfectPreviewSort.entries.firstOrNull { it.name == sortName } ?: PerfectPreviewSort.ORIGINAL
+  val locales = LocalConfiguration.current.locales.toLanguageTags()
   val style = state.options.style.takeUnless { it.isBlank() || it == "default" }
     ?: stringResource(R.string.perfect_icons_style_default)
   val pack = preview.pack?.takeIf {
@@ -81,19 +100,20 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   }
   val filters = listOf(R.string.perfect_icons_preview_all, R.string.perfect_icons_preview_static,
     R.string.perfect_icons_preview_dynamic_filter, R.string.perfect_icons_preview_dark)
-  val visible = remember(pack, query, filter, labels) {
-    val search = query.trim()
-    pack?.entries.orEmpty().filter { entry ->
-      (search.isEmpty() || listOfNotNull(entry.nativeName, entry.component?.packageName,
-        entry.component?.className, entry.key, labels[entry.nativeName ?: entry.component?.packageName ?: entry.key])
-        .any { it.contains(search, ignoreCase = true) }) &&
-        when (filter) {
-          1 -> !entry.quietSnapshot
-          2 -> entry.quietSnapshot
-          3 -> entry.dark != null && entry.dark != entry.light
-          else -> true
-        }
+  val byKey = remember(pack) { pack?.entries.orEmpty().associateBy { it.key } }
+  val rows = remember(pack, labels) {
+    val entries = pack?.entries.orEmpty()
+    entries.map { entry ->
+      val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
+      val label = labels[identity] ?: entry.component?.packageName?.let(labels::get)
+      PerfectPreviewListItem(entry.key, identity, label,
+        listOfNotNull(entry.component?.packageName, entry.component?.className),
+        label != null, entry.quietSnapshot, entry.dark != null && entry.dark != entry.light)
     }
+  }
+  val visible = remember(byKey, rows, query, filter, installedOnly, sort, reverse, locales) {
+    perfectPreviewRows(rows, query, filter, installedOnly, sort, reverse,
+      Locale.forLanguageTag(locales.substringBefore(','))).map { byKey.getValue(it.key) }
   }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   LaunchedEffect(vm, lifecycle, state.options, state.catalog?.sourceHash, state.busy) {
@@ -107,12 +127,25 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     refreshEnabled = !state.busy && state.ready,
     actions = {
       if (pack != null) {
-      OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = filters.mapIndexed { index, label ->
-        DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
-      }))) {
-        Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
-          tint = if (filter == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
-      }
+        OverlayIconCascadingDropdownMenu(entries = listOf(
+          DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.perfect_list_icon_type),
+            children = filters.mapIndexed { index, label ->
+              DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
+            }))),
+          DropdownEntry(items = listOf(
+            DropdownItem(text = stringResource(R.string.perfect_list_installed_only), selected = installedOnly,
+              onClick = { installedOnly = !installedOnly }),
+            DropdownItem(text = stringResource(R.string.browser_reset),
+              onClick = { filter = 0; installedOnly = false }),
+          )),
+        ), modifier = Modifier.testTag("perfect.preview.filter")) {
+          Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
+            tint = if (filter == 0 && !installedOnly) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+        }
+        PerfectListSortMenu(listOf(R.string.perfect_list_original, R.string.perfect_list_name,
+          R.string.perfect_list_identity), sort.ordinal, reverse,
+          onSort = { sortName = PerfectPreviewSort.entries[it].name },
+          onReverse = { reverse = !reverse }, modifier = Modifier.testTag("perfect.preview.sort"))
       }
     }) {
     item("style") {
@@ -160,7 +193,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
     }
     if (pack != null) {
-      items(visible, key = { it.key }) { entry ->
+      items(visible, key = { it.key }, contentType = { "icon" }) { entry ->
         Card(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
           Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -168,7 +201,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
               Modifier.width(58.dp), distinctOnly = true)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
               val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
-              val label = labels[identity]
+              val label = labels[identity] ?: entry.component?.packageName?.let(labels::get)
               Text(label ?: identity, style = MiuixTheme.textStyles.body1)
               if (label != null) Text(identity, style = MiuixTheme.textStyles.footnote2,
                 color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -185,6 +218,21 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
         BasicComponent(title = stringResource(R.string.perfect_icons_preview_empty))
       }
     }
+  }
+}
+
+@Composable
+internal fun PerfectListSortMenu(labels: List<Int>, selected: Int, reverse: Boolean,
+  onSort: (Int) -> Unit, onReverse: () -> Unit, modifier: Modifier = Modifier) {
+  val choices = DropdownEntry(items = labels.mapIndexed { index, label ->
+    DropdownItem(text = stringResource(label), selected = selected == index, onClick = { onSort(index) })
+  })
+  val direction = DropdownEntry(items = listOf(
+    DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = reverse, onClick = onReverse),
+  ))
+  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction), modifier = modifier) {
+    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
+      tint = if (selected != 0 || reverse) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
 

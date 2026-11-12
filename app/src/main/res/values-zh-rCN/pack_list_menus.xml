@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pack_list_filter_status">使用状态</string>
+    <string name="pack_list_filter_matches">已安装应用匹配</string>
+    <string name="pack_list_filter_all">全部</string>
+    <string name="pack_list_filter_current">当前使用</string>
+    <string name="pack_list_filter_other">其他</string>
+    <string name="pack_list_filter_matched">有匹配应用</string>
+    <string name="pack_list_filter_unmatched">无匹配应用</string>
+    <string name="pack_list_filter_reset">重置筛选</string>
+    <string name="pack_list_filter_description">筛选图标包：%1$s</string>
+    <string name="pack_list_result_count">显示 %1$d / %2$d 个图标包</string>
+    <string name="pack_list_filter_empty">没有符合搜索和筛选条件的图标包。</string>
+</resources>

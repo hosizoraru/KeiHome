@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_list_recommended">おすすめ順</string>
+    <string name="perfect_list_original">元の順序</string>
+    <string name="perfect_list_name">名前</string>
+    <string name="perfect_list_identity">パッケージ名・リソース名</string>
+    <string name="perfect_list_downloads">ダウンロード状況</string>
+    <string name="perfect_list_size">サイズ</string>
+    <string name="perfect_list_not_downloaded">未ダウンロード</string>
+    <string name="perfect_list_installed_only">インストール済みアプリのみ</string>
+    <string name="perfect_list_icon_type">アイコンの種類</string>
+</resources>

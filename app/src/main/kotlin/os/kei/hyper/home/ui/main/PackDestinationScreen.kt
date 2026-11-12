@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -34,6 +36,8 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -44,6 +48,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Sort
+import top.yukonga.miuix.kmp.icon.glass.Filter
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -56,6 +61,10 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   }
   if (section == "icon-mask") {
     IconMaskSettingsScreen(model, onBack)
+    return
+  }
+  if (section == "preserved-icons") {
+    PreservedIconsScreen(model, onBack)
     return
   }
   if (section == "perfect") {
@@ -81,6 +90,12 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
+  var filterStatus by rememberSaveable(section) { mutableIntStateOf(0) }
+  var filterMatches by rememberSaveable(section) { mutableIntStateOf(0) }
+  val filter = IconPackCatalogFilter(
+    IconPackCatalogStatus.entries.getOrElse(filterStatus) { IconPackCatalogStatus.ALL },
+    IconPackCatalogMatches.entries.getOrElse(filterMatches) { IconPackCatalogMatches.ALL },
+  )
   val fallback = section == "fallback"
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -97,6 +112,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   val behavior = MiuixScrollBehavior()
   val list = rememberLazyListState()
   val scope = rememberCoroutineScope()
+  val updateFilter: (IconPackCatalogFilter) -> Unit = {
+    filterStatus = it.status.ordinal
+    filterMatches = it.matches.ordinal
+    scope.launch { list.scrollToItem(0) }
+  }
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(backdrop = backdrop,
     modifier = Modifier.testTag("icon-packs.$section"),
@@ -119,8 +139,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
                 if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList())
               "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack))
             }
-            if (section == "installed" || section == "imported") PackSortMenu(model) {
-              scope.launch { list.scrollToItem(0) }
+            if (section == "installed" || section == "imported") {
+              PackFilterMenu(filter, updateFilter)
+              PackSortMenu(model) {
+                scope.launch { list.scrollToItem(0) }
+              }
             }
             RefreshAction(model, 3)
           })
@@ -134,13 +157,63 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
       if (fallback) {
         Column(contentModifier.verticalScroll(rememberScrollState()).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            BasicComponent(title = stringResource(R.string.preserved_icons_title),
+              summary = stringResource(R.string.preserved_icons_entry),
+              startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null) },
+              modifier = Modifier.testTag("icon-packs.open-preserved-icons"),
+              onClick = { onNavigate("preserved-icons") })
+          }
           SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
           IconPackRefreshFeedback(model)
         }
-      } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate)
+      } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate,
+        filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
     }
   }
 }
+
+@Composable
+private fun PackFilterMenu(filter: IconPackCatalogFilter, onChange: (IconPackCatalogFilter) -> Unit) {
+  val status = DropdownItem(text = stringResource(R.string.pack_list_filter_status),
+    children = IconPackCatalogStatus.entries.map { value ->
+      DropdownItem(text = stringResource(packListStatusLabel(value)), selected = filter.status == value,
+        onClick = { onChange(filter.copy(status = value)) })
+    })
+  val matches = DropdownItem(text = stringResource(R.string.pack_list_filter_matches),
+    children = IconPackCatalogMatches.entries.map { value ->
+      DropdownItem(text = stringResource(packListMatchesLabel(value)), selected = filter.matches == value,
+        onClick = { onChange(filter.copy(matches = value)) })
+    })
+  OverlayIconCascadingDropdownMenu(entries = listOf(
+    DropdownEntry(items = listOf(status, matches)),
+    DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.pack_list_filter_reset),
+      onClick = { onChange(IconPackCatalogFilter()) }))),
+  ), modifier = Modifier.testTag("icon-packs.filter")) {
+    Icon(MiuixIcons.Glass.Filter,
+      stringResource(R.string.pack_list_filter_description, packListFilterSummary(filter)),
+      tint = if (filter.isActive) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
+  }
+}
+
+internal fun packListStatusLabel(status: IconPackCatalogStatus): Int = when (status) {
+  IconPackCatalogStatus.ALL -> R.string.pack_list_filter_all
+  IconPackCatalogStatus.CURRENT -> R.string.pack_list_filter_current
+  IconPackCatalogStatus.OTHER -> R.string.pack_list_filter_other
+}
+
+internal fun packListMatchesLabel(matches: IconPackCatalogMatches): Int = when (matches) {
+  IconPackCatalogMatches.ALL -> R.string.pack_list_filter_all
+  IconPackCatalogMatches.MATCHED -> R.string.pack_list_filter_matched
+  IconPackCatalogMatches.UNMATCHED -> R.string.pack_list_filter_unmatched
+}
+
+@Composable
+internal fun packListFilterSummary(filter: IconPackCatalogFilter): String =
+  listOfNotNull(
+    filter.status.takeIf { it != IconPackCatalogStatus.ALL }?.let { stringResource(packListStatusLabel(it)) },
+    filter.matches.takeIf { it != IconPackCatalogMatches.ALL }?.let { stringResource(packListMatchesLabel(it)) },
+  ).joinToString(" · ").ifEmpty { stringResource(R.string.pack_list_filter_all) }
 
 @Composable
 private fun PackSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
@@ -159,7 +232,8 @@ private fun PackSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
       onOrderChange()
     }),
   ))
-  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction)) {
+  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction),
+    modifier = Modifier.testTag("icon-packs.sort")) {
     Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
       tint = if (sort.first != 0 || sort.second) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }

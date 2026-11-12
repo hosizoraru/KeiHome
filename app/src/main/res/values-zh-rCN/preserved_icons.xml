@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preserved_icons_title">保留原始图标</string>
+    <string name="preserved_icons_entry">选择需要保留自身图标的应用</string>
+    <string name="preserved_icons_explanation">选中的应用保留自身图标。修改后，请重新生成并应用方案。</string>
+    <string name="preserved_icons_saved">已保留（%1$d）</string>
+    <string name="preserved_icons_all">所有应用</string>
+    <string name="preserved_icons_filter">显示应用：%1$s</string>
+    <string name="preserved_icons_sort">排序应用：%1$s</string>
+    <string name="preserved_icons_sort_installed">最近安装</string>
+    <string name="preserved_icons_search">搜索应用名称或包名</string>
+    <string name="preserved_icons_loading">正在读取已安装应用…</string>
+    <string name="preserved_icons_error">无法读取应用列表，仍可移除已保留的条目。</string>
+    <string name="preserved_icons_retry">重试</string>
+    <string name="preserved_icons_no_matches">没有匹配的应用</string>
+    <string name="preserved_icons_no_apps">未找到已安装应用</string>
+    <string name="preserved_icons_empty">尚未选择应用。添加应用以保留其原始图标。</string>
+    <string name="preserved_icons_add">添加应用</string>
+    <string name="preserved_icons_checking">正在确认安装状态…</string>
+    <string name="preserved_icons_unavailable">无法获取应用信息 · 仍可移除</string>
+    <string name="preserved_icons_uninstalled">未安装 · 仍可移除</string>
+</resources>

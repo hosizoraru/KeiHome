@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_list_recommended">Recommended order</string>
+    <string name="perfect_list_original">Original order</string>
+    <string name="perfect_list_name">Name</string>
+    <string name="perfect_list_identity">Package or resource name</string>
+    <string name="perfect_list_downloads">Download status</string>
+    <string name="perfect_list_size">Size</string>
+    <string name="perfect_list_not_downloaded">Not downloaded</string>
+    <string name="perfect_list_installed_only">Installed apps only</string>
+    <string name="perfect_list_icon_type">Icon type</string>
+</resources>

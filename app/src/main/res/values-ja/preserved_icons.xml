@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preserved_icons_title">元のアイコンを保持</string>
+    <string name="preserved_icons_entry">アプリ本来のアイコンを使うアプリを選択</string>
+    <string name="preserved_icons_explanation">選択したアプリの元のアイコンを保持します。変更後はアイコン設定を再生成して適用してください。</string>
+    <string name="preserved_icons_saved">保持中（%1$d）</string>
+    <string name="preserved_icons_all">すべてのアプリ</string>
+    <string name="preserved_icons_filter">表示するアプリ：%1$s</string>
+    <string name="preserved_icons_sort">アプリの並び順：%1$s</string>
+    <string name="preserved_icons_sort_installed">最近インストール</string>
+    <string name="preserved_icons_search">アプリ名・パッケージ名で検索</string>
+    <string name="preserved_icons_loading">インストール済みアプリを読み込み中…</string>
+    <string name="preserved_icons_error">アプリ一覧を読み込めませんでした。保存済みの項目は削除できます。</string>
+    <string name="preserved_icons_retry">再試行</string>
+    <string name="preserved_icons_no_matches">一致するアプリはありません</string>
+    <string name="preserved_icons_no_apps">インストール済みアプリが見つかりません</string>
+    <string name="preserved_icons_empty">アプリが選択されていません。追加すると元のアイコンを保持できます。</string>
+    <string name="preserved_icons_add">アプリを追加</string>
+    <string name="preserved_icons_checking">インストール状況を確認中…</string>
+    <string name="preserved_icons_unavailable">アプリ情報を取得できません · 削除できます</string>
+    <string name="preserved_icons_uninstalled">未インストール · 削除できます</string>
+</resources>

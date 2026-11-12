@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perfect_list_recommended">推荐顺序</string>
+    <string name="perfect_list_original">原始顺序</string>
+    <string name="perfect_list_name">名称</string>
+    <string name="perfect_list_identity">包名或资源名</string>
+    <string name="perfect_list_downloads">下载状态</string>
+    <string name="perfect_list_size">大小</string>
+    <string name="perfect_list_not_downloaded">未下载</string>
+    <string name="perfect_list_installed_only">仅已安装应用</string>
+    <string name="perfect_list_icon_type">图标类型</string>
+</resources>

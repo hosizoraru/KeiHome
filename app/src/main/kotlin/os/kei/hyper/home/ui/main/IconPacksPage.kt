@@ -68,7 +68,8 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 
 @Composable
 internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues,
-  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {}) {
+  modifier: Modifier, section: String = "home", onNavigate: (String) -> Unit = {},
+  filter: IconPackCatalogFilter = IconPackCatalogFilter(), onFilterReset: () -> Unit = {}) {
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
@@ -89,9 +90,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val activePackId = remember(activeId, state.nativeSources, state.nativeAssociations) {
     activeCatalogPackId(activeId, state)
   }
-  val cards = remember(state.packs, section, activePackId, query, sort) {
-    catalogPackRows(state, section, activePackId, query, sort.first, sort.second)
+  val cards = remember(state.packs, section, activePackId, query, sort, filter) {
+    catalogPackRows(state, section, activePackId, query, sort.first, sort.second, filter)
   }
+  val total = remember(state.packs, section) { catalogPackCount(state, section) }
   LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
@@ -159,6 +161,19 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
             onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.icon_pack_search))
         }
+        item("filter-summary") {
+          Row(Modifier.fillMaxWidth().testTag("icon-packs.filter-summary"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text(stringResource(R.string.pack_list_result_count, cards.size, total),
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              if (filter.isActive) Text(packListFilterSummary(filter),
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
+            }
+            if (filter.isActive) TextButton(text = stringResource(R.string.pack_list_filter_reset),
+              onClick = onFilterReset, modifier = Modifier.testTag("icon-packs.reset-filter"))
+          }
+        }
         item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,
           model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true) }
         if (!preferences.compactPackHints) item("guidance") {
@@ -174,7 +189,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
         }
         if (state.scanned && cards.isEmpty()) item("empty") {
-          PackInfoCard(stringResource(if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
+          PackInfoCard(stringResource(if (filter.isActive) R.string.pack_list_filter_empty
+            else if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
             Modifier.testTag("icon-packs.empty"))
         }
         item("import") {

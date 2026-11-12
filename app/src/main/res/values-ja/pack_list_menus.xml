@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pack_list_filter_status">使用状況</string>
+    <string name="pack_list_filter_matches">インストール済みアプリとの一致</string>
+    <string name="pack_list_filter_all">すべて</string>
+    <string name="pack_list_filter_current">使用中</string>
+    <string name="pack_list_filter_other">その他</string>
+    <string name="pack_list_filter_matched">一致するアプリあり</string>
+    <string name="pack_list_filter_unmatched">一致するアプリなし</string>
+    <string name="pack_list_filter_reset">絞り込みをリセット</string>
+    <string name="pack_list_filter_description">アイコンパックの絞り込み：%1$s</string>
+    <string name="pack_list_result_count">%2$d 件中 %1$d 件のアイコンパック</string>
+    <string name="pack_list_filter_empty">検索と絞り込み条件に一致するアイコンパックはありません。</string>
+</resources>

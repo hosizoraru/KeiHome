@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preserved_icons_title">Keep original icons</string>
+    <string name="preserved_icons_entry">Choose apps whose own icons you want to keep</string>
+    <string name="preserved_icons_explanation">Keep selected apps’ own icons. Regenerate and apply the scheme after changes.</string>
+    <string name="preserved_icons_saved">Saved (%1$d)</string>
+    <string name="preserved_icons_all">All apps</string>
+    <string name="preserved_icons_filter">Show apps: %1$s</string>
+    <string name="preserved_icons_sort">Sort apps: %1$s</string>
+    <string name="preserved_icons_sort_installed">Recently installed</string>
+    <string name="preserved_icons_search">Search app name or package</string>
+    <string name="preserved_icons_loading">Loading installed apps…</string>
+    <string name="preserved_icons_error">Could not load the app list. Saved entries can still be removed.</string>
+    <string name="preserved_icons_retry">Try again</string>
+    <string name="preserved_icons_no_matches">No matching apps</string>
+    <string name="preserved_icons_no_apps">No installed apps found</string>
+    <string name="preserved_icons_empty">No apps selected. Add apps to keep their original icons.</string>
+    <string name="preserved_icons_add">Add apps</string>
+    <string name="preserved_icons_checking">Checking installation…</string>
+    <string name="preserved_icons_unavailable">App details unavailable · Can still be removed</string>
+    <string name="preserved_icons_uninstalled">Not installed · Can still be removed</string>
+</resources>

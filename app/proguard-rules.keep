@@ -1,24 +1,33 @@
-# Loaded by name through META-INF/xposed/java_init.list. Keep the callback
-# methods because LSPosed invokes them through the API rather than through a
-# direct app call graph.
--keep class os.kei.hyper.home.xposed.KeiHomeModule {
-    *;
+# Loaded by name through META-INF/xposed/java_init.list. Keep the callbacks
+# because LSPosed invokes them through the API rather than through a
+# direct app call graph. Private helpers can still be renamed and optimized.
+-keep,allowoptimization class os.kei.hyper.home.xposed.KeiHomeModule {
+    public <init>();
+    public void onModuleLoaded(io.github.libxposed.api.XposedModuleInterface$ModuleLoadedParam);
+    public void onPackageLoaded(io.github.libxposed.api.XposedModuleInterface$PackageLoadedParam);
+    public void onPackageReady(io.github.libxposed.api.XposedModuleInterface$PackageReadyParam);
+    public void onSystemServerStarting(io.github.libxposed.api.XposedModuleInterface$SystemServerStartingParam);
+    public boolean onHotReloading(io.github.libxposed.api.XposedModuleInterface$HotReloadingParam);
+    public void onHotReloaded(io.github.libxposed.api.XposedModuleInterface$HotReloadedParam);
 }
 
 # Android instantiates these components from the manifest. The probe service
 # is also bound by system_server from a different UID.
--keep class os.kei.hyper.home.KeiHomeApplication {
+-keep,allowoptimization class os.kei.hyper.home.KeiHomeApplication {
     public <init>();
     public void onCreate();
 }
 
--keep class os.kei.hyper.home.MainActivity {
+-keep,allowoptimization class os.kei.hyper.home.MainActivity {
     public <init>();
     protected void onCreate(android.os.Bundle);
 }
 
--keep class os.kei.hyper.home.xposed.IconResourceProbeService {
-    *;
+-keep,allowoptimization class os.kei.hyper.home.xposed.IconResourceProbeService {
+    public <init>();
+    public void onCreate();
+    public android.os.IBinder onBind(android.content.Intent);
+    public void onDestroy();
 }
 
 # NLS constructs this bundle reflectively, then uses its class and field names

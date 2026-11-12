@@ -19,3 +19,20 @@ __pycache__/
 *.pyc
 # Local research inputs, compressed evidence and release diagnostics.
 /.artifacts/
+
+# Local packages and signing inputs; retain OEM fixtures under .artifacts/inputs/.
+*.apk
+*.apks
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+
+# Device profiling exports. Source artwork and test fixtures remain visible.
+*.hprof
+*.heapdump
+*.perfetto-trace

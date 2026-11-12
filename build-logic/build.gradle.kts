@@ -15,7 +15,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.5.0-RC")
   }
 }
 
@@ -38,8 +38,8 @@ repositories {
 
 dependencies {
   implementation("com.android.tools.build:gradle:9.5.1")
-  implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
-  implementation("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.4.21")
-  implementation("org.jetbrains.kotlin:kotlin-serialization:2.4.21")
+  implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:2.5.0-RC")
+  implementation("org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.5.0-RC")
+  implementation("org.jetbrains.kotlin:kotlin-serialization:2.5.0-RC")
   testImplementation("junit:junit:4.13.2")
 }

@@ -35,10 +35,9 @@
   <string name="browser_pager_title">Page navigation</string>
   <string name="browser_page_scroll">Enable page user scroll</string>
   <string name="browser_pager_mode">Pager gesture mode</string>
-  <string name="browser_pager_hint">iOS-like stops list momentum before allowing a page swipe.</string>
+  <string name="browser_pager_hint">Cross-axis prioritizes horizontal page swipes over list scrolling.</string>
   <string name="browser_pager_native">Default</string>
   <string name="browser_pager_cross">Cross-axis</string>
-  <string name="browser_pager_ios">iOS-like</string>
   <string name="browser_count">Showing %1$d / %2$d items</string>
   <string name="browser_no_launcher">No home screen entry</string>
   <string name="browser_show_overlays">Show resource overlays</string>

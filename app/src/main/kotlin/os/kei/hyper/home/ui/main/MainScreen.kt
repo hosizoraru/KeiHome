@@ -76,7 +76,6 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   val gestureMode = when (interaction.second) {
     os.kei.hyper.home.data.AppPagerGesture.NATIVE -> PagerInterceptionMode.Native
     os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
-    os.kei.hyper.home.data.AppPagerGesture.IOS_LIKE -> PagerInterceptionMode.TapToHalt
   }
   val pages = remember { listOf(0, 1, 3, 5, 4) }
   // The tab order changed; retain logical page IDs for content and refresh state.

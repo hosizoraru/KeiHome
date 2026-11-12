@@ -35,10 +35,9 @@
   <string name="browser_pager_title">页面切换</string>
   <string name="browser_page_scroll">允许左右滑动页面</string>
   <string name="browser_pager_mode">Pager 手势模式</string>
-  <string name="browser_pager_hint">iOS-like 会先停止列表惯性滚动，再允许横滑切页。</string>
+  <string name="browser_pager_hint">跨轴优先响应横向切页，减少与列表滚动的手势冲突。</string>
   <string name="browser_pager_native">默认</string>
   <string name="browser_pager_cross">跨轴拦截</string>
-  <string name="browser_pager_ios">iOS-like</string>
   <string name="browser_count">显示 %1$d / %2$d 项</string>
   <string name="browser_no_launcher">无桌面入口</string>
   <string name="browser_show_overlays">显示资源覆盖包</string>

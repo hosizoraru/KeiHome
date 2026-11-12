@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.update
 
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
-internal enum class AppPagerGesture { NATIVE, CROSS_AXIS, IOS_LIKE }
+internal enum class AppPagerGesture { NATIVE, CROSS_AXIS }
 internal enum class AppTopBarBlur { OFF, GAUSSIAN, PROGRESSIVE }
 internal enum class AppNavigationBarStyle { IOS_LIKE, OS4_GLASS }
 internal enum class ColorOsStyle(val key: String) {
@@ -45,7 +45,7 @@ internal data class AppPreferencesState(
   val appearance: AppAppearance = AppAppearance.SYSTEM,
   val colorMode: AppColorMode = AppColorMode.FOLLOW_ICONS,
   val pageUserScroll: Boolean = true,
-  val pagerGesture: AppPagerGesture = AppPagerGesture.IOS_LIKE,
+  val pagerGesture: AppPagerGesture = AppPagerGesture.CROSS_AXIS,
   val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
   val autoApplyIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
@@ -95,7 +95,8 @@ internal class AppPreferences internal constructor(
     preservedIconPackages = PreservedIcons.read(preferences),
     rememberMenuSelections = preferences.getBoolean("remember_menus", true),
     pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
-      ?: AppPagerGesture.IOS_LIKE,
+      // MIUIX retired TapToHalt; migrate its persisted IOS_LIKE value to CrossAxis.
+      ?: AppPagerGesture.CROSS_AXIS,
     topBarBlur = AppTopBarBlur.entries.firstOrNull { it.name == preferences.getString("top_bar_blur", null) }
       ?: AppTopBarBlur.PROGRESSIVE,
     showIconPreviews = preferences.getBoolean("icon_previews", true),

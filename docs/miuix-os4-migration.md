@@ -2,19 +2,23 @@
 
 ## Version and source boundary
 
-The migration pins every MIUIX module to `0.9.4-ca674992-SNAPSHOT`, published
-from upstream revision `ca674992c9645395cdb0d5109d66504ff53d018c`.
+The migration pins every MIUIX module to `0.9.4-9d4b9c85-SNAPSHOT`, published
+from upstream revision `9d4b9c85c18707c7da12cf8c497ea57955fcf81e`.
 The revision was checked against the upstream `main` branch and the published
-Maven version list on 2026-11-11. Do not use Maven's `latest` field alone:
+Maven publication on 2026-11-12. Do not use Maven's `latest` field alone:
 the repository metadata lists hash-based snapshot names lexicographically.
 
 Primary references:
 
-- [README](https://github.com/compose-miuix-ui/miuix/blob/ca674992/README.md)
-- [AGENTS](https://github.com/compose-miuix-ui/miuix/blob/ca674992/AGENTS.md)
-- [Material guide](https://github.com/compose-miuix-ui/miuix/tree/ca674992/docs/guide)
-- [Glass components](https://github.com/compose-miuix-ui/miuix/tree/ca674992/docs/components/glass)
-- [Glass example sources](https://github.com/compose-miuix-ui/miuix/tree/ca674992/example/shared/src/commonMain/kotlin/component)
+- [README](https://github.com/compose-miuix-ui/miuix/blob/9d4b9c85/README.md)
+- [AGENTS](https://github.com/compose-miuix-ui/miuix/blob/9d4b9c85/AGENTS.md)
+- [Material guide](https://github.com/compose-miuix-ui/miuix/tree/9d4b9c85/docs/guide)
+- [Glass components](https://github.com/compose-miuix-ui/miuix/tree/9d4b9c85/docs/components/glass)
+- [Glass example sources](https://github.com/compose-miuix-ui/miuix/tree/9d4b9c85/example/shared/src/commonMain/kotlin/component)
+
+The [2026-11-12 follow-up](dependency-upgrades-20261112.md) records fractional
+blur scaling, the removed pager mode and window-coordinate popup migration,
+plus the independent native dropdown and safe-area refinements.
 
 KeiHome's `Os4*` adapters are independently authored against MIUIX's public
 APIs and Apache-2.0 upstream source. MeiloX's style separation and
@@ -119,7 +123,7 @@ own animated background and specialized toolbar treatment.
 | Navigation selector | `KeiHomeNavigationBar.kt`; persisted iOS-like / OS4 Glass choice, one existing pager coordinator and icon-pack update badge. |
 | OS4 Glass navigation | `Os4NavigationBar.kt`; official Glass navigation with its native materials, icons, shape and safe inset. |
 | iOS-like navigation | `liquid/LiquidGlassNavigationBar.kt`; original lens, chromatic dispersion, dual-peak reflected light, drag motion and 24dp horizontal margins; migrated to `material` APIs. |
-| Grouped/child menus | `Os4DropdownMenu.kt`; measured anchor, root-hosted popup, app-theme material, existing selections and close behavior. |
+| Grouped/child menus | `Os4DropdownMenu.kt`; window-space anchor, root-hosted popup with native coordinate conversion, app-theme material, existing selections and close behavior. |
 | Confirmation/help dialogs | `Os4Dialogs.kt`; official Glass dialog with its opaque null-backdrop fallback, themed buttons, native Back/dismiss and disabled actions. |
 | Forms and lists | Existing MIUIX controls use the upgraded library without app-owned imitations of the new material. |
 
@@ -188,8 +192,9 @@ introduce additional accessible labels or badges.
 5. Establish one content sampling layer per visible page. Keep glass controls
    and root overlays out of it. Do not record a whole Scaffold containing the
    glass back into itself.
-6. Migrate navigation and top bars first, then menus/dialogs. Use root overlay
-   coordinates and measured anchors. Check interruption, Back, outside taps,
+6. Migrate navigation and top bars first, then menus/dialogs. Keep root overlays
+   and measured window-space anchors; let native hosts convert coordinates.
+   Check interruption, Back, outside taps,
    repeated opening, disabled controls and exit-time actions.
 7. Test light/dark, palette changes, Gaussian/progressive/off, font scale,
    keyboard/insets, long labels, scrolling, animation interruption and

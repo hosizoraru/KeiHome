@@ -35,10 +35,9 @@
   <string name="browser_pager_title">ページ切り替え</string>
   <string name="browser_page_scroll">ページの左右スワイプ</string>
   <string name="browser_pager_mode">Pager ジェスチャーモード</string>
-  <string name="browser_pager_hint">iOS-like は慣性スクロールを停止してからページを切り替えます。</string>
+  <string name="browser_pager_hint">横方向のページ切り替えを優先し、リストのスクロールとの競合を抑えます。</string>
   <string name="browser_pager_native">標準</string>
   <string name="browser_pager_cross">クロス軸</string>
-  <string name="browser_pager_ios">iOS-like</string>
   <string name="browser_count">%1$d / %2$d 件を表示</string>
   <string name="browser_no_launcher">ホーム画面のエントリなし</string>
   <string name="browser_show_overlays">リソースオーバーレイを表示</string>

@@ -122,7 +122,7 @@ internal fun SettingsContent(
     R.string.pack_compact_hints_title, R.string.pack_compact_hints_summary)
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
-    R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
+    R.string.browser_pager_native, R.string.browser_pager_cross)
   val previews = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_settings_experience,
     R.string.polish_previews_title, R.string.polish_previews_summary)
   val clear = matches(SettingsSection.CACHE, R.string.polish_settings_previews, R.string.polish_clear_previews, R.string.polish_clear_previews_summary)
@@ -219,7 +219,7 @@ internal fun SettingsContent(
           checked = preferences.pageUserScroll, onCheckedChange = onPageUserScrollChange)
         if (pagerMode) OverlaySpinnerPreference(title = stringResource(R.string.browser_pager_mode),
           summary = stringResource(R.string.browser_pager_hint),
-          items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross, R.string.browser_pager_ios)
+          items = listOf(R.string.browser_pager_native, R.string.browser_pager_cross)
             .map { DropdownItem(text = stringResource(it)) }, selectedIndex = preferences.pagerGesture.ordinal,
           enabled = preferences.pageUserScroll,
           onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })

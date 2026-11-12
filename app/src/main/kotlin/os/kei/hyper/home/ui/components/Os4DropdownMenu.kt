@@ -4,10 +4,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -16,18 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.round
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.glass.GlassIconButton
@@ -111,10 +101,7 @@ internal fun OverlayIconCascadingDropdownMenu(
     renderInRootScaffold = true,
   ) {
     CompositionLocalProvider(sourceLocals) {
-      var hostOrigin by remember { mutableStateOf(Offset.Zero) }
-      var rootSize by remember { mutableStateOf(IntSize.Zero) }
       var ready by remember { mutableStateOf(false) }
-      val density = LocalDensity.current
       val show = expanded && hasItems && ready
       val lifetime = remember { Animatable(0f) }
 
@@ -129,30 +116,19 @@ internal fun OverlayIconCascadingDropdownMenu(
         }
       }
 
-      Box(Modifier.fillMaxSize().onGloballyPositioned { coordinates ->
-        hostOrigin = coordinates.positionInRoot()
-        rootSize = coordinates.findRootCoordinates().size
-        ready = true
-      }) {
-        // Anchor modifiers report boundsInRoot. Give the native menu that same origin and
-        // viewport even when the outer Scaffold is inset; measure the untranslated parent.
-        Box(Modifier.absoluteOffset { -hostOrigin.round() }
-          .wrapContentSize(AbsoluteAlignment.TopLeft, unbounded = true).requiredSize(
-          width = with(density) { rootSize.width.toDp() },
-          height = with(density) { rootSize.height.toDp() },
-        )) {
-          GlassIconDropdownMenu(
-            show = show,
-            onDismissRequest = { expanded = false },
-            anchor = anchor,
-            anchorContent = content,
-            entries = entries,
-            backdrop = backdrop,
-            visuals = visuals,
-            // Unlike the native Glass default, existing grouped menus close on selection.
-            collapseOnSelection = true,
-          )
-        }
+      // Native Glass menus now map window-space anchors into their host themselves.
+      Box(Modifier.fillMaxSize().onGloballyPositioned { ready = true }) {
+        GlassIconDropdownMenu(
+          show = show,
+          onDismissRequest = { expanded = false },
+          anchor = anchor,
+          anchorContent = content,
+          entries = entries,
+          backdrop = backdrop,
+          visuals = visuals,
+          // Unlike the native Glass default, existing grouped menus close on selection.
+          collapseOnSelection = true,
+        )
       }
     }
   }

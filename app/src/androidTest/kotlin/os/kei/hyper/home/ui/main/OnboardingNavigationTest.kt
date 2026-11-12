@@ -169,6 +169,10 @@ class OnboardingNavigationTest {
       back()
       page(2)
     }
+    openLink(R.string.perfect_git_resources)
+    destination("perfect.resources.filter")
+    back()
+    page(2)
     openLink(R.string.navigation_monet)
     packPage("monet")
     back()
@@ -179,6 +183,10 @@ class OnboardingNavigationTest {
     page(2)
     openLink(R.string.icon_mask_entry_title)
     destination("icon-mask.page")
+    back()
+    page(2)
+    openLink(R.string.preserved_icons_title)
+    destination("preserved-icons.page")
     back()
     page(2)
     openLink(R.string.setup_os4_icons_more)
@@ -196,11 +204,17 @@ class OnboardingNavigationTest {
     assertTrue("Desktop overview must scroll beneath its toolbar", desktopContent.top < desktopToolbar.bottom)
     back()
     page(3)
-    openLink(R.string.setup_os4_desktop_dock)
-    destination("desktop.page.dock")
-    rule.onNodeWithTag("desktop.page.dock").assertIsDisplayed()
-    back()
-    page(3)
+    for ((title, section) in listOf(
+      R.string.setup_os4_desktop_dock to "dock",
+      R.string.setup_os4_desktop_appearance to "appearance",
+      R.string.setup_os4_desktop_launch to "icons",
+    )) {
+      openLink(title)
+      destination("desktop.page.$section")
+      rule.onNodeWithTag("desktop.page.$section").assertIsDisplayed()
+      back()
+      page(3)
+    }
     checkContentEnd()
     action("previous").performClick()
     page(2)

@@ -10,8 +10,7 @@ import org.junit.Test
 
 class CacheReminderBudgetTest {
   @Test fun thresholdsUseDecimalBytesAndInclusiveCustomBounds() {
-    assertEquals(500_000_000L, CacheReminderBudget.DEFAULT_BYTES)
-    assertEquals(1_000_000_000L, CacheReminderBudget.PERFECT_BYTES)
+    assertEquals(520_000_000L, CacheReminderBudget.DEFAULT_BYTES)
     assertEquals(50_000_000L, CacheReminderBudget.MIN_BYTES)
     assertEquals(20_000_000_000L, CacheReminderBudget.MAX_BYTES)
     for (bytes in listOf(50_000_000L, 750_123_456L, 20_000_000_000L)) {
@@ -22,27 +21,19 @@ class CacheReminderBudgetTest {
     }
   }
 
-  @Test fun automaticModeFollowsActualPerfectResourcesIncludingAfterClearing() {
-    val resources = listOf(0L, 1L, Long.MAX_VALUE, 0L)
-    assertEquals(
-      listOf(500_000_000L, 1_000_000_000L, 1_000_000_000L, 500_000_000L),
-      resources.map { CacheReminderBudget.resolve(0L, it) },
-    )
-    assertEquals(500_000_000L, CacheReminderBudget.resolve(0L, -1L))
+  @Test fun automaticModeUsesAFixed520MBThreshold() {
+    assertEquals(520_000_000L, CacheReminderBudget.resolve(0L))
   }
 
-  @Test fun customBudgetSurvivesPerfectResourceChangesWithoutRounding() {
+  @Test fun customBudgetIsPreservedWithoutRounding() {
     for (custom in listOf(50_000_000L, 750_123_456L, 20_000_000_000L)) {
-      for (perfect in listOf(0L, 1L, Long.MAX_VALUE, 0L)) {
-        assertEquals(custom, CacheReminderBudget.resolve(custom, perfect))
-      }
+      assertEquals(custom, CacheReminderBudget.resolve(custom))
     }
   }
 
   @Test fun invalidCustomBudgetsResolveAsAutomatic() {
     for (custom in invalidCustomValues()) {
-      assertEquals(500_000_000L, CacheReminderBudget.resolve(custom, 0L))
-      assertEquals(1_000_000_000L, CacheReminderBudget.resolve(custom, 1L))
+      assertEquals(520_000_000L, CacheReminderBudget.resolve(custom))
     }
   }
 
@@ -66,8 +57,8 @@ class CacheReminderBudgetTest {
       val store = Store(mutableMapOf("cache_reminder_bytes" to bytes))
       val preferences = store.open()
       assertEquals(0L, preferences.state.value.cacheReminderBytes)
-      assertEquals(1_000_000_000L,
-        CacheReminderBudget.resolve(preferences.state.value.cacheReminderBytes, 1L))
+      assertEquals(520_000_000L,
+        CacheReminderBudget.resolve(preferences.state.value.cacheReminderBytes))
       assertEquals(mapOf("cache_reminder_bytes" to bytes), store.values)
     }
   }

@@ -9,8 +9,8 @@
     <string name="storage_refresh_failed">刷新失败 · 上次统计 %1$s</string>
     <string name="storage_memory">预览内存</string>
     <string name="storage_budget_title">清理提醒</string>
-    <string name="storage_budget_help">自动为 500 MB，有完美图标资源时为 1 GB。此数值仅用于提醒，不限制下载，也不会自动删除文件。</string>
-    <string name="storage_clear_help">清理按钮释放预览内存，不计入图中。Apple 和完美图标资源可点分类管理，可用源文件与已生成图标包会保留。</string>
+    <string name="storage_budget_help">默认为 520 MB，仅用于提醒，不限制下载，也不会自动删除文件。</string>
+    <string name="storage_clear_help">清理按钮释放预览内存，不计入图中。Apple 和完美图标资源可点分类管理；日志请进入日志页单独清理。可用源文件与已生成图标包会保留。</string>
     <string name="storage_icons">图标快照</string>
     <string name="storage_builtin">内置副本</string>
     <string name="storage_transfer">导入导出</string>
@@ -23,7 +23,7 @@
     <string name="storage_modify">修改</string>
     <string name="storage_budget_mb">容量（MB）</string>
     <string name="storage_budget_range">50–20000 MB</string>
-    <string name="storage_auto">自动</string>
+    <string name="storage_auto">默认</string>
     <string name="storage_cancel">取消</string>
     <string name="storage_save">保存</string>
     <string name="storage_measured">统计于 %1$s</string>
@@ -31,4 +31,5 @@
     <string name="storage_used_pill">已用 %1$s</string>
     <string name="storage_budget_pill">提醒 %1$s</string>
     <string name="storage_edit_budget">修改提醒阈值</string>
+    <string name="storage_logs">日志</string>
 </resources>

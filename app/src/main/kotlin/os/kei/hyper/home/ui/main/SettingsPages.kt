@@ -119,7 +119,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   val framework by model.framework.collectAsStateWithLifecycle()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
-  if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh, onOpenPerfectIcons ?: {})
+  if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh,
+    onOpenPerfectIcons ?: {}, onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
   SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode,
     model.preferences::setShowIconPreviews, { model.clearPreviewCache(); cacheRefresh++ }, model.preferences::setPageUserScroll,
     model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack,

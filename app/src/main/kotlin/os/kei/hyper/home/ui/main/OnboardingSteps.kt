@@ -130,6 +130,8 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupDivider()
           SetupLink(R.string.perfect_icons_title, R.string.setup_perfect_body, PageActionIcon.FETCH) { onOpenPack("perfect") }
           SetupDivider()
+          SetupLink(R.string.perfect_git_resources, R.string.setup_perfect_resources_body, PageActionIcon.FETCH) { onOpenPack("perfect-sources") }
+          SetupDivider()
           SetupLink(R.string.apple_pack_title, R.string.setup_apple_body, PageActionIcon.SEARCH) { onOpenPack("apple") }
         }
       }
@@ -142,6 +144,8 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupLink(R.string.pack_completion_title, R.string.setup_fallback_body, PageActionIcon.MATCH) { onOpenPack("fallback") }
           SetupDivider()
           SetupLink(R.string.icon_mask_entry_title, R.string.setup_mask_body, PageActionIcon.MATCH) { onOpenPack("icon-mask") }
+          SetupDivider()
+          SetupLink(R.string.preserved_icons_title, R.string.setup_preserved_body, PageActionIcon.APPS) { onOpenPack("preserved-icons") }
           SetupDivider()
           SetupLink(R.string.setup_os4_icons_more, R.string.setup_os4_icons_more_body, PageActionIcon.SETTINGS) { onOpenPack("settings") }
         }
@@ -180,6 +184,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           icon = ImageVector.vectorResource(LucideR.drawable.lucide_ic_hard_drive)) { onOpenSettings("cache") }
       }
       SetupNote(R.string.setup_os4_help_body, R.string.setup_os4_help)
+      SetupNote(R.string.setup_cache_body, R.string.settings_cache_section)
     }
   }
 }

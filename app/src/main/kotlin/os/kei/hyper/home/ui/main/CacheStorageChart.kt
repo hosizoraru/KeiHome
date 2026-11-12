@@ -46,12 +46,14 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val storageColors = listOf(Color(0xFFFFC72C), Color(0xFFFF913B), Color(0xFF44C9A1),
-  Color(0xFF8593AB), Color(0xFF508EF2), Color(0xFFDF6B85))
+  Color(0xFF8593AB), Color(0xFF508EF2), Color(0xFFDF6B85), Color(0xFF26A6B6))
 private val storageLabels = listOf(R.string.storage_icons, R.string.storage_builtin,
-  R.string.storage_transfer, R.string.storage_temporary, R.string.storage_apple, R.string.storage_perfect)
+  R.string.storage_transfer, R.string.storage_temporary, R.string.storage_apple, R.string.storage_perfect,
+  R.string.storage_logs)
 
 @Composable
-internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, onOpenPack: (String) -> Unit) {
+internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, onOpenPack: (String) -> Unit,
+  onOpenLogs: () -> Unit = {}) {
   val context = LocalContext.current
   val total = bytes.sum()
   val graphDescription = stringResource(R.string.storage_graph_description,
@@ -73,7 +75,8 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       bytes.forEachIndexed { index, value ->
         val destination = when (index) { 4 -> "apple"; 5 -> "perfect"; else -> null }
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp)
-          .then(if (destination != null) Modifier.clickable(role = Role.Button) { onOpenPack(destination) }
+          .then(if (index == 6) Modifier.clickable(role = Role.Button, onClick = onOpenLogs)
+            else if (destination != null) Modifier.clickable(role = Role.Button) { onOpenPack(destination) }
             else Modifier)
           .padding(vertical = 3.dp).testTag("cache.category.$index"),
           verticalAlignment = Alignment.CenterVertically) {
@@ -85,7 +88,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
             Text(if (ready) Formatter.formatShortFileSize(context, value) else "\u2014",
               style = MiuixTheme.textStyles.subtitle)
           }
-          if (destination != null) Icon(MiuixIcons.Basic.ArrowRight, null,
+          if (destination != null || index == 6) Icon(MiuixIcons.Basic.ArrowRight, null,
             Modifier.size(14.dp), tint = scheme.onSurfaceVariantSummary)
         }
       }

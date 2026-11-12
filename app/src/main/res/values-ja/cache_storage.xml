@@ -9,8 +9,8 @@
     <string name="storage_refresh_failed">更新失敗 · 前回の集計 %1$s</string>
     <string name="storage_memory">プレビューのメモリ</string>
     <string name="storage_budget_title">キャッシュ整理の通知</string>
-    <string name="storage_budget_help">自動では 500 MB、Perfect のリソースがある場合は 1 GB。通知の目安であり、ダウンロードの制限や自動削除は行いません。</string>
-    <string name="storage_clear_help">削除ボタンは、グラフに含まれないプレビュー用メモリを解放します。Apple と Perfect Icons のリソースは各項目から管理でき、ソースと生成済みパックは削除しません。</string>
+    <string name="storage_budget_help">既定は 520 MB です。通知の目安であり、ダウンロードの制限や自動削除は行いません。</string>
+    <string name="storage_clear_help">削除ボタンは、グラフに含まれないプレビュー用メモリを解放します。Apple と Perfect Icons のリソースは各項目から、ログはログ画面から個別に管理できます。ソースと生成済みパックは削除しません。</string>
     <string name="storage_icons">アイコン画像</string>
     <string name="storage_builtin">内蔵リソースのコピー</string>
     <string name="storage_transfer">入出力</string>
@@ -23,7 +23,7 @@
     <string name="storage_modify">変更</string>
     <string name="storage_budget_mb">容量（MB）</string>
     <string name="storage_budget_range">50–20000 MB</string>
-    <string name="storage_auto">自動</string>
+    <string name="storage_auto">既定値</string>
     <string name="storage_cancel">キャンセル</string>
     <string name="storage_save">保存</string>
     <string name="storage_measured">最終確認 %1$s</string>
@@ -31,4 +31,5 @@
     <string name="storage_used_pill">使用 %1$s</string>
     <string name="storage_budget_pill">目安 %1$s</string>
     <string name="storage_edit_budget">通知する容量を変更</string>
+    <string name="storage_logs">ログ</string>
 </resources>

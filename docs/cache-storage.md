@@ -5,14 +5,15 @@ measurement time and health pills. The cylinder and category legend occupy equal
 widths, with a 32 dp gutter and 12 dp between category rows. The OS4 edit icon
 immediately before toolbar Refresh opens the reminder
 editor; the footer only explains cleanup scope and shows preview RAM.
-Six colors identify snapshots, built-in copies, transfers, temporary
-files, Apple downloads and Perfect resources. Apple/Perfect rows open their
-management pages. Existing toolbar refresh and preview-memory clearing remain.
+Seven colors identify snapshots, built-in copies, transfers, temporary
+files, Apple downloads, Perfect resources and logs. Apple/Perfect rows open their
+management pages; Logs opens the dedicated log page. Existing toolbar refresh
+and preview-memory clearing remain.
 
 The cylinder capacity is a reminder budget, not device free space or a download
-limit. Automatic mode uses decimal 500 MB without local Perfect resources and
-1 GB with them. Custom values from 50 to 20000 MB persist independently of
-resource changes. The OS4 editor can restore automatic mode. Reaching the
+limit. The fixed default is decimal **520 MB**, regardless of downloaded Perfect
+styles. Existing custom values from 50 to 20000 MB remain unchanged. The OS4 editor
+can restore the default. Reaching the
 threshold shows a cleanup suggestion on this page; it never deletes files or
 schedules a background scan.
 
@@ -26,6 +27,11 @@ not just the deletable download cache. Existing cleanup rules continue to protec
 these resources. The disk chart excludes preview RAM, which is listed separately.
 Apple download accounting and existing private cache-directory buckets retain
 their prior scope; the diagram is not a complete APK/application-data inventory.
+The Logs category includes `files/app-logs/` and owned exports/temporary exports
+in `cache/share/`. Export filenames use the same ownership rules as the existing
+export cleanup helper. They are removed from the temporary-files category, so
+each file contributes once to both total usage and cylinder segments. Unrelated
+files remain temporary files. Logs are managed separately from preview clearing.
 
 Private-cache and Perfect metadata walks run on IO, do not follow symlinks,
 do not decode archives/catalogs, and do not wait for the Perfect download mutex.
@@ -43,3 +49,8 @@ includes equal column widths, automatic/custom thresholds, invalid input,
 returning to automatic mode, toolbar ordering/dialog access, resource links,
 partial statistics and 1.6x text.
 Evidence lives in `.artifacts/research/cache-storage-20261111/`.
+
+The fixed-budget/log-accounting follow-up uses `cache-budget`, `ui-cache` and
+the guide/navigation checks where affected. Its evidence is under
+`.artifacts/research/cache-guide-release-20261112/`; the earlier counts above
+describe the original UI validation, not the follow-up run.

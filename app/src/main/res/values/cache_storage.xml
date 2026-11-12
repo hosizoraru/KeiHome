@@ -9,8 +9,8 @@
     <string name="storage_refresh_failed">Refresh failed · last measured %1$s</string>
     <string name="storage_memory">Preview memory</string>
     <string name="storage_budget_title">Cleanup reminder</string>
-    <string name="storage_budget_help">Automatic: 500 MB, or 1 GB with Perfect resources. This is a reminder threshold; it does not limit downloads or delete files.</string>
-    <string name="storage_clear_help">Clear frees preview memory, which is not included in the chart. Manage Apple and Perfect Icons downloads from their categories; source files and generated packs are kept.</string>
+    <string name="storage_budget_help">Default: 520 MB. This reminder threshold does not limit downloads or delete files.</string>
+    <string name="storage_clear_help">Clear frees preview memory, which is not included in the chart. Manage Apple and Perfect Icons resources from their categories. Open Logs to manage log files separately; source files and generated packs are kept.</string>
     <string name="storage_icons">Icon snapshots</string>
     <string name="storage_builtin">Built-in copies</string>
     <string name="storage_transfer">Transfers</string>
@@ -23,7 +23,7 @@
     <string name="storage_modify">Edit</string>
     <string name="storage_budget_mb">Size in MB</string>
     <string name="storage_budget_range">50–20000 MB</string>
-    <string name="storage_auto">Auto</string>
+    <string name="storage_auto">Default</string>
     <string name="storage_cancel">Cancel</string>
     <string name="storage_save">Save</string>
     <string name="storage_measured">Measured %1$s</string>
@@ -31,4 +31,5 @@
     <string name="storage_used_pill">Used %1$s</string>
     <string name="storage_budget_pill">Reminder %1$s</string>
     <string name="storage_edit_budget">Edit reminder threshold</string>
+    <string name="storage_logs">Logs</string>
 </resources>

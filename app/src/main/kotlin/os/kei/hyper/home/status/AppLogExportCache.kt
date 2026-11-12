@@ -66,12 +66,14 @@ internal class AppLogExportCache(
     }
   }
 
-  private companion object {
-    val EXPORT_NAME = Regex(
+  internal companion object {
+    fun isLogFileName(name: String): Boolean = EXPORT_NAME.matches(name) || TEMPORARY_NAME.matches(name)
+
+    private val EXPORT_NAME = Regex(
       "(?:KeiHome-logs\\.zip|KeiHome-AppLogs-[0-9]{8}-[0-9]{6}-[0-9]{3}-" +
         "v(?:[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}|unknown)-b[0-9]{4}(?:-[0-9]+)?\\.zip)",
     )
-    val TEMPORARY_NAME = Regex("\\.(${EXPORT_NAME.pattern})-[0-9]+\\.tmp")
+    private val TEMPORARY_NAME = Regex("\\.(${EXPORT_NAME.pattern})-[0-9]+\\.tmp")
   }
 }
 

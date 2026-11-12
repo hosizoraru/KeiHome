@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -44,7 +45,7 @@ class CacheStorageUiTest {
   @get:Rule(order = 1) val rule = createComposeRule()
   private val app: Application = ApplicationProvider.getApplicationContext()
 
-  @Test fun downloadedResourcesExpandAutomaticBudgetAndCustomBudgetWarns() {
+  @Test fun perfectDownloadsCannotChangeDefaultBudgetAndCustomStillOverridesIt() {
     var sample by mutableStateOf(sample())
     var custom by mutableLongStateOf(0L)
     rule.setContent { KeiHomeTheme {
@@ -56,8 +57,12 @@ class CacheStorageUiTest {
     } }
     rule.onNodeWithTag("cache.storage.status").assertIsDisplayed()
     rule.onNodeWithText(app.getString(R.string.storage_ok)).assertIsDisplayed()
+    val fixedLimit = app.getString(R.string.storage_budget_pill,
+      android.text.format.Formatter.formatShortFileSize(app, 520_000_000L))
+    rule.onNodeWithTag("cache.storage.limit").assertTextContains(fixedLimit)
     rule.runOnIdle { sample = sample(perfect = 600_000_000L) }
-    rule.onNodeWithText(app.getString(R.string.storage_ok)).assertIsDisplayed()
+    rule.onNodeWithText(app.getString(R.string.storage_warning)).assertIsDisplayed()
+    rule.onNodeWithTag("cache.storage.limit").assertTextContains(fixedLimit)
     val graph = rule.onNodeWithTag("cache.storage.graph-region").fetchSemanticsNode().boundsInRoot
     val legend = rule.onNodeWithTag("cache.storage.legend").fetchSemanticsNode().boundsInRoot
     assertEquals(graph.width, legend.width, 1f)
@@ -70,8 +75,8 @@ class CacheStorageUiTest {
       }
       bitmap.recycle()
     }
-    rule.runOnIdle { custom = 500_000_000L }
-    rule.onNodeWithText(app.getString(R.string.storage_warning)).assertIsDisplayed()
+    rule.runOnIdle { custom = 750_000_000L }
+    rule.onNodeWithText(app.getString(R.string.storage_ok)).assertIsDisplayed()
   }
 
   @Test fun budgetEditorValidatesSavesAndRestoresAutomaticMode() {
@@ -79,7 +84,7 @@ class CacheStorageUiTest {
     rule.setContent { KeiHomeTheme {
       KeiHomeScaffold { padding ->
         Column(Modifier.padding(padding)) {
-          CacheBudgetEditor(custom, custom.takeIf { it != 0L } ?: 500_000_000L) { custom = it }
+          CacheBudgetEditor(custom, custom.takeIf { it != 0L } ?: 520_000_000L) { custom = it }
         }
       }
     } }
@@ -124,15 +129,26 @@ class CacheStorageUiTest {
       CompositionLocalProvider(LocalDensity provides Density(density.density, 1.6f)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
           CacheStorageContent(sample(perfect = 600_000_000L), false, false, 0L, {},
-            destinations::add)
+            destinations::add, onOpenLogs = { destinations.add("log") })
         }
       }
     } }
     rule.onNodeWithTag("cache.category.0").assertHasNoClickAction()
     rule.onNodeWithTag("cache.category.4").performScrollTo().performClick()
     rule.onNodeWithTag("cache.category.5").performScrollTo().performClick()
-    rule.runOnIdle { assertEquals(listOf("apple", "perfect"), destinations) }
+    rule.onNodeWithTag("cache.category.6").performScrollTo().performClick()
+    rule.runOnIdle { assertEquals(listOf("apple", "perfect", "log"), destinations) }
     rule.onNodeWithTag("cache.storage.preferences").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test fun logsAreIncludedInDisplayedTotalsButPreviewMemoryIsSeparate() {
+    val sample = CacheSample(
+      DiskCacheUsage(mapOf(CacheBucket.OTHER to 13L, CacheBucket.LOGS to 17L), true),
+      memory = 99L, apple = 19L, perfect = 23L, capturedAt = 0L)
+    assertEquals(72L, sample.total)
+    assertEquals(sample.total, sample.categories.sum())
+    assertEquals(17L, sample.categories[6])
+    assertEquals(sample.total, sample.copy(memory = 0L).total)
   }
 
   @Test fun partialMeasurementDoesNotClaimHealthyUsage() {

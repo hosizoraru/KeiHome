@@ -29,7 +29,7 @@
     <string name="setup_os4_module_pending">フレームワーク未接続</string>
     <string name="setup_os4_framework_action_summary">モジュールの有効化と対象の管理</string>
     <string name="setup_os4_icons_more_body">プレビュー、操作、表示の設定</string>
-    <string name="setup_os4_desktop_note">必要な項目だけを調整し、各カテゴリの状態カードで反映を確認できます。</string>
+    <string name="setup_os4_desktop_note">必要な項目を調整し、各カテゴリで反映状況を確認できます。検索バーの質感は Dock に合わせるか、個別に設定できます。</string>
     <string name="setup_os4_feature_icons">アイコン</string>
     <string name="setup_os4_feature_desktop">ホーム設定</string>
     <string name="setup_os4_feature_control">必要な機能</string>

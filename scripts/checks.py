@@ -12,6 +12,18 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "icon-preservation": ("jvm", "Preserved packages, Telegram channels and applied generation notices", (
+        "PreservedIconsTest", "TelegramChannelIconsTest", "PreservedIconResourcesTest",
+        "IconGenerationManifestTest", "IconPackUpdateNoticeTest")),
+    "list-menus": ("jvm", "Pack filters and stable Perfect resource/preview ordering", (
+        "IconPackCatalogFilterTest", "PerfectListOrderingTest")),
+    "ui-preserved-icons": ("device", "OS4 filters, sorting, search and original icon identity", (
+        UI + "PreservedIconsUiTest",)),
+    "icon-preview-device": ("device", "Original and published shapes, cache identity and Monet rendering", (
+        "os.kei.hyper.home.data.IconPreviewRepositoryTest",
+        UI + "CurrentIconPreviewRepositoryTest", UI + "IconPreviewShapeUiTest")),
+    "telegram-icons-device": ("device", "APK/native Telegram channel export and preservation", (
+        "os.kei.hyper.home.iconpack.TelegramChannelCompletionDeviceTest",)),
     "ui-i18n": ("device", "Localized input semantics, clear behavior and search callbacks", (UI + "LocalizedInputFieldTest",)),
     "i18n": ("python", "Resource XML, locale coverage and formatter compatibility (stdlib only)", ()),
     "release-notes": ("jvm", "Fresh installs, real upgrades, skipped releases and acknowledgment", (
@@ -51,8 +63,8 @@ GROUPS = {
         UI + "ScopeAuthorizationUiTest",)),
     "ui-onboarding": ("device", "OS4 first use, resume, replay, optional routes and large text", (
         UI + "OnboardingNavigationTest",)),
-    "cache-budget": ("jvm", "Reminder preference and protected Perfect storage accounting", (
-        "CacheReminderBudgetTest", "PerfectIconRepositoryTest")),
+    "cache-budget": ("jvm", "Fixed reminder, log accounting and protected resource storage", (
+        "CacheReminderBudgetTest", "CacheUsageTest", "AppLogExportCacheTest", "PerfectIconRepositoryTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
         UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (

@@ -52,12 +52,14 @@ internal data class CacheSample(
   val capturedAt: Long,
 ) {
   val total: Long get() = disk.total + apple + perfect
-  val categories: List<Long> get() = CacheBucket.entries.map { disk.bytes[it] ?: 0L } + apple + perfect
+  val categories: List<Long> get() =
+    CacheBucket.entries.filter { it != CacheBucket.LOGS }.map { disk.bytes[it] ?: 0L } +
+      listOf(apple, perfect, disk.bytes[CacheBucket.LOGS] ?: 0L)
 }
 
 @Composable
 internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack: (String) -> Unit = {},
-  onPerfectUsageChanged: (Long) -> Unit = {}) {
+  onOpenLogs: () -> Unit = {}) {
   val context = LocalContext.current.applicationContext
   val owner = LocalLifecycleOwner.current
   val refreshing by model.refreshing.collectAsStateWithLifecycle()
@@ -74,7 +76,7 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack
         sample = coroutineScope {
           val disk = async(Dispatchers.IO) {
             val coroutine = currentCoroutineContext()
-            measureDiskCache(context.cacheDir) { coroutine.ensureActive() }
+            measureDiskCache(context.cacheDir, java.io.File(context.filesDir, "app-logs")) { coroutine.ensureActive() }
           }
           val apple = async { model.appleDownloadCacheBytes() }
           val perfect = async { model.perfectStorageUsage() }
@@ -93,9 +95,8 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack
       awaitCancellation()
     }
   }
-  LaunchedEffect(sample?.perfect) { sample?.let { onPerfectUsageChanged(it.perfect) } }
   CacheStorageContent(sample, reading, failed, preferences.cacheReminderBytes,
-    onRefresh = { nonce++ }, onOpenPack = onOpenPack)
+    onRefresh = { nonce++ }, onOpenPack = onOpenPack, onOpenLogs = onOpenLogs)
 }
 
 @Composable
@@ -106,11 +107,12 @@ internal fun CacheStorageContent(
   customBudget: Long,
   onRefresh: () -> Unit,
   onOpenPack: (String) -> Unit,
+  onOpenLogs: () -> Unit = {},
 ) {
   val context = LocalContext.current
   val scheme = MiuixTheme.colorScheme
   fun size(bytes: Long) = Formatter.formatShortFileSize(context, bytes)
-  val budget = CacheReminderBudget.resolve(customBudget, sample?.perfect ?: 0L)
+  val budget = CacheReminderBudget.resolve(customBudget)
   val exceeded = sample != null && sample.total >= budget
   val partial = failed || sample?.disk?.complete == false
   Column(Modifier.fillMaxWidth().testTag("cache.storage"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -142,7 +144,7 @@ internal fun CacheStorageContent(
         if (reading) LinearProgressIndicator(Modifier.fillMaxWidth())
       }
     }
-    CacheStorageChart(sample?.categories ?: List(6) { 0L }, budget, sample != null, onOpenPack)
+    CacheStorageChart(sample?.categories ?: List(7) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
     Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences")) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

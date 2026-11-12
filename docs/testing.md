@@ -24,7 +24,7 @@ does not automatically run navigation, color editing or native tests.
 | OS4 scope page, component versions, grant states and large text | `ui-scope` |
 | OS4 guide, resume/replay, destination round trips and large text | `ui-onboarding` |
 | Version-prefix upgrade decisions and skipped release history | `release-notes`; `ui-release-notes` for navigation and large text |
-| Cache reminder settings and protected resource accounting | `cache-budget` |
+| Fixed cache reminder, log/export accounting and protected resources | `cache-budget` |
 | Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
 | Desktop capability and acknowledgement summaries | `desktop-state` |
 | Dock/search materials, persistence, leases and protocol | `desktop-materials` |

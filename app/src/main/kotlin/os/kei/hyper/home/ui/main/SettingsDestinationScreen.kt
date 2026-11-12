@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -75,7 +74,6 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     "dexkit-source" -> stringResource(R.string.notices_source_offer)
     else -> license?.title
   }
-  var perfectStorageBytes by remember { mutableLongStateOf(0L) }
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -98,7 +96,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           if (route == SettingsSection.CACHE.route) {
             val preferences by model.preferences.state.collectAsStateWithLifecycle()
             CacheBudgetEditor(preferences.cacheReminderBytes,
-              CacheReminderBudget.resolve(preferences.cacheReminderBytes, perfectStorageBytes),
+              CacheReminderBudget.resolve(preferences.cacheReminderBytes),
               model.preferences::setCacheReminderBytes)
             IconButton(onClick = { cacheRefresh++ }, modifier = Modifier.testTag("settings.cache.refresh")) {
               Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
@@ -129,7 +127,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           component != null -> ThirdPartyComponentDetails(component, onNavigate)
           route == "notices" -> ThirdPartyNotices(onNavigate)
           section == SettingsSection.CACHE -> CacheOverview(model, cacheRefresh, onOpenPackSection,
-            onPerfectUsageChanged = { perfectStorageBytes = it })
+            onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
             onOpenPerfectIcons = onOpenPackSection,
             onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)

@@ -33,24 +33,60 @@ copied, and the configured device's setup wizard was not rerun or reset.
 2. **Framework:** actual connection and grant-count pills, an explicit request
    action when scopes can be requested, and links to the framework manager and
    dedicated scope viewer. The old all-in-one scope card is not embedded here.
-3. **Icons:** Library, Perfect and Apple, followed by Monet, artwork completion,
-   the existing Icon mask child page and Icon packs > More settings. Perfect's
-   resource manager downloads selected styles and required shared resources;
-   later Git updates reuse unchanged resources. Downloaded styles can be
-   previewed and generated offline. The mask link opens import and real-icon
-   comparison: when adaptation is enabled, a custom mask takes priority;
-   otherwise the pack mask is retained, with HyperOS4 filling a missing mask.
+3. **Icons:** Library, Perfect, its resource manager and Apple, followed by Monet,
+   artwork completion, Icon mask, Keep original icons and Icon packs > More
+   settings. The resource manager downloads selected styles and required shared
+   resources; removal retains resources still needed by other downloaded styles.
+   Its top filter and sort menus help find styles, and Git updates reuse unchanged
+   resources. Downloaded styles can be previewed and generated offline.
+   The mask link compares original, HyperOS4 and custom masks on the same icons:
+   when adaptation is enabled, custom masks take priority, followed by the pack
+   mask, with HyperOS4 filling a missing mask.
+   The original-icon list has app/package search and top filter/sort menus;
+   selected apps keep their own artwork after regeneration and application.
+   Telegram completion is limited to the official Store, Web and Beta channels:
+   a missing default mapping can borrow a sibling's existing light/dark artwork.
+   Existing mappings, alternate launcher icons, Telegram X and third-party forks
+   are not part of that default borrowing. See
+   [preserved app icons](preserved-app-icons.md) for publication and matching rules.
    Supported native light/dark adaptation remains separate from selecting or
-   applying an optional icon pack. A short note distinguishes generated packs
-   from applied themes: after changing artwork, completion, masks or generation
-   scope, update or regenerate, then apply. Downloads and previews do not apply
-   a theme. Local-resource details use the shared OS4 disclosure.
+   applying an optional icon pack. Monet is optional, but explicitly choosing
+   ColorOS Inspiration enables Monet as a related feature. A short note
+   distinguishes generated packs from applied themes: after changing artwork,
+   completion, masks, kept originals or generation scope, update or regenerate,
+   then apply. Downloads and previews do not apply a theme. Local-resource details
+   use the shared OS4 disclosure.
 4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
    plus the category overview. Each destination returns to the originating step.
+   The short status note explains that search-bar material can follow Dock or be
+   configured independently.
 5. **Finish:** current framework/scope states, shortcuts to scope authorization,
    App logs and cache management, and the distinction between App and LSPosed logs.
    Finishing the guide does not claim that every host hook has loaded. Check the
    launcher and the share sheet, Settings or Sidebar actually used.
+   Cache guidance explains the fixed default cleanup reminder of **520 MB**,
+   independent of Perfect downloads. App logs count toward cache usage, and their
+   cache entry opens the log viewer for inspection or export. The reminder does
+   not automatically delete resources. Clearing preview memory keeps downloaded
+   artwork and the applied theme.
+
+Guide links use existing routes; they do not introduce a destination or toggle
+features just by opening a page. Feature choices retain their existing linkage
+rules. In particular, **Keep original icons is an icon-pack destination**, not a
+desktop section:
+
+| Guide entry | Callback and route key |
+| --- | --- |
+| Perfect resources | `onOpenPack("perfect-sources")` |
+| Icon mask comparison | `onOpenPack("icon-mask")` |
+| Keep original icons | `onOpenPack("preserved-icons")` |
+| Dock | `onOpenDesktopSection("dock")` |
+| Appearance and text | `onOpenDesktopSection("appearance")` |
+| Icons and launching | `onOpenDesktopSection("icons")` |
+| App logs / Cache | `onOpenSettings("log")` / `onOpenSettings("cache")` |
+
+Desktop > Icons and launching uses `icons` for desktop behavior settings;
+`preserved-icons` is not a `DesktopSection` key.
 
 Service connection, authorization, hook loading and visible icon results remain
 separate states. First activation recommends one system reboot; later updates
@@ -79,13 +115,20 @@ Chinese and Japanese resources share the same keys and placeholders.
 
 ## Focused verification
 
+For resource-only validation, run `python3 scripts/i18n/check_resources.py`.
+The latest guide changes also extend the existing navigation assertions for
+Perfect resources, original icons and all three desktop categories. These
+assertions require the matching APKs and a device; static resource checks alone
+do not establish layout or navigation acceptance.
+
 Run `python3 scripts/checks.py ui-onboarding --serial emulator-5580 --run` after
 building and deploying matching main/test APKs. The group exercises the actual
 navigation with isolated MMKV guide stores, without clearing user data or
 changing scope grants:
 
-- Complete flow, framework/icon/desktop/settings round trips (including the
-  direct Icon mask child-page link), Settings replay,
+- Complete flow, framework/icon/desktop/settings round trips (including direct
+  Icon mask, Perfect resources and original-icon links and all three desktop
+  categories), Settings replay,
   persisted state re-read, and equality of AppPreferences before and after.
 - Resume/defer at 1.6 font scale, with final-content bounds above the measured
   footer on all five pages.

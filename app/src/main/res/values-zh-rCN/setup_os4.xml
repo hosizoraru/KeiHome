@@ -29,7 +29,7 @@
     <string name="setup_os4_module_pending">框架未连接</string>
     <string name="setup_os4_framework_action_summary">启用模块与管理作用域</string>
     <string name="setup_os4_icons_more_body">预览、操作与界面偏好</string>
-    <string name="setup_os4_desktop_note">按需调整，修改后可在各分类的状态卡中查看生效情况。</string>
+    <string name="setup_os4_desktop_note">按需调整后，在各分类查看生效状态。搜索栏质感可跟随 Dock，也可单独设置。</string>
     <string name="setup_os4_feature_icons">图标风格</string>
     <string name="setup_os4_feature_desktop">桌面定制</string>
     <string name="setup_os4_feature_control">按需启用</string>

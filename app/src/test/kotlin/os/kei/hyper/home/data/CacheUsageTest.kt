@@ -1,8 +1,10 @@
 package os.kei.hyper.home.data
 
+import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -27,5 +29,52 @@ class CacheUsageTest {
     assertEquals(79L, usage.bytes.getValue(CacheBucket.HANDOFF))
     assertEquals(56L, usage.bytes.getValue(CacheBucket.OTHER))
     assertEquals(170L, usage.total)
+  }
+
+  @Test fun logsAndOwnedExportsHaveOneCategoryAndAreCountedOnlyOnce() {
+    val cache = temporary.newFolder("cache")
+    val logs = temporary.newFolder("logs")
+    File(logs, "app-20261112.log").writeBytes(ByteArray(11))
+    val share = File(cache, "share").apply { mkdirs() }
+    File(share, "KeiHome-logs.zip").writeBytes(ByteArray(13))
+    File(share, "KeiHome-AppLogs-20261112-120000-123-v1.8.0-b0383.zip").writeBytes(ByteArray(17))
+    File(share, ".KeiHome-logs.zip-123.tmp").writeBytes(ByteArray(19))
+    File(share, "KeiHome-AppLogs-not-a-log.png").writeBytes(ByteArray(23))
+    File(cache, "current-icons").apply { mkdirs(); resolve("icon.png").writeBytes(ByteArray(29)) }
+    val usage = measureDiskCache(cache, logs)
+    assertEquals(60L, usage.bytes[CacheBucket.LOGS])
+    assertEquals(23L, usage.bytes[CacheBucket.OTHER])
+    assertEquals(112L, usage.total)
+    assertTrue(usage.complete)
+  }
+
+  @Test fun logsAreMeasuredEvenWhenCacheDoesNotExist() {
+    val logs = temporary.newFolder("logs")
+    File(logs, "app.log").writeBytes(ByteArray(31))
+    val usage = measureDiskCache(File(temporary.root, "missing-cache"), logs)
+    assertEquals(31L, usage.total)
+    assertEquals(31L, usage.bytes[CacheBucket.LOGS])
+    assertTrue(usage.complete)
+  }
+
+  @Test fun nestedLogRootAndSymbolicLinksCannotInflateUsage() {
+    val cache = temporary.newFolder("cache")
+    val logs = File(cache, "logs").apply { mkdirs() }
+    File(logs, "app.log").writeBytes(ByteArray(37))
+    val outside = temporary.newFile("outside").apply { writeBytes(ByteArray(43)) }
+    Files.createSymbolicLink(File(logs, "linked.log").toPath(), outside.toPath())
+    val usage = measureDiskCache(cache, logs)
+    assertEquals(37L, usage.total)
+    assertEquals(37L, usage.bytes[CacheBucket.LOGS])
+    assertTrue(usage.complete)
+  }
+
+  @Test fun cancellationDuringLogTraversalIsPropagated() {
+    val logs = temporary.newFolder("logs")
+    assertThrows(java.util.concurrent.CancellationException::class.java) {
+      measureDiskCache(File(temporary.root, "missing-cache"), logs) {
+        throw java.util.concurrent.CancellationException()
+      }
+    }
   }
 }

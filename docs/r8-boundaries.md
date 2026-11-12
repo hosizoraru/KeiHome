@@ -24,8 +24,9 @@ native-member consumer rules.
 ## Reviewing changes
 
 With the current AGP, run `:app:analyzeReleaseR8Config` without minifying the app.
-Inspect `app/build/outputs/mapping/release/` for the generated configuration
-analysis. Paths/output formats can change with AGP; use the actual task outputs.
+Inspect `app/build/reports/r8/r8-config-analyzer-release.html` and its accompanying
+protobuf file for the configuration analysis. Paths/output formats can change
+with AGP; use the actual task outputs.
 The November 12 audit retained its raw analysis and per-rule details under
 `.artifacts/research/cache-guide-release-20261112/r8/`.
 

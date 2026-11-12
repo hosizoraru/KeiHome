@@ -184,7 +184,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           icon = ImageVector.vectorResource(LucideR.drawable.lucide_ic_hard_drive)) { onOpenSettings("cache") }
       }
       SetupNote(R.string.setup_os4_help_body, R.string.setup_os4_help)
-      SetupNote(R.string.setup_cache_body, R.string.settings_cache_section)
+      SetupNote(R.string.setup_cache_body)
     }
   }
 }

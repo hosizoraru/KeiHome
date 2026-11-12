@@ -66,7 +66,8 @@ class OnboardingNavigationTest {
     hasAnyAncestor(hasTestTag("setup.page.$currentPage")))
 
   private fun openLink(title: Int) {
-    val link = rule.onNodeWithText(context.getString(title)).performScrollTo()
+    val link = rule.onNode(androidx.compose.ui.test.hasText(context.getString(title)) and
+      androidx.compose.ui.test.hasClickAction()).performScrollTo()
     val toolbar = action("toolbar").fetchSemanticsNode().boundsInRoot
     val safeBottom = toolbar.top - 48f * context.resources.displayMetrics.density
     val bottom = link.fetchSemanticsNode().boundsInRoot.bottom

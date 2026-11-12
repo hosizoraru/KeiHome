@@ -1,5 +1,8 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
+
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -40,7 +43,8 @@ internal fun appleCurrentThemeSourceReady(theme: SystemIconThemeReport?, source:
 
 internal fun appleCurrentThemeEntry(source: IconBrowserSource, packageName: String,
   componentName: String?): IconPackEntry? =
-  componentName?.let { source.entries[it] } ?: source.entries[packageName]
+  nativeLauncherIconNames(IconPackComponent(packageName, componentName))
+    .firstNotNullOfOrNull(source.entries::get)
 
 /** Uses the applied archive only. An absent/unreadable entry is not proof of an APK fallback. */
 internal class AppleCurrentThemePreviewProvider(

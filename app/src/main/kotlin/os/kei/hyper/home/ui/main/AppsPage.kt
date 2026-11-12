@@ -280,8 +280,8 @@ internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, mo
   backgroundMask: Bitmap? = null, maskPathData: String? = null) {
   val maskImage = remember(backgroundMask) { backgroundMask?.asImageBitmap() }
   val image = remember(bitmap) { bitmap?.asImageBitmap() }
-  val publishedShape = remember(maskPathData, foreground != null) {
-    maskPathData?.takeIf { foreground != null }?.let {
+  val publishedShape = remember(maskPathData) {
+    maskPathData?.let {
       NativeAdaptiveIconMask.fromPathData("published-preview", it)
     }?.let { mask ->
       GenericShape { size, _ ->
@@ -294,7 +294,8 @@ internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, mo
   }.iconMask.asComposePath() }
   val placeholder = MiuixTheme.colorScheme.surfaceVariant
   if (image != null && foreground == null) {
-    Image(image, contentDescription = null, modifier = modifier)
+    Image(image, contentDescription = null,
+      modifier = if (publishedShape != null) modifier.clip(publishedShape) else modifier)
   } else Canvas(if (publishedShape != null) modifier.clip(publishedShape) else modifier) {
     if (maskImage != null && background != null) drawImage(maskImage, dstSize = IntSize(size.width.toInt(), size.height.toInt()),
       colorFilter = ColorFilter.tint(Color(background)))

@@ -1,5 +1,8 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
+
 import android.content.Context
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
@@ -112,8 +115,9 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
     return IconBrowserRow(resolved, entry, installed, dynamic,
       source?.systemFallback?.takeIf { name in it.names }?.style)
   }
-  val installed = apps.map { app -> row(app, app.componentName?.let { source?.entries?.get(it) }
-    ?: source?.entries?.get(app.packageName)) }
+  val installed = apps.map { app -> row(app,
+    nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName))
+      .firstNotNullOfOrNull { source?.entries?.get(it) }) }
   val rows = if (options.scope == 2) {
     val used = installed.mapNotNull { it.entry?.key }.toSet()
     installed.filter { it.entry != null } + source?.pack?.entries.orEmpty().filter { it.key !in used }.map { entry ->
@@ -153,7 +157,7 @@ internal suspend fun browserPreview(model: HomeViewModel, row: IconBrowserRow,
   onFailure = { android.util.Log.w("KeiHomeBrowser", "Icon preview is temporarily unavailable", it) },
 ) {
     if (source == null || row.entry == null) {
-      if (row.installed) model.previews.load(row.app) else AppIconPreviews()
+      if (row.installed) model.currentPreviews.loadOriginal(source, row.app, model.previews) else AppIconPreviews()
     } else model.currentPreviews.load(source, row.entry)
 }
 

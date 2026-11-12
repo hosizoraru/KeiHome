@@ -1,7 +1,7 @@
 # Native icon configuration completion
 
 The current mask child page, custom import, shared preview compositor and
-schema 4 policy identity are described in [Icon masks and preview parity](icon-mask-preview.md).
+schema 6 policy identity are described in [Icon masks and preview parity](icon-mask-preview.md).
 The counts and actual-theme application below record the earlier schema 3
 acceptance; this follow-up does not automatically reapply the user's theme.
 

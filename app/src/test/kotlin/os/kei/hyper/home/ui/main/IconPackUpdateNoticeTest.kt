@@ -26,6 +26,19 @@ class IconPackUpdateNoticeTest {
   @Test fun deliberatelyUncoveredUserAppIsNotAnUpdateTask() {
     assertFalse(needed(original = pack.copy(entries = emptyList())))
   }
+  @Test fun newlyInstalledOfficialChannelUsesTheVerifiedCompletionEligibility() {
+    val donor = IconPackComponent("org.telegram.messenger")
+    val beta = IconPackComponent("org.telegram.messenger.beta", "org.telegram.messenger.DefaultIcon")
+    val artwork = IconPackArtwork.Resource(IconDrawableName("telegram", "drawable"))
+    val mapped = entry.copy(component = donor, light = artwork,
+      dark = IconPackArtwork.Resource(IconDrawableName("telegram_night", "drawable")))
+    val original = pack.copy(entries = listOf(mapped))
+    val applied = source.copy(pack = original, nativeNames = setOf(donor.packageName))
+    assertTrue(iconPackNeedsUpdate(original, applied, listOf(beta),
+      SystemIconFallback.DEFAULT, emptySet()) { true })
+    assertFalse(iconPackNeedsUpdate(original.copy(entries = listOf(mapped.copy(dark = null))), applied,
+      listOf(beta), SystemIconFallback.DEFAULT, emptySet()) { true })
+  }
   @Test fun unknownInventoryDoesNotInventMissingIcons() {
     assertFalse(needed(source.copy(nativeNames = null)))
   }
@@ -100,9 +113,106 @@ class IconPackUpdateNoticeTest {
       assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
         emptySet(), installedOnly = installedOnly))
       val updated = applied.copy(generation = IconGenerationManifest.decode(
-        legacy.copy(schemaVersion = 3, installedOnly = installedOnly).encode()))
+        legacy.copy(schemaVersion = 7, installedOnly = installedOnly).encode()))
       assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
         emptySet(), installedOnly = installedOnly))
+    }
+  }
+
+  @Test fun componentFilenamePolicyRequiresOneRegenerationWithoutRewritingNativeImports() {
+    val old = source.copy(nativeNames = setOf(target.packageName),
+      generation = IconGenerationManifest(schemaVersion = 4))
+    assertTrue(needed(old))
+    assertFalse(needed(old.copy(generation = IconGenerationManifest())))
+    assertFalse(needed(old, pack.copy(format = IconPackFormat.MIUI_ICONS)))
+  }
+
+  @Test fun schemaFiveNeedsOneSnapshotRegenerationAndNativeImportsKeepTheirPolicy() {
+    val old = source.copy(nativeNames = setOf(target.packageName),
+      generation = IconGenerationManifest(schemaVersion = 5, considered = setOf(target.flattened)))
+    assertTrue(needed(old))
+    val updated = old.copy(generation = IconGenerationManifest(
+      considered = setOf(target.flattened), activeLauncherTargets = setOf(target.flattened)))
+    assertFalse(needed(updated))
+    for (format in listOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)) {
+      assertFalse(needed(old, pack.copy(format = format)))
+    }
+  }
+
+  @Test fun activeAliasSwitchBypassesPackageCoverageAndPreviouslyConsideredAliasesThenClears() {
+    val first = IconPackComponent("os.test.app", "os.foreign.LauncherAndroid")
+    val second = first.copy(className = "os.foreign.LauncherApple")
+    val snapshot = IconGenerationManifest(
+      considered = setOf(first.flattened, second.flattened),
+      activeLauncherTargets = setOf(first.flattened))
+    val applied = source.copy(nativeNames = setOf(first.packageName), generation = snapshot)
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(second), SystemIconFallback.DEFAULT,
+      emptySet()) { fail("An alias switch must not be hidden by coverage or retried rendering"); false })
+    val regenerated = applied.copy(generation = IconGenerationManifest.decode(
+      snapshot.copy(activeLauncherTargets = setOf(second.flattened)).encode()))
+    assertFalse(iconPackNeedsUpdate(pack, regenerated, listOf(second),
+      SystemIconFallback.DEFAULT, emptySet()))
+  }
+
+  @Test fun addingOrRemovingAnEnabledAliasRequiresRegenerationEvenWithComponentCoverage() {
+    val first = IconPackComponent("os.test.app", "os.foreign.First")
+    val second = first.copy(className = "os.foreign.Second")
+    val applied = source.copy(
+      nativeNames = setOf(nativeLauncherActivityName(first)!!, nativeLauncherActivityName(second)!!),
+      generation = IconGenerationManifest(
+        considered = setOf(first.flattened, second.flattened),
+        activeLauncherTargets = setOf(first.flattened, second.flattened)))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(first), SystemIconFallback.DEFAULT, emptySet()))
+    val single = applied.copy(generation = applied.generation!!.copy(
+      activeLauncherTargets = setOf(first.flattened)))
+    assertTrue(iconPackNeedsUpdate(pack, single, listOf(first, second),
+      SystemIconFallback.DEFAULT, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(second, first, first),
+      SystemIconFallback.DEFAULT, emptySet()))
+  }
+
+  @Test fun aliasComparisonUsesPackageIdentityAndIgnoresPackagesWithoutManagedOutput() {
+    val first = IconPackComponent("os.test.app", "os.foreign.Shared")
+    val second = first.copy(className = "os.foreign.Other")
+    val otherPackage = IconPackComponent("os.test.other", first.className)
+    val snapshot = IconGenerationManifest(
+      considered = setOf(first.flattened, second.flattened, otherPackage.flattened),
+      activeLauncherTargets = setOf(first.flattened, otherPackage.flattened))
+    val applied = source.copy(generation = snapshot,
+      nativeNames = setOf(nativeLauncherActivityName(otherPackage)!!))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(second, otherPackage),
+      SystemIconFallback.DEFAULT, emptySet()) { fail("Unmanaged packages must not retry rendering"); false })
+    // Preview entries and stock/legacy class names are not canonical generated output ownership.
+    for (names in listOf(emptySet(), setOf(first.className!!))) {
+      assertFalse(iconPackNeedsUpdate(pack, applied.copy(nativeNames = names), listOf(second, otherPackage),
+        SystemIconFallback.DEFAULT, emptySet()))
+    }
+  }
+
+  @Test fun aliasSnapshotDoesNotInventChangesForNewInstallsUninstallsOrPackageOnlyTargets() {
+    val first = IconPackComponent("os.test.app", "os.foreign.First")
+    val other = IconPackComponent("os.test.other", "os.foreign.Other")
+    val snapshot = IconGenerationManifest(activeLauncherTargets = setOf(first.flattened))
+    val applied = source.copy(nativeNames = setOf(first.packageName, other.packageName), generation = snapshot)
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(first, other),
+      SystemIconFallback.DEFAULT, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(other),
+      SystemIconFallback.DEFAULT, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(first, IconPackComponent(first.packageName)),
+      SystemIconFallback.DEFAULT, emptySet()))
+    assertFalse(iconPackNeedsUpdate(pack, applied.copy(nativeNames = null), listOf(first.copy(className = "os.foreign.New")),
+      SystemIconFallback.DEFAULT, emptySet()))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(IconPackComponent(first.packageName)),
+      SystemIconFallback.DEFAULT, emptySet()))
+  }
+
+  @Test fun nativeImportsDoNotApplyConvertedAliasSnapshotPolicy() {
+    val next = target.copy(className = "os.foreign.Next")
+    val applied = source.copy(nativeNames = setOf(target.packageName), generation = IconGenerationManifest(
+      activeLauncherTargets = setOf(target.flattened)))
+    for (format in listOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)) {
+      assertFalse(iconPackNeedsUpdate(pack.copy(format = format), applied, listOf(next),
+        SystemIconFallback.DEFAULT, emptySet()))
     }
   }
 

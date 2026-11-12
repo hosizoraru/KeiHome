@@ -25,6 +25,9 @@ import kotlinx.coroutines.withContext
 import os.kei.hyper.home.xposed.IconSupportStatus
 import os.kei.hyper.home.xposed.MonochromeMaskQuality
 import os.kei.hyper.home.xposed.StableIconResourceGraph
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.OriginalIconShape
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 
 /** Shared snapshots: callers must not mutate or recycle them; eviction and clear only drop references. */
 internal data class AppIconPreviews(
@@ -51,24 +54,29 @@ internal class IconPreviewRepository(
   private val renderer = dispatcher.limitedParallelism(2)
   private val lock = Any()
   private var generation = 0L
-  private var defaultPreview: Pair<Int, AppIconPreviews>? = null
+  private var defaultPreview: Pair<Pair<Int, String?>, AppIconPreviews>? = null
   private val cache = object : LruCache<PreviewKey, CachedPreview>(4 * 1024 * 1024) {
     override fun sizeOf(key: PreviewKey, value: CachedPreview): Int =
       value.previews.let { listOf(it.light, it.dark, it.lightMonochrome, it.darkMonochrome) }
         .sumOf { it?.allocationByteCount ?: 0 }
   }
 
-  suspend fun load(app: InstalledIconCapability, sizePx: Int = 128): AppIconPreviews {
+  suspend fun load(app: InstalledIconCapability, sizePx: Int = 128,
+    colorMask: NativeAdaptiveIconMask? = null): AppIconPreviews {
     require(sizePx > 0)
     val requestedGeneration = synchronized(lock) { generation }
     return withContext(renderer) {
       val caller = currentCoroutineContext()
       caller.ensureActive()
-      val target = previewOrNull { resolve(app, sizePx) } ?: return@withContext AppIconPreviews()
+      val mask = colorMask ?: OriginalIconShape.mask
+      val resolved = previewOrNull { resolve(app, sizePx) } ?: return@withContext AppIconPreviews()
+      val target = resolved.copy(key = resolved.key.copy(maskPath = mask?.pathData))
       if (target.key.iconId == 0) {
-        synchronized(lock) { defaultPreview?.takeIf { it.first == sizePx }?.second }?.let { return@withContext it }
-        val icon = drawIconBitmap(application.packageManager.defaultActivityIcon.mutate(), sizePx)
-        return@withContext AppIconPreviews(icon, icon).also { synchronized(lock) { defaultPreview = sizePx to it } }
+        val key = sizePx to mask?.pathData
+        synchronized(lock) { defaultPreview?.takeIf { it.first == key }?.second }?.let { return@withContext it }
+        val icon = drawIconBitmap(application.packageManager.defaultActivityIcon.mutate(), sizePx, mask)
+        return@withContext AppIconPreviews(icon, icon, maskPathData = mask?.pathData)
+          .also { synchronized(lock) { defaultPreview = key to it } }
       }
       val cached = synchronized(lock) {
         if (generation == requestedGeneration) cache.get(target.key) else null
@@ -93,13 +101,15 @@ internal class IconPreviewRepository(
       fun render(resources: Resources?): IconModePreview {
         caller.ensureActive()
         return resources?.let {
-          previewOrNull { renderIconPreview(it, target.key.iconId, sizePx) { caller.ensureActive() } }
+          previewOrNull { renderIconPreview(it, target.key.iconId, sizePx,
+            colorMask = mask) { caller.ensureActive() } }
         } ?: IconModePreview(null, null)
       }
       val light = render(lightResources)
       val dark = render(darkResources)
       val result = AppIconPreviews(
         light.color, dark.color, light.monochrome, dark.monochrome, target.key.component,
+        maskPathData = mask?.pathData,
       )
       synchronized(lock) {
         caller.ensureActive()
@@ -159,6 +169,7 @@ internal class IconPreviewRepository(
     val apks: List<ApkStamp>,
     val configuration: Configuration,
     val density: Int,
+    val maskPath: String? = null,
   )
 
   private data class Target(val key: PreviewKey, val applicationInfo: ApplicationInfo)
@@ -184,12 +195,13 @@ internal fun renderIconPreview(
   resources: Resources,
   iconId: Int,
   sizePx: Int,
+  colorMask: NativeAdaptiveIconMask? = null,
   checkCancelled: () -> Unit = {},
 ): IconModePreview {
   val icon = resources.getDrawableForDensity(iconId, resources.displayMetrics.densityDpi, null)
     ?.mutate() ?: return IconModePreview(null, null)
   icon.setLayoutDirection(resources.configuration.layoutDirection)
-  val color = drawIconBitmap(icon, sizePx)
+  val color = drawIconBitmap(icon, sizePx, colorMask)
   checkCancelled()
   val monochrome = previewOrNull {
     val adaptive = icon as? AdaptiveIconDrawable ?: return@previewOrNull null
@@ -229,12 +241,12 @@ internal fun renderIconPreview(
   return IconModePreview(color, monochrome)
 }
 
-private fun drawIconBitmap(drawable: Drawable, size: Int): Bitmap {
+private fun drawIconBitmap(drawable: Drawable, size: Int, mask: NativeAdaptiveIconMask? = null): Bitmap {
   val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
   try {
     drawable.setBounds(0, 0, size, size)
     drawable.draw(Canvas(bitmap))
-    return bitmap
+    return IconMaskPolicy.clip(bitmap, mask).also { if (it !== bitmap) bitmap.recycle() }
   } catch (failure: Exception) {
     bitmap.recycle() // This bitmap has never been published.
     throw failure

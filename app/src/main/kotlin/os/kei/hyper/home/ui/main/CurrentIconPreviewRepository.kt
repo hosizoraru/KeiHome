@@ -18,6 +18,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.data.AppIconPreviews
+import os.kei.hyper.home.data.IconPreviewRepository
+import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackPreviews
@@ -44,6 +46,37 @@ internal class CurrentIconPreviewRepository(
     override fun sizeOf(key: Key, value: AppIconPreviews): Int = maxOf(1024,
       listOfNotNull(value.light, value.dark, value.lightMonochrome, value.darkMonochrome,
         value.backgroundMask).distinct().sumOf { it.allocationByteCount })
+  }
+
+  suspend fun loadOriginal(source: IconBrowserSource?, app: InstalledIconCapability,
+    originals: IconPreviewRepository): AppIconPreviews {
+    val epoch = synchronized(lock) { generation }
+    return withContext(worker) {
+      if (source == null || app.packageName in source.generation?.preservedIconPackages.orEmpty()) return@withContext originals.load(app)
+      val file = (source.pack.source as? IconPackSource.Imported)?.record?.originalFile ?: return@withContext originals.load(app)
+      if (!file.isFile) return@withContext originals.load(app)
+      val maskKey = MaskKey(source.revision, file.absolutePath, file.length(), file.lastModified(), epoch)
+      val cached = synchronized(maskLock) { masks.get(maskKey) }
+      val mask = if (cached != null) cached.mask else ZipFile(file).use {
+        publishedMask(it, file, source.revision, epoch)
+      }
+      val original = originals.load(app, colorMask = mask)
+      val key = Key(source.revision, source.pack.id,
+        "original:${app.packageName}:${app.userId}:${original.light?.generationId}:${original.dark?.generationId}",
+        file.absolutePath, file.length(), file.lastModified(), Configuration(application.resources.configuration))
+      requests[(key.hashCode() and Int.MAX_VALUE) % requests.size].withLock {
+        synchronized(lock) { cache.get(key) }?.let { return@withContext it }
+        running.withPermit {
+          currentCoroutineContext().ensureActive()
+          if (mask == null) return@withContext original
+          val result = original.copy(light = original.light?.let { IconMaskPolicy.clip(it, mask) },
+            dark = original.dark?.let { IconMaskPolicy.clip(it, mask) }, maskPathData = mask.pathData)
+          currentCoroutineContext().ensureActive()
+          synchronized(lock) { if (generation == epoch) cache.put(key, result) }
+          result
+        }
+      }
+    }
   }
 
   suspend fun load(source: IconBrowserSource, entry: IconPackEntry): AppIconPreviews {

@@ -23,6 +23,7 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.RawIconArchive
 import os.kei.hyper.home.iconpack.IconPackLimits
@@ -61,13 +62,16 @@ internal object IconPackHandoffs {
     val iconMask = withContext(Dispatchers.IO) {
       os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(context, completeSystemIconConfig)
     }
+    val preserved = withContext(Dispatchers.IO) { os.kei.hyper.home.data.PreservedIcons.snapshot(context) }
+    val exportTargets = targets.filterNot { it.packageName in preserved }
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
-    val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
+    val light = repository.exportNativeIcons(pack, exportTargets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
-      colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask)
+      colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
+      preservedPackages = preserved)
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -77,9 +81,9 @@ internal object IconPackHandoffs {
       val icons = if (light.preservesNativeResources) light.archive else {
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
-            repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback,
+            repository.exportNativeIcons(pack, exportTargets, darkMode = true, systemFallback = systemFallback,
               systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
-              installedOnly = installedOnly, maskPolicy = iconMask)
+              installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved)
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
@@ -88,8 +92,10 @@ internal object IconPackHandoffs {
         }
         withContext(Dispatchers.IO) {
           val current = currentCoroutineContext()
-          val dynamic = colorOsDynamicEntries(pack, targets, sourceAppearance) { current.ensureActive() } +
-            AppleDynamicIconArchive.entries(pack, targets, installedOnly, sourceAppearance) { current.ensureActive() }
+          val exclusions = os.kei.hyper.home.iconpack.PreservedIconResources(preserved, targets)
+          val dynamic = (colorOsDynamicEntries(pack, exportTargets, sourceAppearance) { current.ensureActive() } +
+            AppleDynamicIconArchive.entries(pack, exportTargets, installedOnly, sourceAppearance) { current.ensureActive() })
+            .filterKeys { !exclusions.containsPath(it) }
           File.createTempFile("paired-icons-", ".zip", context.cacheDir).also { paired ->
             merged = paired
             ZipOutputStream(paired.outputStream()).use { output ->
@@ -149,7 +155,7 @@ internal object IconPackHandoffs {
           }
         }
       }
-      val first = iconPackPreviewEntry(pack, targets)
+      val first = iconPackPreviewEntry(pack, exportTargets)
       val artwork = first?.let { previews.load(pack, it, 144, maskPolicy = iconMask) }
       return withContext(Dispatchers.IO) {
         val caller = currentCoroutineContext()
@@ -163,6 +169,8 @@ internal object IconPackHandoffs {
           installedOnly = installedOnly,
           completeSystemIconConfig = completeSystemIconConfig,
           iconMaskIdentity = iconMask.identity,
+          activeLauncherTargets = targets.filter { it.className != null }.mapTo(linkedSetOf()) { it.flattened },
+          preservedIconPackages = preserved,
         )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
@@ -257,8 +265,6 @@ internal object IconPackHandoffs {
   ): Map<String, ByteArray> {
     val profile = pack.colorOsProfile ?: return emptyMap()
     val output = linkedMapOf<String, ByteArray>()
-    val sharedActivities = targets.distinct().filter { it.className != null }.groupBy { it.className }
-      .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
     val paths = profile.paths()
     for ((pkg, group) in targets.distinct().groupBy { it.packageName }) {
       for (target in group) {
@@ -275,7 +281,7 @@ internal object IconPackHandoffs {
           else emptyList()
         if (leaves.any { "coloros-dynamic/$name/$it" !in paths }) continue
         val assets = leaves.associateWith { profile.read("coloros-dynamic/$name/$it", check) }
-        val aliases = listOfNotNull(target.className?.takeUnless { it in sharedActivities }) +
+        val aliases = listOfNotNull(nativeLauncherActivityName(target)) +
           if (group.size == 1 || target.className == null) listOf(pkg) else emptyList()
         for (alias in aliases.distinct()) {
           output.putAll(NativeColorOsDynamicIcon.entries(alias, kind, assets,

@@ -39,8 +39,8 @@ Static-render cache revision 3 separates older cropped intermediates.
 Authored dynamic resources remain native resources.
 
 Current-theme previews read the XML actually published in that theme. Pending
-private mask settings are not substituted. Generation manifest schema 4 records
-the policy identity, including a canonical custom-path digest. Schemas 1-3
+private mask settings are not substituted. Generation manifest schema 6 records
+the policy identity, including a canonical custom-path digest. Schemas 1-5
 remain readable; changing the effective policy requires regeneration and
 reapplication to update the active theme.
 
@@ -65,3 +65,19 @@ to reject all historical layouts.
 Focused test and device receipts are retained under
 `.artifacts/research/icon-mask-20261112/`. Device captures validate the Phone AVD;
 they do not establish physical-device acceptance.
+
+## Original application previews and published shapes
+
+APK bitmap artwork needs a final outer shape just like adaptive artwork. The
+original preview repository now applies the immutable product default shape on
+its workers. When browsing an applied theme, unmapped applications use that
+published theme's shape, read through the bounded native-config cache. Shape
+identity is part of the original-bitmap cache key; switching themes cannot reuse
+a bitmap clipped for a different mask.
+
+The shared preview image uses published shape data for colored artwork as well
+as Monet recoloring. Monochrome eligibility is still inspected before clipping:
+rounding a full-color bitmap must not turn it into an eligible monochrome mask.
+Alpha intersection is reused, without a white matte or repeated alpha
+multiplication. The mask comparison page keeps its deliberate unprocessed
+reference and is not globally rounded by a UI-only modifier.

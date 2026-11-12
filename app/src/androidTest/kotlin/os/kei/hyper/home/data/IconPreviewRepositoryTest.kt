@@ -35,6 +35,40 @@ class IconPreviewRepositoryTest {
   private val fixtures = instrumentation.context
   private val target = instrumentation.targetContext
 
+  @Test fun ordinaryArtworkUsesTheFinalShapeWithoutChangingMonochromeEligibility() {
+    val mask = os.kei.hyper.home.iconpack.NativeAdaptiveIconMask.fromPathData(
+      "preview-fixture", "M50,0 L100,50 L50,100 L0,50 Z")
+    val res = resources(Configuration.UI_MODE_NIGHT_NO)
+    val raw = renderIconPreview(res, icon("fixture_static"), 128)
+    val shaped = renderIconPreview(res, icon("fixture_static"), 128, colorMask = mask)
+    try {
+      assertEquals(255, raw.color!!.getPixel(0, 0) ushr 24)
+      assertEquals(0, shaped.color!!.getPixel(0, 0) ushr 24)
+      assertEquals(raw.color.getPixel(64, 64), shaped.color.getPixel(64, 64))
+      assertNull(shaped.monochrome)
+    } finally { raw.color?.recycle(); shaped.color?.recycle() }
+  }
+
+  @Test fun originalPreviewCacheSeparatesPublishedMaskShapes() = runBlocking {
+    val repository = IconPreviewRepository(target)
+    val app = app()
+    val diamond = os.kei.hyper.home.iconpack.NativeAdaptiveIconMask.fromPathData(
+      "diamond", "M50,0 L100,50 L50,100 L0,50 Z")
+    val square = os.kei.hyper.home.iconpack.NativeAdaptiveIconMask.fromPathData(
+      "square", "M0,0 H100 V100 H0 Z")
+    val first = repository.load(app, colorMask = diamond)
+    val second = repository.load(app, colorMask = square)
+    assertNotNull(first.light)
+    assertNotNull(second.light)
+    assertNotSame(first.light, second.light)
+    assertSame(first, repository.load(app, colorMask = diamond))
+    assertEquals(diamond.pathData, first.maskPathData)
+    assertEquals(square.pathData, second.maskPathData)
+    repository.clear()
+    assertFalse(first.light!!.isRecycled)
+    assertFalse(second.light!!.isRecycled)
+  }
+
   private fun resources(night: Int): Resources = fixtures.packageManager.getResourcesForApplication(
     fixtures.applicationInfo,
     Configuration(fixtures.resources.configuration).apply {

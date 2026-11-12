@@ -6,6 +6,8 @@ import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackFormat
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 
 /** Unknown/unrenderable resources and deliberately uncovered user apps are not update tasks. */
 internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSource,
@@ -17,7 +19,9 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   completeSystemIconConfig: Boolean = false,
   iconMaskIdentity: String = if (completeSystemIconConfig)
     os.kei.hyper.home.iconpack.IconMaskPolicy.DEFAULT_IDENTITY else "original",
+  preservedPackages: Set<String> = emptySet(),
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
+  if (source.generation?.preservedIconPackages.orEmpty() != preservedPackages) return true
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||
     (source.generation?.completeSystemIconConfig ?: false) != completeSystemIconConfig ||
     (completeSystemIconConfig && (source.generation?.schemaVersion?.let { it < 4 } == true ||
@@ -34,11 +38,17 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if (pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS &&
     source.systemFallback != null && source.systemFallback.nameMatching != effectiveNameMatching) return true
   val names = source.nativeNames ?: return false
+  val converted = pack.format !in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS)
+  if (converted && source.generation?.schemaVersion?.let { it < 7 } == true) return true
+  val eligible = targets.filterNot { it.packageName in preservedPackages }
+  if (converted && source.generation?.schemaVersion?.let { it >= 6 } == true &&
+    activeLauncherSelectionChanged(source, eligible, names)) return true
   if (source.generation?.nativeAdaptations?.any { (target, fingerprint) ->
       nativeAdaptations[target]?.let { it != fingerprint } == true } == true) return true
   val components = pack.entries.mapNotNull { it.component }.toSet()
-  return targets.any { target ->
-    val aliases = listOfNotNull(target.className, target.packageName)
+  val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries)
+  return eligible.any { target ->
+    val aliases = nativeLauncherIconNames(target)
     val perfect = fallback.isPerfect && target.packageName in systemPackages
     if (aliases.any { it in names } || target.flattened in source.generation?.considered.orEmpty() ||
       pack.colorOsProfile?.source(target)?.requiresLiveIcon == true) false else {
@@ -47,7 +57,23 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
         ColorOsFallbackRenderer.dynamicReason(target.packageName, null) == null &&
         target.packageName != "com.xiaomi.calendar"
       val nativeFallback = target.packageName in systemPackages && aliases.any { it in source.entries }
-      (mapped || colorOs || nativeFallback || perfect || (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
+      val channel = channelFamily.donor(target, true, null) != null
+      (mapped || channel || colorOs || nativeFallback || perfect || (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
     }
+  }
+}
+
+private fun activeLauncherSelectionChanged(source: IconBrowserSource,
+  targets: List<IconPackComponent>, names: Set<String>): Boolean {
+  val previous = source.generation?.activeLauncherTargets.orEmpty().mapNotNull(IconPackComponent::parse)
+    .groupBy { it.packageName }
+  val current = targets.groupBy { it.packageName }
+  // New installs use the existing coverage policy; uninstalled packages have no launcher to repair.
+  return previous.any { (pkg, before) ->
+    val after = current[pkg] ?: return@any false
+    val active = after.filter { it.className != null }
+    if (before.toSet() == active.toSet()) return@any false
+    val roots = listOf(pkg) + (before + active).mapNotNull(::nativeLauncherActivityName)
+    roots.any { it in names }
   }
 }

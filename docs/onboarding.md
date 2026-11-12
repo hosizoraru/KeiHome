@@ -9,9 +9,15 @@ or revisited; feature controls remain in their existing pages.
 The OS4 rewrite uses a centered illustrated heading, compact progress dots,
 short grouped links, and separate floating Back and Continue controls. The footer
 has no enclosing opaque panel. Content scrolls behind the controls through a
-cached gradient matching the theme surface. The measured action height and
-navigation safe area are reserved inside the scrolling content, so the last link
-can still be scrolled fully above the controls without a hard blank band.
+cached gradient matching the theme surface. The guide uses its own full-screen
+`OnboardingPageLayout`, rather than the shared settings scaffold's app-bar slot.
+Header and footer are measured before the body; their clearances, including
+system-bar safe areas, are padding **inside** the scrolling content. The viewport
+extends behind both controls. Cards can therefore scroll through the header's
+gradual fade instead of being cut off beneath a solid strip; the last link can
+still be scrolled fully above the footer. The two gradient brushes are cached;
+scrolling does not publish measured sizes into Compose state or create a new blur
+layer for the fades.
 Content and controls are centered within a 640dp maximum width on wider windows.
 The artwork shrinks at larger font scales; content remains scrollable.
 
@@ -34,7 +40,7 @@ copied, and the configured device's setup wizard was not rerun or reset.
    action when scopes can be requested, and links to the framework manager and
    dedicated scope viewer. The old all-in-one scope card is not embedded here.
 3. **Icons:** Library, Perfect, its resource manager and Apple, followed by Monet,
-   artwork completion, Icon mask, Keep original icons and Icon packs > More
+   artwork completion, Icon mask, Keep original icons, Recommended mappings and Icon packs > More
    settings. The resource manager downloads selected styles and required shared
    resources; removal retains resources still needed by other downloaded styles.
    Its top filter and sort menus help find styles, and Git updates reuse unchanged
@@ -49,11 +55,14 @@ copied, and the configured device's setup wizard was not rerun or reset.
    Existing mappings, alternate launcher icons, Telegram X and third-party forks
    are not part of that default borrowing. See
    [preserved app icons](preserved-app-icons.md) for publication and matching rules.
+   Recommended mappings independently control eligible app-name matching, official
+   Telegram channel sharing and built-in ColorOS theme-store aliases; the original-
+   icon preservation list wins. Its link returns to the same guide step.
    Supported native light/dark adaptation remains separate from selecting or
    applying an optional icon pack. Monet is optional, but explicitly choosing
    ColorOS Inspiration enables Monet as a related feature. A short note
    distinguishes generated packs from applied themes: after changing artwork,
-   completion, masks, kept originals or generation scope, update or regenerate,
+   completion, recommended mappings, masks, kept originals or generation scope, update or regenerate,
    then apply. Downloads and previews do not apply a theme. Local-resource details
    use the shared OS4 disclosure.
 4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
@@ -133,6 +142,9 @@ changing scope grants:
 - Resume/defer at 1.6 font scale, with final-content bounds above the measured
   footer on all five pages.
 - Duplicate Continue and Back callbacks before recomposition.
+- All pages retain a full-height scroll viewport beneath the floating header.
+- A scrolled color-card fixture checks the rendered gradient on both sides of
+  the header boundary in light and dark themes, including unmodified body color.
 
 Current OS4 receipts and screenshots are under
 `.artifacts/research/onboarding-os4-20261111/`. Historical onboarding evidence

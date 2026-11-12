@@ -29,7 +29,7 @@
     <string name="setup_fallback_body">ColorOS と Perfect で未対応アプリのアイコンを補完できます。Perfect のスタイルを先にダウンロードしてください。HyperOS4 がおすすめです。Perfect 補完中はシステムの代替アイコンを使わず、オフにすると元の選択に戻ります。元のアイコンを使う指定のアプリは対象外です。</string>
     <string name="setup_mask_body">同じアイコンで元の形状、HyperOS4、カスタムマスクを比較。適応がオンの場合、カスタム、パック付属、HyperOS4 の順に優先します。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
-    <string name="setup_icon_tip_body">画像、補完、マスク、元のアイコンを使うアプリ、生成対象を変更したら、パックを更新または再生成して適用してください。プレビューだけでは適用済みテーマは変わりません。</string>
+    <string name="setup_icon_tip_body">画像、補完、推奨マッピング、マスク、元のアイコンを使うアプリ、生成対象を変更したら、パックを更新または再生成して適用してください。プレビューだけでは適用済みテーマは変わりません。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
     <string name="setup_desktop_body">カテゴリ別にホーム設定を開きます。対応する変更は自動で同期され、状態は各ページで確認できます。利用可否はホームアプリとスコープ許可によって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
@@ -51,4 +51,5 @@
     <string name="setup_perfect_resources_body">選んだスタイルと必要な共有リソースだけを取得。削除時も他のスタイルが使うリソースは保持します。上部メニューで絞り込み・並べ替えができます。</string>
     <string name="setup_preserved_body">アプリ名やパッケージ名で検索し、絞り込み・並べ替えで選択。再生成して適用すると、選んだアプリは元のアイコンを使います。</string>
     <string name="setup_cache_body">整理の通知は既定で 520 MB。Perfect のダウンロード量には左右されません。アプリログもキャッシュに含まれ、キャッシュ画面のログ項目から確認・書き出しできます。通知による自動削除はありません。</string>
+    <string name="setup_recommended_mappings_body">必要に応じて、システムアプリ名の照合、Telegram 公式配信版間の共有、ColorOS テーマストアのマッピングを選べます。元のアイコンを保持するアプリの指定が優先されます。</string>
 </resources>

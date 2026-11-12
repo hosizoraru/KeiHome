@@ -60,6 +60,10 @@ class OnboardingNavigationTest {
     currentPage = index
     rule.onNodeWithTag("setup.page.$index").assertIsDisplayed()
     settleTransition()
+    val viewport = action("content").fetchSemanticsNode().boundsInRoot
+    val header = action("header").fetchSemanticsNode().boundsInRoot
+    assertTrue("Guide content must scroll behind its floating header, without a fixed cutoff",
+      viewport.top < header.top && viewport.bottom > header.bottom)
   }
 
   private fun action(tag: String) = rule.onNode(hasTestTag("setup.$tag") and
@@ -188,6 +192,10 @@ class OnboardingNavigationTest {
     page(2)
     openLink(R.string.preserved_icons_title)
     destination("preserved-icons.page")
+    back()
+    page(2)
+    openLink(R.string.recommended_mappings_title)
+    destination("recommended-mappings.page")
     back()
     page(2)
     openLink(R.string.setup_os4_icons_more)

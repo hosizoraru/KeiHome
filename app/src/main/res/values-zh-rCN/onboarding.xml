@@ -29,7 +29,7 @@
     <string name="setup_fallback_body">ColorOS 与完美图标可补齐未覆盖的应用。完美补全需先下载任一样式，推荐 HyperOS4；启用时暂停系统回退，关闭后恢复原选择。保留原始图标的应用不参与补齐。</string>
     <string name="setup_mask_body">用同一组图标对比原始、HyperOS4 与自定义遮罩。启用适配后依次优先使用自定义遮罩、图标包自带遮罩，再用 HyperOS4 补缺。</string>
     <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
-    <string name="setup_icon_tip_body">修改资源、补全、遮罩、保留原图标清单或生成范围后，请更新或重新生成图标包，再应用。仅预览不会更新已应用主题。</string>
+    <string name="setup_icon_tip_body">修改资源、补全、推荐映射、遮罩、保留原图标清单或生成范围后，请更新或重新生成图标包，再应用。仅预览不会更新已应用主题。</string>
     <string name="setup_desktop_title">按需调整桌面效果</string>
     <string name="setup_desktop_body">按分类浏览桌面设置。受支持的更改会自动同步，可在对应子页查看功能状态。实际可用情况取决于系统桌面与作用域；仅打开页面不会改变配置。</string>
     <string name="setup_open_desktop">打开桌面个性化</string>
@@ -51,4 +51,5 @@
     <string name="setup_perfect_resources_body">按需下载所选风格及必需共享资源；移除时保留其他风格仍需的资源。顶部菜单可筛选、排序。</string>
     <string name="setup_preserved_body">按应用名或包名搜索，配合筛选与排序选择应用。重新生成并应用后，所选应用保留自身图标。</string>
     <string name="setup_cache_body">清理提醒默认 520 MB，不随 Perfect 下载变化。应用日志计入缓存，可从缓存中的日志入口跳转查看或导出。提醒不会自动删除资源。</string>
+    <string name="setup_recommended_mappings_body">按需选择系统名称匹配、Telegram 官方渠道共享和 ColorOS 主题商店映射；保留原图标名单优先。</string>
 </resources>

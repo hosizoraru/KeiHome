@@ -9,13 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -26,17 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -44,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -80,15 +74,16 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
     }
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
-  var toolbarHeight by remember { mutableIntStateOf(0) }
-  val clearance = with(LocalDensity.current) { toolbarHeight.toDp() } + 16.dp
-  val surface = MiuixTheme.colorScheme.surface
   val stepLabel = stringResource(R.string.setup_step, page + 1, OnboardingPreferences.PAGE_COUNT)
-  Scaffold(backdrop = backdrop, modifier = Modifier.testTag("setup.page.$page"), topBar = {
-    Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)
+  OnboardingPageLayout(backdrop = backdrop, modifier = Modifier.testTag("setup.page.$page"), header = {
+    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
+      contentAlignment = Alignment.TopCenter) {
+    Row(Modifier.widthIn(max = 640.dp).fillMaxWidth()
+      .testTag("setup.header")
       .padding(horizontal = 20.dp, vertical = 8.dp).heightIn(min = 48.dp),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-      Text(stringResource(R.string.app_name), style = MiuixTheme.textStyles.subtitle)
+      Text(stringResource(R.string.app_name), modifier = Modifier.weight(1f, fill = false),
+        maxLines = 1, overflow = TextOverflow.Ellipsis, style = MiuixTheme.textStyles.subtitle)
       Row(Modifier.semantics { contentDescription = stepLabel },
         horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(OnboardingPreferences.PAGE_COUNT) { index ->
@@ -101,9 +96,12 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
       TextButton(stringResource(if (replay) R.string.setup_os4_exit else R.string.setup_os4_later),
         onClick = onExit, modifier = Modifier.heightIn(min = 48.dp).testTag("setup.exit"))
     }
-  }, floatingToolbar = {
+    }
+  }, footer = {
+    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+      contentAlignment = Alignment.BottomCenter) {
     Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)
-      .onSizeChanged { toolbarHeight = it.height }.testTag("setup.toolbar"),
+      .testTag("setup.toolbar"),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
       if (page > 0 || replay) {
         val previous = stringResource(if (page == 0) R.string.pack_back else R.string.setup_previous)
@@ -120,31 +118,18 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
       }), if (page == 4) MiuixIcons.Glass.Ok else MiuixIcons.Glass.ChevronForward,
         onClick = onNext, trailingIcon = true, modifier = Modifier.widthIn(max = 260.dp).testTag("setup.next"))
     }
+    }
   }) { insets ->
-    Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
-      contentAlignment = Alignment.TopCenter) {
       key(page) {
-        val footerInset = insets.calculateBottomPadding() + clearance
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize()
-          .padding(top = insets.calculateTopPadding())
-          .testTag("setup.content").drawWithCache {
-            val fadeHeight = (footerInset + 24.dp).toPx().coerceAtMost(size.height)
-            val start = size.height - fadeHeight
-            val fade = Brush.verticalGradient(listOf(surface.copy(alpha = 0f),
-              surface.copy(alpha = .6f), surface), startY = start, endY = size.height)
-            onDrawWithContent {
-              drawContent()
-              drawRect(fade, topLeft = Offset(0f, start), size = Size(size.width, fadeHeight))
-            }
-          }.verticalScroll(rememberScrollState())
-          .padding(horizontal = 24.dp, vertical = 12.dp).padding(bottom = footerInset),
+          .testTag("setup.content").verticalScroll(rememberScrollState())
+          .padding(insets).padding(horizontal = 24.dp),
           verticalArrangement = Arrangement.spacedBy(24.dp)) {
           OnboardingHero(page)
           OnboardingStepContent(model, page, onOpenPack, onOpenDesktop, onOpenSettings, onOpenDesktopSection)
           Spacer(Modifier.height(8.dp).testTag("setup.end"))
         }
       }
-    }
   }
 }
 

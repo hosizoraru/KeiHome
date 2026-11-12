@@ -84,7 +84,7 @@ GROUPS = {
     "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (
         UI + "ScopeAuthorizationUiTest",)),
     "ui-onboarding": ("device", "OS4 first use, resume, replay, optional routes and large text", (
-        UI + "OnboardingNavigationTest",)),
+        UI + "OnboardingNavigationTest", UI + "OnboardingChromeTest")),
     "cache-budget": ("jvm", "Fixed reminder, log accounting and protected resource storage", (
         "CacheReminderBudgetTest", "CacheUsageTest", "AppLogExportCacheTest", "PerfectIconRepositoryTest")),
     "hook-hot-paths": ("jvm", "Reusable request keys and live authenticated connection contracts", (

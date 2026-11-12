@@ -29,7 +29,7 @@
     <string name="setup_fallback_body">ColorOS and Perfect can fill gaps in app coverage. Download any Perfect style first; HyperOS4 is recommended. Perfect completion pauses system fallback and restores your choice when turned off. Apps set to keep their original icons are excluded.</string>
     <string name="setup_mask_body">Compare original, HyperOS4 and custom masks on the same icons. With adaptation on, custom masks take priority; pack masks come next, then HyperOS4.</string>
     <string name="setup_icon_tip_title">Preview, apply, then check</string>
-    <string name="setup_icon_tip_body">After changing artwork, completion, masks, kept originals or generation scope, update or regenerate the pack and apply it. Previews alone do not update the applied theme.</string>
+    <string name="setup_icon_tip_body">After changing artwork, completion, recommended mappings, masks, kept originals or generation scope, update or regenerate the pack and apply it. Previews alone do not update the applied theme.</string>
     <string name="setup_desktop_title">Make optional adjustments</string>
     <string name="setup_desktop_body">Browse desktop settings by category. Supported changes sync automatically; check their status on the corresponding page. Availability depends on your launcher and scope access. Opening a page keeps your settings unchanged.</string>
     <string name="setup_open_desktop">Open desktop settings</string>
@@ -51,4 +51,5 @@
     <string name="setup_perfect_resources_body">Download selected styles and required shared resources; removal keeps resources other styles still need. Find styles with the top filter and sort menus.</string>
     <string name="setup_preserved_body">Search apps by name or package, then filter and sort the list. Selected apps keep their own icons after you regenerate and apply.</string>
     <string name="setup_cache_body">The cleanup reminder defaults to 520 MB, regardless of Perfect downloads. App logs count toward cache usage; open their entry in Cache to view or export them. The reminder does not delete resources.</string>
+    <string name="setup_recommended_mappings_body">Choose system name matching, sharing between official Telegram channels and ColorOS Theme Store mappings as needed. Apps set to keep their original icons take priority.</string>
 </resources>

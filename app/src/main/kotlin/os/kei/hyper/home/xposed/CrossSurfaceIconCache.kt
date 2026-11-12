@@ -1,11 +1,13 @@
 package os.kei.hyper.home.xposed
 
 import android.content.BroadcastReceiver
+import android.app.UiModeManager
 import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
@@ -21,6 +23,8 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 
 /** Host-local, bounded snapshots. Hooks only read memory and enqueue; never decode or use Binder. */
 internal class CrossSurfaceIconCache(
@@ -70,6 +74,7 @@ internal class CrossSurfaceIconCache(
   private var warned = false
   private var notifyReady: Runnable? = null
   private var configurationKey = configurationKey(context.resources.configuration)
+  private var appearanceConfiguration = Configuration(context.resources.configuration)
   private val receiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (intent.action == Intent.ACTION_TIME_TICK) {
@@ -90,6 +95,7 @@ internal class CrossSurfaceIconCache(
   private val configuration = object : ComponentCallbacks {
     override fun onConfigurationChanged(config: Configuration) {
       synchronized(lock) {
+        appearanceConfiguration = Configuration(config)
         val next = configurationKey(config)
         if (next == configurationKey) return
         configurationKey = next
@@ -131,6 +137,7 @@ internal class CrossSurfaceIconCache(
     }
     register {
       context.registerReceiver(receiver, IntentFilter().apply {
+        addAction(Intent.ACTION_CONFIGURATION_CHANGED)
         addAction(Intent.ACTION_DATE_CHANGED)
         if (refreshOnMinute) addAction(Intent.ACTION_TIME_TICK)
         addAction(Intent.ACTION_TIME_CHANGED)
@@ -279,14 +286,34 @@ internal class CrossSurfaceIconCache(
       }
       val zip = archive ?: ZipFile(file).also { archive = it }
       val current = appearance ?: run {
-        val config = context.resources.configuration
-        Appearance(config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES,
+        val config = synchronized(lock) { Configuration(appearanceConfiguration) }
+        // A host can retain a context pinned to its old UI mode. Read the global
+        // explicit setting once per generation, never from an icon-binding hook.
+        val mode = try {
+          (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.nightMode
+        } catch (_: Exception) { null }
+        val dark = when (mode) {
+          UiModeManager.MODE_NIGHT_YES -> true
+          UiModeManager.MODE_NIGHT_NO -> false
+          else -> {
+            val global = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            val effective = if (global == Configuration.UI_MODE_NIGHT_UNDEFINED)
+              config.uiMode and Configuration.UI_MODE_NIGHT_MASK else global
+            effective == Configuration.UI_MODE_NIGHT_YES
+          }
+        }
+        Appearance(dark,
           config.locales[0] ?: Locale.getDefault(),
           paletteState())
           .also { appearance = it }
       }
-      bitmap = SurfaceIconSnapshotRenderer.render(zip, key.activity ?: key.name, current.dark, current.locale,
-        now, current.palette, ::checkCurrent, packageName = key.name) { dynamic = true }
+      val name = nativeLauncherActivityName(IconPackComponent(key.name, key.activity)) ?: key.name
+      bitmap = SurfaceIconSnapshotRenderer.render(zip, name, current.dark, current.locale,
+        now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = {
+          os.kei.hyper.home.iconpack.OriginalAppIcons.render(context,
+            IconPackComponent(key.name, key.activity), SurfaceIconSnapshotRenderer.SIZE,
+            current.dark, ::checkCurrent)
+        }) { dynamic = true }
     } catch (failure: Exception) {
       if (active && generation == revision.get() && !warned) {
         warned = true

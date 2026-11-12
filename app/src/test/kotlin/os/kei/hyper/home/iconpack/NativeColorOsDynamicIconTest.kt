@@ -271,4 +271,17 @@ class NativeColorOsDynamicIconTest {
   private fun dimensions(png: ByteArray, width: Int, height: Int) = png.copyOf().also {
     ByteBuffer.wrap(it).order(ByteOrder.BIG_ENDIAN).apply { putInt(16, width); putInt(20, height) }
   }
+
+
+  @Test fun qualifiedNativeStemRetainsItsOwnerAndRejectsTraversalOrMultipleSeparators() {
+    val qualified = "com.example.debug#com.example.Clock"
+    val entries = NativeColorOsDynamicIcon.entries(qualified, NativeColorOsDynamicIcon.Kind.CALENDAR, backgrounds)
+    assertArrayEquals(day, entries.getValue("res/drawable-xxhdpi/$qualified.png"))
+    assertEquals(true, "fancy_icons/$qualified/manifest.xml" in entries)
+    for (invalid in listOf("com.example#../Clock", "com.example#com.other#Clock", "#com.example.Clock", "com.example#")) {
+      assertThrows(IllegalArgumentException::class.java) {
+        NativeColorOsDynamicIcon.entries(invalid, NativeColorOsDynamicIcon.Kind.CALENDAR, backgrounds)
+      }
+    }
+  }
 }

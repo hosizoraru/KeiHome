@@ -81,4 +81,14 @@ class SystemIconFallbackManifestTest {
       SystemIconFallbackManifest.decode(text.toByteArray(Charsets.UTF_8))
     }
   }
+
+
+  @Test fun provenanceAcceptsQualifiedNativeNamesWithoutAcceptingPathsOrExtraSeparators() {
+    val manifest = SystemIconFallbackManifest(SystemIconFallback.entries.first(),
+      setOf("com.example.debug#com.example.Main"))
+    assertEquals(manifest, SystemIconFallbackManifest.decode(manifest.encode()))
+    for (invalid in listOf("com.example#../Main", "com.example#com.other#Main", "#com.example.Main", "com.example#")) {
+      reject("KeiHomeSystemFallback1\n${manifest.style.name}\n$invalid\n")
+    }
+  }
 }

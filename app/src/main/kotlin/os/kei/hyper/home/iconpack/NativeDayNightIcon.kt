@@ -15,7 +15,7 @@ internal object NativeDayNightIcon {
     nativeName: String, lightPng: ByteArray, darkPng: ByteArray,
     legacyExpanded: Boolean = false,
   ): Map<String, ByteArray> {
-    require(validDottedName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
+    require(validNativeIconName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
       "Invalid native icon filename stem"
     }
     val size = pngSize(lightPng)

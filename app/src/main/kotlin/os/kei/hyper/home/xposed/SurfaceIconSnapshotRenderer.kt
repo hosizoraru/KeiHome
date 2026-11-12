@@ -14,28 +14,110 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.WeakHashMap
 import java.util.zip.ZipFile
 import os.kei.hyper.home.iconpack.BoundedPackXml
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativeAppleDynamicIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.iconpack.NativeMamlPair
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeLayerConfig
-import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.validNativeIconName
+import os.kei.hyper.home.iconpack.IconGenerationManifest
 
 /** Worker-only static snapshots. Foreign MAML is never interpreted or started. */
 internal object SurfaceIconSnapshotRenderer {
   const val SIZE = 192
   private const val IMAGE_LIMIT = 4 * 1024 * 1024
+  private class MaskCoverage(val alpha: IntArray?)
+  private val masks = WeakHashMap<ZipFile, NativeAdaptiveIconMask?>()
+  private val coverages = WeakHashMap<NativeAdaptiveIconMask, MaskCoverage>()
+  private val preserved = WeakHashMap<ZipFile, Set<String>>()
 
   fun render(
     zip: ZipFile, name: String, dark: Boolean, locale: Locale, now: Long,
     palette: Long = 0L, check: () -> Unit = {}, packageName: String? = null,
+    resolvedMask: NativeAdaptiveIconMask? = resolveMask(zip, check),
+    originalIcon: (() -> Bitmap?)? = null,
     onDynamic: () -> Unit = {},
   ): Bitmap? {
-    if (!validDottedName(name) || name.length > 240) return null
+    if (!validNativeIconName(name) || name.length > 240) return null
+    val skipped = synchronized(preserved) {
+      preserved[zip] ?: run {
+        check()
+        val values = zip.getEntry(IconGenerationManifest.PATH)?.let { entry ->
+          try { IconGenerationManifest.decode(zip.getInputStream(entry).use {
+            it.readNBytes(IconGenerationManifest.MAX_BYTES + 1)
+          }).preservedIconPackages } catch (_: IllegalArgumentException) { emptySet() }
+        }.orEmpty()
+        if (preserved.size >= 8) preserved.clear()
+        preserved[zip] = values
+        values
+      }
+    }
+    if ((packageName ?: name.substringBefore('#')) in skipped) return originalIcon?.invoke()
+    val bitmap = renderArtwork(zip, name, dark, locale, now, palette, check, packageName, onDynamic)
+      ?: return null
+    return try {
+      check()
+      val alpha = resolvedMask?.let { coverage(it, check) } ?: return bitmap
+      val pixels = IntArray(SIZE * SIZE)
+      bitmap.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+      // Published PNGs can already carry this exact mask. Re-intersecting their
+      // antialiased edges would multiply alpha again and shrink the artwork.
+      if (pixels.indices.none { Color.alpha(pixels[it]) > alpha[it] }) return bitmap
+      check()
+      IconMaskPolicy.clip(bitmap, resolvedMask).also { if (it !== bitmap) bitmap.recycle() }
+    } catch (failure: Throwable) { bitmap.recycle(); throw failure }
+  }
+
+  /** Resolve the published contract once per worker archive/generation, including no mask. */
+  fun resolveMask(zip: ZipFile, check: () -> Unit = {}): NativeAdaptiveIconMask? {
+    check()
+    return synchronized(masks) {
+      if (masks.containsKey(zip)) return@synchronized masks[zip]
+      val entry = zip.getEntry(NativeIconShapeConfig.PATH)
+      val bytes = if (entry != null && !entry.isDirectory &&
+          entry.size in 1..NativeIconShapeConfig.MAX_BYTES.toLong()) {
+        zip.getInputStream(entry).use { it.readNBytes(NativeIconShapeConfig.MAX_BYTES + 1) }
+          .takeIf { it.size <= NativeIconShapeConfig.MAX_BYTES }
+      } else null
+      val mask = IconMaskPolicy.fromConfig(bytes)
+      check()
+      // Missing masks are cached too. ZIP lifetime/revision stays owned by the
+      // publisher; weak keys never retain its archives or require main-thread IO.
+      // GC may empty weak keys after size() even while this monitor is held.
+      if (masks.size >= 4) masks.keys.iterator().run { if (hasNext()) { next(); remove() } }
+      mask.also { masks[zip] = it }
+    }
+  }
+
+  private fun coverage(mask: NativeAdaptiveIconMask, check: () -> Unit): IntArray? =
+    synchronized(coverages) {
+      coverages[mask]?.let { return@synchronized it.alpha }
+      check()
+      val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+      val alpha = try {
+        Canvas(bitmap).drawPath(mask.pathForBounds(Rect(0, 0, SIZE, SIZE)),
+          Paint(Paint.ANTI_ALIAS_FLAG))
+        IntArray(SIZE * SIZE).also { values ->
+          bitmap.getPixels(values, 0, SIZE, 0, 0, SIZE, SIZE)
+          for (i in values.indices) values[i] = Color.alpha(values[i])
+        }.takeUnless { values -> values.all { value -> value == 255 } }
+      } finally { bitmap.recycle() }
+      check()
+      if (coverages.size >= 4) coverages.keys.iterator().run { if (hasNext()) { next(); remove() } }
+      MaskCoverage(alpha).also { coverages[mask] = it }.alpha
+    }
+
+  private fun renderArtwork(
+    zip: ZipFile, name: String, dark: Boolean, locale: Locale, now: Long,
+    palette: Long, check: () -> Unit, packageName: String?, onDynamic: () -> Unit,
+  ): Bitmap? {
     fun bytes(path: String, limit: Int = IMAGE_LIMIT): ByteArray? {
       check()
       val entry = zip.getEntry(path) ?: return null
@@ -87,7 +169,6 @@ internal object SurfaceIconSnapshotRenderer {
           if (palette ushr 48 == 1L) {
             val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(result)
-            NativeAdaptiveIconMask.load()?.pathForBounds(Rect(0, 0, SIZE, SIZE))?.let(canvas::clipPath)
             for ((data, color) in listOf(background to palette.toInt(),
                 mask to (palette ushr 24).toInt())) {
               val bitmap = decode(data) ?: run { result.recycle(); return null }
@@ -113,7 +194,6 @@ internal object SurfaceIconSnapshotRenderer {
       val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
       try {
         val canvas = Canvas(result)
-        NativeAdaptiveIconMask.load()?.pathForBounds(Rect(0, 0, SIZE, SIZE))?.let(canvas::clipPath)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         for (path in paths) {
           val bitmap = image(path) ?: run { result.recycle(); return null }

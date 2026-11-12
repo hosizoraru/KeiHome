@@ -355,4 +355,15 @@ class IconPackArchiveTest {
     }
   }.toByteArray()
   private val png = Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aH2kAAAAASUVORK5CYII=")
+
+
+  @Test fun indexesQualifiedNativeStemsWithoutTreatingInvalidSeparatorsAsIcons() {
+    val qualified = "com.example.debug#com.example.Main"
+    val index = inspect(file(zip("res/drawable-xxhdpi/$qualified.png" to png,
+      "res/drawable-xxhdpi/com.example#com.other#Main.png" to png)))
+    assertEquals(listOf(qualified), index.entries.map { it.nativeName })
+    assertThrows(IOException::class.java) {
+      inspect(file(zip("res/drawable-xxhdpi/com.example#../Main.png" to png)))
+    }
+  }
 }

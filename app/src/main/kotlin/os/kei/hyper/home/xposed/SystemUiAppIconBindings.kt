@@ -1,0 +1,88 @@
+package os.kei.hyper.home.xposed
+
+import android.content.pm.ApplicationInfo
+import android.graphics.drawable.Icon
+import android.graphics.drawable.Drawable
+import android.widget.ImageView
+import java.lang.ref.WeakReference
+import os.kei.hyper.home.iconpack.validDottedName
+
+/** Only the framework appInfo of the authenticated header consumer can fill a missing frame. */
+internal object SystemUiAppIconIdentity {
+  fun name(info: ApplicationInfo?, currentUser: Int, customOwner: String?): String? {
+    if (info == null || currentUser < 0 || info.uid < 1000 ||
+      info.uid / 100000 != currentUser || info.uid % 100000 < 1000) return null
+    val name = info.packageName ?: return null
+    if (name.length > 240 || !validDottedName(name)) return null
+    if (!customOwner.isNullOrEmpty() && customOwner != name) return null
+    return name
+  }
+}
+
+/** Identity-only provenance; never retain notification views, Icons, or native async work. */
+internal class SystemUiAppIconBindings {
+  private class Token(icon: Any, val name: String) {
+    val icon = WeakReference(icon)
+  }
+  class Binding(view: ImageView, val name: String) {
+    val view = WeakReference(view)
+  }
+  private val tokens = ArrayList<Token>()
+  private val views = ArrayList<Binding>()
+
+  @Synchronized fun remember(icon: Any, name: String) {
+    require(icon is Icon || icon is Drawable)
+    tokens.removeAll { it.icon.get() == null || it.icon.get() === icon }
+    if (tokens.size >= 96) tokens.removeAt(0)
+    tokens += Token(icon, name)
+  }
+
+  @Synchronized fun rememberLoaded(icon: Icon, drawable: Drawable) {
+    val name = tokens.firstOrNull { it.icon.get() === icon }?.name ?: return
+    remember(drawable, name)
+  }
+
+  @Synchronized fun bindNative(view: ImageView, cached: Drawable, name: String): Binding? {
+    if (view.drawable !== cached) {
+      clear(view)
+      return null
+    }
+    remember(cached, name)
+    return bind(view, cached)
+  }
+
+  @Synchronized fun associated(view: ImageView, name: String): Boolean =
+    views.any { it.view.get() === view && it.name == name }
+
+  @Synchronized fun bind(view: ImageView, icon: Any?): Binding? {
+    views.removeAll { it.view.get() == null || it.view.get() === view }
+    val name = tokens.firstOrNull { it.icon.get() === icon && icon != null }?.name ?: return null
+    if (views.size >= 64) views.removeAt(0)
+    return Binding(view, name).also { views += it }
+  }
+
+  @Synchronized fun clear(view: ImageView) {
+    views.removeAll { it.view.get() == null || it.view.get() === view }
+  }
+
+  @Synchronized fun current(binding: Binding): ImageView? =
+    if (views.any { it === binding }) binding.view.get() else null
+
+  @Synchronized fun snapshot(): List<Binding> {
+    views.removeAll { it.view.get() == null }
+    return views.toList()
+  }
+
+  /** A recycled/rebound slot must not receive a stale native async result either. */
+  fun afterNative(binding: Binding, native: Runnable, ready: (Binding) -> Unit): Runnable = Runnable {
+    if (current(binding) != null) {
+      native.run()
+      if (current(binding) != null) ready(binding)
+    }
+  }
+
+  @Synchronized fun clear() {
+    tokens.clear()
+    views.clear()
+  }
+}

@@ -30,4 +30,15 @@ class IconBuildInventoryTest {
       IconBuildInventory.decodeNames(ByteArray(IconBuildInventory.MAX_BYTES + 1))
     }
   }
+
+
+  @Test fun qualifiedNativeNamesRoundTripButUnsafeSeparatorsNeverEnterInventory() {
+    val qualified = "com.example.debug#com.example.Main"
+    val names = setOf("com.example", qualified)
+    assertEquals(names, IconBuildInventory.decodeNames(IconBuildInventory.encodeNames(names)))
+    for (invalid in listOf("com.example#../Main", "com.example#com.other#Main", "#com.example.Main", "com.example#")) {
+      assertThrows(IllegalArgumentException::class.java) { IconBuildInventory.encodeNames(setOf(invalid)) }
+      assertThrows(IllegalArgumentException::class.java) { IconBuildInventory.decodeNames("$invalid\n".toByteArray()) }
+    }
+  }
 }

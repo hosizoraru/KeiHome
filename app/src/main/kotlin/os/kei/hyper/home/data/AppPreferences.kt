@@ -49,6 +49,7 @@ internal data class AppPreferencesState(
   val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
   val autoApplyIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
+  val preservedIconPackages: Set<String> = emptySet(),
   val rememberMenuSelections: Boolean = true,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
@@ -91,6 +92,7 @@ internal class AppPreferences internal constructor(
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
     autoApplyIconPack = preferences.getBoolean("auto_apply_icons", true),
     installedIconsOnly = preferences.getBoolean("installed_icons_only", false),
+    preservedIconPackages = PreservedIcons.read(preferences),
     rememberMenuSelections = preferences.getBoolean("remember_menus", true),
     pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
       ?: AppPagerGesture.IOS_LIKE,
@@ -160,6 +162,12 @@ internal class AppPreferences internal constructor(
   fun setInstalledIconsOnly(value: Boolean) {
     preferences.edit().putBoolean("installed_icons_only", value).apply()
     state.update { it.copy(installedIconsOnly = value) }
+  }
+
+  fun setPreservedIconPackages(value: Set<String>) {
+    val packages = PreservedIcons.normalize(value)
+    preferences.edit().putStringSet(PreservedIcons.KEY, packages.toMutableSet()).apply()
+    state.update { it.copy(preservedIconPackages = packages) }
   }
 
   fun setRememberMenuSelections(value: Boolean) {

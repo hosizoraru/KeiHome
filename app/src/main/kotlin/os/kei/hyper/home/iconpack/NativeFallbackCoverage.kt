@@ -13,6 +13,6 @@ internal fun nativeFallbackProtectedNames(paths: Sequence<String>): Set<String> 
         pieces[3] in setOf("0.png", "1.png") -> pieces[2]
       else -> null
     }
-    if (name != null && '.' in name && validDottedName(name)) add(name)
+    if (name != null && '.' in name && validNativeIconName(name)) add(name)
   }
 }

@@ -126,8 +126,14 @@ class NativeRuntimeIdentitySelectionTest {
   @Test fun savedChoiceReplaysToBAndSubsequentUnchangedRenewalsRemainQuiet() {
     val values = mutableMapOf<String, Any>(LauncherGlassPreferences.KEY to 2)
     val preferences = Proxy.newProxyInstance(SharedPreferences::class.java.classLoader,
-      arrayOf(SharedPreferences::class.java)) { _, method, _ ->
-      if (method.name == "getAll") values.toMap() else error("Preference must not be modified")
+      arrayOf(SharedPreferences::class.java)) { proxy, method, args ->
+      when (method.name) {
+        "getAll" -> values.toMap()
+        "hashCode" -> System.identityHashCode(proxy)
+        "equals" -> proxy === args?.get(0)
+        "toString" -> "ReadOnlySharedPreferences"
+        else -> error("Preference must not be modified")
+      }
     } as SharedPreferences
     val saved = LauncherGlassPreferences.read(preferences)
     assertEquals(LauncherGlassStyle.DARK, saved)

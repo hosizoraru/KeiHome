@@ -186,11 +186,12 @@ internal class IconPackRepository(
     colorOsForOtherPacks: Boolean = false,
     installedOnly: Boolean = false,
     maskPolicy: IconMaskPolicy? = null,
+    preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(application),
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
-      systemAppNameMatching, fallback, installedOnly, maskPolicy) { caller.ensureActive() }
+      systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages) { caller.ensureActive() }
   }
 
   private var runtimeFallbackCache: IconPackDescriptor? = null

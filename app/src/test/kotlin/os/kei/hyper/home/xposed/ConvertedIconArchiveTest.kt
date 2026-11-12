@@ -60,6 +60,29 @@ class ConvertedIconArchiveTest {
     withArchive(icons("com.示例.活动")) { ConvertedIconArchive.inspect(it, "CONVERTED_APK") }
   }
 
+  @Test fun acceptsQualifiedStaticAndCanonicalDynamicAliasesWithoutWeakeningArchiveProof() {
+    val alias = "com.example.release#com.shared.Launcher"
+    val pairs = generatedPair(alias)
+    val variants = listOf(pairs) + NativeColorOsDynamicIcon.Kind.entries.map { kind ->
+      pairs + generatedDynamic(kind).mapKeys { (path, _) ->
+        path.replace("com.example", alias)
+      }
+    }
+    for (entries in variants) withArchive(zip(entries)) { file ->
+      for (origin in listOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")) {
+        ConvertedIconArchive.inspect(file, origin)
+      }
+    }
+    for (invalid in listOf("com.example#com.shared#com.other", "com.example#Launcher",
+        "com.example#/com.shared", "com.example#../com.shared", "#com.shared")) {
+      rejects(zip(pairs.mapKeys { (path, _) -> path.replace(alias, invalid) }))
+    }
+    val dynamic = variants.last()
+    val manifest = "fancy_icons/$alias/manifest.xml"
+    rejects(zip(dynamic + (manifest to (dynamic.getValue(manifest).toString(Charsets.UTF_8) +
+      "<Script/>").toByteArray())))
+  }
+
   @Test fun unchangedNativeOrUnrecognizedOriginCannotRegister() {
     for (content in listOf(icons(), zip(generatedPair()))) withArchive(content) { file ->
       listOf("MIUI_MTZ", "NATIVE", "converted_apk", "").forEach { origin ->

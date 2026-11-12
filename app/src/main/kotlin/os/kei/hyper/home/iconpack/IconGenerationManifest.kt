@@ -6,22 +6,33 @@ internal data class IconGenerationManifest(
   val considered: Set<String> = emptySet(),
   val nativeAdaptations: Map<String, String> = emptyMap(),
   val installedOnly: Boolean = false,
-  val schemaVersion: Int = 4,
+  val schemaVersion: Int = 7,
   val completeSystemIconConfig: Boolean = false,
   val iconMaskIdentity: String = if (completeSystemIconConfig) IconMaskPolicy.DEFAULT_IDENTITY else "original",
+  val activeLauncherTargets: Set<String> = emptySet(),
+  val preservedIconPackages: Set<String> = emptySet(),
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..4 && (schemaVersion != 1 || !installedOnly) &&
+    require(schemaVersion in 1..7 && (schemaVersion != 1 || !installedOnly) &&
       (schemaVersion >= 3 || !completeSystemIconConfig))
     require(validMaskIdentity(iconMaskIdentity) &&
       (completeSystemIconConfig == (iconMaskIdentity != "original")))
+    require((schemaVersion >= 6 || activeLauncherTargets.isEmpty()) &&
+      activeLauncherTargets.all(::validActiveTarget))
+    require((schemaVersion >= 7 || preservedIconPackages.isEmpty()) &&
+      preservedIconPackages.size <= 4096 &&
+      preservedIconPackages.all(os.kei.hyper.home.data.PreservedIcons::isValidPackageName))
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
     (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
     (if (schemaVersion >= 4) listOf("mask\t$iconMaskIdentity") else emptyList()) +
     colorOsPackages.sorted().map { "coloros\t$it" } + considered.sorted().map { "target\t$it" } +
-    nativeAdaptations.toSortedMap().map { (key, value) -> "native\t$key\t$value" })
+    nativeAdaptations.toSortedMap().map { (key, value) -> "native\t$key\t$value" } +
+    activeLauncherTargets.sorted().map { "active\t$it" } +
+    preservedIconPackages.sorted().map { "preserve\t$it" })
+    .also { require(it.size < maxLines(schemaVersion)) }
     .joinToString("\n", postfix = "\n").toByteArray(Charsets.UTF_8)
+    .also { require(it.size <= MAX_BYTES) }
   }
 
   companion object {
@@ -35,10 +46,15 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration2" -> 2
         "KeiHomeIconGeneration3" -> 3
         "KeiHomeIconGeneration4" -> 4
+        "KeiHomeIconGeneration5" -> 5
+        "KeiHomeIconGeneration6" -> 6
+        "KeiHomeIconGeneration7" -> 7
         else -> error("Unknown generation schema")
       }
-      require(lines.last().isEmpty() && lines.size <= 30005)
+      require(lines.last().isEmpty() && lines.size <= maxLines(schema))
       val packages = linkedSetOf<String>(); val targets = linkedSetOf<String>(); val native = linkedMapOf<String, String>()
+      val active = linkedSetOf<String>()
+      val preserved = linkedSetOf<String>()
       var scope: String? = null
       var shape: String? = null
       var mask: String? = null
@@ -62,6 +78,10 @@ internal data class IconGenerationManifest(
           "target" -> require(row.size == 2 && target(row[1]) && targets.add(row[1]))
           "native" -> require(row.size == 3 && target(row[1]) &&
             (row[2] == "none" || row[2].matches(Regex("[0-9a-f]{64}"))) && native.put(row[1], row[2]) == null)
+          "active" -> require(schema >= 6 && row.size == 2 && validActiveTarget(row[1]) && active.add(row[1]))
+          "preserve" -> require(schema >= 7 && row.size == 2 &&
+            os.kei.hyper.home.data.PreservedIcons.isValidPackageName(row[1]) &&
+            preserved.size < 4096 && preserved.add(row[1]))
           else -> error("Unknown generation decision")
         }
       }
@@ -69,9 +89,15 @@ internal data class IconGenerationManifest(
       require(schema < 3 || shape != null)
       require(schema < 4 || mask != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
-        mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original").also {
+        mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
+    }
+    // Active components can add one row per previously considered target.
+    private fun maxLines(schema: Int) = if (schema >= 6) 60005 else 30005
+    private fun validActiveTarget(value: String): Boolean {
+      val component = IconPackComponent.parse(value) ?: return false
+      return component.className != null && component.flattened == value
     }
     private fun validMaskIdentity(value: String) = value in setOf("original", IconMaskPolicy.DEFAULT_IDENTITY) ||
       value.matches(Regex("custom-[0-9a-f]{64}"))

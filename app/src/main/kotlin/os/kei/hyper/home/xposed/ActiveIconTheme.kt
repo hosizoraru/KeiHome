@@ -18,6 +18,10 @@ import org.xml.sax.InputSource
 import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
 import os.kei.hyper.home.iconpack.IconThemeMetadata
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
+import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.validNativeIconName
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 /**
@@ -80,9 +84,9 @@ internal class ActiveIconTheme(
     val primary = if (active.stamp.kind == Kind.MISSING) index(stockIcons, directory = false, generation) else active
     if (primary.inventory?.complete != true) return emptyMap()
     val names = primary.inventory?.timeNames ?: return emptyMap()
-    return packages.mapNotNull { pkg ->
+    return packages.filter(::validDottedName).mapNotNull { pkg ->
       val kind = names[pkg] ?: components[pkg].orEmpty().mapNotNull { component ->
-        names[if (component.startsWith('.')) pkg + component else component]
+        exactNames(pkg, component).firstNotNullOfOrNull { names[it] }
       }.distinct().singleOrNull()
       kind?.let { pkg to it }
     }.toMap().takeIf { generation == revision.get() }.orEmpty()
@@ -142,12 +146,19 @@ internal class ActiveIconTheme(
     }
     val names = sources.flatMap { it.names.orEmpty() }.toHashSet()
     val covered = packages.filterTo(linkedSetOf()) { packageName ->
-      packageName in names || components[packageName].orEmpty().any { component ->
-        val className = if (component.startsWith('.')) packageName + component else component
-        className in names
-      }
+      validDottedName(packageName) && (packageName in names || components[packageName].orEmpty().any { component ->
+        exactNames(packageName, component).any { it in names }
+      })
     }
     return Snapshot(signature, covered, complete = true)
+  }
+
+  private fun exactNames(pkg: String, component: String): List<String> {
+    val cls = if (component.startsWith('.')) pkg + component else component
+    if (!validDottedName(pkg) || !validDottedName(cls)) return emptyList()
+    val canonical = nativeLauncherActivityName(IconPackComponent(pkg, cls)) ?: return emptyList()
+    // The native static reader tries the bare foreign class after its qualified canonical name.
+    return if (cls.startsWith(pkg)) listOf(canonical) else listOf(canonical, cls)
   }
 
   private fun index(file: File, directory: Boolean, generation: Long): Index {
@@ -354,13 +365,17 @@ internal class ActiveIconTheme(
       else -> null
     }
     if (staticName?.endsWith(".png") == true) {
-      return Resource(staticName.removeSuffix(".png"), descriptor = false)
+      return staticName.removeSuffix(".png").takeIf(::validNativeIconName)?.let {
+        Resource(it, descriptor = false)
+      }
     }
     if (parts.size == 4 && parts[0] == "res" &&
       (parts[1] == "drawable" || parts[1].startsWith("drawable-")) && parts[3] == "0.png") {
       // The pair is background/foreground, not day/night. A half-pair is not coverage.
-      return Resource(parts[2], descriptor = false,
-        staticCompanion = prefix + parts.take(3).joinToString("/") + "/1.png")
+      return parts[2].takeIf(::validNativeIconName)?.let {
+        Resource(it, descriptor = false,
+          staticCompanion = prefix + parts.take(3).joinToString("/") + "/1.png")
+      }
     }
     return when {
       parts.size == 3 && parts[0] == "fancy_icons" && parts[2] == "manifest.xml" ->
@@ -371,7 +386,7 @@ internal class ActiveIconTheme(
         parts[3] == "fancy" && parts[4] == "manifest.xml" ->
         Resource(parts[1], descriptor = true, layer = parts[2], prefix = prefix)
       else -> null
-    }
+    }?.takeIf { validNativeIconName(it.name) }
   }
 
   private fun png(bytes: ByteArray): Boolean = bytes.size == 24 &&

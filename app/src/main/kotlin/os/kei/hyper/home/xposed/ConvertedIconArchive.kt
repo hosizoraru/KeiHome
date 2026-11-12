@@ -20,8 +20,9 @@ internal object ConvertedIconArchive {
   private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP", LOCAL_NATIVE)
   fun supportsOrigin(origin: String): Boolean = origin in origins
   private const val DOTTED_NAME = "[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+"
-  private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$DOTTED_NAME\\.png")
-  private val fancyIconName = Regex("fancy_icons/($DOTTED_NAME)/(manifest\\.xml|day\\.png|night\\.png|mask\\.png|bg\\.png|" +
+  private const val NATIVE_NAME = "$DOTTED_NAME(?:#$DOTTED_NAME)?"
+  private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$NATIVE_NAME\\.png")
+  private val fancyIconName = Regex("fancy_icons/($NATIVE_NAME)/(manifest\\.xml|day\\.png|night\\.png|mask\\.png|bg\\.png|" +
     "(?:night_)?(?:hour|minute|second)\\.png|fallback(?:-night)?\\.png|" +
     "clock_day_bg\\.png|clock_day_hour_rectangle\\.png|clock_day_minute_rectangle\\.png|" +
     "night_clock_day_bg\\.png|night_clock_day_hour_rectangle\\.png|night_clock_day_minute_rectangle\\.png)")

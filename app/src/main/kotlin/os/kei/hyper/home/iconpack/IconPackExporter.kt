@@ -12,6 +12,7 @@ import java.util.zip.ZipOutputStream
 import java.util.zip.ZipFile
 import kotlinx.coroutines.CancellationException
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.data.PreservedIcons
 
 internal data class IconPackExportSkip(val component: IconPackComponent, val reason: String)
 
@@ -77,23 +78,25 @@ internal class IconPackExporter(private val context: Context, private val limits
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
     sizePx: Int, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsFallback: IconPackDescriptor? = null,
-    installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null, check: () -> Unit,
+    installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null,
+    preservedPackages: Set<String> = PreservedIcons.snapshot(context), check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     // Offline ColorOS mappings also cover future installs unless generation is scoped to targets.
-    val candidates = targets + if (installedOnly) emptyList() else if (pack.colorOsProfile != null)
-      pack.entries.mapNotNull { it.component } else colorOsFallback?.entries.orEmpty().mapNotNull { it.component }
+    val alternateChannels = targets.filter { TelegramChannelIcons.isFamily(it.packageName) &&
+      !TelegramChannelIcons.isDefaultTarget(it) }.mapTo(hashSetOf()) { it.packageName }
+    val candidates = targets + if (installedOnly) emptyList() else
+      (if (pack.colorOsProfile != null) pack.entries.mapNotNull { it.component }
+      else colorOsFallback?.entries.orEmpty().mapNotNull { it.component }) +
+        TelegramChannelIcons.offlineTargets().filterNot { it.packageName in alternateChannels }
     if (candidates.distinct().size > minOf(5000, limits.maxEntries / 2))
       throw IconPackException("Export target limit exceeded")
     val normalized = candidates.map { target ->
       IconPackComponent.parse(target.flattened) ?: throw IconPackException("Invalid launcher component")
-    }.distinct()
-    // Forks can retain an identical activity name under different application IDs.
-    // Such names cannot be global filenames; keep their package-specific fallback.
-    val sharedActivities = normalized.filter { it.className != null }.groupBy { it.className }
-      .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
+    }.distinct().filterNot { it.packageName in preservedPackages }
     if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
-      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly, maskPolicy, check)
+      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly,
+        maskPolicy, preservedPackages, check)
     }
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
@@ -101,7 +104,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val nameMatcher = SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)
     fun match(target: IconPackComponent) = componentEntries[target]
       ?: componentEntries[IconPackComponent(target.packageName)]
-      ?: target.className?.let(nativeEntries::get) ?: nativeEntries[target.packageName]
+      ?: nativeLauncherIconNames(target).firstNotNullOfOrNull(nativeEntries::get)
       ?: nameMatcher.match(target)
     val directory = File(context.cacheDir, "icon-pack-exports")
     if (!directory.isDirectory && !directory.mkdirs()) throw IconPackException("Cannot create export staging directory")
@@ -136,11 +139,11 @@ internal class IconPackExporter(private val context: Context, private val limits
       }
       var paletteBackground = mask?.let(::scaledPng)
       IconPackRenderer(context).open(pack, darkMode, colorOsFallback,
-        maskPolicy = maskPolicy, clipOutput = false).use { renderer ->
+        maskPolicy = maskPolicy, clipOutput = false, preservedPackages = preservedPackages).use { renderer ->
         try {
         ZipOutputStream(LimitedOutput(archive.outputStream(), limits.maxInputBytes)).use { zip ->
           fun write(name: String, png: ByteArray) {
-            if (!validDottedName(name) || name.toByteArray(Charsets.UTF_8).size > 240) {
+            if (!validNativeIconName(name) || name.toByteArray(Charsets.UTF_8).size > 240) {
               throw IconPackException("Component cannot be represented by a native icon filename")
             }
             val hash = MessageDigest.getInstance("SHA-256").digest(png).joinToString("") { "%02x".format(it) }
@@ -152,7 +155,7 @@ internal class IconPackExporter(private val context: Context, private val limits
           }
           for ((pkg, group) in normalized.groupBy { it.packageName }) {
             check()
-            val matches = group.associateWith(::match)
+            val matches = group.associateWith { target -> renderer.completedEntry(target, match(target)) }
             // A package fallback is only unambiguous when ALL supplied launcher activities
             // resolve to the same entry. Different activity artwork gets activity aliases only.
             val common = matches.values.takeIf { values -> values.all { it != null } }
@@ -166,10 +169,6 @@ internal class IconPackExporter(private val context: Context, private val limits
                 skipped += IconPackExportSkip(target, "Live source handled by native template or original launcher icon")
                 continue
               }
-              if (target.className in sharedActivities && common == null) {
-                skipped += IconPackExportSkip(target, "Activity filename is shared by other packages")
-                continue
-              }
               if (entry == null && fallback == null && systemRenderer?.isSystem(target) != true) {
                 skipped += IconPackExportSkip(target, "No component mapping")
                 continue
@@ -181,7 +180,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                   ?: if (missingMode && systemRenderer?.isSystem(target) == true) {
                     systemRenderer.render(target, sizePx, check)?.also { usedSystemFallback = true }
                   } else if (missingMode) fallback?.render(target, darkMode, sizePx, mask = null, check = check) else null
-                bitmap?.let(::encodePng)
+                bitmap?.let { encodePng(renderer.maskOutput(it)) }
               } catch (cancelled: CancellationException) { throw cancelled
               } catch (failure: Exception) {
                 skipped += IconPackExportSkip(target, failure.message ?: "Artwork cannot be rendered")
@@ -191,11 +190,11 @@ internal class IconPackExporter(private val context: Context, private val limits
                 skipped += IconPackExportSkip(target, "No static artwork for this mode")
                 continue
               }
-              target.className?.takeUnless { it in sharedActivities }?.let { write(it, png) }
+              nativeLauncherActivityName(target)?.let { write(it, png) }
               if (common != null && !packageWritten) { write(pkg, png); packageWritten = true }
               if (target.className == null && !packageWritten) write(pkg, png)
               if (usedSystemFallback) {
-                target.className?.takeUnless { it in sharedActivities }?.let(systemNames::add)
+                nativeLauncherActivityName(target)?.let(systemNames::add)
                 if (common != null || target.className == null) systemNames += pkg
               }
               if (!usedSystemFallback && (colorOs != null || entry != null)) {
@@ -218,7 +217,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                       if (usable) {
                         if (renderer.usedRuntimeMonochrome(target)) colorOsPackages += pkg
                         val fallbackPalette = declaredLayers == null && renderer.colorOsMonochromeIsFallback(target)
-                        target.className?.takeUnless { it in sharedActivities }?.let {
+                        nativeLauncherActivityName(target)?.let {
                           monochrome[it] = maskPng
                           if (fallbackPalette) fallbackPaletteNames += it
                           declaredBackground?.let { background -> monochromeBackgrounds[it] = background }
@@ -269,7 +268,7 @@ internal class IconPackExporter(private val context: Context, private val limits
   private fun exportNativeModule(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
     systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean,
-    maskPolicy: IconMaskPolicy?, check: () -> Unit,
+    maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>, check: () -> Unit,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -278,17 +277,58 @@ internal class IconPackExporter(private val context: Context, private val limits
     val nested = File.createTempFile("verify-", ".zip", directory)
     var success = false
     try {
-      val index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check)
+      var index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check)
+      if (preservedPackages.isNotEmpty()) {
+        val components = preservedPackages.flatMap { pkg ->
+          check()
+          try {
+            context.packageManager.getPackageInfo(pkg, android.content.pm.PackageManager.PackageInfoFlags.of(
+              (android.content.pm.PackageManager.GET_ACTIVITIES or
+                android.content.pm.PackageManager.MATCH_DISABLED_COMPONENTS).toLong()))
+              .activities.orEmpty().map { IconPackComponent(pkg, it.name) }
+          } catch (_: android.content.pm.PackageManager.NameNotFoundException) { emptyList() }
+        }
+        val exclusions = PreservedIconResources.fromInstalled(context, preservedPackages, components, check)
+        val replacements = ZipFile(archive).use { source ->
+          source.getEntry(SystemIconFallbackManifest.PATH)?.let { item ->
+            val previous = SystemIconFallbackManifest.decode(source.getInputStream(item).use {
+              it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
+            })
+            mapOf(SystemIconFallbackManifest.PATH to previous.copy(
+              names = previous.names.filterNot(exclusions::containsName).toSet()).encode())
+          }.orEmpty()
+        }
+        val filtered = File.createTempFile("icons-preserved-", ".zip", directory)
+        try {
+          RawIconArchive.write(archive, filtered, includes = { !exclusions.containsPath(it) },
+            replacements = replacements, check = check, maxOutputBytes = limits.maxInputBytes)
+          filtered.copyTo(archive, overwrite = true)
+        } finally { filtered.delete() }
+        index = index.copy(entries = index.entries.filterNot {
+          it.nativeName?.let(exclusions::containsName) == true
+        }, nativeIconsSha256 = sha256(archive, check))
+      }
       val paletteNames = appendNativeMonet(archive, index.entries, targets, check)
+      val family = NativeTelegramChannelCompletion.additions(context, pack, targets, size, maskPolicy,
+        preservedPackages, check)
+      if (family.isNotEmpty()) {
+        val completed = File.createTempFile("icons-channels-", ".zip", directory)
+        try {
+          RawIconArchive.write(archive, completed, replacements = family, check = check,
+            maxOutputBytes = limits.maxInputBytes)
+          completed.copyTo(archive, overwrite = true)
+        } finally { completed.delete() }
+        index = IconPackArchive(limits).inspect(archive, nested, checkCancelled = check)
+      }
       val originalNames = index.entries.mapNotNull { it.nativeName }.toSet()
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
           systemFallback ?: SystemIconFallback.DEFAULT, size, installedOnly, maskPolicy, check)
-      else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, check); null }
+      else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, maskPolicy, check); null }
       val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty()) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
       val names = verified.entries.mapNotNull { it.nativeName }.toSet()
-      val covered = targets.filter { it.packageName in names || it.className in names }
+      val covered = targets.filter { target -> nativeLauncherIconNames(target).any { it in names } }
       val skipped = (targets - covered.toSet()).map { IconPackExportSkip(it, "No exact native filename; native aliases are not inferred") }
       check()
       success = true
@@ -308,7 +348,7 @@ internal class IconPackExporter(private val context: Context, private val limits
   ): Set<String> {
     val candidates = entries.filter {
       (it.light as? IconPackArtwork.Archive)?.palettePair == true &&
-        targets.any { target -> it.nativeName == target.packageName || it.nativeName == target.className }
+        targets.any { target -> it.nativeName in nativeLauncherIconNames(target) }
     }
     if (candidates.isEmpty()) return emptySet()
     val replacements = linkedMapOf<String, ByteArray>()
@@ -369,7 +409,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val protected = java.util.zip.ZipFile(archive).use { source ->
       covered + nativeFallbackProtectedNames(source.entries().asSequence().map { it.name })
     }
-    val missing = targets.filter { it.packageName !in protected && it.className !in protected }
+    val missing = targets.filter { target -> nativeLauncherIconNames(target).none { it in protected } }
     if (installedOnly && missing.isEmpty()) return emptySet<String>() to emptySet<IconPackComponent>()
     val day = export(fallback, missing, false, size, style, installedOnly = installedOnly, maskPolicy = maskPolicy, check = check)
     var night: IconPackExportResult? = null
@@ -424,14 +464,22 @@ internal class IconPackExporter(private val context: Context, private val limits
       val addedNames = nativeFallbackProtectedNames(additions.keys.asSequence())
       return (day.colorOsPackages + night.colorOsPackages).filterTo(linkedSetOf()) { it in addedNames } to
         (day.nativeAdaptationTargets + night.nativeAdaptationTargets).filterTo(linkedSetOf()) {
-          it.packageName !in protected && it.className !in protected
+          nativeLauncherIconNames(it).none { name -> name in protected }
         }
     } finally { copy.delete(); day.archive.delete(); night?.archive?.delete() }
   }
 
   private fun appendNativeFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
-    style: SystemIconFallback, size: Int, check: () -> Unit) {
+    style: SystemIconFallback, size: Int, maskPolicy: IconMaskPolicy?, check: () -> Unit) {
     val renderer = SystemIconFallbackRenderer(context, style, clipOutput = false)
+    val shape = java.util.zip.ZipFile(archive).use { source ->
+      val config = source.getEntry(NativeIconShapeConfig.PATH)?.let { entry ->
+        require(entry.size in 0..NativeIconShapeConfig.MAX_BYTES.toLong())
+        source.getInputStream(entry).use { it.readBytes() }
+      }
+      (maskPolicy ?: IconMaskPolicy.snapshot(context)).resolve(config,
+        NativeIconShapeConfig.hasLegacyStyle(source.entries().asSequence().map { it.name }))
+    }
     val previous = java.util.zip.ZipFile(archive).use { source ->
       source.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
         require(entry.size in 1..SystemIconFallbackManifest.MAX_BYTES)
@@ -448,16 +496,22 @@ internal class IconPackExporter(private val context: Context, private val limits
       covered + nativeFallbackProtectedNames(zip.entries().asSequence().map { it.name })
     }
     val additions = linkedMapOf<String, ByteArray>()
-    val shared = targets.mapNotNull { it.className }.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
     for ((pkg, group) in targets.groupBy { it.packageName }) {
       for (target in group) {
         check()
-        if (pkg in protected || target.className in protected || target.className in shared) continue
-        val bitmap = renderer.render(target, size, check) ?: continue
+        if (nativeLauncherIconNames(target).any { it in protected }) continue
+        val raw = renderer.render(target, size, check) ?: continue
+        val bitmap = try { IconMaskPolicy.clip(raw, shape) } finally {
+          // clip returns its input only when no shape was selected.
+          if (shape != null) raw.recycle()
+        }
         val bytes = try { ByteArrayOutputStream().also {
           check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         }.toByteArray() } finally { bitmap.recycle() }
-        target.className?.let { additions[it] = bytes }
+        nativeLauncherActivityName(target)?.let { name ->
+          require(additions[name]?.contentEquals(bytes) != false) { "Native fallback filename collision: $name" }
+          additions[name] = bytes
+        }
         if (group.size == 1 || target.className == null) additions[pkg] = bytes
       }
     }

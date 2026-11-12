@@ -152,4 +152,16 @@ class CurrentIconSnapshotSelectionTest {
     "res/drawable-xxhdpi/$name/1.png",
     "res/drawable-night/$name/images/icon.png",
   )
+
+
+  @Test fun qualifiedNativeNamesAreSelectedExactlyInsteadOfRetainedAsUnknownHelpers() {
+    val qualified = "com.sample.debug#com.sample.app.Main"
+    val selection = CurrentIconSnapshotSelection(setOf(qualified))
+    for (prefix in listOf("", "nightmode/")) {
+      for (path in iconPaths(qualified)) assertTrue(prefix + path, selection.includes(prefix + path))
+      for (other in listOf("com.other.debug#com.sample.app.Main", "com.sample.debug#com.other.Main")) {
+        for (path in iconPaths(other)) assertFalse(prefix + path, selection.includes(prefix + path))
+      }
+    }
+  }
 }

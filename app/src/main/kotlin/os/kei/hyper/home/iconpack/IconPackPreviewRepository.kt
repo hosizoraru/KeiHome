@@ -61,19 +61,22 @@ internal class IconPackPreviewRepository(
   }
 
   suspend fun load(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128,
-    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true): IconPackPreviews {
+    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true,
+    preservedPackages: Set<String>? = null): IconPackPreviews {
     require(sizePx in 1..512)
     val requestedGeneration = synchronized(lock) { generation }
     return withContext(worker) {
       val caller = currentCoroutineContext()
       caller.ensureActive()
       val policy = maskPolicy ?: defaultMaskPolicy()
+      val preserved = preservedPackages ?: os.kei.hyper.home.data.PreservedIcons.snapshot(application)
       val key = Key(pack.id, pack.source, entry.key, sizePx, Configuration(application.resources.configuration),
-        application.resources.displayMetrics.densityDpi, policy.identity, clipOutput)
+        application.resources.displayMetrics.densityDpi, policy.identity, clipOutput, preserved)
       synchronized(lock) { cache.get(key)?.let { return@withContext it } }
       fun render(dark: Boolean): Pair<Bitmap?, String?> = try {
         caller.ensureActive()
-        val bitmap = renderer.open(pack, dark, maskPolicy = policy, clipOutput = clipOutput).use {
+        val bitmap = renderer.open(pack, dark, maskPolicy = policy, clipOutput = clipOutput,
+          preservedPackages = preserved).use {
           it.render(entry, sizePx) { caller.ensureActive() }
         }
         bitmap to if (bitmap == null) "No static artwork for this mode" else null
@@ -92,7 +95,8 @@ internal class IconPackPreviewRepository(
 
   /** Never consult pending private mask settings when previewing a published theme. */
   suspend fun loadApplied(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128): IconPackPreviews =
-    load(pack, entry, sizePx, maskPolicy = IconMaskPolicy(false), clipOutput = false)
+    load(pack, entry, sizePx, maskPolicy = IconMaskPolicy(false), clipOutput = false,
+      preservedPackages = emptySet())
 
   private fun defaultMaskPolicy(): IconMaskPolicy {
     val stamp = PolicyStamp(preferences.getBoolean("complete_system_icon_config", true),
@@ -115,7 +119,8 @@ internal class IconPackPreviewRepository(
 
   private data class PolicyStamp(val enabled: Boolean, val size: Long, val modified: Long, val generation: Long)
   private data class Key(val packId: String, val source: IconPackSource, val entry: String,
-    val size: Int, val configuration: Configuration, val density: Int, val mask: String, val clipped: Boolean)
+    val size: Int, val configuration: Configuration, val density: Int, val mask: String, val clipped: Boolean,
+    val preserved: Set<String>)
 }
 
 /** Used by preview and explicit static export, with one resource session for a batch. */
@@ -184,7 +189,8 @@ internal class IconPackRenderer(private val context: Context) {
   }
 
   fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null,
-    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true): Session {
+    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true,
+    preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(context)): Session {
     val resources = when (val source = pack.source) {
       is IconPackSource.Installed -> {
         val info = context.packageManager.getPackageInfo(source.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -197,7 +203,7 @@ internal class IconPackRenderer(private val context: Context) {
       is IconPackSource.Builtin -> null
       is IconPackSource.Generated -> null
     }
-    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput)
+    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput, preservedPackages)
   }
 
   inner class Session(
@@ -207,6 +213,7 @@ internal class IconPackRenderer(private val context: Context) {
     private val supplementary: IconPackDescriptor?,
     maskPolicy: IconMaskPolicy?,
     private val clipOutput: Boolean,
+    private val preservedPackages: Set<String>,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
     private val previewMask by lazy(LazyThreadSafetyMode.NONE) {
@@ -215,11 +222,28 @@ internal class IconPackRenderer(private val context: Context) {
     private val originals = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style) }
     private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
     private val supplementState = lazy(LazyThreadSafetyMode.NONE) {
-      supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false) }
+      supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false,
+        preservedPackages = preservedPackages) }
     }
     private val supplement by supplementState
     private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
       pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
+    }
+    private val nativeEntries by lazy(LazyThreadSafetyMode.NONE) {
+      pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
+    }
+    private val telegram by lazy(LazyThreadSafetyMode.NONE) { TelegramChannelIcons(pack.entries) }
+    private val nightProofs = mutableMapOf<String, Boolean>()
+    private val nightResourceState = lazy(LazyThreadSafetyMode.NONE) {
+      if (dark) android else when (val source = pack.source) {
+        is IconPackSource.Installed -> {
+          val info = context.packageManager.getApplicationInfo(source.packageName, PackageManager.ApplicationInfoFlags.of(0))
+          this@IconPackRenderer.android.installed(info, true)
+        }
+        is IconPackSource.Imported -> if (pack.format == IconPackFormat.APK)
+          this@IconPackRenderer.android.archive(source.record.originalFile, true) else null
+        else -> null
+      }
     }
     private val nativeConsulted = linkedSetOf<IconPackComponent>()
     private val runtimeArtwork = linkedSetOf<IconPackComponent>()
@@ -233,6 +257,22 @@ internal class IconPackRenderer(private val context: Context) {
 
     private fun matching(target: IconPackComponent): IconPackEntry? =
       componentEntries[target] ?: componentEntries[IconPackComponent(target.packageName)]
+        ?: nativeLauncherIconNames(target).firstNotNullOfOrNull { nativeEntries[it] }
+
+    private fun hasNight(entry: IconPackEntry): Boolean = nightProofs.getOrPut(entry.key) {
+      TelegramChannelIcons.declaredNight(entry) || run {
+        val resource = (entry.dark ?: entry.light) as? IconPackArtwork.Resource ?: return@run false
+        val session = nightResourceState.value ?: return@run false
+        val resources = session.resources
+        val id = session.drawableId(resource.drawable)
+        if (id == 0) return@run false
+        val value = TypedValue()
+        resources.getValue(id, value, true)
+        value.string?.toString()?.substringBeforeLast('/')?.split('/')?.any {
+          it.split('-').contains("night")
+        } == true
+      }
+    }
 
     fun prefersAppIcon(target: IconPackComponent, entry: IconPackEntry?, check: () -> Unit): Boolean {
       val source = pack.colorOsProfile?.source(target)
@@ -243,8 +283,15 @@ internal class IconPackRenderer(private val context: Context) {
 
     /** Explicit artwork precedes official app adaptations; downloaded OEM art is fallback. */
     fun renderTarget(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int, check: () -> Unit): Bitmap? {
+      if (target != null && target.packageName in preservedPackages)
+        return OriginalAppIcons.render(context, target, sizePx, dark, check)
       val bitmap = renderTargetArtwork(entry, target, sizePx, check, null) ?: return null
       if (!clipOutput) return bitmap
+      return maskOutput(bitmap)
+    }
+
+    /** Final static outputs need the same shape even when the native loader bypasses MAML. */
+    fun maskOutput(bitmap: Bitmap): Bitmap {
       return try {
         IconMaskPolicy.clip(bitmap, previewMask).also { if (it !== bitmap) bitmap.recycle() }
       } catch (failure: Throwable) {
@@ -253,8 +300,17 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
+    fun completedEntry(target: IconPackComponent, existing: IconPackEntry?): IconPackEntry? =
+      telegram.donor(target, dark, existing, ::hasNight) ?: existing
+
     private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
       check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
+      val authoredNative = pack.format in setOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)
+      if (target != null && (!authoredNative || entry == null))
+        telegram.donor(target, dark, entry, ::hasNight)?.let { donor ->
+        val selected = if (dark && donor.dark == null) donor.copy(dark = donor.light) else donor
+        return renderArtwork(selected, sizePx, check, adaptiveMask)
+      }
       if (target != null && prefersAppIcon(target, entry, check))
         return originals!!.render(target, dark, sizePx, mask = null, check = check)
       if (entry?.artwork(dark) != null) return renderArtwork(entry, sizePx, check, adaptiveMask)?.also {
@@ -374,7 +430,11 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
-    override fun close() { android?.close(); if (supplementState.isInitialized()) supplement?.close() }
+    override fun close() {
+      if (nightResourceState.isInitialized()) nightResourceState.value?.takeIf { it !== android }?.close()
+      android?.close()
+      if (supplementState.isInitialized()) supplement?.close()
+    }
   }
 
   private fun rasterPath(path: String?) = path?.substringAfterLast('.')?.lowercase() in setOf("png", "webp", "jpg", "jpeg")

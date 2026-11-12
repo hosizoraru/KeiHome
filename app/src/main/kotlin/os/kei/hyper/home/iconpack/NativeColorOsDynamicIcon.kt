@@ -32,7 +32,7 @@ internal object NativeColorOsDynamicIcon {
     fixedDark: Boolean? = null,
     dim: Boolean = false,
   ): Map<String, ByteArray> {
-    require(validDottedName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
+    require(validNativeIconName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
       "Invalid native icon filename stem"
     }
     val required = backgroundNames + if (kind == Kind.CLOCK) clockNames else emptyList()

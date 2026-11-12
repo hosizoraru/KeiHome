@@ -3,7 +3,7 @@ package os.kei.hyper.home.xposed
 import os.kei.hyper.home.iconpack.BoundedPackXml
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativeLayerConfig
-import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.validNativeIconName
 
 /** Narrow admission for native layer modules. Does not extend the legacy fancy-icon policy. */
 internal object LocalLayerIconValidator {
@@ -29,7 +29,7 @@ internal object LocalLayerIconValidator {
     val fancyResources = dynamic.filter { "/fancy/" in it }.groupBy { it.substringBefore("/fancy/") + "/fancy/" }
     val configs = dynamic.filter { path ->
       val pieces = path.removePrefix("nightmode/").split('/')
-      pieces.size == 3 && pieces[2] == "config.xml" && validDottedName(pieces[1]) && '.' in pieces[1]
+      pieces.size == 3 && pieces[2] == "config.xml" && validNativeIconName(pieces[1]) && '.' in pieces[1]
     }
     for (configPath in configs) {
       val config = NativeLayerConfig.parse(read(configPath, limits.maxXmlBytes.toLong()), limits)
@@ -66,7 +66,7 @@ internal object LocalLayerIconValidator {
     }
     for (path in static) {
       val pieces = path.removePrefix("nightmode/").split('/')
-      require(pieces.size == 4 && validDottedName(pieces[2]) &&
+      require(pieces.size == 4 && validNativeIconName(pieces[2]) &&
         pieces[3] in setOf("0.png", "1.png")) { "Unsupported static layer resource" }
       val prefix = path.substringBeforeLast('/')
       require("$prefix/0.png" in paths && "$prefix/1.png" in paths) { "Incomplete static layer pair" }

@@ -328,7 +328,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     return IconPackArchiveIndex(IconPackFormat.MIUI_ICONS, entries, notices = notices)
   }
 
-  private fun nativeName(name: String) = validDottedName(name) && ('.' in name || name == "android")
+  private fun nativeName(name: String) = validNativeIconName(name) && ('.' in name || name == "android")
 
   private fun pngHeader(bytes: ByteArray): Boolean {
     if (bytes.size != 24 || !bytes.copyOfRange(0, 8).contentEquals(byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)) ||

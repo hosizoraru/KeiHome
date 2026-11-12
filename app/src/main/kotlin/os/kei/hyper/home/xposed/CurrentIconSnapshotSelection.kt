@@ -1,7 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import java.security.MessageDigest
-import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.validNativeIconName
 
 /** Selects source snapshot entries only; the publisher still validates paths and bounds copied bytes. */
 internal class CurrentIconSnapshotSelection(names: Set<String>) {
@@ -22,8 +22,8 @@ internal class CurrentIconSnapshotSelection(names: Set<String>) {
       pieces.size == 1 && pieces[0].endsWith(".png") -> pieces[0].removeSuffix(".png")
       else -> null
     }
-    // validDottedName also accepts bare identifiers such as icon_mask.
-    return name == null || name in names || '.' !in name || !validDottedName(name)
+    // Native stems also accept bare helpers; unrecognized layouts remain conservative.
+    return name == null || name in names || '.' !in name || !validNativeIconName(name)
   }
 
   /** SHA-256 of sorted, UTF-8 names with byte-length framing; independent of archive revisions. */

@@ -1,14 +1,22 @@
 package os.kei.hyper.home.xposed
 
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
+import android.graphics.drawable.Icon
+import android.graphics.drawable.Drawable
+import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.util.Log
+import android.widget.ImageView
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.concurrent.atomic.AtomicBoolean
+import os.kei.hyper.home.iconpack.validDottedName
 import org.luckypray.dexkit.annotations.DexKitExperimentalApi
 import org.luckypray.dexkit.result.FieldUsingType
 import org.luckypray.dexkit.result.MethodData
@@ -35,18 +43,94 @@ internal class SystemUiAppIconRuntime(
   @Volatile private var stopped = false
   private val currentUser = Process.myUid() / 100000
   private val guard = SystemUiHookGuard { reportFailure("notification app icon lookup", it) }
+  private class Request { var name: String? = null }
+  private data class Profile(val bitmap: Method, val consumer: Method)
+  private val request = ThreadLocal<Request>()
+  private val nativeRequest = ThreadLocal<android.service.notification.StatusBarNotification>()
+  private val writing = ThreadLocal<Boolean>()
+  private val bindings = SystemUiAppIconBindings()
+  private val main = Handler(Looper.getMainLooper())
+  private val replayQueued = AtomicBoolean()
+  private val boundLogged = AtomicBoolean()
+  private val appliedLogged = AtomicBoolean()
+  private val customLogged = AtomicBoolean()
+  private val replay = Runnable {
+    replayQueued.set(false)
+    if (stopped || !lifecycle.enter()) return@Runnable
+    try {
+      bindings.snapshot().forEach { bound -> guard.run(Unit) { apply(bound) } }
+    } finally { lifecycle.leave() }
+  }
 
   @SuppressLint("BlockedPrivateApi")
   fun start() {
     check(Looper.myLooper() != Looper.getMainLooper())
     check(cache == null && !stopped) { "SystemUI app icon runtime already started or stopped" }
-    val method = resolveProfile()
-    // Notification app icons are demand-loaded. Do not prewarm unrelated apps or
-    // schedule empty ready callbacks; native rows bind again on their own lifecycle.
-    val iconCache = CrossSurfaceIconCache(context, maxEntries = 32)
+    val profile = resolveProfile()
+    // Match the tracked-view bound so replay cannot churn a smaller wanted set.
+    val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
+      refreshOnMinute = true, onReady = ::queueReplay)
     cache = iconCache
-    replace(method, HOOK_ID) { chain -> intercept(chain) }
+    replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
+    replace(profile.consumer, "$HOOK_ID.consumer", ::consume)
+    val cachedProfile = guard.run<SystemUiNotificationAppIconProfile?>(null) {
+      SystemUiNotificationAppIconProfile.resolve(context, loader)
+    }
+    if (cachedProfile != null) {
+      cachedProfile.customMethod?.let { custom -> replace(custom, "$HOOK_ID.native-custom-header.v1") { chain ->
+        val result = chain.proceed()
+        if (!stopped && result is Drawable && lifecycle.enter()) {
+          try { guard.run(Unit) {
+            val notification = nativeRequest.get() ?: return@run
+            if (notification.notification !== chain.getArg(0)) return@run
+            cachedProfile.customIdentity(notification, currentUser)?.let {
+              bindings.remember(result, it)
+              logOnce(customLogged, "Authenticated custom application-header icon captured")
+            }
+          } } finally { lifecycle.leave() }
+        }
+        result
+      } }
+      replace(cachedProfile.method, "$HOOK_ID.native-cached-header.v1") {
+        bindNative(it, cachedProfile)
+      }
+      report(Log.INFO, TAG, "Cached notification app-icon boundary enabled")
+    }
+    for (name in listOf("setImageIcon", "setImageIconAsync")) {
+      val method = ImageView::class.java.getDeclaredMethod(name, Icon::class.java)
+      replace(method, "$HOOK_ID.$name") { chain -> bind(chain, name.endsWith("Async")) }
+    }
+    replace(ImageView::class.java.getDeclaredMethod("setImageDrawable", Drawable::class.java),
+      "$HOOK_ID.setImageDrawable") { chain -> bind(chain, async = false) }
+    replace(Icon::class.java.getDeclaredMethod("loadDrawable", Context::class.java),
+      "$HOOK_ID.loadHeaderDrawable") { chain ->
+      val result = chain.proceed()
+      if (!stopped && lifecycle.enter()) {
+        try { guard.run(Unit) {
+          val icon = chain.thisObject as? Icon
+          val drawable = result as? Drawable
+          if (icon != null && drawable != null) bindings.rememberLoaded(icon, drawable)
+        } } finally { lifecycle.leave() }
+      }
+      result
+    }
+    for ((name, type) in listOf(
+      "setImageBitmap" to Bitmap::class.java,
+      "setImageResource" to Int::class.javaPrimitiveType!!,
+      "setImageURI" to android.net.Uri::class.java,
+      "setImageResourceAsync" to Int::class.javaPrimitiveType!!,
+      "setImageURIAsync" to android.net.Uri::class.java,
+    )) {
+      val method = ImageView::class.java.getDeclaredMethod(name, type)
+      replace(method, "$HOOK_ID.$name") { chain ->
+        if (!stopped && writing.get() != true) {
+          (chain.thisObject as? ImageView)?.let { view -> guard.run(Unit) { bindings.clear(view) } }
+        }
+        chain.proceed()
+      }
+    }
     iconCache.start()
+    queueReplay()
     try {
       report(Log.INFO, TAG, "Narrow app-icon bridge enabled: $BITMAP_METHOD")
     } catch (failure: Throwable) {
@@ -56,7 +140,7 @@ internal class SystemUiAppIconRuntime(
   }
 
   @OptIn(DexKitExperimentalApi::class)
-  private fun resolveProfile(): Method {
+  private fun resolveProfile(): Profile {
     // Reuse the running application's loader. createPackageContext(INCLUDE_CODE) can
     // resolve a second, unused copy of AppIconsManager with a different class identity.
     val hostLoader = context.applicationContext?.classLoader ?: context.classLoader
@@ -83,6 +167,7 @@ internal class SystemUiAppIconRuntime(
     // Authenticate the installed APK's app-icon role, not just the familiar name.
     // All DEX, package-manager and reflection work stays on the startup worker.
     val apkPath = context.packageManager.getApplicationInfo(HOST_PACKAGE, 0).sourceDir
+    lateinit var consumerMethod: Method
     SystemUiMaterialDexKit.open(apkPath, context.codeCacheDir).use { dex ->
       dex.setThreadNum(1)
       fun required(id: String): MethodData = checkNotNull(dex.getMethodData(id)) {
@@ -138,9 +223,11 @@ internal class SystemUiAppIconRuntime(
       check(Class.forName(OWNER, false, caller.declaringClass.classLoader) === owner) {
         "SystemUI notification consumer uses a different app icon class"
       }
+      caller.isAccessible = true
+      consumerMethod = caller
     }
     method.isAccessible = true
-    return method
+    return Profile(method, consumerMethod)
   }
 
   fun intercept(chain: XposedInterface.Chain): Any? {
@@ -149,12 +236,127 @@ internal class SystemUiAppIconRuntime(
       val bitmap = guard.run<Bitmap?>(null) {
         val userId = chain.getArg(0) as? Int ?: return@run null
         val packageName = chain.getArg(1) as? String ?: return@run null
-        if (stopped || userId != currentUser || packageName.isEmpty()) return@run null
+        if (stopped || userId != currentUser || !validDottedName(packageName) ||
+          packageName.length > 240) return@run null
+        request.get()?.name = packageName
         cache?.get(packageName)?.takeUnless { it.isRecycled }
       }
       // The declared return type is Bitmap. Native failures must escape unchanged.
       return bitmap ?: chain.proceed()
     } finally { lifecycle.leave() }
+  }
+
+  private fun consume(chain: XposedInterface.Chain): Any? {
+    if (stopped || !lifecycle.enter()) return chain.proceed()
+    val previous = request.get()
+    val frame = Request()
+    request.set(frame)
+    try {
+      val result = chain.proceed()
+      return guard.run(result) optional@{
+        val icon = result as? Icon ?: return@optional result
+        if (stopped) return@optional result
+        val name = frame.name ?: run {
+          val notification = chain.getArg(0) as? Notification ?: return@optional result
+          val extras = notification.extras ?: return@optional result
+          SystemUiAppIconIdentity.name(
+            extras.getParcelable("android.appInfo", ApplicationInfo::class.java),
+            currentUser, extras.getString("miui.opPkg")) ?: return@optional result
+        }
+        // The native early custom-app-icon return never visits getAppIconBitmap.
+        // Preserve it on a miss, but authenticate the exact Icon that will bind.
+        val published = if (frame.name == null)
+          cache?.get(name)?.takeUnless { it.isRecycled } else null
+        val returned = if (published == null) icon else Icon.createWithBitmap(published)
+        bindings.remember(returned, name)
+        returned
+      }
+    } finally {
+      if (previous == null) request.remove() else request.set(previous)
+      lifecycle.leave()
+    }
+  }
+
+  private fun <T> write(action: () -> T): T {
+    val previous = writing.get()
+    writing.set(true)
+    return try { action() } finally {
+      if (previous == null) writing.remove() else writing.set(previous)
+    }
+  }
+
+  private fun bindNative(chain: XposedInterface.Chain, profile: SystemUiNotificationAppIconProfile): Any? {
+    if (stopped || writing.get() == true || !lifecycle.enter()) return chain.proceed()
+    val previous = nativeRequest.get()
+    val notification = chain.getArg(1) as? android.service.notification.StatusBarNotification
+    if (notification == null) nativeRequest.remove() else nativeRequest.set(notification)
+    try {
+      val result = chain.proceed()
+      guard.run(Unit) {
+        if (stopped) return@run
+        val notification = chain.getArg(1) ?: return@run
+        val view = chain.getArg(2) as? ImageView ?: return@run
+        val name = profile.identity(notification, currentUser) ?: return@run
+        if (bindings.associated(view, name)) return@run
+        val cached = profile.cached(notification) ?: return@run
+        bindings.bindNative(view, cached, name)?.let(::boundReady)
+      }
+      return result
+    } finally {
+      if (previous == null) nativeRequest.remove() else nativeRequest.set(previous)
+      lifecycle.leave()
+    }
+  }
+
+  private fun bind(chain: XposedInterface.Chain, async: Boolean): Any? {
+    if (stopped || writing.get() == true || !lifecycle.enter()) return chain.proceed()
+    try {
+      val view = chain.thisObject as? ImageView ?: return chain.proceed()
+      val bound = guard.run<SystemUiAppIconBindings.Binding?>(null) {
+        bindings.bind(view, chain.getArg(0))
+      }
+      // Keep native calls outside optional-work guards; native failures propagate.
+      val result = if (bound == null) chain.proceed() else write { chain.proceed() }
+      if (bound == null) return result
+      if (async && result is Runnable) {
+        val ready = bindings.afterNative(bound, Runnable { write { result.run() } }, ::boundReady)
+        return Runnable {
+          if (stopped || !lifecycle.enter()) {
+            result.run()
+          } else {
+            try { ready.run() } finally { lifecycle.leave() }
+          }
+        }
+      }
+      if (!async) boundReady(bound)
+      return result
+    } finally { lifecycle.leave() }
+  }
+
+  private fun boundReady(bound: SystemUiAppIconBindings.Binding) {
+    if (stopped || bindings.current(bound) == null) return
+    logOnce(boundLogged, "Authenticated notification app-icon view bound")
+    if (Looper.myLooper() == main.looper) guard.run(Unit) { apply(bound) } else queueReplay()
+  }
+
+  private fun apply(bound: SystemUiAppIconBindings.Binding) {
+    if (stopped) return
+    val view = bindings.current(bound) ?: return
+    val bitmap = cache?.get(bound.name)?.takeUnless { it.isRecycled } ?: return
+    write { view.setImageBitmap(bitmap) }
+    logOnce(appliedLogged, "Published notification icon snapshot applied")
+  }
+
+  private fun logOnce(flag: AtomicBoolean, message: String) {
+    if (!flag.compareAndSet(false, true)) return
+    try { report(Log.INFO, TAG, message) } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+    }
+  }
+
+  private fun queueReplay() {
+    if (!stopped && replayQueued.compareAndSet(false, true) && !main.post(replay))
+      replayQueued.set(false)
   }
 
   fun invalidate() = cache?.invalidate()
@@ -163,6 +365,9 @@ internal class SystemUiAppIconRuntime(
 
   fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
     stopped = true
+    main.removeCallbacks(replay)
+    replayQueued.set(false)
+    bindings.clear()
     val iconCache = cache ?: return true
     val stoppedCache = try {
       iconCache.requestStop()

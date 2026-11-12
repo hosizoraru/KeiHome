@@ -271,6 +271,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           it.installedIconsOnly to it.completeSystemIconConfig) }.distinctUntilChanged(),
         packageInventoryRevision) { _, _, _, _, _ -> Unit }
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(preferences.state.map { it.preservedIconPackages }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
@@ -300,7 +301,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
             installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource,
             completeSystemIconConfig = preferences.state.value.completeSystemIconConfig,
-            iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity) {
+            iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
+            preservedPackages = preferences.state.value.preservedIconPackages) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
@@ -641,6 +643,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun setSystemIconFallback(value: os.kei.hyper.home.data.SystemIconFallback) {
     preferences.setSystemIconFallback(value)
+  }
+
+  fun setPreservedIconPackages(packages: Set<String>) {
+    preferences.setPreservedIconPackages(packages)
+    packPreviews.clear()
   }
 
   fun currentFallbackSource(

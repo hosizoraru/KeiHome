@@ -17,6 +17,7 @@ import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.GeneratedIconPng
 import os.kei.hyper.home.iconpack.NativeAppleDynamicIcon
 import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 
 /** A bounded declarative index. Imported XML, expressions, and scripts are never executed. */
 internal object AppleDynamicIconArchive {
@@ -65,8 +66,6 @@ internal object AppleDynamicIconArchive {
     require(items.length() in 1..2000)
     val selected = (targets + if (installedOnly) emptyList()
       else pack.entries.mapNotNull { it.component }).distinct()
-    val shared = selected.filter { it.className != null }.groupBy { it.className }
-      .filterValues { values -> values.map { it.packageName }.distinct().size > 1 }.keys.filterNotNull().toSet()
     val sourceAssets = mutableMapOf<NativeAppleDynamicIcon.Kind, Map<String, ByteArray>>()
     val result = linkedMapOf<String, ByteArray>()
     var total = 0L
@@ -93,8 +92,7 @@ internal object AppleDynamicIconArchive {
         IconPackAppearance.DARK -> true
         else -> false
       }
-      val aliases = listOfNotNull(target.packageName, target.className?.let { "${target.packageName}_$it" },
-        target.className?.takeUnless { it in shared })
+      val aliases = listOfNotNull(target.packageName, nativeLauncherActivityName(target))
       for (name in aliases.distinct()) {
         if ("fancy_icons/$name/manifest.xml" in result) continue
         val entries = NativeAppleDynamicIcon.entries(name, kind, assets, fixed,

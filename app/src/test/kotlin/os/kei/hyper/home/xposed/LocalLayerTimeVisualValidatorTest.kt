@@ -355,4 +355,23 @@ class LocalLayerTimeVisualValidatorTest {
       }
     }
   }
+
+
+  @Test fun qualifiedNativeLayerRootsAndStaticPairsKeepStrictNameValidation() {
+    val qualified = "com.example.debug#com.example.Main"
+    val files = resources("", "", emptyMap(), true).mapKeys { (path, _) ->
+      path.replace("layer_animating_icons/com.example/", "layer_animating_icons/$qualified/")
+    }
+    LocalNativeIconValidator.validate(archive(files))
+    fun pair(name: String) = setOf("res/drawable-xxhdpi/$name/0.png", "res/drawable-xxhdpi/$name/1.png")
+    val safe = pair(qualified)
+    assertEquals(safe, LocalLayerIconValidator.validate(safe, { _, _ -> png }, {}))
+    for (invalid in listOf("com.example#../Main", "com.example#com.other#Main", "#com.example.Main", "com.example#")) {
+      assertThrows(IllegalArgumentException::class.java) {
+        LocalLayerIconValidator.validate(pair(invalid), { _, _ -> png }, {})
+      }
+      val unsafe = files.mapKeys { (path, _) -> path.replace(qualified, invalid) }
+      assertThrows(Exception::class.java) { LocalNativeIconValidator.validate(archive(unsafe)) }
+    }
+  }
 }

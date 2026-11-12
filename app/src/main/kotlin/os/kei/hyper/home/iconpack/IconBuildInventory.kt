@@ -7,7 +7,7 @@ internal object IconBuildInventory {
   private val maxNames = IconPackLimits().maxEntries
 
   fun encodeNames(names: Set<String>): ByteArray {
-    require(names.size <= maxNames && names.all(::validDottedName))
+    require(names.size <= maxNames && names.all(::validNativeIconName))
     return names.sorted().joinToString("\n", postfix = if (names.isEmpty()) "" else "\n")
       .toByteArray(Charsets.UTF_8).also { require(it.size <= MAX_BYTES) }
   }
@@ -15,7 +15,7 @@ internal object IconBuildInventory {
   fun decodeNames(bytes: ByteArray): Set<String> {
     require(bytes.size <= MAX_BYTES)
     val names = bytes.toString(Charsets.UTF_8).split('\n').dropLast(1)
-    require(names.all(::validDottedName) && names.size <= maxNames)
+    require(names.all(::validNativeIconName) && names.size <= maxNames)
     return names.toSet().also { require(encodeNames(it).contentEquals(bytes)) }
   }
 

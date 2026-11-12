@@ -78,4 +78,15 @@ class NativeDayNightIconTest {
     (0 until element.attributes.length).associate {
       element.attributes.item(it).let { attribute -> attribute.nodeName to attribute.nodeValue }
     }
+
+
+  @Test fun qualifiedNativeStemIsPreservedAndCannotEscapeItsRoot() {
+    val qualified = "com.example.debug#com.example.Main"
+    val entries = NativeDayNightIcon.entries(qualified, day, night)
+    assertArrayEquals(day, entries.getValue("res/drawable-xxhdpi/$qualified.png"))
+    assertEquals(true, "fancy_icons/$qualified/manifest.xml" in entries)
+    for (invalid in listOf("com.example#../Main", "com.example#com.other#Main", "#com.example.Main", "com.example#")) {
+      assertThrows(IllegalArgumentException::class.java) { NativeDayNightIcon.entries(invalid, day, night) }
+    }
+  }
 }

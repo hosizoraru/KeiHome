@@ -361,4 +361,19 @@ class NativeAppleDynamicIconTest {
       // Missing archive resource.
     }
   }
+
+
+  @Test fun qualifiedNativeStemRetainsItsOwnerAndRejectsTraversalOrMultipleSeparators() {
+    val qualified = "com.example.debug#com.example.Clock"
+    val kind = NativeAppleDynamicIcon.Kind.CALENDAR
+    val files = NativeAppleDynamicIcon.entries(qualified, kind, assets(kind))
+    assertArrayEquals(day, files.getValue("res/drawable-xxhdpi/$qualified.png"))
+    assertTrue("fancy_icons/$qualified/manifest.xml" in files)
+    GeneratedNativeIconValidator.validate(qualified, files.keys) { path, _ -> files.getValue(path) }
+    for (invalid in listOf("com.example#../Clock", "com.example#com.other#Clock", "#com.example.Clock", "com.example#")) {
+      org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        NativeAppleDynamicIcon.entries(invalid, kind, assets(kind))
+      }
+    }
+  }
 }

@@ -188,6 +188,43 @@ class CrossSurfaceIconCacheWorkloadTest {
     } finally { assertTrue(cache.stop()) }
   }
 
+  @Test fun retainedHostContextCannotOverrideAnExplicitSystemAppearance() = fixture { file ->
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val mode = context.getSystemService(android.app.UiModeManager::class.java).nightMode
+    org.junit.Assume.assumeTrue(mode in listOf(android.app.UiModeManager.MODE_NIGHT_YES,
+      android.app.UiModeManager.MODE_NIGHT_NO))
+    val dark = mode == android.app.UiModeManager.MODE_NIGHT_YES
+    val config = android.content.res.Configuration(context.resources.configuration).apply {
+      uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or
+        if (dark) android.content.res.Configuration.UI_MODE_NIGHT_NO
+        else android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+    fun png(color: Int): ByteArray {
+      val bitmap = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+      return try {
+        bitmap.eraseColor(color)
+        ByteArrayOutputStream().also { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+          .toByteArray()
+      } finally { bitmap.recycle() }
+    }
+    val entries = os.kei.hyper.home.iconpack.NativeDayNightIcon.entries(
+      name(0), png(Color.RED), png(Color.BLUE))
+    ZipOutputStream(file.outputStream()).use { zip ->
+      for ((path, bytes) in entries) {
+        zip.putNextEntry(ZipEntry(path)); zip.write(bytes); zip.closeEntry()
+      }
+    }
+    val pinned = context.createConfigurationContext(config)
+    val cache = CrossSurfaceIconCache(pinned, themeFile = file, paletteState = { 0L })
+    try {
+      cache.start()
+      assertNull(cache.get(name(0)))
+      awaitSettled(cache)
+      assertEquals(if (dark) Color.BLUE else Color.RED,
+        requireNotNull(cache.get(name(0))).getPixel(96, 96))
+    } finally { assertTrue(cache.stop()) }
+  }
+
   private fun name(index: Int) = "com.keihome.workload.app$index"
 
   private fun fixture(body: (File) -> Unit) {

@@ -67,7 +67,7 @@ internal class SystemIconFallbackRenderer(
     val app = apps[target.packageName] ?: return false
     // A preload is not a system app. Admit it only to artwork fallback, with an actual stock source.
     if (!nativeSources.getOrPut(target) {
-      listOfNotNull(target.className, target.packageName).any { name ->
+      nativeLauncherIconNames(target).any { name ->
         val root = "/product/media/theme/miui_mod_icons"
         readSource(File(root, "$name.png")) != null ||
           (readSource(File(root, "dynamic/$name/0.png")) != null &&
@@ -97,7 +97,7 @@ internal class SystemIconFallbackRenderer(
   fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? {
     check()
     if (live(target) || !isSystem(target)) return null
-    val names = listOfNotNull(target.className, target.packageName).distinct()
+    val names = nativeLauncherIconNames(target)
     style.perfectStyle?.let { selected ->
       PerfectSystemFallback.icon(context, selected, names, requireNotNull(perfectSourceHash))?.let { artwork ->
         return renderPerfect(artwork.layers, size, check)
@@ -109,7 +109,7 @@ internal class SystemIconFallbackRenderer(
     // Stock Default layers can be newer than both the APK icon and adjacent flat PNG.
     // Compose 0..4 exactly as IconCustomizerUtils.transformToAdaptiveIcon does.
     for (name in names) {
-      require(validDottedName(name))
+      require(validNativeIconName(name))
       val layers = mutableListOf<Bitmap>()
       try {
         for (index in 0..4) {

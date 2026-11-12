@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IconGenerationManifestTest {
+  @Test fun preservedPackagesRoundTripWithoutChangingLegacySchemaMeaning() {
+    val value = IconGenerationManifest(preservedIconPackages = setOf("android", "org.telegram.messenger.web", "os.kei"))
+    assertEquals(value, IconGenerationManifest.decode(value.encode()))
+    assertTrue(value.encode().toString(Charsets.UTF_8).contains("preserve\tos.kei\n"))
+    assertEquals(emptySet<String>(), IconGenerationManifest.decode(
+      IconGenerationManifest(schemaVersion = 6).encode()).preservedIconPackages)
+    assertThrows(IllegalArgumentException::class.java) { value.copy(schemaVersion = 6).encode() }
+  }
   @Test fun recordsCustomMaskIdentityAndRejectsMissingOrInconsistentIdentity() {
     val custom = IconGenerationManifest(completeSystemIconConfig = true, iconMaskIdentity = "custom-${"a".repeat(64)}")
     assertEquals(custom, IconGenerationManifest.decode(custom.encode()))
@@ -21,7 +29,7 @@ class IconGenerationManifestTest {
   @Test fun shapeCompletionPolicyRoundTripsAndLegacySchemasKeepTheirMeaning() {
     for (enabled in listOf(false, true)) {
       val value = IconGenerationManifest(completeSystemIconConfig = enabled)
-      assertEquals(4, value.schemaVersion)
+      assertEquals(7, value.schemaVersion)
       assertEquals(value, IconGenerationManifest.decode(value.encode()))
     }
     val old = "KeiHomeIconGeneration2\nscope\tall\n".toByteArray()
@@ -33,6 +41,87 @@ class IconGenerationManifestTest {
       "KeiHomeIconGeneration2\nscope\tall\nshape\tcomplete\n")) {
       assertTrue(runCatching { IconGenerationManifest.decode(text.toByteArray()) }.isFailure)
     }
+  }
+
+  @Test fun previousMaskSchemaRemainsByteCompatibleAfterComponentFilenameUpgrade() {
+    val previous = IconGenerationManifest(schemaVersion = 4, completeSystemIconConfig = true)
+    assertEquals(previous, IconGenerationManifest.decode(previous.encode()))
+    assertEquals(4, IconGenerationManifest.decode(previous.encode()).schemaVersion)
+    assertFalse(previous.encode().contentEquals(previous.copy(schemaVersion = 5).encode()))
+  }
+
+  @Test fun activeLauncherSnapshotIsCanonicalAndIndependentOfConsideredTargets() {
+    val first = "os.test.app/os.foreign.LauncherAndroid"
+    val second = "os.test.app/os.foreign.LauncherApple"
+    val value = IconGenerationManifest(
+      schemaVersion = 6, considered = setOf("os.test.app", second),
+      activeLauncherTargets = linkedSetOf(second, first),
+    )
+    val bytes = ("KeiHomeIconGeneration6\nscope\tall\nshape\toriginal\nmask\toriginal\n" +
+      "target\tos.test.app\ntarget\t$second\nactive\t$first\nactive\t$second\n").toByteArray()
+    assertArrayEquals(bytes, value.encode())
+    assertEquals(value, IconGenerationManifest.decode(bytes))
+    assertArrayEquals(bytes, value.copy(activeLauncherTargets = linkedSetOf(first, second)).encode())
+    assertTrue(IconGenerationManifest.decode(IconGenerationManifest().encode()).activeLauncherTargets.isEmpty())
+  }
+
+  @Test fun activeRowsRejectDuplicatesRelativeComponentsAndNoncanonicalOrdering() {
+    val header = "KeiHomeIconGeneration6\nscope\tall\nshape\toriginal\nmask\toriginal\n"
+    val first = "os.test.app/os.foreign.A"
+    val second = "os.test.app/os.foreign.B"
+    for (rows in listOf(
+      "active\t$first\nactive\t$first\n",
+      "active\t$second\nactive\t$first\n",
+      "active\tos.test.app\n",
+      "active\tos.test.app/\n",
+      "active\tos.test.app/.Launcher\n",
+      "active\tComponentInfo{$first}\n",
+      "active\t $first\n",
+      "active\t../outside/os.test.Main\n",
+      "active\t$first\textra\n",
+      "active\t$first\ntarget\t$first\n",
+    )) {
+      assertThrows(rows, IllegalArgumentException::class.java) {
+        IconGenerationManifest.decode((header + rows).toByteArray())
+      }
+    }
+    for (target in listOf("os.test.app", "os.test.app/.Launcher", "os.test.app/")) {
+      assertThrows(IllegalArgumentException::class.java) {
+        IconGenerationManifest(activeLauncherTargets = setOf(target)).encode()
+      }
+    }
+  }
+
+  @Test fun schemasOneThroughFiveRemainByteCompatibleAndRejectActiveRows() {
+    val headers = listOf(
+      "KeiHomeIconGeneration1\n",
+      "KeiHomeIconGeneration2\nscope\tall\n",
+      "KeiHomeIconGeneration3\nscope\tall\nshape\toriginal\n",
+      "KeiHomeIconGeneration4\nscope\tall\nshape\toriginal\nmask\toriginal\n",
+      "KeiHomeIconGeneration5\nscope\tall\nshape\toriginal\nmask\toriginal\n",
+    )
+    val target = "os.test.app/os.foreign.Launcher"
+    headers.forEachIndexed { index, header ->
+      val bytes = (header + "target\t$target\n").toByteArray()
+      val value = IconGenerationManifest.decode(bytes)
+      assertEquals(index + 1, value.schemaVersion)
+      assertTrue(value.activeLauncherTargets.isEmpty())
+      assertArrayEquals(bytes, value.encode())
+      assertThrows(IllegalArgumentException::class.java) {
+        IconGenerationManifest.decode((header + "active\t$target\n").toByteArray())
+      }
+      assertThrows(IllegalArgumentException::class.java) {
+        value.copy(activeLauncherTargets = setOf(target)).encode()
+      }
+    }
+  }
+
+  @Test fun activeRowsHaveRoomBeyondTheLegacyParserRowLimit() {
+    val targets = (0..15000).mapTo(linkedSetOf()) { "os.test.app/os.test.Launcher$it" }
+    val value = IconGenerationManifest(considered = targets, activeLauncherTargets = targets)
+    assertEquals(value, IconGenerationManifest.decode(value.encode()))
+    val legacy = value.copy(schemaVersion = 5, activeLauncherTargets = emptySet())
+    assertEquals(legacy, IconGenerationManifest.decode(legacy.encode()))
   }
 
   @Test fun preservesSourceCountsDecisionsAndIndependentNativeFingerprints() {

@@ -486,4 +486,33 @@ class ActiveIconThemeTest {
     137.toByte(), 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
     0, 0, 0, 1, 0, 0, 0, 1,
   )
+
+
+  @Test fun qualifiedStaticNamesProtectOnlyTheirExactComponentOwnerAndKeepLegacyCandidates() {
+    archive(active, mapOf(
+      "res/drawable-xxhdpi/com.sample.debug#com.shared.Main.png" to png(),
+      "res/drawable-xxhdpi/com.legacy.Main.png" to png(),
+      "res/drawable-xxhdpi/com.bad#com.other#Main.png" to png(),
+    ))
+    val packages = setOf("com.sample.debug", "com.other.debug", "com.legacy.owner", "com.bad")
+    val components = mapOf(
+      "com.sample.debug" to setOf("com.shared.Main"),
+      "com.other.debug" to setOf("com.shared.Main"),
+      "com.legacy.owner" to setOf("com.legacy.Main"),
+      "com.bad" to setOf("com.other#Main"),
+    )
+    val index = reader()
+    assertEquals(setOf("com.sample.debug", "com.legacy.owner"), index.snapshot(packages, components).coveredPackages)
+    assertEquals(2, index.describe().resourceCount)
+  }
+
+  @Test fun samePrefixComponentsRequireBareCanonicalNamesInsteadOfInventedQualifiedNames() {
+    archive(active, mapOf("res/drawable-xxhdpi/com.sample#com.sample.Main.png" to png()))
+    val index = reader()
+    val components = mapOf("com.sample" to setOf(".Main"))
+    assertTrue(index.snapshot(setOf("com.sample"), components).coveredPackages.isEmpty())
+    archive(active, mapOf("res/drawable-xxhdpi/com.sample.Main.png" to png()))
+    index.invalidate()
+    assertEquals(setOf("com.sample"), index.snapshot(setOf("com.sample"), components).coveredPackages)
+  }
 }

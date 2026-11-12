@@ -29,7 +29,7 @@ internal data class SystemIconFallbackManifest(val style: SystemIconFallback, va
       val style = SystemIconFallback.valueOf(lines[1])
       val perfectSource = if (hasPerfectSource) lines[2] else null
       val names = lines.drop(if (hasPerfectSource) 3 else 2).dropLast(1)
-      require(names.all { validDottedName(it) && it.length <= 240 } && names.toSet().size == names.size)
+      require(names.all { validNativeIconName(it) && it.length <= 240 } && names.toSet().size == names.size)
       return SystemIconFallbackManifest(style, names.toSet(), options and 1 != 0, options and 2 != 0,
         perfectSource).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical fallback provenance" }

@@ -25,6 +25,7 @@ does not automatically run navigation, color editing or native tests.
 | OS4 guide, resume/replay, destination round trips and large text | `ui-onboarding` |
 | Version-prefix upgrade decisions and skipped release history | `release-notes`; `ui-release-notes` for navigation and large text |
 | Fixed cache reminder, log/export accounting and protected resources | `cache-budget` |
+| Hook key reuse and authenticated connection contracts | `hook-hot-paths`; [ART/member probe](../scripts/tests/hook-hot-paths/README.md) and the affected cache/host device tests |
 | Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
 | Desktop capability and acknowledgement summaries | `desktop-state` |
 | Dock/search materials, persistence, leases and protocol | `desktop-materials` |

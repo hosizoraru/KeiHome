@@ -65,6 +65,9 @@ GROUPS = {
         UI + "OnboardingNavigationTest",)),
     "cache-budget": ("jvm", "Fixed reminder, log accounting and protected resource storage", (
         "CacheReminderBudgetTest", "CacheUsageTest", "AppLogExportCacheTest", "PerfectIconRepositoryTest")),
+    "hook-hot-paths": ("jvm", "Reusable request keys and live authenticated connection contracts", (
+        "SurfaceIconKeyIndexTest", "NativeMonetClientTest", "NativeMonetSocketBrokerTest",
+        "NativeRuntimeIdentitySelectionTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
         UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (

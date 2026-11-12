@@ -261,3 +261,43 @@ stops accepting selections when closing or disabled.
 
 The API inventory, retained-component rationale and changed-file receipts are
 under `.artifacts/research/perfect-completion-20261112/ui/glass-audit/`.
+
+### Shared press, preview tabs and detail sheets
+
+The next interaction pass uses `os4Clickable`/`os4Toggleable` for app-owned
+clickable surfaces. The click and `glassPress` modifier share one interaction
+source, so cancellation and disabled state follow the real gesture. Native
+controls keep their own feedback; cards already using native Tilt/Sink do not
+receive a second press animation. Read-only content keeps the ordinary card
+hierarchy.
+
+`Os4DisclosureContent` now gives its children a full-width `Column` inside
+`AnimatedVisibility`. Multiple children in the animation container previously
+overlapped, including Monet's five palette families and icon-role controls.
+The shared fix also covers status, release-note and guidance disclosures.
+
+View modes use native `GlassTabRow`: light/dark/compare previews in Monet,
+application inspection, Perfect inspection and Apple inspection; light/dark
+mask comparisons; Monet tone families and editor grid/sliders. Persisted
+settings with many choices remain dropdown preferences.
+Inline tabs use a leaf surface backdrop for the native material. Sampling the
+page backdrop from a tab that is itself inside that page's recorded layer
+creates a RenderNode cycle. The focused device group includes drawing tabs
+inside a recorded page, as well as the actual Monet editor scenarios.
+
+`Os4DetailsSheet` uses native `GlassBottomSheet` for preview inspection,
+guidance, cache explanations, cache threshold editing, Monet color editing
+and Perfect source information. It preserves composition locals, accessible
+dismissal, nested scrolling and the native exit transition. Destructive
+confirmations and action choosers retain `Os4ActionDialog`.
+
+Apple mapping and matched-artwork pages have explicit selection mode and a
+Glass Panel toolbar. Matching keeps the existing batch/cooldown policy; the
+status summary reports the selected and actionable counts. Export includes
+only selected effective mappings through the existing validated transfer
+format. Done/Back exits selection without modifying mappings. There is no
+bulk deletion of upstream artwork.
+
+Focused validation and before/after captures are retained under
+`.artifacts/research/glass-interactions-20261113/`; the
+`ui-glass-interactions` check group excludes unrelated native and export tests.

@@ -16,6 +16,7 @@ does not automatically run navigation, color editing or native tests.
 | Navbar, tabs, themes or font geometry | `ui-navigation` |
 | Glass/opaque dropdowns, preference selection, popup coordinates or Back | `ui-menus` |
 | OS4 Glass selector migration, unavailable choices and dialog buttons | `ui-os4-controls` |
+| Disclosure layout, Glass press, preview tabs, sheets and Apple selection | `ui-glass-interactions` |
 | Status cards and detail navigation | `ui-status` |
 | Theme-effect controls | `ui-theme-effects` |
 | Color editor, input validation, draft lifecycle | `ui-color-editor` |

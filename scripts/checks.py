@@ -41,6 +41,9 @@ GROUPS = {
     "ui-os4-controls": ("device", "Glass selectors, disabled options, dialog actions and menus", (
         UI + "Os4SelectorPreferenceUiTest", UI + "Os4DialogDeviceTest",
         UI + "Os4DropdownMenuDeviceTest")),
+    "ui-glass-interactions": ("device", "Disclosure geometry, press cancellation, sheet tabs and Apple selection", (
+        UI + "GlassInteractionsUiTest", UI + "AppleSelectionToolbarDeviceTest",
+        UI + "MonetColorEditorTest", UI + "CacheStorageUiTest", UI + "IconMaskSettingsUiTest")),
     "ui-status": ("device", "Status cards, disclosures and detail navigation", (
         UI + "MonetStatusContentTest",)),
     "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (

@@ -343,6 +343,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
   }
   StatusOverviewCard(
     title = stringResource(presentation.title),
+    titleBadge = BuildConfig.VERSION_NAME.substringBefore('+'),
     summary = summary,
     details = emptyList(),
     tone = presentation.tone,
@@ -776,6 +777,7 @@ internal fun StatusOverviewCard(
   badgeContent: (@Composable ColumnScope.(Color) -> Unit)? = null,
   actionLabel: String? = null,
   compactSymbol: Boolean = false,
+  titleBadge: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
   val dark = LocalKeiHomeDarkTheme.current
@@ -834,11 +836,21 @@ internal fun StatusOverviewCard(
               .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
           ) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-              Text(
-                text = title,
-                style = MiuixTheme.textStyles.title2.copy(fontWeight = FontWeight.SemiBold),
-                color = contentColor,
-              )
+              FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+              ) {
+                Text(
+                  text = title,
+                  modifier = Modifier.align(Alignment.CenterVertically),
+                  style = MiuixTheme.textStyles.title2.copy(fontWeight = FontWeight.SemiBold),
+                  color = contentColor,
+                )
+                if (titleBadge != null) MetadataPill(
+                  titleBadge, contentColor,
+                  Modifier.align(Alignment.CenterVertically).testTag("status.overview.version"),
+                )
+              }
               Text(
                 text = summary,
                 style = MiuixTheme.textStyles.body2,

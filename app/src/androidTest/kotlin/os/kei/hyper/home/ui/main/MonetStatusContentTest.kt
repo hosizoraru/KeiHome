@@ -37,6 +37,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.MonochromeIconSettings
 import os.kei.hyper.home.data.MonetColor
 import os.kei.hyper.home.data.MonetColorFamily
@@ -210,6 +211,10 @@ class MonetStatusContentTest {
     val statusCard = composeTestRule.onNode(
       hasText(context.getString(R.string.status_overview_error_title)) and hasClickAction(),
     )
+    composeTestRule.onNodeWithTag("status.overview.version", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithText(
+      BuildConfig.VERSION_NAME.substringBefore('+'), useUnmergedTree = true,
+    ).assertExists()
     assertEquals(
       context.getString(R.string.status_refresh),
       statusCard.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
@@ -411,6 +416,7 @@ class MonetStatusContentTest {
           Box(Modifier.width(280.dp).verticalScroll(rememberScrollState())) {
             StatusOverviewCard(
               title = stringResource(R.string.status_overview_warning_title),
+              titleBadge = BuildConfig.VERSION_NAME.substringBefore('+'),
               summary = stringResource(R.string.status_overview_warning_summary),
               details = listOf(
                 StatusDetail(stringResource(R.string.status_framework), "LSPosed"),
@@ -465,6 +471,8 @@ class MonetStatusContentTest {
         assertTrue("No text layout for $tag: $text", layouts.isNotEmpty())
         assertFalse("Clipped text for $tag: $text", layouts.any { it.hasVisualOverflow })
       }
+      composeTestRule.onNodeWithText(BuildConfig.VERSION_NAME.substringBefore('+'), useUnmergedTree = true)
+        .assertExists()
     }
   }
 

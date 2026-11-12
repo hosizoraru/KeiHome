@@ -26,7 +26,7 @@
     <string name="setup_native_icons_title">受支持的系统图标自动跟随深浅色</string>
     <string name="setup_library_body">浏览内置方案、APK 或 MTZ / ZIP，预览后再应用。</string>
     <string name="setup_monet_body">按需为支持的图标启用动态配色。选择 ColorOS 灵感风格也会启用 Monet。</string>
-    <string name="setup_fallback_body">为图标包补齐缺失图标。Telegram 官方商店版、Web 版和 Beta 版缺少默认映射时，可复用其他渠道已有的明暗图标。</string>
+    <string name="setup_fallback_body">ColorOS 与完美图标可补齐未覆盖的应用。完美补全需先下载任一样式，推荐 HyperOS4；启用时暂停系统回退，关闭后恢复原选择。保留原始图标的应用不参与补齐。</string>
     <string name="setup_mask_body">用同一组图标对比原始、HyperOS4 与自定义遮罩。启用适配后依次优先使用自定义遮罩、图标包自带遮罩，再用 HyperOS4 补缺。</string>
     <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
     <string name="setup_icon_tip_body">修改资源、补全、遮罩、保留原图标清单或生成范围后，请更新或重新生成图标包，再应用。仅预览不会更新已应用主题。</string>

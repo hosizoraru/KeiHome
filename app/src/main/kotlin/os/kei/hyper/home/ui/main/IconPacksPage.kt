@@ -61,10 +61,10 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 
 @Composable
 internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues,
@@ -106,7 +106,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
               if (count > 0) add(stringResource(R.string.coloros_fallback_applied, count))
             }
             val applied = source?.systemFallback
-            add(if (applied != null) stringResource(R.string.system_fallback_applied,
+            add(if (applied != null) stringResource(
+              if (applied.style.isPerfect) R.string.perfect_completion_applied else R.string.system_fallback_applied,
               systemFallbackName(applied.style), applied.names.size)
             else stringResource(R.string.pack_completion_selected,
               systemFallbackName(preferences.systemIconFallback)))
@@ -222,7 +223,7 @@ internal fun PackNavigationCard(title: String, summary: String, onClick: () -> U
         Text(title, style = MiuixTheme.textStyles.body1)
         Text(summary, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
-      top.yukonga.miuix.kmp.basic.Icon(top.yukonga.miuix.kmp.icon.MiuixIcons.Basic.ArrowRight, null,
+      top.yukonga.miuix.kmp.basic.Icon(top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.ChevronForward, null,
         tint = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
   }

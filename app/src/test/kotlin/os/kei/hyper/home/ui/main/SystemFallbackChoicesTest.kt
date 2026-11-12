@@ -12,46 +12,58 @@ class SystemFallbackChoicesTest {
   private val downloaded = listOf("ColorOS", SystemIconFallback.DEFAULT_PERFECT_STYLE, "OriginOS")
 
   @Test fun emptyLocalCatalogKeepsOnlyBundledChoices() {
-    assertEquals(bundled, systemFallbackChoices(bundled, emptyList(), false, SystemIconFallback.DEFAULT))
-    assertEquals(bundled, systemFallbackChoices(bundled, emptyList(), true, SystemIconFallback.DEFAULT))
+    assertEquals(bundled, nativeSystemFallbackChoices(bundled, SystemIconFallback.DEFAULT))
+    assertTrue(perfectCompletionStyles(emptyList()).isEmpty())
   }
 
-  @Test fun collapsedListAddsOnlyDownloadedHyperOs4() {
-    assertEquals(bundled + hyperOs4,
-      systemFallbackChoices(bundled, downloaded, false, SystemIconFallback.DEFAULT))
-    assertEquals(bundled, systemFallbackChoices(bundled, listOf("OriginOS"), false, SystemIconFallback.DEFAULT))
-  }
-
-  @Test fun expandedListShowsEveryDownloadedStyleWithHyperOs4First() {
-    assertEquals(bundled + listOf(hyperOs4, colorOs, originOs),
-      systemFallbackChoices(bundled, downloaded, true, SystemIconFallback.DEFAULT))
-  }
-
-  @Test fun collapsingRetainsOnlyTheCurrentAdditionalStyle() {
-    assertEquals(bundled + listOf(hyperOs4, originOs),
-      systemFallbackChoices(bundled, downloaded, false, originOs))
-    assertEquals(bundled + listOf(hyperOs4, colorOs),
-      systemFallbackChoices(bundled, downloaded, false, colorOs))
-    assertEquals(bundled + hyperOs4, systemFallbackChoices(bundled, downloaded, false, hyperOs4))
+  @Test fun allDownloadedStylesAreVisibleWithoutAnExpansionFlagWithHyperOs4First() {
+    assertEquals(listOf(hyperOs4, colorOs, originOs), perfectCompletionStyles(downloaded))
+    assertEquals(listOf(originOs), perfectCompletionStyles(listOf("OriginOS")))
   }
 
   @Test fun missingPerfectResourcesNeverRemoveTheSavedSelection() {
-    for (expanded in listOf(false, true)) {
-      assertEquals(bundled + originOs, systemFallbackChoices(bundled, emptyList(), expanded, originOs))
-      assertEquals(bundled + listOf(hyperOs4, originOs),
-        systemFallbackChoices(bundled, listOf("HyperOS4"), expanded, originOs))
-    }
+    assertEquals(listOf(originOs), perfectCompletionStyles(emptyList(), originOs))
+    assertEquals(listOf(hyperOs4, originOs), perfectCompletionStyles(listOf("HyperOS4"), originOs))
   }
 
   @Test fun missingBundledResourcesAlsoKeepTheSelectedChoiceVisible() {
     assertEquals(listOf(SystemIconFallback.DEFAULT, SystemIconFallback.CLASSIC),
-      systemFallbackChoices(listOf(SystemIconFallback.DEFAULT), emptyList(), false, SystemIconFallback.CLASSIC))
+      nativeSystemFallbackChoices(listOf(SystemIconFallback.DEFAULT), SystemIconFallback.CLASSIC))
   }
 
   @Test fun duplicateAndInvalidCatalogStylesDoNotCreateInvalidChoices() {
-    assertEquals(bundled + listOf(hyperOs4, originOs),
-      systemFallbackChoices(bundled, listOf("HyperOS4", "", "../style", "OriginOS", "HyperOS4", "OriginOS"),
-        true, originOs))
+    assertEquals(listOf(hyperOs4, originOs),
+      perfectCompletionStyles(listOf("HyperOS4", "", "../style", "OriginOS", "HyperOS4", "OriginOS"),
+        originOs))
   }
 
+  @Test fun nativeChoicesNeverIncludePerfectAndStylesNeverIncludeNativeFallback() {
+    assertEquals(bundled, nativeSystemFallbackChoices(bundled + originOs, originOs))
+    assertEquals(listOf(hyperOs4), perfectCompletionStyles(listOf("HyperOS4"), SystemIconFallback.CLASSIC))
+  }
+
+  @Test fun enablingPrefersCurrentPerfectIntentThenSavedResourceStyle() {
+    assertEquals(originOs, perfectCompletionChoice(originOs, "HyperOS4", downloaded))
+    assertEquals(colorOs, perfectCompletionChoice(SystemIconFallback.CLASSIC, "ColorOS", downloaded))
+  }
+
+  @Test fun enablingUsesHyperOs4ThenFirstUsableDownloadedStyle() {
+    assertEquals(hyperOs4, perfectCompletionChoice(SystemIconFallback.DEFAULT, "not-downloaded",
+      listOf("OriginOS", "HyperOS4", "ColorOS")))
+    assertEquals(originOs, perfectCompletionChoice(SystemIconFallback.DEFAULT, "../invalid",
+      listOf("", "../invalid", "OriginOS", "ColorOS")))
+  }
+
+  @Test fun enablingRefusesNoUsableLocalResourcesDespiteSavedIntent() {
+    assertNull(perfectCompletionChoice(originOs, "HyperOS4", emptyList()))
+    assertNull(perfectCompletionChoice(SystemIconFallback.DEFAULT, "HyperOS4", listOf("", "../invalid")))
+  }
+
+  @Test fun explicitStyleSelectionRequiresThatExactDownloadedStyle() {
+    assertNull(perfectCompletionChoice(hyperOs4, "HyperOS4", listOf("HyperOS4"), requested = originOs))
+    assertEquals(originOs,
+      perfectCompletionChoice(hyperOs4, "HyperOS4", listOf("OriginOS"), requested = originOs))
+    assertNull(perfectCompletionChoice(hyperOs4, "HyperOS4", downloaded,
+      requested = SystemIconFallback.DEFAULT))
+  }
 }

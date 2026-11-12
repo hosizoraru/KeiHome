@@ -28,7 +28,7 @@
   <string name="pack_hyperos_theme_open">Icons in Themes and wallpapers</string>
   <string name="pack_hyperos_icons_open">Open icon styles</string>
   <string name="system_name_matching_title">Match system apps by name</string>
-  <string name="system_name_matching_summary">For APK and ColorOS packs: try matching an unmapped system app by its name before using the selected built-in icons. Reapply the pack after changing.</string>
+  <string name="system_name_matching_summary">For system apps not covered by the pack, try finding a matching icon by app name. Update and apply the pack after changing.</string>
   <string name="polish_about_device">Device</string>
   <string name="polish_about_system">System version</string>
   <string name="polish_about_launcher">System launcher</string>

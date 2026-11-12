@@ -38,12 +38,13 @@ import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetIconRole
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Copy
-import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
+import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.IconPreviewModeTabs
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val PaletteFamilies = listOf("primary", "secondary", "tertiary", "neutral", "neutral-variant")
@@ -56,6 +57,7 @@ internal fun MonetPaletteDetails(
   seed: Int, palette: Map<String, Int>, modifier: Modifier = Modifier, choice: MonetCustomization? = null,
 ) {
   var familyIndex by rememberSaveable { mutableIntStateOf(0) }
+  var appearance by rememberSaveable { mutableIntStateOf(IconPreviewMode.COMPARE.ordinal) }
   val familyNames = listOf(
     stringResource(R.string.monet_family_primary),
     stringResource(R.string.monet_family_secondary),
@@ -73,7 +75,11 @@ internal fun MonetPaletteDetails(
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       Text(stringResource(R.string.monet_details_roles), modifier = Modifier.padding(16.dp),
         style = MiuixTheme.textStyles.body1)
+      IconPreviewModeTabs(IconPreviewMode.entries[appearance], { appearance = it.ordinal },
+        modifier = Modifier.padding(horizontal = 16.dp).testTag("monet.roles.views"))
       for (dark in listOf(false, true)) {
+        if ((appearance == IconPreviewMode.LIGHT.ordinal && dark) ||
+          (appearance == IconPreviewMode.DARK.ordinal && !dark)) continue
         val roles = remember(palette, dark, choice) { MonetSchemes.iconRoles(palette, dark, choice) } ?: continue
         val foregroundRole = if (dark) MonetIconRole.DARK_FOREGROUND else MonetIconRole.LIGHT_FOREGROUND
         val backgroundRole = if (dark) MonetIconRole.DARK_BACKGROUND else MonetIconRole.LIGHT_BACKGROUND
@@ -97,12 +103,11 @@ internal fun MonetPaletteDetails(
       }
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      OverlaySpinnerPreference(
-        title = stringResource(R.string.monet_details_family),
-        items = familyNames.map { DropdownItem(text = it) },
-        selectedIndex = familyIndex,
-        onSelectedIndexChange = { familyIndex = it },
-      )
+      Text(stringResource(R.string.monet_details_family), modifier = Modifier.padding(16.dp),
+        style = MiuixTheme.textStyles.body2)
+      Os4ViewTabs(items = familyNames, selectedIndex = familyIndex,
+        onSelect = { familyIndex = it },
+        modifier = Modifier.padding(horizontal = 16.dp).testTag("monet.tones.views"))
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.monet_details_tones_note),

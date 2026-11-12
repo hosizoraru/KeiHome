@@ -37,7 +37,9 @@ import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -45,6 +47,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
@@ -55,8 +58,14 @@ import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetIconRole
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.ui.components.IconPreviewComparison
+import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
+import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
+import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -78,6 +87,8 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   var query by rememberSaveable { mutableStateOf("") }
   var showPreviewNote by rememberSaveable { mutableStateOf(false) }
+  var focusedRow by remember { mutableStateOf<IconBrowserRow?>(null) }
+  var showInspection by remember { mutableStateOf(false) }
   val rows by produceState(emptyList<IconBrowserRow>(), scan.capabilities, source, options) {
     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
       browserRows(scan.capabilities.orEmpty(), source, options, "")
@@ -102,8 +113,9 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     }
     item(key = "summary", contentType = "summary") {
       val disclosure = stringResource(if (showPreviewNote) R.string.browser_note_hide else R.string.browser_note_show)
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp),
-        onClick = { showPreviewNote = !showPreviewNote }) {
+      Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, onClickLabel = disclosure, indication = null) {
+        showPreviewNote = !showPreviewNote
+      }, insideMargin = PaddingValues(0.dp)) {
       Column(Modifier.fillMaxWidth().heightIn(min = 48.dp)
         .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -143,7 +155,29 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
       }
     }
     items(visible, key = { it.key }, contentType = { "application" }) { row ->
-      AppCapabilityCard(row.app, model.previews, scan.previewGeneration, configuration, colors, preferences.showIconPreviews, row, source, model)
+      AppCapabilityCard(row.app, model.previews, scan.previewGeneration, configuration, colors,
+        preferences.showIconPreviews, row, source, model,
+        onInspect = { focusedRow = row; showInspection = true })
+    }
+  }
+  focusedRow?.let { focused ->
+    androidx.compose.runtime.key(focused.key) {
+      val previews by androidx.compose.runtime.key(focused, scan.previewGeneration, configuration, source?.revision) {
+        produceState<AppIconPreviews?>(null) { value = browserPreview(model, focused, source) }
+      }
+      IconPreviewInspectionSheet(show = showInspection, onDismissRequest = { showInspection = false },
+        title = focused.app.label, modifier = Modifier.testTag("apps.preview.details"),
+        onDismissFinished = { if (!showInspection) focusedRow = null },
+        details = {
+          Text(focused.app.packageName, style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (focused.installed) MetadataPill(
+            stringResource(if (focused.app.systemApp) R.string.browser_badge_system else R.string.browser_badge_user),
+            MiuixTheme.colorScheme.onSurfaceSecondary)
+          IconInfoDetails(focused.app, focused, source, previews)
+        }) { mode ->
+        AppIconInspectionComparison(previews, colors, mode)
+      }
     }
   }
 }
@@ -166,13 +200,16 @@ internal fun previewColors(snapshot: MonetPaletteSnapshot?): IconPreviewColors? 
 internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPreviewRepository,
   generation: Int, configuration: String, colors: IconPreviewColors?, showPreviews: Boolean,
   browser: IconBrowserRow? = null, source: IconBrowserSource? = null, model: HomeViewModel? = null,
+  onInspect: () -> Unit,
 ) {
   val previews by androidx.compose.runtime.key(app, generation, configuration, source?.revision) {
     produceState<AppIconPreviews?>(null) {
       value = if (model != null && browser != null) browserPreview(model, browser, source) else repository.load(app)
     }
   }
-  Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+  Card(modifier = Modifier.fillMaxWidth().os4Clickable(cornerRadius = CardDefaults.CornerRadius,
+    onClickLabel = stringResource(R.string.preview_glass_inspect), onClick = onInspect),
+    insideMargin = PaddingValues(12.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         val dark = LocalKeiHomeDarkTheme.current
@@ -187,30 +224,7 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
           stringResource(if (app.systemApp) R.string.browser_badge_system else R.string.browser_badge_user),
           if (app.systemApp) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.primary)
       }
-      FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (browser != null) {
-          val label = when {
-            source == null -> R.string.browser_badge_pending
-            browser.dynamic -> R.string.browser_badge_dynamic
-            browser.covered -> R.string.browser_badge_redrawn
-            else -> R.string.browser_badge_original
-          }
-          MetadataPill(if (browser.systemFallback != null) stringResource(
-            if (browser.systemFallback.isPerfect) R.string.perfect_completion_badge else R.string.system_fallback_badge,
-            browser.systemFallback.perfectStyle ?: systemFallbackName(browser.systemFallback)) else stringResource(label),
-            if (source != null && browser.covered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (browser.installed && !app.hasLauncher) MetadataPill(stringResource(R.string.browser_badge_no_launcher),
-            MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        CapabilityPill(stringResource(R.string.apps_night_feature), app.nightMode,
-          colorResource(if (LocalKeiHomeDarkTheme.current) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent))
-        CapabilityPill("Monet", app.monochrome)
-        if (previews != null && previews?.light == null && previews?.dark == null &&
-          previews?.lightMonochrome == null && previews?.darkMonochrome == null) {
-          MetadataPill(stringResource(R.string.browser_preview_unavailable), MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        if (!app.personalProfile) MetadataPill(stringResource(R.string.profile_user, app.userId), MiuixTheme.colorScheme.primary)
-      }
+      IconInfoDetails(app, browser, source, previews, includeFallbackNote = false)
       if (showPreviews) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         IconVariant(stringResource(R.string.monet_preview_light), previews?.light, modifier = Modifier.weight(1f))
         IconVariant(stringResource(R.string.monet_preview_dark), previews?.dark, modifier = Modifier.weight(1f))
@@ -233,6 +247,65 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
       }
       if (app.monochromeFallbackRecommended) Text(stringResource(R.string.apps_fallback_note),
         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+  }
+}
+
+@Composable
+private fun IconInfoDetails(app: InstalledIconCapability, browser: IconBrowserRow?, source: IconBrowserSource?,
+  previews: AppIconPreviews?, includeFallbackNote: Boolean = true,
+) {
+  FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    if (browser != null) {
+      val label = when {
+        source == null -> R.string.browser_badge_pending
+        browser.dynamic -> R.string.browser_badge_dynamic
+        browser.covered -> R.string.browser_badge_redrawn
+        else -> R.string.browser_badge_original
+      }
+      MetadataPill(if (browser.systemFallback != null) stringResource(
+        if (browser.systemFallback.isPerfect) R.string.perfect_completion_badge else R.string.system_fallback_badge,
+        browser.systemFallback.perfectStyle ?: systemFallbackName(browser.systemFallback)) else stringResource(label),
+        if (source != null && browser.covered) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (browser.installed && !app.hasLauncher) MetadataPill(stringResource(R.string.browser_badge_no_launcher),
+        MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+    CapabilityPill(stringResource(R.string.apps_night_feature), app.nightMode,
+      colorResource(if (LocalKeiHomeDarkTheme.current) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent))
+    CapabilityPill("Monet", app.monochrome)
+    if (previews != null && previews.light == null && previews.dark == null &&
+      previews.lightMonochrome == null && previews.darkMonochrome == null) {
+      MetadataPill(stringResource(R.string.browser_preview_unavailable), MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+    if (!app.personalProfile) MetadataPill(stringResource(R.string.profile_user, app.userId), MiuixTheme.colorScheme.primary)
+  }
+  if (includeFallbackNote && app.monochromeFallbackRecommended) Text(stringResource(R.string.apps_fallback_note),
+    style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+}
+
+@Composable
+private fun AppIconInspectionComparison(previews: AppIconPreviews?, colors: IconPreviewColors?,
+  mode: IconPreviewMode,
+) {
+  IconPreviewComparison(mode) { dark, modifier ->
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(20.dp)) {
+      IconVariant(stringResource(if (dark) R.string.preview_glass_dark else R.string.preview_glass_light),
+        if (dark) previews?.dark else previews?.light, modifier = Modifier.fillMaxWidth(), size = 88.dp,
+        loading = previews == null, surfaceDark = dark)
+      val monochrome = if (dark) previews?.darkMonochrome else previews?.lightMonochrome
+      val original = if (dark) previews?.dark else previews?.light
+      IconVariant(stringResource(if (dark) R.string.browser_preview_monet_dark else R.string.browser_preview_monet_light),
+        if (colors != null) monochrome ?: original else null,
+        foreground = if (monochrome != null) {
+          if (dark) colors?.darkForeground else colors?.lightForeground
+        } else null,
+        background = if (monochrome != null) {
+          if (dark) colors?.darkBackground else colors?.lightBackground
+        } else null,
+        backgroundMask = previews?.backgroundMask, maskPathData = previews?.maskPathData,
+        original = previews != null && colors != null && monochrome == null,
+        modifier = Modifier.fillMaxWidth(), size = 88.dp, loading = previews == null, surfaceDark = dark)
     }
   }
 }
@@ -265,11 +338,18 @@ private fun CapabilityPill(label: String, status: IconCapabilityStatus, positive
 @Composable
 private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
   foreground: Int? = null, background: Int? = null, original: Boolean = false, backgroundMask: Bitmap? = null,
-  maskPathData: String? = null,
+  maskPathData: String? = null, size: Dp = 44.dp, loading: Boolean = false, surfaceDark: Boolean? = null,
 ) {
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    PreviewIcon(bitmap, foreground, background, Modifier.size(44.dp).semantics { contentDescription = label },
-      backgroundMask, maskPathData)
+    val artwork: @Composable () -> Unit = {
+      if (loading) androidx.compose.foundation.layout.Box(Modifier.size(size),
+        contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+      } else PreviewIcon(bitmap, foreground, background, Modifier.size(size).semantics { contentDescription = label },
+        backgroundMask, maskPathData)
+    }
+    if (surfaceDark == null) artwork()
+    else IconPreviewArtworkFrame(surfaceDark) { artwork() }
     Text(if (original) stringResource(R.string.browser_preview_original, label) else label,
       style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
       textAlign = TextAlign.Center, maxLines = 2)

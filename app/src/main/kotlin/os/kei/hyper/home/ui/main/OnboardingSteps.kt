@@ -1,9 +1,10 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.os4Clickable
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -192,7 +193,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
 @Composable
 private fun SetupTile(title: Int, action: PageActionIcon, modifier: Modifier,
   icon: ImageVector = actionIcon(action), onClick: (() -> Unit)? = null) {
-  Column(modifier.clip(RoundedCornerShape(20.dp)).then(if (onClick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button,
+  Column(modifier.clip(RoundedCornerShape(20.dp)).then(if (onClick != null) Modifier.os4Clickable(role = androidx.compose.ui.semantics.Role.Button,
     onClick = onClick) else Modifier).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Box(Modifier.size(48.dp).background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),

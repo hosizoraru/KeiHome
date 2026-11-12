@@ -82,6 +82,7 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -271,8 +272,10 @@ private fun MaskIconComparison(
         items = items, selectedIndex = selectedIndex, enabled = packs.size > 1,
         modifier = Modifier.testTag("icon-mask.pack"),
         onSelectedIndexChange = { index -> packs.getOrNull(index)?.let { selectedId = it.pack.id } })
-      SwitchPreference(title = stringResource(R.string.icon_mask_compare_dark), checked = dark,
-        onCheckedChange = { darkOverride = it }, modifier = Modifier.testTag("icon-mask.compare-dark"))
+      Os4ViewTabs(items = listOf(stringResource(R.string.monet_preview_light),
+        stringResource(R.string.monet_preview_dark)), selectedIndex = if (dark) 1 else 0,
+        onSelect = { darkOverride = it == 1 },
+        modifier = Modifier.padding(16.dp).testTag("icon-mask.compare-dark"))
       val samples = remember(selected) {
         selected.previewEntries.ifEmpty { selected.pack.entries }.asSequence().distinctBy { it.key }.take(3).toList()
       }

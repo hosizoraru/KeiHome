@@ -3,7 +3,6 @@ package os.kei.hyper.home.ui.main
 import android.content.ComponentName
 import android.content.Intent
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -29,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.ColorOsStyle
+import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -57,7 +57,7 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
             val selected = option == style
             Column(Modifier.width(82.dp).border(2.dp,
               if (selected) MiuixTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(18.dp))
-              .clickable(enabled = !busy) { model.preferences.setColorOsStyle(option) }
+              .os4Clickable(enabled = !busy) { model.preferences.setColorOsStyle(option) }
               .padding(6.dp).semantics { this.selected = selected },
               horizontalAlignment = Alignment.CenterHorizontally,
               verticalArrangement = Arrangement.spacedBy(6.dp)) {

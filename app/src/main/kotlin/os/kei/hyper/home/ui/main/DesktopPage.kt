@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -18,6 +19,8 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherGlassStyle
 import os.kei.hyper.home.data.LauncherLabelMode
 import os.kei.hyper.home.status.LauncherRuntimeCapabilities
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -32,13 +35,15 @@ internal fun DesktopPage(model: HomeViewModel, onOpenSection: (String) -> Unit) 
     DesktopConnectionCard(model)
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       DesktopSection.entries.filter { it != DesktopSection.OVERVIEW }.forEach { section ->
+        val pressSource = rememberOs4PressSource()
         val icon = actionIcon(when (section) {
           DesktopSection.DOCK -> PageActionIcon.DESKTOP
           DesktopSection.APPEARANCE -> PageActionIcon.SETTINGS
           else -> PageActionIcon.PACKS
         })
         BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-          onClick = { onOpenSection(section.route) }, modifier = Modifier.testTag("desktop.open.${section.route}"),
+          onClick = { onOpenSection(section.route) }, role = Role.Button, interactionSource = pressSource,
+          modifier = Modifier.testTag("desktop.open.${section.route}").glassPress(pressSource),
           startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
           endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
       }

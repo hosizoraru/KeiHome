@@ -3,7 +3,6 @@ package os.kei.hyper.home.ui.main
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -19,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.SearchBarDefaults
@@ -80,7 +80,7 @@ internal fun LocalizedInputField(
           contentAlignment = Alignment.CenterStart,
         ) {
           Icon(
-            modifier = Modifier.clip(CircleShape).clickable(enabled = enabled, role = Role.Button) { currentOnQueryChange("") },
+            modifier = Modifier.clip(CircleShape).os4Clickable(enabled = enabled, role = Role.Button) { currentOnQueryChange("") },
             imageVector = MiuixIcons.Glass.Close,
             tint = MiuixTheme.colorScheme.onSurfaceContainerHighest,
             contentDescription = stringResource(R.string.search_clear_text),

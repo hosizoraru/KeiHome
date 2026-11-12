@@ -20,6 +20,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableIntStateOf
+import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.IconPreviewModeTabs
+import os.kei.hyper.home.ui.components.os4Clickable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +54,7 @@ import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.MonetSeedSource
 import os.kei.hyper.home.data.WallpaperColorSnapshot
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.RadioButton
@@ -74,6 +79,7 @@ internal fun MonetContent(
 ) {
   var draft by rememberSaveable { mutableStateOf<String?>(null) }
   var details by rememberSaveable { mutableStateOf(false) }
+  var previewView by rememberSaveable { mutableIntStateOf(IconPreviewMode.COMPARE.ordinal) }
   val storedChoice = MonetCustomization.decode(draft) ?: snapshot?.customization ?: MonetCustomization()
   val choice = storedChoice.copy(style = preferredStyle ?: storedChoice.style.takeUnless {
     it == MonetSchemeStyle.COLOROS_INSPIRATION
@@ -226,9 +232,11 @@ internal fun MonetContent(
           val isSelected = choice.style == style
           Card(
             modifier = Modifier.weight(1f).testTag("monet.style.${style.name}")
-              .semantics { selected = isSelected },
+              .semantics { selected = isSelected }
+              .os4Clickable(enabled = !applying, cornerRadius = CardDefaults.CornerRadius, role = androidx.compose.ui.semantics.Role.RadioButton) {
+                change(choice.copy(style = style))
+              },
             insideMargin = PaddingValues(12.dp),
-            onClick = { change(choice.copy(style = style)) }, showIndication = true,
           ) {
             Row(verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -273,9 +281,13 @@ internal fun MonetContent(
     if (palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+        IconPreviewModeTabs(IconPreviewMode.entries[previewView], { previewView = it.ordinal },
+          modifier = Modifier.testTag("monet.preview.views"))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          IconPalettePreview(palette, dark = false, choice = choice, modifier = Modifier.weight(1f))
-          IconPalettePreview(palette, dark = true, choice = choice, modifier = Modifier.weight(1f))
+          if (previewView != IconPreviewMode.DARK.ordinal)
+            IconPalettePreview(palette, dark = false, choice = choice, modifier = Modifier.weight(1f))
+          if (previewView != IconPreviewMode.LIGHT.ordinal)
+            IconPalettePreview(palette, dark = true, choice = choice, modifier = Modifier.weight(1f))
         }
         Text(stringResource(R.string.monet_details_contrast_note),
           modifier = Modifier.padding(top = 10.dp),

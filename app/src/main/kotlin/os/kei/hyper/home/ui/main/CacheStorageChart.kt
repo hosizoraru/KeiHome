@@ -4,7 +4,6 @@ import android.text.format.Formatter
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,8 +44,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
-import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -88,8 +88,8 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       bytes.forEachIndexed { index, value ->
         val destination = when (index) { 4 -> "apple"; 5 -> "perfect"; else -> null }
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp)
-          .then(if (index == 6) Modifier.clickable(role = Role.Button, onClick = onOpenLogs)
-            else if (destination != null) Modifier.clickable(role = Role.Button) { onOpenPack(destination) }
+          .then(if (index == 6) Modifier.os4Clickable(role = Role.Button, onClick = onOpenLogs)
+            else if (destination != null) Modifier.os4Clickable(role = Role.Button) { onOpenPack(destination) }
             else Modifier)
           .padding(vertical = 3.dp).testTag("cache.category.$index"),
           verticalAlignment = Alignment.CenterVertically) {
@@ -117,7 +117,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       }
     }
   }
-  Os4Dialog(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
+  Os4DetailsSheet(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
     summary = stringResource(storageDescriptions[infoCategory]),
     modifier = Modifier.testTag("cache.category.info.card")) {
     Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },

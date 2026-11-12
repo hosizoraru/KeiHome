@@ -10,10 +10,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -24,8 +27,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun PackCompletionCard(
   needsUpdate: Boolean, pending: NativeIconImportReport?, importing: Boolean, onOpenSettings: () -> Unit,
 ) {
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp),
-    onClick = onOpenSettings, showIndication = true) {
+  Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
+    onClick = onOpenSettings), insideMargin = PaddingValues(16.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.pack_completion_title), style = MiuixTheme.textStyles.body1)

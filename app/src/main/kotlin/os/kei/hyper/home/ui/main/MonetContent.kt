@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.os4Clickable
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,7 @@ import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -92,9 +95,9 @@ private fun MonetPaletteSource.sample(family: String, tone: Int): Int? {
 private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit) {
   val openDetailsLabel = stringResource(R.string.monet_open_details)
   Card(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth().os4Clickable(
+      cornerRadius = CardDefaults.CornerRadius, onClickLabel = openDetailsLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
     insideMargin = PaddingValues(16.dp),
-    onClick = onClick,
     showIndication = true,
   ) {
     Column(

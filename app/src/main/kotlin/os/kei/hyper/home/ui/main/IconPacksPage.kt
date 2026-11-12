@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
@@ -42,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.libxposed.service.HookedTarget
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -53,6 +55,7 @@ import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -217,7 +220,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
 
 @Composable
 internal fun PackNavigationCard(title: String, summary: String, onClick: () -> Unit) {
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp), onClick = onClick, showIndication = true) {
+  Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
+    onClick = onClick), insideMargin = PaddingValues(18.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MiuixTheme.textStyles.body1)

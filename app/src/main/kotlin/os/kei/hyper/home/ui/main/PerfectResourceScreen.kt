@@ -51,7 +51,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4ActionDialog
-import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -227,7 +227,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
             else R.string.logs_cancel), { focusedStyle = null }))
         })
     }
-    Os4Dialog(showInfo, { showInfo = false }, title = stringResource(R.string.perfect_resource_info)) {
+    Os4DetailsSheet(showInfo, { showInfo = false }, scrollContent = false, title = stringResource(R.string.perfect_resource_info)) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {

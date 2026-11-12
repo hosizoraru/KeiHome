@@ -8,6 +8,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -22,6 +25,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -39,6 +43,7 @@ internal fun Os4DisclosureHeader(
   titleContent: (@Composable () -> Unit)? = null,
   bottomAction: (@Composable () -> Unit)? = null,
 ) {
+  val pressSource = rememberOs4PressSource()
   val rotation by animateFloatAsState(
     targetValue = if (expanded) -90f else 90f,
     animationSpec = spring(dampingRatio = 1f, stiffness = 500f),
@@ -51,15 +56,17 @@ internal fun Os4DisclosureHeader(
   }
   if (titleContent != null) {
     BasicComponent(
-      modifier = modifier.semantics { stateDescription = stateLabel },
+      modifier = modifier.glassPress(pressSource).semantics { stateDescription = stateLabel },
       onClick = onToggle, onClickLabel = actionLabel, role = Role.Button,
+      interactionSource = pressSource,
       insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
       bottomAction = bottomAction, endActions = indicator,
     ) { titleContent() }
   } else BasicComponent(
     title = title, summary = summary,
-    modifier = modifier.semantics { stateDescription = stateLabel },
+    modifier = modifier.glassPress(pressSource).semantics { stateDescription = stateLabel },
     onClick = onToggle, onClickLabel = actionLabel, role = Role.Button,
+    interactionSource = pressSource,
     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     bottomAction = bottomAction,
     endActions = indicator,
@@ -67,7 +74,7 @@ internal fun Os4DisclosureHeader(
 }
 
 @Composable
-internal fun Os4DisclosureContent(expanded: Boolean, content: @Composable () -> Unit) {
+internal fun Os4DisclosureContent(expanded: Boolean, content: @Composable ColumnScope.() -> Unit) {
   AnimatedVisibility(
     visible = expanded,
     enter = expandVertically(
@@ -76,5 +83,5 @@ internal fun Os4DisclosureContent(expanded: Boolean, content: @Composable () -> 
     exit = shrinkVertically(
       spring(dampingRatio = 1f, stiffness = 500f), shrinkTowards = Alignment.Top,
     ) + fadeOut(),
-  ) { content() }
+  ) { Column(Modifier.fillMaxWidth(), content = content) }
 }

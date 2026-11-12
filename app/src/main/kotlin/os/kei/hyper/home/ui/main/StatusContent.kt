@@ -54,6 +54,8 @@ import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetReadState
@@ -71,6 +73,7 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.Report
@@ -138,7 +141,8 @@ internal fun StatusBody(
       onToggle = { monetExpanded = !monetExpanded },
       onOpenMonet = onOpenMonet,
     )
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp), onClick = onOpenPacks) {
+    Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, indication = null, onClick = onOpenPacks),
+      insideMargin = PaddingValues(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text(stringResource(R.string.icon_pack_active), style = MiuixTheme.textStyles.footnote2,
@@ -651,8 +655,11 @@ private fun AppCapabilitiesCard(
   monetApps: Int?,
   onOpenApps: () -> Unit,
 ) {
+  val pressSource = rememberOs4PressSource()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(
+      modifier = Modifier.glassPress(pressSource),
+      interactionSource = pressSource,
       title = stringResource(
         if (installedApps == null) R.string.dashboard_apps_unscanned else R.string.dashboard_apps,
       ),
@@ -691,6 +698,7 @@ private fun DashboardExpandableCard(
   footer: @Composable () -> Unit,
   content: @Composable ColumnScope.() -> Unit,
 ) {
+  val contentPressSource = rememberOs4PressSource()
   val actionLabel = stringResource(
     if (expanded) R.string.dashboard_collapse else R.string.dashboard_expand, title,
   )
@@ -706,7 +714,8 @@ private fun DashboardExpandableCard(
     Os4DisclosureContent(expanded) {
       if (onOpen != null && openLabel != null) {
         BasicComponent(
-          modifier = Modifier.semantics { contentDescription = openLabel },
+          modifier = Modifier.glassPress(contentPressSource).semantics { contentDescription = openLabel },
+          interactionSource = contentPressSource,
           insideMargin = PaddingValues(0.dp),
           onClick = onOpen, onClickLabel = openLabel, role = Role.Button,
           content = content,

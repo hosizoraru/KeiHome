@@ -3,7 +3,6 @@ package os.kei.hyper.home.ui.main
 import android.content.Intent
 import android.text.format.Formatter
 import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +53,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -145,7 +145,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
       .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
         bottom = padding.calculateBottomPadding() + actionBottomPadding),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Card(Modifier.fillMaxWidth().clickable(
+      Card(Modifier.fillMaxWidth().os4Clickable(
         onClickLabel = stringResource(R.string.logs_source), onClick = openFrameworkLogs),
         insideMargin = PaddingValues(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {

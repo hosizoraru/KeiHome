@@ -1,6 +1,8 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -17,12 +20,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -37,12 +42,20 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
 import os.kei.hyper.home.iconpack.IconPackEntry
+import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.iconpack.IconPackPreviews
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.IconPreviewComparison
+import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
+import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -72,6 +85,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   ObservePerfectResources(vm.perfectPacks)
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val preview by vm.perfectPacks.previewState.collectAsStateWithLifecycle()
+  val maskRevision by vm.packPreviews.revision.collectAsStateWithLifecycle()
   val apps by vm.apps.collectAsStateWithLifecycle()
   val labels = remember(apps.capabilities) {
     val preferred = apps.capabilities.orEmpty().groupBy { it.packageName }.mapValues { (_, values) ->
@@ -91,6 +105,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   var installedOnly by rememberSaveable { mutableStateOf(false) }
   var sortName by rememberSaveable { mutableStateOf(PerfectPreviewSort.ORIGINAL.name) }
   var reverse by rememberSaveable { mutableStateOf(false) }
+  var focusedIcon by remember { mutableStateOf<Pair<IconPackDescriptor, IconPackEntry>?>(null) }
+  var showInspection by remember { mutableStateOf(false) }
   val sort = PerfectPreviewSort.entries.firstOrNull { it.name == sortName } ?: PerfectPreviewSort.ORIGINAL
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   val style = state.options.style.takeUnless { it.isBlank() || it == "default" }
@@ -194,7 +210,9 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     }
     if (pack != null) {
       items(visible, key = { it.key }, contentType = { "icon" }) { entry ->
-        Card(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Card(Modifier.padding(horizontal = 12.dp, vertical = 4.dp).os4Clickable(cornerRadius = CardDefaults.CornerRadius,
+          onClickLabel = stringResource(R.string.preview_glass_inspect),
+          onClick = { focusedIcon = pack to entry; showInspection = true })) {
           Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             PackIconPair(pack, entry, vm.packPreviews, IconPackAppearance.SYSTEM,
@@ -216,6 +234,55 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
       if (visible.isEmpty()) item("empty") {
         BasicComponent(title = stringResource(R.string.perfect_icons_preview_empty))
+      }
+    }
+  }
+  focusedIcon?.let { (focusedPack, entry) ->
+    androidx.compose.runtime.key(focusedPack.id, entry.key) {
+      val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
+      val label = labels[identity] ?: entry.component?.packageName?.let(labels::get)
+      val configuration = LocalConfiguration.current.toString()
+      val previews by androidx.compose.runtime.key(focusedPack.id, focusedPack.source, entry, configuration, maskRevision) {
+        produceState<IconPackPreviews?>(null) {
+          value = vm.packPreviews.load(focusedPack, entry, sizePx = 256)
+        }
+      }
+      IconPreviewInspectionSheet(show = showInspection, onDismissRequest = { showInspection = false },
+        title = label ?: identity, modifier = Modifier.testTag("perfect.preview.details"),
+        onDismissFinished = { if (!showInspection) focusedIcon = null },
+        details = {
+          Text(focusedPack.displayName, style = MiuixTheme.textStyles.body2)
+          Text(identity, style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          entry.component?.let {
+            Text(it.flattened, style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+          MetadataPill(stringResource(if (entry.quietSnapshot) R.string.perfect_icons_preview_snapshot
+            else R.string.perfect_icons_preview_static), MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (entry.dark != null && entry.dark != entry.light)
+            MetadataPill(stringResource(R.string.perfect_icons_preview_dark), MiuixTheme.colorScheme.primary)
+        }) { mode ->
+        IconPreviewComparison(mode) { dark, slotModifier ->
+          val themeLabel = stringResource(if (dark) R.string.preview_glass_dark else R.string.preview_glass_light)
+          val bitmap = previews?.let { if (dark) it.dark else it.light }
+          val image = remember(bitmap) { bitmap?.asImageBitmap() }
+          Column(slotModifier, horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconPreviewArtworkFrame(dark) {
+              Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
+                when {
+                  previews == null -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+                  image != null -> Image(image, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
+                  else -> Text(stringResource(R.string.browser_preview_unavailable),
+                    style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
+                }
+              }
+            }
+            Text(themeLabel, style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+        }
       }
     }
   }

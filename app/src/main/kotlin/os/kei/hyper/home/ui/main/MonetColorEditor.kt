@@ -48,7 +48,8 @@ import os.kei.hyper.home.data.MonetIconRole
 import os.kei.hyper.home.data.MonetPaletteFamily
 import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.MonetTonalSpec
-import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogActions
 import os.kei.hyper.home.ui.components.Os4DialogButton
@@ -225,16 +226,16 @@ internal fun MonetColorEditor(
   }
   val hex = hexField.text.toString()
   val valid = hex.removePrefix("#").let { it.length == 6 && it.toIntOrNull(16) != null } && color ushr 24 == 255
-  Os4Dialog(show = visible, title = title, onDismissRequest = { dismiss(onDismiss) },
+  Os4DetailsSheet(show = visible, title = title, scrollContent = false, onDismissRequest = { dismiss(onDismiss) },
     onDismissFinished = { afterDismiss() }) {
     Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.65f).dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OverlaySpinnerPreference(title = stringResource(R.string.monet_custom_picker),
-          items = listOf(stringResource(R.string.monet_custom_grid), stringResource(R.string.monet_custom_sliders))
-            .map { DropdownItem(it) }, selectedIndex = mode, onSelectedIndexChange = { mode = it },
-          insideMargin = PaddingValues(0.dp))
+        Text(stringResource(R.string.monet_custom_picker), style = MiuixTheme.textStyles.body2)
+        Os4ViewTabs(items = listOf(stringResource(R.string.monet_custom_grid),
+          stringResource(R.string.monet_custom_sliders)), selectedIndex = mode,
+          onSelect = { mode = it }, modifier = Modifier.testTag("monet.editor.views"))
         if (mode == 0) ColorPalette(Color(color), { updateColor(it.toArgb()) },
           modifier = Modifier.testTag("monet.editor.palette"))
         else ColorPicker(Color(color), { updateColor(it.toArgb()) },

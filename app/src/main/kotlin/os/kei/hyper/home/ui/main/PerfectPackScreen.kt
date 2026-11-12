@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.text.format.DateFormat
 import android.text.format.Formatter
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -50,6 +49,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -187,7 +187,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
                 val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
                   R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
                 MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
-                  Modifier.testTag("icon-packs.perfect.revision").clickable(onClickLabel = copyLabel) {
+                  Modifier.testTag("icon-packs.perfect.revision").os4Clickable(onClickLabel = copyLabel) {
                     copyPerfectRevision(context, revision, copyLabel)
                   })
               }

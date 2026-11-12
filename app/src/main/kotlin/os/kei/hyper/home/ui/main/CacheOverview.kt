@@ -2,7 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import android.text.format.DateFormat
 import android.text.format.Formatter
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -35,6 +34,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.data.CacheBucket
 import os.kei.hyper.home.data.CacheReminderBudget
 import os.kei.hyper.home.data.DiskCacheUsage
@@ -120,7 +120,7 @@ internal fun CacheStorageContent(
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Text(stringResource(R.string.storage_used), style = MiuixTheme.textStyles.subtitle,
-            modifier = Modifier.clickable(onClick = onRefresh))
+            modifier = Modifier.os4Clickable(onClick = onRefresh))
           MetadataPill(stringResource(when {
             exceeded -> R.string.storage_warning
             partial -> R.string.storage_partial

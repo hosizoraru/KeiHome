@@ -17,7 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
-import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogActions
 import top.yukonga.miuix.kmp.basic.Icon
@@ -39,7 +39,7 @@ internal fun CacheBudgetEditor(customBudget: Long, effectiveBudget: Long, onChan
   }, modifier = Modifier.testTag("cache.budget.edit")) {
     Icon(MiuixIcons.Glass.Edit, stringResource(R.string.storage_edit_budget))
   }
-  Os4Dialog(show, onDismissRequest = { show = false }, title = stringResource(R.string.storage_budget_title)) {
+  Os4DetailsSheet(show, onDismissRequest = { show = false }, title = stringResource(R.string.storage_budget_title)) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
       TextField(draft, onValueChange = { if (it.length <= 5 && it.all { c -> c in '0'..'9' }) draft = it },
         label = stringResource(R.string.storage_budget_mb), singleLine = true,

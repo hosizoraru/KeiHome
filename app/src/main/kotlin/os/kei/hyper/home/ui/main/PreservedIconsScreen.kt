@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +52,7 @@ import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.os4Toggleable
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -244,7 +244,7 @@ internal fun PreservedIconsPage(
               failed -> R.string.preserved_icons_unavailable
               else -> R.string.preserved_icons_uninstalled
             }), modifier = Modifier.testTag("preserved-icons.app:$pkg")
-              .toggleable(checked, role = Role.Checkbox, onValueChange = { onToggle(pkg) }),
+              .os4Toggleable(checked, role = Role.Checkbox, onValueChange = { onToggle(pkg) }),
             startAction = { appIcon(app) },
             endActions = { Checkbox(if (checked) ToggleableState.On else ToggleableState.Off, onClick = null,
               modifier = Modifier.clearAndSetSemantics {}) })

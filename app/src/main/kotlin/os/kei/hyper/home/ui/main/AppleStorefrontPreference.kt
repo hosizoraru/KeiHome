@@ -15,7 +15,6 @@ import java.util.Locale
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -50,7 +49,7 @@ internal fun AppleStorefrontPreference(country: String, enabled: Boolean, search
     },
   )
   if (custom) {
-    InputField(query = code, onQueryChange = { value ->
+    LocalizedInputField(query = code, onQueryChange = { value ->
       code = value.filter { it in 'a'..'z' || it in 'A'..'Z' }.take(2).uppercase(Locale.ROOT)
     }, onSearch = { applyCountry() }, expanded = false, onExpandedChange = {},
       modifier = Modifier.padding(horizontal = 16.dp),

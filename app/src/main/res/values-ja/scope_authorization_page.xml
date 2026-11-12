@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="scope_page_primary">基本の対象</string>
+  <string name="scope_page_primary">基本スコープ</string>
   <string name="scope_page_surfaces">システムのアプリアイコン</string>
   <string name="scope_page_entry_summary">対象ごとの許可状態とコンポーネントのバージョン</string>
   <string name="scope_page_manager_summary">フレームワーク管理アプリで KeiHome の対象を管理</string>
-  <string name="scope_page_loading_title">許可と読み込み</string>
+  <string name="scope_page_loading_title">スコープの許可と読み込み</string>
   <string name="scope_page_disconnected">フレームワーク未接続</string>
-  <string name="scope_page_read_failed">許可の読み取りに失敗</string>
-  <string name="scope_page_unconfirmed">許可を確認中</string>
+  <string name="scope_page_read_failed">許可状態を確認できません</string>
+  <string name="scope_page_unconfirmed">許可未確認</string>
   <string name="scope_page_unsupported">フレームワークの対応が不完全</string>
-  <string name="scope_page_ready">許可はすべて完了</string>
-  <string name="scope_page_incomplete">許可が未完了</string>
+  <string name="scope_page_ready">すべて許可済み</string>
+  <string name="scope_page_incomplete">未許可のスコープあり</string>
   <string name="scope_page_granted_count">%1$d / %2$d 許可済み</string>
   <string name="scope_page_missing_count">未許可 %1$d</string>
   <string name="scope_page_absent_count">未インストール %1$d</string>
@@ -26,7 +26,7 @@
   <string name="scope_page_purpose_themes">アイコンパックの適用と更新</string>
   <string name="scope_page_purpose_systemui">通知、ステータスバー、コントロールセンターのアイコン</string>
   <string name="scope_page_purpose_share">HyperOS の共有パネルのアプリアイコン</string>
-  <string name="scope_page_purpose_security">サイドバーなどのセキュリティアプリ内のアイコン</string>
+  <string name="scope_page_purpose_security">サイドバーとセキュリティアプリのアイコン</string>
   <string name="scope_page_purpose_settings">アプリ管理とアプリ情報のアイコン</string>
   <string name="scope_page_purpose_other">モジュールで宣言されたその他の対象</string>
 </resources>

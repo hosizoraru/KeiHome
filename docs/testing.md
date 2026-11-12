@@ -90,3 +90,15 @@ Full regression is a deliberate checkpoint for broad risk or release
 preparation, not a prerequisite for each visual adjustment. Record which
 source/artifact each result covers. Reuse valid evidence within a session;
 do not rerun a full JVM suite merely to package an already checked change.
+
+## Localization
+
+`python3 scripts/checks.py i18n --run` audits locale resources with Python only.
+Use `python3 -m unittest discover -s scripts/i18n -p 'test_*.py'` when changing
+the auditor. Neither command invokes Gradle or needs an emulator.
+
+For shared input-field changes, build and install the matching diagnostic and
+test APKs, then run `python3 scripts/checks.py ui-i18n --serial DEVICE --run`.
+This checks English, Simplified Chinese and Japanese clear descriptions,
+decorative search semantics, disabled input, text entry and IME callbacks.
+Translation-only changes do not require unrelated native or full app suites.

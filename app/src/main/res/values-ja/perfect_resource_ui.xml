@@ -2,7 +2,7 @@
 <resources>
   <string name="perfect_resource_select">選択</string>
   <string name="perfect_resource_done">完了</string>
-  <string name="perfect_resource_select_none">すべて解除</string>
+  <string name="perfect_resource_select_none">すべての選択を解除</string>
   <string name="perfect_resource_manage">リソース管理</string>
   <string name="perfect_resource_info">バージョンと出典</string>
   <string name="perfect_resource_close">閉じる</string>

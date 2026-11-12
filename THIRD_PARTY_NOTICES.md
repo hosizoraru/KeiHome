@@ -244,3 +244,15 @@ Source: <https://github.com/LSPosed/LSPlt>
 
 Copyright LSPosed contributors. Licensed under the GNU Lesser General Public
 License, version 3.0.
+
+## MIUIX localized input slots
+
+`LocalizedInputField.kt` adapts the default icon-slot layout of MIUIX
+`InputField` (`SearchBar.kt`), keeping its icon geometry and animations while
+hiding the decorative search icon from accessibility speech, localizing the
+clear action and respecting the disabled state. MIUIX is Apache-2.0 licensed.
+
+- Upstream source: <https://github.com/compose-miuix-ui/miuix>
+- License: `licenses/Apache-2.0.txt` (also bundled with the app's dependency licenses).
+
+No OEM implementation or artwork is included in the localization reference.

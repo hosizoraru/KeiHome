@@ -12,6 +12,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "ui-i18n": ("device", "Localized input semantics, clear behavior and search callbacks", (UI + "LocalizedInputFieldTest",)),
+    "i18n": ("python", "Resource XML, locale coverage and formatter compatibility (stdlib only)", ()),
     "release-notes": ("jvm", "Fresh installs, real upgrades, skipped releases and acknowledgment", (
         "ReleaseNotesPolicyTest", "ReleaseNotesMarkdownTest")),
     "ui-release-notes": ("device", "Changelog navigation, persistence, disclosures and large text", (
@@ -84,6 +86,10 @@ GROUPS = {
 
 def command_for(group, serial, method):
     kind, _, classes = GROUPS[group]
+    if kind == "python":
+        if method:
+            raise ValueError("--method is not supported for the i18n resource audit")
+        return [sys.executable, "scripts/i18n/check_resources.py"]
     if method and len(classes) != 1:
         raise ValueError("--method requires a group containing exactly one test class")
     if kind == "device":
@@ -118,7 +124,7 @@ def main():
         return 0
     if GROUPS[args.group][0] == "device" and not args.serial:
         parser.error("device execution requires --serial; no target is selected automatically")
-    if GROUPS[args.group][0] == "jvm":
+    if GROUPS[args.group][0] in ("jvm", "python"):
         return subprocess.run(command, cwd=ROOT).returncode
     result = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True)

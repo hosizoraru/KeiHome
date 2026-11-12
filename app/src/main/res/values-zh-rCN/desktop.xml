@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="navigation_desktop">桌面</string>
+    <string name="desktop_home_title">桌面</string>
     <string name="desktop_synced_count">%1$d / %2$d 项受支持的设置已确认</string>
     <string name="desktop_labels_status_title">应用名称</string>
     <string name="desktop_glass_status_title">Dock 质感</string>

@@ -158,7 +158,7 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
   val behavior = top.yukonga.miuix.kmp.basic.MiuixScrollBehavior()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = stringResource(R.string.navigation_desktop),
+      TopAppBar(title = stringResource(R.string.desktop_home_title),
         modifier = Modifier.testTag("setup.desktop.topbar"),
         scrollBehavior = behavior,
         color = if (backdrop != null) androidx.compose.ui.graphics.Color.Transparent else MiuixTheme.colorScheme.surface,

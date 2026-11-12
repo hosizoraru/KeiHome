@@ -1,6 +1,6 @@
 <resources>
     <string name="cache_perfect_downloads">Perfect Icons download cache</string>
-    <string name="cache_perfect_manage_hint">Manage downloaded resources in Available icon packs → Perfect Icons Completion Project.</string>
+    <string name="cache_perfect_manage_hint">Manage downloads in Resources under Perfect Icons.</string>
     <string name="notices_role_perfect_icons">Online artwork source. Downloaded on request rather than bundled in this APK; artwork remains credited to its original authors.</string>
     <string name="notices_role_perfect_packer">Historical research reference for the earlier integration. Not a bundled, build or runtime dependency. Current native output is documented separately; this record preserves the research history.</string>
 </resources>

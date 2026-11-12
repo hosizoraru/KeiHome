@@ -85,7 +85,6 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
@@ -527,7 +526,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           } }
           item("filter") {
-            InputField(query = filter, onQueryChange = { filter = it },
+            LocalizedInputField(query = filter, onQueryChange = { filter = it },
               onSearch = { focus.clearFocus(); keyboard?.hide() }, expanded = false,
               onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
           }
@@ -587,7 +586,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
           item("query") {
-            InputField(query = query, onQueryChange = { query = it.take(100) },
+            LocalizedInputField(query = query, onQueryChange = { query = it.take(100) },
               onSearch = { searchNow() }, expanded = false, onExpandedChange = {},
               modifier = Modifier.fillMaxWidth().testTag("apple.search.query"),
               label = stringResource(R.string.apple_search_label))

@@ -4,10 +4,10 @@
   <string name="scope_page_surfaces">System app icons</string>
   <string name="scope_page_entry_summary">Authorization and component versions for each scope</string>
   <string name="scope_page_manager_summary">Manage KeiHome scopes in your framework manager</string>
-  <string name="scope_page_loading_title">Authorization and loading</string>
+  <string name="scope_page_loading_title">Scope access and loading</string>
   <string name="scope_page_disconnected">Framework disconnected</string>
-  <string name="scope_page_read_failed">Cannot read authorization</string>
-  <string name="scope_page_unconfirmed">Authorization unconfirmed</string>
+  <string name="scope_page_read_failed">Cannot check scope access</string>
+  <string name="scope_page_unconfirmed">Scope access unconfirmed</string>
   <string name="scope_page_unsupported">Framework support incomplete</string>
   <string name="scope_page_ready">Authorization complete</string>
   <string name="scope_page_incomplete">Authorization incomplete</string>
@@ -26,7 +26,7 @@
   <string name="scope_page_purpose_themes">Apply and update icon packs</string>
   <string name="scope_page_purpose_systemui">Icons in notifications, status bar, and Control Center</string>
   <string name="scope_page_purpose_share">App icons in the HyperOS share panel</string>
-  <string name="scope_page_purpose_security">App icons in Sidebar and Security surfaces</string>
+  <string name="scope_page_purpose_security">App icons in Sidebar and the Security app</string>
   <string name="scope_page_purpose_settings">Icons in app management and app details</string>
   <string name="scope_page_purpose_other">Additional scope declared by this module</string>
 </resources>

@@ -58,7 +58,6 @@ import top.yukonga.miuix.kmp.basic.ButtonColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -157,7 +156,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
       else -> {
         item("search") {
-          InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+          LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
             onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.icon_pack_search))
         }
         item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,

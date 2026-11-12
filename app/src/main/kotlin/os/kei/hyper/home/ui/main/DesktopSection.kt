@@ -8,7 +8,7 @@ internal enum class DesktopSection(
   @param:StringRes val title: Int,
   @param:StringRes val summary: Int,
 ) {
-  OVERVIEW("overview", R.string.navigation_desktop, R.string.desktop_overview_summary),
+  OVERVIEW("overview", R.string.desktop_home_title, R.string.desktop_overview_summary),
   DOCK("dock", R.string.desktop_dock_title, R.string.desktop_dock_summary),
   APPEARANCE("appearance", R.string.desktop_display_title, R.string.desktop_display_summary),
   ICONS("icons", R.string.desktop_icons_title, R.string.desktop_icons_summary);

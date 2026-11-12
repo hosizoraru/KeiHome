@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="navigation_desktop">Desktop</string>
+    <!-- Keep the tab label short; the full page heading has its own resource. -->
+    <string name="navigation_desktop">Home</string>
+    <string name="desktop_home_title">Home screen</string>
     <string name="desktop_synced_count">%1$d / %2$d supported adjustments confirmed</string>
     <string name="desktop_labels_status_title">App names</string>
     <string name="desktop_glass_status_title">Dock material</string>

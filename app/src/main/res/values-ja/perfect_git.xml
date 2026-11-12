@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="perfect_git_overview_summary">リソース管理でスタイルを取得すると、オフラインでプレビューや生成ができます。</string>
+  <string name="perfect_git_overview_summary">リソース管理で必要なスタイルをダウンロードすると、オフラインでプレビューと生成ができます。</string>
   <string name="perfect_git_preview_summary">現在の生成設定でアイコンを確認</string>
   <string name="perfect_git_check">更新を確認</string>
   <string name="perfect_git_checking">リモートのバージョンとファイル一覧を確認中</string>
   <string name="perfect_git_sync">リソースを同期</string>
-  <string name="perfect_git_sync_update">更新を同期</string>
+  <string name="perfect_git_sync_update">更新</string>
   <string name="perfect_git_sync_selected">選択したスタイルを同期し、取得済みのスタイルを保持</string>
   <string name="perfect_git_syncing">選択したスタイルと共有リソースを同期中</string>
   <string name="perfect_git_download_style">選択したスタイルを取得</string>
   <string name="perfect_git_workflow">リモートのバージョンを確認し、スタイルを選んで必要なときに同期します。このページを開く操作とスタイルの切り替えでは、ローカルデータのみを読み込みます。</string>
   <string name="perfect_git_style_needed">このスタイルは未取得です。リソース管理で選択して取得すると、共有リソースとともに保存され、オフラインでプレビューと生成ができます。取得済みのスタイルと保存済みの ZIP は保持されます。</string>
   <string name="perfect_git_generate_local">取得済みのスタイルからネイティブ ZIP を生成</string>
-  <string name="perfect_git_downloaded">取得済み</string>
-  <string name="perfect_git_not_downloaded">未取得</string>
+  <string name="perfect_git_downloaded">ダウンロード済み</string>
+  <string name="perfect_git_not_downloaded">未ダウンロード</string>
   <string name="perfect_git_style_missing">選択したスタイルを取得してください</string>
   <string name="perfect_git_remote_available">リモートのバージョンを確認済み</string>
   <string name="perfect_git_update_available">更新があります</string>

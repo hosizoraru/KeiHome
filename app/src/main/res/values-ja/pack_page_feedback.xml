@@ -2,7 +2,7 @@
 <resources>
   <string name="pack_perfect_community_summary">アプリアイコンを補完するコミュニティ素材。スナップショットを手動で同期し、スタイルを選んでローカルで生成できます。</string>
   <string name="pack_perfect_community_title">コミュニティのアイコン素材について</string>
-  <string name="pack_perfect_community_detail">Perfect Icons Completion Project はコミュニティが提供したアイコン素材を集めています。KeiHome はローカルのスナップショットを使い、対応するアプリのアイコン補完やネイティブ ZIP の生成を行います。利用できるスタイルと対象アプリはスナップショットによって異なります。このページを開くとローカルデータのみ読み込み、「リポジトリを同期」でダウンロードを開始します。</string>
+  <string name="pack_perfect_community_detail">Perfect Icons はコミュニティのアイコン素材を集めたプロジェクトです。「リソース管理」で必要なスタイルをダウンロードすると、以降の更新では変更のないファイルを再利用します。取得した素材はオフラインでのプレビュー、ネイティブ ZIP の生成、対応アイコンの補完に使えます。このページを開くだけではダウンロードは始まりません。</string>
   <string name="pack_perfect_author">アイコン素材プロジェクトの作者</string>
   <string name="pack_perfect_packer_reference">過去のパッケージ化方式の参考資料です。KeiHome はネイティブ ZIP を独自に生成しており、このリンクは出典の明示のために掲載しています。</string>
   <string name="pack_local_catalog_loading">ローカルスナップショットの詳細を読み込み中</string>

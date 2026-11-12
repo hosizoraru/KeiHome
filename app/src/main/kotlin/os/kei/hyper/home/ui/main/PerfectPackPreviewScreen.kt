@@ -44,7 +44,6 @@ import top.yukonga.miuix.kmp.basic.DropdownEntry
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
@@ -156,7 +155,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
     }
     if (pack != null) item("search") {
-      InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+      LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
         onExpandedChange = {}, label = stringResource(R.string.perfect_icons_preview_search),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
     }

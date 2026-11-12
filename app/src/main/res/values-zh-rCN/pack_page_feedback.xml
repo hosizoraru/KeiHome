@@ -2,7 +2,7 @@
 <resources>
   <string name="pack_perfect_community_summary">用于补全应用图标的社区资源。手动同步快照后，可选择风格并在本地生成图标包。</string>
   <string name="pack_perfect_community_title">关于社区图标资源</string>
-  <string name="pack_perfect_community_detail">Perfect Icons Completion Project 收集社区贡献的图标素材。KeiHome 使用本地快照为匹配的应用补全图标，或生成原生图标 ZIP。可用风格与覆盖范围取决于当前快照。打开此页仅读取本地资料，点击“同步仓库”才会开始下载。</string>
+  <string name="pack_perfect_community_detail">完美图标补全计划汇集社区图标资源。请在「资源管理」中按需下载样式，后续更新复用未变化的资源。已下载资源可离线预览、生成原生 ZIP，并用于支持的图标补全。打开此页面只读取本地数据，不会自动开始下载。</string>
   <string name="pack_perfect_author">图标资源项目作者</string>
   <string name="pack_perfect_packer_reference">历史打包方案参考。KeiHome 独立生成原生 ZIP，此链接用于来源致谢。</string>
   <string name="pack_local_catalog_loading">正在读取本地快照详情</string>

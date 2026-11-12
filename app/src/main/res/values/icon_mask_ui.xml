@@ -15,7 +15,7 @@
   <string name="icon_mask_behavior">Mask settings</string>
   <string name="icon_mask_complete">Enable mask adaptation</string>
   <string name="icon_mask_complete_summary">Prefer your custom mask, keep a pack’s own mask, or fill missing masks with HyperOS4.</string>
-  <string name="icon_mask_restore">Restore automatic</string>
+  <string name="icon_mask_restore">Use automatic</string>
   <string name="icon_mask_restore_summary">Remove the imported mask and return to automatic selection.</string>
   <string name="icon_mask_rules">How masks are chosen</string>
   <string name="icon_mask_priority">When adaptation is enabled, an imported custom mask takes priority. Otherwise, keep the pack’s own mask; if it is missing, use the built-in HyperOS4 mask.</string>
@@ -30,14 +30,14 @@
   <string name="icon_mask_shape">Mask outline reference</string>
   <string name="icon_mask_shape_unavailable">No outline</string>
   <string name="icon_mask_entry_title">Icon masks</string>
-  <string name="icon_mask_entry_summary">Automatic filling, imports and visual comparison</string>
+  <string name="icon_mask_entry_summary">Automatic masks, custom imports and side-by-side previews</string>
   <string name="icon_mask_comparison">Compare real icons</string>
   <string name="icon_mask_compare_pack">Icon pack</string>
   <string name="icon_mask_compare_dark">Dark preview</string>
-  <string name="icon_mask_compare_original">Pack original</string>
+  <string name="icon_mask_compare_original">Original pack</string>
   <string name="icon_mask_compare_hyperos4">HyperOS4 fallback</string>
   <string name="icon_mask_compare_custom">Custom</string>
-  <string name="icon_mask_compare_no_custom">Not imported</string>
+  <string name="icon_mask_compare_no_custom">No custom mask</string>
   <string name="icon_mask_compare_unavailable">Unavailable</string>
   <string name="icon_mask_compare_note">The same icons are rendered in all three columns. These previews do not change your settings, download resources or apply a theme.</string>
   <string name="icon_mask_compare_legacy">Packs with special legacy transforms keep their own rules, so some columns may look the same.</string>

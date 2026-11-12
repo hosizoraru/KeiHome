@@ -58,7 +58,6 @@ import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -98,7 +97,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item(key = "search", contentType = "search") {
-      InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+      LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
         onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
     }
     item(key = "summary", contentType = "summary") {

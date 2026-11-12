@@ -27,7 +27,7 @@
     <string name="setup_library_body">内蔵スタイル、APK、MTZ / ZIP をプレビューしてから適用できます。</string>
     <string name="setup_monet_body">任意：対応アイコンの動的配色を、明暗とは個別に切り替えられます。</string>
     <string name="setup_fallback_body">パックが未対応のアプリに使う補完画像を選びます。パックの変更後に見直せます。</string>
-    <string name="setup_mask_body">有効時はカスタムマスクを優先。それ以外はパック内のマスクを使い、不足時は HyperOS4 で補完します。詳細ページで読み込みと比較ができます。</string>
+    <string name="setup_mask_body">自動補完ではパックのマスクを優先し、不足時は HyperOS4 で補います。読み込んだカスタムマスクは最優先で使われ、専用ページで効果を比較できます。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
     <string name="setup_icon_tip_body">生成済みと適用済みは別の状態です。画像、補完、マスク、生成対象を変更したら、パックを更新または再生成してから適用してください。プレビューだけでは適用済みテーマは更新されません。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>

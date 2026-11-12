@@ -26,7 +26,6 @@ import os.kei.hyper.home.data.AppNavigationBarStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.glass.Book
@@ -53,7 +52,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
   var query by rememberSaveable { mutableStateOf("") }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+    LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
       onExpandedChange = {}, modifier = Modifier.fillMaxWidth().testTag("settings.search"),
       label = stringResource(R.string.settings_search))
     if (query.isBlank()) {

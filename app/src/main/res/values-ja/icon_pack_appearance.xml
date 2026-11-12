@@ -3,7 +3,7 @@
     <string name="icon_pack_coloros_originals">ほか %1$d 個の元アイコン · %2$d 個のライブアイコン</string>
     <string name="icon_pack_appearance_title">取り込むアイコンの明暗</string>
     <string name="icon_pack_appearance_summary">変換アイコンの昼夜表示</string>
-    <string name="icon_pack_appearance_system">システムに従う</string>
+    <string name="icon_pack_appearance_system">システムに合わせる</string>
     <string name="icon_pack_appearance_light">常にライト</string>
     <string name="icon_pack_appearance_dark">常にダーク</string>
     <string name="icon_pack_appearance_dim">夜間に暗くする</string>

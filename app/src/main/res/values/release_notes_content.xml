@@ -10,6 +10,7 @@
         <item>Stronger layered dynamic resource checks\nValidate dynamic entry configuration, static preview layers and animation resources while preserving valid existing formats. Incomplete resources are not treated as complete dynamic icons, reducing preview and generation errors.</item>
         <item>Familiar interactions and timely refresh\nUnified OS4 confirmation dialogs, icon actions and resource selection toolbars. Improved return navigation, download state and preview coordination, reducing repeated work and unnecessary recomposition while retaining progress and status updates.</item>
         <item>In-app release history and updated guide\nSettings now includes versioned release notes. Fresh installs open onboarding; a changed version prefix opens notes once. This upgrade expands 1.8.0, 1.7.0 and 1.6.0; manual visits expand only the current release. The guide also covers resource downloads, masks and previews.</item>
+        <item>Clearer English and Japanese copy\nReviewed actions, download states, storage and icon terminology against HyperOS system resources. Added translation contribution guidance and resource checks to support future languages.</item>
     </string-array>
     <string name="release_notes_1_8_0_footnote">Importing or previewing a mask does not apply a theme. Update or regenerate and apply icons after changing masks or generation options. Special resources retain their own rules, and dynamic previews use static snapshots.</string>
 

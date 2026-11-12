@@ -13,7 +13,7 @@ deriving the calendar date.
 
 | Version | Tag target commit | Target commit timestamp |
 | --- | --- | --- |
-| 1.8.0 | `v1.8.0^{commit}` | `2026-11-12T08:33:09+08:00` |
+| 1.8.0 | `v1.8.0^{commit}` | `2026-11-12T09:15:03+08:00` |
 | 1.7.0 | `8b71d5ae41eaca2a820d8a1105703074ef22425f` | `2026-11-11T17:53:39+08:00` |
 | 1.6.0 | `02c8badfcd929c0563fb8c25361167ae5eed0008` | `2026-11-11T03:24:52+08:00` |
 | 1.5.0 | `1bf0c4ccb43d049d3caa09f1f3cef96d74052c68` | `2026-11-07T14:07:22+08:00` |

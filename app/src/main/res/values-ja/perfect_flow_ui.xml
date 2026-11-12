@@ -5,7 +5,7 @@
   <string name="perfect_resource_downloaded_count">%1$d 個のスタイルを取得済み</string>
   <string name="perfect_resource_preview">プレビュー</string>
   <string name="perfect_preview_choose">リソース管理で取得済みスタイルを選択してプレビューします。</string>
-  <string name="perfect_resource_own_bytes">固有 %1$s</string>
+  <string name="perfect_resource_own_bytes">スタイル固有 %1$s</string>
   <string name="perfect_resource_shared_bytes">共有 %1$s</string>
-  <string name="perfect_resource_occupied_bytes">使用量 %1$s</string>
+  <string name="perfect_resource_occupied_bytes">使用容量 %1$s</string>
 </resources>

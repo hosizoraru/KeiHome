@@ -47,7 +47,6 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
-import top.yukonga.miuix.kmp.basic.InputField
 
 class SettingsSearchUiTest {
   companion object {
@@ -74,7 +73,7 @@ class SettingsSearchUiTest {
       KeiHomeTheme {
         Column(Modifier.verticalScroll(rememberScrollState())) {
           var query by remember { mutableStateOf("") }
-          InputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
+          LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
             onExpandedChange = {}, label = context.getString(R.string.settings_search))
           SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
             ThemeEffectsUiState(savedChoice = true), true, {},

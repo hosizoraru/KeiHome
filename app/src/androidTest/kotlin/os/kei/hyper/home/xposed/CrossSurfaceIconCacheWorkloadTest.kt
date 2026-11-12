@@ -87,6 +87,7 @@ class CrossSurfaceIconCacheWorkloadTest {
       repeat(32) { index -> repeat(10) { assertNotNull(cache.get(name(index))) } }
       assertEquals("Memory hits must not re-read palette state", 1, reads.get())
       assertEquals(32, size(cache, "wanted"))
+      assertEquals(32, (field(cache, "keys") as SurfaceIconKeyIndex).size)
     } finally { assertTrue(cache.stop()) }
   }
 
@@ -109,13 +110,17 @@ class CrossSurfaceIconCacheWorkloadTest {
       awaitIdle(cache)
       assertEquals(32, size(cache, "wanted"))
       assertEquals(0, size(cache, "pending"))
+      assertEquals(32, (field(cache, "keys") as SurfaceIconKeyIndex).size)
       assertEquals(32, bitmapCache(cache).snapshot().size)
       assertTrue(bitmapCache(cache).size() <= 32 * 192 * 192 * 4)
       assertNotNull(cache.get(name(159)))
       assertFalse("A native owner can still use an evicted snapshot", ownedByNative.isRecycled)
       assertEquals("No empty ready callback should be scheduled", null, field(cache, "notifyReady"))
       assertEquals(2, reads.get())
-    } finally { assertTrue(cache.stop()) }
+    } finally {
+      assertTrue(cache.stop())
+      assertEquals(0, (field(cache, "keys") as SurfaceIconKeyIndex).size)
+    }
   }
 
   @Test fun fontAndOrientationChangesDoNotDiscardFixedPixelIconsButNightModeDoes() = fixture { file ->

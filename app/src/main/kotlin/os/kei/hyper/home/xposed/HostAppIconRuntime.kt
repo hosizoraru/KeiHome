@@ -158,13 +158,14 @@ internal class HostAppIconRuntime(
           if (writing.get() == true || Looper.myLooper() != Looper.getMainLooper() ||
             !lifecycle.enter()) return@replace chain.proceed()
           try {
+            val original = chain.getArg(0) as? Drawable
+            associate(view, original, null)
+            val bound = views[view] ?: return@replace chain.proceed()
+            bound.original = original
+            save(view, bound)
+            val bitmap = cache?.get(bound.name) ?: return@replace chain.proceed()
             val args = chain.args.toTypedArray()
-            associate(view, chain.getArg(0) as? Drawable, null)
-            views[view]?.let { bound ->
-              bound.original = chain.getArg(0) as? Drawable
-              save(view, bound)
-              cache?.get(bound.name)?.let { args[0] = bound.drawable(view, it) }
-            }
+            args[0] = bound.drawable(view, bitmap)
             chain.proceed(args)
           } finally { lifecycle.leave() }
         }
@@ -174,13 +175,14 @@ internal class HostAppIconRuntime(
           if (writing.get() == true || Looper.myLooper() != Looper.getMainLooper() ||
             !lifecycle.enter()) return@replace chain.proceed()
           try {
+            val original = chain.getArg(0) as? Bitmap
+            associate(view, null, original)
+            val bound = views[view] ?: return@replace chain.proceed()
+            bound.original = original?.let { BitmapDrawable(view.resources, it) }
+            save(view, bound)
+            val bitmap = cache?.get(bound.name) ?: return@replace chain.proceed()
             val args = chain.args.toTypedArray()
-            associate(view, null, chain.getArg(0) as? Bitmap)
-            views[view]?.let { bound ->
-              bound.original = (chain.getArg(0) as? Bitmap)?.let { BitmapDrawable(view.resources, it) }
-              save(view, bound)
-              cache?.get(bound.name)?.let { args[0] = it }
-            }
+            args[0] = bitmap
             chain.proceed(args)
           } finally { lifecycle.leave() }
         }

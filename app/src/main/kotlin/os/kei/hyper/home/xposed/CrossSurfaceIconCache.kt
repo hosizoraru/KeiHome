@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.validDottedName
+import os.kei.hyper.home.xposed.SurfaceIconKeyIndex.Key
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 
@@ -40,7 +41,7 @@ internal class CrossSurfaceIconCache(
   private val onReady: (() -> Unit)? = null,
 ) {
   init { require(maxEntries in 1..64) }
-  private data class Key(val name: String, val activity: String?)
+  private val keys = SurfaceIconKeyIndex()
   private data class Appearance(val dark: Boolean, val locale: Locale, val palette: Long)
   private val lock = java.lang.Object()
   private val revision = AtomicLong()
@@ -157,15 +158,17 @@ internal class CrossSurfaceIconCache(
 
   fun get(packageName: String, activityName: String? = null): Bitmap? {
     if (!active || !validDottedName(packageName) || packageName.length > 240) return null
-    val key = Key(packageName, activityName?.takeIf { validDottedName(it) && it.length <= 240 })
+    val activity = activityName?.takeIf { validDottedName(it) && it.length <= 240 }
     synchronized(lock) {
       if (!active) return null
+      val key = keys.retain(packageName, activity)
       // Keep the working set aligned with the bitmap bound, including negative results.
       // Native task/notification owners may still hold a returned bitmap: never recycle on eviction.
       wanted[key] = Unit
       if (wanted.size > maxEntries) {
         val oldest = wanted.keys.first()
         wanted.remove(oldest)
+        keys.remove(oldest)
         pending.remove(oldest)
         misses.remove(oldest)
         dynamicMinutes.remove(oldest)
@@ -183,7 +186,8 @@ internal class CrossSurfaceIconCache(
 
   /** A definitive miss, distinct from an asynchronously pending snapshot. */
   fun isMissing(packageName: String, activityName: String? = null): Boolean = synchronized(lock) {
-    Key(packageName, activityName?.takeIf { validDottedName(it) && it.length <= 240 }) in misses
+    val key = keys.find(packageName, activityName?.takeIf { validDottedName(it) && it.length <= 240 })
+    key != null && key in misses
   }
 
   fun invalidate() {
@@ -444,6 +448,7 @@ internal class CrossSurfaceIconCache(
       synchronized(lock) {
         clearSnapshotsLocked()
         wanted.clear()
+        keys.clear()
       }
       cleanupComplete = complete
       cleanupStage = if (complete) "complete" else "cleanup failed"

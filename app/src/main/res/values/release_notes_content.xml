@@ -1,5 +1,31 @@
 <resources>
-    <string name="release_notes_1_7_0_placeholder">Release notes will be added before publication.</string>
+    <string name="release_notes_1_8_0_introduction">Rebuilt Perfect Icons resource synchronization and management, added custom masks and comparison previews, and clarified how downloads, previews and applied themes relate.</string>
+    <string-array name="release_notes_1_8_0_changes">
+        <item>Selected styles with incremental updates\nPerfect Icons now uses anonymous Git synchronization. The first download obtains selected styles and shared dependencies; later updates reuse local content and download needed changes. View remote revisions and update times, and use downloaded styles offline.</item>
+        <item>Redesigned resource management\nBrowse available and downloaded styles, filter the list, update or delete individual styles, and enter selection mode for batch downloads or removal. Downloaded entries show their size and offer Update, Delete, Preview and Close. Destructive actions require confirmation.</item>
+        <item>Clearer synchronization feedback\nA temporary card shows stage, progress and elapsed time during synchronization, then disappears. Improved shared-resource size accounting, failure and interruption feedback, and local state refresh when returning to the parent page, while retaining usable resources.</item>
+        <item>Popular styles first\nNew users start with HyperOS4. Menus prioritize HyperOS4, HyperOSClassic, HyperOS3, Hyper and default, while preserving saved choices.</item>
+        <item>Custom icon masks\nAdded an Icon mask page. Automatic completion stays on by default: authored masks take priority, with HyperOS4 used when missing. Import a custom transform_config.xml or restore automatic selection, while preserving special icon configurations.</item>
+        <item>Shared preview rules and mask comparisons\nAPK, MTZ/ZIP, Perfect Icons and Apple previews share mask rendering rules. Compare real icons with original, HyperOS4 and custom masks. Applied-theme previews still read the published configuration instead of pending generation settings.</item>
+        <item>Stronger layered dynamic resource checks\nValidate dynamic entry configuration, static preview layers and animation resources while preserving valid existing formats. Incomplete resources are not treated as complete dynamic icons, reducing preview and generation errors.</item>
+        <item>Familiar interactions and timely refresh\nUnified OS4 confirmation dialogs, icon actions and resource selection toolbars. Improved return navigation, download state and preview coordination, reducing repeated work and unnecessary recomposition while retaining progress and status updates.</item>
+        <item>In-app release history and updated guide\nSettings now includes versioned release notes. Fresh installs open onboarding; a changed version prefix opens notes once. This upgrade expands 1.8.0, 1.7.0 and 1.6.0; manual visits expand only the current release. The guide also covers resource downloads, masks and previews.</item>
+    </string-array>
+    <string name="release_notes_1_8_0_footnote">Importing or previewing a mask does not apply a theme. Update or regenerate and apply icons after changing masks or generation options. Special resources retain their own rules, and dynamic previews use static snapshots.</string>
+
+    <string name="release_notes_1_7_0_introduction">Adopted MIUIX OS4 throughout the app, reorganized Desktop settings, status information and onboarding, and corrected icon corners and pale edges on some dark icons.</string>
+    <string-array name="release_notes_1_7_0_changes">
+        <item>OS4 interface and two navigation styles\nUpdated buttons, menus, disclosures and glass components with consistent icons and concise labels. Both iOS-like and OS4 Glass bottom navigation remain available.</item>
+        <item>Grouped Desktop settings\nDock, Appearance, and Icons and launch now have dedicated pages. The overview shows a short launcher version and fault states; status pills follow control order, with pending progress beneath the affected control.</item>
+        <item>Separate Dock and search materials\nSet Dock materials on its own page. Search can use an independent material or follow Dock, reducing the need to search across pages.</item>
+        <item>Compact status and icon pack settings\nConnection, sync, failure and interruption states use clear pills. More settings and icon preview preferences now belong to Icon packs, with clearer Monet status, links and toolbar actions.</item>
+        <item>Visual cache management\nA cylinder chart and categories show storage use and link to resource management. Edit the cleanup reminder threshold; the default is 500 MB or 1 GB depending on downloaded Perfect Icons resources. Resources are not automatically deleted.</item>
+        <item>Rebuilt scope authorization and onboarding\nThe scope page shows component versions and individual grants. The five-step guide supports resuming, postponing and replaying, distinguishes authorization from loading and effect, and explains linked settings.</item>
+        <item>Correct default icon corners and pale edges\nMissing native icon configuration is completed by default, improving square fallback icons and pale edges in third-party packs. Existing pack configuration takes priority; completion can be disabled in More settings.</item>
+        <item>System component compatibility\nAdded structural validation for launcher 8607 and SecurityCenter 13.8.1. Compatibility continues to use actual code and resources rather than version numbers alone.</item>
+    </string-array>
+    <string name="release_notes_1_7_0_footnote">Icon effects depend on resources and system support. Update or regenerate and apply existing schemes to receive configuration fixes. A scope grant does not establish that its process has loaded the module or that a feature has taken effect.</string>
+
     <string name="release_notes_1_4_0_introduction">Built for the Rust + Flutter HyperOS system launcher, with dynamic compatibility discovery, API 102 automatic hot reload, and in-app feature and connection status.</string>
     <string-array name="release_notes_1_4_0_changes">
         <item>Automatic light and dark icons\nSupported icons in the built-in Default / Classic / Boundless packs follow the system appearance without importing another icon pack.</item>

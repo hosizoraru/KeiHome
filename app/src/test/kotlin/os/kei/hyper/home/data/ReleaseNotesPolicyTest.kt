@@ -85,18 +85,32 @@ class ReleaseNotesPolicyTest {
   }
 
   @Test fun upgradeUsesTheReleaseAuthorsExpansionSelection() {
+    assertEquals(listOf("1.8.0", "1.7.0", "1.6.0"),
+      ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0+g1234567.b0999", upgrade = true))
     assertEquals(listOf("1.7.0", "1.6.0"),
       ReleaseNotesCatalog.initiallyExpandedVersions("1.7.0+g1234567.b0999", upgrade = true))
   }
 
   @Test fun manualHistoryOpensOnlyTheCurrentRelease() {
+    assertEquals(listOf("1.8.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0", upgrade = false))
     assertEquals(listOf("1.7.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.7.0", upgrade = false))
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = false))
   }
 
   @Test fun unconfiguredReleasesDoNotInheritAnotherReleasesExpansionSelection() {
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = true))
-    assertEquals(listOf("1.7.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0", upgrade = true))
+    assertEquals(listOf("1.8.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.9.0", upgrade = true))
     assertEquals(emptyList<String>(), ReleaseNotesCatalog.initiallyExpandedVersions("broken", upgrade = true))
+  }
+
+  @Test fun release18UpgradePresentsNewNotesOnceWithoutChangingThePrefixRule() {
+    val releases = listOf("1.8.0", "1.7.0") + published
+    val updated = observe(ReleaseNotesState("1.5.0", "1.5.0"),
+      version = "1.8.0+g1234567.b0001", notes = releases)
+    assertEquals("1.8.0", updated.pendingVersion)
+    assertEquals(listOf("1.8.0", "1.7.0", "1.6.0"), updated.pendingVersions)
+    val closed = ReleaseNotesPolicy.acknowledge(updated)
+    assertEquals(closed, observe(closed, version = "1.8.0+g7654321.b9999", notes = releases))
+    assertEquals("", observe(version = "1.8.0", updated = false, notes = releases).pendingVersion)
   }
 }

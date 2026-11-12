@@ -33,15 +33,24 @@ copied, and the configured device's setup wizard was not rerun or reset.
 2. **Framework:** actual connection and grant-count pills, an explicit request
    action when scopes can be requested, and links to the framework manager and
    dedicated scope viewer. The old all-in-one scope card is not embedded here.
-3. **Icons:** Library, Perfect and Apple, followed by Monet, fallback and
-   Icon packs > More settings. Supported native light/dark adaptation is explained
-   separately from selecting or applying an optional icon pack. Local-resource
-   details use the shared OS4 disclosure.
+3. **Icons:** Library, Perfect and Apple, followed by Monet, artwork completion,
+   the existing Icon mask child page and Icon packs > More settings. Perfect's
+   resource manager downloads selected styles and required shared resources;
+   later Git updates reuse unchanged resources. Downloaded styles can be
+   previewed and generated offline. The mask link opens import and real-icon
+   comparison: when adaptation is enabled, a custom mask takes priority;
+   otherwise the pack mask is retained, with HyperOS4 filling a missing mask.
+   Supported native light/dark adaptation remains separate from selecting or
+   applying an optional icon pack. A short note distinguishes generated packs
+   from applied themes: after changing artwork, completion, masks or generation
+   scope, update or regenerate, then apply. Downloads and previews do not apply
+   a theme. Local-resource details use the shared OS4 disclosure.
 4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
    plus the category overview. Each destination returns to the originating step.
 5. **Finish:** current framework/scope states, shortcuts to scope authorization,
    App logs and cache management, and the distinction between App and LSPosed logs.
-   Finishing the guide does not claim that every host hook has loaded.
+   Finishing the guide does not claim that every host hook has loaded. Check the
+   launcher and the share sheet, Settings or Sidebar actually used.
 
 Service connection, authorization, hook loading and visible icon results remain
 separate states. First activation recommends one system reboot; later updates
@@ -75,7 +84,8 @@ building and deploying matching main/test APKs. The group exercises the actual
 navigation with isolated MMKV guide stores, without clearing user data or
 changing scope grants:
 
-- Complete flow, framework/icon/desktop/settings round trips, Settings replay,
+- Complete flow, framework/icon/desktop/settings round trips (including the
+  direct Icon mask child-page link), Settings replay,
   persisted state re-read, and equality of AppPreferences before and after.
 - Resume/defer at 1.6 font scale, with final-content bounds above the measured
   footer on all five pages.

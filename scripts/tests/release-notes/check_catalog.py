@@ -10,18 +10,20 @@ ROOT = Path(__file__).resolve().parents[3]
 source = (ROOT / "app/src/main/kotlin/os/kei/hyper/home/data/ReleaseNotesCatalog.kt").read_text()
 entries = re.findall(
     r'ReleaseNote\(\s*version = "([^"]+)",\s*tag = "([^"]+)",'
-    r'\s*commit = "([^"]+)",\s*committedAt = "([^"]+)"', source,
+    r'\s*committedAt = "([^"]+)"', source,
 )
 assert entries, "No release catalog entries found"
 versions = [tuple(map(int, version.split("."))) for version, *_ in entries]
 assert versions == sorted(set(versions), reverse=True)
 assert min(versions) == (1, 4, 0), "History must start with the first public release"
-for version, tag, commit, timestamp in entries:
+for version, tag, timestamp in entries:
     actual = subprocess.check_output(
-        ["git", "show", "-s", "--format=%H%n%cI", f"{tag}^{{commit}}"], cwd=ROOT, text=True,
+        ["git", "show", "-s", "--format=%cI", f"{tag}^{{commit}}"], cwd=ROOT, text=True,
     ).splitlines()
-    assert actual == [commit, timestamp], (version, actual, commit, timestamp)
+    assert actual == [timestamp], (version, actual, timestamp)
     assert tag == f"v{version}"
+current = re.search(r'^keihome.versionName=(.+)$', (ROOT / "gradle.properties").read_text(), re.M)[1]
+assert entries[0][0] == current, "The current release must have its own catalog entry"
 for filename in ("release_notes_content.xml", "release_notes_ui.xml"):
     catalogs = []
     for locale in ("values", "values-zh-rCN", "values-ja"):

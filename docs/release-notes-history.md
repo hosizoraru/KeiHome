@@ -2,8 +2,7 @@
 
 ## Source of truth
 
-`ReleaseNotesCatalog.kt` contains released versions, their exact tags and target
-commits, offset-aware target commit times, and localized resource references.
+`ReleaseNotesCatalog.kt` contains released versions, their exact tags, offset-aware target commit times, and localized resource references.
 `release_notes_content.xml` in `values`, `values-zh-rCN` and `values-ja` contains
 the content. Versions are listed newest first.
 
@@ -14,6 +13,8 @@ deriving the calendar date.
 
 | Version | Tag target commit | Target commit timestamp |
 | --- | --- | --- |
+| 1.8.0 | `v1.8.0^{commit}` | `2026-11-12T08:33:09+08:00` |
+| 1.7.0 | `8b71d5ae41eaca2a820d8a1105703074ef22425f` | `2026-11-11T17:53:39+08:00` |
 | 1.6.0 | `02c8badfcd929c0563fb8c25361167ae5eed0008` | `2026-11-11T03:24:52+08:00` |
 | 1.5.0 | `1bf0c4ccb43d049d3caa09f1f3cef96d74052c68` | `2026-11-07T14:07:22+08:00` |
 | 1.4.0 | `e00c6c6c5cc46e979633bf14942a455bde5d5a44` | `2026-11-06T11:43:46+08:00` |
@@ -26,10 +27,11 @@ the resource stores each 1.4.0 title and its body together with `\n`.
 English and Japanese faithfully translate these announcements, using existing
 localized style names.
 
-The new `v1.7.0` tag does not publish release notes. There is deliberately no
-1.7.0 release text in this historical audit. The current catalog adds only a
-one-sentence 1.7.0 placeholder. Development builds must not silently relabel
-1.6.0 notes as 1.7.0 notes.
+The 1.7.0 placeholder has now been replaced with final user-facing notes for
+`v1.6.0..v1.7.0`. Later work belongs to 1.8.0, including the new release
+history itself. The 1.8.0 row uses the peeled tag reference to avoid embedding
+a commit's own hash in that commit; the catalog checker resolves the reference
+and verifies the date. Local tags do not imply GitHub publication.
 
 ## 1.6.0 editorial boundary
 
@@ -79,15 +81,26 @@ The following later work is deliberately absent from 1.6.0 notes:
 - Launcher 8607 and the subsequent Security APK matrix refresh (`5e707b3`).
 - The 1.7.0 version bump and the release-notes feature itself.
 
-## Focused content validation
+## 1.7.0 and 1.8.0 editorial boundaries
 
-Content-only checks verified XML parsing, identical resource names and array
-lengths across all three locales (12 / 9 / 13), absence of authored 1.7.0 release text (the UI now has a placeholder), exact
-tag target hashes/timestamps, and inclusion of the cited implementation commits
-in the requested historical range. The Chinese 1.4.0 and 1.5.0 strings were
-compared directly against the complete supplied announcement, including the
-introduction and footnote.
+[1.7.0 notes](releases/1.7.0.md) group the final effects of OS4 migration,
+the two bottom-navigation styles, Desktop categories and material controls,
+status pills and cache management, scope authorization, onboarding, native icon
+configuration fixes, and launcher/Security compatibility. Representative
+in-range commits: `6718348`, `2d7b23f`, `06b7887`, `24dd291`, `cfc2aaf`,
+`8822dc4`, `58e68b1`, `4899553`, `5e707b3`.
 
-This editorial slice does not establish Kotlin/Android resource compilation,
-navigation behavior, upgrade detection or rendered-device acceptance. Those
-belong to the integrated feature validation.
+[1.8.0 notes](releases/1.8.0.md) cover release history and prefix-based startup,
+selective Git resource synchronization and resource management, OS4 confirmations,
+status/navigation refresh, default style ordering and storage accounting, shared
+mask rendering, custom masks, dynamic resource validation and the updated guide.
+Representative in-range commits: `ff3ec6d`, `290ca54`, `a5c8203`, `879c1aa`,
+`97f6bae`, `413317d`, `b236e15`, `185ad34`, `bc4d232`, plus the release commit.
+See `docs/perfect-git-sync.md`, `docs/icon-mask-preview.md`,
+`docs/ui-performance.md` and `docs/onboarding.md` for scope and limits.
+
+The catalogs retain the supplied Chinese 1.4.0 and 1.5.0 announcements and
+existing 1.6.0 notes. The focused catalog check validates XML and localized key /
+array parity, newest-first order, the current version, and exact tag target
+timestamps. Release-note policy and targeted device navigation checks separately
+cover first install, prefix changes, saved acknowledgment, expansion and layout.

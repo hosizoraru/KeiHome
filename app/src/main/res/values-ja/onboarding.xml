@@ -26,9 +26,10 @@
     <string name="setup_native_icons_title">対応する標準アイコンは明暗へ自動追従</string>
     <string name="setup_library_body">内蔵スタイル、APK、MTZ / ZIP をプレビューしてから適用できます。</string>
     <string name="setup_monet_body">任意：対応アイコンの動的配色を、明暗とは個別に切り替えられます。</string>
-    <string name="setup_fallback_body">任意：未対応アイコンの補完方法を確認し、パックの変更後に調整できます。</string>
+    <string name="setup_fallback_body">パックが未対応のアプリに使う補完画像を選びます。パックの変更後に見直せます。</string>
+    <string name="setup_mask_body">有効時はカスタムマスクを優先。それ以外はパック内のマスクを使い、不足時は HyperOS4 で補完します。詳細ページで読み込みと比較ができます。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
-    <string name="setup_icon_tip_body">画像、補完ルール、生成対象を変更したら、各ページのフローティング操作で生成し、必要に応じて適用してください。対応する明暗や配色の変更は自動同期されます。ホーム画面と普段使う他の画面で確認してください。</string>
+    <string name="setup_icon_tip_body">生成済みと適用済みは別の状態です。画像、補完、マスク、生成対象を変更したら、パックを更新または再生成してから適用してください。プレビューだけでは適用済みテーマは更新されません。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
     <string name="setup_desktop_body">カテゴリ別にホーム設定を開きます。対応する変更は自動で同期され、状態は各ページで確認できます。利用可否はホームアプリとスコープ許可によって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
@@ -41,7 +42,7 @@
     <string name="setup_open_logs_body">機能の問題は LSPosed へ。App 自体の問題はフローティングボタンでログを書き出し</string>
     <string name="setup_open_cache_body">使用量を確認。フローティングボタンはメモリ内のプレビューだけを消去し、適用済みテーマを保持</string>
     <string name="setup_search_keywords">初回 初期設定 はじめに ガイド</string>
-    <string name="setup_perfect_body">コミュニティの画像を同期し、スタイルを選んでローカル生成。変更のないリソースは再利用します。</string>
+    <string name="setup_perfect_body">リソース管理で必要なスタイルだけをダウンロード。Git の差分更新で未変更の画像を再利用し、取得済みスタイルはオフラインでもプレビュー・生成できます。</string>
     <string name="setup_apple_body">iOS、iPadOS、macOS の画像を選び、アプリ別の対応を確認して、キャッシュ画像から差分生成できます。</string>
     <string name="setup_local_icons_title">ローカル画像とキャッシュの再利用</string>
     <string name="setup_local_icons_body">システム画面ではローカルのテーマ画像を使用し、メモリキャッシュに上限を設けています。非対応の項目は元のアイコンを保持します。Perfect の同期や Apple の検索・ダウンロードは操作時に通信します。プレビューのメモリ消去では、取得済み画像と適用済みパックを保持します。</string>

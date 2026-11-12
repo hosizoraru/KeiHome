@@ -141,9 +141,12 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupDivider()
           SetupLink(R.string.pack_completion_title, R.string.setup_fallback_body, PageActionIcon.MATCH) { onOpenPack("fallback") }
           SetupDivider()
+          SetupLink(R.string.icon_mask_entry_title, R.string.setup_mask_body, PageActionIcon.MATCH) { onOpenPack("icon-mask") }
+          SetupDivider()
           SetupLink(R.string.setup_os4_icons_more, R.string.setup_os4_icons_more_body, PageActionIcon.SETTINGS) { onOpenPack("settings") }
         }
       }
+      SetupNote(R.string.setup_icon_tip_body, R.string.setup_icon_tip_title)
       SetupStorageDisclosure()
     }
     3 -> {

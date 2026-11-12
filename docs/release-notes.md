@@ -31,7 +31,7 @@ network requests, APK inspection or native hooks.
 - The manual Settings entry remains available independently of startup.
 
 `ReleaseNote.expandOnUpgrade` controls the cards initially expanded during the
-one-time upgrade presentation. For 1.7.0 this includes 1.7.0 and 1.6.0; older
+one-time upgrade presentation. For 1.8.0 this includes 1.8.0, 1.7.0 and 1.6.0; older
 unread versions remain available without being forced open. Manual Settings
 entry always defaults to the current release only. The selection is authored
 before release and does not change the prefix-based automatic presentation rule.
@@ -55,12 +55,19 @@ The catalog begins with 1.4.0. Chinese 1.4.0 and 1.5.0 notes use the user's
 public text; English and Japanese are translations. 1.6.0 describes the final
 changes from `v1.5.0` to `v1.6.0`. See
 [content provenance](release-notes-history.md) and the standalone
-[1.6.0 notes](releases/1.6.0.md). 1.7.0 has only a one-sentence placeholder; its actual release notes remain unwritten.
-The local `v1.7.0` tag points to the version-prefix advancement commit and does
-not publish a remote release.
+[1.6.0 notes](releases/1.6.0.md). [1.7.0](releases/1.7.0.md) describes
+`v1.6.0..v1.7.0`; [1.8.0](releases/1.8.0.md) describes `v1.7.0..v1.8.0`.
+The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
+and Japanese use matching version entries and feature groupings.
 
-For a subsequent release, add its localized content and catalog entry with the
-tag's peeled commit identity and `%cI` timestamp. Keep existing history intact.
+For a subsequent release, add localized content, its exact tag and target
+committer timestamp, and the desired upgrade expansion list. The catalog stores
+the tag rather than redundantly embedding its own commit hash: a release commit
+cannot contain its own final hash. The focused checker resolves each tag and
+checks its target timestamp. Set the release commit timestamp to the recorded
+value and tag that complete commit, so the tag includes its own notes and the
+signed APK is built from that same clean source. Creating a local tag does not
+publish a remote release.
 
 ## Focused checks
 

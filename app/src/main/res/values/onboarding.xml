@@ -26,9 +26,10 @@
     <string name="setup_native_icons_title">Supported system icons follow light/dark mode</string>
     <string name="setup_library_body">Preview built-in styles, APK packs or MTZ / ZIP files before applying.</string>
     <string name="setup_monet_body">Optional: enable dynamic colors for supported icons, independently of light/dark mode.</string>
-    <string name="setup_fallback_body">Optional: review how uncovered icons are filled, and adjust after changing packs.</string>
+    <string name="setup_fallback_body">Choose artwork for icons your pack does not cover; review it after changing packs.</string>
+    <string name="setup_mask_body">When enabled, custom masks take priority; otherwise keep the pack mask, with HyperOS4 as fallback. Import and compare in the child page.</string>
     <string name="setup_icon_tip_title">Preview, apply, then check</string>
-    <string name="setup_icon_tip_body">After changing artwork, completion rules or generation scope, use the page’s floating action to generate, then apply if needed. Supported light/dark and palette changes sync automatically. Check the launcher and the other surfaces you use.</string>
+    <string name="setup_icon_tip_body">Generated and applied packs are separate. After changing artwork, completion, masks or generation scope, update or regenerate the pack, then apply it. Preview changes alone do not update the applied theme.</string>
     <string name="setup_desktop_title">Make optional adjustments</string>
     <string name="setup_desktop_body">Browse desktop settings by category. Supported changes sync automatically; check their status on the corresponding page. Availability depends on your launcher and scope access. Opening a page keeps your settings unchanged.</string>
     <string name="setup_open_desktop">Open desktop settings</string>
@@ -41,7 +42,7 @@
     <string name="setup_open_logs_body">Open LSPosed for feature issues; use the floating export button for App issues</string>
     <string name="setup_open_cache_body">Review usage; the floating button clears only in-memory icon previews and preserves the applied theme</string>
     <string name="setup_search_keywords">onboarding welcome first use setup guide</string>
-    <string name="setup_perfect_body">Sync community artwork, choose styles and generate locally. Unchanged resources are reused.</string>
+    <string name="setup_perfect_body">In resource management, download only the styles you need. Git updates reuse unchanged resources; downloaded styles work offline for preview and generation.</string>
     <string name="setup_apple_body">Choose iOS, iPadOS or macOS artwork, review per-app mappings and generate incrementally from cached images.</string>
     <string name="setup_local_icons_title">Local icons and cache reuse</string>
     <string name="setup_local_icons_body">System surfaces reuse local themed images with a limited memory cache; unsupported entries keep their original icons. Perfect sync and Apple searches or downloads use the network when requested. Clearing preview memory keeps downloaded artwork and applied packs.</string>

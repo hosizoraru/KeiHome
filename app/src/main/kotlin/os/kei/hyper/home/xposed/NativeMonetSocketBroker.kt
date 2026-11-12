@@ -1,8 +1,6 @@
 package os.kei.hyper.home.xposed
 
-import android.app.ActivityManager
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.LocalSocket
 import android.os.Binder
 import android.os.IBinder
@@ -14,7 +12,6 @@ import android.system.OsConstants
 import android.system.StructPollfd
 import java.io.Closeable
 import java.io.File
-import java.io.FileDescriptor
 import java.io.IOException
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -313,7 +310,7 @@ internal object NativeMonetSocketBroker {
     @Volatile private var expiry: ScheduledFuture<*>? = null
     internal val expiresAt = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PENDING_TTL_MS)
     // The hidden platform constructor borrows this FD; LocalSocket.close alone does not own it.
-    val socket: LocalSocket = LocalSocket::class.java.getConstructor(FileDescriptor::class.java)
+    val socket: LocalSocket = NativeMonetPlatformMembers.socketConstructor
       .newInstance(descriptor.fileDescriptor)
 
     internal fun installExpiry(value: ScheduledFuture<*>) {
@@ -405,23 +402,21 @@ internal data class NativeMonetLauncherIdentity(val userId: Int, val uid: Int) {
     private const val PACKAGE = "com.miui.home"
 
     fun resolve(context: Context, requireContextUser: Boolean = true): NativeMonetLauncherIdentity {
-      val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as? Int
+      val user = NativeMonetPlatformMembers.currentUser.invoke(null) as? Int
         ?: throw IOException("currentUser=NULL")
       require(user >= 0) { "currentUser invalid" }
       if (requireContextUser) {
-        val contextUser = Context::class.java.getMethod("getUserId").invoke(context) as? Int
+        val contextUser = NativeMonetPlatformMembers.contextUser.invoke(context) as? Int
           ?: throw IOException("contextUser=NULL")
         require(contextUser == user) { "context user is not foreground user" }
       }
-      val uid = PackageManager::class.java.getMethod(
-        "getPackageUidAsUser", String::class.java, Int::class.javaPrimitiveType,
-        Int::class.javaPrimitiveType,
-      ).invoke(context.packageManager, PACKAGE, 0, user) as? Int
+      val uid = NativeMonetPlatformMembers.packageUid
+        .invoke(context.packageManager, PACKAGE, 0, user) as? Int
         ?: throw IOException("launcherUid=NULL")
       require(uid >= 0 && context.packageManager.getPackagesForUid(uid)?.contains(PACKAGE) == true) {
         "launcher UID package ownership rejected"
       }
-      require(ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) == user) {
+      require(NativeMonetPlatformMembers.currentUser.invoke(null) == user) {
         "foreground user changed"
       }
       return NativeMonetLauncherIdentity(user, uid)

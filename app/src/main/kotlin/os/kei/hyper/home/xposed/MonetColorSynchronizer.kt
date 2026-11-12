@@ -5,8 +5,6 @@ import os.kei.hyper.home.status.withIdentity
 import android.content.Context
 import android.content.SharedPreferences
 import android.database.ContentObserver
-import android.app.ActivityManager
-import android.os.UserHandle
 import android.os.CancellationSignal
 import android.os.OperationCanceledException
 import android.os.SystemClock
@@ -447,17 +445,15 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   }
 
   private fun currentUserId(): Int? = try {
-    (ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as? Int)
+    (NativeMonetPlatformMembers.currentUser.invoke(null) as? Int)
       ?.takeIf { it >= 0 }
   } catch (_: Exception) {
     null
   }
 
   private fun contextForUser(base: Context, userId: Int): Context? = try {
-    val user = UserHandle::class.java.getMethod("of", Int::class.javaPrimitiveType).invoke(null, userId)
-    Context::class.java.getMethod(
-      "createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType,
-    ).invoke(base, user, 0) as? Context
+    val user = NativeMonetPlatformMembers.userHandle.invoke(null, userId)
+    NativeMonetPlatformMembers.userContext.invoke(base, user, 0) as? Context
   } catch (_: Exception) {
     null
   }

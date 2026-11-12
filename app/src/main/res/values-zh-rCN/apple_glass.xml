@@ -1,0 +1,15 @@
+<resources>
+    <string name="apple_glass_preview_unavailable">图标预览暂不可用</string>
+    <string name="apple_glass_select">选择</string>
+    <string name="apple_glass_selection_count">已选 %1$d 项</string>
+    <string name="apple_glass_select_all">选择当前可见项</string>
+    <string name="apple_glass_match_selected">匹配选中的 %1$d 个未匹配应用</string>
+    <string name="apple_glass_export_selected">导出选中的 %1$d 项映射</string>
+    <string name="apple_glass_done">完成选择</string>
+    <string name="apple_glass_exported">已导出选中的 %1$d 项映射。</string>
+    <string name="apple_glass_inspect">查看 Apple 图标</string>
+    <string name="apple_glass_change_mapping">更改映射</string>
+    <string name="apple_glass_clear_confirm">清除已下载的 Apple 图标？映射和已生成的图标包会保留，图标资源之后需要重新下载。</string>
+    <string name="apple_glass_restore_confirm">为 %1$s 恢复自动映射？这会替换此平台下的手动选择或排除设置。重新生成并应用图标包后生效。</string>
+    <string name="apple_glass_exclude_confirm">在此平台上停止为 %1$s 使用 Apple 图标？重新生成并应用图标包后生效。</string>
+</resources>

@@ -1,0 +1,15 @@
+<resources>
+    <string name="apple_glass_preview_unavailable">Icon preview temporarily unavailable</string>
+    <string name="apple_glass_select">Select</string>
+    <string name="apple_glass_selection_count">%1$d selected</string>
+    <string name="apple_glass_select_all">Select all visible items</string>
+    <string name="apple_glass_match_selected">Match %1$d selected unmatched apps</string>
+    <string name="apple_glass_export_selected">Export %1$d selected mappings</string>
+    <string name="apple_glass_done">Done selecting</string>
+    <string name="apple_glass_exported">Exported %1$d selected mappings.</string>
+    <string name="apple_glass_inspect">Inspect Apple icon</string>
+    <string name="apple_glass_change_mapping">Change mapping</string>
+    <string name="apple_glass_clear_confirm">Clear downloaded Apple artwork? Mappings and generated packs will be kept. Artwork will need to be downloaded again.</string>
+    <string name="apple_glass_restore_confirm">Restore automatic mapping for %1$s? This replaces the manual choice or exclusion on this platform. Regenerate and apply the pack to use the change.</string>
+    <string name="apple_glass_exclude_confirm">Stop using an Apple icon for %1$s on this platform? Regenerate and apply the pack to use the change.</string>
+</resources>

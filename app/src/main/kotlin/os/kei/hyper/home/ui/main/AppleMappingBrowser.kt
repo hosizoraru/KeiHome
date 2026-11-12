@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -31,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +57,10 @@ import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.components.IconPreviewComparison
+import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4Toggleable
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.Collator
 import java.util.Locale
@@ -204,13 +210,15 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
       catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { null }
     }
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp),
-      onClick = {
-        if (enabled) {
-          if (!selectionMode) onSelect(row)
-          else if (row.target.packageName in selectablePackages) onToggleSelection(row.target.packageName)
-        }
-      }) {
+    val cardInteraction = if (selectionMode) Modifier.os4Toggleable(
+      value = row.target.packageName in selectedPackages,
+      enabled = enabled && row.target.packageName in selectablePackages, role = Role.Checkbox,
+      onValueChange = { onToggleSelection(row.target.packageName) })
+    else Modifier.os4Clickable(enabled = enabled, role = Role.Button,
+      onClickLabel = stringResource(if (row.app == null) R.string.apple_choose_icon else R.string.apple_glass_inspect),
+      onClick = { onSelect(row) })
+    Card(Modifier.fillMaxWidth().testTag("apple.mapping.${row.target.packageName}").then(cardInteraction),
+      insideMargin = PaddingValues(14.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val app = row.app
         val mappingDescription = if (app != null) {
@@ -221,11 +229,9 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
         Row(Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           if (selectionMode) {
-            val selectionDescription = stringResource(R.string.apple_batch_select_app, row.target.label)
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
               Checkbox(state = if (row.target.packageName in selectedPackages) ToggleableState.On else ToggleableState.Off,
-                onClick = { onToggleSelection(row.target.packageName) },
-                modifier = Modifier.semantics { contentDescription = selectionDescription },
+                onClick = null, modifier = Modifier.clearAndSetSemantics {},
                 enabled = enabled && row.target.packageName in selectablePackages)
             }
           }
@@ -393,17 +399,19 @@ private fun CurrentThemeThumb(bitmap: android.graphics.Bitmap, appLabel: String,
 
 @Composable
 internal fun AppleArtworkPair(preview: AppleArtworkPreview, compact: Boolean = false,
-  iconSize: Dp = if (compact) 56.dp else 76.dp, maskPolicy: IconMaskPolicy?) {
-  Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-      AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
-        iconSize, maskPolicy = maskPolicy)
-    }
-    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-      AppleArtworkThumb(preview.dark ?: preview.light,
-        stringResource(if (preview.dark == null)
-          if (preview.limited) R.string.apple_dark_pending else R.string.apple_preview_same else R.string.apple_preview_dark),
-        iconSize, dark = true, maskPolicy = maskPolicy)
+  iconSize: Dp = if (compact) 56.dp else 76.dp, maskPolicy: IconMaskPolicy?,
+  mode: IconPreviewMode = IconPreviewMode.COMPARE) {
+  IconPreviewComparison(mode, Modifier.padding(vertical = 4.dp)) { dark, modifier ->
+    Box(modifier, contentAlignment = Alignment.Center) {
+      if (!dark) {
+        AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
+          iconSize, maskPolicy = maskPolicy)
+      } else {
+        AppleArtworkThumb(preview.dark ?: preview.light,
+          stringResource(if (preview.dark == null)
+            if (preview.limited) R.string.apple_dark_pending else R.string.apple_preview_same else R.string.apple_preview_dark),
+          iconSize, dark = true, maskPolicy = maskPolicy)
+      }
     }
   }
 }

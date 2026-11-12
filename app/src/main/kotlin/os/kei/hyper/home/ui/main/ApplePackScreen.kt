@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.ui.layout.onSizeChanged
+
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.lifecycle.repeatOnLifecycle
 import java.io.IOException
 import java.time.LocalDateTime
@@ -147,18 +153,33 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val uiScope = rememberCoroutineScope()
   var transferring by remember { mutableStateOf(false) }
   var transferMessage by rememberSaveable { mutableStateOf<String?>(null) }
+  var exportingSelection by rememberSaveable { mutableStateOf(false) }
+  var exportSelectionCount by rememberSaveable { mutableIntStateOf(0) }
+  var selectedExportDocument by remember { mutableStateOf<ByteArray?>(null) }
+  var showClearDownloads by rememberSaveable { mutableStateOf(false) }
+  var mappingConfirmation by rememberSaveable(state.editing?.packageName) { mutableStateOf<String?>(null) }
   val exportMappings = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-    if (uri == null) transferring = false else uiScope.launch {
+    if (uri == null) {
+      transferring = false
+      exportingSelection = false
+      selectedExportDocument = null
+    } else uiScope.launch {
       try {
         withContext(Dispatchers.IO) {
-          val bytes = controller.exportMappings()
+          // A lost selection snapshot must fail safely, never silently export all mappings.
+          val bytes = if (exportingSelection) requireNotNull(selectedExportDocument) else controller.exportMappings()
           (context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("Cannot open document"))
             .use { it.write(bytes) }
         }
-        transferMessage = resources.getString(R.string.apple_mapping_exported)
+        transferMessage = if (exportingSelection) resources.getString(R.string.apple_glass_exported, exportSelectionCount)
+          else resources.getString(R.string.apple_mapping_exported)
       } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
       } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_export_failed)
-      } finally { transferring = false }
+      } finally {
+        transferring = false
+        exportingSelection = false
+        selectedExportDocument = null
+      }
     }
   }
   val importMappings = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -182,7 +203,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   var filterName by rememberSaveable(section) { mutableStateOf(AppleMappingFilter.ALL.name) }
   var sortName by rememberSaveable(section) { mutableStateOf(AppleMappingSort.NAME.name) }
   var regionFilter by rememberSaveable(section) { mutableStateOf("") }
-  var selecting by rememberSaveable(section) { mutableStateOf(false) }
+  var selecting by rememberSaveable(section, state.options.platform, state.options.country) { mutableStateOf(false) }
+  var inspectionRow by remember(section, state.options.platform, state.options.country) {
+    mutableStateOf<AppleMappingRow?>(null)
+  }
+  var showInspection by remember(section, state.options.platform, state.options.country) { mutableStateOf(false) }
   var selectedPackages by rememberSaveable(section, state.options.platform, state.options.country) {
     mutableStateOf(emptyList<String>())
   }
@@ -217,17 +242,15 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     }.distinct().sorted()
   }
   val mappedCount = remember(state.rows) { state.rows.count { it.app != null } }
-  val visibleEligible = remember(browserRows, eligiblePackages) {
+  val visibleMatchEligible = remember(browserRows, eligiblePackages) {
     browserRows.filter { it.target.packageName in eligiblePackages }.mapTo(linkedSetOf()) { it.target.packageName }
   }
-  val selectedPackageSet = remember(selectedPackages) { selectedPackages.toSet() }
-  val selectedVisible = remember(visibleEligible, selectedPackageSet) {
-    visibleEligible.filter { it in selectedPackageSet }
+  val selection = remember(browserRows, selectedPackages, batchBrowser, batchClock) {
+    appleMappingSelection(browserRows, selectedPackages, batchBrowser, now)
   }
-  val selectedVisibleSet = remember(selectedVisible) { selectedVisible.toSet() }
-  val selectedBatch = remember(selectedVisible) {
-    selectedVisible.take(AppleAutoMatchPolicy.BATCH_SIZE).toSet()
-  }
+  val visibleEligible = selection.selectable
+  val selectedVisible = selection.selected
+  val selectedBatch = selection.match
   LaunchedEffect(batchBrowser, state.rows, batchClock, mappingFilter) {
     if (!batchBrowser) return@LaunchedEffect
     val time = System.currentTimeMillis()
@@ -241,7 +264,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   LaunchedEffect(visibleEligible, selecting, localLoading, browserLoading, state.batchRunning) {
     if (selecting && !localLoading && !browserLoading && !state.batchRunning) {
-      val retained = selectedPackages.filter { it in visibleEligible }
+      val retained = retainedAppleSelection(selectedPackages, visibleEligible)
       if (retained != selectedPackages) selectedPackages = retained
     }
   }
@@ -252,10 +275,35 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val keyboard = LocalSoftwareKeyboardController.current
   fun searchNow() { focus.clearFocus(); keyboard?.hide(); controller.search(query) }
   val listState = rememberLazyListState()
+  fun exitSelection() { selecting = false; selectedPackages = emptyList() }
+  NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None),
+    isBackEnabled = selecting, onBackCompleted = { exitSelection() })
   fun browserChanged(resetSelection: Boolean = false) {
-    if (resetSelection) selecting = false
+    if (resetSelection) exitSelection()
     focus.clearFocus(); keyboard?.hide()
     uiScope.launch { listState.scrollToItem(0) }
+  }
+  fun exportSelectedMappings() {
+    if (!enabled || browserLoading || selection.export.isEmpty()) return
+    val rows = selection.export.toList()
+    val options = state.options
+    transferring = true
+    uiScope.launch {
+      try {
+        selectedExportDocument = withContext(Dispatchers.Default) { appleSelectedMappingDocument(rows, options) }
+        exportSelectionCount = rows.size
+        exportingSelection = true
+        exportMappings.launch("keihome-apple-selected-" +
+          LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm")) + ".json")
+        exitSelection()
+      } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
+      } catch (_: Exception) {
+        transferring = false
+        exportingSelection = false
+        selectedExportDocument = null
+        transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+      }
+    }
   }
   LaunchedEffect(search, state.previewing, state.preview) {
     if (search && (state.previewing || state.preview != null)) {
@@ -283,12 +331,15 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = stringResource(if (main) R.string.apple_pack_title
+      TopAppBar(title = if (selecting) stringResource(R.string.apple_glass_selection_count, selectedVisible.size)
+        else stringResource(if (main) R.string.apple_pack_title
         else if (search) R.string.apple_choose_icon
         else if (matchedOnly) R.string.apple_matched_title else R.string.apple_mappings),
         scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-        navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) } },
+        navigationIcon = { IconButton(onClick = { if (selecting) exitSelection() else onBack() }) {
+          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+        } },
         actions = {
           if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
           if (!main && !search) {
@@ -297,29 +348,19 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               onRegion = { regionFilter = it; browserChanged(resetSelection = true) })
             AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
           }
-          if (!search) {
+          if (!main && !search && !selecting) AppleSelectionEntry(
+            enabled = enabled && !browserLoading && visibleEligible.isNotEmpty(),
+            onClick = { focus.clearFocus(); keyboard?.hide(); selectedPackages = emptyList(); selecting = true })
+          if (!search && !selecting) {
             val browserActions = if (!main) listOf(DropdownEntry(items = buildList {
               add(DropdownItem(text = stringResource(R.string.apple_refresh_mappings), enabled = enabled,
                 onClick = controller::load))
-              if (batchBrowser) {
-                add(DropdownItem(text = stringResource(if (selecting) R.string.apple_batch_exit_selection
-                  else R.string.apple_batch_enter_selection), enabled = enabled, onClick = {
-                  selecting = !selecting
-                  if (!selecting) selectedPackages = emptyList()
-                }))
-                if (selecting) {
-                  add(DropdownItem(text = stringResource(R.string.apple_batch_select_visible, visibleEligible.size),
-                    enabled = enabled && visibleEligible.isNotEmpty(),
-                    onClick = { selectedPackages = visibleEligible.toList() }))
-                  add(DropdownItem(text = stringResource(R.string.apple_batch_clear_selection),
-                    enabled = enabled && selectedPackages.isNotEmpty(),
-                    onClick = { selectedPackages = emptyList() }))
-                }
-              }
             })) else emptyList()
             val transferActions = DropdownEntry(items = listOf(
               DropdownItem(text = stringResource(R.string.apple_mapping_export), enabled = enabled, onClick = {
                 transferring = true
+                exportingSelection = false
+                selectedExportDocument = null
                 try {
                   exportMappings.launch("keihome-apple-mappings-" +
                     LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm")) + ".json")
@@ -344,7 +385,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         })
     }
   }, floatingActionButton = {
-    if (!matchedOnly) {
+    if (!matchedOnly && !selecting) {
       val description = when {
         batchBrowser && selecting -> stringResource(R.string.apple_batch_match_selected,
           selectedBatch.size, selectedVisible.size)
@@ -371,21 +412,25 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           when {
             search -> searchNow()
             main -> controller.generate()
-            selecting -> {
-              if (selectedBatch.isNotEmpty()) {
-                controller.autoMatch(selectedBatch)
-              }
-            }
-            else -> if (visibleEligible.isNotEmpty()) controller.autoMatch(visibleEligible)
+            else -> if (visibleMatchEligible.isNotEmpty()) controller.autoMatch(visibleMatchEligible)
           }
         },
         modifier = Modifier.testTag("apple.action"),
         enabled = enabled && (!search || query.isNotBlank() && !state.searching && !state.previewing) &&
           (!batchBrowser || !browserLoading && state.retryAtMillis <= now &&
-            (if (selecting) selectedBatch.isNotEmpty() else visibleEligible.isNotEmpty())),
+            visibleMatchEligible.isNotEmpty()),
         busy = actionBusy,
         onHeightChanged = { actionHeight = it })
     }
+  }, floatingToolbar = {
+    if (!main && !search && selecting) AppleSelectionToolbar(selection,
+      allowMatch = batchBrowser, enabled = enabled && !browserLoading,
+      matchingEnabled = state.retryAtMillis <= now,
+      onSelectAll = { selectedPackages = visibleEligible.toList() },
+      onClear = { selectedPackages = emptyList() },
+      onMatch = { val targets = selectedBatch; exitSelection(); controller.autoMatch(targets) },
+      onExport = { exportSelectedMappings() }, onDone = { exitSelection() },
+      modifier = Modifier.onSizeChanged { actionHeight = it.height })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       LazyColumn(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), state = listState,
@@ -464,7 +509,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               enabled = enabled && state.retryAtMillis == 0L,
                 summary = stringResource(R.string.apple_check_updates_summary), onClick = { controller.generate(refresh = true) })
               BasicComponent(title = stringResource(R.string.apple_clear_downloads), enabled = enabled && !state.searching,
-                onClick = controller::clearDownloads)
+                onClick = { showClearDownloads = true })
             }
           }
           state.progress?.let { progress -> item("progress") {
@@ -503,7 +548,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
           if (batchBrowser) item("batch-guidance") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              PackInfoCard(stringResource(R.string.apple_batch_intro, visibleEligible.size) +
+              PackInfoCard(stringResource(R.string.apple_batch_intro, visibleMatchEligible.size) +
                 if (selecting) "\n" + stringResource(R.string.apple_batch_selection_count,
                   selectedVisible.size, selectedBatch.size) else "")
               if (state.batchRunning) AppleBatchProgressCard(state, controller::cancelBatch)
@@ -539,13 +584,18 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             appleMappingCards(browserRows, state, controller, enabled && !browserLoading,
               maskPolicy = maskPolicy,
               currentPreviewProvider = currentPreviewProvider,
-              selectionMode = batchBrowser && selecting, selectedPackages = selectedVisibleSet,
+              selectionMode = selecting, selectedPackages = selectedVisible,
               selectablePackages = visibleEligible, onToggleSelection = { packageName ->
                 if (enabled && !browserLoading && packageName in visibleEligible) selectedPackages =
                   if (packageName in selectedPackages) selectedPackages - packageName else selectedPackages + packageName
               }) { row ->
               focus.clearFocus(); keyboard?.hide()
-              controller.edit(row.target); onNavigate("apple-search")
+              if (row.app != null) {
+                inspectionRow = row
+                showInspection = true
+              } else {
+                controller.edit(row.target); onNavigate("apple-search")
+              }
             }
           }
         } else {
@@ -601,9 +651,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           item("reset") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_restore_mapping), enabled = enabled,
-                onClick = { controller.mapping(null, reset = true); onBack() })
+                onClick = { mappingConfirmation = "reset" })
               BasicComponent(title = stringResource(R.string.apple_disable_mapping), enabled = enabled,
-                onClick = { controller.mapping(null); onBack() })
+                onClick = { mappingConfirmation = "exclude" })
             }
           }
           if (state.previewing) item("preview-loading") {
@@ -651,6 +701,41 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         } }
       }
     }
+    inspectionRow?.let { row ->
+      key(row.target.packageName, state.options.platform, state.options.country) {
+        AppleMappingInspection(row, state, controller, maskPolicy,
+          show = showInspection, enabled = enabled,
+          onDismiss = { showInspection = false },
+          onDismissFinished = { if (!showInspection) inspectionRow = null },
+          onEdit = {
+            showInspection = false
+            controller.edit(row.target)
+            onNavigate("apple-search")
+          })
+      }
+    }
+    Os4ActionDialog(show = showClearDownloads, title = stringResource(R.string.apple_clear_downloads),
+      summary = stringResource(R.string.apple_glass_clear_confirm),
+      icon = actionIcon(PageActionIcon.CLEAR), onDismissRequest = { showClearDownloads = false },
+      actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { showClearDownloads = false }),
+        Os4DialogAction(stringResource(R.string.apple_clear_downloads), enabled = enabled && !state.searching,
+          role = GlassDialogButtonRole.Destructive, tag = "apple.cache.confirm-clear",
+          onClick = { showClearDownloads = false; controller.clearDownloads() })))
+    val resetMapping = mappingConfirmation == "reset"
+    Os4ActionDialog(show = mappingConfirmation != null,
+      title = stringResource(if (resetMapping) R.string.apple_restore_mapping else R.string.apple_disable_mapping),
+      summary = stringResource(if (resetMapping) R.string.apple_glass_restore_confirm else R.string.apple_glass_exclude_confirm,
+        state.editing?.label.orEmpty()), icon = actionIcon(PageActionIcon.CLEAR),
+      onDismissRequest = { mappingConfirmation = null }, actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { mappingConfirmation = null }),
+        Os4DialogAction(stringResource(if (resetMapping) R.string.apple_restore_mapping else R.string.apple_disable_mapping),
+          enabled = enabled && state.editing != null, role = GlassDialogButtonRole.Destructive,
+          tag = "apple.mapping.confirm-change", onClick = {
+            mappingConfirmation = null
+            controller.mapping(null, reset = resetMapping)
+            onBack()
+          })))
     Os4ActionDialog(show = transferMessage != null, onDismissRequest = { transferMessage = null },
       title = stringResource(R.string.apple_mapping_transfer), summary = transferMessage.orEmpty(),
       icon = actionIcon(PageActionIcon.IMPORT), actions = listOf(

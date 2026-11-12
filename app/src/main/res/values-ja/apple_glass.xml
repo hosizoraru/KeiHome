@@ -1,0 +1,15 @@
+<resources>
+    <string name="apple_glass_preview_unavailable">アイコンを一時的にプレビューできません</string>
+    <string name="apple_glass_select">選択</string>
+    <string name="apple_glass_selection_count">%1$d 件選択中</string>
+    <string name="apple_glass_select_all">表示中の項目をすべて選択</string>
+    <string name="apple_glass_match_selected">選択した未一致のアプリ %1$d 件を照合</string>
+    <string name="apple_glass_export_selected">選択したマッピング %1$d 件を書き出す</string>
+    <string name="apple_glass_done">選択を終了</string>
+    <string name="apple_glass_exported">選択したマッピング %1$d 件を書き出しました。</string>
+    <string name="apple_glass_inspect">Apple アイコンを確認</string>
+    <string name="apple_glass_change_mapping">マッピングを変更</string>
+    <string name="apple_glass_clear_confirm">ダウンロード済みの Apple アイコンを削除しますか？マッピングと生成済みのパックは保持されます。アイコンは再ダウンロードが必要になります。</string>
+    <string name="apple_glass_restore_confirm">%1$s の自動マッピングを復元しますか？このプラットフォームの手動設定や除外設定を置き換えます。パックを再生成して適用すると反映されます。</string>
+    <string name="apple_glass_exclude_confirm">このプラットフォームで %1$s に Apple アイコンを使わないようにしますか？パックを再生成して適用すると反映されます。</string>
+</resources>

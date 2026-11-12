@@ -68,6 +68,8 @@ GROUPS = {
         UI + "SettingsSearchUiTest",)),
     "ui-cache": ("device", "Cache pills, equal chart columns, reminder editor and resource links", (
         UI + "CacheStorageUiTest",)),
+    "ui-local-packs": ("device", "Pack counts, confirmed local-copy removal and storage links", (
+        UI + "LocalPackRemovalDeviceTest", UI + "CacheStorageUiTest")),
     "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (
         UI + "ScopeAuthorizationUiTest",)),
     "ui-onboarding": ("device", "OS4 first use, resume, replay, optional routes and large text", (

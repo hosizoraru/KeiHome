@@ -137,17 +137,20 @@ class CacheStorageUiTest {
     rule.onNodeWithTag("cache.category.4").performScrollTo().performClick()
     rule.onNodeWithTag("cache.category.5").performScrollTo().performClick()
     rule.onNodeWithTag("cache.category.6").performScrollTo().performClick()
-    rule.runOnIdle { assertEquals(listOf("apple", "perfect", "log"), destinations) }
+    rule.onNodeWithTag("cache.category.7").performScrollTo().performClick()
+    rule.runOnIdle { assertEquals(listOf("apple", "perfect", "log", "library"), destinations) }
     rule.onNodeWithTag("cache.storage.preferences").performScrollTo().assertIsDisplayed()
   }
 
   @Test fun logsAreIncludedInDisplayedTotalsButPreviewMemoryIsSeparate() {
     val sample = CacheSample(
-      DiskCacheUsage(mapOf(CacheBucket.OTHER to 13L, CacheBucket.LOGS to 17L), true),
+      DiskCacheUsage(mapOf(CacheBucket.OTHER to 13L, CacheBucket.LOGS to 17L,
+        CacheBucket.IMPORTED_PACKS to 29L), true),
       memory = 99L, apple = 19L, perfect = 23L, capturedAt = 0L)
-    assertEquals(72L, sample.total)
+    assertEquals(101L, sample.total)
     assertEquals(sample.total, sample.categories.sum())
     assertEquals(17L, sample.categories[6])
+    assertEquals(29L, sample.categories[7])
     assertEquals(sample.total, sample.copy(memory = 0L).total)
   }
 

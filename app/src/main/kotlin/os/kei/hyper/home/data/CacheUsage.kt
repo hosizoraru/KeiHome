@@ -9,18 +9,20 @@ import java.nio.file.FileVisitResult
 import java.nio.file.attribute.BasicFileAttributes
 import os.kei.hyper.home.status.AppLogExportCache
 
-internal enum class CacheBucket { CURRENT_ICONS, BUILTIN_PACKS, HANDOFF, OTHER, LOGS }
+internal enum class CacheBucket { CURRENT_ICONS, BUILTIN_PACKS, HANDOFF, OTHER, LOGS, IMPORTED_PACKS }
 
 internal data class DiskCacheUsage(val bytes: Map<CacheBucket, Long>, val complete: Boolean) {
   val total: Long get() = bytes.values.sum()
 }
 
 /** Includes private App logs and their shared exports, without following links or touching writers. */
-internal fun measureDiskCache(root: File, logRoot: File? = null, check: () -> Unit = {}): DiskCacheUsage {
+internal fun measureDiskCache(root: File, logRoot: File? = null, importedRoot: File? = null,
+  check: () -> Unit = {}): DiskCacheUsage {
   val sizes = CacheBucket.entries.associateWith { 0L }.toMutableMap()
   var complete = true
   val cachePath = root.toPath().toAbsolutePath().normalize()
   val logPath = logRoot?.toPath()?.toAbsolutePath()?.normalize()
+  val importedPath = importedRoot?.toPath()?.toAbsolutePath()?.normalize()
   val sharePath = cachePath.resolve("share")
   fun measure(directory: File, bucketFor: (Path) -> CacheBucket) {
     if (!directory.exists()) return
@@ -50,6 +52,7 @@ internal fun measureDiskCache(root: File, logRoot: File? = null, check: () -> Un
   }
   measure(root) { path ->
     when {
+      importedPath != null && path.startsWith(importedPath) -> CacheBucket.IMPORTED_PACKS
       logPath != null && path.startsWith(logPath) -> CacheBucket.LOGS
       path.parent == sharePath && AppLogExportCache.isLogFileName(path.fileName.toString()) -> CacheBucket.LOGS
       else -> when (cachePath.relativize(path).first().toString()) {
@@ -62,5 +65,9 @@ internal fun measureDiskCache(root: File, logRoot: File? = null, check: () -> Un
   }
   // A nested log directory was already measured above.
   if (logRoot != null && logPath?.startsWith(cachePath) == false) measure(logRoot) { CacheBucket.LOGS }
+  if (importedRoot != null && importedPath?.startsWith(cachePath) == false &&
+    (logPath == null || !importedPath.startsWith(logPath))) {
+    measure(importedRoot) { CacheBucket.IMPORTED_PACKS }
+  }
   return DiskCacheUsage(sizes, complete)
 }

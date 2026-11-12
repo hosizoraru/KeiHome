@@ -55,12 +55,12 @@ import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val storageColors = listOf(Color(0xFFFFC72C), Color(0xFFFF913B), Color(0xFF44C9A1),
-  Color(0xFF8593AB), Color(0xFF508EF2), Color(0xFFDF6B85), Color(0xFF26A6B6))
+  Color(0xFF8593AB), Color(0xFF508EF2), Color(0xFFDF6B85), Color(0xFF26A6B6), Color(0xFFC6A755))
 private val storageLabels = listOf(R.string.storage_icons, R.string.storage_builtin,
   R.string.storage_transfer, R.string.storage_temporary, R.string.storage_apple, R.string.storage_perfect,
-  R.string.storage_logs)
-private val storageDescriptions = listOf(R.string.storage_icons_info, R.string.storage_builtin_info,
-  R.string.storage_transfer_info, R.string.storage_temporary_info)
+  R.string.storage_logs, R.string.storage_imported)
+private val storageDescriptions = mapOf(0 to R.string.storage_icons_info, 1 to R.string.storage_builtin_info,
+  2 to R.string.storage_transfer_info, 3 to R.string.storage_temporary_info, 7 to R.string.storage_imported_info)
 
 @Composable
 internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, onOpenPack: (String) -> Unit,
@@ -86,7 +86,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
     Column(Modifier.weight(1f).testTag("cache.storage.legend"),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {
       bytes.forEachIndexed { index, value ->
-        val destination = when (index) { 4 -> "apple"; 5 -> "perfect"; else -> null }
+        val destination = when (index) { 4 -> "apple"; 5 -> "perfect"; 7 -> "library"; else -> null }
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp)
           .then(if (index == 6) Modifier.os4Clickable(role = Role.Button, onClick = onOpenLogs)
             else if (destination != null) Modifier.os4Clickable(role = Role.Button) { onOpenPack(destination) }
@@ -101,7 +101,7 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
             Text(if (ready) Formatter.formatShortFileSize(context, value) else "\u2014",
               style = MiuixTheme.textStyles.subtitle)
           }
-          if (index in storageDescriptions.indices) {
+          if (index in storageDescriptions) {
             KeiHomeIconButton(
               onClick = { infoCategory = index; showingInfo = true },
               modifier = Modifier.testTag("cache.category.info.$index"),
@@ -118,8 +118,10 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
     }
   }
   Os4DetailsSheet(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
-    summary = stringResource(storageDescriptions[infoCategory]),
+    summary = stringResource(storageDescriptions.getValue(infoCategory)),
     modifier = Modifier.testTag("cache.category.info.card")) {
+    if (infoCategory == 7) Os4DialogButton(stringResource(R.string.icon_pack_library),
+      { showingInfo = false; onOpenPack("library") }, Modifier.fillMaxWidth())
     Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },
       Modifier.fillMaxWidth().testTag("cache.category.info.close"))
   }

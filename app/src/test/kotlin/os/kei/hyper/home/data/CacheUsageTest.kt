@@ -12,6 +12,34 @@ import org.junit.rules.TemporaryFolder
 class CacheUsageTest {
   @get:Rule val temporary = TemporaryFolder()
 
+  @Test fun persistentImportsAreCountedSeparatelyAndDeletionChangesTheTotal() {
+    val cache = temporary.newFolder("cache")
+    val imports = temporary.newFolder("icon-packs")
+    val copy = File(imports, "id").apply { mkdirs() }
+    copy.resolve("original.zip").writeBytes(ByteArray(31))
+    copy.resolve("icons.zip").writeBytes(ByteArray(17))
+    cache.resolve("scratch").writeBytes(ByteArray(7))
+    val outside = temporary.newFile().apply { writeBytes(ByteArray(200)) }
+    Files.createSymbolicLink(copy.resolve("link").toPath(), outside.toPath())
+    val before = measureDiskCache(cache, importedRoot = imports)
+    assertEquals(48L, before.bytes[CacheBucket.IMPORTED_PACKS])
+    assertEquals(55L, before.total)
+    assertTrue(before.complete)
+    copy.deleteRecursively()
+    val after = measureDiskCache(cache, importedRoot = imports)
+    assertEquals(0L, after.bytes[CacheBucket.IMPORTED_PACKS])
+    assertEquals(7L, after.total)
+    assertEquals(200L, outside.length())
+  }
+
+  @Test fun importedRootInsideCacheIsNotCountedTwice() {
+    val cache = temporary.newFolder("cache")
+    val imports = File(cache, "icon-packs").apply { mkdirs() }
+    imports.resolve("original.zip").writeBytes(ByteArray(37))
+    assertEquals(37L, measureDiskCache(cache, importedRoot = imports).total)
+    assertEquals(37L, measureDiskCache(cache, importedRoot = imports).bytes[CacheBucket.IMPORTED_PACKS])
+  }
+
   @Test fun measuresEachCacheCategoryWithoutFollowingLinks() {
     val root = temporary.newFolder("cache")
     val outside = temporary.newFile("outside").apply { writeBytes(ByteArray(99)) }

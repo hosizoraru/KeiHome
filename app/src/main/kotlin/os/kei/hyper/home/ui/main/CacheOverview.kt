@@ -53,8 +53,9 @@ internal data class CacheSample(
 ) {
   val total: Long get() = disk.total + apple + perfect
   val categories: List<Long> get() =
-    CacheBucket.entries.filter { it != CacheBucket.LOGS }.map { disk.bytes[it] ?: 0L } +
-      listOf(apple, perfect, disk.bytes[CacheBucket.LOGS] ?: 0L)
+    CacheBucket.entries.filter { it != CacheBucket.LOGS && it != CacheBucket.IMPORTED_PACKS }
+      .map { disk.bytes[it] ?: 0L } +
+      listOf(apple, perfect, disk.bytes[CacheBucket.LOGS] ?: 0L, disk.bytes[CacheBucket.IMPORTED_PACKS] ?: 0L)
 }
 
 @Composable
@@ -63,12 +64,13 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack
   val context = LocalContext.current.applicationContext
   val owner = LocalLifecycleOwner.current
   val refreshing by model.refreshing.collectAsStateWithLifecycle()
+  val importedRevision by model.importedPackRevision.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   var nonce by remember { mutableIntStateOf(0) }
   var sample by remember { mutableStateOf<CacheSample?>(null) }
   var reading by remember { mutableStateOf(true) }
   var failed by remember { mutableStateOf(false) }
-  LaunchedEffect(owner, nonce, refreshKey, 6 in refreshing) {
+  LaunchedEffect(owner, nonce, refreshKey, 6 in refreshing, importedRevision) {
     owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       reading = true
       failed = false
@@ -76,7 +78,8 @@ internal fun CacheOverview(model: HomeViewModel, refreshKey: Int = 0, onOpenPack
         sample = coroutineScope {
           val disk = async(Dispatchers.IO) {
             val coroutine = currentCoroutineContext()
-            measureDiskCache(context.cacheDir, java.io.File(context.filesDir, "app-logs")) { coroutine.ensureActive() }
+            measureDiskCache(context.cacheDir, java.io.File(context.filesDir, "app-logs"),
+              java.io.File(context.noBackupFilesDir, "icon-packs")) { coroutine.ensureActive() }
           }
           val apple = async { model.appleDownloadCacheBytes() }
           val perfect = async { model.perfectStorageUsage() }
@@ -144,7 +147,7 @@ internal fun CacheStorageContent(
         if (reading) LinearProgressIndicator(Modifier.fillMaxWidth())
       }
     }
-    CacheStorageChart(sample?.categories ?: List(7) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
+    CacheStorageChart(sample?.categories ?: List(8) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
     Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences")) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

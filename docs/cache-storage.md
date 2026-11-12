@@ -5,9 +5,10 @@ measurement time and health pills. The cylinder and category legend occupy equal
 widths, with a 32 dp gutter and 12 dp between category rows. The OS4 edit icon
 immediately before toolbar Refresh opens the reminder
 editor; the footer only explains cleanup scope and shows preview RAM.
-Seven colors identify snapshots, built-in copies, transfers, temporary
-files, Apple downloads, Perfect resources and logs. Apple/Perfect rows open their
-management pages; Logs opens the dedicated log page. Existing toolbar refresh
+Eight colors identify snapshots, built-in copies, transfers, temporary
+files, Apple downloads, Perfect resources, logs and imported copies. Apple/Perfect rows open their
+management pages; Logs opens the dedicated log page and imported copies open
+the icon library. Existing toolbar refresh
 and preview-memory clearing remain.
 
 The cylinder capacity is a reminder budget, not device free space or a download
@@ -36,6 +37,16 @@ The first four categories have separate information buttons with 48dp touch
 targets. Each opens a compact OS4 description card for that bucket; opening
 help does not navigate or mutate storage. Apple, Perfect and Logs retain their
 dedicated management links.
+
+Imported copies include `noBackupFilesDir/icon-packs/`: original APK/MTZ/ZIP
+archives, extracted icon ZIPs and their metadata. They have their own category
+and information button. This persistent data is included in the storage total
+and reminder threshold, but is preserved by preview/temporary-cache clearing.
+Its help dialog links to the icon library, where individual local copies can
+be removed. Files are measured once without following links, even when roots
+overlap. A successful local import/removal emits a lightweight storage revision
+that remeasures the cache page; normal entry/resume still remeasures independently.
+There is no periodic scan or archive decoding.
 
 Private-cache and Perfect metadata walks run on IO, do not follow symlinks,
 do not decode archives/catalogs, and do not wait for the Perfect download mutex.

@@ -408,11 +408,12 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
       Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        val removingLabel = stringResource(R.string.pack_removing)
         Text(pack.displayName, style = MiuixTheme.textStyles.body1, maxLines = 2,
           overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (onRemove != null) KeiHomeIconButton(onClick = onRemove, enabled = removeEnabled,
           modifier = Modifier.testTag("pack.remove.${pack.id}").semantics {
-            if (removing) contentDescription = context.getString(R.string.pack_removing)
+            if (removing) contentDescription = removingLabel
           }) {
           if (removing) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp)
           else Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.pack_remove_named, pack.displayName),

@@ -4,7 +4,10 @@
 
 Settings shows a snapshot of the private `cacheDir`, grouped into active icon
 snapshots, legacy built-in pack copies, import/export working files and other temporary
-files. The last category includes platform or diagnostic files in that directory.
+files. It also includes the separate Apple/Perfect stores, logs and persistent
+local imports under `noBackupFilesDir/icon-packs/`; see
+[cache storage](cache-storage.md) for their classification and management links.
+The temporary category includes platform or diagnostic files in the cache directory.
 The scan runs off the UI thread, does not follow symbolic links, and reports an
 incomplete result if any file cannot be read. It can be refreshed from the top
 bar and is remeasured after clearing previews. File lengths are logical bytes,

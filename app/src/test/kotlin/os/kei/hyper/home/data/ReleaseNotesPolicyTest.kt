@@ -85,6 +85,8 @@ class ReleaseNotesPolicyTest {
   }
 
   @Test fun upgradeUsesTheReleaseAuthorsExpansionSelection() {
+    assertEquals(listOf("1.9.0", "1.8.0", "1.7.0", "1.6.0"),
+      ReleaseNotesCatalog.initiallyExpandedVersions("1.9.0+g1234567.b0999", upgrade = true))
     assertEquals(listOf("1.8.0", "1.7.0", "1.6.0"),
       ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0+g1234567.b0999", upgrade = true))
     assertEquals(listOf("1.7.0", "1.6.0"),
@@ -92,6 +94,7 @@ class ReleaseNotesPolicyTest {
   }
 
   @Test fun manualHistoryOpensOnlyTheCurrentRelease() {
+    assertEquals(listOf("1.9.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.9.0", upgrade = false))
     assertEquals(listOf("1.8.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.8.0", upgrade = false))
     assertEquals(listOf("1.7.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.7.0", upgrade = false))
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = false))
@@ -99,7 +102,7 @@ class ReleaseNotesPolicyTest {
 
   @Test fun unconfiguredReleasesDoNotInheritAnotherReleasesExpansionSelection() {
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = true))
-    assertEquals(listOf("1.8.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.9.0", upgrade = true))
+    assertEquals(listOf("1.9.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.10.0", upgrade = true))
     assertEquals(emptyList<String>(), ReleaseNotesCatalog.initiallyExpandedVersions("broken", upgrade = true))
   }
 
@@ -113,4 +116,25 @@ class ReleaseNotesPolicyTest {
     assertEquals(closed, observe(closed, version = "1.8.0+g7654321.b9999", notes = releases))
     assertEquals("", observe(version = "1.8.0", updated = false, notes = releases).pendingVersion)
   }
+  @Test fun release19From18ShowsOnlyTheNewUnreadVersionAndAcknowledgesItAcrossBuilds() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val upgraded = observe(ReleaseNotesState("1.8.0", "1.8.0"), "1.9.0+g1234567.b0001", notes = releases)
+    assertEquals("1.9.0", upgraded.pendingVersion)
+    assertEquals(listOf("1.9.0"), upgraded.pendingVersions)
+    assertEquals(upgraded, observe(upgraded, "1.9.0+g1234567.b0002", notes = releases))
+    val closed = ReleaseNotesPolicy.acknowledge(upgraded)
+    assertEquals("1.9.0", closed.readThrough)
+    assertEquals(closed, observe(closed, "1.9.0+g7654321.b9999", notes = releases))
+  }
+
+  @Test fun release19FreshInstallAndSkippedUpgradeKeepTheirDistinctStartupRules() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val fresh = observe(version = "1.9.0", updated = false, notes = releases)
+    assertEquals("", fresh.pendingVersion)
+    assertEquals("1.9.0", fresh.readThrough)
+    assertEquals(fresh, observe(fresh, "1.9.0+g7654321.b9999", notes = releases))
+    val skipped = observe(ReleaseNotesState("1.5.0", "1.5.0"), "1.9.0", notes = releases)
+    assertEquals(listOf("1.9.0", "1.8.0", "1.7.0", "1.6.0"), skipped.pendingVersions)
+  }
+
 }

@@ -44,4 +44,28 @@ class ReleaseNotesPreferencesTest {
       MMKV.removeStorage(id)
     }
   }
+
+  @Test fun release19UpgradeAcknowledgesOnceWhileFreshInstallSkipsChangelog() {
+    val storageId = "release_notes_test_${UUID.randomUUID()}"
+    val freshId = "release_notes_test_${UUID.randomUUID()}"
+    val before = AppPreferences.get(context).state.value
+    try {
+      ReleaseNotesPreferences(context, storageId, "1.8.0", updatedInstallation = false)
+      val upgrade = ReleaseNotesPreferences(context, storageId, "1.9.0+g1234567.b0001", updatedInstallation = true)
+      assertEquals(listOf("1.9.0"), upgrade.state.value.pendingVersions)
+      assertEquals("1.9.0", ReleaseNotesPreferences(context, storageId, "1.9.0+g1234567.b0002", true).state.value.pendingVersion)
+      upgrade.acknowledge()
+      assertEquals("", ReleaseNotesPreferences(context, storageId, "1.9.0+g7654321.b9999", true).state.value.pendingVersion)
+      val fresh = ReleaseNotesPreferences(context, freshId, "1.9.0", updatedInstallation = false,
+        allowLegacyUpgrade = false).state.value
+      assertEquals("1.9.0", fresh.readThrough)
+      assertEquals("", fresh.pendingVersion)
+      assertEquals(before, AppPreferences.get(context).state.value)
+    } finally {
+      for (id in listOf(storageId, freshId)) {
+        AppLocalStorage.open(context, id).close()
+        MMKV.removeStorage(id)
+      }
+    }
+  }
 }

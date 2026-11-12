@@ -13,6 +13,7 @@ deriving the calendar date.
 
 | Version | Tag target commit | Target commit timestamp |
 | --- | --- | --- |
+| 1.9.0 | `v1.9.0^{commit}` | `2026-11-13T07:12:24+08:00` |
 | 1.8.0 | `v1.8.0^{commit}` | `2026-11-12T09:15:03+08:00` |
 | 1.7.0 | `8b71d5ae41eaca2a820d8a1105703074ef22425f` | `2026-11-11T17:53:39+08:00` |
 | 1.6.0 | `02c8badfcd929c0563fb8c25361167ae5eed0008` | `2026-11-11T03:24:52+08:00` |
@@ -98,6 +99,17 @@ Representative in-range commits: `ff3ec6d`, `290ca54`, `a5c8203`, `879c1aa`,
 `97f6bae`, `413317d`, `b236e15`, `185ad34`, `bc4d232`, plus the release commit.
 See `docs/perfect-git-sync.md`, `docs/icon-mask-preview.md`,
 `docs/ui-performance.md` and `docs/onboarding.md` for scope and limits.
+
+[1.9.0 notes](releases/1.9.0.md) cover `v1.8.0..v1.9.0`: component/adaptive
+icon and dynamic snapshot fixes, publication-aware masked previews, preserved
+originals and optional recommended mappings, independent Perfect completion,
+OS4 Glass controls and list actions, removable imports, fixed cache reminders
+and log accounting, Hook overhead and R8 protection. The notes describe final
+behavior rather than individual commits. First upgrade presentation expands
+1.9.0/1.8.0/1.7.0/1.6.0; manual entry expands only 1.9.0. See
+`docs/icon-rendering-alias-regression-20261112.md`,
+`docs/recommended-icon-mappings.md`, `docs/perfect-icons.md`,
+`docs/hook-hot-path-performance.md` and `docs/miuix-os4-migration.md`.
 
 The catalogs retain the supplied Chinese 1.4.0 and 1.5.0 announcements and
 existing 1.6.0 notes. The focused catalog check validates XML and localized key /

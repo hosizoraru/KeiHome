@@ -57,33 +57,35 @@ class ReleaseNotesNavigationTest {
   @Test fun prefixUpgradeOpensOnceAndManualSettingsEntryRemainsAvailable() {
     val storage = id()
     ReleaseNotesPreferences(context, storage, "1.4.0", false)
-    val update = ReleaseNotesPreferences(context, storage, "1.8.0", true)
+    val update = ReleaseNotesPreferences(context, storage, "1.9.0", true)
     val onboarding = setup(true)
     val before = AppPreferences.get(context).state.value
     rule.setContent { KeiHomeTheme { MainNavigation(onboarding, update) } }
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
+    rule.onNodeWithTag("release-notes.body.1.9.0").assertExists()
     rule.onNodeWithTag("release-notes.body.1.8.0").assertExists()
     rule.onNodeWithTag("release-notes.body.1.7.0").assertExists()
     rule.onNodeWithTag("release-notes.body.1.6.0").assertExists()
     rule.onNodeWithTag("release-notes.body.1.5.0").assertDoesNotExist()
-    val version = rule.onNodeWithTag("release-notes.version.1.8.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-    val date = rule.onNodeWithTag("release-notes.date.1.8.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val version = rule.onNodeWithTag("release-notes.version.1.9.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+    val date = rule.onNodeWithTag("release-notes.date.1.9.0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
     assertTrue("Date must be on the right of the version", date.left >= version.right)
     assertTrue("Date and version must share a row", date.top < version.bottom && date.bottom > version.top)
     shot("upgrade")
     rule.onNodeWithTag("release-notes.continue").performClick()
     rule.onNodeWithTag("release-notes.page").assertDoesNotExist()
     assertEquals("", update.state.value.pendingVersion)
-    assertEquals("", ReleaseNotesPreferences(context, storage, "1.8.0+g7654321.b9999", true).state.value.pendingVersion)
+    assertEquals("", ReleaseNotesPreferences(context, storage, "1.9.0+g7654321.b9999", true).state.value.pendingVersion)
     rule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
     rule.onNodeWithTag("settings.entry.release-notes").performScrollTo().performClick()
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
     rule.onNodeWithTag("release-notes.continue").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.body.1.8.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.9.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.8.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.7.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.6.0").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.toggle.1.8.0").performClick()
-    rule.onNodeWithTag("release-notes.body.1.8.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.toggle.1.9.0").performClick()
+    rule.onNodeWithTag("release-notes.body.1.9.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.date.1.5.0", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
     shot("manual-collapsed")
     rule.onNodeWithTag("release-notes.toggle.1.5.0").performClick()
@@ -112,7 +114,7 @@ class ReleaseNotesNavigationTest {
 
   @Test fun firstInstallationUsesGuideWithoutOpeningReleaseNotesAfterCompletion() {
     val onboarding = setup(false)
-    val notes = ReleaseNotesPreferences(context, id(), "1.7.0", false)
+    val notes = ReleaseNotesPreferences(context, id(), "1.9.0", false)
     rule.setContent { KeiHomeTheme { MainNavigation(onboarding, notes) } }
     rule.onNodeWithTag("setup.page.0").assertIsDisplayed()
     rule.onNodeWithTag("release-notes.page").assertDoesNotExist()

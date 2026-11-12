@@ -33,6 +33,9 @@ does not automatically run navigation, color editing or native tests.
 | Perfect source/sync/history/health | `perfect-sync` |
 | Scope requests and authorization state | `scope`; manual onboarding check if wording/flow changes |
 | Native icon config completion, generation flags and import boundaries | `icon-shape`; `icon-shape-device` for archive and raster checks |
+| Custom mask XML, policy and regeneration identity | `icon-mask` |
+| Mask import, alpha edges and source/export preservation | `icon-mask-device` |
+| Mask child page, real comparison and restore confirmation | `ui-icon-mask`; affected preview screenshot |
 | Reload retirement bookkeeping | `hook-lifecycle`; normal deployment/handoff checks when runtime changes |
 | Broad infrastructure/dependency changes or release gate | `release-jvm`, appropriate lint and affected device/native suites |
 

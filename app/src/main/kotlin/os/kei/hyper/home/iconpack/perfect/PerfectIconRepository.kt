@@ -76,7 +76,9 @@ class PerfectIconRepository internal constructor(
     File(context.applicationContext.filesDir, "perfect-icons"),
     PerfectIconUrlConnection(),
     MmkvSettings(context.applicationContext),
-    nativeMask = { NativeAdaptiveIconMask.load()?.pathData },
+    nativeMask = { os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(context).let {
+      if (it.enabled) it.defaultPath else null
+    } },
     staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check) },
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
@@ -1028,7 +1030,8 @@ class PerfectIconRepository internal constructor(
       check()
       read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) { "Cached source icon integrity mismatch" } }
     }
-    val pair = requireNotNull(staticRenderer) { "Static night renderer unavailable" }(source, mask, check)
+    // Shape belongs to the final compositor. Baking it here prevents reversible mask comparisons.
+    val pair = requireNotNull(staticRenderer) { "Static night renderer unavailable" }(source, null, check)
     GeneratedIconPng.validate(pair.day, 512)
     GeneratedIconPng.validate(pair.night, 512)
     renderedDir.mkdirs()

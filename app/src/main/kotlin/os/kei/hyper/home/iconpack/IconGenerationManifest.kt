@@ -6,15 +6,19 @@ internal data class IconGenerationManifest(
   val considered: Set<String> = emptySet(),
   val nativeAdaptations: Map<String, String> = emptyMap(),
   val installedOnly: Boolean = false,
-  val schemaVersion: Int = 3,
+  val schemaVersion: Int = 4,
   val completeSystemIconConfig: Boolean = false,
+  val iconMaskIdentity: String = if (completeSystemIconConfig) IconMaskPolicy.DEFAULT_IDENTITY else "original",
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..3 && (schemaVersion != 1 || !installedOnly) &&
-      (schemaVersion == 3 || !completeSystemIconConfig))
+    require(schemaVersion in 1..4 && (schemaVersion != 1 || !installedOnly) &&
+      (schemaVersion >= 3 || !completeSystemIconConfig))
+    require(validMaskIdentity(iconMaskIdentity) &&
+      (completeSystemIconConfig == (iconMaskIdentity != "original")))
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
-    (if (schemaVersion == 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
+    (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
+    (if (schemaVersion >= 4) listOf("mask\t$iconMaskIdentity") else emptyList()) +
     colorOsPackages.sorted().map { "coloros\t$it" } + considered.sorted().map { "target\t$it" } +
     nativeAdaptations.toSortedMap().map { (key, value) -> "native\t$key\t$value" })
     .joinToString("\n", postfix = "\n").toByteArray(Charsets.UTF_8)
@@ -30,12 +34,14 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration1" -> 1
         "KeiHomeIconGeneration2" -> 2
         "KeiHomeIconGeneration3" -> 3
+        "KeiHomeIconGeneration4" -> 4
         else -> error("Unknown generation schema")
       }
-      require(lines.last().isEmpty() && lines.size <= 30004)
+      require(lines.last().isEmpty() && lines.size <= 30005)
       val packages = linkedSetOf<String>(); val targets = linkedSetOf<String>(); val native = linkedMapOf<String, String>()
       var scope: String? = null
       var shape: String? = null
+      var mask: String? = null
       fun target(value: String) = IconPackComponent.parse(value)?.flattened == value
       lines.drop(1).dropLast(1).forEach { line ->
         val row = line.split('\t')
@@ -45,8 +51,12 @@ internal data class IconGenerationManifest(
             scope = row[1]
           }
           "shape" -> {
-            require(schema == 3 && row.size == 2 && shape == null && row[1] in setOf("complete", "original"))
+            require(schema >= 3 && row.size == 2 && shape == null && row[1] in setOf("complete", "original"))
             shape = row[1]
+          }
+          "mask" -> {
+            require(schema >= 4 && row.size == 2 && mask == null && validMaskIdentity(row[1]))
+            mask = row[1]
           }
           "coloros" -> require(row.size == 2 && validDottedName(row[1]) && packages.add(row[1]))
           "target" -> require(row.size == 2 && target(row[1]) && targets.add(row[1]))
@@ -56,10 +66,14 @@ internal data class IconGenerationManifest(
         }
       }
       require(schema == 1 || scope != null)
-      require(schema != 3 || shape != null)
-      return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete").also {
+      require(schema < 3 || shape != null)
+      require(schema < 4 || mask != null)
+      return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
+        mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original").also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }
+    private fun validMaskIdentity(value: String) = value in setOf("original", IconMaskPolicy.DEFAULT_IDENTITY) ||
+      value.matches(Regex("custom-[0-9a-f]{64}"))
   }
 }

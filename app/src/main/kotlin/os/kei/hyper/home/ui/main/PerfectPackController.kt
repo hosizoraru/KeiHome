@@ -106,6 +106,17 @@ internal class PerfectPackController(
   val previewState = mutablePreview.asStateFlow()
   @Volatile private var loaded = false
   private var localRefreshJob: Job? = null
+  private var previewJob: Job? = null
+  private var previewEpoch = 0
+
+  fun invalidateMaskPreview() {
+    // Rebuild lazily on returning to the preview page; do not start downloads or apply a theme.
+    previewEpoch++
+    previewJob?.cancel()
+    previewJob = null
+    mutablePreview.value = PerfectPackPreviewState()
+    mutableState.update { it.copy(previewLoading = false) }
+  }
 
   fun loadPreview(refresh: Boolean = false) {
     val current = state.value
@@ -123,7 +134,8 @@ internal class PerfectPackController(
       (previous.pack != null || previous.failed)) return
     mutablePreview.value = PerfectPackPreviewState(current.options, catalog.sourceHash, loading = true)
     mutableState.update { it.copy(previewLoading = true) }
-    scope.launch {
+    val epoch = ++previewEpoch
+    previewJob = scope.launch {
       try {
         val descriptor = withContext(Dispatchers.IO) {
           val file = repository.previewArchive(current.options, limit = 24)
@@ -147,15 +159,17 @@ internal class PerfectPackController(
             directives = index.directives,
           )
         }
-        mutablePreview.update { it.copy(pack = descriptor) }
+        if (epoch == previewEpoch) mutablePreview.update { it.copy(pack = descriptor) }
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
-        mutablePreview.update { it.copy(failed = true) }
+        if (epoch == previewEpoch) mutablePreview.update { it.copy(failed = true) }
       } finally {
-        mutablePreview.update { it.copy(loading = false) }
-        updateCache()
-        mutableState.update { it.copy(previewLoading = false) }
+        if (epoch == previewEpoch) {
+          mutablePreview.update { it.copy(loading = false) }
+          updateCache()
+          mutableState.update { it.copy(previewLoading = false) }
+        }
       }
     }
   }

@@ -15,9 +15,13 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   installedOnly: Boolean = false,
   perfectSource: String? = null,
   completeSystemIconConfig: Boolean = false,
+  iconMaskIdentity: String = if (completeSystemIconConfig)
+    os.kei.hyper.home.iconpack.IconMaskPolicy.DEFAULT_IDENTITY else "original",
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||
     (source.generation?.completeSystemIconConfig ?: false) != completeSystemIconConfig ||
+    (completeSystemIconConfig && (source.generation?.schemaVersion?.let { it < 4 } == true ||
+      source.generation?.iconMaskIdentity != iconMaskIdentity)) ||
     (source.generation?.installedOnly ?: false) != installedOnly) return true
   val effectiveNameMatching = nameMatching &&
     pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS

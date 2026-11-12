@@ -42,9 +42,9 @@ internal class IconPackExporter(private val context: Context, private val limits
       ?: (nameMatcher ?: SystemAppNameMatcher(context, pack.entries, systemAppNameMatching)).match(target)
     if (pack.colorOsProfile?.source(target)?.requiresLiveIcon == true || livePolicy(pack)(target, entry)) return false
     return try {
-      val system = SystemIconFallbackRenderer(context, systemFallback)
+      val system = SystemIconFallbackRenderer(context, systemFallback, clipOutput = false)
       val colorOs = (pack.colorOsProfile ?: colorOsFallback?.colorOsProfile)?.let { ColorOsFallbackRenderer(context, style = it.style) }
-      IconPackRenderer(context).open(pack, false, colorOsFallback).use { renderer ->
+      IconPackRenderer(context).open(pack, false, colorOsFallback, clipOutput = false).use { renderer ->
         val missingMode = entry == null || (colorOs != null && entry.artwork(false) == null)
         val bitmap = renderer.renderTarget(entry, target, 48, check)
           ?: if (missingMode && system.isSystem(target)) system.render(target, 48, check)
@@ -77,7 +77,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean,
     sizePx: Int, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsFallback: IconPackDescriptor? = null,
-    installedOnly: Boolean = false, check: () -> Unit,
+    installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     // Offline ColorOS mappings also cover future installs unless generation is scoped to targets.
@@ -93,7 +93,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val sharedActivities = normalized.filter { it.className != null }.groupBy { it.className }
       .filterValues { group -> group.map { it.packageName }.distinct().size > 1 }.keys
     if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
-      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly, check)
+      return exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly, maskPolicy, check)
     }
     val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
     val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
@@ -119,7 +119,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val nativeAdaptationTargets = linkedSetOf<IconPackComponent>()
       val colorOs = pack.colorOsProfile ?: colorOsFallback?.colorOsProfile
       val fallback = colorOs?.let { ColorOsFallbackRenderer(context, style = it.style) }
-      val systemRenderer = systemFallback?.let { SystemIconFallbackRenderer(context, it) }
+      val systemRenderer = systemFallback?.let { SystemIconFallbackRenderer(context, it, clipOutput = false) }
       val systemNames = linkedSetOf<String>()
       val mask = colorOs?.read(colorOs.maskPath, check)?.let { bytes ->
         GeneratedIconPng.squareSize(bytes)
@@ -135,7 +135,8 @@ internal class IconPackExporter(private val context: Context, private val limits
         return encodePng(if (scaled === bitmap) bitmap.copy(Bitmap.Config.ARGB_8888, false) else scaled)
       }
       var paletteBackground = mask?.let(::scaledPng)
-      IconPackRenderer(context).open(pack, darkMode, colorOsFallback).use { renderer ->
+      IconPackRenderer(context).open(pack, darkMode, colorOsFallback,
+        maskPolicy = maskPolicy, clipOutput = false).use { renderer ->
         try {
         ZipOutputStream(LimitedOutput(archive.outputStream(), limits.maxInputBytes)).use { zip ->
           fun write(name: String, png: ByteArray) {
@@ -179,7 +180,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                 val bitmap = renderer.renderTarget(entry, target, sizePx, check)
                   ?: if (missingMode && systemRenderer?.isSystem(target) == true) {
                     systemRenderer.render(target, sizePx, check)?.also { usedSystemFallback = true }
-                  } else if (missingMode) fallback?.render(target, darkMode, sizePx, mask, check) else null
+                  } else if (missingMode) fallback?.render(target, darkMode, sizePx, mask = null, check = check) else null
                 bitmap?.let(::encodePng)
               } catch (cancelled: CancellationException) { throw cancelled
               } catch (failure: Exception) {
@@ -267,7 +268,8 @@ internal class IconPackExporter(private val context: Context, private val limits
    * Keep every byte and resource qualifier; targets report known exact names, not an allowlist. */
   private fun exportNativeModule(
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
-    systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean, check: () -> Unit,
+    systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean,
+    maskPolicy: IconMaskPolicy?, check: () -> Unit,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -281,7 +283,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val originalNames = index.entries.mapNotNull { it.nativeName }.toSet()
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
-          systemFallback ?: SystemIconFallback.DEFAULT, size, installedOnly, check)
+          systemFallback ?: SystemIconFallback.DEFAULT, size, installedOnly, maskPolicy, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, check); null }
       val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty()) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
@@ -361,6 +363,7 @@ internal class IconPackExporter(private val context: Context, private val limits
   /** Add only uncovered names; supplied native animations, night trees and artwork stay authoritative. */
   private fun appendColorOsFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
     fallback: IconPackDescriptor, style: SystemIconFallback, size: Int, installedOnly: Boolean,
+    maskPolicy: IconMaskPolicy?,
     check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
     require(fallback.colorOsProfile != null && fallback.format == IconPackFormat.CLASSIC_ZIP)
     val protected = java.util.zip.ZipFile(archive).use { source ->
@@ -368,11 +371,11 @@ internal class IconPackExporter(private val context: Context, private val limits
     }
     val missing = targets.filter { it.packageName !in protected && it.className !in protected }
     if (installedOnly && missing.isEmpty()) return emptySet<String>() to emptySet<IconPackComponent>()
-    val day = export(fallback, missing, false, size, style, installedOnly = installedOnly, check = check)
+    val day = export(fallback, missing, false, size, style, installedOnly = installedOnly, maskPolicy = maskPolicy, check = check)
     var night: IconPackExportResult? = null
     val copy = File.createTempFile("native-coloros-fallback-", ".zip", archive.parentFile)
     try {
-      night = export(fallback, missing, true, size, style, installedOnly = installedOnly, check = check)
+      night = export(fallback, missing, true, size, style, installedOnly = installedOnly, maskPolicy = maskPolicy, check = check)
       val additions = linkedMapOf<String, ByteArray>()
       val systemNames = linkedSetOf<String>()
       java.util.zip.ZipFile(day.archive).use { light ->
@@ -428,7 +431,7 @@ internal class IconPackExporter(private val context: Context, private val limits
 
   private fun appendNativeFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
     style: SystemIconFallback, size: Int, check: () -> Unit) {
-    val renderer = SystemIconFallbackRenderer(context, style)
+    val renderer = SystemIconFallbackRenderer(context, style, clipOutput = false)
     val previous = java.util.zip.ZipFile(archive).use { source ->
       source.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
         require(entry.size in 1..SystemIconFallbackManifest.MAX_BYTES)

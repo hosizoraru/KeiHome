@@ -185,11 +185,12 @@ internal class IconPackRepository(
     systemAppNameMatching: Boolean = false,
     colorOsForOtherPacks: Boolean = false,
     installedOnly: Boolean = false,
+    maskPolicy: IconMaskPolicy? = null,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
-      systemAppNameMatching, fallback, installedOnly) { caller.ensureActive() }
+      systemAppNameMatching, fallback, installedOnly, maskPolicy) { caller.ensureActive() }
   }
 
   private var runtimeFallbackCache: IconPackDescriptor? = null

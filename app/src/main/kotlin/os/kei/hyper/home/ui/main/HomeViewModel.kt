@@ -153,7 +153,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val previews = IconPreviewRepository(application)
   val packPreviews = IconPackPreviewRepository(application)
   val currentPreviews = CurrentIconPreviewRepository(application,
-    { pack, entry -> packPreviews.load(pack, entry) })
+    { pack, entry -> packPreviews.loadApplied(pack, entry) })
   private val packRepository = IconPackRepository(application)
   private val appleRepository = os.kei.hyper.home.iconpack.apple.AppleIconRepository(application)
   val applePacks: ApplePackController = ApplePackController(viewModelScope, appleRepository) {
@@ -164,6 +164,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application), packRepository) {
     iconPacksDirty = true
     viewModelScope.launch { readIconPacks() }
+  }
+  internal val iconMasks = IconMaskController(application, viewModelScope) {
+    clearPreviewCache()
+    perfectPacks.invalidateMaskPreview()
   }
   val iconPacks: StateFlow<IconPacksUiState>
     field = MutableStateFlow(IconPacksUiState())
@@ -254,13 +258,20 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (managed && !iconPacks.value.scanned) readIconPacks()
     }
     viewModelScope.launch {
+      preferences.state.map { it.completeSystemIconConfig }.distinctUntilChanged().collect {
+        clearPreviewCache()
+        perfectPacks.invalidateMaskPreview()
+      }
+    }
+    viewModelScope.launch {
       combine(browserSource,
         iconPacks.map { Triple(it.packs, it.nativeSources, it.nativeImporting) }.distinctUntilChanged(),
         preferences.state.map { it.systemIconFallback }.distinctUntilChanged(),
         preferences.state.map { Triple(it.systemAppNameMatching, it.colorOsForOtherPacks,
           it.installedIconsOnly to it.completeSystemIconConfig) }.distinctUntilChanged(),
         packageInventoryRevision) { _, _, _, _, _ -> Unit }
-        .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
+        .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
           if (iconPacks.value.nativeImporting != null) return@withContext false
@@ -288,7 +299,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           }
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
             installedOnly = preferences.state.value.installedIconsOnly, perfectSource = perfectSource,
-            completeSystemIconConfig = preferences.state.value.completeSystemIconConfig) {
+            completeSystemIconConfig = preferences.state.value.completeSystemIconConfig,
+            iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled

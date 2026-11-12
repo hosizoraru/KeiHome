@@ -26,6 +26,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -36,7 +37,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
+internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit, onOpenMask: () -> Unit = {}) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
@@ -58,7 +59,7 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
           model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews,
-          onCompleteSystemIconConfig = model.preferences::setCompleteSystemIconConfig)
+          onOpenMask = onOpenMask)
       }
     }
   }
@@ -78,8 +79,9 @@ internal fun PackSettingsContent(
   showCompactHints: Boolean = true,
   showPreviews: Boolean = true,
   onCompleteSystemIconConfig: ((Boolean) -> Unit)? = null,
+  onOpenMask: (() -> Unit)? = null,
 ) {
-  if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null) {
+  if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null || onOpenMask != null) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       if (showAutoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
@@ -94,6 +96,11 @@ internal fun PackSettingsContent(
         checked = preferences.completeSystemIconConfig,
         onCheckedChange = onCompleteSystemIconConfig,
         modifier = Modifier.testTag("icon-packs.complete-system-icon-config"))
+      if (onOpenMask != null) BasicComponent(
+        title = stringResource(R.string.icon_mask_entry_title),
+        summary = stringResource(R.string.icon_mask_entry_summary),
+        onClick = onOpenMask,
+        modifier = Modifier.testTag("icon-packs.open-mask"))
     }
   }
   if (showRememberMenus || showCompactHints || showPreviews) {

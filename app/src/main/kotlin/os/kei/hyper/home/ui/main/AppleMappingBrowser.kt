@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.Image
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -190,6 +191,7 @@ internal fun appleBatchSelectable(row: AppleMappingRow, now: Long): Boolean =
 internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state: ApplePackUiState,
   controller: ApplePackController, enabled: Boolean,
   currentPreviewProvider: AppleCurrentThemePreviewProvider? = null,
+  maskPolicy: IconMaskPolicy? = null,
   selectionMode: Boolean = false, selectedPackages: Set<String> = emptySet(),
   selectablePackages: Set<String> = emptySet(), onToggleSelection: (String) -> Unit = {},
   onSelect: (AppleMappingRow) -> Unit) {
@@ -292,10 +294,10 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
               }
               Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 ComparisonHeading(stringResource(R.string.apple_preview_comparison_apple))
-                AppleCachedArtwork(preview, comparison = true)
+                AppleCachedArtwork(preview, comparison = true, maskPolicy = maskPolicy)
               }
             }
-          } else AppleCachedArtwork(preview)
+          } else AppleCachedArtwork(preview, maskPolicy = maskPolicy)
           if (AppleDynamicArtwork.kind(app, state.options) != null) {
             Text(stringResource(R.string.apple_dynamic_preview_note), style = MiuixTheme.textStyles.footnote2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -329,10 +331,10 @@ private fun ComparisonHeading(label: String) {
 }
 
 @Composable
-private fun AppleCachedArtwork(preview: AppleArtworkPreview?, comparison: Boolean = false) {
+private fun AppleCachedArtwork(preview: AppleArtworkPreview?, comparison: Boolean = false, maskPolicy: IconMaskPolicy?) {
   Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
     if (preview != null) AppleArtworkPair(preview, compact = true,
-      iconSize = if (comparison) 44.dp else 56.dp) else {
+      iconSize = if (comparison) 44.dp else 56.dp, maskPolicy = maskPolicy) else {
       Text(stringResource(R.string.apple_no_cached_preview), textAlign = TextAlign.Center,
         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
@@ -380,9 +382,7 @@ private fun CurrentThemeThumb(bitmap: android.graphics.Bitmap, appLabel: String,
   val description = stringResource(R.string.apple_preview_current_accessibility, appLabel, caption)
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    Box(Modifier.size(44.dp).background(
-      if (dark) Color(0xff16171b) else Color(0xfff2f3f7), RoundedCornerShape(12.dp)),
-      contentAlignment = Alignment.Center) {
+    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
       val image = remember(bitmap) { bitmap.asImageBitmap() }
       Image(image, description, Modifier.size(44.dp))
     }
@@ -393,17 +393,17 @@ private fun CurrentThemeThumb(bitmap: android.graphics.Bitmap, appLabel: String,
 
 @Composable
 internal fun AppleArtworkPair(preview: AppleArtworkPreview, compact: Boolean = false,
-  iconSize: Dp = if (compact) 56.dp else 76.dp) {
+  iconSize: Dp = if (compact) 56.dp else 76.dp, maskPolicy: IconMaskPolicy?) {
   Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
       AppleArtworkThumb(preview.light, stringResource(R.string.apple_preview_light),
-        iconSize)
+        iconSize, maskPolicy = maskPolicy)
     }
     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
       AppleArtworkThumb(preview.dark ?: preview.light,
         stringResource(if (preview.dark == null)
           if (preview.limited) R.string.apple_dark_pending else R.string.apple_preview_same else R.string.apple_preview_dark),
-        iconSize, dark = true)
+        iconSize, dark = true, maskPolicy = maskPolicy)
     }
   }
 }

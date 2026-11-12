@@ -456,7 +456,8 @@ internal fun PackActionButton(label: String, onClick: () -> Unit, modifier: Modi
 internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, repository: IconPackPreviewRepository,
   appearance: IconPackAppearance, modifier: Modifier, compact: Boolean = false, distinctOnly: Boolean = false) {
   val configuration = LocalConfiguration.current.toString()
-  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration, compact) {
+  val maskRevision by repository.revision.collectAsStateWithLifecycle()
+  val preview by androidx.compose.runtime.key(pack.id, pack.source, entry, configuration, compact, maskRevision) {
     produceState<IconPackPreviews?>(null) { value = repository.load(pack, entry, if (compact) 96 else 144) }
   }
   val lightArtwork = if (appearance.sourceDarkMode(false)) preview?.dark else preview?.light

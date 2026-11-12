@@ -17,14 +17,19 @@ import android.os.Build
 import android.util.LruCache
 import android.util.TypedValue
 import java.io.Closeable
+import java.io.File
 import java.io.InputStream
+import java.util.zip.ZipFile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
+import os.kei.hyper.home.data.AppDisplayStorage
 
 /** Shared snapshots: the UI must not mutate or recycle these bitmaps. Null is an unavailable
  * preview, never a reason to substitute a recolored or unrelated application icon. */
@@ -44,23 +49,33 @@ internal class IconPackPreviewRepository(
   private val worker = dispatcher.limitedParallelism(2)
   private val lock = Any()
   private var generation = 0L
+  private val cacheRevision = MutableStateFlow(0)
+  val revision = cacheRevision.asStateFlow()
+  private val policyLock = Any()
+  private val maskFile = File(application.filesDir, "icon-shape/custom-mask.json")
+  private val preferences by lazy { AppDisplayStorage.open(application) }
+  private var defaultPolicy: Pair<PolicyStamp, IconMaskPolicy>? = null
   private val cache = object : LruCache<Key, IconPackPreviews>(4 * 1024 * 1024) {
     override fun sizeOf(key: Key, value: IconPackPreviews) =
       (value.light?.allocationByteCount ?: 0) + (value.dark?.allocationByteCount ?: 0)
   }
 
-  suspend fun load(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128): IconPackPreviews {
+  suspend fun load(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128,
+    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true): IconPackPreviews {
     require(sizePx in 1..512)
     val requestedGeneration = synchronized(lock) { generation }
     return withContext(worker) {
       val caller = currentCoroutineContext()
       caller.ensureActive()
+      val policy = maskPolicy ?: defaultMaskPolicy()
       val key = Key(pack.id, pack.source, entry.key, sizePx, Configuration(application.resources.configuration),
-        application.resources.displayMetrics.densityDpi)
+        application.resources.displayMetrics.densityDpi, policy.identity, clipOutput)
       synchronized(lock) { cache.get(key)?.let { return@withContext it } }
       fun render(dark: Boolean): Pair<Bitmap?, String?> = try {
         caller.ensureActive()
-        val bitmap = renderer.open(pack, dark).use { it.render(entry, sizePx) { caller.ensureActive() } }
+        val bitmap = renderer.open(pack, dark, maskPolicy = policy, clipOutput = clipOutput).use {
+          it.render(entry, sizePx) { caller.ensureActive() }
+        }
         bitmap to if (bitmap == null) "No static artwork for this mode" else null
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) { null to (failure.message ?: "Artwork cannot be previewed") }
@@ -75,18 +90,101 @@ internal class IconPackPreviewRepository(
     }
   }
 
-  fun sizeBytes(): Int = synchronized(lock) { cache.size() }
-  fun clear() = synchronized(lock) { generation++; cache.evictAll() }
+  /** Never consult pending private mask settings when previewing a published theme. */
+  suspend fun loadApplied(pack: IconPackDescriptor, entry: IconPackEntry, sizePx: Int = 128): IconPackPreviews =
+    load(pack, entry, sizePx, maskPolicy = IconMaskPolicy(false), clipOutput = false)
 
+  private fun defaultMaskPolicy(): IconMaskPolicy {
+    val stamp = PolicyStamp(preferences.getBoolean("complete_system_icon_config", true),
+      maskFile.length(), maskFile.lastModified(), synchronized(lock) { generation })
+    return synchronized(policyLock) {
+      defaultPolicy?.takeIf { it.first == stamp }?.second
+        ?: IconMaskPolicy.snapshot(application, stamp.enabled).also { defaultPolicy = stamp to it }
+    }
+  }
+
+  /** Worker-only snapshot shared by direct artwork previews outside pack descriptors. */
+  internal fun maskSnapshot(): IconMaskPolicy = defaultMaskPolicy()
+
+  fun sizeBytes(): Int = synchronized(lock) { cache.size() }
+  fun clear() = synchronized(lock) {
+    generation++
+    cache.evictAll()
+    cacheRevision.value++
+  }
+
+  private data class PolicyStamp(val enabled: Boolean, val size: Long, val modified: Long, val generation: Long)
   private data class Key(val packId: String, val source: IconPackSource, val entry: String,
-    val size: Int, val configuration: Configuration, val density: Int)
+    val size: Int, val configuration: Configuration, val density: Int, val mask: String, val clipped: Boolean)
 }
 
 /** Used by preview and explicit static export, with one resource session for a batch. */
 internal class IconPackRenderer(private val context: Context) {
   private val android = AndroidIconPackResources(context)
+  private val maskLock = Any()
+  private val previewMasks = LruCache<MaskKey, ResolvedMask>(16)
+  private val previewConfigs = LruCache<SourceKey, PreviewConfig>(8)
 
-  fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null): Session {
+  private data class SourceKey(val source: IconPackSource, val format: IconPackFormat, val stamps: List<Long>)
+  private data class MaskKey(val source: SourceKey, val policy: String)
+  private data class ResolvedMask(val value: NativeAdaptiveIconMask?)
+  private data class PreviewConfig(val bytes: ByteArray?, val legacy: Boolean)
+
+  private fun previewMask(pack: IconPackDescriptor, policy: IconMaskPolicy): NativeAdaptiveIconMask? {
+    val files = when (val source = pack.source) {
+      is IconPackSource.Imported -> listOfNotNull(source.record.originalFile, source.record.iconsFile)
+      is IconPackSource.Generated -> listOf(source.file)
+      else -> emptyList()
+    }
+    val sourceKey = SourceKey(pack.source, pack.format, files.flatMap { listOf(it.length(), it.lastModified()) })
+    val key = MaskKey(sourceKey, policy.identity)
+    return synchronized(maskLock) {
+      previewMasks.get(key)?.let { return@synchronized it.value }
+      val config = previewConfigs.get(sourceKey) ?: readPreviewConfig(pack).also {
+        previewConfigs.put(sourceKey, it)
+      }
+      policy.resolve(config.bytes, config.legacy).also { previewMasks.put(key, ResolvedMask(it)) }
+    }
+  }
+
+  private fun readPreviewConfig(pack: IconPackDescriptor): PreviewConfig {
+    if (pack.format !in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS))
+      return PreviewConfig(null, false)
+    return try {
+      when (val source = pack.source) {
+        is IconPackSource.Builtin -> PreviewConfig(
+          if (NativeIconShapeConfig.PATH in source.record.paths)
+            source.record.read(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES) else null,
+          NativeIconShapeConfig.hasLegacyStyle(source.record.paths.asSequence()))
+        is IconPackSource.Installed -> PreviewConfig(null, false)
+        else -> {
+          val file = when (source) {
+            is IconPackSource.Generated -> source.file
+            is IconPackSource.Imported -> if (pack.format == IconPackFormat.MIUI_MTZ)
+              source.record.iconsFile ?: throw IconPackException("Missing native icons module")
+            else source.record.originalFile
+            else -> error("Unsupported native source")
+          }
+          ZipFile(file).use { zip ->
+            val legacy = NativeIconShapeConfig.hasLegacyStyle(
+              zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name })
+            val bytes = zip.getEntry(NativeIconShapeConfig.PATH)?.let { item ->
+              require(item.size in 1..NativeIconShapeConfig.MAX_BYTES.toLong())
+              zip.getInputStream(item).use { it.readNBytes(NativeIconShapeConfig.MAX_BYTES + 1) }
+            }
+            PreviewConfig(bytes, legacy)
+          }
+        }
+      }
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (_: Exception) {
+      // An unreadable authored program must not become a missing program and select fallback.
+      PreviewConfig(byteArrayOf(), true)
+    }
+  }
+
+  fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null,
+    maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true): Session {
     val resources = when (val source = pack.source) {
       is IconPackSource.Installed -> {
         val info = context.packageManager.getPackageInfo(source.packageName, PackageManager.PackageInfoFlags.of(0))
@@ -99,7 +197,7 @@ internal class IconPackRenderer(private val context: Context) {
       is IconPackSource.Builtin -> null
       is IconPackSource.Generated -> null
     }
-    return Session(pack, dark, resources, colorOsFallback)
+    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput)
   }
 
   inner class Session(
@@ -107,16 +205,22 @@ internal class IconPackRenderer(private val context: Context) {
     private val dark: Boolean,
     private val android: AndroidIconPackResources.Session?,
     private val supplementary: IconPackDescriptor?,
+    maskPolicy: IconMaskPolicy?,
+    private val clipOutput: Boolean,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
+    private val previewMask by lazy(LazyThreadSafetyMode.NONE) {
+      previewMask(pack, maskPolicy ?: IconMaskPolicy.snapshot(context))
+    }
     private val originals = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style) }
     private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
-    private val supplementState = lazy(LazyThreadSafetyMode.NONE) { supplementary?.let { open(it, dark) } }
+    private val supplementState = lazy(LazyThreadSafetyMode.NONE) {
+      supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false) }
+    }
     private val supplement by supplementState
     private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
       pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
     }
-    private var shape: Bitmap? = null
     private val nativeConsulted = linkedSetOf<IconPackComponent>()
     private val runtimeArtwork = linkedSetOf<IconPackComponent>()
     private val runtimeMonochrome = linkedSetOf<IconPackComponent>()
@@ -126,14 +230,6 @@ internal class IconPackRenderer(private val context: Context) {
       supplementState.isInitialized() && supplement?.usedRuntimeArtwork(target) == true
     fun usedRuntimeMonochrome(target: IconPackComponent): Boolean = target in runtimeMonochrome ||
       supplementState.isInitialized() && supplement?.usedRuntimeMonochrome(target) == true
-
-    private fun shape(check: () -> Unit): Bitmap? {
-      val profile = pack.colorOsProfile ?: return null
-      return shape ?: profile.read(profile.maskPath, check).let { data ->
-        GeneratedIconPng.squareSize(data)
-        requireNotNull(BitmapFactory.decodeByteArray(data, 0, data.size)).also { shape = it }
-      }
-    }
 
     private fun matching(target: IconPackComponent): IconPackEntry? =
       componentEntries[target] ?: componentEntries[IconPackComponent(target.packageName)]
@@ -147,13 +243,25 @@ internal class IconPackRenderer(private val context: Context) {
 
     /** Explicit artwork precedes official app adaptations; downloaded OEM art is fallback. */
     fun renderTarget(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int, check: () -> Unit): Bitmap? {
+      val bitmap = renderTargetArtwork(entry, target, sizePx, check, null) ?: return null
+      if (!clipOutput) return bitmap
+      return try {
+        IconMaskPolicy.clip(bitmap, previewMask).also { if (it !== bitmap) bitmap.recycle() }
+      } catch (failure: Throwable) {
+        bitmap.recycle()
+        throw failure
+      }
+    }
+
+    private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
+      check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
       if (target != null && prefersAppIcon(target, entry, check))
-        return originals!!.render(target, dark, sizePx, shape(check), check)
-      if (entry?.artwork(dark) != null) return renderArtwork(entry, sizePx, check)?.also {
+        return originals!!.render(target, dark, sizePx, mask = null, check = check)
+      if (entry?.artwork(dark) != null) return renderArtwork(entry, sizePx, check, adaptiveMask)?.also {
         if (target != null && pack.colorOsProfile?.source(target)?.runtimeArtwork(dark) == true) runtimeArtwork += target
       }
       if (target != null && supplementary != null)
-        return supplement?.renderTarget(supplement?.matching(target), target, sizePx, check)
+        return supplement?.renderTargetArtwork(supplement?.matching(target), target, sizePx, check, adaptiveMask)
       return null
     }
 
@@ -175,7 +283,7 @@ internal class IconPackRenderer(private val context: Context) {
       }
       if (source?.monochromePath != null && !source.runtimeMonochrome) return supplied()
       nativeConsulted += target
-      return originals?.monochrome(target, false, sizePx, shape(check), check) ?: supplied()?.also {
+      return originals?.monochrome(target, false, sizePx, mask = null, check = check) ?: supplied()?.also {
         if (source?.runtimeMonochrome == true) runtimeMonochrome += target
       }
     }
@@ -225,7 +333,8 @@ internal class IconPackRenderer(private val context: Context) {
       return renderTarget(entry, entry.component, sizePx, check)
     }
 
-    private fun renderArtwork(entry: IconPackEntry, sizePx: Int, check: () -> Unit): Bitmap? {
+    private fun renderArtwork(entry: IconPackEntry, sizePx: Int, check: () -> Unit,
+      adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
       require(sizePx in 1..512)
       check()
       return when (val artwork = entry.artwork(dark)) {
@@ -243,7 +352,7 @@ internal class IconPackRenderer(private val context: Context) {
             check()
             val drawable = session.resources.getDrawable(id, null).mutate()
             (drawable as? Animatable)?.stop()
-            draw(drawable, sizePx, if (drawable is AdaptiveIconDrawable) nativeMask else null, check)
+            draw(drawable, sizePx, if (drawable is AdaptiveIconDrawable) adaptiveMask else null, check)
           }
         }
         is IconPackArtwork.Archive -> {
@@ -265,7 +374,7 @@ internal class IconPackRenderer(private val context: Context) {
       }
     }
 
-    override fun close() { android?.close(); shape?.recycle(); if (supplementState.isInitialized()) supplement?.close() }
+    override fun close() { android?.close(); if (supplementState.isInitialized()) supplement?.close() }
   }
 
   private fun rasterPath(path: String?) = path?.substringAfterLast('.')?.lowercase() in setOf("png", "webp", "jpg", "jpeg")

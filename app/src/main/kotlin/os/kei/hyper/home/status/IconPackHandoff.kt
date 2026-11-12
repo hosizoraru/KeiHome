@@ -37,7 +37,6 @@ import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 import os.kei.hyper.home.iconpack.IconPackExportResult
 import os.kei.hyper.home.iconpack.NativeIconAdaptations
-import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 
 /** A user-requested icons-only MTZ, offered to the existing system module through a private URI. */
@@ -59,13 +58,16 @@ internal object IconPackHandoffs {
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
     installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true): IconPackHandoff {
+    val iconMask = withContext(Dispatchers.IO) {
+      os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(context, completeSystemIconConfig)
+    }
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
     val light = repository.exportNativeIcons(pack, targets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
-      colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly)
+      colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask)
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -77,7 +79,7 @@ internal object IconPackHandoffs {
           IconPackAppearance.SYSTEM ->
             repository.exportNativeIcons(pack, targets, darkMode = true, systemFallback = systemFallback,
               systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
-              installedOnly = installedOnly)
+              installedOnly = installedOnly, maskPolicy = iconMask)
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
@@ -148,7 +150,7 @@ internal object IconPackHandoffs {
         }
       }
       val first = iconPackPreviewEntry(pack, targets)
-      val artwork = first?.let { previews.load(pack, it, 144) }
+      val artwork = first?.let { previews.load(pack, it, 144, maskPolicy = iconMask) }
       return withContext(Dispatchers.IO) {
         val caller = currentCoroutineContext()
         val exports = listOfNotNull(light, darkResult)
@@ -160,6 +162,7 @@ internal object IconPackHandoffs {
           NativeIconAdaptations(context).read(nativeTargets) { caller.ensureActive() },
           installedOnly = installedOnly,
           completeSystemIconConfig = completeSystemIconConfig,
+          iconMaskIdentity = iconMask.identity,
         )
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
@@ -177,7 +180,7 @@ internal object IconPackHandoffs {
             ).encode(),
           )
           if (completeSystemIconConfig) {
-            NativeAdaptiveIconMask.load()?.pathData?.let { mask ->
+            run {
               ZipFile(icons).use { source ->
                 val entry = source.getEntry(NativeIconShapeConfig.PATH)
                 val legacyStyle = NativeIconShapeConfig.hasLegacyStyle(source.entries().asSequence().map { it.name })
@@ -186,7 +189,7 @@ internal object IconPackHandoffs {
                     source.getInputStream(it).use { input -> input.readNBytes(NativeIconShapeConfig.MAX_BYTES + 1) }
                   }
                   if (original == null || original.size <= NativeIconShapeConfig.MAX_BYTES) {
-                    val completed = NativeIconShapeConfig.complete(original, mask)
+                    val completed = iconMask.complete(original)
                     if (completed != null && (original == null || !completed.contentEquals(original))) {
                       stamps[NativeIconShapeConfig.PATH] = completed
                     }

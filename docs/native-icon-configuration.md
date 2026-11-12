@@ -1,5 +1,10 @@
 # Native icon configuration completion
 
+The current mask child page, custom import, shared preview compositor and
+schema 4 policy identity are described in [Icon masks and preview parity](icon-mask-preview.md).
+The counts and actual-theme application below record the earlier schema 3
+acceptance; this follow-up does not automatically reapply the user's theme.
+
 Converted icon archives must carry the framework contracts used for icons they do
 not supply. A missing `transform_config.xml` is not equivalent to the stock theme:
 on the inspected HyperOS AVD, the stock archive supplies `SupportLayerIcon=true`,

@@ -12,6 +12,8 @@ import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.ColorDrawable
 import android.os.Process
 import android.util.LruCache
+import os.kei.hyper.home.iconpack.IconMaskPolicy
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -80,9 +82,10 @@ internal class AppleCurrentThemePreviewProvider(
         if (palette) {
           val tint = colors ?: return@withPermit null
           val mask = pair.lightMonochrome ?: return@withPermit null
-          light = tintIcon(mask, pair.backgroundMask, tint.lightForeground, tint.lightBackground)
+          val published = pair.maskPathData?.let { NativeAdaptiveIconMask.fromPathData("published-preview", it) }
+          light = tintIcon(mask, pair.backgroundMask, tint.lightForeground, tint.lightBackground, published)
           dark = tintIcon(pair.darkMonochrome ?: mask, pair.backgroundMask,
-            tint.darkForeground, tint.darkBackground)
+            tint.darkForeground, tint.darkBackground, published)
         } else {
           light = pair.light ?: return@withPermit null
           dark = pair.dark
@@ -98,7 +101,8 @@ internal class AppleCurrentThemePreviewProvider(
     }
   }
 
-  private fun tintIcon(mask: Bitmap, backgroundMask: Bitmap?, foreground: Int, background: Int): Bitmap {
+  private fun tintIcon(mask: Bitmap, backgroundMask: Bitmap?, foreground: Int, background: Int,
+    publishedMask: NativeAdaptiveIconMask?): Bitmap {
     val size = 192
     val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(result)
@@ -107,6 +111,8 @@ internal class AppleCurrentThemePreviewProvider(
     if (backgroundMask != null) {
       paint.colorFilter = PorterDuffColorFilter(background, PorterDuff.Mode.SRC_IN)
       canvas.drawBitmap(backgroundMask, null, bounds, paint)
+    } else if (publishedMask != null) {
+      canvas.drawColor(background)
     } else {
       val shape = AdaptiveIconDrawable(ColorDrawable(android.graphics.Color.WHITE), null)
       shape.bounds = bounds
@@ -117,7 +123,7 @@ internal class AppleCurrentThemePreviewProvider(
     }
     paint.colorFilter = PorterDuffColorFilter(foreground, PorterDuff.Mode.SRC_IN)
     canvas.drawBitmap(mask, null, bounds, paint)
-    return result
+    return IconMaskPolicy.clip(result, publishedMask).also { if (it !== result) result.recycle() }
   }
 }
 

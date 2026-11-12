@@ -4,10 +4,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IconGenerationManifestTest {
+  @Test fun recordsCustomMaskIdentityAndRejectsMissingOrInconsistentIdentity() {
+    val custom = IconGenerationManifest(completeSystemIconConfig = true, iconMaskIdentity = "custom-${"a".repeat(64)}")
+    assertEquals(custom, IconGenerationManifest.decode(custom.encode()))
+    assertFalse(custom.encode().contentEquals(IconGenerationManifest(completeSystemIconConfig = true).encode()))
+    assertThrows(IllegalArgumentException::class.java) {
+      IconGenerationManifest(completeSystemIconConfig = false, iconMaskIdentity = custom.iconMaskIdentity).encode()
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      IconGenerationManifest.decode(custom.encode().toString(Charsets.UTF_8)
+        .lineSequence().filterNot { it.startsWith("mask\t") }.joinToString("\n").toByteArray())
+    }
+    val old = "KeiHomeIconGeneration3\nscope\tall\nshape\tcomplete\n".toByteArray()
+    assertArrayEquals(old, IconGenerationManifest.decode(old).encode())
+  }
   @Test fun shapeCompletionPolicyRoundTripsAndLegacySchemasKeepTheirMeaning() {
     for (enabled in listOf(false, true)) {
       val value = IconGenerationManifest(completeSystemIconConfig = enabled)
-      assertEquals(3, value.schemaVersion)
+      assertEquals(4, value.schemaVersion)
       assertEquals(value, IconGenerationManifest.decode(value.encode()))
     }
     val old = "KeiHomeIconGeneration2\nscope\tall\n".toByteArray()

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -53,6 +54,7 @@ import os.kei.hyper.home.data.IconPreviewRepository
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetIconRole
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -217,6 +219,7 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
           foreground = colors?.lightForeground?.takeIf { previews?.lightMonochrome != null },
           background = colors?.lightBackground?.takeIf { previews?.lightMonochrome != null },
           backgroundMask = previews?.backgroundMask,
+          maskPathData = previews?.maskPathData,
           original = previews != null && colors != null && previews?.lightMonochrome == null,
           modifier = Modifier.weight(1f))
         IconVariant(stringResource(R.string.browser_preview_monet_dark),
@@ -224,6 +227,7 @@ internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPre
           foreground = colors?.darkForeground?.takeIf { previews?.darkMonochrome != null },
           background = colors?.darkBackground?.takeIf { previews?.darkMonochrome != null },
           backgroundMask = previews?.backgroundMask,
+          maskPathData = previews?.maskPathData,
           original = previews != null && colors != null && previews?.darkMonochrome == null,
           modifier = Modifier.weight(1f))
       }
@@ -261,9 +265,11 @@ private fun CapabilityPill(label: String, status: IconCapabilityStatus, positive
 @Composable
 private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
   foreground: Int? = null, background: Int? = null, original: Boolean = false, backgroundMask: Bitmap? = null,
+  maskPathData: String? = null,
 ) {
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    PreviewIcon(bitmap, foreground, background, Modifier.size(44.dp).semantics { contentDescription = label }, backgroundMask)
+    PreviewIcon(bitmap, foreground, background, Modifier.size(44.dp).semantics { contentDescription = label },
+      backgroundMask, maskPathData)
     Text(if (original) stringResource(R.string.browser_preview_original, label) else label,
       style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
       textAlign = TextAlign.Center, maxLines = 2)
@@ -271,18 +277,29 @@ private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
 }
 
 @Composable
-internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, modifier: Modifier, backgroundMask: Bitmap? = null) {
+internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, modifier: Modifier,
+  backgroundMask: Bitmap? = null, maskPathData: String? = null) {
   val maskImage = remember(backgroundMask) { backgroundMask?.asImageBitmap() }
   val image = remember(bitmap) { bitmap?.asImageBitmap() }
+  val publishedShape = remember(maskPathData, foreground != null) {
+    maskPathData?.takeIf { foreground != null }?.let {
+      NativeAdaptiveIconMask.fromPathData("published-preview", it)
+    }?.let { mask ->
+      GenericShape { size, _ ->
+        addPath(mask.pathForBounds(android.graphics.Rect(0, 0, size.width.toInt(), size.height.toInt())).asComposePath())
+      }
+    }
+  }
   val shape = remember { AdaptiveIconDrawable(ColorDrawable(android.graphics.Color.WHITE), null).apply {
     setBounds(0, 0, 100, 100)
   }.iconMask.asComposePath() }
   val placeholder = MiuixTheme.colorScheme.surfaceVariant
   if (image != null && foreground == null) {
     Image(image, contentDescription = null, modifier = modifier)
-  } else Canvas(modifier) {
+  } else Canvas(if (publishedShape != null) modifier.clip(publishedShape) else modifier) {
     if (maskImage != null && background != null) drawImage(maskImage, dstSize = IntSize(size.width.toInt(), size.height.toInt()),
       colorFilter = ColorFilter.tint(Color(background)))
+    else if (publishedShape != null) drawRect(background?.let(::Color) ?: placeholder)
     else scale(size.width / 100f, size.height / 100f, pivot = Offset.Zero) {
       drawPath(shape, background?.let(::Color) ?: placeholder)
     }

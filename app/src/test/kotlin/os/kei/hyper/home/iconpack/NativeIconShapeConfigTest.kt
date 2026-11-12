@@ -6,6 +6,33 @@ import org.junit.Test
 class NativeIconShapeConfigTest {
   private val systemMask = "M0 40C0 10 10 0 40 0H60C90 0 100 10 100 40V60C100 90 90 100 60 100H40C10 100 0 90 0 60Z"
 
+  @Test fun explicitCustomMaskReplacesOnlyTheSimpleMaskAndPreservesAuthoredFlags() {
+    val source = """<IconTransform><Config name="SupportLayerIcon" value="false"/>
+      <Config name="UseDynamicIcon" value="false"/><Config name="ConfigIconMask" value="M0 0H100V100H0Z"/></IconTransform>""".toByteArray()
+    val result = requireNotNull(NativeIconShapeConfig.complete(source, systemMask, systemMask))
+    assertTrue(result.toString(Charsets.UTF_8).contains("""value="false""""))
+    assertTrue(result.toString(Charsets.UTF_8).contains(systemMask))
+    assertNull(NativeIconShapeConfig.fullMask(result))
+  }
+
+  @Test fun defaultPreservesPackMaskWhileCustomChangesOnlySupportedSimpleContracts() {
+    val original = NativeIconShapeConfig.generated("M0 0H100V100H0Z")
+    assertArrayEquals(original, NativeIconShapeConfig.complete(original, systemMask))
+    assertEquals("M0 0H100V100H0Z", NativeIconShapeConfig.fullMask(original))
+    val changed = NativeIconShapeConfig.complete(original, systemMask, systemMask)
+    assertEquals(systemMask, NativeIconShapeConfig.fullMask(changed))
+    val legacy = """<IconTransform><Filter name="author"/><Config name="ConfigIconMask" value="M0 0H100V100H0Z"/></IconTransform>""".toByteArray()
+    assertArrayEquals(legacy, NativeIconShapeConfig.complete(legacy, systemMask, systemMask))
+  }
+
+  @Test fun ambiguousOrNestedFullMaskIsNotPreviewedAsValidShape() {
+    listOf(
+      """<IconTransform><Config name="SupportLayerIcon" value="true"/><Config name="ConfigIconMask" value="M0 0Z"/><Config name="ConfigIconMask" value="M0 0Z"/></IconTransform>""",
+      """<IconTransform><Config name="SupportLayerIcon" value="true"/><Group><Config name="ConfigIconMask" value="M0 0Z"/></Group></IconTransform>""",
+      """<wrong><Config name="SupportLayerIcon" value="true"/><Config name="ConfigIconMask" value="M0 0Z"/></wrong>"""
+    ).forEach { assertNull(NativeIconShapeConfig.fullMask(it.toByteArray())) }
+  }
+
   @Test fun legacyGlobalStylesAreRecognizedWithoutMistakingPerAppMamlAssetsForGlobalMasks() {
     for (name in listOf("icon_mask.png", "nightmode/icon_pattern.png", "icon_background.png",
       "res/drawable-xxhdpi/icon_border.9.png", "nightmode/res/drawable-xhdpi/icon_mask.png")) {

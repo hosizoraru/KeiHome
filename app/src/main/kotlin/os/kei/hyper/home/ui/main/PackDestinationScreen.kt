@@ -51,7 +51,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
   if (section == "settings") {
-    PackSettingsScreen(model, onBack)
+    PackSettingsScreen(model, onBack) { onNavigate("icon-mask") }
+    return
+  }
+  if (section == "icon-mask") {
+    IconMaskSettingsScreen(model, onBack)
     return
   }
   if (section == "perfect") {

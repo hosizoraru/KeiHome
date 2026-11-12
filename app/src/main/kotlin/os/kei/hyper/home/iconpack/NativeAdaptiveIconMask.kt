@@ -4,6 +4,7 @@ import android.graphics.Matrix
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Region
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.ui.graphics.asAndroidPath
@@ -41,6 +42,8 @@ internal class NativeAdaptiveIconMask private constructor(
   }
 
   companion object {
+    /** 100-unit HyperOS 4 stock contract, independent of the host's installed theme. */
+    const val HYPER_OS4_PATH_DATA = "M 0 42.7 C 0 27.7 0 20.3 2.9 14.6 C 5.5 9.5 9.5 5.5 14.6 2.9 C 20.3 0 27.7 0 42.7 0 L 57.3 0 C 72.3 0 79.7 0 85.4 2.9 C 90.5 5.5 94.5 9.5 97.1 14.6 C 100 20.3 100 27.7 100 42.7 V 57.3 C 100 72.3 100 79.7 97.1 85.4 C 94.5 90.5 90.5 94.5 85.4 97.1 C 79.7 100 72.3 100 57.3 100 H 42.7 C 27.7 100 20.3 100 14.6 97.1 C 9.5 94.5 5.5 90.5 2.9 85.4 C 0 79.7 0 72.3 0 57.3 L 0 42.7 Z"
     private const val VIEWPORT = 100f
     private const val CONFIG = "transform_config.xml"
     private val source = File("/product/media/theme/default/icons")
@@ -64,9 +67,14 @@ internal class NativeAdaptiveIconMask private constructor(
       require(pathData.length in 1..4096)
       val path = PathParser().parsePathString(pathData).toPath().asAndroidPath()
       val bounds = RectF().also(path::computeBounds)
+      // Arc conversion can land a few floating-point steps beyond an exact viewport edge.
       require(!path.isEmpty && !path.isInverseFillType && !bounds.isEmpty &&
         listOf(bounds.left, bounds.top, bounds.right, bounds.bottom).all { it.isFinite() } &&
-        RectF(0f, 0f, VIEWPORT, VIEWPORT).contains(bounds))
+        bounds.left >= -0.001f && bounds.top >= -0.001f &&
+        bounds.right <= VIEWPORT + 0.001f && bounds.bottom <= VIEWPORT + 0.001f) {
+        "Icon mask bounds $bounds must fit the 100-unit viewport"
+      }
+      require(Region().setPath(path, Region(0, 0, 100, 100))) { "Icon mask has no filled area" }
       return NativeAdaptiveIconMask(sourcePath, pathData, Path(path))
     }
 

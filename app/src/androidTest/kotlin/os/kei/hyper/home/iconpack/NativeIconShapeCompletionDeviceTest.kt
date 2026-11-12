@@ -44,7 +44,7 @@ class NativeIconShapeCompletionDeviceTest {
         val entries = icons(handoff.file)
         val generation = IconGenerationManifest.decode(entries.getValue(IconGenerationManifest.PATH))
         assertEquals(enabled, generation.completeSystemIconConfig)
-        assertEquals(3, generation.schemaVersion)
+        assertEquals(4, generation.schemaVersion)
         if (enabled) NativeIconShapeConfig.validateGenerated(entries.getValue(NativeIconShapeConfig.PATH))
         else assertFalse(entries.containsKey(NativeIconShapeConfig.PATH))
         ConvertedIconArchive.inspect(handoff.file, requireNotNull(handoff.convertedOrigin))

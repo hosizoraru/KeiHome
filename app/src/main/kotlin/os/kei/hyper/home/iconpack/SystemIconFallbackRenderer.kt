@@ -23,14 +23,15 @@ import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
 internal class SystemIconFallbackRenderer(
   private val context: Context,
   private val style: SystemIconFallback,
+  private val clipOutput: Boolean = true,
 ) {
   private val apps = mutableMapOf<String, ApplicationInfo?>()
   private val systemPackages = mutableMapOf<String, Boolean>()
   private val preinstalledPackages = mutableMapOf<String, Boolean>()
   private val nativeSources = mutableMapOf<IconPackComponent, Boolean>()
-  private val defaultShape by lazy { NativeAdaptiveIconMask.load() }
+  private val defaultShape by lazy { if (clipOutput) NativeAdaptiveIconMask.load() else null }
   private val shape by lazy {
-    when (style) {
+    if (!clipOutput) null else when (style) {
       SystemIconFallback.DEFAULT -> defaultShape
       SystemIconFallback.CLASSIC -> context.assets.open("system-icon-fallback/classic-mask.txt").use {
         NativeAdaptiveIconMask.fromPathData("HyperOS Classic/transform_config.xml",

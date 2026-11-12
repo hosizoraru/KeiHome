@@ -20,9 +20,10 @@ internal object NativeIconShapeConfig {
 
   fun hasLegacyStyle(names: Sequence<String>): Boolean = names.any(legacyAsset::matches)
 
-  fun complete(original: ByteArray?, systemMask: String): ByteArray? {
+  fun complete(original: ByteArray?, systemMask: String, customMask: String? = null): ByteArray? {
     require(systemMask.length in 1..4096)
-    if (original == null) return generated(systemMask)
+    customMask?.let { generated(it) }
+    if (original == null) return generated(customMask ?: systemMask)
     return try {
       val names = linkedSetOf<String>()
       var authoredTransform = false
@@ -44,14 +45,21 @@ internal object NativeIconShapeConfig {
       // Full-mask mode bypasses the legacy matrix/filter compositor, so never opt an
       // authored transform program into that path merely because its mask is absent.
       if (authoredTransform) return original
-      if (LAYERS in names && MASK in names && DYNAMIC in names) return original
+      if (LAYERS in names && MASK in names && DYNAMIC in names && customMask == null) return original
       val document = DocumentBuilderFactory.newInstance().apply {
         isNamespaceAware = true
         isExpandEntityReferences = false
       }.newDocumentBuilder().parse(ByteArrayInputStream(original))
       val root = document.documentElement
       require(root.nodeName == "IconTransform" && root.namespaceURI.isNullOrEmpty())
-      for ((name, value) in listOf(LAYERS to "true", DYNAMIC to "true", MASK to systemMask)) {
+      if (customMask != null && MASK in names) {
+        val configs = root.getElementsByTagName("Config")
+        for (i in 0 until configs.length) {
+          val element = configs.item(i) as org.w3c.dom.Element
+          if (element.getAttribute("name") == MASK) element.setAttribute("value", customMask)
+        }
+      }
+      for ((name, value) in listOf(LAYERS to "true", DYNAMIC to "true", MASK to (customMask ?: systemMask))) {
         if (name !in names) root.appendChild(document.createElement("Config").apply {
           setAttribute("name", name); setAttribute("value", value)
         })
@@ -67,6 +75,22 @@ internal object NativeIconShapeConfig {
       original
     }
   }
+
+  /** Only full-mask mode can be reproduced by the shared bitmap preview compositor. */
+  fun fullMask(bytes: ByteArray?): String? = try {
+    if (bytes == null) null else {
+      val values = linkedMapOf<String, String>()
+      BoundedPackXml.read(bytes, IconPackLimits(maxXmlBytes = MAX_BYTES, maxMappings = 256),
+        start = { name, attrs, depth ->
+          if (depth == 1) require(name == "IconTransform")
+          if (name == "Config" && attrs["name"] in setOf(LAYERS, MASK)) {
+            require(depth == 2 && values.put(requireNotNull(attrs["name"]),
+              requireNotNull(attrs["value"])) == null)
+          }
+        })
+      values[MASK]?.takeIf { values[LAYERS] == "true" && it.isNotBlank() }
+    }
+  } catch (_: Exception) { null }
 
   fun generated(mask: String): ByteArray {
     require(mask.length in 1..4096 && mask.all {

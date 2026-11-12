@@ -5,7 +5,9 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import java.io.File
 import java.util.zip.ZipFile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -20,6 +22,9 @@ import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackPreviews
 import os.kei.hyper.home.iconpack.IconPackSource
+import os.kei.hyper.home.iconpack.IconMaskPolicy
+import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 
 /** Caches the complete preview, including native day/night overrides and Monet masks. */
 internal class CurrentIconPreviewRepository(
@@ -33,6 +38,8 @@ internal class CurrentIconPreviewRepository(
   private var generation = 0L
   private val requests = Array(32) { Mutex() }
   private val running = Semaphore(2)
+  private val maskLock = Any()
+  private val masks = LruCache<MaskKey, PublishedMask>(8)
   private val cache = object : LruCache<Key, AppIconPreviews>(4 * 1024 * 1024) {
     override fun sizeOf(key: Key, value: AppIconPreviews): Int = maxOf(1024,
       listOfNotNull(value.light, value.dark, value.lightMonochrome, value.darkMonochrome,
@@ -55,8 +62,9 @@ internal class CurrentIconPreviewRepository(
           var mono: Bitmap? = null
           var background: Bitmap? = null
           val name = entry.nativeName
-          ZipFile(file).use { zip ->
-            fun png(path: String): Bitmap? {
+          val mask = ZipFile(file).use { zip ->
+            val applied = publishedMask(zip, file, source.revision, epoch)
+            fun png(path: String, colored: Boolean = false): Bitmap? {
               caller.ensureActive()
               val item = zip.getEntry(path) ?: return null
               if (item.size !in 1..MAX_BYTES) return null
@@ -68,29 +76,49 @@ internal class CurrentIconPreviewRepository(
               var sample = 1
               while (maxOf(dimensions.outWidth, dimensions.outHeight) / sample > 256) sample *= 2
               caller.ensureActive()
-              return BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
-                BitmapFactory.Options().apply { inSampleSize = sample; inScaled = false })
+              val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+                BitmapFactory.Options().apply { inSampleSize = sample; inScaled = false }) ?: return null
+              return if (!colored) bitmap
+              else IconMaskPolicy.clip(bitmap, applied).also { if (it !== bitmap) bitmap.recycle() }
             }
             if (name in source.paletteNames) {
               mono = png("fancy_icons/$name/mask.png")
               background = png("fancy_icons/$name/bg.png")
             }
             if (name !in source.dynamicNames) {
-              day = png("fancy_icons/$name/day.png") ?: day
-              night = png("fancy_icons/$name/night.png") ?: night
+              day = png("fancy_icons/$name/day.png", colored = true) ?: day
+              night = png("fancy_icons/$name/night.png", colored = true) ?: night
             }
+            applied
           }
           if (day == null || night == null) {
             val pair = loadArtwork(source.pack, entry)
-            day = day ?: pair.light
-            night = night ?: pair.dark
+            day = day ?: pair.light?.let { IconMaskPolicy.clip(it, mask) }
+            night = night ?: pair.dark?.let { IconMaskPolicy.clip(it, mask) }
           }
           caller.ensureActive()
-          val result = AppIconPreviews(day, night, mono, mono, backgroundMask = background)
+          val result = AppIconPreviews(day, night, mono, mono, backgroundMask = background,
+            maskPathData = mask?.pathData)
           synchronized(lock) { if (epoch == generation) cache.put(key, result) }
           result
         }
       }
+    }
+  }
+
+  private fun publishedMask(zip: ZipFile, file: File, revision: String, epoch: Long): NativeAdaptiveIconMask? {
+    val key = MaskKey(revision, file.absolutePath, file.length(), file.lastModified(), epoch)
+    return synchronized(maskLock) {
+      masks.get(key)?.let { return@synchronized it.mask }
+      val mask = try {
+        zip.getEntry(NativeIconShapeConfig.PATH)?.let { item ->
+          require(item.size in 1..NativeIconShapeConfig.MAX_BYTES.toLong())
+          val bytes = zip.getInputStream(item).use { it.readNBytes(NativeIconShapeConfig.MAX_BYTES + 1) }
+          IconMaskPolicy.fromConfig(bytes)
+        }
+      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (_: Exception) { null }
+      mask.also { masks.put(key, PublishedMask(it)) }
     }
   }
 
@@ -99,6 +127,8 @@ internal class CurrentIconPreviewRepository(
 
   private data class Key(val revision: String, val pack: String, val entry: String,
     val path: String, val bytes: Long, val modified: Long, val configuration: Configuration)
+  private data class MaskKey(val revision: String, val path: String, val bytes: Long, val modified: Long, val epoch: Long)
+  private data class PublishedMask(val mask: NativeAdaptiveIconMask?)
 
   companion object { private const val MAX_BYTES = 4 * 1024 * 1024 }
 }

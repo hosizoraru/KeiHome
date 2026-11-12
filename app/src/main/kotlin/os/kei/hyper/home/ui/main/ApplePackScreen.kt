@@ -69,6 +69,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.iconpack.apple.AppleCorners
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.ui.components.BlurredBar
@@ -105,6 +106,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     rememberAppleCurrentThemePreviewProvider(model) else null
   val packs by model.iconPacks.collectAsStateWithLifecycle()
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
+  val maskRevision by model.packPreviews.revision.collectAsStateWithLifecycle()
+  val maskPolicy by produceState<IconMaskPolicy?>(null, model, maskRevision) {
+    value = withContext(Dispatchers.IO) { model.packPreviews.maskSnapshot() }
+  }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   val main = section == "apple"
@@ -533,6 +538,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
           if (browserRows.isNotEmpty() || (!localLoading && !browserLoading)) {
             appleMappingCards(browserRows, state, controller, enabled && !browserLoading,
+              maskPolicy = maskPolicy,
               currentPreviewProvider = currentPreviewProvider,
               selectionMode = batchBrowser && selecting, selectedPackages = selectedVisibleSet,
               selectablePackages = visibleEligible, onToggleSelection = { packageName ->
@@ -558,7 +564,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_current_mapping),
                 summary = "${current.app.name} · ${appleRegionName(current.app.country ?: state.options.country, locale)}")
-              state.currentPreview?.let { AppleArtworkPair(it, compact = true) }
+              state.currentPreview?.let { AppleArtworkPair(it, compact = true, maskPolicy = maskPolicy) }
               if (state.currentPreview == null) BasicComponent(title = stringResource(R.string.apple_get_current_preview),
                 summary = stringResource(R.string.apple_no_cached_preview), enabled = enabled && !state.previewing,
                 onClick = { focus.clearFocus(); keyboard?.hide()
@@ -612,7 +618,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = preview.app.name,
                 summary = "${preview.app.publisher} · ${appleRegionName(preview.app.country ?: state.searchCountry, locale)}")
-              AppleArtworkPair(preview)
+              AppleArtworkPair(preview, maskPolicy = maskPolicy)
               BasicComponent(title = stringResource(R.string.apple_use_mapping),
                 onClick = { controller.mapping(preview.app); onBack() })
             }
@@ -628,7 +634,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               BasicComponent(title = app.name, summary = "${app.publisher}\n${app.bundleId} · ${app.id}\n" +
                 appleRegionName(app.country ?: state.searchCountry, locale),
                 enabled = enabled && !state.previewing, onClick = { focus.clearFocus(); keyboard?.hide(); controller.preview(app) })
-              cached?.let { AppleArtworkPair(it, compact = true) }
+              cached?.let { AppleArtworkPair(it, compact = true, maskPolicy = maskPolicy) }
             }
           }
           if (state.searched && state.candidates.isEmpty()) item("empty") {
@@ -655,26 +661,31 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
 }
 
 @Composable
-internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.dp, dark: Boolean = false) {
+internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.dp, dark: Boolean = false,
+  maskPolicy: IconMaskPolicy?) {
   val sizePx = with(LocalDensity.current) { size.roundToPx() }
-  val cacheKey = "${file.path}:$sizePx"
+  val cacheKey = "${file.path}:$sizePx:${maskPolicy?.identity}"
   val cached = remember(cacheKey) { ApplePreviewImages.cache.get(cacheKey) }
-  val image by produceState<ImageBitmap?>(cached, file, sizePx) {
+  val image by produceState<ImageBitmap?>(cached, cacheKey) {
+    if (maskPolicy == null) {
+      value = null
+      return@produceState
+    }
     value = withContext(Dispatchers.IO) {
-      val key = "${file.path}:$sizePx"
-      ApplePreviewImages.cache.get(key)?.let { return@withContext it }
+      ApplePreviewImages.cache.get(cacheKey)?.let { return@withContext it }
       val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
       android.graphics.BitmapFactory.decodeFile(file.path, bounds)
       var sample = 1
       while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= sizePx) sample *= 2
-      android.graphics.BitmapFactory.decodeFile(file.path,
-        android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
-        ?.also { ApplePreviewImages.cache.put(key, it) }
+      val bitmap = android.graphics.BitmapFactory.decodeFile(file.path,
+        android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) ?: return@withContext null
+      val clipped = IconMaskPolicy.clip(bitmap, maskPolicy.resolve(null))
+      if (clipped !== bitmap) bitmap.recycle()
+      clipped.asImageBitmap().also { ApplePreviewImages.cache.put(cacheKey, it) }
     }
   }
   Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.size(size).background(if (dark) Color(0xff25262a) else Color(0xfff2f2f2),
-      RoundedCornerShape(12.dp))) {
+    Box(Modifier.size(size)) {
       Crossfade(targetState = image, animationSpec = tween(160), label = "apple-artwork") { bitmap ->
         if (bitmap != null) Image(bitmap, label, Modifier.fillMaxSize())
       }

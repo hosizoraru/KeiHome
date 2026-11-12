@@ -6,6 +6,7 @@ import java.util.concurrent.CancellationException
 import kotlin.math.floor
 import org.json.JSONArray
 import org.json.JSONObject
+import os.kei.hyper.home.iconpack.BoundedPackXml
 import os.kei.hyper.home.iconpack.NativeLayerConfig
 import os.kei.hyper.home.iconpack.IconPackLimits
 
@@ -16,27 +17,8 @@ internal object PerfectDynamicIconValidator {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })
     val configBytes = bytes("config.xml")
     val config = PerfectIconFormat.xml(configBytes)
-    require(config.root == "Config") { "Invalid dynamic Config root" }
-    require(config.elements.all { element ->
-      when (element.name) {
-        "Config" -> element.depth == 1 && element.attributes.isEmpty()
-        "Variables" -> element.depth == 2 && element.attributes.isEmpty()
-        "Variable" -> element.depth in 2..3 && element.attributes.keys.all { it in setOf("name", "value", "type") } &&
-          element.attributes["type"] in setOf(null, "string")
-        else -> false
-      }
-    } && config.elements.count { it.name == "Variables" } <= 1) { "Invalid dynamic Config structure" }
-    // Existing repository fixtures also use direct Variable children. Normalize only the parser
-    // input for that envelope; all published bytes remain the original source blobs.
-    val parserBytes = if (config.elements.none { it.name == "Variables" }) {
-      fun escape(value: String) = value.replace("&", "&amp;").replace("\"", "&quot;")
-        .replace("<", "&lt;").replace(">", "&gt;")
-      ("<Config><Variables>" + config.variables.entries.joinToString("") { (name, value) ->
-        "<Variable name=\"${escape(name)}\" value=\"${escape(value)}\" type=\"string\"/>"
-      } + "</Variables></Config>").toByteArray()
-    } else configBytes
     val mode = try {
-      NativeLayerConfig.parse(parserBytes, IconPackLimits(maxXmlBytes = PerfectIconFormat.MAX_XML))
+      layerConfig(configBytes)
     } catch (failure: Exception) {
       if (failure is CancellationException || failure is InterruptedException) throw failure
       throw IOException("config.xml (source ${resources.getValue("config.xml").source}): " +
@@ -60,15 +42,20 @@ internal object PerfectDynamicIconValidator {
       val quiet = rootQuiet != null || quietPath in resources
       val manifestPath = "$layer/fancy/manifest.xml"
       val fancy = manifestPath in resources
-      require((!quietOnly || quiet) && (!fancyOnly || fancy) && (quiet || fancy)) {
-        "Missing quiet/fancy resource for declared layer: $layer"
+      require(fancyOnly || quiet) { "Missing quiet image for declared layer: $layer" }
+      require(quietOnly || fancy || !fancyOnly &&
+        resources.keys.none { it.startsWith("$layer/fancy/") }) {
+        "Missing fancy manifest for declared layer: $layer"
       }
       if (!fancyOnly && quiet) {
         if (rootQuiet != null) {
           if (!rootQuietChecked) resources.filterKeys { it.startsWith("quiet/") && it.endsWith("/quietImage.png") }
             .forEach { (path, blob) -> image(path, blob, read) }
           rootQuietChecked = true
-        } else image(quietPath, resources.getValue(quietPath), read)
+        }
+        // A legacy root quiet is a fallback, not permission to skip supplied layer images.
+        resources.filterKeys { it.startsWith("$layer/quiet/") && it.endsWith("/quietImage.png") }
+          .forEach { (path, blob) -> image(path, blob, read) }
       }
       // fancy_work is retained as source metadata; it does not replace per-layer mode flags.
       if (!quietOnly && fancy) {
@@ -82,6 +69,43 @@ internal object PerfectDynamicIconValidator {
       if (!quietOnly && fancy) animated = true
     }
     return animated
+  }
+
+  private fun layerConfig(bytes: ByteArray): NativeLayerConfig {
+    val limits = IconPackLimits(maxXmlBytes = PerfectIconFormat.MAX_XML)
+    val variables = linkedMapOf<String, String>()
+    var wrapped = false
+    // Check the original envelope before adapting legacy direct Variable children.
+    // Missing attributes, namespace aliases and text must not disappear in normalization.
+    val check = {
+      if (Thread.currentThread().isInterrupted) throw InterruptedException("Perfect dynamic validation cancelled")
+    }
+    BoundedPackXml.read(bytes, limits, check, start = { tag, attrs, depth ->
+      when (tag) {
+        "Config" -> require(depth == 1 && attrs.isEmpty()) { "Invalid dynamic Config root" }
+        "Variables" -> {
+          require(depth == 2 && !wrapped && variables.isEmpty() && attrs.isEmpty()) {
+            "Mixed layer config variable containers"
+          }
+          wrapped = true
+        }
+        "Variable" -> {
+          require(depth == if (wrapped) 3 else 2) { "Invalid layer Variable position" }
+          require(attrs.keys.all { it in setOf("name", "value", "type") } &&
+            attrs["type"] in setOf(null, "string")) { "Invalid layer Variable attributes" }
+          val name = attrs["name"] ?: error("Layer Variable missing name")
+          val value = attrs["value"] ?: error("Layer Variable missing value")
+          require(variables.putIfAbsent(name, value) == null) { "Duplicate layer Variable $name" }
+        }
+        else -> error("Unsupported layer config element $tag")
+      }
+    }, text = { value, _ -> require(value.isBlank()) { "Layer Config has text" } })
+    fun escape(value: String) = value.replace("&", "&amp;").replace("\"", "&quot;")
+      .replace("<", "&lt;").replace(">", "&gt;")
+    val parserBytes = ("<Config><Variables>" + variables.entries.joinToString("") { (name, value) ->
+      "<Variable name=\"${escape(name)}\" value=\"${escape(value)}\" type=\"string\"/>"
+    } + "</Variables></Config>").toByteArray(StandardCharsets.UTF_8)
+    return NativeLayerConfig.parse(parserBytes, limits, check)
   }
 
   private fun image(path: String, blob: PerfectIconBlob, read: (PerfectIconBlob) -> ByteArray) {

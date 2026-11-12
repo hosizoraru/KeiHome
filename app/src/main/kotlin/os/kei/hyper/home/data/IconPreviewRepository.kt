@@ -34,6 +34,8 @@ internal data class AppIconPreviews(
   val darkMonochrome: Bitmap? = null,
   val componentName: ComponentName? = null,
   val backgroundMask: Bitmap? = null,
+  /** Shape of the published theme, for clipping after monochrome recoloring. */
+  val maskPathData: String? = null,
 ) {
   val lightMonochromeFallback: Boolean get() = lightMonochrome == null
   val darkMonochromeFallback: Boolean get() = darkMonochrome == null

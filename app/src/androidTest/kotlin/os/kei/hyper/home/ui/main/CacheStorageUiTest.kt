@@ -151,6 +151,33 @@ class CacheStorageUiTest {
     assertEquals(sample.total, sample.copy(memory = 0L).total)
   }
 
+  @Test fun categoryInfoExplainsAllFourBucketsAtLargeFontScaleWithoutNavigating() {
+    var navigated = false
+    rule.setContent {
+      KeiHomeTheme {
+        val density = LocalDensity.current
+        CompositionLocalProvider(LocalDensity provides Density(density.density, 1.6f)) {
+          KeiHomeScaffold { padding ->
+            Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+              CacheStorageContent(sample(), false, false, 0L, {},
+                onOpenPack = { navigated = true }, onOpenLogs = { navigated = true })
+            }
+          }
+        }
+      }
+    }
+    val descriptions = listOf(R.string.storage_icons_info, R.string.storage_builtin_info,
+      R.string.storage_transfer_info, R.string.storage_temporary_info)
+    descriptions.forEachIndexed { index, description ->
+      rule.onNodeWithTag("cache.category.info.$index").performScrollTo().performClick()
+      rule.onNodeWithText(app.getString(description)).assertIsDisplayed()
+      rule.onNodeWithTag("cache.category.info.close").performClick()
+      rule.onNodeWithText(app.getString(description)).assertDoesNotExist()
+    }
+    rule.runOnIdle { assertEquals(false, navigated) }
+    rule.onNodeWithTag("cache.category.info.4").assertDoesNotExist()
+  }
+
   @Test fun partialMeasurementDoesNotClaimHealthyUsage() {
     rule.setContent { KeiHomeTheme {
       Column(Modifier.verticalScroll(rememberScrollState())) {

@@ -32,4 +32,9 @@
     <string name="storage_budget_pill">目安 %1$s</string>
     <string name="storage_edit_budget">通知する容量を変更</string>
     <string name="storage_logs">ログ</string>
+    <string name="storage_category_info">%1$sの集計対象</string>
+    <string name="storage_icons_info">プレビューやシステム画面で再利用するために保存した、現在のテーマのアイコン画像と索引です。プレビュー用メモリは含みません。</string>
+    <string name="storage_builtin_info">ColorOS など、内蔵アイコンパックからコピーしたリソースのキャッシュです。インストール済みの KeiHome APK 本体は含みません。</string>
+    <string name="storage_transfer_info">生成したアイコンパックと、インポート・書き出し・システムのテーマアプリへの受け渡しに使う一時的なコピーです。</string>
+    <string name="storage_temporary_info">アイコンパックの索引や処理中の中間ファイルなど、キャッシュ内のその他の一時ファイルです。Apple リソース、Perfect Icons、ログは別の項目で集計し、プレビュー用メモリはグラフに含めません。</string>
 </resources>

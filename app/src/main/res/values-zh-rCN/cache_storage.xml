@@ -32,4 +32,9 @@
     <string name="storage_budget_pill">提醒 %1$s</string>
     <string name="storage_edit_budget">修改提醒阈值</string>
     <string name="storage_logs">日志</string>
+    <string name="storage_category_info">%1$s：统计范围</string>
+    <string name="storage_icons_info">保存的当前主题图标图片与索引，供预览和系统场景复用。不含运行中的预览内存。</string>
+    <string name="storage_builtin_info">从 App 内置资源中复制出的图标包缓存，例如 ColorOS 图标资源。不包含 KeiHome 安装包本体。</string>
+    <string name="storage_transfer_info">生成的图标包，以及导入、导出和交给系统主题时使用的本地中转副本。</string>
+    <string name="storage_temporary_info">缓存目录中的其他临时文件，例如图标包索引和处理中间文件。Apple 资源、完美图标和日志单独统计；预览内存不计入图中。</string>
 </resources>

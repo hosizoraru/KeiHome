@@ -21,6 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.Alignment
@@ -39,10 +44,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.KeiHomeIconButton
+import os.kei.hyper.home.ui.components.Os4Dialog
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val storageColors = listOf(Color(0xFFFFC72C), Color(0xFFFF913B), Color(0xFF44C9A1),
@@ -50,11 +59,15 @@ private val storageColors = listOf(Color(0xFFFFC72C), Color(0xFFFF913B), Color(0
 private val storageLabels = listOf(R.string.storage_icons, R.string.storage_builtin,
   R.string.storage_transfer, R.string.storage_temporary, R.string.storage_apple, R.string.storage_perfect,
   R.string.storage_logs)
+private val storageDescriptions = listOf(R.string.storage_icons_info, R.string.storage_builtin_info,
+  R.string.storage_transfer_info, R.string.storage_temporary_info)
 
 @Composable
 internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, onOpenPack: (String) -> Unit,
   onOpenLogs: () -> Unit = {}) {
   val context = LocalContext.current
+  var infoCategory by rememberSaveable { mutableIntStateOf(0) }
+  var showingInfo by rememberSaveable { mutableStateOf(false) }
   val total = bytes.sum()
   val graphDescription = stringResource(R.string.storage_graph_description,
     Formatter.formatShortFileSize(context, total), Formatter.formatShortFileSize(context, budget))
@@ -88,11 +101,27 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
             Text(if (ready) Formatter.formatShortFileSize(context, value) else "\u2014",
               style = MiuixTheme.textStyles.subtitle)
           }
-          if (destination != null || index == 6) Icon(MiuixIcons.Basic.ArrowRight, null,
+          if (index in storageDescriptions.indices) {
+            KeiHomeIconButton(
+              onClick = { infoCategory = index; showingInfo = true },
+              modifier = Modifier.testTag("cache.category.info.$index"),
+              minHeight = 48.dp, minWidth = 48.dp,
+            ) {
+              Icon(MiuixIcons.Glass.Info,
+                stringResource(R.string.storage_category_info, stringResource(storageLabels[index])),
+                Modifier.size(18.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
+          } else if (destination != null || index == 6) Icon(MiuixIcons.Basic.ArrowRight, null,
             Modifier.size(14.dp), tint = scheme.onSurfaceVariantSummary)
         }
       }
     }
+  }
+  Os4Dialog(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
+    summary = stringResource(storageDescriptions[infoCategory]),
+    modifier = Modifier.testTag("cache.category.info.card")) {
+    Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },
+      Modifier.fillMaxWidth().testTag("cache.category.info.close"))
   }
 }
 

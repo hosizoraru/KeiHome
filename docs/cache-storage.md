@@ -32,6 +32,10 @@ in `cache/share/`. Export filenames use the same ownership rules as the existing
 export cleanup helper. They are removed from the temporary-files category, so
 each file contributes once to both total usage and cylinder segments. Unrelated
 files remain temporary files. Logs are managed separately from preview clearing.
+The first four categories have separate information buttons with 48dp touch
+targets. Each opens a compact OS4 description card for that bucket; opening
+help does not navigate or mutate storage. Apple, Perfect and Logs retain their
+dedicated management links.
 
 Private-cache and Perfect metadata walks run on IO, do not follow symlinks,
 do not decode archives/catalogs, and do not wait for the Perfect download mutex.

@@ -293,7 +293,8 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
                 .ifEmpty { applied.names.sorted().take(2) }
               Row {
                 names.mapNotNull(current.entries::get).distinctBy { it.key }.forEach {
-                  PackStyleThumbnail(current.pack, it, model.packPreviews, os.kei.hyper.home.data.IconPackAppearance.SYSTEM)
+                  AppliedPackThumbnail(current, it, model.currentPreviews,
+                    runtime.report?.iconTheme, apps.previewGeneration)
                 }
               }
             }

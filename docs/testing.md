@@ -21,6 +21,7 @@ does not automatically run navigation, color editing or native tests.
 | Theme-effect controls | `ui-theme-effects` |
 | Color editor, input validation, draft lifecycle | `ui-color-editor` |
 | Pack preferences navigation and wizard shortcut | `ui-pack-settings` |
+| Compact pack actions, preview alpha, published/current masks and invalidation | `ui-pack-previews` |
 | About copy action and scrolling | `ui-about` |
 | Settings search and preview preference placement | `ui-settings-search` |
 | Cache pills, chart layout, reminder editor and resource navigation | `ui-cache` |

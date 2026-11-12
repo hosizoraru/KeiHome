@@ -316,7 +316,7 @@ private fun MaskIconComparison(
 }
 
 @Composable
-private fun MaskComparisonIcon(
+internal fun MaskComparisonIcon(
   pack: IconPackDescriptor,
   entry: IconPackEntry,
   repository: IconPackPreviewRepository,
@@ -332,7 +332,7 @@ private fun MaskComparisonIcon(
   val preview by produceState<IconPackPreviews?>(null, pack, entry, policy, configuration, sizePx, lifecycle, revision) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
       value = try {
-        repository.load(pack, entry, sizePx = sizePx, maskPolicy = policy)
+        repository.load(pack, entry, sizePx = sizePx, maskPolicy = policy, preservedPackages = emptySet())
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {

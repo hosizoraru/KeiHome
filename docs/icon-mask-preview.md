@@ -44,6 +44,20 @@ the policy identity, including a canonical custom-path digest. Schemas 1-5
 remain readable; changing the effective policy requires regeneration and
 reapplication to update the active theme.
 
+The UI displays the compositor's alpha without adding a second rounded
+rectangle, neutral backplate or inset. This applies to compact day/night pairs,
+the Applications inspection sheet and Perfect previews. A square reference in
+mask comparison remains square when that is what its source defines; display
+wrappers must not silently apply a different mask.
+
+Style thumbnails observe the preview repository revision, so clearing after a
+mask import/reset restarts mounted loads. The applied-completion thumbnail uses
+the published-theme repository and theme preview identity, independently of
+pending settings. Mask-comparison samples explicitly ignore the user's
+preserved-app list so app selection cannot defeat an A/B mask comparison.
+Unmodified app artwork independently uses the stock native mask, with the
+retained HyperOS 4 path when the native mask is unavailable.
+
 ## Comparison
 
 The child page samples up to three real entries from a locally available pack.

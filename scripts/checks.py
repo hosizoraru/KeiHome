@@ -52,6 +52,11 @@ GROUPS = {
         UI + "MonetColorEditorTest",)),
     "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
         UI + "PackSettingsNavigationTest",)),
+    "ui-pack-previews": ("device", "Compact actions, artwork alpha, published masks and preview invalidation", (
+        UI + "CompactPackPreviewUiTest", UI + "AppliedPackThumbnailPolicyUiTest",
+        UI + "MaskComparisonPreservationUiTest", UI + "IconPreviewShapeUiTest",
+        UI + "PackGuidanceDeviceTest", "os.kei.hyper.home.iconpack.OriginalIconShapePolicyDeviceTest",
+        "os.kei.hyper.home.iconpack.IconMaskPreviewPipelineDeviceTest")),
     "icon-mask": ("jvm", "Imported XML, shape preservation and generation identity", (
         "NativeIconMaskImportTest", "NativeIconShapeConfigTest", "IconGenerationManifestTest",
         "IconPackUpdateNoticeTest")),

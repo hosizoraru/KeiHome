@@ -25,12 +25,49 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal fun sidebarIconPackage(uri: String?): String? {
   val name = uri?.takeIf { it.startsWith("pkg_icon://") }?.removePrefix("pkg_icon://")
     ?: return null
-  return name.takeIf {
-    it.length <= 240 && it.split('.').let { parts ->
-      parts.size >= 2 && parts.all { part ->
-        part.isNotEmpty() && (part.first().isLetter() || part.first() == '_') &&
-          part.all { c -> c.isLetterOrDigit() || c == '_' }
-      }
+  return sidebarIconPackageName(name)
+}
+
+internal fun sidebarIconPackageName(name: String?): String? {
+  if (name == null || name.length > 240) return null
+  var start = true
+  var dotted = false
+  for (c in name) {
+    if (c == '.') {
+      if (start) return null
+      start = true
+      dotted = true
+    } else {
+      if (if (start) !c.isLetter() && c != '_' else !c.isLetterOrDigit() && c != '_') return null
+      start = false
+    }
+  }
+  return name.takeIf { dotted && !start }
+}
+
+internal class HostPublicIconArguments private constructor(
+  val itemPosition: Int, val applicationPosition: Int?,
+) {
+  inline fun <T> withIdentity(
+    read: (Int) -> Any?, use: (PackageItemInfo?, ApplicationInfo?) -> T,
+  ): T {
+    val first = read(itemPosition)
+    val explicit = applicationPosition?.let(read)
+    val item = first as? PackageItemInfo ?: explicit as? PackageItemInfo
+    // ApplicationInfo is itself a PackageItemInfo: preserve the former first-match precedence.
+    val info = first as? ApplicationInfo ?: explicit as? ApplicationInfo
+      ?: (item as? ComponentInfo)?.applicationInfo
+    return use(item, info)
+  }
+
+  companion object {
+    fun resolve(method: Method): HostPublicIconArguments? = when {
+      method.parameterTypes.contentEquals(arrayOf(PackageItemInfo::class.java, ApplicationInfo::class.java)) ->
+        HostPublicIconArguments(0, 1)
+      method.parameterTypes.contentEquals(arrayOf(android.content.Context::class.java,
+        PackageItemInfo::class.java, android.content.pm.PackageManager::class.java)) ->
+        HostPublicIconArguments(1, null)
+      else -> null
     }
   }
 }
@@ -245,24 +282,24 @@ internal class HostAppIconRuntime(
       }
     check(methods.isNotEmpty()) { "No authenticated application-icon API available" }
     for ((index, method) in methods.distinct().withIndex()) {
+      val arguments = checkNotNull(HostPublicIconArguments.resolve(method))
       replace(method, "public.$index") { chain ->
         if (!lifecycle.enter()) return@replace chain.proceed()
         try {
-          val item = chain.args.filterIsInstance<PackageItemInfo>().firstOrNull()
-          val info = chain.args.filterIsInstance<ApplicationInfo>().firstOrNull()
-            ?: (item as? ComponentInfo)?.applicationInfo ?: item as? ApplicationInfo
-          val original = chain.proceed()
-          if (item == null || info == null || info.uid / 100000 != currentUser ||
-            sidebarIconPackage("pkg_icon://${item.packageName}") == null ||
-            original !is Drawable) return@replace original
-          val name = item.packageName
-          val bitmap = cache?.get(name)
-          val replacement = bitmap?.let { BitmapDrawable(application.resources, it) } ?: try {
-            original.constantState?.newDrawable(application.resources)?.mutate() ?: original
-          } catch (_: Exception) { original }
-          identities.remember(replacement, name)
-          if (bitmap != null) identities.remember(bitmap, name)
-          replacement
+          arguments.withIdentity({ chain.getArg(it) }) { item, info ->
+            val original = chain.proceed()
+            if (item == null || info == null || info.uid / 100000 != currentUser ||
+              sidebarIconPackageName(item.packageName) == null ||
+              original !is Drawable) return@replace original
+            val name = item.packageName
+            val bitmap = cache?.get(name)
+            val replacement = bitmap?.let { BitmapDrawable(application.resources, it) } ?: try {
+              original.constantState?.newDrawable(application.resources)?.mutate() ?: original
+            } catch (_: Exception) { original }
+            identities.remember(replacement, name)
+            if (bitmap != null) identities.remember(bitmap, name)
+            replacement
+          }
         } finally { lifecycle.leave() }
       }
     }

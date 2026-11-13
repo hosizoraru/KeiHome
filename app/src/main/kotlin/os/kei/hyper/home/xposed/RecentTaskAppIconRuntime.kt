@@ -203,14 +203,15 @@ internal class RecentTaskAppIconRuntime(
       }
     }
     hook(profile.notify, "keihome_recent_task_description") { chain ->
-      val args = chain.args.toTypedArray()
+      var notification: Any? = null
       try {
         val controller = checkNotNull(chain.thisObject)
         val update = checkNotNull(chain.getArg(0))
+        val taskId = profile.taskId(update)
         // Native description notifications are lite TaskInfo objects, without reliable user/component.
         val previous = synchronized(lock) {
           entries.values.singleOrNull {
-            it.key.taskId == profile.taskId(update) && it.controller.get() === controller
+            it.key.taskId == taskId && it.controller.get() === controller
           }
         }
         if (previous != null) {
@@ -219,7 +220,7 @@ internal class RecentTaskAppIconRuntime(
           if (entry != null) bitmap(entry)?.let { bitmap ->
             // Keep the native notification's concrete type and all its metadata.
             profile.withIcon(update, Icon.createWithBitmap(bitmap))?.let {
-              args[0] = it
+              notification = it
               synchronized(lock) { entry.delivered = bitmap }
             }
           }
@@ -227,7 +228,8 @@ internal class RecentTaskAppIconRuntime(
       } catch (failure: Throwable) {
         recoverableSystemUiFailure(failure)
       }
-      chain.proceed(args)
+      proceedRecentTaskNotification(notification, { chain.proceed() },
+        { chain.args.toTypedArray() }, { chain.proceed(it) })
     }
     hook(profile.remove, "keihome_recent_task_removed") { chain ->
       val id = chain.getArg(0) as? Int
@@ -328,4 +330,13 @@ internal class RecentTaskAppIconRuntime(
     const val MAX_TASKS = 64
     val STOP_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(5)
   }
+}
+
+internal inline fun <T> proceedRecentTaskNotification(
+  replacement: Any?, unchanged: () -> T, copyArguments: () -> Array<Any?>, changed: (Array<Any?>) -> T,
+): T {
+  if (replacement == null) return unchanged()
+  val args = copyArguments()
+  args[0] = replacement
+  return changed(args)
 }

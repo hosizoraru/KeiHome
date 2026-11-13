@@ -16,6 +16,77 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RecentTaskNotificationCopyDeviceTest {
+  @Test fun absentReplacementKeepsNativeCallAndDoesNotCopyArguments() {
+    val native = Any()
+    var nativeCalls = 0
+    var copies = 0
+    var changedCalls = 0
+    val result = proceedRecentTaskNotification(null, {
+      nativeCalls++; native
+    }, {
+      copies++; arrayOf<Any?>(null)
+    }, {
+      changedCalls++; Any()
+    })
+    assertSame(native, result)
+    assertEquals(1, nativeCalls)
+    assertEquals(0, copies)
+    assertEquals(0, changedCalls)
+  }
+
+  @Test fun successfulReplacementCopiesOnceAndPreservesTypedPayloadAndOtherArguments() {
+    val original = ActivityManager.RunningTaskInfo().apply { taskId = 42 }
+    val replacement = ActivityManager.RunningTaskInfo().apply {
+      taskId = 42
+      baseIntent = Intent(Intent.ACTION_MAIN).setPackage("os.test.owner")
+      taskDescription = ActivityManager.TaskDescription("native-label")
+    }
+    val other = Any()
+    val originalArgs = arrayOf<Any?>(original, other)
+    val native = Any()
+    var nativeCalls = 0
+    var copies = 0
+    var changedCalls = 0
+    val result = proceedRecentTaskNotification(replacement, {
+      nativeCalls++; Any()
+    }, {
+      copies++; originalArgs.copyOf()
+    }, { args ->
+      changedCalls++
+      assertNotSame(originalArgs, args)
+      assertSame(replacement, args[0])
+      assertEquals(ActivityManager.RunningTaskInfo::class.java, args[0]?.javaClass)
+      assertEquals("native-label", (args[0] as ActivityManager.RunningTaskInfo).taskDescription?.label)
+      assertEquals("os.test.owner", (args[0] as ActivityManager.RunningTaskInfo).baseIntent?.`package`)
+      assertSame(other, args[1])
+      native
+    })
+    assertSame(native, result)
+    assertSame(original, originalArgs[0])
+    assertEquals(0, nativeCalls)
+    assertEquals(1, copies)
+    assertEquals(1, changedCalls)
+  }
+
+  @Test fun nativeFailurePropagatesWithoutRetryForOriginalAndChangedPaths() {
+    for (replacement in listOf(null, ActivityManager.RunningTaskInfo())) {
+      val failure = IllegalStateException("native notification failure")
+      var nativeCalls = 0
+      var copies = 0
+      assertSame(failure, assertThrows(IllegalStateException::class.java) {
+        proceedRecentTaskNotification<Any?>(replacement, {
+          nativeCalls++; throw failure
+        }, {
+          copies++; arrayOf<Any?>(null)
+        }, {
+          nativeCalls++; throw failure
+        })
+      })
+      assertEquals(1, nativeCalls)
+      assertEquals(if (replacement == null) 0 else 1, copies)
+    }
+  }
+
   @Test fun copyKeepsRunningTaskTypeAndNativeDescriptionMetadata() {
     // The production caller is system_server; this fixture also needs hidden-API access.
     assumeTrue(InstrumentationRegistry.getArguments().getString("surfaceSystemContracts") == "true")

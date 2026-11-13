@@ -420,6 +420,21 @@ class LocalLayerTimeVisualValidatorTest {
   private fun trigger(body: String, action: String = "init") =
     "<ExternalCommands><Trigger action='$action'>$body</Trigger></ExternalCommands>"
 
+  @Test fun appearanceSwitchForDateFramesRequiresBothCompleteLocalFamilies() {
+    val frames = (1..31).flatMap { day ->
+      listOf(base + "num_$day.png" to png, base + "keihome_night/num_$day.png" to png)
+    }.toMap()
+    val body = """<Image src="num.png" srcid="#date"
+      srcExp="ifelse(#__darkmode,'keihome_night/num.png','num.png')"/>"""
+    val attrs = "useVariableUpdater='DateTime.Day,DarkMode'"
+    admit(body, attrs, frames)
+    reject(body, attrs, frames - (base + "num_31.png"))
+    reject(body, attrs, frames - (base + "keihome_night/num_31.png"))
+    reject(body.replace("#date", "#month"), attrs, frames)
+    reject(body.replace("keihome_night/num.png", "../num.png"), attrs, frames)
+    reject(body, "useVariableUpdater='DateTime.Day'", frames)
+  }
+
   private fun resources(
     body: String,
     attrs: String,

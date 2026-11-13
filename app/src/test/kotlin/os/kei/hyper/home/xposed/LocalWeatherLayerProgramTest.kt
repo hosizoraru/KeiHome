@@ -47,6 +47,47 @@ class LocalWeatherLayerProgramTest {
     }
   }
 
+  @Test fun generatedDarkDisplayRetainsTheOriginalDataAndRefreshContract() {
+    val source = fixture.toByteArray()
+    val before = source.copyOf()
+    val derived = requireNotNull(os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+      .darkVariant(source, base, paths))
+    val nightPaths = paths.mapTo(linkedSetOf()) { base + "keihome_night/" + it.removePrefix(base) }
+    val complete = paths + nightPaths
+    assertArrayEquals(before, source)
+    assertEquals(complete, LocalWeatherLayerProgram.resources(derived, base, complete))
+    assertNull(os.kei.hyper.home.iconpack.NativeWeatherLayerProgram.darkVariant(derived, base, complete))
+    val xml = derived.toString(Charsets.UTF_8)
+    assertEquals(1, Regex("<ContentProviderBinder ").findAll(xml).count())
+    assertEquals(1, Regex("<BinderCommand ").findAll(xml).count())
+    assertEquals(2, Regex("<ImageChars ").findAll(xml).count())
+    assertTrue("DateTime.Minute,DarkMode" in xml)
+    for (missing in complete) {
+      assertNull(missing, LocalWeatherLayerProgram.resources(derived, base, complete - missing))
+    }
+    for (changed in listOf(
+      xml.replace("actualWeatherData/4", "actualWeatherData/5"),
+      xml.replace("} 600000", "} 1"),
+      xml.replace("delay=\"550\"", "delay=\"0\""),
+      xml.replace("keihome_night/num.png", "../num.png"),
+      xml.replace("#__darkmode", "#other"),
+      xml.replace("#hasweather", "1"),
+      xml.replace("</Icon>", "<BinderCommand command=\"refresh\"/></Icon>"),
+    )) {
+      assertNotEquals(xml, changed)
+      assertNull(LocalWeatherLayerProgram.resources(changed.toByteArray(), base, complete))
+    }
+  }
+
+  @Test fun weatherDerivationDoesNotRewriteUnrecognizedProgramsOrIncompleteSources() {
+    val transform = os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+    assertNull(transform.darkVariant(fixture.replace("actualWeatherData/4", "actualWeatherData/5")
+      .toByteArray(), base, paths))
+    assertNull(transform.darkVariant(fixture.toByteArray(), base, paths - (base + "num_0.png")))
+    assertNull(transform.darkVariant(fixture.replace("delay=\"550\"", "delay=\"0\"")
+      .toByteArray(), base, paths))
+  }
+
   @Test fun admitsTheCompleteSourceWeatherProgramWithoutChangingInputs() {
     val bytes = fixture.toByteArray()
     val original = bytes.copyOf()

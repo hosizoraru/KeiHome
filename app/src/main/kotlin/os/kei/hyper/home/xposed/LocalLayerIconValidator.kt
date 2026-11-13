@@ -250,9 +250,11 @@ internal object LocalLayerIconValidator {
           }
           "srcExp" -> {
             val source = requireNotNull(attrs["src"])
-            require(imagePath.matches(source) && attrs["srcid"] == null && observesDarkMode &&
+            val dated = attrs["srcid"] == "#date" && source == "num.png"
+            val resources = if (dated) (1..31).map { "num_$it.png" } else listOf(source)
+            require(imagePath.matches(source) && (attrs["srcid"] == null || dated) && observesDarkMode &&
               value == "ifelse(#__darkmode,'keihome_night/$source','$source')" &&
-              base + "keihome_night/$source" in paths) { "Unsupported local appearance selector" }
+              resources.all { base + "keihome_night/$it" in paths }) { "Unsupported local appearance selector" }
           }
           "action" -> require(if (parent?.tag == "Triggers") value == "complete"
             else value.split(',').all { it in lifecycle }) { "Unsupported layer trigger action" }

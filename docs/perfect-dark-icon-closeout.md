@@ -98,9 +98,10 @@ The module-updated notification was independently identified on that phone:
 - The substituted display name is `LSPosed`.
 
 The retained Vector source also posts the update through `android` and supplies
-its own notification bitmap. This is not a KeiHome application-icon request.
-Package identity, bitmap dimensions and the view's position do not justify
-replacing that notification-specific symbol or treating it as themed artwork.
+its own notification bitmap. Its notification-specific small icon must be
+distinguished from the OEM header's application-icon slot. Package identity,
+bitmap dimensions and the view's position alone do not justify replacing the
+notification-specific symbol or treating it as themed artwork.
 The exact running framework revision was not established by this source
 comparison.
 
@@ -116,3 +117,43 @@ resource application is inferred from the successful Java handoff.
 Evidence is in `.artifacts/research/dark-icon-physical-20261113/`, including the
 bounded notification identity, update receipt, module-log window, Release
 receipt and build/lint log. No phone restart or scope change was performed.
+
+## First-notice correction verified after the paired screenshots
+
+The user's paired screenshots reopened this check: the own-update notice was
+square, while a later notice for another module was rounded. Bounded diagnostic
+hooks then observed an initially opaque-corner native `114 x 114` app bitmap
+and a later masked `192 x 192` bitmap from the shared cache. `android` is a valid
+native icon resource name; its header does enter the pipeline. Do not infer
+exclusion from the helper name `validDottedName`.
+
+The correction uses the authenticated cached-app-icon consumer, preserving the
+separate notification-specific small/custom/hybrid roles:
+
+- When native code has just installed its exact cached app drawable, bind and
+  apply it again even if that view already had an older association. A previous
+  association alone must not hide a new native overwrite.
+- For framework notifications only (`android`, app UID `1000`, same user), retain
+  at most eight weak native row references during the first 30 seconds of
+  installation. Both the row and notice must still be eligible and current.
+- Once the shared bitmap cache is ready, request each attached native row's
+  own `reInflateViews()` at most once. The host rebuilds its notification
+  content, including a header captured before the new icon pipeline was ready.
+  No notification icon is generically clipped or replaced by this replay.
+- Resolve that optional public native row method using the authenticated
+  consumer's SystemUI loader, not the plugin loader. Missing roles fail
+  independently of the icon pipeline.
+- Mark a row consumed before invoking native code, do not hold the helper lock
+  while invoking it, and clear admission/references during retirement.
+
+Fifteen focused device tests passed for row admission/readiness/ownership and
+existing app-icon binding boundaries. The own-update recording for diagnostic
+`109000445` shows the same notice rounded after one native row refresh; the
+module log records `rows refreshed=1`. No second module update was needed.
+This verifies correction within the first notice, not a claim of zero native
+fallback frames before the asynchronous bitmap is ready.
+
+The temporary per-bitmap diagnostics were removed before Release compilation.
+Evidence: `row-loader-first-update.webm`, `row-loader-settled.png`,
+`row-loader-live.log` and `row-replay-device-tests.log` in the physical-research
+directory above. Final optimized Release acceptance is recorded separately.

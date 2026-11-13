@@ -41,9 +41,11 @@ internal class SystemUiAppIconRuntime(
 ) {
   @Volatile private var cache: CrossSurfaceIconCache? = null
   @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
+  @Volatile private var notificationRows: SystemUiNotificationRowReplay? = null
   @Volatile private var stopped = false
   private val currentUser = Process.myUid() / 100000
   private val guard = SystemUiHookGuard { reportFailure("notification app icon lookup", it) }
+  private val rowGuard = SystemUiHookGuard { reportFailure("native notification row replay", it) }
   private class Request { var name: String? = null }
   private data class Profile(val bitmap: Method, val consumer: Method)
   private val request = ThreadLocal<Request>()
@@ -62,6 +64,10 @@ internal class SystemUiAppIconRuntime(
     try {
       bindings.snapshot().forEach { bound -> guard.run(Unit) { apply(bound) } }
       statusBar?.replay()
+      rowGuard.run(Unit) {
+        val refreshed = notificationRows?.replay() ?: 0
+        if (refreshed > 0) report(Log.INFO, TAG, "Native notification handoff rows refreshed=$refreshed")
+      }
     } finally { lifecycle.leave() }
   }
 
@@ -81,6 +87,16 @@ internal class SystemUiAppIconRuntime(
       SystemUiNotificationAppIconProfile.resolve(context, loader)
     }
     if (cachedProfile != null) {
+      notificationRows = rowGuard.run<SystemUiNotificationRowReplay?>(null) {
+        val row = Class.forName(
+          "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow", false,
+          cachedProfile.method.declaringClass.classLoader)
+        check(android.view.View::class.java.isAssignableFrom(row))
+        val rebind = row.getDeclaredMethod("reInflateViews")
+        check(!Modifier.isStatic(rebind.modifiers) && rebind.returnType == Void.TYPE)
+        SystemUiNotificationRowReplay(row.asSubclass(android.view.View::class.java), rebind,
+          currentUser, { cache?.get("android")?.isRecycled == false })
+      }
       cachedProfile.customMethod?.let { custom -> replace(custom, "$HOOK_ID.native-custom-header.v1") { chain ->
         val result = chain.proceed()
         if (!stopped && result is Drawable && lifecycle.enter()) {
@@ -356,8 +372,14 @@ internal class SystemUiAppIconRuntime(
         val notification = chain.getArg(1) ?: return@run
         val view = chain.getArg(2) as? ImageView ?: return@run
         val name = profile.identity(notification, currentUser) ?: return@run
-        if (bindings.associated(view, name)) return@run
         val cached = profile.cached(notification) ?: return@run
+        if (view.drawable !== cached) {
+          if (!bindings.associated(view, name)) bindings.clear(view)
+          return@run
+        }
+        val frameworkNotice = notification as? android.service.notification.StatusBarNotification
+        if (frameworkNotice?.packageName == "android" &&
+          notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
         bindings.bindNative(view, cached, name)?.let(::boundReady)
       }
       return result
@@ -425,6 +447,7 @@ internal class SystemUiAppIconRuntime(
 
   fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
     stopped = true
+    notificationRows?.clear()
     val stoppedStatus = try { statusBar?.stop(deadline) != false } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)
       reportFailure("status-bar app icon stop", failure)

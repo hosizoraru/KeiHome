@@ -92,6 +92,10 @@ For the 1.10.0 preparation, 103 focused JVM cases and 15 grouped AVD cases
 passed, covering independent ownership, imported native bytes, installed-only
 service discovery, supplemental-source precedence, preview masks, persistence,
 navigation, and import gating. Three existing Telegram device cases also passed.
+Ten pipeline cases were rerun after extending installed-only discovery to
+authored service entries: disabling the recommendation keeps dedicated service
+artwork, including component-specific artwork. Package presence is memoized per
+export, so multiple entries still need at most two package checks.
 The bundled ColorOS fixture already owns `com.android.phone`: the test confirms
 that only its uncovered companion is borrowed, preserving the authored service
 icon.

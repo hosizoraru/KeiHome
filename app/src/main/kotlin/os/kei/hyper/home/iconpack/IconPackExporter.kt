@@ -140,16 +140,22 @@ internal class IconPackExporter(private val context: Context, private val limits
       val alternateChannels = targets.filter { TelegramChannelIcons.isFamily(it.packageName) &&
         !TelegramChannelIcons.isDefaultTarget(it) }.mapTo(hashSetOf()) { it.packageName }
       val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
-      val phoneTargets = (phone.completionTargets() + colorOsFallback?.let {
-        PhoneCompanionIcons(it.entries, recommendedMappings.phoneCompanions).completionTargets()
+      fun authoredPhoneTargets(source: IconPackDescriptor) = source.entries.mapNotNull { entry ->
+        entry.component?.takeIf { it.packageName in PhoneCompanionIcons.TARGETS }
+          ?: entry.nativeName?.takeIf { it in PhoneCompanionIcons.TARGETS }?.let(::IconPackComponent)
+      }
+      val phonePresence = mutableMapOf<String, Boolean>()
+      val phoneTargets = (phone.completionTargets() + authoredPhoneTargets(pack) + colorOsFallback?.let {
+        (PhoneCompanionIcons(it.entries, recommendedMappings.phoneCompanions).completionTargets() +
+          authoredPhoneTargets(it))
           .filterNot { target -> target.packageName in phone.authoredTargets }
       }.orEmpty()).distinct().filterNot { it.packageName in phoneCompanionExclusions }.filter { target ->
-          if (!installedOnly) true else try {
+          !installedOnly || phonePresence.getOrPut(target.packageName) { try {
             context.packageManager.getApplicationInfo(target.packageName,
               android.content.pm.PackageManager.ApplicationInfoFlags.of(0))
             true
           } catch (_: android.content.pm.PackageManager.NameNotFoundException) { false
-          } catch (_: SecurityException) { false }
+          } catch (_: SecurityException) { false } }
         }
       val candidates = targets + phoneTargets + if (installedOnly) emptyList() else
         (if (pack.colorOsProfile != null) pack.entries.mapNotNull { it.component }

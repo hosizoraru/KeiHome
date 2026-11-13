@@ -108,6 +108,17 @@ class PhoneCompanionCompletionDeviceTest {
           }
           assertPreviewColor(pack, night, targets.first { it != target }, if (night) nightColor else dayColor)
         }
+        for (enabled in listOf(false, true)) {
+          val result = IconPackExporter(context, IconPackLimits()).export(pack, emptyList(), false, 32,
+            installedOnly = true, preservedPackages = emptySet(), recommendedMappings = if (enabled) on else off) {}
+          try { ZipFile(result.archive).use { zip ->
+            assertColor(zip, "res/drawable-xxhdpi/${nativeLauncherActivityName(owner) ?: owner.packageName}.png",
+              Color.GREEN)
+            val missing = targets.first { it != target }
+            val path = "res/drawable-xxhdpi/${missing.packageName}.png"
+            if (enabled) assertColor(zip, path, dayColor) else assertNull(zip.getEntry(path))
+          } } finally { result.archive.delete() }
+        }
       }
     } finally { folder.deleteRecursively() }
   }
@@ -191,6 +202,13 @@ class PhoneCompanionCompletionDeviceTest {
           assertEquals(authored, session.completedEntry(target, authored))
         }
       }
+      val result = IconPackExporter(context, IconPackLimits()).export(pack, emptyList(), night, 96,
+        installedOnly = true, preservedPackages = emptySet(), recommendedMappings = on) {}
+      try { ZipFile(result.archive).use { zip ->
+        targets.forEach { target ->
+          assertNotNull(zip.getEntry("res/drawable-xxhdpi/${target.packageName}.png"))
+        }
+      } } finally { result.archive.delete() }
     }
   }
 }

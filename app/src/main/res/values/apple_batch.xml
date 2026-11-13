@@ -13,8 +13,9 @@
     <string name="apple_batch_status_unmatched">No recent match</string>
     <string name="apple_batch_status_failed">Network request failed</string>
     <string name="apple_batch_attempt_time">Tried %1$s</string>
-    <string name="apple_batch_attempt_retry">Tried %1$s · Retry from %2$s</string>
-    <string name="apple_batch_intro">%1$d eligible apps in these results; up to 10 per batch. No-match and confirmation-pending entries are skipped for 7 days. Retry network failures as indicated. Open pending entries to review candidates.</string>
+    <string name="apple_batch_attempt_retry">Request failed %1$s · Retry from %2$s</string>
+    <string name="apple_batch_attempt_cached">Tried %1$s · Results saved; you can match again</string>
+    <string name="apple_batch_intro">%1$d eligible apps; up to 10 per batch. You can match unresolved apps again; searches reuse results from the last 15 minutes. Saved candidates can be opened for confirmation at any time. Network failures and server limits use a separate retry period.</string>
     <string name="apple_batch_selection_count">%1$d selected · %2$d in this batch</string>
     <string name="apple_batch_progress">Matching %1$d/%2$d</string>
     <string name="apple_batch_cancel">Stop batch · Keep completed matches</string>

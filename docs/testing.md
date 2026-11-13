@@ -87,6 +87,8 @@ Examples:
 
 ```sh
 python3 scripts/checks.py pack-time --run
+python3 scripts/checks.py apple-matching --run
+python3 scripts/checks.py apple-matching-device --serial emulator-5580 --run
 python3 scripts/checks.py ui-actions --serial emulator-5580 --run
 python3 scripts/checks.py ui-actions --method syncIssuePillsKeepTheLastSuccessAndDistinguishFirstUse --serial emulator-5580 --run
 ```

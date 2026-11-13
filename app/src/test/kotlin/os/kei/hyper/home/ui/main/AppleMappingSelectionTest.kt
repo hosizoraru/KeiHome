@@ -18,7 +18,16 @@ class AppleMappingSelectionTest {
   private val excluded = row("excluded")
   private val unmatched = row("unmatched", custom = false)
   private val coolingDown = row("cooldown", custom = false).copy(
-    attempt = AppleMatchAttempt(AppleMatchAttemptStatus.NO_MATCH, now - 100, now + 100, "us"))
+    attempt = AppleMatchAttempt(AppleMatchAttemptStatus.FAILED, now - 100, now + 100, "us"))
+
+  @Test fun savedMissesAndCandidatesRemainSelectableBeforeAutomaticRetryDate() {
+    val rows = listOf(AppleMatchAttemptStatus.NO_MATCH, AppleMatchAttemptStatus.REVIEW).map {
+      row(it.name, custom = false).copy(attempt = AppleMatchAttempt(it, now - 100,
+        now + AppleAutoMatchPolicy.HISTORY_TTL_MS, "cn"))
+    }
+    val selection = appleMappingSelection(rows, rows.map { it.target.packageName }, true, now)
+    assertEquals(rows.map { it.target.packageName }.toSet(), selection.match)
+  }
 
   @Test fun mixedSelectionSeparatesExportableChoicesFromEligibleUnmatchedApps() {
     val rows = listOf(mapped, upstream, excluded, unmatched, coolingDown)

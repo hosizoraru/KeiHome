@@ -340,9 +340,14 @@ remain review candidates. These rules are conservative suggestions, not proof of
 publisher identity; every saved automatic result can still be edited or excluded.
 
 Each completed attempt is saved immediately in MMKV by platform, storefront,
-package and launcher label. Untried targets precede expired retries. Review and
-no-match results are skipped for seven days, with up to five local candidates for
-review; users can open the ordinary editor and search manually at any time.
+package and launcher label. Untried targets precede expired retries. Unattended
+batches skip review and no-match history for seven days, with up to five local
+candidates for review. This history is not an HTTP 429 cooldown. Explicit matching
+from the browser or selection toolbar can retry these entries immediately,
+including records saved by older versions. It reuses searches up to 15 minutes
+old; older searches are refreshed on demand. Users can open saved candidates in
+the editor at any time without repeating the search. The browser labels saved
+results separately from failed-request retry deadlines.
 Network failures are not classified as misses. A failure stops the current batch,
 uses the API's persistent retry deadline (or a 15-minute failure retry interval),
 and leaves untouched targets for the next batch. There is no background retry

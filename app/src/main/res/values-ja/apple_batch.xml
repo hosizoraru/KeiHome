@@ -13,8 +13,9 @@
     <string name="apple_batch_status_unmatched">最近の照合で一致なし</string>
     <string name="apple_batch_status_failed">ネットワークエラー</string>
     <string name="apple_batch_attempt_time">照合日時 %1$s</string>
-    <string name="apple_batch_attempt_retry">%1$sに照合 · %2$s以降に再試行可能</string>
-    <string name="apple_batch_intro">現在の結果で%1$d件を照合可能。1回最大10件。一致なし・確認待ちは7日間再試行しません。通信失敗は表示日時以降に再試行できます。確認待ちの項目を開くと候補を選べます。</string>
+    <string name="apple_batch_attempt_retry">%1$sにリクエスト失敗 · %2$s以降に再試行可能</string>
+    <string name="apple_batch_attempt_cached">%1$sに照合 · 結果を保存済み、再照合可能</string>
+    <string name="apple_batch_intro">現在%1$d件を照合可能、1回最大10件。一致なし・確認待ちは再照合できます。15分以内の検索結果は再利用します。保存済み候補はいつでも確認できます。通信失敗とサーバーの制限は別途再試行を待ちます。</string>
     <string name="apple_batch_selection_count">%1$d件を選択 · 今回%2$d件を処理</string>
     <string name="apple_batch_progress">照合中 %1$d/%2$d</string>
     <string name="apple_batch_cancel">停止して完了分を保持</string>

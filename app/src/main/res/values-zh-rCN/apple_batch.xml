@@ -13,8 +13,9 @@
     <string name="apple_batch_status_unmatched">近期未命中</string>
     <string name="apple_batch_status_failed">网络失败</string>
     <string name="apple_batch_attempt_time">尝试于 %1$s</string>
-    <string name="apple_batch_attempt_retry">%1$s 尝试 · %2$s 后可重试</string>
-    <string name="apple_batch_intro">当前可匹配 %1$d 个，每批最多 10 个。未命中／待确认项 7 天内跳过；网络失败按提示重试。点开待确认项可预览并选择候选。</string>
+    <string name="apple_batch_attempt_retry">%1$s 请求失败 · %2$s 后可重试</string>
+    <string name="apple_batch_attempt_cached">%1$s 尝试 · 已保存结果，可重新匹配</string>
+    <string name="apple_batch_intro">当前可匹配 %1$d 个，每批最多 10 个。未命中／待确认项可重新匹配，15 分钟内复用搜索结果；已保存的候选随时可点开确认。网络失败与服务器限流另行等待重试。</string>
     <string name="apple_batch_selection_count">已选 %1$d 个 · 本次处理 %2$d 个</string>
     <string name="apple_batch_progress">正在匹配 %1$d/%2$d</string>
     <string name="apple_batch_cancel">停止本批 · 保留已完成匹配</string>

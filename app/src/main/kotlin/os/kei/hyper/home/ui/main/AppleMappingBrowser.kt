@@ -192,7 +192,7 @@ internal fun appleRegionName(country: String, locale: Locale = Locale.getDefault
 }
 
 internal fun appleBatchSelectable(row: AppleMappingRow, now: Long): Boolean =
-  row.app == null && !row.custom && (row.attempt?.retryAt ?: 0L) <= now
+  row.app == null && !row.custom && AppleAutoMatchPolicy.canAttempt(row.attempt, now, explicit = true)
 
 internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state: ApplePackUiState,
   controller: ApplePackController, enabled: Boolean,
@@ -317,12 +317,18 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
           val date = java.util.Date(attempt.attemptedAt)
           val attempted = android.text.format.DateFormat.getDateFormat(context).format(date) + " · " +
             android.text.format.DateFormat.getTimeFormat(context).format(date)
-          val retryDate = java.util.Date(attempt.retryAt)
-          val retry = android.text.format.DateFormat.getDateFormat(context).format(retryDate) + " · " +
-            android.text.format.DateFormat.getTimeFormat(context).format(retryDate)
-          Text(if (app == null && !row.custom && attempt.retryAt > System.currentTimeMillis())
-            stringResource(R.string.apple_batch_attempt_retry, attempted, retry)
-          else stringResource(R.string.apple_batch_attempt_time, attempted),
+          val description = when {
+            app != null || row.custom || attempt.retryAt <= System.currentTimeMillis() ->
+              stringResource(R.string.apple_batch_attempt_time, attempted)
+            attempt.status == AppleMatchAttemptStatus.FAILED -> {
+              val retryDate = java.util.Date(attempt.retryAt)
+              val retry = android.text.format.DateFormat.getDateFormat(context).format(retryDate) + " · " +
+                android.text.format.DateFormat.getTimeFormat(context).format(retryDate)
+              stringResource(R.string.apple_batch_attempt_retry, attempted, retry)
+            }
+            else -> stringResource(R.string.apple_batch_attempt_cached, attempted)
+          }
+          Text(description,
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
       }

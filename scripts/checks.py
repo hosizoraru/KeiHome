@@ -12,6 +12,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "apple-matching": ("jvm", "Conservative matching, explicit retry eligibility and browser selection", (
+        "AppleAutoMatchPolicyTest", "AppleMappingSelectionTest", "AppleMappingBrowserTest")),
+    "apple-matching-device": ("device", "Persisted matching history, cached retries and HTTP backoff (fake transport)", (
+        "os.kei.hyper.home.iconpack.apple.AppleBatchMatchingDeviceTest",
+        "os.kei.hyper.home.iconpack.apple.AppleRequestSchedulingDeviceTest")),
     "hook-initialization": ("jvm", "Independent startup stages, coalesced work, host loader and API 102 drain", (
         "SystemUiInitializationTest", "CoalescingInitializationWorkTest",
         "SystemUiHostClassLoaderTest", "SystemUiHookGuardTest", "SystemUiThemeCompatibilityTest")),

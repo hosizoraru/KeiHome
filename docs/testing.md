@@ -80,6 +80,7 @@ does not automatically run navigation, color editing or native tests.
 | Mask import, alpha edges and source/export preservation | `icon-mask-device` |
 | Mask child page, real comparison and restore confirmation | `ui-icon-mask`; affected preview screenshot |
 | Reload retirement bookkeeping | `hook-lifecycle`; normal deployment/handoff checks when runtime changes |
+| SystemUI startup isolation and retry | `hook-initialization`; verify fresh feature-ready logs as well as normal API 102 handoff |
 | Broad infrastructure/dependency changes or release gate | `release-jvm`, appropriate lint and affected device/native suites |
 
 Examples:

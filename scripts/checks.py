@@ -12,6 +12,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "hook-initialization": ("jvm", "Independent startup stages, coalesced work, host loader and API 102 drain", (
+        "SystemUiInitializationTest", "CoalescingInitializationWorkTest",
+        "SystemUiHostClassLoaderTest", "SystemUiHookGuardTest", "SystemUiThemeCompatibilityTest")),
     "perfect-night": ("jvm", "Perfect dark resource roles, selectors, caches and local date-frame admission", (
         "PerfectDynamicNightTest", "PerfectDynamicNightSwitchTest", "PerfectIconRepositoryTest",
         "LocalLayerTimeVisualValidatorTest", "LocalWeatherLayerProgramTest", "LocalNativeIconValidatorTest")),

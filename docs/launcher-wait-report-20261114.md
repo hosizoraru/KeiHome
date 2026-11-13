@@ -77,3 +77,8 @@ rewrite the icon archive as a diagnostic shortcut.
 The public stack frame has been identified. The SystemUI warning and launcher
 wait have not been shown to share a cause. No production change or device
 operation was justified or performed for this screenshot-only report.
+
+Subsequent Java initialization hardening addresses independently verified
+coupling and recovery issues; see
+[initialization hardening](hook-initialization-hardening-20261114.md).
+It does not retrospectively establish this reporter's root cause.

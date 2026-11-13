@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="perfect_icons_static_night">アイコンのライト／ダーク対応</string>
-    <string name="perfect_icons_static_night_summary">対応する静止アイコンとビットマップの動的レイヤーに暗色表示を生成し、元のアニメーションを維持します。動的対応には背景描画とキャッシュの追加負荷があります。</string>
-    <string name="perfect_icons_static_night_note">派生した暗色表示であり、配布元の独立した暗色素材や Monet ではありません。静止レイヤーには暗色グラデーションを使い、一体画像は減光します。対応する動的グループはレイヤー、アニメーションの時間設定とイベントを維持し、明暗の画像選択と背景描画を追加します。グループごとに背景描画が1つ増えます。複雑な Lottie、文字、手続き描画、作者独自の暗色表示は変更しません。結果はキャッシュされ、設定変更後は再生成して適用してください。</string>
+    <string name="perfect_icons_static_night_summary">判別できる静止・レイヤーアイコンをダーク表示に対応させ、文字の見やすさと元のアニメーションを維持します。</string>
+    <string name="perfect_icons_static_night_note">作者が用意したダーク表示を優先します。背景を確実に判別できる場合は暗い背景を生成し、無彩色の文字や図形を見やすくします。判別が難しい場合は控えめに減光するか、元の表示を保持します。対応する動的グループはレイヤー、タイミングとイベントを維持します。複雑な Lottie や手続き描画は変更しません。Monet ではなく派生画像です。結果はキャッシュされるため、設定変更後は再生成して適用してください。「動的ダーク」の件数に静止アイコンは含まれません。</string>
     <string name="perfect_icons_night_mode_original">元のリソース</string>
     <string name="perfect_icons_night_mode_derived">追加のダーク対応</string>
     <string name="perfect_icons_night_disabled">元のレイヤー、アニメーション、既存のダーク表示を保持します。派生ダーク画像は追加生成しません。</string>
-    <string name="perfect_icons_night_enabled">対応する静止アイコンと一部のビットマップ動的レイヤーに暗色表示を生成し、元のアニメーションを維持します。非対応グループと作者の暗色表示は変更しません。動的対応には描画とキャッシュの追加負荷があります。</string>
+    <string name="perfect_icons_night_enabled">判別できる背景や文字、カレンダー・時計などのレイヤーアイコンに対応し、元の動きを維持します。既存のダーク素材を優先し、判別が難しい図柄は保持するか控えめに減光します。追加のリソースとキャッシュを使うため、変更後は再生成して適用してください。</string>
     <string name="perfect_icons_preview_options_scope">プレビューは現在の設定の静止画像です。リアルタイムのアニメーションや、最後に生成または適用したパックの状態は示しません。変更後は再生成して適用してください。</string>
-    <string name="perfect_icons_result_dynamic_night">ダークレイヤー · %1$d</string>
+    <string name="perfect_icons_result_dynamic_night">動的ダーク · %1$d</string>
 </resources>

@@ -31,50 +31,19 @@ internal object PerfectDynamicNightRenderer {
       val height = source.height
       val pixels = IntArray(width * height)
       source.getPixels(pixels, 0, width, 0, 0, width, height)
-      if (!background) {
-        var visible = 0
-        var dark = 0
-        for (y in 0 until height) {
-          check()
-          for (x in 0 until width) {
-            val pixel = pixels[y * width + x]
-            if (pixel ushr 24 < 32) continue
-            visible++
-            if ((0..2).all { ((pixel ushr (it * 8)) and 255) <= 32 }) dark++
-          }
-        }
-        // Multiplication cannot make a black clock hand or text glyph legible on the new plate.
-        if (visible > 0 && dark.toLong() * 10 >= visible.toLong() * 9) return null
+      if (background) {
+        val plate = PerfectNightPixels.backgroundPlate(pixels, width, height, check) ?: return null
+        PerfectNightPixels.recolorPlate(pixels, width, height, plate, check)
+      } else {
+        val plate = PerfectNightPixels.bakedForegroundPlate(pixels, width, height, check)
+        if (plate != null) PerfectNightPixels.recolorPlate(pixels, width, height, plate, check)
+        else PerfectNightPixels.liftForeground(pixels, width, height, check)
       }
       for (y in 0 until height) {
         check()
-        if (background) {
-          // A plain vertical plate may be recolored; baked marks and maps must survive untouched.
-          val mins = intArrayOf(255, 255, 255)
-          val maxs = intArrayOf(0, 0, 0)
-          for (x in 0 until width) {
-            val pixel = pixels[y * width + x]
-            if (pixel ushr 24 < 128) continue
-            for (channel in 0..2) {
-              val value = (pixel ushr (channel * 8)) and 255
-              mins[channel] = minOf(mins[channel], value)
-              maxs[channel] = maxOf(maxs[channel], value)
-            }
-          }
-          if ((0..2).any { maxs[it] - mins[it] > 12 }) return null
-        }
-      }
-      for (y in 0 until height) {
-        check()
-        val gray = 56 - (35 * y + maxOf(1, height - 1) / 2) / maxOf(1, height - 1)
         for (x in 0 until width) {
           val offset = y * width + x
-          val original = pixels[offset]
-          fun dim(shift: Int) = (((original ushr shift) and 255) * 214 + 127) / 255
-          val value = (gray * 214 + 127) / 255
-          val rgb = if (background) (value shl 16) or (value shl 8) or value
-            else (dim(16) shl 16) or (dim(8) shl 8) or dim(0)
-          pixels[offset] = (original and -0x1000000) or rgb
+          pixels[offset] = PerfectNightPixels.dim(pixels[offset])
         }
       }
       val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)

@@ -74,6 +74,8 @@ class PerfectIconRepository internal constructor(
   private val staticRenderer: ((List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
   private val dynamicNightRenderer: ((ByteArray, Boolean, () -> Unit) -> ByteArray?)? = null,
   private val git: PerfectIconGitBackend? = null,
+  private val staticEquivalentRenderer:
+    ((ByteArray, List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
@@ -82,7 +84,12 @@ class PerfectIconRepository internal constructor(
     nativeMask = { os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(context).let {
       if (it.enabled) it.defaultPath else null
     } },
-    staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check) },
+    staticRenderer = { layers, mask, check ->
+      PerfectStaticNightRenderer.render(layers, mask, check = check)
+    },
+    staticEquivalentRenderer = { flat, layers, mask, check ->
+      PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
+    },
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
     },
@@ -1158,7 +1165,12 @@ class PerfectIconRepository internal constructor(
       val flat = plan.files["$prefix.png"]
       val layers = listOfNotNull(plan.files["$prefix/0.png"], plan.files["$prefix/1.png"])
       when {
-        flat != null -> name to listOf(flat)
+        flat != null -> {
+          val sourcePrefix = flat.source.removeSuffix(".png")
+          val sameTheme = layers.size == 2 && layers[0].source == "$sourcePrefix/0.png" &&
+            layers[1].source == "$sourcePrefix/1.png"
+          name to if (sameTheme) listOf(flat) + layers else listOf(flat)
+        }
         layers.size == 2 -> name to layers
         else -> null
       }
@@ -1168,7 +1180,9 @@ class PerfectIconRepository internal constructor(
     inputs: List<PerfectIconBlob>, mask: String?, check: () -> Unit,
     read: (PerfectIconBlob) -> ByteArray,
   ): PerfectStaticPair {
-    val identity = "${PerfectStaticNightRenderer.REVISION}\n${PerfectIconFormat.sha(mask.orEmpty().toByteArray())}\n" +
+    val identity = "${PerfectStaticNightRenderer.REVISION}\n" +
+      "${PerfectStaticNightRenderer.EQUIVALENT_LAYER_POLICY}\n${inputs.size}\n" +
+      "${PerfectIconFormat.sha(mask.orEmpty().toByteArray())}\n" +
       inputs.joinToString("\n") { it.sha }
     val key = PerfectIconFormat.sha(identity.toByteArray())
     val file = File(renderedDir, "$key.zip")
@@ -1204,7 +1218,12 @@ class PerfectIconRepository internal constructor(
       read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) { "Cached source icon integrity mismatch" } }
     }
     // Shape belongs to the final compositor. Baking it here prevents reversible mask comparisons.
-    val pair = requireNotNull(staticRenderer) { "Static night renderer unavailable" }(source, null, check)
+    val pair = if (source.size == 3 && staticEquivalentRenderer != null) {
+      staticEquivalentRenderer.invoke(source[0], source.drop(1), null, check)
+    } else {
+      val primary = if (source.size == 3) source.take(1) else source
+      requireNotNull(staticRenderer) { "Static night renderer unavailable" }(primary, null, check)
+    }
     GeneratedIconPng.validate(pair.day, 512)
     GeneratedIconPng.validate(pair.night, 512)
     renderedDir.mkdirs()
@@ -1331,18 +1350,28 @@ class PerfectIconRepository internal constructor(
               }
               val group = PerfectDynamicNight.group(files, read) { coroutine.ensureActive() }
               if (group == null) { original(); continue }
+              if (group.compositeQuiet != null && staticRenderer == null) { original(); continue }
               val converted = linkedMapOf<String, ByteArray>()
               var renderedBytes = 0L
-              for (path in listOf(group.background) + group.foreground) {
+              for (path in group.bgAssets + group.foreground) {
                 coroutine.ensureActive()
-                val bytes = dynamicNightTexture(group.files.getValue(path), path == group.background,
+                val bytes = dynamicNightTexture(group.files.getValue(path), path in group.bgAssets,
                   { coroutine.ensureActive() }, read) ?: break
                 renderedBytes += bytes.size
                 if (renderedBytes > 32L * 1024 * 1024) break
                 converted[path] = bytes
               }
+              if (converted.size != group.bgAssets.size + group.foreground.size) { original(); continue }
+              group.compositeQuiet?.let { path ->
+                val bytes = staticPair(listOf(group.files.getValue(path)), null,
+                  { coroutine.ensureActive() }, read).night
+                renderedBytes += bytes.size
+                converted[path] = bytes
+              }
               // Publish the whole closure or none, never a mixture of night and missing day assets.
-              if (converted.size != group.foreground.size + 1) { original(); continue }
+              if (converted.keys != group.nightPaths || renderedBytes > 32L * 1024 * 1024) {
+                original(); continue
+              }
               val originals = group.files.mapValues { (_, blob) ->
                 read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) }
               }

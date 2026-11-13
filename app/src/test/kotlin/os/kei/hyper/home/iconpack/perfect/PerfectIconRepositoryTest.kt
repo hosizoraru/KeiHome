@@ -182,6 +182,108 @@ class PerfectIconRepositoryTest {
     assertEquals(1, f.http.calls.size)
   }
 
+  @Test fun dynamicRootQuietUsesStaticCompositionWithoutMaskAndBackgroundAliasesUseBackgroundRole() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.bitmapDynamic("third.party")
+    val source = "themes/default/layer_animating_icons/third.party/"
+    f.files[source + "quiet/quietImage.png"] = png(99)
+    f.files[source + "0/fancy/bg.png"] = png(19)
+    f.files[source + "0/fancy/manifest.xml"] =
+      """<Icon width="2" height="2" frameRate="0"><Image src="bg.png"/></Icon>""".toByteArray()
+    f.update()
+    var composites = 0
+    val roles = mutableListOf<Pair<ByteArray, Boolean>>()
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, nativeMask = { "unused native mask" },
+      staticRenderer = { inputs, mask, _ ->
+        composites++
+        assertNull(mask)
+        assertEquals(1, inputs.size)
+        assertArrayEquals(png(99), inputs.single())
+        PerfectStaticPair(png(30), png(40))
+      },
+      dynamicNightRenderer = { bytes, background, _ ->
+        roles += bytes to background
+        png(if (background) 60 else 70)
+      })
+    repo.catalog(refresh = true)
+    val options = PerfectIconOptions("default", staticNight = true)
+    val result = repo.generate(options, setOf("third.party")) {}
+    assertEquals(1, result.derivedDynamicCount)
+    assertEquals(1, composites)
+    assertEquals(3, roles.size)
+    assertTrue(roles.any { it.second && it.first.contentEquals(png(20)) })
+    assertTrue(roles.any { it.second && it.first.contentEquals(png(19)) })
+    assertTrue(roles.any { !it.second && it.first.contentEquals(png(21)) })
+    assertFalse(roles.any { it.first.contentEquals(png(99)) })
+    ZipFile(result.file).use { zip ->
+      fun read(path: String) = zip.getInputStream(requireNotNull(zip.getEntry(path))).readBytes()
+      val day = "layer_animating_icons/third.party/"
+      val night = "nightmode/$day"
+      assertArrayEquals(png(99), read(day + "quiet/quietImage.png"))
+      assertArrayEquals(png(40), read(night + "quiet/quietImage.png"))
+      assertArrayEquals(png(60), read(night + "0/quiet/quietImage.png"))
+      assertArrayEquals(png(60), read(night + "0/fancy/bg.png"))
+      assertArrayEquals(png(60), read(day + "0/fancy/keihome_night/bg.png"))
+      assertArrayEquals(png(70), read(night + "1/quiet/quietImage.png"))
+      assertArrayEquals(png(70), read(night + "1/fancy/frame.png"))
+      assertArrayEquals(png(70), read(day + "1/fancy/keihome_night/frame.png"))
+      for ((path, bytes) in f.files.filterKeys { it.startsWith(source) }) {
+        val relative = path.removePrefix(source)
+        if (!relative.endsWith(".png")) assertArrayEquals(bytes, read(night + relative))
+        else assertArrayEquals(bytes, read(day + relative))
+      }
+    }
+    assertTrue(result.nightRevision.endsWith(PerfectDynamicNight.REVISION))
+    assertTrue(result.file.delete())
+    val regenerated = repo.generate(options, setOf("third.party")) {}
+    assertEquals(1, regenerated.derivedDynamicCount)
+    assertEquals(1, composites)
+    assertEquals(3, roles.size)
+    assertEquals(1, f.http.calls.size)
+  }
+
+  @Test fun authoredNightProgramsKeepTheirOriginalClosureAndNeverInvokeDerivedRenderers() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.bitmapDynamic("third.party")
+    val source = "themes/default/layer_animating_icons/third.party/"
+    val manifest = source + "1/fancy/manifest.xml"
+    f.files[manifest] = f.files.getValue(manifest).toString(Charsets.UTF_8)
+      .replace("useVariableUpdater=\"none\"", "useVariableUpdater=\"DateTime.Minute,DarkMode\"").toByteArray()
+    f.files[source + "quiet/quietImage.png"] = png(99)
+    f.update()
+    val repo = PerfectIconRepository(f.root, f.http, f.settings,
+      staticRenderer = { _, _, _ -> error("Authored night must remain intact") },
+      dynamicNightRenderer = { _, _, _ -> error("Authored night must remain intact") })
+    repo.catalog(refresh = true)
+    val result = repo.generate(PerfectIconOptions("default", staticNight = true), setOf("third.party")) {}
+    assertEquals(1, result.dynamicCount)
+    assertEquals(0, result.derivedDynamicCount)
+    ZipFile(result.file).use { zip ->
+      assertFalse(zip.entries().asSequence().any { it.name.startsWith("nightmode/") })
+      for ((path, bytes) in f.files.filterKeys { it.startsWith(source) }) {
+        val entry = requireNotNull(zip.getEntry("layer_animating_icons/third.party/" + path.removePrefix(source)))
+        assertArrayEquals(bytes, zip.getInputStream(entry).readBytes())
+      }
+    }
+  }
+
+  @Test fun missingCompositeRendererKeepsTheGroupWholeWithoutPartiallyRecoloringItsBackground() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.bitmapDynamic("third.party")
+    f.files["themes/default/layer_animating_icons/third.party/quiet/quietImage.png"] = png(99)
+    f.update()
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, staticRenderer = null,
+      dynamicNightRenderer = { _, _, _ -> error("Cannot publish a group without its composite") })
+    repo.catalog(refresh = true)
+    val result = repo.generate(PerfectIconOptions("default", staticNight = true), setOf("third.party")) {}
+    assertEquals(0, result.derivedDynamicCount)
+    ZipFile(result.file).use { zip ->
+      assertFalse(zip.entries().asSequence().any { it.name.startsWith("nightmode/") })
+      assertArrayEquals(png(99),
+        zip.getInputStream(zip.getEntry("layer_animating_icons/third.party/quiet/quietImage.png")).readBytes())
+    }
+  }
+
   @Test fun oldNightOutputsRequestRegenerationWithoutInvalidatingOriginalMode() {
     val old = PerfectIconResult(File("existing.zip"), 1, 0, 1, 0, 0, "a".repeat(40))
     assertFalse(old.needsContractUpdate(PerfectIconOptions("default")))

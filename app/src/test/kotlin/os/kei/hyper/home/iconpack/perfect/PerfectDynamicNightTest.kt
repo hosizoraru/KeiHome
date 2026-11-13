@@ -87,15 +87,17 @@ class PerfectDynamicNightTest {
     assertEquals(setOf("1/quiet/quietImage.png", "1/fancy/icon.png"), admitted(fixture()).foreground)
   }
 
-  @Test fun fancyOnlyForegroundIsExcludedEvenWhenQuietBytesHappenToExist() {
+  @Test fun fancyOnlyForegroundMayHaveAnOptionalQuietFallback() {
     val fixture = fixture(config = config(
       "layer0" to "0", "layer1" to "1", "layer_only_quiet0" to "true",
       "layer_only_fancy1" to "true",
     ))
-    assertNull(fixture.classify())
+    assertNotNull(fixture.classify())
+    assertNotNull(fixture.without("1/quiet/quietImage.png").classify())
+    assertNull(fixture.without("1/fancy/manifest.xml").classify())
   }
 
-  @Test fun requiresExactlyTwoLayersAndBothRasterRoles() {
+  @Test fun requiresAtLeastTwoDeclaredLayersAndActualForegroundContent() {
     val oneLayer = fixture(config = config("layer0" to "0", "layer_only_quiet0" to "true"))
     val threeLayers = fixture(config = config(
       "layer0" to "0", "layer1" to "1", "layer2" to "2", "layer_only_quiet0" to "true",
@@ -107,10 +109,70 @@ class PerfectDynamicNightTest {
     assertNull(fixture().without("config.xml").classify())
   }
 
-  @Test fun excludesAnyRootQuietFallbackInsteadOfTreatingACompositeAsOneRole() {
-    for (path in listOf("quiet/quietImage.png", "quiet/composite.png")) {
-      assertNull(path, fixture().with(path, raster).classify())
+  @Test fun rootQuietCompositeHasASeparateRoleAndCannotBecomeABackground() {
+    val group = admitted(fixture().with("quiet/quietImage.png", raster))
+    assertEquals("quiet/quietImage.png", group.compositeQuiet)
+    assertEquals(setOf("0/quiet/quietImage.png"), group.bgAssets)
+    assertTrue(group.compositeQuiet !in group.foreground)
+    assertEquals(group.bgAssets + group.foreground + "quiet/quietImage.png", group.nightPaths)
+    assertNull(fixture().with("quiet/composite.png", raster).classify())
+  }
+
+  @Test fun calendarAllowsCompleteDateSeriesAndAThirdFancyOnlyTextLayer() {
+    var calendar = fixture(images = (1..31).map { "num_$it.png" },
+      body = "<Image src='num.png' srcid='#date'/>",
+      config = config("layer0" to "0", "layer1" to "1", "layer2" to "2",
+        "layer_only_quiet0" to "true", "layer_only_fancy1" to "true",
+        "layer_only_fancy2" to "true"))
+      .without("1/quiet/quietImage.png")
+      .with("0/fancy/manifest.xml", manifest("<Image src='bg.png'/>"))
+      .with("0/fancy/bg.png", raster)
+      .with("2/fancy/manifest.xml", manifest("<Text color='#3482FF' textExp=\"formatDate('E',#time_sys)\"/>"))
+      .with("quiet/quietImage.png", raster)
+    val group = admitted(calendar)
+    assertEquals(setOf("0/quiet/quietImage.png", "0/fancy/bg.png"), group.bgAssets)
+    assertEquals(31, group.foreground.size)
+    assertEquals("quiet/quietImage.png", group.compositeQuiet)
+
+    calendar = calendar.with("config.xml", config("layer0" to "0", "layer1" to "1",
+      "layer2" to "2", "layer3" to "3", "layer_only_quiet0" to "true",
+      "layer_only_fancy1" to "true", "layer_only_fancy2" to "true",
+      "layer_only_fancy3" to "true").toByteArray())
+      .with("3/fancy/manifest.xml", manifest("<Text text='4' color='#ffffff'/>"))
+    assertNotNull(calendar.classify())
+    val five = calendar.with("config.xml", config("layer0" to "0", "layer1" to "1",
+      "layer2" to "2", "layer3" to "3", "layer4" to "4", "layer_only_quiet0" to "true")
+      .toByteArray()).with("4/fancy/manifest.xml", manifest("<Text text='5'/>"))
+    assertNull(five.classify())
+  }
+
+  @Test fun existingBackgroundIsAPlainImageSceneWithOnlyMappedBackgroundRasters() {
+    val fixture = fixture()
+      .with("0/fancy/manifest.xml", manifest("<Image src='plate/bg.png'/>"))
+      .with("0/fancy/plate/bg.png", raster)
+    assertEquals(setOf("0/quiet/quietImage.png", "0/fancy/plate/bg.png"), admitted(fixture).bgAssets)
+    assertNotNull(fixture.without("0/quiet/quietImage.png").classify())
+    assertNull(fixture.with("0/fancy/other.png", raster).classify())
+    for (body in listOf("<Image src='plate/bg.png'/><Image src='plate/bg.png'/>",
+      "<Group><Image src='plate/bg.png'/></Group>",
+      "<Image src='plate/bg.png' srcid='#date'/>",
+      "<Image src='plate/bg.png'/><Function name='animate'/>")) {
+      assertNull(body, fixture.with("0/fancy/manifest.xml", manifest(body)).classify())
     }
+  }
+
+  @Test fun clockFunctionsAndNativeDatetimeUpdateCommandsAreAllowedWithoutProviderIO() {
+    val body = """
+      <Image src='icon.png' rotation='#minute * 6'/>
+      <Function name='end'><IfCommand ifCondition='#second_visible == 1'>
+        <Consequent><ExternCommand command='__datatimeVarUpdate' strPara="'DateTime.Second'"/></Consequent>
+        <Consequent><ExternCommand command='__datatimeVarUpdate' strPara="'DateTime.Minute'"/></Consequent>
+      </IfCommand><FrameRateCommand rate='0'/></Function>
+      <ExternalCommands><Trigger action='close_second'><FunctionCommand target='end'/></Trigger></ExternalCommands>
+    """.trimIndent()
+    assertNotNull(fixture(body = body).classify())
+    assertNull(fixture(body = body.replace("__datatimeVarUpdate", "unknownCommand")).classify())
+    assertNull(fixture(body = body.replace("'DateTime.Second'", "#arbitraryExpression")).classify())
   }
 
   @Test fun excludesBackgroundFancyResourcesEvenWhenQuietOnlyWouldNormallyHideThem() {
@@ -164,10 +226,11 @@ class PerfectDynamicNightTest {
     }
   }
 
-  @Test fun excludesTextVectorShapesAndProviderDrivenPrograms() {
+  @Test fun literalTextColorsArePreservedButExpressionsVectorShapesAndProviderIOAreExcluded() {
+    assertNotNull(fixture(body = "<Text text='24' color='#3482FF'/>").classify())
     for (body in listOf(
-      "<Text text='24' color='#ffffff'/>",
-      "<Text textExp='#temperature'/>",
+      "<Text text='24' color='ifelse(#night,0,1)'/>",
+      "<Text text='24' colorExp='#weekdayColor'/>",
       "<Rectangle w='4' h='30' fillColor='#ffffff'/>",
       "<Circle r='24'/>",
       "<VariableBinders><ContentProviderBinder uri='content://weather'/></VariableBinders>",
@@ -210,12 +273,12 @@ class PerfectDynamicNightTest {
     assertNotNull(fixture(body = "<Image src='icon.png' xfermode='src_over'/>").classify())
   }
 
-  @Test fun rasterCountIncludesBackgroundAndQuietFallbackAndAllowsAtMost32() {
-    val images = (0 until 30).map { "frame_$it.png" }
+  @Test fun rasterCountIncludesEveryRoleAndAllowsAtMost128() {
+    val images = (0 until 126).map { "frame_$it.png" }
     val atLimit = fixture(images = images)
-    assertEquals(31, admitted(atLimit).foreground.size)
+    assertEquals(127, admitted(atLimit).foreground.size)
 
-    assertNull(atLimit.with("1/fancy/frame_30.png", raster).classify())
+    assertNull(atLimit.with("1/fancy/frame_126.png", raster).classify())
   }
 
   @Test fun rejectsOver256FilesBeforeReadingConfigOrPrograms() {

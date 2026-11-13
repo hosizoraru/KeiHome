@@ -15,9 +15,14 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-3"
+  const val REVISION = "perfect-static-night-7"
+  const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-1"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
+
+  fun render(
+    layers: List<ByteArray>, maskPath: String?, check: () -> Unit,
+  ): PerfectStaticPair = render(layers, maskPath, equivalentLayers = null, check = check)
   private const val MAX_DIMENSION = 8192
   private const val MAX_DECODE = 1024
 
@@ -28,6 +33,7 @@ internal object PerfectStaticNightRenderer {
   fun render(
     layers: List<ByteArray>,
     maskPath: String?,
+    equivalentLayers: List<ByteArray>? = null,
     check: () -> Unit = {},
   ): PerfectStaticPair {
     check()
@@ -53,17 +59,26 @@ internal object PerfectStaticNightRenderer {
             dayCanvas.drawBitmap(layer, null, bounds, paint)
             if (index == 0 && layers.size == 2) {
               day.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
-              for (y in 0 until SIZE) {
-                check()
-                // Include both gradient endpoints; replace RGB without changing source coverage.
-                val gray = 56 - (35 * y + (SIZE - 1) / 2) / (SIZE - 1)
-                val rgb = (gray shl 16) or (gray shl 8) or gray
-                for (x in 0 until SIZE) {
-                  val offset = y * SIZE + x
-                  pixels[offset] = (pixels[offset] and -0x1000000) or rgb
-                }
+              PerfectNightPixels.backgroundPlate(pixels, SIZE, SIZE, check)?.let {
+                PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, it, check)
               }
               night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+            } else if (index == 1) {
+              val foreground = newBitmap()
+              try {
+                Canvas(foreground).drawBitmap(layer, null, bounds, paint)
+                foreground.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+                val underlay = IntArray(SIZE * SIZE)
+                night.getPixels(underlay, 0, SIZE, 0, 0, SIZE, SIZE)
+                // Native foregrounds may themselves contain an opaque baked plate.
+                val plate = PerfectNightPixels.bakedForegroundPlate(pixels, SIZE, SIZE, check)
+                if (plate != null) PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
+                else PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check)
+                foreground.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+                nightCanvas.drawBitmap(foreground, 0f, 0f, paint)
+              } finally {
+                foreground.recycle()
+              }
             } else {
               nightCanvas.drawBitmap(layer, null, bounds, paint)
             }
@@ -73,14 +88,29 @@ internal object PerfectStaticNightRenderer {
         }
         check()
         night.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        if (layers.size == 1) {
+          val proved = equivalentLayers?.let { equivalentNight(layers.single(), it, check) }
+          if (proved != null) {
+            // Day follows the original flat path, including its exact interpolated coverage.
+            day.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+            for (y in 0 until SIZE) {
+              check()
+              for (x in 0 until SIZE) {
+                val i = y * SIZE + x
+                pixels[i] = (pixels[i] and -0x1000000) or (proved[i] and 0xffffff)
+              }
+            }
+          } else {
+            PerfectNightPixels.plate(pixels, SIZE, SIZE, check)?.let {
+              PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, it, check)
+            }
+          }
+        }
         for (y in 0 until SIZE) {
           check()
           for (x in 0 until SIZE) {
             val offset = y * SIZE + x
-            val color = pixels[offset]
-            fun dim(shift: Int) = (((color ushr shift) and 255) * 214 + 127) / 255
-            pixels[offset] = (color and -0x1000000) or
-              (dim(16) shl 16) or (dim(8) shl 8) or dim(0)
+            pixels[offset] = PerfectNightPixels.dim(pixels[offset])
           }
         }
         night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
@@ -109,6 +139,86 @@ internal object PerfectStaticNightRenderer {
       }
     } finally {
       day.recycle()
+    }
+  }
+
+  /**
+   * Same-theme inputs are only hints. Prove every native flat pixel against a centered
+   * source-over crop before using the separated alpha for night. Never prove sampled images.
+   */
+  private fun equivalentNight(
+    flat: ByteArray, layers: List<ByteArray>, check: () -> Unit,
+  ): IntArray? {
+    if (layers.size != 2 || (listOf(flat) + layers).any { it.size !in 1..MAX_BYTES }) return null
+    val decoded = ArrayList<Bitmap>(3)
+    try {
+      for (bytes in listOf(flat) + layers) {
+        check()
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth !in 1..MAX_DECODE || bounds.outHeight !in 1..MAX_DECODE) return null
+        decoded += decode(bytes, check)
+      }
+      val original = decoded[0]
+      val background = decoded[1]
+      val foreground = decoded[2]
+      if (background.width != foreground.width || background.height != foreground.height ||
+        original.width > background.width || original.height > background.height) return null
+      val dx = background.width - original.width
+      val dy = background.height - original.height
+      if (dx % 2 != 0 || dy % 2 != 0) return null
+      val crop = Rect(dx / 2, dy / 2, dx / 2 + original.width, dy / 2 + original.height)
+      val destination = Rect(0, 0, original.width, original.height)
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+      val proof = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888,
+        true, ColorSpace.get(ColorSpace.Named.SRGB))
+      try {
+        val canvas = Canvas(proof)
+        canvas.drawBitmap(background, crop, destination, paint)
+        canvas.drawBitmap(foreground, crop, destination, paint)
+        val expected = IntArray(original.width)
+        val actual = IntArray(original.width)
+        for (y in 0 until original.height) {
+          check()
+          original.getPixels(expected, 0, original.width, 0, y, original.width, 1)
+          proof.getPixels(actual, 0, original.width, 0, y, original.width, 1)
+          for (x in expected.indices) {
+            if (expected[x] ushr 24 != actual[x] ushr 24) return null
+            for (shift in 0..2) if (kotlin.math.abs(
+                (expected[x] ushr (shift * 8) and 255) -
+                  (actual[x] ushr (shift * 8) and 255)) > 2) return null
+          }
+        }
+      } finally { proof.recycle() }
+
+      val night = newBitmap()
+      try {
+        val canvas = Canvas(night)
+        val target = Rect(0, 0, SIZE, SIZE)
+        canvas.drawBitmap(background, crop, target, paint)
+        val pixels = IntArray(SIZE * SIZE)
+        night.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        val plate = PerfectNightPixels.backgroundPlate(pixels, SIZE, SIZE, check) ?: return null
+        // An exact artwork match alone does not authorize partial recoloring or photo conversion.
+        for (y in 0 until SIZE) {
+          check()
+          for (x in 0 until SIZE) {
+            val i = y * SIZE + x
+            if (pixels[i] ushr 24 >= 32 && !plate[i]) return null
+          }
+        }
+        PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
+        night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        // Preserve the original foreground, including intentional pale art and translucent shadows.
+        canvas.drawBitmap(foreground, crop, target, paint)
+        night.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        check()
+        return pixels
+      } finally { night.recycle() }
+    } catch (_: IllegalArgumentException) {
+      return null
+    } finally {
+      decoded.forEach { it.recycle() }
     }
   }
 

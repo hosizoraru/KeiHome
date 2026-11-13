@@ -20,6 +20,7 @@ import org.xml.sax.SAXParseException
 import org.xml.sax.helpers.DefaultHandler
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativeLayerConfig
+import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 
 /** Bounded live selectors that keep the native foreground animation owners and events. */
 internal object PerfectDynamicNightSwitch {
@@ -44,7 +45,7 @@ internal object PerfectDynamicNightSwitch {
     night: Map<String, ByteArray>,
   ): Map<String, ByteArray>? {
     if (originals.keys != group.files.keys || originals.size > 256 ||
-      night.keys != group.foreground + group.background ||
+      night.keys != group.nightPaths ||
       originals.values.sumOf { it.size.toLong() } > MAX_BYTES ||
       night.values.sumOf { it.size.toLong() } > MAX_BYTES) return null
     for ((path, bytes) in originals.entries + night.entries) {
@@ -57,62 +58,16 @@ internal object PerfectDynamicNightSwitch {
       PerfectIconBlob(path, path, bytes.size.toLong())
     }
     val admitted = PerfectDynamicNight.group(files, { originals.getValue(it.path) }) ?: return null
-    if (admitted.background != group.background || admitted.foreground != group.foreground) return null
+    if (admitted.background != group.background || admitted.foreground != group.foreground ||
+      admitted.bgAssets != group.bgAssets || admitted.compositeQuiet != group.compositeQuiet) return null
     val layers = NativeLayerConfig.parse(originals.getValue("config.xml"), IconPackLimits())
     val backgroundDirectory = layers.layers.first()
-    val fancy = "${layers.layers.last()}/fancy"
-    val manifestPath = "$fancy/manifest.xml"
-    if (originals.keys.filter { it.endsWith("/manifest.xml") } != listOf(manifestPath)) return null
-    val fancyImages = group.foreground.filter { it.startsWith("$fancy/") }.toSet()
-    if (fancyImages.isEmpty() || group.foreground.any {
-        !it.startsWith("$fancy/") && it != "${layers.layers.last()}/quiet/quietImage.png"
-      }) return null
-    for (path in group.foreground + group.background) {
+    for (path in group.nightPaths) {
       PerfectIconFormat.raster(originals.getValue(path))
       PerfectIconFormat.png(night.getValue(path), square = false)
       val (imageWidth, imageHeight) = dimensions(night.getValue(path))
       if (imageWidth.toLong() * imageHeight > 4 * 1024 * 1024) return null
     }
-    val (width, height) = dimensions(night.getValue(group.background))
-
-    val foregroundDocument = parse(originals.getValue(manifestPath))
-    val root = foregroundDocument.documentElement
-    if (root.tagName != "Icon") return null
-    // An omitted list invokes engine defaults; preserve it rather than guessing those defaults.
-    // The documented implicit updater is DateTime.Minute. Preserve it when
-    // making DarkMode explicit; "none" is the author's explicit opt-out.
-    val updater = root.getAttribute("useVariableUpdater").ifBlank { "DateTime.Minute" }
-    val updaters = updater.split(',').map { it.trim() }
-      .filter { it.isNotEmpty() && !it.equals("none", true) }
-    if (updaters.any { it.equals("DarkMode", true) }) return null
-    root.setAttribute("useVariableUpdater", (updaters + "DarkMode").joinToString(","))
-    val images = foregroundDocument.getElementsByTagName("Image")
-    if (images.length == 0) return null
-    val referenced = mutableSetOf<String>()
-    for (index in 0 until images.length) {
-      val image = images.item(index) as Element
-      if (listOf("srcExp", "srcid", "srcidExp").any(image::hasAttribute)) return null
-      val source = image.getAttribute("src")
-      if (source.isEmpty() || !source.matches(Regex("[A-Za-z0-9_./-]+"))) return null
-      PerfectIconFormat.safePath(source)
-      val path = "$fancy/$source"
-      if (path !in fancyImages) return null
-      referenced += path
-      image.setAttribute("srcExp", "ifelse(#__darkmode,'$NAMESPACE/$source','$source')")
-    }
-    // Unreferenced pictures could be used by a command that mutates src, or belong to another role.
-    if (referenced != fancyImages) return null
-    val commands = foregroundDocument.getElementsByTagName("*")
-    for (index in 0 until commands.length) {
-      val element = commands.item(index) as Element
-      if (element.tagName != "Image" &&
-        listOf("src", "srcExp", "srcid", "srcidExp").any(element::hasAttribute)) return null
-      if (element.tagName in setOf("VariableCommand", "FolmeState", "FolmeCommand") &&
-        listOf("property", "target", "name").any {
-          element.getAttribute(it).split('.').last() in setOf("src", "srcExp", "srcid", "srcidExp")
-        }) return null
-    }
-
     val config = parse(originals.getValue("config.xml"))
     val variables = config.getElementsByTagName("Variables")
     if (variables.length != 1) return null
@@ -128,43 +83,116 @@ internal object PerfectDynamicNightSwitch {
       }
       variable.setAttribute("value", value)
     }
-    // Flag suffixes are config slots, not directory names.
-    setFlag("layer_only_quiet0", "false")
-    setFlag("layer_only_fancy0", "true")
-    val configBytes = serialize(config)
-    val updatedLayers = NativeLayerConfig.parse(configBytes, IconPackLimits())
-    if (backgroundDirectory !in updatedLayers.fancyOnly ||
-      backgroundDirectory in updatedLayers.quietOnly) return null
-
     val output = originals.toMutableMap()
     fun add(path: String, bytes: ByteArray) {
       require(path !in output) { "Dynamic selector path collision" }
       output[path] = bytes
     }
-    for (path in fancyImages) {
-      add("$fancy/$NAMESPACE/${path.removePrefix("$fancy/")}", night.getValue(path))
+    for ((slot, directory) in layers.layers.withIndex()) {
+      val fancy = "$directory/fancy"
+      val manifestPath = "$fancy/manifest.xml"
+      val fancyImages = group.nightPaths.filterTo(linkedSetOf()) { it.startsWith("$fancy/") }
+      val manifest = originals[manifestPath]
+      if (manifest == null) {
+        val quiet = "$directory/quiet/quietImage.png"
+        if (directory !in layers.quietOnly || quiet !in group.nightPaths) return null
+        add("$fancy/day.png", originals.getValue(quiet))
+        add("$fancy/night.png", night.getValue(quiet))
+        add(manifestPath, quietSelector(night.getValue(quiet)))
+        setFlag("layer_only_quiet$slot", "false")
+        setFlag("layer_only_fancy$slot", "true")
+        continue
+      }
+      val weather = NativeWeatherLayerProgram.darkVariant(manifest, "$fancy/", originals.keys)
+      if (weather != null) {
+        if (NativeWeatherLayerProgram.resources(manifest, "$fancy/", originals.keys) != fancyImages) return null
+        val namespacePaths = fancyImages.mapTo(linkedSetOf()) {
+          "$fancy/$NAMESPACE/${it.removePrefix("$fancy/")}"
+        }
+        for (path in fancyImages)
+          add("$fancy/$NAMESPACE/${path.removePrefix("$fancy/")}", night.getValue(path))
+        if (NativeWeatherLayerProgram.resources(weather, "$fancy/", output.keys) !=
+          fancyImages + namespacePaths) return null
+        output[manifestPath] = weather
+        continue
+      }
+      val document = parse(manifest)
+      val root = document.documentElement
+      if (root.tagName != "Icon") return null
+      // Explicitly retain the implicit minute updater and every authored time updater.
+      val updater = root.getAttribute("useVariableUpdater").ifBlank { "DateTime.Minute" }
+      val updaters = updater.split(',').map { it.trim() }
+        .filter { it.isNotEmpty() && !it.equals("none", true) }
+      if (updaters.any { it.equals("DarkMode", true) }) return null
+      root.setAttribute("useVariableUpdater", (updaters + "DarkMode").joinToString(","))
+      val images = document.getElementsByTagName("Image")
+      if (images.length == 0 && document.getElementsByTagName("Text").length == 0) return null
+      val referenced = mutableSetOf<String>()
+      for (index in 0 until images.length) {
+        val image = images.item(index) as Element
+        if (listOf("srcExp", "srcidExp").any(image::hasAttribute)) return null
+        val source = image.getAttribute("src")
+        if (source.isEmpty() || !source.matches(Regex("[A-Za-z0-9_./-]+"))) return null
+        PerfectIconFormat.safePath(source)
+        if (image.hasAttribute("srcid")) {
+          // MAML appends _<srcid> before the extension after evaluating srcExp.
+          // Only the complete calendar day series has a bounded, proven closure.
+          if (image.getAttribute("srcid") != "#date" || !source.endsWith(".png")) return null
+          val frames = (1..31).map { "$fancy/${source.removeSuffix(".png")}_$it.png" }
+          if (!fancyImages.containsAll(frames)) return null
+          referenced += frames
+        } else {
+          val path = "$fancy/$source"
+          if (path !in fancyImages) return null
+          referenced += path
+        }
+        image.setAttribute("srcExp", "ifelse(#__darkmode,'$NAMESPACE/$source','$source')")
+      }
+      if (referenced != fancyImages) return null
+      val commands = document.getElementsByTagName("*")
+      for (index in 0 until commands.length) {
+        val element = commands.item(index) as Element
+        if (element.tagName != "Image" &&
+          listOf("src", "srcExp", "srcid", "srcidExp").any(element::hasAttribute)) return null
+        if ((element.tagName.endsWith("Command") || element.tagName in setOf("FolmeState", "Var", "Variable")) &&
+          listOf("property", "target", "name", "propertyName", "attribute").any {
+            element.getAttribute(it).split('.').last() in setOf("src", "srcExp", "srcid", "srcidExp")
+          }) return null
+      }
+      for (path in fancyImages)
+        add("$fancy/$NAMESPACE/${path.removePrefix("$fancy/")}", night.getValue(path))
+      output[manifestPath] = serialize(document)
+      if (directory == backgroundDirectory) {
+        // Activate the original single-image background program, now with its selector.
+        setFlag("layer_only_quiet0", "false")
+        setFlag("layer_only_fancy0", "true")
+      }
     }
-    val backgroundFancy = "$backgroundDirectory/fancy"
-    add("$backgroundFancy/day.png", originals.getValue(group.background))
-    add("$backgroundFancy/night.png", night.getValue(group.background))
-    val background = newDocument()
-    val icon = background.createElement("Icon")
-    background.appendChild(icon)
+    val configBytes = serialize(config)
+    val updatedLayers = NativeLayerConfig.parse(configBytes, IconPackLimits())
+    if (backgroundDirectory !in updatedLayers.fancyOnly ||
+      backgroundDirectory in updatedLayers.quietOnly) return null
+    output["config.xml"] = configBytes
+    if (output.size > 256 || output.values.sumOf { it.size.toLong() } > MAX_BYTES * 2) return null
+    return output
+  }
+
+  private fun quietSelector(night: ByteArray): ByteArray {
+    val (width, height) = dimensions(night)
+    val document = newDocument()
+    val icon = document.createElement("Icon")
+    document.appendChild(icon)
     mapOf(
       "version" to "1", "width" to "$width", "height" to "$height",
       "frameRate" to "0", "useVariableUpdater" to "DarkMode",
     ).forEach { (name, value) -> icon.setAttribute(name, value) }
     for ((source, visibility) in listOf("day.png" to "not(#__darkmode)", "night.png" to "#__darkmode")) {
-      icon.appendChild(background.createElement("Image").apply {
+      icon.appendChild(document.createElement("Image").apply {
         mapOf("x" to "0", "y" to "0", "w" to "$width", "h" to "$height",
           "src" to source, "visibility" to visibility).forEach { (name, value) -> setAttribute(name, value) }
       })
     }
-    add("$backgroundFancy/manifest.xml", serialize(background))
-    output[manifestPath] = serialize(foregroundDocument)
-    output["config.xml"] = configBytes
-    if (output.size > 256 || output.values.sumOf { it.size.toLong() } > MAX_BYTES * 2) return null
-    return output
+    return serialize(document)
   }
 
   private fun dimensions(png: ByteArray): Pair<Int, Int> =

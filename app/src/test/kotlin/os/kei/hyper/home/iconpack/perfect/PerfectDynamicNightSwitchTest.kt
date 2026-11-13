@@ -8,11 +8,13 @@ import java.util.zip.DeflaterOutputStream
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
@@ -126,6 +128,170 @@ class PerfectDynamicNightSwitchTest {
     }
   }
 
+  @Test fun calendarPreservesThreeLayerProgramsBlueTextAndEveryDayFrame() {
+    val fixture = calendar()
+    val output = converted(fixture)
+    for (path in listOf("plate/fancy/manifest.xml", "art/fancy/manifest.xml", "weekday/fancy/manifest.xml")) {
+      val before = parse(fixture.originals.getValue(path))
+      val after = parse(output.getValue(path))
+      val updater = before.documentElement.getAttribute("useVariableUpdater")
+      assertEquals(if (updater == "none") "DarkMode" else "$updater,DarkMode",
+        after.documentElement.getAttribute("useVariableUpdater"))
+      before.documentElement.removeAttribute("useVariableUpdater")
+      after.documentElement.removeAttribute("useVariableUpdater")
+      val images = after.getElementsByTagName("Image")
+      for (index in 0 until images.length) (images.item(index) as Element).removeAttribute("srcExp")
+      assertEquals(path, signature(before), signature(after))
+    }
+    val date = parse(output.getValue("art/fancy/manifest.xml"))
+      .getElementsByTagName("Image").item(0) as Element
+    assertEquals("#date", date.getAttribute("srcid"))
+    assertEquals("num.png", date.getAttribute("src"))
+    assertEquals("ifelse(#__darkmode,'keihome_night/num.png','num.png')", date.getAttribute("srcExp"))
+    for (day in 1..31) {
+      val path = "art/fancy/num_$day.png"
+      assertArrayEquals(fixture.originals.getValue(path), output.getValue(path))
+      assertArrayEquals(fixture.night.getValue(path), output.getValue("art/fancy/keihome_night/num_$day.png"))
+    }
+    assertFalse("art/fancy/num.png" in output)
+    assertFalse("plate/fancy/day.png" in output)
+    assertArrayEquals(fixture.night.getValue("plate/fancy/bg.png"),
+      output.getValue("plate/fancy/keihome_night/bg.png"))
+    val text = parse(output.getValue("weekday/fancy/manifest.xml"))
+      .getElementsByTagName("Text").item(0) as Element
+    assertEquals("#3482FF", text.getAttribute("color"))
+    assertEquals("formatDate('E',#time_sys)", text.getAttribute("textExp"))
+    assertArrayEquals(fixture.originals.getValue("quiet/quietImage.png"), output.getValue("quiet/quietImage.png"))
+  }
+
+  @Test fun dateSelectorRequiresAll31DayAndNightFramesAndRejectsUnboundedSourceIds() {
+    val calendar = calendar()
+    for (day in listOf(1, 15, 31)) {
+      val missing = fixtureFrom(calendar.originals - "art/fancy/num_$day.png")
+      assertNull(missing.convert())
+      assertNull(PerfectDynamicNightSwitch.systemFiles(
+        calendar.group, calendar.originals, calendar.night - "art/fancy/num_$day.png"))
+    }
+    for (attribute in listOf("srcid='#month'", "srcid='0'", "srcidExp='#date'")) {
+      val invalid = fixtureFrom(calendar.originals + ("art/fancy/manifest.xml" to
+        "<Icon><Image src='num.png' $attribute/></Icon>".toByteArray()))
+      assertNull(invalid.convert())
+    }
+  }
+
+  @Test fun textOnlyForegroundNeedsNoInventedBitmapAndKeepsItsLiteralColor() {
+    val fixture = fixtureFrom((fixture().originals - setOf("art/fancy/icon.png", "art/quiet/quietImage.png")) +
+      ("art/fancy/manifest.xml" to
+        "<Icon useVariableUpdater='DateTime.Day'><Text color='#3482FF' text='Monday'/></Icon>".toByteArray()))
+    assertTrue(fixture.group.foreground.isEmpty())
+    val output = converted(fixture)
+    val root = parse(output.getValue("art/fancy/manifest.xml")).documentElement
+    assertEquals("DateTime.Day,DarkMode", root.getAttribute("useVariableUpdater"))
+    assertEquals("#3482FF", (root.getElementsByTagName("Text").item(0) as Element).getAttribute("color"))
+    assertFalse(output.keys.any { it.startsWith("art/fancy/keihome_night/") })
+  }
+
+  @Test fun clockPreservesFunctionsBothConsequentsNativeTimeCommandsAndSecondVisibility() {
+    val fixture = fixture(body = """
+      <Function name="start"><FrameRateCommand rate="90"/></Function>
+      <Function name="end"><IfCommand ifCondition="#second_visible == 1">
+        <Consequent><ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Second'"/></Consequent>
+        <Consequent><ExternCommand command="__datatimeVarUpdate" strPara="'DateTime.Minute'"/></Consequent>
+      </IfCommand><FrameRateCommand rate="0"/></Function>
+      <ExternalCommands>
+        <Trigger action="open_second"><FunctionCommand target="start"/></Trigger>
+        <Trigger action="close_second"><FunctionCommand target="end"/></Trigger>
+      </ExternalCommands>
+      <Image name="second" src="icon.png" rotation="#second * 6" alpha="0"/>
+    """.trimIndent())
+    val output = converted(fixture)
+    val before = parse(fixture.originals.getValue("art/fancy/manifest.xml"))
+    val after = parse(output.getValue("art/fancy/manifest.xml"))
+    before.documentElement.removeAttribute("useVariableUpdater")
+    after.documentElement.removeAttribute("useVariableUpdater")
+    (after.getElementsByTagName("Image").item(0) as Element).removeAttribute("srcExp")
+    assertEquals(signature(before), signature(after))
+  }
+
+  @Test fun canonicalWeatherPublishesEveryGlyphAndKeepsProviderControlsAndVisibilityParent() {
+    val fixture = weather()
+    val output = converted(fixture)
+    val base = "art/fancy/"
+    val originalResources = requireNotNull(NativeWeatherLayerProgram.resources(
+      fixture.originals.getValue(base + "manifest.xml"), base, fixture.originals.keys))
+    assertEquals(13, originalResources.size)
+    val publishedResources = requireNotNull(NativeWeatherLayerProgram.resources(
+      output.getValue(base + "manifest.xml"), base, output.keys))
+    val namespaceResources = originalResources.mapTo(linkedSetOf()) {
+      base + "keihome_night/" + it.removePrefix(base)
+    }
+    assertEquals(originalResources + namespaceResources, publishedResources)
+    for (path in originalResources) {
+      assertArrayEquals(fixture.originals.getValue(path), output.getValue(path))
+      assertArrayEquals(fixture.night.getValue(path),
+        output.getValue(base + "keihome_night/" + path.removePrefix(base)))
+    }
+    val before = parse(fixture.originals.getValue(base + "manifest.xml"))
+    val after = parse(output.getValue(base + "manifest.xml"))
+    assertEquals("DateTime.Minute,DarkMode", after.documentElement.getAttribute("useVariableUpdater"))
+    for (tag in listOf("VariableBinders", "ExternalCommands"))
+      assertEquals(signature(withoutFormatting(before.getElementsByTagName(tag).item(0))),
+        signature(withoutFormatting(after.getElementsByTagName(tag).item(0))))
+    val groups = after.getElementsByTagName("Group")
+    assertEquals(3, groups.length)
+    assertEquals("#hasweather", (groups.item(0) as Element).getAttribute("visibility"))
+    val chars = after.getElementsByTagName("ImageChars")
+    assertEquals(2, chars.length)
+    assertEquals(setOf("num.png", "keihome_night/num.png"),
+      (0 until chars.length).map { (chars.item(it) as Element).getAttribute("src") }.toSet())
+    for (index in 0 until chars.length) {
+      val image = chars.item(index) as Element
+      assertEquals("#temperature + '\u00b0'", image.getAttribute("string"))
+      assertEquals("Group", (image.parentNode as Element).tagName)
+      assertEquals("#hasweather", (image.parentNode.parentNode as Element).getAttribute("visibility"))
+    }
+  }
+
+  @Test fun canonicalWeatherRequiresEveryOriginalAndConvertedGlyphBeforePublication() {
+    val fixture = weather()
+    val resources = requireNotNull(NativeWeatherLayerProgram.resources(
+      fixture.originals.getValue("art/fancy/manifest.xml"), "art/fancy/", fixture.originals.keys))
+    for (path in resources) {
+      assertNull(path, PerfectDynamicNightSwitch.systemFiles(
+        fixture.group, fixture.originals, fixture.night - path))
+      val missing = fixture.originals - path
+      val blobs = missing.mapValues { (name, bytes) -> blob(name, bytes) }
+      assertNull(path, PerfectDynamicNight.group(blobs, { missing.getValue(it.path) }))
+    }
+    assertNull(fixtureFrom(fixture.originals + ("art/fancy/unreferenced.png" to png(8, 6, 20))).convert())
+  }
+
+  @Test fun weatherSchemaChangesCannotBypassTheGenericProviderIOExclusion() {
+    val fixture = weather()
+    val source = fixture.originals.getValue("art/fancy/manifest.xml").toString(Charsets.UTF_8)
+    for ((original, changed) in listOf(
+      "content://weather/actualWeatherData/4" to "content://unrelated/private",
+      "columns=\"temperature\"" to "columns=\"temperature,private\"",
+      "600000" to "60000",
+      "delay=\"550\"" to "delay=\"0\"",
+      "command=\"refresh\"" to "command=\"unknown\"",
+    )) {
+      val bytes = fixture.originals + ("art/fancy/manifest.xml" to source.replace(original, changed).toByteArray())
+      val blobs = bytes.mapValues { (path, value) -> blob(path, value) }
+      assertNull(changed, PerfectDynamicNight.group(blobs, { bytes.getValue(it.path) }))
+    }
+  }
+
+  @Test fun generatedWeatherIsRecognizedForAdmissionButNeverReprocessedAsAnOriginal() {
+    val output = converted(weather())
+    assertNotNull(NativeWeatherLayerProgram.resources(
+      output.getValue("art/fancy/manifest.xml"), "art/fancy/", output.keys))
+    val blobs = output.mapValues { (path, bytes) -> blob(path, bytes) }
+    assertNull(PerfectDynamicNight.group(blobs, { output.getValue(it.path) }))
+    assertNull(NativeWeatherLayerProgram.darkVariant(
+      output.getValue("art/fancy/manifest.xml"), "art/fancy/", output.keys))
+  }
+
   @Test fun preservesImplicitMinuteUpdaterWhenAddingDarkMode() {
     for (attributes in listOf("", "useVariableUpdater=''", "useVariableUpdater='  '")) {
       val root = parse(converted(fixture(updater = attributes))
@@ -162,7 +328,6 @@ class PerfectDynamicNightSwitchTest {
     for (fixture in listOf(
       fixture(updater = "useVariableUpdater='DarkMode'"),
       fixture(body = "<Image src='icon.png' alpha='#__darkmode'/>"),
-      fixture(body = "<Image src='icon.png'/><Text text='42'/>"),
       fixture(body = "<Image src='icon.png'/><Rectangle w='3' h='4'/>"),
       fixture(body = "<Lottie src='motion.json'/>"),
     )) assertNull(fixture.convert())
@@ -175,6 +340,7 @@ class PerfectDynamicNightSwitchTest {
         <VariableCommand name="icon.src" expression="0"/>
       </Trigger></ExternalCommands>
     """.trimIndent()).convert())
+    assertNull(fixture(body = "<FunctionCommand target='icon.src'/><Image src='icon.png'/>").convert())
   }
 
   @Test fun rejectsExistingReservedNamespaceAndBackgroundFancyCollisions() {
@@ -200,6 +366,11 @@ class PerfectDynamicNightSwitchTest {
       fixture.night + ("unknown.png" to png(43, 29, 30))))
     assertNull(PerfectDynamicNightSwitch.systemFiles(fixture.group.copy(background = "wrong.png"),
       fixture.originals, fixture.night))
+    val calendar = calendar()
+    for (path in listOf("plate/fancy/bg.png", "quiet/quietImage.png")) {
+      assertNull(path, PerfectDynamicNightSwitch.systemFiles(
+        calendar.group, calendar.originals, calendar.night - path))
+    }
   }
 
   @Test fun rejectsMalformedOrCrcInvalidDerivedPngsAtomically() {
@@ -298,6 +469,90 @@ class PerfectDynamicNightSwitchTest {
     val result = fixture.convert()
     assertNotNull("Expected supported literal bitmap program to convert", result)
     return requireNotNull(result)
+  }
+
+  private fun calendar(): Fixture {
+    val bytes = fixture().originals.toMutableMap()
+    bytes["config.xml"] = """
+      <Config><Variables>
+        <Variable name="layer0" value="plate"/><Variable name="layer_only_quiet0" value="true"/>
+        <Variable name="layer1" value="art"/><Variable name="layer_only_fancy1" value="true"/>
+        <Variable name="layer2" value="weekday"/><Variable name="layer_only_fancy2" value="true"/>
+      </Variables></Config>
+    """.trimIndent().toByteArray()
+    bytes.remove("art/fancy/icon.png")
+    bytes.remove("art/quiet/quietImage.png")
+    bytes["quiet/quietImage.png"] = png(8, 6, 70)
+    bytes["plate/fancy/bg.png"] = png(8, 6, 10)
+    bytes["plate/fancy/manifest.xml"] = """
+      <Icon width="351" height="351" frameRate="0" useVariableUpdater="none">
+        <Image src="bg.png" x="351/2" y="351/2" align="center" alignV="center"/>
+      </Icon>
+    """.trimIndent().toByteArray()
+    bytes["art/fancy/manifest.xml"] = """
+      <Icon width="351" height="351" useVariableUpdater="DateTime.Day">
+        <ExternalCommands>
+          <Trigger action="resume"><FrameRateCommand rate="30"/><FrameRateCommand rate="0" delay="100"/></Trigger>
+          <Trigger action="back_home"><FrameRateCommand rate="30"/><FrameRateCommand rate="0" delay="100"/></Trigger>
+        </ExternalCommands>
+        <Image src="num.png" srcid="#date" y="351/2+18" align="center"/>
+      </Icon>
+    """.trimIndent().toByteArray()
+    for (day in 1..31) bytes["art/fancy/num_$day.png"] = png(8, 6, day)
+    bytes["weekday/fancy/manifest.xml"] = """
+      <Icon useVariableUpdater="DateTime.Day">
+        <ExternalCommands><Trigger action="resume"><FrameRateCommand rate="0"/></Trigger></ExternalCommands>
+        <Text color="#3482FF" textExp="formatDate('E',#time_sys)"/>
+      </Icon>
+    """.trimIndent().toByteArray()
+    return fixtureFrom(bytes)
+  }
+
+  private fun weather(): Fixture {
+    val bytes = fixture().originals.toMutableMap()
+    bytes.remove("art/fancy/icon.png")
+    bytes["quiet/quietImage.png"] = png(8, 6, 70)
+    bytes["art/fancy/manifest.xml"] = """
+      <Icon version="1" width="351" height="351" frameRate="0" useVariableUpdater="DateTime.Minute" screenWidth="1080">
+        <VariableBinders>
+          <ContentProviderBinder name="weather_provider" uri="content://weather/actualWeatherData/4" columns="temperature" countName="hasweather">
+            <Variable name="temperature" type="int" column="temperature"/>
+            <Trigger><VariableCommand name="success_time" type="number" expression="#time_sys"/></Trigger>
+          </ContentProviderBinder>
+        </VariableBinders>
+        <ExternalCommands><Trigger action="init,resume">
+          <VariableCommand name="update_weather_time" type="number" expression="#time_sys"/>
+          <MultiCommand condition="(#time_sys - #success_time) } 600000">
+            <BinderCommand name="weather_provider" command="refresh" delay="550" delayCondition="(#time_sys - #update_weather_time) } 500"/>
+          </MultiCommand>
+        </Trigger></ExternalCommands>
+        <Image x="351 / 2" y="351 / 2" align="center" alignV="center" src="bg.png"/>
+        <Group visibility="#hasweather"><ImageChars x="351 / 2 - 84" y="351 / 2 - 102" src="num.png" string="#temperature + '&#176;'"/></Group>
+      </Icon>
+    """.trimIndent().toByteArray()
+    bytes["art/fancy/bg.png"] = png(8, 6, 90)
+    for (suffix in (0..9).map(Int::toString) + listOf("-", "\u00b0"))
+      bytes["art/fancy/num_$suffix.png"] = png(8, 6, 180)
+    return fixtureFrom(bytes)
+  }
+
+  private fun fixtureFrom(originals: Map<String, ByteArray>): Fixture {
+    val blobs = originals.mapValues { (name, bytes) -> blob(name, bytes) }
+    val group = requireNotNull(PerfectDynamicNight.group(blobs, { originals.getValue(it.path) }))
+    return Fixture(group, originals, group.nightPaths.associateWith { png(8, 6, 40) })
+  }
+
+  private fun withoutFormatting(original: Node): Node {
+    val copy = original.cloneNode(true)
+    fun strip(node: Node) {
+      val children = (0 until node.childNodes.length).map(node.childNodes::item)
+      for (child in children) {
+        if (child.nodeType == Node.TEXT_NODE && child.nodeValue.isNullOrBlank()) node.removeChild(child)
+        else strip(child)
+      }
+    }
+    strip(copy)
+    return copy
   }
 
   private fun blob(path: String, bytes: ByteArray) = PerfectIconBlob(path, path, bytes.size.toLong())

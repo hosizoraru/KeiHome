@@ -20,6 +20,7 @@ import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.Before
+import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 import io.github.libxposed.service.XposedServiceHelper
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -79,6 +80,74 @@ class PerfectDynamicNightSourceDeviceTest {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     os.kei.hyper.home.xposed.LocalNativeIconValidator.validate(
       File(context.cacheDir, "perfect-dynamic-night-probe/generated.zip"))
+  }
+
+  @Test fun generatedCanonicalWeatherKeepsItsCompleteOriginalAndNightGlyphClosures() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    ZipFile(File(context.cacheDir, "perfect-dynamic-night-probe/generated.zip")).use { zip ->
+      val paths = zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
+      fun read(path: String) = zip.getInputStream(requireNotNull(zip.getEntry(path)) { path })
+        .use { it.readBytes() }
+      val base = "layer_animating_icons/com.miui.weather2/1/fancy/"
+      val published = requireNotNull(NativeWeatherLayerProgram.resources(
+        read(base + "manifest.xml"), base, paths))
+      assertEquals(26, published.size)
+      val day = published.filterNot { it.startsWith(base + "keihome_night/") }
+      assertEquals(13, day.size)
+      for (path in day) {
+        PerfectIconFormat.raster(read(path))
+        val selected = read(base + "keihome_night/" + path.removePrefix(base))
+        PerfectIconFormat.raster(selected)
+        assertArrayEquals(selected, read("nightmode/$path"))
+      }
+      assertEquals(13, requireNotNull(NativeWeatherLayerProgram.resources(
+        read("nightmode/$base" + "manifest.xml"), "nightmode/$base", paths)).size)
+      val updater = PerfectIconFormat.xml(read(base + "manifest.xml")).elements.first()
+        .attributes.getValue("useVariableUpdater")
+      assertEquals("DateTime.Minute,DarkMode", updater)
+    }
+  }
+
+  @Test fun generatedCalendarAndClockKeepDateFramesNativeFunctionsAndCompositeFallbacks() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    ZipFile(File(context.cacheDir, "perfect-dynamic-night-probe/generated.zip")).use { zip ->
+      fun read(path: String) = zip.getInputStream(requireNotNull(zip.getEntry(path)) { path })
+        .use { it.readBytes() }
+      val calendar = "layer_animating_icons/com.android.calendar/"
+      val date = PerfectIconFormat.xml(read(calendar + "1/fancy/manifest.xml"))
+        .elements.single { it.name == "Image" }.attributes
+      assertEquals("#date", date["srcid"])
+      assertEquals("num.png", date["src"])
+      assertEquals("ifelse(#__darkmode,'keihome_night/num.png','num.png')", date["srcExp"])
+      for (day in 1..31) {
+        val path = "1/fancy/num_$day.png"
+        PerfectIconFormat.raster(read(calendar + path))
+        val selected = read(calendar + "1/fancy/keihome_night/num_$day.png")
+        PerfectIconFormat.raster(selected)
+        assertArrayEquals(selected, read("nightmode/$calendar$path"))
+      }
+      val weekday = PerfectIconFormat.xml(read(calendar + "2/fancy/manifest.xml"))
+      assertEquals("#3482FF", weekday.elements.single { it.name == "Text" }.attributes["color"])
+      val clock = "layer_animating_icons/com.android.deskclock/"
+      val program = PerfectIconFormat.xml(read(clock + "1/fancy/manifest.xml"))
+      assertTrue(program.elements.filter { it.name == "Function" }.map { it.attributes["name"] }
+        .containsAll(listOf("start", "end", "fra")))
+      assertEquals(setOf("'DateTime.Second'", "'DateTime.Minute'"),
+        program.elements.filter { it.name == "ExternCommand" }.map {
+          assertEquals("__datatimeVarUpdate", it.attributes["command"])
+          it.attributes["strPara"]
+        }.toSet())
+      for (prefix in listOf(calendar, clock)) {
+        val rootQuiet = read(prefix + "quiet/quietImage.png")
+        val nightQuiet = read("nightmode/$prefix" + "quiet/quietImage.png")
+        assertArrayEquals(PerfectStaticNightRenderer.render(listOf(rootQuiet), null) {}.night, nightQuiet)
+        for (path in listOf("0/fancy/manifest.xml", "1/fancy/manifest.xml")) {
+          val updater = PerfectIconFormat.xml(read(prefix + path)).elements.first()
+            .attributes.getValue("useVariableUpdater").split(",")
+          assertEquals(1, updater.count { it == "DarkMode" })
+        }
+      }
+    }
   }
 
   @Test fun recordsRuntimeIdentityForOptInAcceptance() = runBlocking {
@@ -214,13 +283,17 @@ class PerfectDynamicNightSourceDeviceTest {
             record.put("status", "original-structure")
           } else {
             val converted = linkedMapOf<String, ByteArray>()
-            for (name in listOf(group.background) + group.foreground) {
-              val image = PerfectDynamicNightRenderer.render(bytes.getValue(name), name == group.background) {}
+            for (name in group.bgAssets + group.foreground) {
+              val image = PerfectDynamicNightRenderer.render(bytes.getValue(name), name in group.bgAssets) {}
                 ?: break
               converted[name] = image
             }
-            if (converted.size != group.foreground.size + 1) record.put("status", "original-pixels")
+            if (converted.size != group.bgAssets.size + group.foreground.size) record.put("status", "original-pixels")
             else {
+              group.compositeQuiet?.let { path ->
+                converted[path] = PerfectStaticNightRenderer.render(listOf(bytes.getValue(path)), null) {}.night
+              }
+              assertEquals(group.nightPaths, converted.keys)
               val live = PerfectDynamicNightSwitch.systemFiles(group, bytes, converted)
               if (live == null) {
                 record.put("status", "original-selector")
@@ -228,6 +301,8 @@ class PerfectDynamicNightSourceDeviceTest {
                 continue
               }
               record.put("status", "derived").put("textures", converted.size)
+                .put("backgroundAssets", JSONArray(group.bgAssets.toList()))
+                .put("compositeQuiet", group.compositeQuiet ?: JSONObject.NULL)
               for ((name, image) in live) {
                 output.putNextEntry(ZipEntry(prefix + name))
                 output.write(image)
@@ -247,8 +322,15 @@ class PerfectDynamicNightSourceDeviceTest {
     File(root, "results.json").writeText(results.toString(2))
     assertTrue("No real-source dynamic group qualified: $results",
       (0 until results.length()).any { results.getJSONObject(it).getString("status") == "derived" })
-    val music = (0 until results.length()).map { results.getJSONObject(it) }
-      .single { it.getString("prefix") == "themes/HyperOS4/layer_animating_icons/com.miui.player/" }
-    assertEquals("Unmodified upstream Music must support live selection", "derived", music.getString("status"))
+    InstrumentationRegistry.getArguments().getString("perfectExpectedDerived")?.toInt()?.let { expected ->
+      assertEquals(expected, (0 until results.length()).count {
+        results.getJSONObject(it).optString("status") == "derived"
+      })
+    }
+    (0 until results.length()).map { results.getJSONObject(it) }
+      .firstOrNull { it.getString("prefix").endsWith("/layer_animating_icons/com.miui.player/") }
+      ?.let { music ->
+        assertEquals("Unmodified upstream Music must support live selection", "derived", music.getString("status"))
+      }
   }
 }

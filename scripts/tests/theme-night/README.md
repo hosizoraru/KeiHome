@@ -110,7 +110,10 @@ source checkpoint. The final candidate supports 7722/8593/8602/8604/8607, with
 six positive / 32 rejection mutations per supported fixture. The matrix verifies
 that every complete checked-in contract is reproduced from the inventory without
 admitting extra generated shapes. Use repeatable `--reject-library` for the
-9209/9226/9239 inputs to verify the original fail-closed behavior. No resolver
+9209/9226/9239/9248 inputs to verify the original fail-closed behavior. The
+acceptance/rejection partition lives in `fixture_inventory.json`. Negative-only
+focused runs are supported with `--reject-library` and do not admit new patterns.
+No resolver
 guard changed.
 
 Run from the repository root; fixtures remain external:

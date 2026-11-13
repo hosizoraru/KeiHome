@@ -29,7 +29,7 @@ each fixture. These are optimized host measurements, not Android launch times.
 `app/src/main/cpp/monet_selection_patterns.h` contains generated instruction-body
 hashes, four-word scan prefixes and function-relative graph edges. It contains
 no image RVA table, complete extracted functions or image SHA allowlist. Generate
-it from all eight external fixtures listed in `fixture_inventory.json` with
+it from all nine external fixtures listed in `fixture_inventory.json` with
 repeatable `--fixture LIB DEBUG` arguments. For example:
 
 ```sh
@@ -44,8 +44,8 @@ file for comparison. Keep fixture binaries, decompilation, and generated audit
 JSON outside the repository. The JSON intentionally includes observed RVAs as
 evidence; the production header does not.
 
-The shared offline inventory includes 7722, 8593, 8602, 8604, 8607, 9209, 9226 and
-9239. Run all four suites and verify all three generated contract headers with:
+The shared offline inventory includes 7722, 8593, 8602, 8604, 8607, 9209, 9226,
+9239 and 9248. Run all four suites and verify all three generated contract headers with:
 
 ```sh
 NDK_DIR=/opt/homebrew/share/android-ndk /path/to/python \
@@ -65,11 +65,39 @@ remains disabled and outside the production native target. The 8607 fixture
 passes the existing contracts; admission adds no runtime version, RVA, or
 whole-image hash allowlist.
 
-Add `--fixture-version 8607` for bounded admission of just the new mapped
-input. All eight fixtures still participate in contract regeneration. Production
+Add `--fixture-version 9248 --fixture-version 9239` for bounded admission of the
+new mapped input and its previous regression fixture. All nine fixtures still
+participate in contract regeneration. Production
 headers must match byte-for-byte; every checked-in theme-night candidate contract
 must be reproduced, while extra generated candidate shapes remain unadmitted.
 Resolver and bridge execution uses only the selected input.
+The theme-night acceptance/rejection partition is recorded separately in
+`../theme-night/fixture_inventory.json`; a focused 9248 run expects rejection
+and requires no accepted candidate fixture. The disabled candidate is unchanged.
+Run that optional candidate suite explicitly:
+
+```sh
+/path/to/python scripts/tests/monet-selection/run_matrix.py \
+  --fixture-root .artifacts/inputs/launchers --suite theme-night \
+  --output /tmp/theme-night-matrix
+```
+
+To compare independently decoded contract bodies against the embedded debug
+oracle, after generating matrix evidence:
+
+```sh
+/path/to/python scripts/tests/monet-selection/audit_refresh.py \
+  --contracts /tmp/monet-matrix/selection-contracts.json \
+  --contracts /tmp/monet-matrix/image-contracts.json \
+  --old-version 9239 --new-version 9248 --output /tmp/monet-contract-audit
+```
+
+This checks the standalone debug ELF against `.gnu_debugdata`, associates
+the recorded extents with containing debug symbols, decodes all instructions with
+Capstone, and writes per-role disassembly and symbolic branch differences.
+Graph-discovered callbacks and executable stubs without debug symbols are
+recorded explicitly. It does not import generator
+instruction masks or production fingerprint code.
 `run_shipping.py` takes its fixture order from the completed matrix receipt and
 checks fixture hashes, so a focused matrix cannot accidentally reuse another
 variant's image-recovery layout.

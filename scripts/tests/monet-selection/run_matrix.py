@@ -46,12 +46,19 @@ def main():
              "--output", output / "image"]
     theme = [sys.executable, HERE.parent / "theme-night/validate.py",
              "--output", output / "theme-night"]
+    theme_inventory = json.loads((HERE.parent / "theme-night/fixture_inventory.json").read_text())
+    theme_accepted = set(theme_inventory["accepted"])
+    theme_rejected = set(theme_inventory["rejected"])
+    if (theme_accepted & theme_rejected or
+            theme_accepted | theme_rejected != set(inventory)):
+        parser.error("theme-night acceptance/rejection inventory must partition the fixture inventory")
     gate = [sys.executable, HERE.parent / "monet-gate/run_tests.py"]
     tint = []
     for fixture in selected_fixtures:
         selection += ["--fixture", fixture / "libapp.so", fixture / "debug.elf"]
         image += ["--library", fixture / "libapp.so"]
-        theme += ["--library", fixture / "libapp.so"]
+        theme += ["--library" if fixture.name in theme_accepted else "--reject-library",
+                  fixture / "libapp.so"]
         gate += [fixture / "libapp.so"]
         tint.append([sys.executable, HERE.parent / "monet-tint/validate.py",
                      "--library", fixture / "libapp.so", "--require-emulation",

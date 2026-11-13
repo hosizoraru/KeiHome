@@ -20,7 +20,7 @@ from generate_contracts import Fixture, ROLES, role
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--library", type=Path, action="append", required=True)
+    parser.add_argument("--library", type=Path, action="append", default=[])
     parser.add_argument("--reject-library", type=Path, action="append", default=[],
                         help="Assert that an external image remains outside the candidate contracts")
     parser.add_argument("--output", type=Path, required=True)
@@ -29,6 +29,10 @@ def main():
     args = parser.parse_args()
     if not __debug__:
         parser.error("assertions must be enabled")
+    if not args.library and not args.reject_library:
+        parser.error("supply at least one --library or --reject-library")
+    if args.verify_generated and not args.library:
+        parser.error("--verify-generated requires accepted --library fixtures")
     compiler = os.environ.get("CXX") or shutil.which("clang++")
     if not compiler:
         parser.error("host C++17 compiler required")
@@ -67,7 +71,7 @@ def main():
     try:
         command = [sys.executable, HERE / "generate_contracts.py",
                    "--output", output / "patterns.h", "--evidence", output / "contracts.json"]
-        for path in fixtures:
+        for path in fixtures or rejected_fixtures:
             command += ["--library", path]
         run(command)
         if args.verify_generated:

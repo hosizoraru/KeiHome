@@ -419,7 +419,8 @@ internal class IconPackExporter(private val context: Context, private val limits
           systemFallback ?: SystemIconFallback.DEFAULT, size, maskPolicy, preservedPackages, recommendedMappings,
           phoneCompanionExclusions + PhoneCompanionIcons(pack.entries).authoredTargets, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, maskPolicy, check); null }
-      val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty()) index else IconPackArchive(limits).inspect(archive, nested,
+      val aliases = appendNativeDefaultAliases(archive, targets, preservedPackages, check)
+      val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty() && !aliases) index else IconPackArchive(limits).inspect(archive, nested,
         checkCancelled = check)
       val names = verified.entries.mapNotNull { it.nativeName }.toSet()
       val covered = targets.filter { target -> nativeLauncherIconNames(target).any { it in names } }
@@ -433,6 +434,80 @@ internal class IconPackExporter(private val context: Context, private val limits
       nested.delete()
       if (!success) archive.delete()
     }
+  }
+
+  private fun appendNativeDefaultAliases(
+    archive: File, targets: List<IconPackComponent>, preservedPackages: Set<String>, check: () -> Unit,
+  ): Boolean {
+    val replacements = linkedMapOf<String, ByteArray>()
+    val pm = context.packageManager
+    val launchers = hashMapOf<String, Set<String>>()
+    ZipFile(archive).use { zip ->
+      val entries = zip.entries().asSequence().filterNot { it.isDirectory }.associateBy { it.name }
+      val aliases = NativeDefaultAliasCompletion.plan(entries.keys, targets, preservedPackages, { target ->
+        check()
+        try {
+          val activity = requireNotNull(target.className).let {
+            if (it.startsWith('.')) target.packageName + it else it
+          }
+          val info = pm.getActivityInfo(android.content.ComponentName(target.packageName, activity),
+            android.content.pm.PackageManager.ComponentInfoFlags.of(0))
+          if (info.name != activity) null else {
+            val enabled = launchers.getOrPut(target.packageName) {
+              check()
+              val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(target.packageName)
+              pm.queryIntentActivities(intent, android.content.pm.PackageManager.ResolveInfoFlags.of(0))
+                .take(5000).mapNotNull { it.activityInfo?.name }.toSet()
+            }
+            NativeDefaultAliasCompletion.Identity(info.packageName, info.applicationInfo.packageName,
+              info.applicationInfo.icon, info.iconResource, activity in enabled)
+          }
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) { null
+        } catch (_: SecurityException) { null }
+      }, limits, check)
+      val sourceBytes = hashMapOf<String, ByteArray>()
+      val expanded = entries.values.sumOf { it.size }
+      val budget = minOf(NativeDefaultAliasCompletion.MAX_COPY_BYTES, limits.maxExpandedBytes - expanded)
+      var copied = 0L
+      for (alias in aliases) {
+        check()
+        val sizes = alias.paths.values.map { entries.getValue(it).size }
+        if (sizes.any { it < 0 || it > limits.maxEntryBytes || it > budget } ||
+          sizes.sum() > budget - copied) continue
+        val complete = linkedMapOf<String, ByteArray>()
+        for ((destination, source) in alias.paths) {
+          check()
+          complete[destination] = sourceBytes.getOrPut(source) {
+            val entry = entries.getValue(source)
+            val bytes = ByteArray(entry.size.toInt())
+            zip.getInputStream(entry).use { input ->
+              var offset = 0
+              while (offset < bytes.size) {
+                check()
+                val count = input.read(bytes, offset, minOf(8192, bytes.size - offset))
+                if (count <= 0) throw IconPackException("Truncated native alias resource")
+                offset += count
+              }
+              check()
+              if (input.read() != -1) throw IconPackException("Oversized native alias resource")
+            }
+            bytes
+          }
+        }
+        replacements.putAll(complete)
+        copied += sizes.sum()
+      }
+    }
+    if (replacements.isEmpty()) return false
+    val completed = File.createTempFile("icons-default-alias-", ".zip", archive.parentFile)
+    try {
+      RawIconArchive.write(archive, completed, replacements = replacements, check = check,
+        maxOutputBytes = limits.maxInputBytes, limits = limits)
+      check()
+      completed.copyTo(archive, overwrite = true)
+    } finally { completed.delete() }
+    return true
   }
 
   /** Add event-driven Monet only for closed, pixel-proven pairs used by installed targets.

@@ -27,7 +27,8 @@ internal object IconBuildInventory {
     is IconPackSource.Builtin -> source.record.id +
       if (pack.builtinKey?.startsWith("coloros-") == true) ":${BuiltinColorOsMappings.REVISION}" else ""
     is IconPackSource.Generated -> source.digest
-  }
+  } + if (pack.format in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS))
+    ":${NativeDefaultAliasCompletion.REVISION}" else ""
 
   fun decodeSource(bytes: ByteArray): String {
     require(bytes.size in 1..4096)

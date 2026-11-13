@@ -193,7 +193,8 @@ internal class IconPackRenderer(private val context: Context) {
   fun open(pack: IconPackDescriptor, dark: Boolean, colorOsFallback: IconPackDescriptor? = null,
     maskPolicy: IconMaskPolicy? = null, clipOutput: Boolean = true,
     preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(context),
-    recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context)): Session {
+    recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context),
+    phoneCompanionExclusions: Set<String> = emptySet()): Session {
     val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
     val resources = when (val source = pack.source) {
       is IconPackSource.Installed -> {
@@ -207,7 +208,8 @@ internal class IconPackRenderer(private val context: Context) {
       is IconPackSource.Builtin -> null
       is IconPackSource.Generated -> null
     }
-    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput, preservedPackages, recommendedMappings)
+    return Session(pack, dark, resources, colorOsFallback, maskPolicy, clipOutput,
+      preservedPackages, recommendedMappings, phoneCompanionExclusions)
   }
 
   inner class Session(
@@ -219,6 +221,7 @@ internal class IconPackRenderer(private val context: Context) {
     private val clipOutput: Boolean,
     private val preservedPackages: Set<String>,
     private val recommendedMappings: RecommendedIconMappings,
+    private val phoneCompanionExclusions: Set<String>,
   ) : Closeable {
     private val nativeMask by lazy(LazyThreadSafetyMode.NONE) { NativeAdaptiveIconMask.load() }
     private val previewMask by lazy(LazyThreadSafetyMode.NONE) {
@@ -228,7 +231,8 @@ internal class IconPackRenderer(private val context: Context) {
     private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
     private val supplementState = lazy(LazyThreadSafetyMode.NONE) {
       supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false,
-        preservedPackages = preservedPackages, recommendedMappings = recommendedMappings) }
+        preservedPackages = preservedPackages, recommendedMappings = recommendedMappings,
+        phoneCompanionExclusions = phoneCompanionExclusions + phone.authoredTargets) }
     }
     private val supplement by supplementState
     private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
@@ -238,6 +242,7 @@ internal class IconPackRenderer(private val context: Context) {
       pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
     }
     private val telegram by lazy(LazyThreadSafetyMode.NONE) { TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels) }
+    private val phone by lazy(LazyThreadSafetyMode.NONE) { PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions) }
     private val nightProofs = mutableMapOf<String, Boolean>()
     private val nightResourceState = lazy(LazyThreadSafetyMode.NONE) {
       if (dark) android else when (val source = pack.source) {
@@ -307,8 +312,16 @@ internal class IconPackRenderer(private val context: Context) {
 
     fun completedEntry(target: IconPackComponent, existing: IconPackEntry?): IconPackEntry? {
       val entry = allowedEntry(existing)
+      phoneDonor(target)?.let { return it.copy(component = target) }
       return telegram.donor(target, dark, entry, ::hasNight) ?: entry
     }
+
+    private fun phoneDonor(target: IconPackComponent): IconPackEntry? =
+      if (target.packageName in phoneCompanionExclusions) null else phone.donor(target, matching(target))
+
+    fun hasPhoneCompanion(target: IconPackComponent): Boolean =
+      target.packageName in PhoneCompanionIcons.TARGETS && target.packageName !in preservedPackages &&
+        (phoneDonor(target) != null || supplement?.hasPhoneCompanion(target) == true)
 
     private fun allowedEntry(entry: IconPackEntry?): IconPackEntry? = entry?.takeUnless {
       !recommendedMappings.colorOsThemeStores && it.component in pack.recommendedAliases
@@ -317,6 +330,7 @@ internal class IconPackRenderer(private val context: Context) {
     private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
       check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
       val authoredNative = pack.format in setOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)
+      if (target != null) phoneDonor(target)?.let { return renderArtwork(it, sizePx, check, adaptiveMask) }
       if (target != null && (!authoredNative || entry == null))
         telegram.donor(target, dark, entry, ::hasNight)?.let { donor ->
         val selected = if (dark && donor.dark == null) donor.copy(dark = donor.light) else donor

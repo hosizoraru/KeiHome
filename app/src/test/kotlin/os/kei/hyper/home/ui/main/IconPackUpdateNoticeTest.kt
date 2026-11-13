@@ -14,8 +14,10 @@ class IconPackUpdateNoticeTest {
   private val source = IconBrowserSource("revision", pack,
     mapOf(target.packageName to entry), emptySet(), emptySet(), nativeNames = emptySet())
 
-  private fun needed(current: IconBrowserSource = source, original: IconPackDescriptor = pack) =
-    iconPackNeedsUpdate(original, current, listOf(target), SystemIconFallback.DEFAULT, emptySet())
+  private fun needed(current: IconBrowserSource = source, original: IconPackDescriptor = pack,
+    mappings: RecommendedIconMappings = RecommendedIconMappings()) =
+    iconPackNeedsUpdate(original, current, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+      recommendedMappings = mappings)
 
   @Test fun mappingChangesInEitherDirectionNeedRegenerationAndMatchingSettingsStayClean() {
     val preserved = setOf("os.test.preserved")
@@ -32,14 +34,14 @@ class IconPackUpdateNoticeTest {
         fail("Fully covered targets must not retry completion when comparing mapping metadata")
         false
       }
-    for (savedBits in 0..3) {
+    for (savedBits in 0..7) {
       val saved = RecommendedIconMappings.fromBits(savedBits)
       val applied = source.copy(nativeNames = setOf(target.packageName),
         systemFallback = SystemIconFallbackManifest(SystemIconFallback.DEFAULT, emptySet(),
           nameMatching = true, colorOsFallback = true),
         generation = IconGenerationManifest.decode(base.copy(recommendedMappings = saved).encode()))
       assertFalse(needsUpdate(applied, saved))
-      for (selectedBits in 0..3) {
+      for (selectedBits in 0..7) {
         val selected = RecommendedIconMappings.fromBits(selectedBits)
         assertEquals("saved=$savedBits selected=$selectedBits",
           saved != selected, needsUpdate(applied, selected))
@@ -50,7 +52,7 @@ class IconPackUpdateNoticeTest {
     }
   }
 
-  @Test fun absentOrLegacyMappingMetadataMeansBothEnabledEvenWhenInventoryIsUnknown() {
+  @Test fun legacyMetadataRetainsOldChoicesAndRequiresUpdateForNewPhoneRecommendation() {
     val legacy = IconGenerationManifest.decode(
       "KeiHomeIconGeneration7\nscope\tall\nshape\toriginal\nmask\toriginal\n".toByteArray(Charsets.UTF_8))
     assertEquals(7, legacy.schemaVersion)
@@ -58,8 +60,9 @@ class IconPackUpdateNoticeTest {
       for (names in listOf(setOf(target.packageName), null)) {
         val applied = source.copy(nativeNames = names, generation = generation)
         assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
-          emptySet(), recommendedMappings = RecommendedIconMappings()))
-        for (bits in 0..2) {
+          emptySet(), recommendedMappings =
+            if (generation == null) RecommendedIconMappings() else RecommendedIconMappings.LEGACY))
+        for (bits in (0..7).filter { it != (generation?.recommendedMappings ?: RecommendedIconMappings()).bits }) {
           val selected = RecommendedIconMappings.fromBits(bits)
           assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
             emptySet(), recommendedMappings = selected))
@@ -192,9 +195,10 @@ class IconPackUpdateNoticeTest {
       assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
         emptySet(), installedOnly = installedOnly))
       val updated = applied.copy(generation = IconGenerationManifest.decode(
-        legacy.copy(schemaVersion = 7, installedOnly = installedOnly).encode()))
+        legacy.copy(schemaVersion = 7, installedOnly = installedOnly,
+          recommendedMappings = RecommendedIconMappings.LEGACY).encode()))
       assertFalse(iconPackNeedsUpdate(pack, updated, listOf(target), SystemIconFallback.DEFAULT,
-        emptySet(), installedOnly = installedOnly))
+        emptySet(), installedOnly = installedOnly, recommendedMappings = RecommendedIconMappings.LEGACY))
     }
   }
 
@@ -203,7 +207,7 @@ class IconPackUpdateNoticeTest {
       generation = IconGenerationManifest(schemaVersion = 4))
     assertTrue(needed(old))
     assertFalse(needed(old.copy(generation = IconGenerationManifest())))
-    assertFalse(needed(old, pack.copy(format = IconPackFormat.MIUI_ICONS)))
+    assertFalse(needed(old, pack.copy(format = IconPackFormat.MIUI_ICONS), RecommendedIconMappings.LEGACY))
   }
 
   @Test fun schemaFiveNeedsOneSnapshotRegenerationAndNativeImportsKeepTheirPolicy() {
@@ -214,7 +218,7 @@ class IconPackUpdateNoticeTest {
       considered = setOf(target.flattened), activeLauncherTargets = setOf(target.flattened)))
     assertFalse(needed(updated))
     for (format in listOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)) {
-      assertFalse(needed(old, pack.copy(format = format)))
+      assertFalse(needed(old, pack.copy(format = format), RecommendedIconMappings.LEGACY))
     }
   }
 

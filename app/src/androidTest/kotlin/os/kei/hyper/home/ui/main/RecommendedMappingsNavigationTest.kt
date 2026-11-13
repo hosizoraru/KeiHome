@@ -50,6 +50,7 @@ class RecommendedMappingsNavigationTest {
     rule.onNodeWithTag("recommended-mappings.page").assertIsDisplayed()
     rule.onNodeWithTag("icon-packs.system-name-matching").assertExists()
     rule.onNodeWithTag("recommended-mappings.telegram").assertExists()
+    rule.onNodeWithTag("recommended-mappings.phone-companions").assertExists()
     rule.onNodeWithTag("recommended-mappings.coloros-theme-store").assertExists()
     rule.onNodeWithTag("recommended-mappings.back").performClick()
     rule.onNodeWithTag("icon-packs.open-recommended-mappings").assertIsDisplayed()
@@ -61,12 +62,12 @@ class RecommendedMappingsNavigationTest {
     setMainContent()
     selectTab(R.string.navigation_settings)
     rule.onNodeWithTag("settings.search", useUnmergedTree = true)
-      .performTextInput("com.miui.themestore")
+      .performTextInput("com.android.server.telecom")
     rule.onNodeWithTag("settings.entry.recommended-mappings").performScrollTo().performClick()
     rule.onNodeWithTag("recommended-mappings.page").assertIsDisplayed()
     rule.onNodeWithTag("recommended-mappings.back").performClick()
     rule.onNodeWithTag("settings.entry.recommended-mappings").assertIsDisplayed()
-    rule.onNodeWithText("com.miui.themestore", useUnmergedTree = true).assertIsDisplayed()
+    rule.onNodeWithText("com.android.server.telecom", useUnmergedTree = true).assertIsDisplayed()
   }
 
   private fun selectTab(@StringRes labelRes: Int) {

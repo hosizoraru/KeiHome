@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="recommended_mappings_title">Recommended mappings</string>
-    <string name="recommended_mappings_entry">System app names, official Telegram channels, and ColorOS Theme Store</string>
+    <string name="recommended_mappings_entry">System app names, Telegram channels, phone companions, and ColorOS Theme Store</string>
     <string name="recommended_mappings_preview">Preview and next import</string>
     <string name="recommended_mappings_update_note">Changes affect previews and the next import. For themes already generated or applied, update and reapply the theme.</string>
     <string name="recommended_mappings_importing">An import is in progress. These settings will be available when it finishes.</string>
     <string name="recommended_mappings_telegram_title">Official Telegram Android channels</string>
     <string name="recommended_mappings_telegram_summary">Share default icons across official Play, Web, and Beta builds when the donor has real dark artwork. Fill missing adaptations; keep existing light and dark artwork, alternate icons, and preserved apps.</string>
+    <string name="recommended_mappings_phone_companions_title">Phone companion icons</string>
+    <string name="recommended_mappings_phone_companions_summary">Use Phone artwork for Call management and Phone services only when each lacks its own icon. Keep dedicated icons, including light-only designs, and apps set to keep their original icon.</string>
     <string name="recommended_mappings_coloros_title">Built-in ColorOS Theme Store mapping</string>
     <string name="recommended_mappings_coloros_summary">Use Theme Store artwork for Themes and Theme Store when the built-in ColorOS pack has no explicit mapping. Keep mappings provided by the pack.</string>
-    <string name="recommended_mappings_search_keywords">recommended mappings system app names Telegram TG Android Play Web Beta ColorOS HeyTap theme store com.android.thememanager com.miui.themestore</string>
+    <string name="recommended_mappings_search_keywords">recommended mappings system app names Telegram TG Android Play Web Beta phone companions calls telecom com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap theme store com.android.thememanager com.miui.themestore</string>
 </resources>

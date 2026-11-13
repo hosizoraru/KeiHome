@@ -6,23 +6,26 @@ import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 
 /** Add closed image-only pairs; never copy or rewrite an authored third-party program. */
-internal object NativeTelegramChannelCompletion {
+internal object NativeRecommendedIconCompletion {
   fun additions(context: Context, pack: IconPackDescriptor, targets: List<IconPackComponent>, size: Int,
     maskPolicy: IconMaskPolicy?, preserved: Set<String>, recommendedMappings: RecommendedIconMappings,
-    check: () -> Unit): Map<String, ByteArray> {
-    if (!recommendedMappings.telegramChannels) return emptyMap()
-    val family = TelegramChannelIcons(pack.entries)
+    phoneCompanionExclusions: Set<String>, check: () -> Unit): Map<String, ByteArray> {
+    if (!recommendedMappings.telegramChannels && !recommendedMappings.phoneCompanions) return emptyMap()
+    val family = TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
+    val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
     val byComponent = pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
     val byName = pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
     fun existing(target: IconPackComponent) = byComponent[target]
       ?: byComponent[IconPackComponent(target.packageName)]
       ?: nativeLauncherIconNames(target).firstNotNullOfOrNull { byName[it] }
     val wanted = targets.filter { target ->
-      target.packageName !in preserved && TelegramChannelIcons.isDefaultTarget(target) &&
+      target.packageName !in preserved && ((target.packageName !in phoneCompanionExclusions &&
+        phone.donor(target, existing(target)) != null) ||
+        (TelegramChannelIcons.isDefaultTarget(target) &&
         existing(target) == null && family.donor(target, true, null) != null &&
         !(target.className == null && targets.any {
           it.packageName == target.packageName && it.className != null && existing(it) != null
-        })
+        })))
     }
     if (wanted.isEmpty()) return emptyMap()
     val output = linkedMapOf<String, ByteArray>()

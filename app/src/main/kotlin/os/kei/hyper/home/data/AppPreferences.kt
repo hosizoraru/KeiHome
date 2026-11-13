@@ -60,6 +60,7 @@ internal data class AppPreferencesState(
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
   val telegramChannelMapping: Boolean = true,
+  val phoneCompanionMapping: Boolean = true,
   val colorOsThemeStoreMapping: Boolean = true,
   val colorOsForOtherPacks: Boolean = false,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
@@ -71,7 +72,8 @@ internal data class AppPreferencesState(
   val cacheReminderBytes: Long = 0L,
 ) {
   val recommendedIconMappings: RecommendedIconMappings
-    get() = RecommendedIconMappings(telegramChannelMapping, colorOsThemeStoreMapping)
+    get() = RecommendedIconMappings(telegramChannelMapping, colorOsThemeStoreMapping,
+      phoneCompanions = phoneCompanionMapping)
 }
 
 internal class AppPreferences internal constructor(
@@ -128,6 +130,7 @@ internal class AppPreferences internal constructor(
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     telegramChannelMapping = preferences.getBoolean(RecommendedIconMappings.TELEGRAM_KEY, true),
+    phoneCompanionMapping = preferences.getBoolean(RecommendedIconMappings.PHONE_COMPANION_KEY, true),
     colorOsThemeStoreMapping = preferences.getBoolean(RecommendedIconMappings.THEME_STORE_KEY, true),
     colorOsForOtherPacks = preferences.getBoolean("coloros_other_packs", false),
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
@@ -287,6 +290,11 @@ internal class AppPreferences internal constructor(
   fun setTelegramChannelMapping(value: Boolean) {
     preferences.edit().putBoolean(RecommendedIconMappings.TELEGRAM_KEY, value).apply()
     state.update { it.copy(telegramChannelMapping = value) }
+  }
+
+  fun setPhoneCompanionMapping(value: Boolean) {
+    preferences.edit().putBoolean(RecommendedIconMappings.PHONE_COMPANION_KEY, value).apply()
+    state.update { it.copy(phoneCompanionMapping = value) }
   }
 
   fun setColorOsThemeStoreMapping(value: Boolean) {

@@ -41,10 +41,12 @@ internal fun RecommendedMappingsScreen(model: HomeViewModel, onBack: () -> Unit)
   RecommendedMappingsPage(
     systemAppNameMatching = preferences.systemAppNameMatching,
     telegramChannelMapping = preferences.telegramChannelMapping,
+    phoneCompanionMapping = preferences.phoneCompanionMapping,
     colorOsThemeStoreMapping = preferences.colorOsThemeStoreMapping,
     nativeImporting = packs.nativeImporting != null,
     onSystemAppNameMatchingChange = model.preferences::setSystemAppNameMatching,
     onTelegramChannelMappingChange = model.preferences::setTelegramChannelMapping,
+    onPhoneCompanionMappingChange = model.preferences::setPhoneCompanionMapping,
     onColorOsThemeStoreMappingChange = model.preferences::setColorOsThemeStoreMapping,
     onBack = onBack,
   )
@@ -54,10 +56,12 @@ internal fun RecommendedMappingsScreen(model: HomeViewModel, onBack: () -> Unit)
 internal fun RecommendedMappingsPage(
   systemAppNameMatching: Boolean,
   telegramChannelMapping: Boolean,
+  phoneCompanionMapping: Boolean,
   colorOsThemeStoreMapping: Boolean,
   nativeImporting: Boolean,
   onSystemAppNameMatchingChange: (Boolean) -> Unit,
   onTelegramChannelMappingChange: (Boolean) -> Unit,
+  onPhoneCompanionMappingChange: (Boolean) -> Unit,
   onColorOsThemeStoreMappingChange: (Boolean) -> Unit,
   onBack: () -> Unit,
 ) {
@@ -103,6 +107,11 @@ internal fun RecommendedMappingsPage(
             checked = telegramChannelMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onTelegramChannelMappingChange(it) },
             modifier = Modifier.testTag("recommended-mappings.telegram"))
+          SwitchPreference(title = stringResource(R.string.recommended_mappings_phone_companions_title),
+            summary = stringResource(R.string.recommended_mappings_phone_companions_summary),
+            checked = phoneCompanionMapping, enabled = !nativeImporting,
+            onCheckedChange = { if (!nativeImporting) onPhoneCompanionMappingChange(it) },
+            modifier = Modifier.testTag("recommended-mappings.phone-companions"))
           SwitchPreference(title = stringResource(R.string.recommended_mappings_coloros_title),
             summary = stringResource(R.string.recommended_mappings_coloros_summary),
             checked = colorOsThemeStoreMapping, enabled = !nativeImporting,

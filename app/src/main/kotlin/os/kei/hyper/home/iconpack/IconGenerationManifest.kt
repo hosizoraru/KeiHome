@@ -8,16 +8,16 @@ internal data class IconGenerationManifest(
   val considered: Set<String> = emptySet(),
   val nativeAdaptations: Map<String, String> = emptyMap(),
   val installedOnly: Boolean = false,
-  val schemaVersion: Int = 8,
+  val schemaVersion: Int = 9,
   val completeSystemIconConfig: Boolean = false,
   val iconMaskIdentity: String = if (completeSystemIconConfig) IconMaskPolicy.DEFAULT_IDENTITY else "original",
   val activeLauncherTargets: Set<String> = emptySet(),
   val preservedIconPackages: Set<String> = emptySet(),
   val recommendedMappings: RecommendedIconMappings =
-    RecommendedIconMappings(),
+    if (schemaVersion < 9) RecommendedIconMappings.LEGACY else RecommendedIconMappings(),
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..8 && (schemaVersion != 1 || !installedOnly) &&
+    require(schemaVersion in 1..9 && (schemaVersion != 1 || !installedOnly) &&
       (schemaVersion >= 3 || !completeSystemIconConfig))
     require(validMaskIdentity(iconMaskIdentity) &&
       (completeSystemIconConfig == (iconMaskIdentity != "original")))
@@ -26,7 +26,8 @@ internal data class IconGenerationManifest(
     require((schemaVersion >= 7 || preservedIconPackages.isEmpty()) &&
       preservedIconPackages.size <= 4096 &&
       preservedIconPackages.all(os.kei.hyper.home.data.PreservedIcons::isValidPackageName))
-    require(schemaVersion >= 8 || recommendedMappings == RecommendedIconMappings())
+    require(schemaVersion >= 8 || recommendedMappings == RecommendedIconMappings.LEGACY)
+    require(schemaVersion >= 9 || !recommendedMappings.phoneCompanions)
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
     (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
@@ -56,6 +57,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration6" -> 6
         "KeiHomeIconGeneration7" -> 7
         "KeiHomeIconGeneration8" -> 8
+        "KeiHomeIconGeneration9" -> 9
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
@@ -71,7 +73,8 @@ internal data class IconGenerationManifest(
         val row = line.split('\t')
         when (row.first()) {
           "mappings" -> {
-            require(schema >= 8 && row.size == 2 && mappings == null && row[1] in listOf("0", "1", "2", "3"))
+            require(schema >= 8 && row.size == 2 && mappings == null &&
+              row[1] in (if (schema >= 9) (0..7) else (0..3)).map(Int::toString))
             mappings = RecommendedIconMappings.fromBits(row[1].toInt())
           }
           "scope" -> {
@@ -103,7 +106,7 @@ internal data class IconGenerationManifest(
       require(schema < 8 || mappings != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
         mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved,
-        mappings ?: RecommendedIconMappings()).also {
+        mappings ?: RecommendedIconMappings.LEGACY).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }

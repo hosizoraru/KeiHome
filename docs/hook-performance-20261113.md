@@ -193,6 +193,39 @@ the emulator-console screenshot interface can return a complete full-resolution
 image when guest `screencap` times out. Deployment now uses validated console
 capture by default, with explicit `auto` mode retaining guest-first fallback.
 This does not repair guest capture or establish GUI responsiveness by itself.
+
+## Physical chooser exit during the later update
+
+The authorized phone completed the `109000391` -> `109000438` update with ten
+observed retirement/adoption pairs and unchanged critical process identities.
+Its subsequent update to diagnostic `109000439` displayed nine successful
+reloads and one failure. These are different update attempts.
+
+The failed target was `com.android.intentresolver:chooser`, PID `12742`:
+
+- `23:33:43.813`: the old module recorded retirement.
+- `23:33:43.828`: Android's historical exit record reports `SIGNALED`, signal
+  `9`, subreason `OTHER KILLS`, description `umms_selfcheck`.
+- `23:33:44.052`: the framework reports that the chooser process died during
+  hot reload.
+- `23:33:56.194`: replacement chooser PID `29135` begins loading the new module;
+  its log records adopted module state and normal share-icon installation.
+
+The old-process death must not be presented as a successful in-process
+handoff. It also is not evidence of a module retirement refusal or Java crash.
+The native Android exit reason identifies an OEM process-reclamation event;
+it does not establish why the OEM chose to reclaim that process. No exception
+or module-generated process termination was identified in the retained window.
+
+The retained Vector daemon source distinguishes process death from callback
+timeout, but counts unsuccessful statuses in the update notification. No
+framework binary, notification count, process lifecycle or failure guard was
+modified to make this result appear successful.
+
+Evidence: `.artifacts/research/splash-first-frame-20261113/`,
+`chooser-exits.log` and `physical-candidate-framework.log`. Keep this separate
+from the earlier AVD watchdog/provider-publication failures and from the
+first-self-update icon-shape visual issue.
 All user/keyguard, WMP, SystemUI and recent-failure gates remain mandatory;
 later recovery checks also recorded Settings/Weather Provider failures and
 rejected deployment. Standalone software pixel/cache assertions are recorded

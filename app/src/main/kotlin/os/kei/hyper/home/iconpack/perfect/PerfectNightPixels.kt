@@ -536,6 +536,162 @@ internal object PerfectNightPixels {
     return liftForeground(pixels, width, height, check)
   }
 
+  /** Lift thin, uniform glyph silhouettes independently of neighboring colored artwork. */
+  fun liftForegroundComponents(
+    pixels: IntArray, underlay: IntArray, width: Int, height: Int, check: () -> Unit,
+  ): Boolean {
+    if (width <= 0 || height <= 0 || width.toLong() * height != pixels.size.toLong() ||
+      underlay.size != pixels.size || pixels.size > 4 * 1024 * 1024) return false
+    var transparent = 0
+    for (y in 0 until height) {
+      check()
+      for (x in 0 until width) if (pixels[y * width + x] ushr 24 < 32) transparent++
+    }
+    if (transparent.toLong() * 4 < pixels.size) return false
+    val labels = IntArray(pixels.size)
+    val queue = IntArray(pixels.size)
+    val eligible = BooleanArray(4097)
+    val coreSizes = IntArray(eligible.size)
+    val fringeSizes = IntArray(eligible.size)
+    var components = 0
+    fun neutral(p: Int, fringe: Boolean = false): Boolean {
+      val r = p ushr 16 and 255
+      val g = p ushr 8 and 255
+      val b = p and 255
+      // A premultiplied byte rounding step grows when unpremultiplying faint AA edges.
+      val rounding = if (fringe) (254 + (p ushr 24)) / (p ushr 24) else 0
+      return maxOf(r, g, b) <= 96 && maxOf(r, g, b) - minOf(r, g, b) <= 12 + rounding
+    }
+    for (start in pixels.indices) {
+      if (start % 1024 == 0) check()
+      if (labels[start] != 0 || pixels[start] ushr 24 < 160) continue
+      if (++components >= eligible.size) return false
+      val label = components
+      var head = 0
+      var tail = 1
+      var minX = width
+      var minY = height
+      var maxX = 0
+      var maxY = 0
+      var opaque = 0
+      var darkUnderlay = 0
+      var allNeutral = true
+      var totalShade = 0L
+      val shades = IntArray(97)
+      queue[0] = start
+      labels[start] = label
+      fun add(i: Int) {
+        if (labels[i] == 0 && pixels[i] ushr 24 >= 160) {
+          labels[i] = label
+          queue[tail++] = i
+        }
+      }
+      while (head < tail) {
+        if (head % 1024 == 0) check()
+        val i = queue[head++]
+        val x = i % width
+        val y = i / width
+        minX = minOf(minX, x)
+        maxX = maxOf(maxX, x)
+        minY = minOf(minY, y)
+        maxY = maxOf(maxY, y)
+        val p = pixels[i]
+        if (p ushr 24 >= 240) opaque++
+        if (!neutral(p)) allNeutral = false
+        else {
+          val shade = maxOf(p ushr 16 and 255, p ushr 8 and 255, p and 255)
+          shades[shade]++
+          totalShade += shade
+        }
+        val below = underlay[i]
+        val luma = ((below ushr 16 and 255) * 2126 +
+          (below ushr 8 and 255) * 7152 + (below and 255) * 722) / 10000
+        if (below ushr 24 >= 128 && luma <= 96) darkUnderlay++
+        if (x > 0) add(i - 1)
+        if (x + 1 < width) add(i + 1)
+        if (y > 0) add(i - width)
+        if (y + 1 < height) add(i + width)
+      }
+      coreSizes[label] = tail
+      val boxWidth = maxX - minX + 1
+      val boxHeight = maxY - minY + 1
+      val boxArea = boxWidth.toLong() * boxHeight
+      val shortSide = minOf(boxWidth, boxHeight)
+      val longSide = maxOf(boxWidth, boxHeight)
+      val thinShape = longSide * 2 <= shortSide * 5 && tail * 5L <= boxArea * 3
+      val bar = longSide >= shortSide * 3 && longSide <= shortSide * 12 &&
+        tail * 10L >= boxArea * 9
+      val mode = shades.indices.maxBy { shades[it] }
+      val concentrated = (maxOf(0, mode - 8)..minOf(96, mode + 8)).sumOf { shades[it] }
+      var symmetric = 0
+      for (n in 0 until tail) {
+        if (n % 1024 == 0) check()
+        val i = queue[n]
+        val opposite = (minY + maxY - i / width) * width + minX + maxX - i % width
+        if (labels[opposite] == label) symmetric++
+      }
+      eligible[label] = allNeutral && tail >= 8 && shortSide >= 2 &&
+        minX > 0 && minY > 0 && maxX < width - 1 && maxY < height - 1 &&
+        tail * 4L <= pixels.size && tail * 10L >= boxArea && (thinShape || bar) &&
+        opaque * 4L >= tail * 3L && darkUnderlay * 20L >= tail * 19L &&
+        totalShade <= tail * 64L && concentrated * 20L >= tail * 19L &&
+        symmetric * 10L >= tail * 9L
+    }
+    if (eligible.none { it }) return false
+
+    // All colors participate in fringe ownership. A faint bridge to another silhouette
+    // cannot turn the neighboring colored art or its shadow into part of a white glyph.
+    val depth = ByteArray(pixels.size)
+    var head = 0
+    var tail = 0
+    for (i in pixels.indices) if (labels[i] != 0) queue[tail++] = i
+    val fringeLimit = (minOf(width, height) / 128).coerceIn(1, 4)
+    while (head < tail) {
+      if (head % 1024 == 0) check()
+      val i = queue[head++]
+      val label = labels[i]
+      val distance = depth[i].toInt()
+      val x = i % width
+      fun add(j: Int) {
+        val alpha = pixels[j] ushr 24
+        if (alpha == 0) return
+        if (labels[j] != 0) {
+          if (labels[j] != label) {
+            eligible[label] = false
+            eligible[labels[j]] = false
+          }
+          return
+        }
+        if (distance >= fringeLimit || alpha > pixels[i] ushr 24) return
+        labels[j] = label
+        depth[j] = (distance + 1).toByte()
+        queue[tail++] = j
+        if (alpha >= 32) {
+          fringeSizes[label]++
+          if (!neutral(pixels[j], fringe = true)) eligible[label] = false
+        }
+      }
+      if (x > 0) add(i - 1)
+      if (x + 1 < width) add(i + 1)
+      if (i >= width) add(i - width)
+      if (i + width < pixels.size) add(i + width)
+    }
+    for (label in 1..components)
+      if (fringeSizes[label] * 2L > coreSizes[label]) eligible[label] = false
+    var changed = false
+    for (y in 0 until height) {
+      check()
+      for (x in 0 until width) {
+        val i = y * width + x
+        if (eligible[labels[i]]) {
+          pixels[i] = (pixels[i] and -0x1000000) or 0xffffff
+          changed = true
+        }
+      }
+    }
+    return changed
+  }
+
   private fun isolatedForeground(
     pixels: IntArray, width: Int, height: Int, check: () -> Unit,
   ): Boolean {

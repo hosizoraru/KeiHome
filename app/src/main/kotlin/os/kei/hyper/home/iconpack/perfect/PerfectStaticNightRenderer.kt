@@ -15,8 +15,8 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-7"
-  const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-1"
+  const val REVISION = "perfect-static-night-8"
+  const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-2"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
 
@@ -73,7 +73,8 @@ internal object PerfectStaticNightRenderer {
                 // Native foregrounds may themselves contain an opaque baked plate.
                 val plate = PerfectNightPixels.bakedForegroundPlate(pixels, SIZE, SIZE, check)
                 if (plate != null) PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
-                else PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check)
+                else if (!PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check))
+                  PerfectNightPixels.liftForegroundComponents(pixels, underlay, SIZE, SIZE, check)
                 foreground.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
                 nightCanvas.drawBitmap(foreground, 0f, 0f, paint)
               } finally {
@@ -183,7 +184,9 @@ internal object PerfectStaticNightRenderer {
           original.getPixels(expected, 0, original.width, 0, y, original.width, 1)
           proof.getPixels(actual, 0, original.width, 0, y, original.width, 1)
           for (x in expected.indices) {
-            if (expected[x] ushr 24 != actual[x] ushr 24) return null
+            // PNG premultiplication and Skia src-over can differ by one alpha code.
+            // Output coverage still comes from the authoritative flat image.
+            if (kotlin.math.abs((expected[x] ushr 24) - (actual[x] ushr 24)) > 1) return null
             for (shift in 0..2) if (kotlin.math.abs(
                 (expected[x] ushr (shift * 8) and 255) -
                   (actual[x] ushr (shift * 8) and 255)) > 2) return null
@@ -209,8 +212,16 @@ internal object PerfectStaticNightRenderer {
         }
         PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
         night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
-        // Preserve the original foreground, including intentional pale art and translucent shadows.
-        canvas.drawBitmap(foreground, crop, target, paint)
+        // Keep the original alpha/art; only isolated neutral stencil components may brighten.
+        val overlay = newBitmap()
+        try {
+          Canvas(overlay).drawBitmap(foreground, crop, target, paint)
+          val foregroundPixels = IntArray(SIZE * SIZE)
+          overlay.getPixels(foregroundPixels, 0, SIZE, 0, 0, SIZE, SIZE)
+          PerfectNightPixels.liftForegroundComponents(foregroundPixels, pixels, SIZE, SIZE, check)
+          overlay.setPixels(foregroundPixels, 0, SIZE, 0, 0, SIZE, SIZE)
+          canvas.drawBitmap(overlay, 0f, 0f, paint)
+        } finally { overlay.recycle() }
         night.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
         check()
         return pixels

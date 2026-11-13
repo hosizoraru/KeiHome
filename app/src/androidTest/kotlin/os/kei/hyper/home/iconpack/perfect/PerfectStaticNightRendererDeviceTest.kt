@@ -327,7 +327,7 @@ class PerfectStaticNightRendererDeviceTest {
     layers.indices.forEach { assertArrayEquals(originals[it], layers[it]) }
     assertArrayEquals(first.day, second.day)
     assertArrayEquals(first.night, second.night)
-    assertEquals("perfect-static-night-7", PerfectStaticNightRenderer.REVISION)
+    assertEquals("perfect-static-night-8", PerfectStaticNightRenderer.REVISION)
     for (bytes in listOf(first.day, first.night)) {
       assertArrayEquals(PNG_SIGNATURE, bytes.copyOf(8))
       val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
@@ -469,7 +469,7 @@ class PerfectStaticNightRendererDeviceTest {
     org.junit.Assume.assumeTrue("Optional retained source fixture directory", !directory.isNullOrBlank())
     val root = java.io.File(requireNotNull(directory))
     for (name in listOf("com.android.browser", "com.miui.gallery",
-      "com.android.fileexplorer", "com.miui.calculator")) {
+      "com.android.fileexplorer", "com.miui.calculator", "com.miui.notes")) {
       val bytes = (0..2).map { index ->
         val file = java.io.File(root, "$name-$index-source.png")
         assertTrue(file.length() in 1..8L * 1024 * 1024)
@@ -483,7 +483,119 @@ class PerfectStaticNightRendererDeviceTest {
         baseline.night.contentEquals(proved.night))
       val day = requireNotNull(BitmapFactory.decodeByteArray(proved.day, 0, proved.day.size))
       val night = requireNotNull(BitmapFactory.decodeByteArray(proved.night, 0, proved.night.size))
-      try { assertAlphaEqual(day, night) } finally { day.recycle(); night.recycle() }
+      try {
+        assertAlphaEqual(day, night)
+        if (name == "com.miui.calculator") {
+          for ((x, y) in listOf(155 to 153, 353 to 153, 155 to 349)) {
+            assertRgb(day.getPixel(x, y), 41, 43, 48, 1)
+            assertRgb(night.getPixel(x, y), 214, 214, 214, 1)
+          }
+        }
+        if (name == "com.miui.notes") {
+          // Keep the ruled line where it crosses the pencil's translucent glow.
+          assertRgb(night.getPixel(100, 115), 214, 147, 0, 3)
+        }
+      } finally { day.recycle(); night.recycle() }
+    }
+  }
+
+  @Test fun mixedForegroundLiftsDisconnectedMathGlyphsWithoutChangingColoredOrWhiteArt() {
+    val background = image(96, 96) { _, _ -> Color.WHITE }
+    val foreground = image(96, 96) { x, y ->
+      when {
+        (x in 16..36 && y in 24..28) || (x in 24..28 && y in 16..36) ||
+          (x in 56..80 && y in 24..29) ||
+          (x in 16..36 && y in 56..76 &&
+            (kotlin.math.abs(x - 26 - (y - 66)) <= 3 ||
+              kotlin.math.abs(x - 26 + y - 66) <= 3)) -> Color.rgb(48, 48, 48)
+        x in 62..78 && (y in 62..64 || y in 72..74) -> Color.WHITE
+        x in 56..82 && y in 52..82 -> Color.rgb(255, 140, 0)
+        else -> Color.TRANSPARENT
+      }
+    }
+    rendered(listOf(background, foreground)) { day, night ->
+      for ((x, y) in listOf(138 to 138, 362 to 138, 138 to 352)) {
+        assertRgb(day.getPixel(x, y), 48, 48, 48, 0)
+        assertRgb(night.getPixel(x, y), 214, 214, 214, 0)
+      }
+      assertRgb(night.getPixel(320, 300), 214, dim(140), 0, 0)
+      assertRgb(night.getPixel(373, 336), 214, 214, 214, 0)
+      assertAlphaEqual(day, night)
+    }
+  }
+
+  @Test fun componentLiftingPreservesPhotosMascotsShadowsHighlightsAndAmbiguousBridges() {
+    val size = 96
+    fun plus(x: Int, y: Int) = x in 16..36 && y in 24..28 ||
+      x in 24..28 && y in 16..36
+    for (kind in listOf("photo", "mascot", "solidMascot", "blob", "shadow", "highlight", "bridge")) {
+      val pixels = IntArray(size * size) { i ->
+        val x = i % size
+        val y = i / size
+        val head = (x - 30) * (x - 30) + (y - 22) * (y - 22) <= 64
+        val body = x in 24..36 && y in 27..43 || x in 15..45 && y in 30..35 ||
+          (x in 21..27 || x in 33..39) && y in 42..54
+        when {
+          x in 70..88 && y in 70..88 -> Color.rgb(255, 140, 0)
+          kind == "photo" && x in 16..50 && y in 16..50 -> {
+            val value = 10 + (x * 17 + y * 13) % 80
+            Color.rgb(value, value, value)
+          }
+          kind == "mascot" && y in 20..21 && (x in 27..28 || x in 33..34) -> Color.WHITE
+          kind in listOf("mascot", "solidMascot") && (head || body) -> Color.BLACK
+          kind == "blob" && (x - 30) * (x - 30) + (y - 30) * (y - 30) <= 256 -> Color.BLACK
+          kind == "shadow" && plus(x, y) -> Color.argb(200, 16, 16, 16)
+          kind in listOf("highlight", "bridge") && plus(x, y) -> Color.rgb(48, 48, 48)
+          kind == "highlight" && x == 26 && y == 15 -> Color.argb(128, 255, 255, 255)
+          kind == "bridge" && x in 37..38 && y == 26 -> Color.argb(128, 48, 48, 48)
+          kind == "bridge" && x in 39..59 && y in 16..36 -> Color.BLUE
+          else -> Color.TRANSPARENT
+        }
+      }
+      val original = pixels.clone()
+      assertFalse(kind, PerfectNightPixels.liftForegroundComponents(pixels,
+        IntArray(pixels.size) { Color.rgb(32, 32, 32) }, size, size) {})
+      assertArrayEquals(kind, original, pixels)
+    }
+  }
+
+  @Test fun componentFringesKeepAlphaStopAtLongShadowsAndRequireDarkUnderlay() {
+    val size = 96
+    fun plus(x: Int, y: Int) = x in 16..36 && y in 24..28 ||
+      x in 24..28 && y in 16..36
+    val original = IntArray(size * size) { i ->
+      val x = i % size
+      val y = i / size
+      when {
+        plus(x, y) -> Color.rgb(48, 48, 48)
+        plus(x - 1, y) || plus(x + 1, y) || plus(x, y - 1) || plus(x, y + 1) ->
+          Color.argb(96, 48, 48, 48)
+        x in 38..48 && y == 26 -> Color.argb(16, 48, 48, 48)
+        else -> Color.TRANSPARENT
+      }
+    }
+    val pixels = original.clone()
+    assertFalse(PerfectNightPixels.liftForegroundComponents(pixels,
+      IntArray(pixels.size) { Color.WHITE }, size, size) {})
+    assertArrayEquals(original, pixels)
+    val dark = IntArray(pixels.size) { Color.rgb(32, 32, 32) }
+    assertTrue(PerfectNightPixels.liftForegroundComponents(pixels, dark, size, size) {})
+    assertEquals(Color.WHITE, pixels[26 * size + 26])
+    assertEquals(Color.argb(96, 255, 255, 255), pixels[26 * size + 37])
+    assertEquals(original[26 * size + 42], pixels[26 * size + 42])
+    for (i in pixels.indices) assertEquals(Color.alpha(original[i]), Color.alpha(pixels[i]))
+    var totalChecks = 0
+    PerfectNightPixels.liftForegroundComponents(original.clone(), dark, size, size) { totalChecks++ }
+    for (cancelAt in listOf(totalChecks / 2, totalChecks - 1)) {
+      var checks = 0
+      try {
+        PerfectNightPixels.liftForegroundComponents(original.clone(), dark, size, size) {
+          if (++checks == cancelAt) throw CancellationException("cancel components")
+        }
+        fail("Expected component cancellation")
+      } catch (expected: CancellationException) {
+        assertEquals("cancel components", expected.message)
+      }
     }
   }
 
@@ -512,7 +624,7 @@ class PerfectStaticNightRendererDeviceTest {
     val decoded = requireNotNull(BitmapFactory.decodeByteArray(layers[0], 0, layers[0].size))
     val changed = requireNotNull(decoded.copy(Bitmap.Config.ARGB_8888, true))
     val alphaMismatch = try {
-      changed.setPixel(13, 13, Color.argb(201, 255, 255, 255))
+      changed.setPixel(13, 13, Color.argb(203, 255, 255, 255))
       ByteArrayOutputStream().also { assertTrue(changed.compress(Bitmap.CompressFormat.PNG, 100, it)) }
         .toByteArray()
     } finally { decoded.recycle(); changed.recycle() }

@@ -233,7 +233,7 @@ When the original foreground omits its updater or leaves it blank, the selector 
 
 Native local application has a separate admission step after generation. Its layer validator accepts only a literal local `src` paired with the exact `ifelse(#__darkmode,'keihome_night/<src>','<src>')` selector, a declared `DarkMode` updater and a complete validated texture pair. Date-frame selectors additionally retain the bounded original `srcid` frame family; Weather uses the separate canonical contract above. Other expressions, external URIs, missing files, mutable appearance state and arbitrary updater combinations remain rejected. This gate must be tested on the complete emitted archive, not just on individual converted textures.
 
-The current derivation keys are `perfect-static-night-7` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
+The current derivation keys are `perfect-static-night-8` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
 
 An authored gradient must be treated as a complete surface: accepting only the
 near-median portion leaves colored bands in generated night textures. The
@@ -243,13 +243,30 @@ from sharp glyph boundaries and enclosed white brand marks.
 
 When a flat icon and two separated layers come from the same theme directory, a
 bounded pixel proof can use their original alpha compositing for night. The
-centered crop must reproduce every source flat pixel, including exact alpha and
-at most two levels of RGB rounding difference; sampled or differing artwork
+centered crop must reproduce every source flat pixel, allowing at most one alpha
+code and two RGB codes for compositing rounding; sampled or differing artwork
 cannot pass. Day rendering stays on the original flat path. The separated
 background must itself qualify as a complete plate before the foreground is
-composited over its dark replacement. All source digests and the proof policy
+composited over its dark replacement. Both output modes retain the original flat
+alpha coverage exactly. All source digests and the proof policy
 participate in the cached render identity. This proof runs during generation,
 not in notification or status-bar callbacks.
+
+Mixed foreground artwork needs component-level contrast checks: a colored
+calculator key must not prevent isolated dark arithmetic stencils from being
+recognized. Only bounded, thin, nearly uniform neutral components over the
+derived dark plate qualify for lifting. Colored artwork, filled decorative
+shapes, connected shadows and uncertain components retain their source pixels.
+Component ownership includes the antialiased fringe, while source alpha remains
+unchanged. This analysis runs on the generation worker and shares the existing
+revision-keyed cache; it adds no pixel scanning to system UI callbacks.
+
+The retained Notes fixture also exercises the equivalence path: its ruled lines
+share the original background's gold color, so a flood fill of the flat image
+can erase segments and expose jagged remnants. Reconstructing the proven
+foreground over the derived plate preserves those lines and the translucent
+pencil glow. Downloaded artwork is reused; an already applied older generated
+pack still requires regeneration and application to receive the corrected PNGs.
 
 The retained source weather program also has a separate exact structural admission, shared by generation and local validation: its sole temperature query, existing ten-minute refresh condition, delayed refresh command and complete 13-image glyph closure must all match. Its paired dark form must preserve that same provider contract and declare the complete local day/night image closure. Extra binders, queries, attributes, commands, text or faster refresh timing are rejected. This supports the recognized weather artwork without enabling general-purpose provider binders.
 

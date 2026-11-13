@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
@@ -183,6 +184,8 @@ internal data class SystemUiStatusBarIconProfile(
       return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
+    // These framework fields are accessed only inside LSPosed-injected SystemUI.
+    @SuppressLint("SoonBlockedPrivateApi")
     private fun restore(j: JSONObject, loader: ClassLoader): SystemUiStatusBarIconProfile {
       fun type(descriptor: String): Class<*> = when (descriptor) {
         "Z" -> Boolean::class.javaPrimitiveType!!
@@ -288,6 +291,7 @@ internal data class SystemUiStatusBarIconProfile(
     }
 
     @OptIn(DexKitExperimentalApi::class)
+    @SuppressLint("SoonBlockedPrivateApi")
     private fun discover(loader: ClassLoader, path: String, directory: File?): SystemUiStatusBarIconProfile =
       SystemUiMaterialDexKit.open(path, directory).use { dex ->
         dex.setThreadNum(1)

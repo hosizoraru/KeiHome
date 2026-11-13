@@ -65,7 +65,8 @@ internal class SystemUiAppIconRuntime(
     } finally { lifecycle.leave() }
   }
 
-  @SuppressLint("BlockedPrivateApi")
+  // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
+  @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
   fun start() {
     check(Looper.myLooper() != Looper.getMainLooper())
     check(cache == null && !stopped) { "SystemUI app icon runtime already started or stopped" }

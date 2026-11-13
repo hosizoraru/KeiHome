@@ -98,10 +98,11 @@ internal class PerfectPackController(
   private val scope: CoroutineScope,
   private val repository: PerfectIconRepository,
   private val packs: IconPackRepository,
+  private val storageId: String = "perfect_icons_ui_v1",
   private val onGenerated: () -> Unit,
 ) {
   private val app = context.applicationContext
-  private val storage by lazy { AppLocalStorage.open(app, "perfect_icons_ui_v1") }
+  private val storage by lazy { AppLocalStorage.open(app, storageId) }
   private val mutableState = MutableStateFlow(PerfectPackState(options = PerfectIconStyles.initialOptions))
   val state = mutableState.asStateFlow()
   private val mutablePreview = MutableStateFlow(PerfectPackPreviewState())
@@ -200,13 +201,12 @@ internal class PerfectPackController(
     return scope.launch(start = CoroutineStart.LAZY) {
       var failure = PerfectPackError.LOCAL
       try {
-        withContext(Dispatchers.IO) {
+        loaded = withContext(Dispatchers.IO) {
           val options = repository.options()
           val remote = repository.remoteStatus()
           mutableState.update { it.copy(options = options,
             remote = retainPerfectCatalogMetadata(it.remote, remote, it.catalog)) }
           val catalog = repository.catalog(refresh = false)
-          loaded = true
           mutableState.update { it.copy(options = options, catalog = catalog) }
           val saved = storage.getString("last_generated", null)?.let(::JSONObject)
           if (saved != null) {
@@ -231,11 +231,13 @@ internal class PerfectPackController(
               pack = pack?.let { descriptor -> iconPackCardData(descriptor, targets) },
               error = if (pack == null) PerfectPackError.LOCAL else it.error,
             ) }
-          }
+            pack != null
+          } else true
         }
       } catch (cancelled: CancellationException) {
         throw cancelled
-      } catch (_: Exception) {
+      } catch (error: Exception) {
+        android.util.Log.w("KeiHomePerfectIcons", "Perfect Icons local state load failed", error)
         mutableState.update { it.copy(error = failure) }
       } finally {
         withContext(NonCancellable) {
@@ -456,6 +458,8 @@ internal class PerfectPackController(
           failure = PerfectPackError.LOCAL
           // Save the file before import so process death can recover the completed ZIP locally.
           remember(result, options, "")
+          // A later entry must recover this publication if import fails or is cancelled.
+          loaded = false
           mutableState.update { it.copy(result = result, generatedOptions = options, pack = null) }
           failure = PerfectPackError.IMPORT
           val pack = importGenerated(result.file, options)
@@ -469,10 +473,8 @@ internal class PerfectPackController(
         }
       } catch (cancelled: CancellationException) {
         throw cancelled
-      } catch (error: IOException) {
+      } catch (error: Exception) {
         android.util.Log.w("KeiHomePerfectIcons", "Local icon pack generation failed", error)
-        mutableState.update { it.copy(error = failure) }
-      } catch (_: Exception) {
         mutableState.update { it.copy(error = failure) }
       } finally {
         updateCache()
@@ -537,7 +539,8 @@ internal class PerfectPackController(
         (options.style.ifEmpty { app.getString(os.kei.hyper.home.R.string.perfect_icons_style_default) })
           .take(96) + ".zip")) {
       is IconPackImportResult.Success -> imported.pack
-      is IconPackImportResult.Failure -> throw IOException("Generated pack import failed")
+      is IconPackImportResult.Failure ->
+        throw IOException("Generated pack import failed: ${imported.message}", imported.cause)
     }
 
   private fun remember(result: PerfectIconResult, options: PerfectIconOptions, recordId: String) {

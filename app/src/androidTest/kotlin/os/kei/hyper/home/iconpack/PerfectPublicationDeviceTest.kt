@@ -12,6 +12,8 @@ import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import os.kei.hyper.home.iconpack.perfect.HyperOs4IconModule
 
@@ -93,5 +95,103 @@ class PerfectPublicationDeviceTest {
     link.parentFile?.mkdirs()
     java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
     assertTrue(repository.importPerfectPublication(link) is IconPackImportResult.Failure)
+  }
+
+  @Test fun disguisedWebpAndJpegImportAndPreviewWithoutRewritingBytes() = fixture { repository, files ->
+    val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply { eraseColor(0xff245688.toInt()) }
+    fun image(format: Bitmap.CompressFormat) = ByteArrayOutputStream().use {
+      check(bitmap.compress(format, 100, it)); it.toByteArray()
+    }
+    val images = try { mapOf(
+      "res/drawable-xxhdpi/com.sample.webp/0.png" to image(Bitmap.CompressFormat.PNG),
+      "res/drawable-xxhdpi/com.sample.webp/1.png" to image(Bitmap.CompressFormat.WEBP_LOSSLESS),
+      "res/drawable-xxhdpi/com.sample.jpeg.png" to image(Bitmap.CompressFormat.JPEG),
+    ) } finally { bitmap.recycle() }
+    val file = File(files, "perfect-icons/generated/perfect-raster-types.zip").apply { parentFile?.mkdirs() }
+    ZipOutputStream(file.outputStream()).use { zip -> images.forEach { (name, bytes) ->
+      zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry()
+    } }
+    val result = repository.importPerfectPublication(file)
+    assertTrue(result.toString(), result is IconPackImportResult.Success)
+    val pack = (result as IconPackImportResult.Success).pack
+    assertEquals(2, pack.entries.size)
+    val stored = (pack.source as IconPackSource.Imported).record.originalFile
+    java.util.zip.ZipFile(stored).use { zip ->
+      images.forEach { (name, bytes) -> assertArrayEquals(bytes, zip.getInputStream(zip.getEntry(name)).use { it.readBytes() }) }
+    }
+    val base = InstrumentationRegistry.getInstrumentation().targetContext
+    IconPackRenderer(base).open(pack, false).use { session ->
+      for (entry in pack.entries) {
+        val preview = session.renderTarget(entry, IconPackComponent(requireNotNull(entry.nativeName)), 32) {}
+        assertNotNull(entry.key, preview)
+        preview?.recycle()
+      }
+    }
+    assertTrue((repository.importPerfectPublication(file) as IconPackImportResult.Success).alreadyPresent)
+  }
+
+  @Test fun opaquePngTrailerDoesNotChangeAndroidDecodedPixels() {
+    val expected = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+    try {
+      expected.eraseColor(0xff245688.toInt())
+      val clean = ByteArrayOutputStream().use {
+        check(expected.compress(Bitmap.CompressFormat.PNG, 100, it)); it.toByteArray()
+      }
+      val tailed = clean + ByteArray(4008) { (it * 31).toByte() }
+      val actual = requireNotNull(android.graphics.BitmapFactory.decodeByteArray(tailed, 0, tailed.size))
+      try { assertTrue(expected.sameAs(actual)) } finally { actual.recycle() }
+    } finally { expected.recycle() }
+  }
+
+  @Test fun malformedPublicationRetainsItsUnderlyingImportFailure() = fixture { repository, files ->
+    val file = File(files, "perfect-icons/generated/perfect-invalid.zip").apply { parentFile?.mkdirs() }
+    ZipOutputStream(file.outputStream()).use { zip ->
+      zip.putNextEntry(ZipEntry("res/drawable-xxhdpi/com.sample.invalid.png"))
+      zip.write("not an image".toByteArray()); zip.closeEntry()
+    }
+    val result = repository.importPerfectPublication(file)
+    assertTrue(result is IconPackImportResult.Failure)
+    val failure = result as IconPackImportResult.Failure
+    assertNotNull(failure.cause)
+    assertTrue(failure.message.contains("com.sample.invalid.png"))
+  }
+
+  @Test fun observedPhysicalPublicationCanRetryTheLocalImport() = fixture { repository, files ->
+    val path = InstrumentationRegistry.getArguments().getString("perfectPublicationFixture")
+    org.junit.Assume.assumeNotNull(path)
+    val input = File(requireNotNull(path))
+    assertTrue(input.isFile)
+    val publication = File(files, "perfect-icons/generated/perfect-observed.zip").apply { parentFile?.mkdirs() }
+    input.copyTo(publication)
+    fun digest(file: File): ByteArray {
+      val hash = java.security.MessageDigest.getInstance("SHA-256")
+      file.inputStream().use { stream ->
+        val buffer = ByteArray(32 * 1024)
+        while (true) {
+          val count = stream.read(buffer)
+          if (count < 0) break
+          hash.update(buffer, 0, count)
+        }
+      }
+      return hash.digest()
+    }
+    val originalHash = digest(input)
+    repeat(2) { attempt ->
+      val result = repository.importPerfectPublication(publication)
+      assertTrue(result.toString(), result is IconPackImportResult.Success)
+      result as IconPackImportResult.Success
+      assertEquals(attempt != 0, result.alreadyPresent)
+      assertTrue(result.pack.entries.size >= 117)
+      assertEquals(IconPackFormat.MIUI_ICONS, result.pack.format)
+      assertArrayEquals(originalHash, digest((result.pack.source as IconPackSource.Imported).record.originalFile))
+      if (attempt == 0) {
+        val exported = IconPackExporter(InstrumentationRegistry.getInstrumentation().targetContext,
+          IconPackLimits()).export(result.pack, emptyList(), false, 64,
+          preservedPackages = emptySet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE) {}
+        try {
+          os.kei.hyper.home.xposed.LocalNativeIconValidator.validate(exported.archive)
+        } finally { exported.archive.delete() }
+      }
+    }
   }
 }

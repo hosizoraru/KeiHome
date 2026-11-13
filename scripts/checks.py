@@ -12,6 +12,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "native-artwork-import": ("jvm", "Raster headers, archive bounds, Perfect resources and local native admission", (
+        "IconPackArchiveTest", "PerfectIconFormatTest", "PerfectLayeredIconTest",
+        "LocalNativeIconValidatorTest", "LocalLayerTimeVisualValidatorTest", "ConvertedIconArchiveTest")),
+    "native-artwork-import-device": ("device", "Local publication, mixed image previews and native layer rendering", (
+        "os.kei.hyper.home.iconpack.PerfectPublicationDeviceTest",
+        "os.kei.hyper.home.iconpack.ArchiveLayerRendererTest",
+        "os.kei.hyper.home.status.IconImportLocalStoreTest", UI + "PerfectPackRecoveryDeviceTest")),
     "recommended-mappings": ("jvm", "Mapping choices, legacy defaults, alias ownership and update identity", (
         "RecommendedIconMappingsTest", "PhoneCompanionIconsTest", "TelegramChannelIconsTest", "BuiltinColorOsMappingsTest",
         "IconGenerationManifestTest", "IconPackUpdateNoticeTest", "SettingsSearchTest")),

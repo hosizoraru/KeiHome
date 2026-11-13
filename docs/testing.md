@@ -38,6 +38,7 @@ does not automatically run navigation, color editing or native tests.
 | Appearance preferences/recovery | `ui-settings` |
 | Date/time display | `pack-time`; pill test only if its layout changes |
 | Perfect source/sync/history/health | `perfect-sync` |
+| Native PNG-named raster content, original MAML and local publication recovery | `native-artwork-import`; `native-artwork-import-device` for Android decoding, isolated import/export/admission and same-process retry |
 | Perfect/ColorOS completion priority, source lifetime and choice restoration | `icon-completion`; `icon-completion-device` for archive and OS4 enable/disable flows |
 | Scope requests and authorization state | `scope`; manual onboarding check if wording/flow changes |
 | Native icon config completion, generation flags and import boundaries | `icon-shape`; `icon-shape-device` for archive and raster checks |

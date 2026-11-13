@@ -2,7 +2,9 @@ package os.kei.hyper.home.ui.main
 
 import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 
+import android.text.format.DateFormat
 import android.text.format.Formatter
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -77,13 +79,14 @@ import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.Date
 import java.util.Locale
 
 @Composable
 internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit, onPreview: (String) -> Unit = {}) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
-  ObservePerfectResources(vm.perfectPacks)
+  ObservePerfectResources(vm.perfectPacks, ensureCatalog = true)
   LaunchedEffect(state.retryAtMillis) {
     val remaining = state.retryAtMillis - System.currentTimeMillis()
     if (remaining > 0) delay(remaining)
@@ -369,12 +372,27 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
           }
         })
       if (busy && !state.refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
-      if (cooling) Text(stringResource(R.string.perfect_icons_error_cooldown), Modifier.padding(16.dp),
-        style = MiuixTheme.textStyles.footnote1)
-      state.error?.let { Text(stringResource(perfectErrorResource(it)), Modifier.padding(16.dp), color = MiuixTheme.colorScheme.error) }
-      if ((state.syncIssue == PerfectSyncIssue.CORRUPT)) Text(stringResource(R.string.perfect_resource_corrupt),
-        Modifier.padding(16.dp), color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        style = MiuixTheme.textStyles.footnote1)
+    }
+    if (state.error != null || cooling || state.syncIssue == PerfectSyncIssue.CORRUPT) item(key = "resource-notice") {
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
+        .testTag("perfect.resources.notice")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          state.error?.let {
+            Text(stringResource(perfectErrorResource(it)), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.error)
+          }
+          if (cooling) Text(stringResource(R.string.perfect_icons_cooldown_detail,
+            DateFormat.getTimeFormat(context).format(Date(state.retryAtMillis))),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (state.syncIssue == PerfectSyncIssue.CORRUPT) Text(stringResource(R.string.perfect_resource_corrupt),
+            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+      }
+    }
+    item(key = "connection-settings") {
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        PerfectConnectionSettings(enabled = !busy, onSaved = onCheck)
+      }
     }
     if (state.refreshing) item(key = "transfer") { PerfectDownloadStatusCard(state) }
     item(key = "styles-title") {

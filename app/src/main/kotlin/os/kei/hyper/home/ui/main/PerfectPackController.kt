@@ -9,11 +9,13 @@ import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -105,9 +107,22 @@ internal class PerfectPackController(
   private val mutablePreview = MutableStateFlow(PerfectPackPreviewState())
   val previewState = mutablePreview.asStateFlow()
   @Volatile private var loaded = false
+  private var loadJob: Job? = null
+  private var checkJob: Job? = null
   private var localRefreshJob: Job? = null
   private var previewJob: Job? = null
   private var previewEpoch = 0
+  private val catalogBootstrap = PerfectCatalogBootstrap()
+  private val resumeWork = PerfectResourceResumeWork(scope, refreshLocal = {
+    state.first { !it.busy }
+    if (loaded) startLocalRefresh()?.join() else startLoad()?.join()
+    state.first { !it.busy }
+  }, bootstrap = {
+    if (catalogBootstrap.shouldCheck(state.value, System.currentTimeMillis())) startCheckUpdates()?.join()
+  })
+
+  /** Only the resource browser opts into complete metadata discovery; other pages remain local-only. */
+  fun onResourcesResumed(ensureCatalog: Boolean = false): Job = resumeWork.resume(ensureCatalog)
 
   fun invalidateMaskPreview() {
     // Rebuild lazily on returning to the preview page; do not start downloads or apply a theme.
@@ -175,15 +190,21 @@ internal class PerfectPackController(
   }
 
   fun load() {
-    if (loaded || state.value.busy) return
+    startLoad()
+  }
+
+  private fun startLoad(): Job? {
+    loadJob?.takeIf { it.isActive }?.let { return it }
+    if (loaded || state.value.busy) return null
     mutableState.update { it.copy(loading = true, error = null) }
-    scope.launch {
+    return scope.launch(start = CoroutineStart.LAZY) {
       var failure = PerfectPackError.LOCAL
       try {
         withContext(Dispatchers.IO) {
           val options = repository.options()
           val remote = repository.remoteStatus()
-          mutableState.update { it.copy(options = options, remote = remote) }
+          mutableState.update { it.copy(options = options,
+            remote = retainPerfectCatalogMetadata(it.remote, remote, it.catalog)) }
           val catalog = repository.catalog(refresh = false)
           loaded = true
           mutableState.update { it.copy(options = options, catalog = catalog) }
@@ -217,10 +238,12 @@ internal class PerfectPackController(
       } catch (_: Exception) {
         mutableState.update { it.copy(error = failure) }
       } finally {
-        updateCache()
-        mutableState.update { it.copy(loading = false) }
+        withContext(NonCancellable) {
+          updateCache()
+          mutableState.update { it.copy(loading = false) }
+        }
       }
-    }
+    }.also { loadJob = it; it.start() }
   }
 
   suspend fun cacheBytes(): Long = repository.cacheBytes()
@@ -286,9 +309,16 @@ internal class PerfectPackController(
 
   /** Reconcile resumes without flashing a loading card or performing network work. */
   fun refreshLocal() {
-    if (!loaded || state.value.busy || localRefreshJob?.isActive == true) return
+    startLocalRefresh()
+  }
+
+  private fun startLocalRefresh(): Job? {
+    localRefreshJob?.takeIf { it.isActive }?.let { return it }
+    if (!loaded || state.value.busy) return null
     val expected = state.value
-    localRefreshJob = scope.launch { updateCache(expected) }
+    return scope.launch(start = CoroutineStart.LAZY) {
+      updateCache(expected)
+    }.also { localRefreshJob = it; it.start() }
   }
 
   fun previewStyle(style: String, onReady: () -> Unit) {
@@ -319,21 +349,30 @@ internal class PerfectPackController(
   }
 
   fun checkUpdates() {
-    if (!canStart()) return
+    startCheckUpdates()
+  }
+
+  private fun startCheckUpdates(): Job? {
+    checkJob?.takeIf { it.isActive }?.let { return it }
+    if (!canStart()) return null
+    catalogBootstrap.started()
     mutableState.update { it.copy(checking = true, progress = null, error = null) }
-    scope.launch {
+    return scope.launch(start = CoroutineStart.LAZY) {
       try {
         val remote = withContext(Dispatchers.IO) {
           repository.checkUpdates { progress ->
             mutableState.update { it.copy(progress = progress) }
           }
         }
-        mutableState.update { it.copy(remote = remote) }
+        mutableState.update { it.copy(remote = retainPerfectCatalogMetadata(it.remote, remote, it.catalog)) }
       } catch (cancelled: CancellationException) {
+        catalogBootstrap.retryWhenEligible()
         throw cancelled
       } catch (_: PerfectIconCooldownException) {
+        catalogBootstrap.retryWhenEligible()
         mutableState.update { it.copy(error = PerfectPackError.COOLDOWN) }
       } catch (_: Exception) {
+        catalogBootstrap.failed(System.currentTimeMillis())
         mutableState.update { it.copy(error = PerfectPackError.CHECK) }
       } finally {
         withContext(NonCancellable) {
@@ -341,7 +380,7 @@ internal class PerfectPackController(
           mutableState.update { it.copy(checking = false, progress = null) }
         }
       }
-    }
+    }.also { checkJob = it; it.start() }
   }
 
   fun refreshCatalog(forceDownload: Boolean = false) {
@@ -467,7 +506,7 @@ internal class PerfectPackController(
             null -> null
           }
         mutableState.update { if (expected != null && it !== expected) it else it.copy(cacheBytes = bytes, resourceBytes = resourceBytes,
-          retryAtMillis = retry, remote = remote,
+          retryAtMillis = retry, remote = retainPerfectCatalogMetadata(it.remote, remote, it.catalog),
           syncIssue = issue,
           syncIssueAtMillis = if (issue == PerfectSyncIssue.CORRUPT) local.corruptAtMillis else history.issueAtMillis,
           lastSuccessfulSyncAtMillis = history.lastSuccessfulSyncAtMillis,
@@ -527,4 +566,65 @@ internal class PerfectPackController(
     nightRevision = optString("nightRevision", ""),
     derivedDynamicCount = optInt("derivedDynamicCount", 0),
   )
+}
+
+/** Discovery is coalesced; failed attempts can retry on a later resume, never on a timer. */
+internal class PerfectCatalogBootstrap {
+  private var attempted = false
+  private var retryAfter = 0L
+
+  fun shouldCheck(state: PerfectPackState, nowMillis: Long): Boolean =
+    !attempted && !state.busy && state.retryAtMillis <= nowMillis && retryAfter <= nowMillis &&
+      state.remote?.availableStyles.isNullOrEmpty() &&
+      !(state.catalog?.let { it.gitBacked && it.styles.isNotEmpty() } == true)
+
+  fun started() { attempted = true }
+  fun retryWhenEligible() { attempted = false }
+  fun failed(nowMillis: Long) {
+    attempted = false
+    retryAfter = nowMillis + 30_000
+  }
+}
+
+/** Local/sparse status reads must not erase a complete index already read for this revision. */
+internal fun retainPerfectCatalogMetadata(
+  previous: PerfectIconRemote?,
+  current: PerfectIconRemote?,
+  catalog: PerfectIconCatalog? = null,
+): PerfectIconRemote? {
+  val complete = previous?.takeIf {
+    it.availableStyles.isNotEmpty() && (current == null || it.revision == current.revision)
+  } ?: catalog?.takeIf {
+    it.gitBacked && it.styles.isNotEmpty() && (current == null || it.revision == current.revision)
+  }?.let {
+    PerfectIconRemote(it.revision, it.remoteCommittedAt, it.remoteSubject, it.updatedAt, it.styles)
+  }
+  return when {
+    current == null -> complete ?: previous
+    complete?.revision == current.revision && current.availableStyles.isEmpty() ->
+      current.copy(availableStyles = complete.availableStyles)
+    else -> current
+  }
+}
+
+/** Parent/child resumes share one local reconciliation and can upgrade it to catalog discovery. */
+internal class PerfectResourceResumeWork(
+  private val scope: CoroutineScope,
+  private val refreshLocal: suspend () -> Unit,
+  private val bootstrap: suspend () -> Unit,
+) {
+  private var job: Job? = null
+  private var catalogRequested = false
+
+  fun resume(ensureCatalog: Boolean): Job {
+    catalogRequested = catalogRequested || ensureCatalog
+    job?.takeIf { it.isActive }?.let { return it }
+    return scope.launch(start = CoroutineStart.LAZY) {
+      refreshLocal()
+      if (catalogRequested) {
+        catalogRequested = false
+        bootstrap()
+      }
+    }.also { job = it; it.start() }
+  }
 }

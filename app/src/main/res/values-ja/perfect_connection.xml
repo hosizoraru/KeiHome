@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_connection_title">接続設定</string>
+  <string name="perfect_connection_summary">Perfect Git の高速化とプロキシ</string>
+  <string name="perfect_connection_scope">Perfect Git の同期にのみ適用されます。アプリのほかの接続やシステムのネットワーク設定は変更しません。HTTPS 証明書の検証は有効なままです。</string>
+  <string name="perfect_connection_acceleration">高速化アドレス（任意）</string>
+  <string name="perfect_connection_acceleration_help">空欄なら元のリポジトリに接続します。HTTPS プレフィックス、{url} を含む HTTPS テンプレート、または完全な HTTPS Git リポジトリアドレスを指定できます。アドレスは変更可能です。Git smart HTTP と filter への対応が必要で、ファイルダウンロード専用ミラーは使えません。</string>
+  <string name="perfect_connection_fill_example">高速化アドレスの例を入力</string>
+  <string name="perfect_connection_proxy">プロキシ</string>
+  <string name="perfect_connection_proxy_system">システムに従う</string>
+  <string name="perfect_connection_proxy_direct">直接接続</string>
+  <string name="perfect_connection_proxy_http">HTTP プロキシ</string>
+  <string name="perfect_connection_proxy_socks">SOCKS プロキシ</string>
+  <string name="perfect_connection_proxy_host">プロキシホスト</string>
+  <string name="perfect_connection_proxy_port">プロキシポート</string>
+  <string name="perfect_connection_proxy_help">ホスト名または IP アドレスと、1〜65535 のポートを入力してください。ユーザー名とパスワードには対応していません。</string>
+  <string name="perfect_connection_invalid">HTTPS アドレス、プロキシホスト、ポートを確認してください。</string>
+  <string name="perfect_connection_cancel">キャンセル</string>
+  <string name="perfect_connection_save">保存して再試行</string>
+  <string name="perfect_connection_saving">保存中…</string>
+  <string name="perfect_connection_save_failed">接続設定を保存できませんでした。もう一度お試しください。</string>
+</resources>

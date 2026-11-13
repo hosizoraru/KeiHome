@@ -8,12 +8,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.awaitCancellation
 
 @Composable
-internal fun ObservePerfectResources(controller: PerfectPackController) {
+internal fun ObservePerfectResources(controller: PerfectPackController, ensureCatalog: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
-  LaunchedEffect(controller, lifecycle) {
+  LaunchedEffect(controller, lifecycle, ensureCatalog) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-      controller.load()
-      controller.refreshLocal()
+      controller.onResourcesResumed(ensureCatalog)
       awaitCancellation()
     }
   }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_connection_title">连接设置</string>
+  <string name="perfect_connection_summary">Perfect Git 的加速与代理</string>
+  <string name="perfect_connection_scope">仅影响 Perfect Git 同步，不改变应用的其他连接或系统网络设置。HTTPS 证书验证保持开启。</string>
+  <string name="perfect_connection_acceleration">加速地址（可选）</string>
+  <string name="perfect_connection_acceleration_help">留空时使用原始仓库。支持 HTTPS 前缀、包含 {url} 的 HTTPS 模板，或完整的 HTTPS Git 仓库地址。地址可自行替换；服务须支持 Git smart HTTP 和 filter，纯文件下载镜像不可用。</string>
+  <string name="perfect_connection_fill_example">填入加速示例</string>
+  <string name="perfect_connection_proxy">代理</string>
+  <string name="perfect_connection_proxy_system">跟随系统</string>
+  <string name="perfect_connection_proxy_direct">直接连接</string>
+  <string name="perfect_connection_proxy_http">HTTP 代理</string>
+  <string name="perfect_connection_proxy_socks">SOCKS 代理</string>
+  <string name="perfect_connection_proxy_host">代理主机</string>
+  <string name="perfect_connection_proxy_port">代理端口</string>
+  <string name="perfect_connection_proxy_help">填写主机名或 IP 地址，以及 1–65535 的端口。不支持用户名和密码。</string>
+  <string name="perfect_connection_invalid">请检查 HTTPS 地址、代理主机和端口。</string>
+  <string name="perfect_connection_cancel">取消</string>
+  <string name="perfect_connection_save">保存并重试</string>
+  <string name="perfect_connection_saving">正在保存…</string>
+  <string name="perfect_connection_save_failed">无法保存连接设置，请重试。</string>
+</resources>

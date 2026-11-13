@@ -240,6 +240,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             summary = stringResource(if (state.ready) R.string.perfect_git_preview_summary else R.string.perfect_preview_choose),
             enabled = !busy, onClick = { onNavigate(if (state.ready) "perfect-preview" else "perfect-sources") },
             modifier = Modifier.testTag("icon-packs.perfect.preview"))
+          PerfectConnectionSettings(enabled = !busy, onSaved = { vm.perfectPacks.checkUpdates() })
         }
       }
       item("options") {

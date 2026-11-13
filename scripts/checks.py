@@ -106,7 +106,9 @@ GROUPS = {
         "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest", "PerfectGitRepositoryTest",
         "PerfectIconGitTest", "PerfectPackStateTest", "PerfectIconStyleMetadataTest", "PerfectIconStylesTest")),
     "ui-perfect": ("device", "Perfect page options, style actions, transfer status and OS4 confirmations", (
-        "os.kei.hyper.home.ui.main.PerfectGitUiTest",)),
+        UI + "PerfectGitUiTest", UI + "PerfectResourceNoticeUiTest", UI + "PerfectConnectionUiTest")),
+    "perfect-network": ("jvm", "Git route, proxy policy, cancellation and direct-entry catalog recovery", (
+        "PerfectGitNetworkOptionsTest", "PerfectIconGitHttpTest", "PerfectCatalogBootstrapTest")),
     "icon-completion": ("jvm", "Perfect completion, source sessions, native choice restoration and update detection", (
         "SystemFallbackPreferencesTest", "SystemIconFallbackTest", "SystemFallbackChoicesTest",
         "PerfectFallbackSessionTest", "PerfectIconRepositoryTest", "PerfectGitRepositoryTest",

@@ -8,9 +8,11 @@ The application never checks out or executes upstream scripts.
 
 ## User flow
 
-1. Opening the page reads local state. Checking updates is explicit and obtains
-   the advertised revision plus shallow `blob:none` metadata. It does not
-   acquire image resources.
+1. Opening the overview reads local state. Resource management independently
+   obtains a complete directory index when none is available, including direct
+   entry from icon completion settings. Once discovered, checking a newer
+   revision is explicit. Both operations obtain the advertised revision plus
+   shallow `blob:none` metadata, without acquiring image resources.
 2. The directory index supplies available styles. A style can be selected before
    download. Its local readiness is independent of its remote availability.
 3. Download/sync acquires the selected style and the union of styles already
@@ -50,6 +52,22 @@ management. Returning from a child page reconciles local metadata silently,
 without another network check or replaying initial imports. Reconciliation
 started before a newer operation cannot overwrite that operation's state.
 Only the visible, resumed preview requests preview generation.
+Concurrent resume requests share one local read; direct resource entry can
+upgrade that work to directory discovery. Sparse status reads retain an
+already complete index for the same revision. An unsuccessful initial discovery
+can retry on a later resume after 30 seconds, respecting server cooldowns,
+without periodic network polling.
+
+The overview and resource management expose the same client-scoped connection
+editor. It accepts an optional HTTPS acceleration prefix, `{url}` template or
+complete Git endpoint, plus system, direct, HTTP or SOCKS proxy selection.
+Saving persists validated options before requesting a retry; canceling leaves
+the previous connection intact. The optional acceleration example is never
+selected automatically. See [connection diagnosis](perfect-network.md) for
+protocol requirements and validation boundaries.
+
+Resource failures and cooldown guidance share one OS4 notice card. Recovery
+removes the card; a cooldown is not repeated as a second plain error below it.
 
 First-use settings select **HyperOS4**. Explicitly saved choices, including the
 empty native-default token, remain unchanged. Both style controls and resource
@@ -123,8 +141,9 @@ Neither operation clears unrelated application settings or data.
 
 ## Boundaries and validation
 
-Checks and resource fetches use bounded streaming operations, fixed HTTPS
-origin, no redirects/credential providers, cancellation and timeouts. The
+Checks and resource fetches use bounded streaming operations, an HTTPS
+endpoint fixed for each operation, no redirects/credential providers,
+cancellation and timeouts. The
 metadata fetch rejects image blobs instead of silently accepting a full clone.
 Object type, size and Git identity are verified; unsafe source paths, symlinks
 and submodules are rejected. Repository scripts are data outside the selected

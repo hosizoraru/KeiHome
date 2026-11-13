@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_connection_title">Connection settings</string>
+  <string name="perfect_connection_summary">Acceleration and proxy for Perfect Git</string>
+  <string name="perfect_connection_scope">Only Perfect Git synchronization uses these settings. Other app connections and system network settings stay unchanged. HTTPS certificate validation stays enabled.</string>
+  <string name="perfect_connection_acceleration">Acceleration address (optional)</string>
+  <string name="perfect_connection_acceleration_help">Leave blank for the original repository. Use an HTTPS prefix, an HTTPS template containing {url}, or a full HTTPS Git repository address. You can replace the address. The service must support Git smart HTTP and filter; download-only mirrors do not work.</string>
+  <string name="perfect_connection_fill_example">Fill acceleration example</string>
+  <string name="perfect_connection_proxy">Proxy</string>
+  <string name="perfect_connection_proxy_system">Follow system</string>
+  <string name="perfect_connection_proxy_direct">Direct connection</string>
+  <string name="perfect_connection_proxy_http">HTTP proxy</string>
+  <string name="perfect_connection_proxy_socks">SOCKS proxy</string>
+  <string name="perfect_connection_proxy_host">Proxy host</string>
+  <string name="perfect_connection_proxy_port">Proxy port</string>
+  <string name="perfect_connection_proxy_help">Enter a host name or IP address and a port from 1 to 65535. Credentials are not supported.</string>
+  <string name="perfect_connection_invalid">Check the HTTPS address and proxy host and port.</string>
+  <string name="perfect_connection_cancel">Cancel</string>
+  <string name="perfect_connection_save">Save and retry</string>
+  <string name="perfect_connection_saving">Saving…</string>
+  <string name="perfect_connection_save_failed">Could not save the connection settings. Please try again.</string>
+</resources>

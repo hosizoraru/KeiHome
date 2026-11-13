@@ -238,8 +238,12 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         }
       }
       fun variant(path: String, qualifiers: IconResourceQualifiers): IconArchiveVariant {
-        val header = zip.getInputStream(zip.getEntry(path)).use { it.readNBytes(24) }
-        if (!pngHeader(header)) throw IconPackException("Invalid native PNG header: $path")
+        val entry = zip.getEntry(path)
+        try {
+          zip.getInputStream(entry).use { IconRasterHeader.read(it, entry.size, check) }
+        } catch (failure: IconPackException) {
+          throw IconPackException("Invalid native raster header: $path (${failure.message})", failure)
+        }
         if (qualifiers.unsupported.isNotEmpty()) notices += IconPackNotice.UNSUPPORTED_RESOURCE_QUALIFIERS
         return IconArchiveVariant(path, qualifiers)
       }
@@ -329,16 +333,6 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   }
 
   private fun nativeName(name: String) = validNativeIconName(name) && ('.' in name || name == "android")
-
-  private fun pngHeader(bytes: ByteArray): Boolean {
-    if (bytes.size != 24 || !bytes.copyOfRange(0, 8).contentEquals(byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)) ||
-      !bytes.copyOfRange(12, 16).contentEquals(byteArrayOf(73, 72, 68, 82))
-    ) return false
-    val buffer = java.nio.ByteBuffer.wrap(bytes)
-    val width = buffer.getInt(16)
-    val height = buffer.getInt(20)
-    return width in 1..8192 && height in 1..8192 && width.toLong() * height <= 32L * 1024 * 1024
-  }
 
   private fun description(file: File, check: () -> Unit): IconPackDescription {
     return description(readEntry(file, "description.xml", 64 * 1024, check), check)

@@ -35,7 +35,7 @@ internal data class IconPackScanResult(
 
 internal sealed interface IconPackImportResult {
   data class Success(val pack: IconPackDescriptor, val alreadyPresent: Boolean) : IconPackImportResult
-  data class Failure(val message: String) : IconPackImportResult
+  data class Failure(val message: String, val cause: Throwable? = null) : IconPackImportResult
 }
 
 internal data class IconPackStoreListing(val records: List<StoredIconPack>, val failures: List<IconPackFailure>)

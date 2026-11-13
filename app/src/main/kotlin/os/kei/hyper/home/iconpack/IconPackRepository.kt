@@ -158,7 +158,9 @@ internal class IconPackRepository(
       }
       IconPackImportResult.Success(load(stored.record) { caller.ensureActive() }, stored.alreadyPresent)
     } catch (cancelled: CancellationException) { throw cancelled
-    } catch (failure: Exception) { IconPackImportResult.Failure(failure.message ?: "Icon pack could not be imported") }
+    } catch (failure: Exception) {
+      IconPackImportResult.Failure(failure.message ?: "Icon pack could not be imported", failure)
+    }
   }
 
   /** Internal publication path; document imports continue to require a granted content URI. */
@@ -182,7 +184,7 @@ internal class IconPackRepository(
       IconPackImportResult.Success(load(stored.record) { caller.ensureActive() }, stored.alreadyPresent)
     } catch (cancelled: CancellationException) { throw cancelled
     } catch (failure: Exception) {
-      IconPackImportResult.Failure(failure.message ?: "Generated icon pack could not be imported")
+      IconPackImportResult.Failure(failure.message ?: "Generated icon pack could not be imported", failure)
     }
   }
 

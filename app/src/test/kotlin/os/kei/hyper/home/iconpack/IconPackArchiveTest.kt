@@ -3,6 +3,10 @@ package os.kei.hyper.home.iconpack
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Base64
 import java.util.concurrent.CancellationException
 import java.util.zip.CRC32
@@ -90,6 +94,135 @@ class IconPackArchiveTest {
     assertEquals(2, variants.size)
     assertEquals(IconNightMode.DARK, variants.single { it.path.startsWith("nightmode/") }.qualifiers.night)
     assertEquals(IconNightMode.ANY, variants.single { !it.path.startsWith("nightmode/") }.qualifiers.night)
+  }
+
+  @Test fun nativeLayersAndQuietSnapshotsAcceptContentSignaturesAndCopyEveryByte() {
+    val webp = webp("VP8X" to webpCanvas(1, 1), "VP8 " to vp8(1, 1))
+    val jpeg = jpeg()
+    val resources = arrayOf(
+      "res/drawable-xxhdpi/com.twitter.android/0.png" to png,
+      "res/drawable-xxhdpi/com.twitter.android/1.png" to webp,
+      "res/drawable-xxhdpi/dev.example.lossless.png" to webp("VP8L" to vp8l(1, 1)),
+      "layer_animating_icons/com.netease.cloudmusic/config.xml" to
+        "<Config><Variables><Variable name='layer0' value='0'/></Variables></Config>".toByteArray(),
+      "layer_animating_icons/com.netease.cloudmusic/0/quiet/quietImage.png" to jpeg,
+    )
+    val bytes = zip(*resources)
+    val store = IconPackStore(temporary.newFolder())
+    val record = store.import(bytes.inputStream(), "perfect-local.zip").record
+    val copied = temporary.newFile()
+    val index = IconPackArchive().copyNativeModule(record, copied, temporary.newFile())
+    assertEquals(setOf("com.twitter.android", "com.netease.cloudmusic", "dev.example.lossless"),
+      index.entries.map { it.nativeName }.toSet())
+    val layers = index.entries.first { it.nativeName == "com.twitter.android" }.light as IconPackArtwork.Archive
+    assertEquals(2, layers.layers.size)
+    val snapshot = index.entries.first { it.nativeName == "com.netease.cloudmusic" }.light as IconPackArtwork.Archive
+    assertTrue(snapshot.snapshot)
+    assertArrayEquals(bytes, record.originalFile.readBytes())
+    assertArrayEquals(bytes, copied.readBytes())
+    resources.forEach { (path, payload) ->
+      assertArrayEquals(payload, IconPackArchive.readEntry(copied, path, payload.size))
+    }
+    assertEquals(sha256(record.originalFile), index.nativeIconsSha256)
+  }
+
+  @Test fun rasterHeaderAcceptsJpegFramesAndAllThreeWebpHeadersUnderArbitraryNativeNames() {
+    val payloads = listOf(jpeg(), jpeg(progressive = true),
+      webp("VP8 " to vp8(7, 11)), webp("VP8L" to vp8l(7, 11)),
+      webp("VP8X" to webpCanvas(7, 11), "VP8 " to vp8(7, 11)),
+      webp("VP8X" to webpCanvas(7, 11), "VP8L" to vp8l(7, 11)))
+    payloads.forEachIndexed { index, payload ->
+      val path = "res/drawable-xxhdpi/dev.unlisted.app$index.png"
+      val archive = file(zip(path to payload))
+      assertEquals("dev.unlisted.app$index", inspect(archive).entries.single().nativeName)
+      assertArrayEquals(payload, IconPackArchive.readEntry(archive, path, payload.size))
+    }
+  }
+
+  @Test fun jpegMetadataUsesBoundedStreamingSkipAndChecksCancellation() {
+    val bytes = jpeg(metadataSegments = 8)
+    var skips = 0
+    var largestRead = 0
+    val input = object : ByteArrayInputStream(bytes) {
+      override fun skip(count: Long): Long { skips++; return super.skip(count) }
+      override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
+        largestRead = maxOf(largestRead, count)
+        return super.read(buffer, offset, count)
+      }
+    }
+    assertEquals(IconRasterHeader.Size(7, 11), IconRasterHeader.read(input, bytes.size.toLong()))
+    assertTrue(skips > 0)
+    assertTrue("Header parsing must not allocate/read the whole JPEG", largestRead <= 24)
+    val tooMuchMetadata = jpeg(metadataSegments = 17)
+    assertThrows(IOException::class.java) {
+      IconRasterHeader.read(tooMuchMetadata.inputStream(), tooMuchMetadata.size.toLong())
+    }
+    var checks = 0
+    assertThrows(CancellationException::class.java) {
+      IconRasterHeader.read(bytes.inputStream(), bytes.size.toLong()) {
+        if (++checks == 20) throw CancellationException()
+      }
+    }
+  }
+
+  @Test fun rasterHeaderRejectsTruncationBadLengthsSignaturesAndOversizeDimensions() {
+    val webp = webp("VP8X" to webpCanvas(7, 11), "VP8 " to vp8(7, 11))
+    val invalid = listOf(
+      png.copyOf(23),
+      png.copyOf().apply { this[11] = 12 }, // IHDR must declare 13 bytes.
+      pngDimensions(8193, 1), pngDimensions(8192, 8192), pngDimensions(0, 1),
+      jpeg().copyOf(12), jpeg(width = 8193), jpeg(width = 8192, height = 8192),
+      jpeg().apply { this[5] = 1 }, // Frame segment length below minimum.
+      byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte()) + ByteArray(20),
+      webp.copyOf(webp.size - 1),
+      webp.copyOf().apply { this[4] = (this[4].toInt() + 2).toByte() },
+      webp("VP8X" to webpCanvas(7, 11)), // Canvas metadata is not an image.
+      webp("VP8X" to webpCanvas(8193, 1), "VP8 " to vp8(7, 11)),
+      webp("VP8X" to webpCanvas(8, 11), "VP8 " to vp8(7, 11)),
+      webp("VP8X" to (webpCanvas(7, 11) + byteArrayOf(0)), "VP8 " to vp8(7, 11)),
+      webp("VP8 " to vp8(7, 11).apply { this[3] = 0 }),
+      webp("VP8 " to vp8(8193, 1)),
+      webp("VP8L" to vp8l(8193, 1)),
+      webp("VP8L" to vp8l(8192, 8192)),
+      webp("VP8L" to vp8l(7, 11).apply { this[4] = (this[4].toInt() or 0xe0).toByte() }),
+      webp("VP8 " to vp8(7, 11).copyOf(9)),
+      webp("VP8L" to vp8l(7, 11).copyOf(4)),
+    )
+    invalid.forEachIndexed { index, bytes ->
+      val failure = assertThrows("Invalid header fixture $index", IOException::class.java) {
+        inspect(file(zip("res/drawable-xxhdpi/dev.invalid.app.png" to bytes)))
+      }
+      assertTrue(failure.message.orEmpty().contains("dev.invalid.app.png"))
+    }
+  }
+
+  @Test fun rasterHeaderKeepsPngFastPathAndHandlesStreamsWithoutSkipOrFullReads() {
+    val pngInput = object : ByteArrayInputStream(png) {
+      var consumed = 0
+      override fun read(buffer: ByteArray, offset: Int, count: Int): Int =
+        super.read(buffer, offset, count).also { if (it > 0) consumed += it }
+    }
+    assertEquals(IconRasterHeader.Size(1, 1), IconRasterHeader.read(pngInput, png.size.toLong()))
+    assertEquals("PNG should read only its dimension header", 24, pngInput.consumed)
+    val bytes = jpeg(metadataSegments = 1)
+    val stream = object : InputStream() {
+      val source = ByteArrayInputStream(bytes)
+      override fun read() = source.read()
+      override fun read(buffer: ByteArray, offset: Int, count: Int) = source.read(buffer, offset, minOf(count, 1))
+      override fun skip(count: Long) = 0L
+    }
+    assertEquals(IconRasterHeader.Size(7, 11), IconRasterHeader.read(stream, bytes.size.toLong()))
+    assertEquals(IconRasterHeader.Size(8192, 4096),
+      IconRasterHeader.read(pngDimensions(8192, 4096).inputStream(), png.size.toLong()))
+  }
+
+  @Test fun misnamedRastersStillObeyArchiveInputExpansionAndEntryLimits() {
+    val bytes = zip("res/drawable-xxhdpi/dev.example.png" to jpeg())
+    assertThrows(IOException::class.java) { inspect(file(bytes), IconPackLimits(maxInputBytes = bytes.size - 1L)) }
+    assertThrows(IOException::class.java) { inspect(file(bytes), IconPackLimits(maxEntryBytes = 8)) }
+    val two = zip("res/drawable-xxhdpi/dev.one.png" to png,
+      "res/drawable-xxhdpi/dev.two.png" to webp("VP8L" to vp8l(1, 1)))
+    assertThrows(IOException::class.java) { inspect(file(two), IconPackLimits(maxEntries = 1)) }
   }
 
   @Test fun readsNativeMtzWithoutRewritingOriginalOrExtractingEntryPaths() {
@@ -388,6 +521,48 @@ class IconPackArchiveTest {
   }.toByteArray()
   private val png = Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aH2kAAAAASUVORK5CYII=")
 
+  private fun pngDimensions(width: Int, height: Int) = png.copyOf().also {
+    ByteBuffer.wrap(it).putInt(16, width).putInt(20, height)
+  }
+
+  /** Minimal structural headers; entropy decoding remains the native renderer's responsibility. */
+  private fun jpeg(width: Int = 7, height: Int = 11, metadataSegments: Int = 0, progressive: Boolean = false): ByteArray =
+    ByteArrayOutputStream().also { output ->
+      output.write(byteArrayOf(0xff.toByte(), 0xd8.toByte()))
+      repeat(metadataSegments) {
+        output.write(byteArrayOf(0xff.toByte(), 0xe1.toByte(), 0xff.toByte(), 0xff.toByte()))
+        output.write(ByteArray(65533))
+      }
+      output.write(byteArrayOf(0xff.toByte(), (if (progressive) 0xc2 else 0xc0).toByte(), 0, 11, 8,
+        (height shr 8).toByte(), height.toByte(), (width shr 8).toByte(), width.toByte(), 1, 1, 0x11, 0))
+      output.write(byteArrayOf(0xff.toByte(), 0xda.toByte(), 0, 8, 1, 1, 0, 0, 63, 0))
+      output.write(byteArrayOf(0, 0xff.toByte(), 0xd9.toByte()))
+    }.toByteArray()
+
+  private fun vp8(width: Int, height: Int) =
+    byteArrayOf(0x10, 0, 0, 0x9d.toByte(), 1, 0x2a, width.toByte(), (width shr 8).toByte(),
+      height.toByte(), (height shr 8).toByte())
+
+  private fun vp8l(width: Int, height: Int) =
+    byteArrayOf(0x2f) + ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+      .putInt((width - 1) or ((height - 1) shl 14)).array()
+
+  private fun webpCanvas(width: Int, height: Int) =
+    byteArrayOf(0, 0, 0, 0, (width - 1).toByte(), ((width - 1) shr 8).toByte(), ((width - 1) shr 16).toByte(),
+      (height - 1).toByte(), ((height - 1) shr 8).toByte(), ((height - 1) shr 16).toByte())
+
+  private fun webp(vararg chunks: Pair<String, ByteArray>): ByteArray {
+    val body = ByteArrayOutputStream()
+    body.write("WEBP".toByteArray())
+    for ((type, payload) in chunks) {
+      body.write(type.toByteArray())
+      body.write(ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(payload.size).array())
+      body.write(payload)
+      if (payload.size and 1 != 0) body.write(0)
+    }
+    return "RIFF".toByteArray() + ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(body.size()).array() +
+      body.toByteArray()
+  }
 
   @Test fun indexesQualifiedNativeStemsWithoutTreatingInvalidSeparatorsAsIcons() {
     val qualified = "com.example.debug#com.example.Main"

@@ -65,8 +65,6 @@ internal class SystemUiAppIconRuntime(
     } finally { lifecycle.leave() }
   }
 
-  // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
-  @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
   fun start() {
     check(Looper.myLooper() != Looper.getMainLooper())
     check(cache == null && !stopped) { "SystemUI app icon runtime already started or stopped" }
@@ -89,6 +87,8 @@ internal class SystemUiAppIconRuntime(
     }
   }
 
+  // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
+  @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
   private fun installBridges(profile: Profile) {
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     replace(profile.consumer, "$HOOK_ID.consumer", ::consume)

@@ -53,8 +53,10 @@ class KeiHomeModule : XposedModule() {
         if (shareIcons == null) installShareIcons(param.classLoader)
       ThemeIconImportRuntime.PACKAGE_NAME ->
         if (themeIconImport == null) installThemeImportHooks(param.classLoader, info = param.applicationInfo)
-      SystemUiThemeCompatibilityRuntime.PACKAGE_NAME ->
+      SystemUiThemeCompatibilityRuntime.PACKAGE_NAME -> {
         if (systemUiTheme == null) installSystemUiThemeHooks(param.classLoader)
+        else systemUiTheme?.retryInitialization()
+      }
     }
   }
 
@@ -212,10 +214,19 @@ class KeiHomeModule : XposedModule() {
 
   private fun findSystemUiClassLoader(preferred: List<ClassLoader>): ClassLoader? =
     (preferred + listOfNotNull(
+      currentApplicationLoader(),
       Thread.currentThread().contextClassLoader,
       ClassLoader.getSystemClassLoader(),
       javaClass.classLoader,
     )).distinct().firstOrNull(SystemUiThemeCompatibilityRuntime::isHostClassLoader)
+
+  private fun currentApplicationLoader(): ClassLoader? = try {
+    (Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+      .invoke(null) as? android.app.Application)?.classLoader
+  } catch (failure: Throwable) {
+    recoverableSystemUiFailure(failure)
+    null
+  }
 
   private fun findServerClassLoader(preferred: List<ClassLoader>): ClassLoader? =
     (preferred + listOfNotNull(

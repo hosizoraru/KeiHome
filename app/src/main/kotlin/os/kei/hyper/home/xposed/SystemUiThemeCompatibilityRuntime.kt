@@ -31,12 +31,29 @@ internal class SystemUiThemeCompatibilityRuntime(
 ) {
   private val lifecycle = ThemeCompatibilityLifecycle()
   private val workers = mutableListOf<Thread>()
-  private val diagnosticQueue = ArrayBlockingQueue<Pair<String, Throwable>>(8)
+  private data class Diagnostic(val message: String, val failure: Throwable)
+  private val diagnosticQueue = ArrayBlockingQueue<Diagnostic>(8)
   private val diagnosticsScheduled = AtomicBoolean()
-  private val scheduled = Collections.newSetFromMap(IdentityHashMap<ClassLoader, Boolean>())
+  private class PluginInitialization(val apkPath: String, val stages: SystemUiInitialization) {
+    val workKey = Any()
+    @Volatile var profiles: SystemUiProfilesCache.Profiles? = null
+
+    fun needsWork(): Boolean = if (profiles == null) stages.canRun("material profile resolution")
+      else stages.canRun("material gate") || stages.canRun("volume refresh") ||
+        stages.canRun("control center refresh")
+  }
+  private val plugins = IdentityHashMap<ClassLoader, PluginInitialization>()
+  private val hostInitialization = SystemUiInitialization(::reportInitializationFailure)
+  private val bootstrapKey = Any()
+  private val initializationWork = CoalescingInitializationWork(
+    launch = { action -> launchOwned(action = action) },
+    reportFailure = { failure ->
+      queueDiagnostic("SystemUI background initialization failed; keeping native behavior", failure)
+    },
+  )
   private val handles = mutableListOf<XposedInterface.HookHandle>()
   private val installing = mutableSetOf<Pair<Method, String>>()
-  private val preferencesInitializing = AtomicBoolean()
+  private val pendingNeutralization = linkedMapOf<Pair<Method, String>, String>()
   private val enabled = AtomicBoolean()
   private val splashEnabled = AtomicBoolean(SplashAppearancePreferences.DEFAULT)
   private val materialRevision = AtomicLong(1L)
@@ -51,6 +68,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val splashPreferenceGuard = optionalGuard("splash preference")
   @Volatile private var preferences: SharedPreferences? = null
   @Volatile private var splashPreferences: SharedPreferences? = null
+  @Volatile private var hostContext: Context? = null
   private var appIconRuntime: SystemUiAppIconRuntime? = null
   private val splashPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == null || key == SplashAppearancePreferences.KEY) {
@@ -72,118 +90,170 @@ internal class SystemUiThemeCompatibilityRuntime(
   }
 
   fun install(oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
-    val factory = Class.forName(FACTORY_CLASS, false, classLoader)
-    val createLoader = factory.declaredMethods.single {
-      it.name == "createClassLoader" && it.parameterCount == 0 &&
-        it.returnType == ClassLoader::class.java && !Modifier.isStatic(it.modifiers)
+    synchronized(handles) {
+      handles.addAll(oldHooks)
+      oldHooks.filter {
+        it.id?.startsWith("keihome.systemui.") == true ||
+          it.id?.startsWith(SYSTEM_UI_APP_ICON_HOOK_ID) == true
+      }.forEach { old ->
+        val method = old.executable as? Method ?: return@forEach
+        val id = requireNotNull(old.id)
+        pendingNeutralization[method to id] = "retired hook $id@${System.identityHashCode(method)}"
+      }
     }
-    val appInfo = factory.declaredFields.single {
-      it.type == ApplicationInfo::class.java && !Modifier.isStatic(it.modifiers)
-    }.apply { isAccessible = true }
-    synchronized(handles) { handles.addAll(oldHooks) }
-    // Release old module closures immediately while the new profile is resolving.
-    // Callers retain the native decision during this short asynchronous handover.
-    oldHooks.filter {
-      (it.id?.startsWith(REFRESH_ID_PREFIX) == true && it.id != LOADER_ID) ||
-        it.id?.startsWith("keihome.systemui.notification.") == true
-    }.forEach {
-      replace(it.executable as Method, requireNotNull(it.id), XposedInterface.Hooker { chain -> chain.proceed() })
-    }
-    val loaderGuard = optionalGuard("plugin scheduling")
-    replace(createLoader, LOADER_ID, XposedInterface.Hooker { chain ->
-      if (!lifecycle.enter()) chain.proceed() else try {
-        val result = chain.proceed()
-        loaderGuard.run(Unit) {
-          val info = appInfo.get(chain.thisObject) as? ApplicationInfo
-          if (result is ClassLoader && info?.packageName == PLUGIN_PACKAGE) {
-            scheduleProfile(result, info.sourceDir)
-          }
+    retryInitialization()
+  }
+
+  fun retryInitialization() {
+    initializationWork.submit(bootstrapKey) {
+      neutralizeRetiredHooks()
+      val existing = synchronized(plugins) { plugins.entries.map { it.key to it.value.apkPath } }
+      hostInitialization.run("plugin loader hook") {
+        val factory = Class.forName(FACTORY_CLASS, false, classLoader)
+        val createLoader = factory.declaredMethods.single {
+          it.name == "createClassLoader" && it.parameterCount == 0 &&
+            it.returnType == ClassLoader::class.java && !Modifier.isStatic(it.modifiers)
         }
-        result
-      } finally { lifecycle.leave() }
-    })
-    launchOwned {
-      initializePreferences()
-      try {
-        val prefs = xposed.getRemotePreferences(SplashAppearancePreferences.GROUP)
+        val appInfo = factory.declaredFields.single {
+          it.type == ApplicationInfo::class.java && !Modifier.isStatic(it.modifiers)
+        }.apply { isAccessible = true }
+        val loaderGuard = optionalGuard("plugin scheduling")
+        replace(createLoader, LOADER_ID, XposedInterface.Hooker { chain ->
+          if (!lifecycle.enter()) chain.proceed() else try {
+            val result = chain.proceed()
+            loaderGuard.run(Unit) {
+              val info = appInfo.get(chain.thisObject) as? ApplicationInfo
+              if (result is ClassLoader && info?.packageName == PLUGIN_PACKAGE) {
+                scheduleProfile(result, info.sourceDir)
+              }
+            }
+            result
+          } finally { lifecycle.leave() }
+        })
+        xposed.log(Log.INFO, TAG, "Watching the native SystemUI plugin loader")
+        true
+      }
+      initializeMaterialPreferences()
+      val splashReady = hostInitialization.run("splash preferences") {
+        val prefs = splashPreferences ?: xposed.getRemotePreferences(SplashAppearancePreferences.GROUP)
+          .also { splashPreferences = it }
         prefs.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
-        splashPreferences = prefs
-        splashPreferenceListener.onSharedPreferenceChanged(prefs, SplashAppearancePreferences.KEY)
+        splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
+        true
+      }
+      if (splashReady) hostInitialization.run("splash hooks") {
         SplashBackgroundRuntime(xposed, classLoader, lifecycle, splashEnabled, ::replace,
           ::reportOptionalFailure).install()
-      } catch (failure: Throwable) {
-        recoverableSystemUiFailure(failure)
-        xposed.log(Log.WARN, "KeiHomeSplash", "Native splash profile unavailable; keeping system behavior", failure)
+        true
       }
       // On hot reload the plugin already exists. Read the host's live loader,
       // never create a second loader for the same plugin.
-      val injector = Class.forName(INJECTOR_CLASS, false, classLoader)
-      val cache = injector.declaredFields.single {
-        Modifier.isStatic(it.modifiers) && Map::class.java.isAssignableFrom(it.type)
-      }.apply { isAccessible = true }.get(null) as Map<*, *>
-      val loader = cache[PLUGIN_PACKAGE] as? ClassLoader
-      val app = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
-        .invoke(null) as? Application
-      if (loader != null && app != null) {
-        scheduleProfile(loader, app.packageManager.getApplicationInfo(PLUGIN_PACKAGE, 0).sourceDir)
+      hostInitialization.run("live plugin discovery") {
+        val injector = Class.forName(INJECTOR_CLASS, false, classLoader)
+        val cache = injector.declaredFields.single {
+          Modifier.isStatic(it.modifiers) && Map::class.java.isAssignableFrom(it.type)
+        }.apply { isAccessible = true }.get(null) as Map<*, *>
+        val loader = cache[PLUGIN_PACKAGE] as? ClassLoader ?: return@run false
+        val app = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+          .invoke(null) as? Application ?: return@run false
+        if (existing.none { it.first === loader }) {
+          scheduleProfile(loader, app.packageManager.getApplicationInfo(PLUGIN_PACKAGE, 0).sourceDir)
+        }
+        true
+      }
+      // A failed profile may have been scheduled before PackageReady.
+      existing.forEach { (loader, apkPath) -> scheduleProfile(loader, apkPath) }
+    }
+  }
+
+  private fun neutralizeRetiredHooks() {
+    val pending = synchronized(handles) { pendingNeutralization.toMap() }
+    pending.forEach { (target, feature) ->
+      hostInitialization.run(feature) {
+        if (synchronized(handles) { target !in pendingNeutralization }) return@run true
+        replace(target.first, target.second, XposedInterface.Hooker { chain -> chain.proceed() })
+        synchronized(handles) { target !in pendingNeutralization }
       }
     }
-    xposed.log(Log.INFO, TAG, "Watching the native SystemUI plugin loader")
   }
 
   private fun scheduleProfile(loader: ClassLoader, apkPath: String) {
-    synchronized(scheduled) { if (!scheduled.add(loader)) return }
-    launchOwned {
-      initializePreferences()
-      val application = Class.forName("android.app.ActivityThread")
-        .getDeclaredMethod("currentApplication").invoke(null) as? Application
-      val hostContext = application ?: runCatching {
-        val thread = Class.forName("android.app.ActivityThread")
-          .getDeclaredMethod("currentActivityThread").invoke(null)
-        thread.javaClass.getDeclaredMethod("getSystemContext")
-          .apply { isAccessible = true }.invoke(thread) as Context
-      }.getOrNull()
-      val profiles = SystemUiProfilesCache.resolve(
-        loader = loader,
-        apkPath = apkPath,
-        directory = hostContext?.codeCacheDir,
-      )
-      val profile = profiles.material
-      if (hostContext != null && appIconRuntime == null) {
-        try {
-          SystemUiAppIconRuntime(hostContext, loader, lifecycle, ::replace,
-            ::reportOptionalFailure,
-            report = { priority, tag, message -> xposed.log(priority, tag, message) },
-          ).also { appIconRuntime = it }.start()
-        } catch (failure: Throwable) {
-          recoverableSystemUiFailure(failure)
-          reportOptionalFailure("notification app icon install", failure)
-        }
+    val initialization = synchronized(plugins) {
+      plugins.getOrPut(loader) {
+        PluginInitialization(apkPath, SystemUiInitialization(::reportInitializationFailure))
       }
-      xposed.log(Log.INFO, TAG, "SystemUI profile descriptors: " + if (profiles.restored) "restored" else "resolved")
-      val materialGuard = optionalGuard("material capability")
-      replace(profile.themedGate, MATERIAL_ID, XposedInterface.Hooker { chain ->
-        if (!lifecycle.enter()) chain.proceed() else try {
-          val original = chain.proceed()
-          if (original != false || !enabled.get()) original else materialGuard.run(original) {
-            val context = chain.getArg(0) as Context
-            val capable = profile.capabilityGate.invoke(null, profile.capabilityArgument(context)) as Boolean
-            if (capable && restoredLogged.compareAndSet(false, true)) {
-              Log.i(TAG, "Restored theme-limited material; native=false capability=true; theme identity unchanged")
-            }
-            if (enabled.get()) capable else original
+    }
+    if (!initialization.needsWork() && !hostInitialization.canRun("notification icons") &&
+      !hostInitialization.canRun("material preferences")) return
+    initializationWork.submit(initialization.workKey) {
+      initializeMaterialPreferences()
+      hostInitialization.run("host context") context@{
+        val threadClass = Class.forName("android.app.ActivityThread")
+        val application = threadClass.getDeclaredMethod("currentApplication").invoke(null) as? Application
+        val context = application ?: run {
+          val thread = threadClass.getDeclaredMethod("currentActivityThread").invoke(null)
+            ?: return@context false
+          thread.javaClass.getDeclaredMethod("getSystemContext")
+            .apply { isAccessible = true }.invoke(thread) as? Context
+        }
+        hostContext = context
+        context != null
+      }
+      // Notification icons do not depend on material profiles or their preferences.
+      hostInitialization.run("notification icons") {
+        val context = hostContext
+        if (context == null) return@run false
+        appIconRuntime?.let {
+          check(it.stop(System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(6))) {
+            "Previous notification icon initialization still owns resources: ${it.retirementStatus()}"
           }
-        } finally { lifecycle.leave() }
-      })
-      profile.volumeRefresh?.let(::installVolumeRefresh)
-      profile.volumeRefreshUnavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
-      val controlCenter = profiles.controlCenter
-      controlCenter.profile?.let(::installControlCenterRefresh)
-      controlCenter.unavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
-      profile.callers.forEach { xposed.deoptimize(it) }
-      xposed.log(Log.INFO, TAG,
-        "Dynamic material profile ready: ${profile.themedGate.name} -> ${profile.capabilityGate.name}; " +
-          "callers=${profile.callers.size} enabled=${enabled.get()}")
+          appIconRuntime = null
+        }
+        SystemUiAppIconRuntime(context, loader, lifecycle, ::replace,
+          ::reportOptionalFailure,
+          report = { priority, tag, message -> xposed.log(priority, tag, message) },
+        ).also { appIconRuntime = it }.start()
+        true
+      }
+      val stages = initialization.stages
+      stages.run("material profile resolution") {
+        initialization.profiles = SystemUiProfilesCache.resolve(loader, apkPath, hostContext?.codeCacheDir)
+        true
+      }
+      val profiles = initialization.profiles ?: return@submit
+      val profile = profiles.material
+      stages.run("material gate") {
+        xposed.log(Log.INFO, TAG, "SystemUI profile descriptors: " + if (profiles.restored) "restored" else "resolved")
+        val materialGuard = optionalGuard("material capability")
+        replace(profile.themedGate, MATERIAL_ID, XposedInterface.Hooker { chain ->
+          if (!lifecycle.enter()) chain.proceed() else try {
+            val original = chain.proceed()
+            if (original != false || !enabled.get()) original else materialGuard.run(original) {
+              val context = chain.getArg(0) as Context
+              val capable = profile.capabilityGate.invoke(null, profile.capabilityArgument(context)) as Boolean
+              if (capable && restoredLogged.compareAndSet(false, true)) {
+                Log.i(TAG, "Restored theme-limited material; native=false capability=true; theme identity unchanged")
+              }
+              if (enabled.get()) capable else original
+            }
+          } finally { lifecycle.leave() }
+        })
+        profile.callers.forEach { xposed.deoptimize(it) }
+        xposed.log(Log.INFO, TAG,
+          "Dynamic material profile ready: ${profile.themedGate.name} -> ${profile.capabilityGate.name}; " +
+            "callers=${profile.callers.size} enabled=${enabled.get()}")
+        true
+      }
+      stages.run("volume refresh") {
+        profile.volumeRefresh?.let(::installVolumeRefresh)
+        profile.volumeRefreshUnavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
+        true
+      }
+      stages.run("control center refresh") {
+        profiles.controlCenter.profile?.let(::installControlCenterRefresh)
+        profiles.controlCenter.unavailableReason?.let { xposed.log(Log.INFO, TAG, it) }
+        true
+      }
     }
   }
 
@@ -310,20 +380,30 @@ internal class SystemUiThemeCompatibilityRuntime(
   }
 
   private fun reportOptionalFailure(feature: String, failure: Throwable) {
+    queueDiagnostic("Optional SystemUI $feature disabled until reload; keeping native behavior", failure)
+  }
+
+  private fun reportInitializationFailure(feature: String, failures: Int, exhausted: Boolean, failure: Throwable) {
+    val retry = if (exhausted) "no further attempts this generation"
+      else "retry allowed on the next lifecycle signal"
+    queueDiagnostic("Initialization $feature failed ($failures/2); $retry; keeping native behavior", failure)
+  }
+
+  private fun queueDiagnostic(message: String, failure: Throwable) {
     // This can run under a framework listener lock. Only local logging/enqueueing here.
-    Log.w(TAG, "Optional SystemUI $feature disabled until reload; keeping native behavior", failure)
-    if (diagnosticQueue.offer(feature to failure)) flushDiagnostics()
+    Log.w(TAG, message, failure)
+    if (diagnosticQueue.offer(Diagnostic(message, failure))) flushDiagnostics()
   }
 
   private fun flushDiagnostics() {
     if (!diagnosticsScheduled.compareAndSet(false, true)) return
     try {
-      launchOwned {
+      val accepted = launchOwned(diagnostic = true) {
         try {
           while (true) {
-            val (feature, failure) = diagnosticQueue.poll() ?: break
+            val (message, failure) = diagnosticQueue.poll() ?: break
             try {
-              xposed.log(Log.WARN, TAG, "Optional $feature disabled until reload; keeping native behavior", failure)
+              xposed.log(Log.WARN, TAG, message, failure)
             } catch (reportFailure: Throwable) {
               recoverableSystemUiFailure(reportFailure)
               Log.w(TAG, "Framework diagnostic delivery unavailable", reportFailure)
@@ -334,6 +414,7 @@ internal class SystemUiThemeCompatibilityRuntime(
           if (diagnosticQueue.isNotEmpty()) flushDiagnostics()
         }
       }
+      if (!accepted) diagnosticsScheduled.set(false)
     } catch (reportFailure: Throwable) {
       diagnosticsScheduled.set(false)
       recoverableSystemUiFailure(reportFailure)
@@ -353,31 +434,38 @@ internal class SystemUiThemeCompatibilityRuntime(
     xposed.log(Log.INFO, TAG, "Volume materials refresh at the native next-show boundary")
   }
 
-  private fun initializePreferences() {
-    if (!preferencesInitializing.compareAndSet(false, true)) return
-    try {
-      if (preferences != null) return
+  private fun initializeMaterialPreferences() {
+    hostInitialization.run("material preferences") {
       // Acquiring the initial remote snapshot may use Binder; hold no module monitor.
-      val prefs = xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP)
+      val prefs = preferences ?: xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP)
+        .also { preferences = it }
       prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
-      preferences = prefs
-      preferenceListener.onSharedPreferenceChanged(prefs, ThemeEffectsPreferences.KEY)
-    } finally {
-      preferencesInitializing.set(false)
+      val selected = prefs.getBoolean(ThemeEffectsPreferences.KEY, false)
+      if (enabled.getAndSet(selected) != selected) materialRevision.incrementAndGet()
+      restoredLogged.set(false)
+      true
     }
   }
 
   /** No parsing, provider access or waiting on a configuration/UI callback. */
-  private fun launchOwned(action: () -> Unit) {
-    if (!lifecycle.enter()) return
+  private fun launchOwned(diagnostic: Boolean = false, action: () -> Unit): Boolean {
+    if (!lifecycle.enter()) return false
     val thread = try {
       Thread({
         try {
-          android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-          action()
+          runWithInitializationPriority(
+            setPriority = { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) },
+            reportFailure = { Log.w(TAG, "Background priority unavailable; continuing initialization", it) },
+            action = action,
+          )
         } catch (failure: Throwable) {
           recoverableSystemUiFailure(failure)
-          Log.w(TAG, "Material compatibility unavailable; keeping native behavior", failure)
+          if (diagnostic) {
+            diagnosticsScheduled.set(false)
+            Log.w(TAG, "Framework diagnostic worker unavailable", failure)
+          } else {
+            queueDiagnostic("SystemUI background initialization failed; keeping native behavior", failure)
+          }
         } finally { lifecycle.leave() }
       }, "KeiHomeMaterialProfile").apply { isDaemon = true }
     } catch (failure: Throwable) {
@@ -393,6 +481,7 @@ internal class SystemUiThemeCompatibilityRuntime(
       lifecycle.leave()
       throw failure
     }
+    return true
   }
 
   fun retire(saveState: () -> Unit): Boolean {
@@ -400,6 +489,7 @@ internal class SystemUiThemeCompatibilityRuntime(
     val retired = lifecycle.retire(
       workersStopped = { synchronized(workers) { workers.none { it.isAlive } } },
     ) {
+      initializationWork.close()
       try {
         check(appIconRuntime?.stop(deadline) != false) {
           "Notification icon runtime has not stopped: ${appIconRuntime?.retirementStatus()}"
@@ -415,8 +505,10 @@ internal class SystemUiThemeCompatibilityRuntime(
       }
       preferences = null
       splashPreferences = null
+      hostContext = null
     }
     if (!retired) {
+      initializationWork.reopen()
       // A callback rejected during a failed retirement must not leave live settings stale.
       preferences?.let { preferenceListener.onSharedPreferenceChanged(it, null) }
       splashPreferences?.let { splashPreferenceListener.onSharedPreferenceChanged(it, null) }
@@ -439,6 +531,7 @@ internal class SystemUiThemeCompatibilityRuntime(
       synchronized(handles) {
         handles.remove(previous)
         handles += installed
+        pendingNeutralization.remove(key)
       }
     } finally {
       synchronized(handles) { installing.remove(key) }
@@ -449,9 +542,9 @@ internal class SystemUiThemeCompatibilityRuntime(
     const val PACKAGE_NAME = "com.android.systemui"
     private const val PLUGIN_PACKAGE = "miui.systemui.plugin"
     private const val FACTORY_CLASS = "com.android.systemui.shared.plugins.PluginInstance\$PluginFactory"
+    private const val APPLICATION_CLASS = "com.android.systemui.SystemUIApplication"
     private const val INJECTOR_CLASS = "com.miui.systemui.plugin.PluginInstanceInjector"
     private const val TAG = "KeiHomeSystemUiTheme"
-    private const val REFRESH_ID_PREFIX = "keihome.systemui.material."
     private const val LOADER_ID = "keihome.systemui.material.loader.v1"
     private const val MATERIAL_ID = "keihome.systemui.material.gate.v1"
     private const val VOLUME_REFRESH_ID = "keihome.systemui.material.volume-show.v1"
@@ -461,8 +554,18 @@ internal class SystemUiThemeCompatibilityRuntime(
     private const val TILE_BACKGROUND_ID = "keihome.systemui.material.tile-background.v1"
     private const val SLIDER_REFRESH_ID = "keihome.systemui.material.slider-blend.v1"
 
-    fun isHostClassLoader(loader: ClassLoader): Boolean =
-      runCatching { Class.forName(FACTORY_CLASS, false, loader) }.isSuccess
+    fun isHostClassLoader(loader: ClassLoader): Boolean {
+      try {
+        Class.forName(FACTORY_CLASS, false, loader)
+        return true
+      } catch (failure: Throwable) { recoverableSystemUiFailure(failure) }
+      return try {
+        Application::class.java.isAssignableFrom(Class.forName(APPLICATION_CLASS, false, loader))
+      } catch (failure: Throwable) {
+        recoverableSystemUiFailure(failure)
+        false
+      }
+    }
   }
 }
 

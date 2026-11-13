@@ -21,6 +21,8 @@ import org.luckypray.dexkit.annotations.DexKitExperimentalApi
 import org.luckypray.dexkit.result.FieldUsingType
 import org.luckypray.dexkit.result.MethodData
 
+internal const val SYSTEM_UI_APP_ICON_HOOK_ID = "systemui.app-icons.get-bitmap.v1"
+
 /**
  * Small SystemUI boundary for app icons.
  *
@@ -489,6 +491,6 @@ internal class SystemUiAppIconRuntime(
     const val QUIET_ICONS_FIELD = "$OWNER_DESCRIPTOR->mQuietFancyIconsCache:Landroid/util/SparseArray;"
     const val CONVERT_METHOD = "Lcom/miui/utils/DrawableUtils;->drawable2ImmutableBitmap(Landroid/graphics/drawable/Drawable;II)Landroid/graphics/Bitmap;"
     const val APP_ICON_CONSUMER = "Lcom/android/systemui/statusbar/notification/row/NotificationRowContentBinderInjectorImpl;->getAppIcon(Landroid/app/Notification;)Landroid/graphics/drawable/Icon;"
-    const val HOOK_ID = "systemui.app-icons.get-bitmap.v1"
+    const val HOOK_ID = SYSTEM_UI_APP_ICON_HOOK_ID
   }
 }

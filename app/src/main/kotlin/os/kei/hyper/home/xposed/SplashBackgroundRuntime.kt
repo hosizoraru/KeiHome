@@ -2,10 +2,8 @@ package os.kei.hyper.home.xposed
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.drawable.ColorDrawable
 import android.util.Log
 import android.util.Pair
-import android.util.TypedValue
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
@@ -19,7 +17,12 @@ internal class SplashBackgroundRuntime(
   private val replace: (Method, String, XposedInterface.Hooker) -> Unit,
   private val reportFailure: (String, Throwable) -> Unit,
 ) {
-  private data class Request(val context: Context, val drawer: Any, val protectedSurface: Boolean)
+  private data class Request(
+    val context: Context,
+    val protectedSurface: Boolean,
+    var attributes: Any? = null,
+    var backgroundProtected: Boolean? = null,
+  )
   private val request = ThreadLocal<Request>()
   private val appliedLogged = AtomicBoolean()
 
@@ -32,9 +35,8 @@ internal class SplashBackgroundRuntime(
       info, Int::class.javaPrimitiveType, java.util.function.Consumer::class.java)
     val background = drawer.getDeclaredMethod("getBGColorFromCache", activity,
       java.util.function.IntSupplier::class.java)
-    val tmp = drawer.getDeclaredField("mTmpAttrs").apply { isAccessible = true }
-    val icon = attrs.getDeclaredField("mSplashScreenIcon").apply { isAccessible = true }
-    val brand = attrs.getDeclaredField("mBrandingImage").apply { isAccessible = true }
+    val estimate = drawer.getDeclaredMethod("estimateTaskBackgroundColor", Context::class.java)
+    val readAttrs = drawer.getDeclaredMethod("getWindowAttrs", Context::class.java, attrs)
     val windowResource = attrs.getDeclaredField("mWindowBgResId").apply { isAccessible = true }
     val splashColor = attrs.getDeclaredField("mWindowBgColor").apply { isAccessible = true }
     val snapshot = info.getDeclaredField("mQSFileDescriptor").apply { isAccessible = true }
@@ -43,20 +45,20 @@ internal class SplashBackgroundRuntime(
       Context::class.java, info, Int::class.javaPrimitiveType,
       android.graphics.drawable.Drawable::class.java, activity)
     check(make.returnType.name == "android.window.SplashScreenView" &&
-      background.returnType == Int::class.javaPrimitiveType && modify.returnType == Pair::class.java)
+      background.returnType == Int::class.javaPrimitiveType &&
+      estimate.returnType == Int::class.javaPrimitiveType &&
+      readAttrs.returnType == Void.TYPE && modify.returnType == Pair::class.java)
     fun protected(current: Request): Boolean {
       if (current.protectedSurface) return true
-      val values = tmp.get(current.drawer)
-      if (icon.get(values) != null || brand.get(values) != null) return true
+      val values = current.attributes ?: return true
+      current.backgroundProtected?.let { return it }
       val declaredColor = splashColor.getInt(values)
-      if (declaredColor != 0 && !SplashBackgroundPolicy.isNeutral(declaredColor)) return true
       val resource = windowResource.getInt(values)
-      if (resource != 0) {
-        val value = TypedValue()
-        current.context.resources.getValue(resource, value, true)
-        if (value.type !in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT) return true
-      }
-      return false
+      val protected = (declaredColor != 0 && !SplashBackgroundPolicy.isNeutral(declaredColor)) ||
+        (resource != 0 &&
+          SplashBackgroundDrawable.backgroundColor(current.context.getDrawable(resource)) == null)
+      current.backgroundProtected = protected
+      return protected
     }
     val requestGuard = guard("request")
     replace(make, "$PREFIX.request", XposedInterface.Hooker { chain ->
@@ -64,11 +66,41 @@ internal class SplashBackgroundRuntime(
         val previous = request.get()
         try {
           val current = requestGuard.run<Request?>(null) {
-            Request(chain.getArg(0) as Context, requireNotNull(chain.thisObject),
+            Request(chain.getArg(0) as Context,
               (chain.getArg(2) as Int) == 4 || snapshot.get(chain.getArg(1)) != null)
           }
           if (current == null) request.remove() else request.set(current)
           chain.proceed()
+        } finally {
+          if (previous == null) request.remove() else request.set(previous)
+          lifecycle.leave()
+        }
+      }
+    })
+    val attrsGuard = guard("attributes")
+    replace(readAttrs, "$PREFIX.attributes", XposedInterface.Hooker { chain ->
+      val current = request.get()
+      if (current == null || !enabled.get() || !lifecycle.enter()) chain.proceed() else try {
+        val original = chain.proceed()
+        attrsGuard.run(Unit) {
+          current.attributes = chain.getArg(1)
+          current.backgroundProtected = null
+        }
+        original
+      } finally { lifecycle.leave() }
+    })
+    val estimateGuard = guard("estimate")
+    replace(estimate, "$PREFIX.estimate", XposedInterface.Hooker { chain ->
+      if (!enabled.get() || !lifecycle.enter()) chain.proceed() else {
+        val previous = request.get()
+        try {
+          val current = Request(chain.getArg(0) as Context, false)
+          request.set(current)
+          val original = chain.proceed()
+          estimateGuard.run(original) {
+            if (original is Int && !protected(current)) adapt(current.context, original)
+            else original
+          }
         } finally {
           if (previous == null) request.remove() else request.set(previous)
           lifecycle.leave()
@@ -84,13 +116,15 @@ internal class SplashBackgroundRuntime(
       val current = request.get() ?: return@nativeResult result
       if (result !is Pair<*, *> || protected(current)) return@nativeResult result
       // HyperOS type 6 overlays windowBackground on the modern splash color.
-      // Only its solid-color result is eligible; bitmap/quick-start snapshots retain ownership.
-      val drawable = result.second as? ColorDrawable ?: return@nativeResult result
-      if (drawable.alpha != 255) return@nativeResult result
-      val color = adapt(current.context, drawable.color)
-      if (color == drawable.color) result else Pair(result.first, ColorDrawable(color))
+      // Clone only a plain backing layer; preserve the artwork above it.
+      val drawable = result.second as? android.graphics.drawable.Drawable ?: return@nativeResult result
+      val night = current.context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+        Configuration.UI_MODE_NIGHT_YES
+      val adapted = SplashBackgroundDrawable.adapt(drawable, night)
+      if (adapted === drawable) result else Pair(result.first, adapted)
     })
     xposed.deoptimize(make)
+    xposed.deoptimize(estimate)
     xposed.log(Log.INFO, TAG, "Native Shell splash background profile ready; enabled=${enabled.get()}")
   }
 

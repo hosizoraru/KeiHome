@@ -43,18 +43,25 @@ next cold launch without a process restart or color-cache rewrite.
   KeiHome guard limits RGB channel spread to 16, preserving colored branding.
 - Follow the application's effective Android resource night configuration,
   including an application-level forced-light override.
-- Preserve custom splash icons, branding images, non-color resource
+- Preserve custom splash icons, branding images, complex resource
   backgrounds, explicitly colored splash backgrounds, legacy type-4 artwork,
   and supplied quick-start snapshot descriptors.
 - Adapt the native background result after its cache lookup, before the native
   builder derives icon contrast and system-bar appearance.
-- Also adapt an eligible solid-color type-6 overlay. Replace the `ColorDrawable`
-  rather than mutate an application/shared drawable.
-- Preserve bitmap, layered and quick-start preview ownership. No image is
-  sampled or recolored by this feature.
+- Also adapt an eligible solid-color type-6 overlay or the full-size, opaque
+  first `ColorDrawable` backing layer of a `LayerDrawable`. Clone the drawable
+  rather than mutate an application/shared resource. Subsequent artwork layers
+  and their geometry are retained.
+- Preserve bitmap and quick-start preview ownership. No image is sampled or
+  recolored by this feature. An inset, sized, filtered or translucent base does
+  not qualify as a solid backing layer.
 
 The profile resolves the exact installed Shell method/field contract. Hook work
-runs on the existing splash worker and uses a scoped thread-local request.
+runs on the existing splash worker and uses a scoped thread-local request for
+both the earlier background estimate and the final splash construction. Each
+request captures its own native attributes instead of relying on a shared
+temporary attribute object. Background eligibility is resolved once per
+captured attribute set.
 There is no new timer, animation, worker loop, package scan or file I/O in the
 hook. Exceptions in optional color adaptation retain the native result. Hook
 leases and remote listeners participate in the existing hot-reload retirement.
@@ -83,3 +90,37 @@ launch captures also show the reference's dark native transition.
 The [Android splash-screen contract](https://developer.android.com/develop/ui/views/launch/splash-screen)
 remains responsible for declared icons, backgrounds and app-controlled exit
 animation. Apps should still provide their own night resources.
+
+## November 13 first-frame correction
+
+The authorized physical phone's Bilibili `windowBackground` was an opaque white
+`ColorDrawable` followed by a branding `BitmapDrawable` inside a `LayerDrawable`.
+The modern splash-background attribute was transparent. The previous blanket
+drawable protection rejected that resource. A cold-launch recording showed a
+white system `Splash Screen tv.danmaku.bili` until the application's first frame,
+approximately one second later. The user recording also showed a white surface
+followed by a later dark surface.
+
+Custom icons and branding no longer exempt a separate eligible backing color.
+The drawable adapter clones the source's existing constant state without
+reapplying resource density, then changes only that backing color. The source,
+shared copies, overlaid artwork and presentation properties remain unchanged.
+This does not change application windows, ads, snapshots or first-frame timing.
+
+Targeted validation:
+
+- Both existing policy JVM tests pass.
+- Nine Android device tests pass, covering rendered branding pixels, unchanged
+  source/shared copies, density/padding/geometry, tint/filter and unsupported
+  drawable rejection.
+- The first device run caught a genuine density/padding regression in cloning;
+  that implementation was corrected before the passing rerun.
+- Ordinary API 102 updates to diagnostic builds `109000439` and `109000440`
+  passed on the unlocked Phone AVD with unchanged critical process identities.
+- The physical diagnostic cold launch showed a dark system starting surface
+  with the original Bilibili branding, replacing the previous white surface.
+  This is not a claim that application-owned pages cannot independently draw
+  white.
+
+Evidence: `.artifacts/research/splash-first-frame-20261113/`. Final Release and
+installation identities are recorded separately there.

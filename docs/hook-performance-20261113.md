@@ -187,3 +187,13 @@ timeout; a later attempt passed the new unlock checks but rejected a
 performance samples. Device acceptance and all-host ordinary-reload acceptance
 for the performance changes therefore remain pending. No new Release has been
 declared device-validated.
+
+The later [dark-icon closeout](perfect-dark-icon-closeout.md) established that
+the emulator-console screenshot interface can return a complete full-resolution
+image when guest `screencap` times out. Deployment now uses validated console
+capture by default, with explicit `auto` mode retaining guest-first fallback.
+This does not repair guest capture or establish GUI responsiveness by itself.
+All user/keyguard, WMP, SystemUI and recent-failure gates remain mandatory;
+later recovery checks also recorded Settings/Weather Provider failures and
+rejected deployment. Standalone software pixel/cache assertions are recorded
+separately from live hot-reload acceptance.

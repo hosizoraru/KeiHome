@@ -1,7 +1,7 @@
 # Dock glass checks
 
 The current Phone inventory in `fixtures.json` includes 7722, 8593, 8602, 8604,
-8607, 9209, 9226 and 9239. Regenerate strict patterns with `generate_patterns.py`;
+8607, 9209, 9226, 9239 and 9248. Regenerate strict patterns with `generate_patterns.py`;
 `verify_fixture_oracle.py --binary PATH` independently compares every inventory
 entry to native debugdata and caller relationships. See the
 [9239 checkpoint](../../../docs/launcher-9239-compatibility.md) for the final
@@ -136,3 +136,50 @@ LR and non-scratch registers. Extended renderer cases cover height, Pad/custom
 radius, screen-reference geometry and one/five-icon limits. The policy tests
 exercise packed options validation and quiet lease renewals. See
 `docs/dock-customization.md` for source-coordinate limits and device acceptance.
+
+## Launcher 9248 offline checkpoint (2026-11-14)
+
+Evidence and runnable drivers are in
+`.artifacts/research/launcher-9248-20261114/dock-material/`. Before regeneration,
+the production Dock resolver rejected 9248 with `ambiguous Dock instruction
+roles`; 9239 passed. The independent oracle derives the 9248 closures from
+debugdata symbols, named BL targets and Dart frame boundaries: inner
+`0x10e90cc`, outer `0x10e86ec`, inner size `0x4c0`. These addresses remain test
+oracles and are not production admission criteria.
+
+Full inventory regeneration adds nine strict structural alternatives while
+preserving all 121 prior instruction arrays verbatim, including their names,
+words and masks. Every old dispatch reference retains its order; nine new
+references are appended. The production change is limited to
+`dock_glass_patterns.inc`; generator masks, resolver guards, material/refresh
+profiles and native bridges are unchanged. The apparent removed lines in the
+default Git diff are an alignment artifact: `--diff-algorithm=patience` reports
+1,334 additions and zero deletions against `d72218e`.
+`pattern-audit.json` records the retained arrays, dispatch references, each new
+alternative's differences and deterministic regeneration.
+
+All nine fixtures pass the independent symbol/call-graph oracle and 128 Dock
+structural/rejection checks each (1,152 total). Source and release 109000457
+bridge bytes each pass 315 mode cases, 846 refresh cases and 3,411 geometry
+cases, including 579 five-item clearance cases. The fixture-dependent mode and
+refresh runs cover all nine versions. Geometry uses authored object graphs
+and configured tags rather than resolving a fixture.
+
+Reproduce from the checkout root:
+
+```sh
+PY=.artifacts/research/launcher-9248-20261114/venv/bin/python
+E=.artifacts/research/launcher-9248-20261114/dock-material
+"$PY" "$E/inspect_fixture.py"
+"$PY" "$E/run_focused.py"
+"$PY" "$E/run_runtime_matrix.py" --payload "$E/dock-source.so" --tag source-nine --material-source
+"$PY" "$E/run_runtime_matrix.py" --payload .artifacts/releases/109000457/libkeihome_hyos_lsp.so --tag shipping-nine
+```
+
+`run_focused.py --resume` and `run_runtime_matrix.py --resume` reuse successful
+commands for identical inputs. The original release payload predates the new
+Dock profile candidates: executing its bridge bytes does not establish that
+the release resolver admits 9248. Validate a newly linked native payload with
+`run_runtime_matrix.py --payload PATH --tag TAG` and retain its SHA-256.
+These checks do not establish Dart VM GC, Flutter rendering, device visuals,
+installation or deployment acceptance.

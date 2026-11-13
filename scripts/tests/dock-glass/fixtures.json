@@ -32,5 +32,9 @@
     "inner": "0x117d3cc",
     "phone_size": "0x4bc",
     "outer": "0x117c9e8"
+  },
+  "9248": {
+    "inner": "0x10e90cc",
+    "outer": "0x10e86ec"
   }
 }

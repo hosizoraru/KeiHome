@@ -65,3 +65,27 @@ establish resting-folder or full-device material acceptance.
 
 Unshipped backend-forcing, descriptor, XZ and GPU-cache prototypes are retained
 outside production under `.artifacts/research/dock-material-20261105/engine-experiment-source/`.
+
+## Launcher 9248 offline checkpoint (2026-11-14)
+
+`material_fixture_metadata.py` now includes 9248 in the complete nine-fixture
+inventory. The existing production material and refresh profiles already admit
+9248; no material/refresh production patterns, masks or runtime guards changed.
+Focused host checks for 9248 and the nearest 9239 fixture each pass 1,362 checks
+and 78 rejection cases; refresh profiles each pass 99 checks. The 9248 Rust
+wrapper and native-widget SDK images are also rejected by the material runner.
+
+Evidence is under
+`.artifacts/research/launcher-9248-20261114/dock-material/`. The
+`run_runtime_matrix.py` driver described in the Dock test README executes the
+material bridge against all nine fixtures. Both the source-assembled bridge and
+release 109000457 linked bytes pass 3,944 cases, including 72 native choose/
+subscription/refresh scenarios per fixture per shipping scope (Dock and search
+capsule). Folder exports remain absent; the existing folder role metadata and
+host checks do not imply shipping folder support.
+
+The source material bridge is assembled independently from the Dock payload
+when `--material-source` is supplied; its SHA-256 is recorded in the material
+report. Retain a separate matrix report for a freshly linked native payload.
+Native callbacks, moving roots and external calls are controlled by the host;
+these results do not replace device, VM GC or Flutter visual acceptance.

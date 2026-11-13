@@ -1,5 +1,26 @@
 # Select checks by the change
 
+## Phone AVD readiness
+
+After a managed recovery, unlock the device, enter the primary system desktop,
+and wait for the relevant module runtimes to initialize before measuring startup,
+running device tests, or accepting hot reload. Record the HOME activity and
+same-boot initialization evidence. Neither `sys.boot_completed=1` nor a running
+host establishes readiness. Do not delay production early-boot hooks to enforce
+this testing prerequisite.
+
+`scripts/hyperos_avd_health.py`, used by the deployment script, independently
+requires the current user to be `RUNNING_UNLOCKED` and the keyguard to report
+both `showing=false` and `inputRestricted=false`. Unavailable or ambiguous
+evidence rejects deployment. This check is read-only; subsequent ordinary
+deployments may keep KeiHome or a test screen foreground. Do not automatically
+unlock a credential-protected device.
+
+Focused regression:
+`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p test_avd_health.py -v`.
+
+## Selecting a group
+
 Routine UI work uses the smallest relevant group. A caption or glyph change
 usually needs compilation and an actual screenshot of the affected page.
 Layout or interaction changes add that component's device test. State,

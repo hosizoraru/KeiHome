@@ -11,6 +11,49 @@ SERIAL = "emulator-5580"
 DISPLAY = "4619827259835644672"
 
 
+def unlocked_user_state(text):
+    state = text.strip()
+    if state != "RUNNING_UNLOCKED":
+        raise ValueError(f"Current user is not RUNNING_UNLOCKED: {state[:160]!r}")
+    return state
+
+
+def keyguard_policy(text):
+    """Only trust unambiguous direct fields of the one live delegate dump."""
+    if re.search(r"dump\s+timeout|timed\s+out|permission denial|can't find service",
+                 text, re.IGNORECASE):
+        raise ValueError("Window policy is unavailable or timed out")
+    lines = [line.expandtabs(8) for line in text.splitlines()]
+    headers = [index for index, line in enumerate(lines)
+               if re.match(r"^\s*KeyguardServiceDelegate\b", line)]
+    if len(headers) != 1 or not re.fullmatch(r"\s*KeyguardServiceDelegate:?\s*", lines[headers[0]]):
+        raise ValueError("Window policy must contain exactly one KeyguardServiceDelegate")
+    header = headers[0]
+    indent = len(lines[header]) - len(lines[header].lstrip())
+    section = []
+    for line in lines[header + 1:]:
+        if not line.strip():
+            continue
+        depth = len(line) - len(line.lstrip())
+        if depth <= indent:
+            break
+        section.append((depth, line.strip()))
+    direct = min((depth for depth, _ in section), default=indent)
+    fields = {}
+    for depth, line in section:
+        if depth != direct:
+            continue
+        if not re.match(r"^(showing|inputRestricted)\b", line):
+            continue
+        field = re.fullmatch(r"(showing|inputRestricted)\s*=\s*(true|false)", line)
+        if not field or field[1] in fields:
+            raise ValueError("Window policy has an invalid or ambiguous keyguard field")
+        fields[field[1]] = field[2] == "true"
+    if set(fields) != {"showing", "inputRestricted"}:
+        raise ValueError("Window policy has incomplete keyguard state")
+    return fields
+
+
 def png_size(data):
     """Validate complete chunks, not just screencap's occasionally empty header."""
     if not data.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -60,7 +103,14 @@ def check_health(evidence, runner=subprocess.run):
 
     def probe(name, args, timeout):
         started = time.monotonic()
-        result = runner(["adb", "-s", SERIAL, *args], capture_output=True, timeout=timeout)
+        try:
+            result = runner(["adb", "-s", SERIAL, *args], capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            report["checks"].append({
+                "name": name, "seconds": round(time.monotonic() - started, 3),
+                "returnCode": None, "timedOut": True,
+            })
+            raise
         report["checks"].append({
             "name": name, "seconds": round(time.monotonic() - started, 3),
             "returnCode": result.returncode,
@@ -79,6 +129,18 @@ def check_health(evidence, runner=subprocess.run):
         user = probe("AMS", ["shell", "am get-current-user"], 5).strip()
         if not user.isdigit():
             raise RuntimeError("ActivityManager did not return a user ID")
+        report["currentUser"] = int(user)
+        state = probe("user-unlocked", [
+            "shell", f"am get-started-user-state {int(user)}",
+        ], 5).decode(errors="replace")
+        report["startedUserState"] = state.strip()[:160]
+        unlocked_user_state(state)
+        policy = probe("keyguard-policy", [
+            "shell", "dumpsys -t 3 window policy",
+        ], 5).decode(errors="replace")
+        report["keyguard"] = keyguard_policy(policy)
+        if any(report["keyguard"].values()):
+            raise RuntimeError("Keyguard is showing or inputRestricted; unlock before deployment")
         graphics = probe("SystemUI-renderer", [
             "shell", "dumpsys -t 3 gfxinfo com.android.systemui",
         ], 5).decode(errors="replace")
@@ -113,7 +175,7 @@ def check_health(evidence, runner=subprocess.run):
         if report["recentFailures"]:
             raise RuntimeError("Recent Provider/SystemUI/Watchdog failure; preserve the scene first")
         report["healthy"] = True
-    except (subprocess.TimeoutExpired, RuntimeError, ValueError, IndexError) as error:
+    except (subprocess.TimeoutExpired, RuntimeError, ValueError, IndexError, OSError) as error:
         report["error"] = str(error)
     finally:
         (evidence / "preflight.json").write_text(json.dumps(report, indent=2) + "\n")

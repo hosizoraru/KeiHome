@@ -118,6 +118,36 @@ class AppleBatchMatchingDeviceTest {
     assertTrue(repo.custom(app, options))
   }
 
+  @Test fun savedSevenDayReviewCanBeRetriedImmediatelyWithoutRepeatingFreshHttp() = fixture { repo, server, open ->
+    server.ambiguous = true
+    val app = target(0)
+    assertEquals(1, repo.autoMatch(listOf(app), options) { _, _ -> }.review)
+    val reopened = open()
+    val saved = reopened.matchAttempt(app, options)!!
+    assertEquals(AppleAutoMatchPolicy.HISTORY_TTL_MS, saved.retryAt - saved.attemptedAt)
+    assertEquals(0, reopened.autoMatch(listOf(app), options) { _, _ -> }.attempted)
+    assertEquals(1, reopened.autoMatch(listOf(app), options, setOf(app.packageName)) { _, _ -> }.review)
+    assertEquals(1, server.requests.size)
+    assertEquals(saved.candidates, reopened.matchAttempt(app, options)!!.candidates)
+  }
+
+  @Test fun explicitRetryRefreshesOldSearchWhileLegacyMissHistoryIsStillPresent() = fixture { repo, server, open ->
+    server.empty = true
+    val app = target(0)
+    assertEquals(1, repo.autoMatch(listOf(app), options) { _, _ -> }.unmatched)
+    val key = AppleIconPolicy.key("search:IOS:cn:${app.label.lowercase(java.util.Locale.ROOT)}")
+    val cached = File(server.cacheRoot, "downloads/metadata/$key.json")
+    val json = JSONObject(cached.readText()).put("time",
+      System.currentTimeMillis() - AppleAutoMatchPolicy.MANUAL_SEARCH_TTL_MS - 1000)
+    cached.writeText(json.toString())
+    server.empty = false
+    val reopened = open()
+    assertEquals(0, reopened.autoMatch(listOf(app), options) { _, _ -> }.attempted)
+    assertEquals(1, reopened.autoMatch(listOf(app), options, setOf(app.packageName)) { _, _ -> }.matched)
+    assertEquals(2, server.requests.size)
+    assertNotNull(reopened.match(app, options))
+  }
+
   @Test fun rateLimitStopsBatchAndPersistsCooldownWithoutClassifyingRemainingAsMisses() = fixture { repo, server, open ->
     server.limited = true
     val targets = List(4, ::target)
@@ -129,6 +159,7 @@ class AppleBatchMatchingDeviceTest {
     val reopened = open()
     assertTrue(reopened.retryAtMillis() > System.currentTimeMillis())
     assertEquals(0, reopened.autoMatch(targets, options) { _, _ -> }.attempted)
+    assertEquals(0, reopened.autoMatch(targets, options, targets.map { it.packageName }.toSet()) { _, _ -> }.attempted)
     assertEquals(1, server.requests.size)
   }
 
@@ -228,6 +259,8 @@ class AppleBatchMatchingDeviceTest {
     assertEquals(1, server.requests.size)
     assertEquals(AppleMatchAttemptStatus.FAILED, open().matchAttempt(targets[0], options)?.status)
     assertNull(repo.matchAttempt(targets[1], options))
+    assertEquals(0, open().autoMatch(targets, options, setOf(targets[0].packageName)) { _, _ -> }.attempted)
+    assertEquals(1, server.requests.size)
     // Failed app is cooling down; untouched applications can still be attempted.
     server.malformed = false
     assertEquals(2, open().autoMatch(targets, options) { _, _ -> }.matched)

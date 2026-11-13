@@ -8,6 +8,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppleAutoMatchPolicyTest {
+  @Test fun explicitRetriesBypassOnlySuccessfulSearchHistory() {
+    val now = 1_800_000_000_000L
+    for (status in AppleMatchAttemptStatus.entries) {
+      val attempt = AppleMatchAttempt(status, now - 1000, now + 60_000, "cn")
+      assertEquals(false, AppleAutoMatchPolicy.canAttempt(attempt, now, explicit = false))
+      assertEquals(status != AppleMatchAttemptStatus.FAILED,
+        AppleAutoMatchPolicy.canAttempt(attempt, now, explicit = true))
+      assertTrue(AppleAutoMatchPolicy.canAttempt(attempt, attempt.retryAt, explicit = false))
+    }
+    assertTrue(AppleAutoMatchPolicy.canAttempt(null, now, explicit = true))
+    assertTrue(AppleAutoMatchPolicy.canAttempt(null, now, explicit = false))
+  }
+
   private fun target(label: String, pkg: String = "android.example.app") =
     AppleAppTarget(pkg, label, system = false)
 

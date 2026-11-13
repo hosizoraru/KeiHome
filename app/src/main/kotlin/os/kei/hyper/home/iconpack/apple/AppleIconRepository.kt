@@ -150,7 +150,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           !custom(it, options) && match(it, options) == null
       }
       // Untried apps always precede expired retries, including when a selection spans many batches.
-      val queue = eligible.filter { (matchAttempt(it, options)?.retryAt ?: 0L) <= now }
+      val queue = eligible.filter {
+        AppleAutoMatchPolicy.canAttempt(matchAttempt(it, options), now, explicit = packageNames != null)
+      }
         .sortedWith(compareBy<AppleAppTarget> { matchAttempt(it, options) != null }
           .thenBy { matchAttempt(it, options)?.attemptedAt ?: 0L })
         .take(AppleAutoMatchPolicy.BATCH_SIZE)
@@ -163,7 +165,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         val time = System.currentTimeMillis()
         try {
           val query = AppleAutoMatchPolicy.query(target.label)
-          val candidates = if (query.isEmpty()) emptyList() else search(query, options, includePresets = false)
+          val candidates = if (query.isEmpty()) emptyList() else search(query, options, includePresets = false,
+            maxCacheAgeMillis = if (packageNames != null) AppleAutoMatchPolicy.MANUAL_SEARCH_TTL_MS
+              else AppleIconPolicy.SEARCH_TTL_MS)
           currentCoroutineContext().ensureActive()
           val chosen = AppleAutoMatchPolicy.choose(target, candidates)
           val status = when {
@@ -225,15 +229,17 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }.sortedBy { it.label.lowercase(java.util.Locale.ROOT) }
   }
 
-  suspend fun search(term: String, options: AppleIconOptions, includePresets: Boolean = true): List<AppleAppMatch> = mutex.withLock {
+  suspend fun search(term: String, options: AppleIconOptions, includePresets: Boolean = true,
+    maxCacheAgeMillis: Long = AppleIconPolicy.SEARCH_TTL_MS): List<AppleAppMatch> = mutex.withLock {
     withContext(Dispatchers.IO) {
+      require(maxCacheAgeMillis in 0..AppleIconPolicy.SEARCH_TTL_MS)
       AppleSystemMappings.localSearch(term, options.platform).takeIf { includePresets && it.isNotEmpty() }
         ?.let { return@withContext it.map { app -> app.copy(country = options.country) } }
       // Numeric launcher labels are names; the manual editor may intentionally look up a store ID.
       val namespace = if (!includePresets && term.trim().matches(Regex("[0-9]{6,12}"))) "search-name" else "search"
       val file = File(metadata, AppleIconPolicy.key("$namespace:${options.platform}:${options.country}:" +
         term.trim().lowercase(java.util.Locale.ROOT)) + ".json")
-      readJson(file)?.takeIf { System.currentTimeMillis() - it.optLong("time") in 0..AppleIconPolicy.SEARCH_TTL_MS }
+      readJson(file)?.takeIf { System.currentTimeMillis() - it.optLong("time") in 0..maxCacheAgeMillis }
         ?.let { cached ->
           try { return@withContext cached.getJSONArray("apps").matches().map { it.copy(country = options.country) } }
           catch (_: JSONException) { file.delete() }

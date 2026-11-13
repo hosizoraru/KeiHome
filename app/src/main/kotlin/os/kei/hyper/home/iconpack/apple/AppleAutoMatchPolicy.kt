@@ -10,7 +10,13 @@ import java.util.Locale
 internal object AppleAutoMatchPolicy {
   const val BATCH_SIZE = 10
   const val HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000L
+  const val MANUAL_SEARCH_TTL_MS = 15 * 60 * 1000L
   private const val NAME_SEPARATORS = ".,:;!?\"'\u00b7\u3001\u3002\u30fb"
+
+  /** Successful search history deduplicates automatic batches; it is not a network cooldown. */
+  fun canAttempt(attempt: AppleMatchAttempt?, now: Long, explicit: Boolean): Boolean =
+    attempt == null || attempt.retryAt <= now ||
+      explicit && attempt.status != AppleMatchAttemptStatus.FAILED
 
   fun choose(target: AppleAppTarget, candidates: List<AppleAppMatch>): AppleAppMatch? {
     val bundleMatches = candidates.filter {

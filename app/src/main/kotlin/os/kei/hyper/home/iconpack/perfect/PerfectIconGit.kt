@@ -98,6 +98,7 @@ internal class PerfectIconGit(
   private val fixtureRemote: File? = null,
   private val metadataBytes: Long = minOf(32L * 1024 * 1024, limits.compressed),
   private val storedByteLimit: Long = limits.compressed,
+  private val networkOptions: () -> PerfectGitNetworkOptions = { PerfectGitNetworkOptions() },
 ) : PerfectIconGitBackend {
   private val lock = locks.computeIfAbsent(root.absolutePath) { ReentrantLock() }
 
@@ -373,7 +374,7 @@ internal class PerfectIconGit(
     val uri = fixtureRemote?.let {
       if (!it.isDirectory || Files.isSymbolicLink(it.toPath())) throw IOException("Invalid JVM Git fixture")
       URIish(it.toURI().toString())
-    } ?: URIish(REMOTE)
+    } ?: URIish(op.network.repositoryUrl())
     val transport = Transport.open(repo, uri)
     transport.credentialsProvider = null
     transport.timeout = 20
@@ -390,6 +391,7 @@ internal class PerfectIconGit(
       val factory = PerfectIconGitHttp(
         (if (metadata) metadataBytes else limits.compressed) - op.received,
         op::check,
+        op.network,
       ) { count ->
         op.received = op.beforeRequest + count
         op.report()
@@ -535,6 +537,7 @@ internal class PerfectIconGit(
           try {
             while (!acquired) { op.check(); acquired = lock.tryLock(100, TimeUnit.MILLISECONDS) }
             op.check()
+            op.network = networkOptions().checked()
             val result = block(op)
             op.check()
             if (continuation.isActive) continuation.resume(result)
@@ -563,6 +566,7 @@ internal class PerfectIconGit(
   }
 
   private class Operation : ProgressMonitor {
+    var network = PerfectGitNetworkOptions()
     private val cancelled = AtomicBoolean()
     @Volatile var http: PerfectIconGitHttp? = null
     var createdStore: File? = null

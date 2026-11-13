@@ -95,6 +95,22 @@ class PerfectIconGitHttpTest {
       factory.create(address)
       assertTrue(opened)
       assertNull("Default overload bypassed the platform selector", observed)
+      factory.create(address, Proxy.NO_PROXY)
+      assertNull("A stale JGit DIRECT result must not suppress Android per-URL proxy selection", observed)
+    } finally { factory.abort() }
+  }
+
+  @Test fun customAccelerationOnlyAcceptsItsOwnSmartGitPaths() {
+    val network = PerfectGitNetworkOptions(acceleration = "https://mirror.example/").checked()
+    val factory = PerfectIconGitHttp(1024, {}, network) {}
+    try {
+      val prefix = network.repositoryUrl()
+      factory.create(url(FakeConnection(), "$prefix/info/refs"))
+      factory.create(url(FakeConnection(), "$prefix/git-upload-pack"))
+      for (address in listOf("$prefix/other", "$prefix/../secret",
+        "https://foreign.example/${prefix.substringAfter("://")}")) {
+        assertThrows(IOException::class.java) { factory.create(url(FakeConnection(), address)) }
+      }
     } finally { factory.abort() }
   }
 

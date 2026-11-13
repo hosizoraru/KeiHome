@@ -86,7 +86,8 @@ class PerfectIconRepository internal constructor(
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
     },
-    git = PerfectIconGit(File(context.applicationContext.filesDir, "perfect-icons/git")),
+    git = PerfectIconGit(File(context.applicationContext.filesDir, "perfect-icons/git"),
+      networkOptions = PerfectGitNetworkPreferences(context)::read),
   )
 
   private val mutex = locks.getOrPut(root.absolutePath) { Mutex() }

@@ -20,8 +20,13 @@ import javax.net.ssl.TrustManager
 internal class PerfectIconGitHttp(
   private val budget: Long,
   private val check: () -> Unit,
+  private val network: PerfectGitNetworkOptions,
   private val onBytes: (Long) -> Unit,
 ) : HttpConnectionFactory {
+  constructor(budget: Long, check: () -> Unit, onBytes: (Long) -> Unit) :
+    this(budget, check, PerfectGitNetworkOptions(), onBytes)
+
+  private val endpoint = URL(network.checked().repositoryUrl().trimEnd('/') + "/")
   private val cancelled = AtomicBoolean()
   private val connections = ConcurrentHashMap.newKeySet<HttpURLConnection>()
   private var received = 0L
@@ -42,14 +47,13 @@ internal class PerfectIconGitHttp(
   private fun open(url: URL, proxy: Proxy?): HttpConnection {
     check()
     if (cancelled.get()) throw IOException("Git request cancelled")
-    if (url.protocol != "https" || url.host != "github.com" || url.port !in listOf(-1, 443) ||
-      url.userInfo != null ||
-      !url.path.startsWith("/pzcn/Perfect-Icons-Completion-Project.git/")) {
+    if (url.protocol != "https" || !url.host.equals(endpoint.host, true) ||
+      (if (url.port == -1) 443 else url.port) != (if (endpoint.port == -1) 443 else endpoint.port) ||
+      url.userInfo != null || url.path !in listOf(endpoint.path + "info/refs", endpoint.path + "git-upload-pack")) {
       throw IOException("Unexpected Git endpoint")
     }
-    // Honor JGit's supplied proxy, or the platform ProxySelector for the default
-    // overload. No Git proxy config or credential provider is loaded here.
-    val connection = (if (proxy == null) url.openConnection() else url.openConnection(proxy)) as HttpsURLConnection
+    val selected = network.proxy(proxy)
+    val connection = (if (selected == null) url.openConnection() else url.openConnection(selected)) as HttpsURLConnection
     connection.connectTimeout = 15_000
     connection.readTimeout = 20_000
     connection.instanceFollowRedirects = false

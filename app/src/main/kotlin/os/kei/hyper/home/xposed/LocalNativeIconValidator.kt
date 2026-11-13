@@ -10,6 +10,7 @@ import os.kei.hyper.home.iconpack.IconPackArchive
 import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.IconPackLimits
+import os.kei.hyper.home.iconpack.IconRasterHeader
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
 /** Admission for local, image-only icon modules. Unknown MAML programs remain ineligible. */
@@ -187,10 +188,21 @@ internal object LocalNativeIconValidator {
   }
 
   private fun image(bytes: ByteArray) {
+    require(bytes.size.toLong() in 1..IMAGE_LIMIT) { "Local icon image size limit" }
     fun u(i: Int) = bytes[i].toInt() and 255
     fun le(i: Int, count: Int): Long = (0 until count).fold(0L) { v, n -> v or (u(i + n).toLong() shl (8 * n)) }
     fun be(i: Int): Long = (0..3).fold(0L) { v, n -> (v shl 8) or u(i + n).toLong() }
     fun dimensions(w: Long, h: Long) = require(w in 1..2048 && h in 1..2048) { "Local icon dimension limit" }
+    if (bytes.size >= 2 && u(0) == 0xff && u(1) == 0xd8) {
+      val size = bytes.inputStream().use {
+        IconRasterHeader.read(it, bytes.size.toLong()) {
+          if (Thread.currentThread().isInterrupted) throw InterruptedException("Local JPEG inspection interrupted")
+        }
+      }
+      dimensions(size.width.toLong(), size.height.toLong())
+      jpeg(bytes)
+      return
+    }
     if (bytes.size >= 33 && bytes.copyOfRange(0, 8).contentEquals(byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10))) {
       var offset = 8
       var header = false
@@ -205,7 +217,8 @@ internal object LocalNativeIconValidator {
         when (type) {
           "IHDR" -> { require(!header && size == 13L); dimensions(be(offset + 8), be(offset + 12)); header = true }
           "IDAT" -> pixels = true
-          "IEND" -> { require(size == 0L && pixels && end + 4 == bytes.size); return }
+          // Decoders stop at IEND; opaque trailing bytes stay inside the existing entry-size budget.
+          "IEND" -> { require(size == 0L && pixels); return }
           "acTL", "fcTL", "fdAT" -> error("Animated PNG is not an admitted local bitmap")
         }
         offset = end + 4
@@ -236,5 +249,108 @@ internal object LocalNativeIconValidator {
       offset = data + size.toInt() + (size.toInt() and 1)
     }
     require(offset == bytes.size && pixels) { "Incomplete local WebP" }
+  }
+
+  /** Validate the complete scan envelope, not JPEG entropy decoding or a header-only dimension probe. */
+  private fun jpeg(bytes: ByteArray) {
+    fun u(index: Int) = bytes[index].toInt() and 255
+    fun be16(index: Int) = (u(index) shl 8) or u(index + 1)
+    var offset = 2
+    var markers = 0
+    var frame = 0
+    var components = emptySet<Int>()
+    val scanned = mutableSetOf<Int>()
+    var scans = 0
+    var restartInterval = 0
+    while (offset < bytes.size) {
+      if (Thread.currentThread().isInterrupted) throw InterruptedException("Local JPEG inspection interrupted")
+      require(++markers <= 4096 && u(offset++) == 0xff) { "Invalid local JPEG marker" }
+      while (offset < bytes.size && u(offset) == 0xff) offset++
+      require(offset < bytes.size) { "Truncated local JPEG marker" }
+      val marker = u(offset++)
+      if (marker == 0xd9) {
+        require(offset == bytes.size && scans > 0 && scanned.containsAll(components)) { "Incomplete local JPEG" }
+        return
+      }
+      require(offset <= bytes.size - 2) { "Truncated local JPEG segment" }
+      val length = be16(offset)
+      require(length >= 2 && length <= bytes.size - offset) { "Invalid local JPEG segment length" }
+      val data = offset + 2
+      val end = offset + length
+      when (marker) {
+        0xc0, 0xc1, 0xc2 -> {
+          require(frame == 0 && length >= 8) { "Invalid local JPEG frame" }
+          require(u(data) == 8 || (marker != 0xc0 && u(data) == 12)) { "Invalid local JPEG sample precision" }
+          val count = u(data + 5)
+          require(count > 0 && length == 8 + 3 * count) { "Invalid local JPEG frame components" }
+          components = (0 until count).map { u(data + 6 + 3 * it) }.toSet()
+          require(components.size == count)
+          frame = marker
+        }
+        0xda -> {
+          require(frame != 0 && length >= 6 && ++scans <= 4096) { "Invalid local JPEG scan" }
+          val count = u(data)
+          require(count in 1..components.size && length == 6 + 2 * count) { "Invalid local JPEG scan length" }
+          val ids = mutableSetOf<Int>()
+          repeat(count) {
+            val id = u(data + 1 + 2 * it)
+            val tables = u(data + 2 + 2 * it)
+            require(id in components && ids.add(id) && tables shr 4 <= 3 && tables and 15 <= 3) {
+              "Invalid local JPEG scan component"
+            }
+          }
+          val first = u(end - 3)
+          val last = u(end - 2)
+          val refinement = u(end - 1)
+          val high = refinement shr 4
+          val low = refinement and 15
+          if (frame == 0xc2) {
+            require(first in 0..63 && last in first..63 && (first != 0 || last == 0) &&
+              (first == 0 || count == 1) && high <= 13 && low <= 13 && (high == 0 || high == low + 1)) {
+              "Invalid local progressive JPEG scan"
+            }
+          } else {
+            require(first == 0 && last == 63 && refinement == 0) { "Invalid local sequential JPEG scan" }
+          }
+          if (first == 0 && high == 0) scanned += ids
+          offset = end
+          var entropy = false
+          var nextRestart = 0
+          while (offset < bytes.size) {
+            if (offset and 0x3fff == 0 && Thread.currentThread().isInterrupted)
+              throw InterruptedException("Local JPEG inspection interrupted")
+            if (u(offset++) != 0xff) {
+              entropy = true
+              continue
+            }
+            val start = offset - 1
+            while (offset < bytes.size && u(offset) == 0xff) offset++
+            require(offset < bytes.size) { "Truncated local JPEG entropy marker" }
+            when (val next = u(offset++)) {
+              0 -> entropy = true // Stuffed FF data, not a segment delimiter.
+              in 0xd0..0xd7 -> {
+                require(restartInterval > 0 && next == 0xd0 + nextRestart) { "Invalid local JPEG restart" }
+                nextRestart = (nextRestart + 1) and 7
+              }
+              else -> {
+                offset = start
+                break
+              }
+            }
+          }
+          require(entropy && offset < bytes.size) { "Missing local JPEG scan data or end" }
+          continue
+        }
+        0xdd -> {
+          require(length == 4) { "Invalid local JPEG restart interval" }
+          restartInterval = be16(data)
+        }
+        0xc4, 0xdb -> require(length > 2) { "Empty local JPEG table" }
+        in 0xe0..0xef, 0xfe -> Unit
+        else -> error("Unsupported local JPEG marker")
+      }
+      offset = end
+    }
+    error("Missing local JPEG end")
   }
 }

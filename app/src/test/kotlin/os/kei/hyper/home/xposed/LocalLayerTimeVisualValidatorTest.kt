@@ -41,6 +41,103 @@ class LocalLayerTimeVisualValidatorTest {
     }
   }
 
+  @Test fun isolatedBoundedGroupsAdmitPureBitmapCompositingModes() {
+    for (mode in listOf("clear", "src", "dst", "src_over", "dst_over", "src_in", "dst_in",
+      "src_out", "dst_out", "src_atop", "dst_atop", "xor", "darken", "lighten",
+      "multiply", "screen", "add", "overlay")) {
+      admit("<Group layered='true' w='324' h='324'><Image src='icon.png' xfermode='$mode'/></Group>")
+    }
+    admit("<Group layered='false'><Image src='icon.png'/></Group>")
+  }
+
+  @Test fun canvasNamesDoNotChangeTheRootRoleOrPermitUnknownChildren() {
+    fun renamed(name: String, body: String = "", attributes: String = "") =
+      resources(body, attributes, emptyMap(), true).mapValues { (path, bytes) ->
+        if (path == base + "manifest.xml") bytes.toString(Charsets.UTF_8)
+          .replaceFirst("<Icon ", "<$name ").replace("</Icon>", "</$name>").toByteArray() else bytes
+      }
+    for (name in listOf("bg", "fg", "CustomCanvas", "_canvas.layer-1")) {
+      LocalNativeIconValidator.validate(archive(renamed(name)))
+      for (body in listOf("<bg><Image src='icon.png'/></bg>", "<IntentCommand action='test'/>",
+        "<VariableBinders/>", "<Script/>")) {
+        assertThrows(Exception::class.java) { LocalNativeIconValidator.validate(archive(renamed(name, body))) }
+      }
+      assertThrows(Exception::class.java) {
+        LocalNativeIconValidator.validate(archive(renamed(name, attributes = "src='file:///tmp/icon'")))
+      }
+    }
+    assertThrows(Exception::class.java) { LocalNativeIconValidator.validate(archive(renamed("a".repeat(65)))) }
+  }
+
+  @Test fun numericVisualIdsResolveWithoutPermittingNumericFunctionsOrVariables() {
+    fun scene(target: String, imageName: String) =
+      trigger("<FolmeCommand target='$target' states=\"'end'\" command='setTo' config=\"'cfg'\"/>") +
+        "<Image name='$imageName' src='icon.png'/><FolmeState name='end' x='0'/><FolmeConfig name='cfg'/>"
+    admit(scene("1", "1"))
+    admit(scene("0003", "0003"))
+    admit(scene("1_icon", "1_icon"))
+    reject(scene("2", "1"))
+    reject(scene("1", "1") + "<Image name='1' src='icon.png'/>")
+    for (invalid in listOf("1.x", "1,2", "1+2", "1".repeat(65))) {
+      reject(scene(invalid, invalid))
+    }
+    reject("<Var name='1' expression='0'/>")
+    reject("<Function name='1'/>")
+    reject("<FolmeState name='1' x='0'/>")
+  }
+
+  @Test fun missingSingleLiteralSetToStateKeepsNativeNoOpSemantics() {
+    fun command(states: String = "'absent'", action: String = "setTo",
+      target: String = "hand", config: String = "") =
+      trigger("<FolmeCommand target='$target' states=\"$states\" command='$action' $config/>")
+    admit(command())
+    admit(command(config = "config=\"'cfg'\"") + "<FolmeConfig name='cfg'/>")
+    reject(command(action = "to"))
+    reject(command(action = "fromTo"))
+    reject(command(states = "'absent','present'") + "<FolmeState name='present' x='0'/>")
+    reject(command(states = "#dynamic"))
+    reject(command(states = "''"))
+    reject(command(states = "'${"x".repeat(65)}'"))
+    reject(command(target = "missing"))
+    reject(command(config = "config=\"'missing'\""))
+  }
+
+  @Test fun mamlComparisonAliasesKeepTheSameRestrictedExpressionCapabilities() {
+    for (operator in listOf("}", "{", "}=", "{=")) {
+      admit("<Var name='side' expression='ifelse(#ratio${operator}0,1,-1)'/>")
+      reject("<Var name='side' expression='queryProvider(#ratio${operator}0)'/>")
+      reject("<Var name='side' expression='ifelse(#unknown${operator}0,1,-1)'/>")
+    }
+    reject("<Var name='side' expression='#ratio{{1'/>")
+    reject("<Var name='side' expression='#ratio}}1'/>")
+  }
+
+  @Test fun blendModesRequireIsolationAndLiteralKnownValues() {
+    reject("<Image src='icon.png' xfermode='src_atop'/>")
+    reject("<Group layered='false'><Image src='icon.png' xfermode='dst_out'/></Group>")
+    for (mode in listOf("SRC_ATOP", "unknown", "#mode", "src_atop,clear")) {
+      reject("<Group layered='true' w='32' h='32'><Image src='icon.png' xfermode='$mode'/></Group>")
+    }
+    reject("<Group layered='1' w='32' h='32'><Image src='icon.png'/></Group>")
+    reject("<Group layeredExp='1' w='32' h='32'><Image src='icon.png'/></Group>")
+  }
+
+  @Test fun isolatedGroupDimensionsCountsNestingAndAggregateSurfacesStayBounded() {
+    for (dimensions in listOf("", "w='32'", "w='0' h='32'", "w='-1' h='32'",
+      "w='2049' h='1'", "w='32' h='2049'", "w='#time_sys' h='32'")) {
+      reject("<Group layered='true' $dimensions><Image src='icon.png'/></Group>")
+    }
+    val tiny = "<Group layered='true' w='1' h='1'><Image src='icon.png'/></Group>"
+    admit(tiny.repeat(8))
+    reject(tiny.repeat(9))
+    fun nested(count: Int) = "<Group layered='true' w='1' h='1'>".repeat(count) +
+      "<Image src='icon.png'/>" + "</Group>".repeat(count)
+    admit(nested(4))
+    reject(nested(5))
+    admit("<Group layered='true' w='2048' h='2048'><Image src='icon.png'/></Group>")
+    reject("<Group layered='true' w='2048' h='2048'><Image src='icon.png'/></Group>$tiny")
+  }
+
   @Test fun admitsTimeUpdatersOnlyFromTheExactEnum() {
     for (updater in listOf("Day", "Hour", "Minute", "Second")) admit("", "useVariableUpdater='DateTime.$updater'")
     for (updater in listOf("DateTime", "DateTime.Millisecond", "Battery", "DateTime.Day,Content",

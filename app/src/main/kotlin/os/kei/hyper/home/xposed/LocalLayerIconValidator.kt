@@ -14,6 +14,7 @@ internal object LocalLayerIconValidator {
     "back_home_start", "back_home_finish", "back_home_cancel",
     "open_second", "close_second", "open_second_instant", "close_second_instant")
   private val identifier = Regex("[A-Za-z_][A-Za-z0-9_]{0,63}")
+  private val visualIdentifier = Regex("[A-Za-z0-9_]{1,64}")
   private val imagePath = Regex("[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.(?:png|webp)")
   private val functions = setOf("ifelse", "eq", "ne", "gt", "ge", "lt", "le",
     "and", "or", "not", "min", "max", "abs", "int", "round", "floor", "ceil")
@@ -24,7 +25,14 @@ internal object LocalLayerIconValidator {
     image: (ByteArray) -> Unit,
   ): Set<String> {
     val consumed = linkedSetOf<String>()
-    fun bitmap(path: String) { image(read(path, 8L * 1024 * 1024)); consumed += path }
+    fun bitmap(path: String) {
+      try {
+        image(read(path, 8L * 1024 * 1024))
+      } catch (error: IllegalArgumentException) {
+        throw IllegalArgumentException("Invalid local layer image: $path", error)
+      }
+      consumed += path
+    }
     val dynamic = paths.filter { it.removePrefix("nightmode/").startsWith("layer_animating_icons/") }.toSet()
     val fancyResources = dynamic.filter { "/fancy/" in it }.groupBy { it.substringBefore("/fancy/") + "/fancy/" }
     val configs = dynamic.filter { path ->
@@ -81,8 +89,10 @@ internal object LocalLayerIconValidator {
   private val numberToken = Regex("#[A-Za-z_][A-Za-z0-9_]*(?:\\.(?:text_width|text_height))?|[A-Za-z_][A-Za-z0-9_]*")
 
   private fun numeric(value: String, references: MutableSet<String>) {
-    require(value.isNotBlank() && value.matches(Regex("[\\s0-9A-Za-z_#()+*/%<>=!&|?:,\\-\\.]+")) &&
-      !value.contains("..")) { "Unsupported visual expression" }
+    require(value.isNotBlank() && value.matches(Regex("[\\s0-9A-Za-z_#()+*/%<>{}=!&|?:,\\-\\.]+")) &&
+      !value.contains("..") && !value.contains("{{") && !value.contains("}}")) {
+      "Unsupported visual expression: $value"
+    }
     require(Regex("[A-Za-z_][A-Za-z0-9_]*\\s*\\(").findAll(value)
       .all { it.value.substringBefore('(').trim() in functions }) { "Unsupported visual function" }
     numberToken.findAll(value).forEach {
@@ -93,7 +103,7 @@ internal object LocalLayerIconValidator {
 
   private data class Element(
     val tag: String, val name: String?, var branches: Int = 0,
-    var animationKinds: Int = 0, var lastKeyframe: Int = -1,
+    var animationKinds: Int = 0, var lastKeyframe: Int = -1, val layered: Boolean = false,
   )
 
   private fun visual(
@@ -125,13 +135,26 @@ internal object LocalLayerIconValidator {
     val keyframeTargets = mutableSetOf<String>()
     val keyframeReferences = mutableSetOf<String>()
     fun name(value: String): String = value.also { require(identifier.matches(it)) { "Unsafe visual identifier" } }
+    fun visualName(value: String): String = value.also {
+      require(visualIdentifier.matches(it)) { "Unsafe visual target identifier" }
+    }
     fun names(value: String): List<String> {
       require(value.matches(Regex("'[A-Za-z_][A-Za-z0-9_]*'(?:,'[A-Za-z_][A-Za-z0-9_]*')*")))
       return value.split(',').map { name(it.removeSurrounding("'")) }
     }
     fun edge(from: String, to: String) { edges.getOrPut(from) { mutableListOf() } += to }
     fun boundedInt(value: String, range: IntRange) { require(value.toIntOrNull() in range) }
-    BoundedPackXml.read(bytes, limits, start = { tag, attrs, depth ->
+    var layeredPixels = 0L
+    var layeredGroups = 0
+    val blendModes = setOf("clear", "src", "dst", "src_over", "dst_over", "src_in", "dst_in",
+      "src_out", "dst_out", "src_atop", "dst_atop", "xor", "darken", "lighten",
+      "multiply", "screen", "add", "overlay")
+    BoundedPackXml.read(bytes, limits, start = { rawTag, attrs, depth ->
+      // MAML canvas roots can use names such as bg/fg; their children retain exact roles.
+      val tag = if (depth == 1) {
+        require(rawTag.matches(Regex("[A-Za-z_][A-Za-z0-9_.-]{0,63}"))) { "Invalid visual canvas name" }
+        "Icon"
+      } else rawTag
       val parent = stack.lastOrNull()
       val owner = stack.lastOrNull { it.tag == "Function" }?.name?.let { "function:$it" } ?: "entry"
       val command = tag in setOf("FolmeCommand", "FrameRateCommand", "FunctionCommand", "LottieCommand", "AnimationCommand",
@@ -156,8 +179,8 @@ internal object LocalLayerIconValidator {
       if (command) costs[owner] = (costs[owner] ?: 0) + 1
       val allowed = when (tag) {
         "Icon" -> setOf("version", "frameRate", "width", "height", "screenWidth", "resDensity", "useVariableUpdater")
-        "Group" -> geometry + setOf("name", "align", "alignV", "visibility")
-        "Image" -> geometry + setOf("name", "src", "srcid", "srcExp", "cornerRadius", "align", "alignV", "visibility", "folmeMode")
+        "Group" -> geometry + setOf("name", "align", "alignV", "visibility", "layered")
+        "Image" -> geometry + setOf("name", "src", "srcid", "srcExp", "cornerRadius", "align", "alignV", "visibility", "folmeMode", "xfermode")
         "Lottie" -> setOf("name", "src", "x", "y", "w", "h", "align", "alignV", "autoplay", "loop")
         "LottieCommand" -> setOf("target", "command", "params")
         "AnimationCommand" -> setOf("target", "command")
@@ -182,7 +205,7 @@ internal object LocalLayerIconValidator {
       attrs.forEach { (key, value) ->
         when (key) {
           "name" -> {
-            name(value)
+            if (tag in setOf("Image", "Group", "Text", "Lottie")) visualName(value) else name(value)
             if (tag == "VariableCommand") {
               require(value !in systemNumbers) { "Cannot assign a system variable" }
               localNumbers += value
@@ -210,6 +233,10 @@ internal object LocalLayerIconValidator {
           "align" -> require(value in setOf("left", "center", "right"))
           "alignV" -> require(value in setOf("top", "center", "bottom"))
           "folmeMode" -> require(value in setOf("true", "false"))
+          "layered" -> require(value in setOf("true", "false"))
+          "xfermode" -> require(value in blendModes && stack.any { it.layered }) {
+            "Unsupported or unisolated layer blend mode"
+          }
           "autoplay" -> require(value in setOf("true", "false"))
           "loop" -> boundedInt(value, 0..16)
           "params" -> require(value.matches(Regex("(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?")) &&
@@ -231,13 +258,16 @@ internal object LocalLayerIconValidator {
             else value.split(',').all { it in lifecycle }) { "Unsupported layer trigger action" }
           "target" -> {
             val kind = when (tag) { "FunctionCommand" -> "function"; "LottieCommand" -> "lottie"; else -> "target" }
-            references += kind to name(value)
+            references += kind to (if (kind == "function") name(value) else visualName(value))
             if (tag == "AnimationCommand") keyframeReferences += value
             if (kind == "function") edge(owner, "function:$value")
           }
           "states" -> names(value).also {
             require(it.size in 1..2)
-            it.forEach { state -> references += "state" to state }
+            // Native setTo returns without applying anything when its one literal state is absent.
+            if (tag != "FolmeCommand" || attrs["command"] != "setTo" || it.size != 1) {
+              it.forEach { state -> references += "state" to state }
+            }
           }
           "config" -> names(value).also {
             require(it.size in 1..4)
@@ -282,6 +312,15 @@ internal object LocalLayerIconValidator {
         }
       }
       when (tag) {
+        "Group" -> if (attrs["layered"] == "true") {
+          val width = attrs["w"]?.toIntOrNull()
+          val height = attrs["h"]?.toIntOrNull()
+          require(width in 1..2048 && height in 1..2048) { "Layered group needs bounded literal dimensions" }
+          layeredPixels += requireNotNull(width).toLong() * requireNotNull(height)
+          layeredGroups++
+          require(layeredGroups <= 8 && stack.count { it.layered } < 4 &&
+            layeredPixels <= 2048L * 2048) { "Layered group surface budget exceeded" }
+        }
         "Icon" -> {
           boundedInt(attrs["width"].orEmpty(), 1..2048)
           boundedInt(attrs["height"].orEmpty(), 1..2048)
@@ -344,7 +383,7 @@ internal object LocalLayerIconValidator {
         "FolmeConfig", "FolmeState" -> require(attrs["name"] != null)
         "FrameRateCommand" -> boundedInt(attrs["rate"].orEmpty(), 0..120)
       }
-      stack += Element(tag, attrs["name"])
+      stack += Element(tag, attrs["name"], layered = tag == "Group" && attrs["layered"] == "true")
     }, end = { _, _ ->
       val element = stack.removeAt(stack.lastIndex)
       if (element.tag == "IfCommand") require(element.branches in 1..2)

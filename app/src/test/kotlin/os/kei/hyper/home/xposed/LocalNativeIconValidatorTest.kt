@@ -2,8 +2,13 @@ package os.kei.hyper.home.xposed
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.awt.image.BufferedImage
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.util.zip.CRC32
+import javax.imageio.IIOImage
+import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
 import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -94,6 +99,109 @@ class LocalNativeIconValidatorTest {
     }
   }
 
+  @Test fun completePngMayHaveOpaqueTrailingBytesWithoutRewritingThePublication() {
+    val tailed = png + ByteArray(4008) { (it * 31).toByte() }
+    val file = archive(module() + ("${root}dark.png" to tailed))
+    val before = file.readBytes()
+    ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE)
+    assertArrayEquals(before, file.readBytes())
+    val corrupt = tailed.clone().also { it[29] = (it[29].toInt() xor 1).toByte() }
+    assertThrows(Exception::class.java) {
+      ConvertedIconArchive.inspect(archive(module() + ("${root}dark.png" to corrupt)),
+        ConvertedIconArchive.LOCAL_NATIVE)
+    }
+  }
+
+  @Test fun acceptsRealBaselineAndProgressiveJpegUnderNativePngNamesWithoutChangingBytes() {
+    val baseline = jpeg()
+    val progressive = jpeg(progressive = true)
+    val metadata = byteArrayOf(0xff.toByte(), 0xe1.toByte(), 0, 6, 0xff.toByte(), 0xd9.toByte(), 0, 0)
+    val withMetadata = baseline.copyOf(2) + metadata + baseline.copyOfRange(2, baseline.size)
+    val file = archive(module() + mapOf(
+      "res/drawable-xxhdpi/com.example.png" to withMetadata,
+      "${root}common.png" to baseline, "${root}dark.png" to progressive))
+    val original = file.readBytes()
+    val proof = ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE)
+    assertEquals(ConvertedIconArchive.LOCAL_NATIVE, proof.origin)
+    assertArrayEquals(original, file.readBytes())
+  }
+
+  @Test fun jpegKeepsLocal2048PixelBoundaryForSequentialAndProgressiveFrames() {
+    for (progressive in listOf(false, true)) {
+      ConvertedIconArchive.inspect(archive(module() + ("${root}dark.png" to
+        jpeg(width = 2048, height = 1, progressive = progressive))), ConvertedIconArchive.LOCAL_NATIVE)
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(module() + ("${root}dark.png" to
+          jpeg(width = 2049, height = 1, progressive = progressive))), ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun jpegRejectsTruncatedHeadersScansMissingEndAndTrailingPayload() {
+    val good = jpeg()
+    val scan = marker(good, 0xda)
+    val scanEnd = scan + 2 + be16(good, scan + 2)
+    val malformed = listOf(
+      good.copyOf(12),
+      good.copyOf(scan + 5),
+      good.copyOf(good.size - 1),
+      good.copyOf(good.size - 2),
+      good + byteArrayOf(0),
+      good.copyOf(scan) + byteArrayOf(0xff.toByte(), 0xd9.toByte()), // No SOS.
+      good.copyOf(scanEnd) + byteArrayOf(0xff.toByte(), 0xd9.toByte()), // Empty entropy data.
+      good.copyOf().also { it[scan + 3] = 2 },
+      good.copyOf().also { it[marker(good, 0xc0) + 4] = 12 }, // Baseline precision must be 8.
+      good.copyOf().also { it[scan + 5] = 127 }, // Unknown component.
+      good.copyOf().also { it[scanEnd - 3] = 1 }, // Baseline scan cannot select an AC spectral band.
+      good.copyOf(good.size - 2) + byteArrayOf(0xff.toByte(), 0xd0.toByte(), 0xff.toByte(), 0xd9.toByte()),
+    )
+    for ((index, bad) in malformed.withIndex()) {
+      assertThrows("JPEG fixture $index", Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(module() + ("${root}dark.png" to bad)),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun jpegChecksEveryProgressiveScanRatherThanOnlyFirstHeaderAndFinalEoi() {
+    val good = jpeg(progressive = true)
+    val scan = marker(good, 0xda)
+    val scanEnd = scan + 2 + be16(good, scan + 2)
+    val invalidSpectral = good.copyOf().also { it[scanEnd - 2] = 63 }
+    val duplicateFrame = good.copyOf(good.size - 2) +
+      good.copyOfRange(marker(good, 0xc2), marker(good, 0xc2) + 2 + be16(good, marker(good, 0xc2) + 2)) +
+      byteArrayOf(0xff.toByte(), 0xd9.toByte())
+    for (bad in listOf(invalidSpectral, duplicateFrame)) {
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(module() + ("${root}dark.png" to bad)),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun jpegDoesNotRelaxEightMiBLocalEntryLimit() {
+    val oversized = jpeg().copyOf(8 * 1024 * 1024 + 1)
+    val file = temporary.newFile().apply {
+      writeBytes(zip(module() + ("${root}dark.png" to oversized), stored = true))
+    }
+    val failure = assertThrows(IllegalArgumentException::class.java) {
+      LocalNativeIconValidator.validate(file)
+    }
+    assertTrue(failure.message.orEmpty().contains("Local icon entry size limit"))
+  }
+
+  @Test fun jpegDoesNotRelaxManifestAndResourcePathAdmission() {
+    val payload = module() + ("${root}dark.png" to jpeg())
+    for (xml in listOf("<Icon><IntentCommand action='android.intent.action.VIEW'/></Icon>",
+      "<Icon><Image src='../secret.png'/></Icon>",
+      "<Icon><Image src='content://settings/system'/></Icon>")) {
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(payload + ("${root}manifest.xml" to xml.toByteArray())),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
   @Test fun acceptsOnlyCanonicalGeneratedSettingsBindersAlongsideNativeContent() {
     val pair = NativePaletteIcon.entries("com.generated", png, png,
       NativeIconPngFixtures.mask(4), NativeIconPngFixtures.mask(4))
@@ -166,9 +274,47 @@ class LocalNativeIconValidatorTest {
         "<version>1</version><uiVersion>13</uiVersion><description>Local icon import</description></MIUI-Theme>").toByteArray(),
       "icons" to module, "preview/preview_icons_0.png" to png)))
   }
-  private fun zip(entries: Map<String, ByteArray>): ByteArray = ByteArrayOutputStream().also { bytes ->
+  private fun jpeg(width: Int = 4, height: Int = 4, progressive: Boolean = false): ByteArray {
+    val writer = ImageIO.getImageWritersByFormatName("JPEG").next()
+    val bytes = ByteArrayOutputStream()
+    try {
+      ImageIO.createImageOutputStream(bytes).use { output ->
+        writer.output = output
+        val options = writer.defaultWriteParam.apply {
+          progressiveMode = if (progressive) ImageWriteParam.MODE_DEFAULT else ImageWriteParam.MODE_DISABLED
+        }
+        writer.write(null, IIOImage(BufferedImage(width, height, BufferedImage.TYPE_INT_RGB), null, null), options)
+      }
+      return bytes.toByteArray()
+    } finally { writer.dispose() }
+  }
+
+  private fun be16(bytes: ByteArray, index: Int) =
+    ((bytes[index].toInt() and 255) shl 8) or (bytes[index + 1].toInt() and 255)
+
+  private fun marker(bytes: ByteArray, wanted: Int): Int {
+    var offset = 2
+    while (offset < bytes.size - 3) {
+      require(bytes[offset].toInt() and 255 == 255)
+      if (bytes[offset + 1].toInt() and 255 == wanted) return offset
+      offset += 2 + be16(bytes, offset + 2)
+    }
+    error("Missing JPEG marker")
+  }
+
+  private fun zip(entries: Map<String, ByteArray>, stored: Boolean = false): ByteArray = ByteArrayOutputStream().also { bytes ->
     ZipOutputStream(bytes).use { zip ->
-      entries.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry() }
+      entries.forEach { (name, value) ->
+        val entry = ZipEntry(name)
+        if (stored) {
+          entry.method = ZipEntry.STORED
+          entry.size = value.size.toLong()
+          entry.crc = CRC32().apply { update(value) }.value
+        }
+        zip.putNextEntry(entry)
+        zip.write(value)
+        zip.closeEntry()
+      }
     }
   }.toByteArray()
 }

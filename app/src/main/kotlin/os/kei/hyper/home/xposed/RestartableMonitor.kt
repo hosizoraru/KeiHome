@@ -6,8 +6,42 @@ import java.util.concurrent.TimeUnit
 internal interface MonitorWorker {
   val thread: Thread
   val closed: Boolean
+  /** Cheap, thread-safe snapshot; thread exit must also be confirmed before accepting retirement. */
+  val cleanupComplete: Boolean get() = true
   fun start()
+  /** Must permit an explicit retry when closed with cleanup still incomplete. */
   fun stop()
+}
+
+/** Registration and cleanup run on the owning worker, without a monitor held over framework calls. */
+internal class MonitorRegistrations {
+  private val releases = mutableListOf<() -> Unit>()
+  @Volatile var complete = true
+    private set
+
+  fun own(release: () -> Unit) {
+    releases += release
+    complete = false
+  }
+
+  fun release(onFailure: (Exception) -> Unit): Boolean {
+    val iterator = releases.iterator()
+    while (iterator.hasNext()) {
+      try {
+        iterator.next().invoke()
+      } catch (failure: Exception) {
+        try {
+          onFailure(failure)
+        } catch (_: Throwable) {
+          // Diagnostics must not lose ownership or interrupt the remaining releases.
+        }
+        continue
+      }
+      iterator.remove()
+    }
+    complete = releases.isEmpty()
+    return complete
+  }
 }
 
 /**
@@ -31,7 +65,11 @@ internal class RestartableMonitor<T : Any>(
   fun start(value: T) {
     val start = synchronized(lock) {
       desired = value
-      reserveStart()
+      if (worker?.let { it.closed && !it.cleanupComplete } == true) {
+        // Rollback is an explicit retry signal, not permission to duplicate live registrations.
+        stopRequested = true
+        reserveStop()
+      } else reserveStart()
     }
     start?.invoke()
   }
@@ -77,7 +115,7 @@ internal class RestartableMonitor<T : Any>(
     }
     return synchronized(lock) {
       desired == null && starting == null && stopping == null && !stopRequested &&
-        worker?.thread?.isAlive != true &&
+        worker?.thread?.isAlive != true && worker?.cleanupComplete != false &&
         ownedWaiters.all { it.state == Thread.State.TERMINATED }
     }
   }
@@ -102,7 +140,7 @@ internal class RestartableMonitor<T : Any>(
           try {
             val start = synchronized(lock) {
               if (waiter === Thread.currentThread()) waiter = null
-              if (worker === previous) worker = null
+              if (worker === previous && previous.cleanupComplete) worker = null
               reserveStart()
             }
             start?.invoke()
@@ -127,6 +165,7 @@ internal class RestartableMonitor<T : Any>(
       }
       return null
     }
+    if (previous?.cleanupComplete == false) return null
     val complete = CountDownLatch(1)
     starting = complete
     return {

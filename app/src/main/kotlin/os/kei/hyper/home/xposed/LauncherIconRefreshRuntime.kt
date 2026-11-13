@@ -406,6 +406,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
 
   private fun awaitRetirement(deadline: Long): Boolean {
     return closingWorkers.awaitStopped(deadline) &&
+      frameworkManager.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
       iconPackImportMonitor.awaitStopped(deadline) &&
       NativeMonetSocketBroker.awaitStopped(deadline) &&

@@ -62,9 +62,9 @@ internal class MonetColorMonitor(
     private val handler by lazy { Handler(thread.looper) }
     @Volatile override var closed = false
       private set
-    private var registered = false
-    private var wallpaperRegistered = false
-    private var displayManager: DisplayManager? = null
+    private val registrations = MonitorRegistrations()
+    override val cleanupComplete: Boolean get() = closed && registrations.complete
+    private var cleanupQueued = false
     private val displayExecutor = RetiringDisplayListenerExecutor { handler.post(it) }
     private val displayListener = object : DisplayManager.DisplayListener {
       override fun onDisplayAdded(displayId: Int) = Unit
@@ -74,9 +74,6 @@ internal class MonetColorMonitor(
           os.kei.hyper.home.data.DockGlassPreferences.read(materialPreferences)) requestMaterials()
       }
     }
-    private var packageObserver: os.kei.hyper.home.data.PackageChangeObserver? = null
-    private var overlayObserver: os.kei.hyper.home.data.IconOverlayObserver? = null
-    private var timeObserver: os.kei.hyper.home.data.IconTimeObserver? = null
     private var retryDelay = 1_000L
     private var actionPreferences: SharedPreferences? = null
     private var runtimePreferences: SharedPreferences? = null
@@ -110,6 +107,10 @@ internal class MonetColorMonitor(
         requestPreferences()?.let { preferences ->
           preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
           actionPreferences = preferences
+          registrations.own {
+            preferences.unregisterOnSharedPreferenceChangeListener(preferenceListener)
+            actionPreferences = null
+          }
           preferenceFailureReported = false
         }
       } catch (failure: Exception) {
@@ -124,6 +125,10 @@ internal class MonetColorMonitor(
         statusPreferences()?.let { preferences ->
           preferences.registerOnSharedPreferenceChangeListener(statusListener)
           runtimePreferences = preferences
+          registrations.own {
+            preferences.unregisterOnSharedPreferenceChangeListener(statusListener)
+            runtimePreferences = null
+          }
           statusPreferenceFailureReported = false
           requestStatus()
         }
@@ -139,6 +144,10 @@ internal class MonetColorMonitor(
         themePreferences()?.let { preferences ->
           preferences.registerOnSharedPreferenceChangeListener(materialListener)
           materialPreferences = preferences
+          registrations.own {
+            preferences.unregisterOnSharedPreferenceChangeListener(materialListener)
+            materialPreferences = null
+          }
           materialPreferenceFailureReported = false
         }
       } catch (failure: Exception) {
@@ -269,58 +278,63 @@ internal class MonetColorMonitor(
         if (closed) return@post
         connectActionPreferences()
         try {
-          packageObserver = os.kei.hyper.home.data.PackageChangeObserver(context, handler) { name ->
+          val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(context, handler) { name ->
             if (!closed) {
               synchronizer.invalidateIconResources(name)
               onPackageResourcesChanged(name)
               request()
             }
           }
+          registrations.own { packageObserver.close() }
         } catch (failure: Exception) { onFailure(failure) }
         try {
-          overlayObserver = os.kei.hyper.home.data.IconOverlayObserver(context, handler) { target ->
+          val overlayObserver = os.kei.hyper.home.data.IconOverlayObserver(context, handler) { target ->
             if (!closed) {
               synchronizer.invalidateIconResources(target.takeUnless { it == "android" })
               onOverlayResourcesChanged(target)
               request()
             }
           }
+          registrations.own { overlayObserver.close() }
         } catch (failure: Exception) { onFailure(failure) }
         try {
-          timeObserver = os.kei.hyper.home.data.IconTimeObserver(context, handler) { calendarOnly ->
+          val timeObserver = os.kei.hyper.home.data.IconTimeObserver(context, handler) { calendarOnly ->
             if (!closed) onTimeResourcesChanged(calendarOnly)
           }
+          registrations.own { timeObserver.close() }
         } catch (failure: Exception) { onFailure(failure) }
         connectMaterialPreferences()
         try {
           context.getSystemService(DisplayManager::class.java)?.let {
             // The Handler overload creates a HandlerExecutor that throws on late dispatch
             // after quit, even when the delegate's listener generation was cancelled.
+            // A failed registration reply must not discard possible framework ownership.
+            registrations.own { it.unregisterDisplayListener(displayListener) }
             it.registerDisplayListener(
               displayExecutor,
               DisplayManager.EVENT_TYPE_DISPLAY_ADDED or DisplayManager.EVENT_TYPE_DISPLAY_CHANGED or
                 DisplayManager.EVENT_TYPE_DISPLAY_REMOVED,
               displayListener,
             )
-            displayManager = it
           }
         } catch (failure: Exception) { onFailure(failure) }
         requestMaterials()
         try {
           connectStatusPreferences()
           val resolver = context.contentResolver
+          registrations.own { resolver.unregisterContentObserver(observer) }
           resolver.registerContentObserver(
             Settings.System.getUriFor("key_monochrome"), false, observer,
           )
-          registered = true
           resolver.registerContentObserver(
             Settings.System.getUriFor("key_monochrome_color"), false, observer,
           )
           resolver.registerContentObserver(
             Uri.parse("content://com.miui.launcher.wallpaper.palette"), false, observer,
           )
-          WallpaperManager.getInstance(context).addOnColorsChangedListener(wallpaperListener, handler)
-          wallpaperRegistered = true
+          val wallpaper = WallpaperManager.getInstance(context)
+          registrations.own { wallpaper.removeOnColorsChangedListener(wallpaperListener) }
+          wallpaper.addOnColorsChangedListener(wallpaperListener, handler)
         } catch (failure: Throwable) {
           onFailure(failure)
         } finally {
@@ -339,55 +353,26 @@ internal class MonetColorMonitor(
 
     @Synchronized
     override fun stop() {
-      if (closed) return
+      if (cleanupQueued || closed && registrations.complete) return
       closed = true
       displayExecutor.close()
       handler.removeCallbacksAndMessages(null)
-      handler.post {
+      cleanupQueued = true
+      val posted = handler.post {
+        var complete = false
         try {
-          try { displayManager?.unregisterDisplayListener(displayListener) }
-          catch (failure: Exception) { onFailure(failure) }
-          displayManager = null
-          try { packageObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-          packageObserver = null
-          try { overlayObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-          overlayObserver = null
-          try { timeObserver?.close() } catch (failure: Exception) { onFailure(failure) }
-          timeObserver = null
-          try {
-            actionPreferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
-          } catch (failure: Exception) {
-            onFailure(failure)
-          }
-          actionPreferences = null
-          try {
-            runtimePreferences?.unregisterOnSharedPreferenceChangeListener(statusListener)
-          } catch (failure: Exception) {
-            onFailure(failure)
-          }
-          runtimePreferences = null
-          try {
-            materialPreferences?.unregisterOnSharedPreferenceChangeListener(materialListener)
-          } catch (failure: Exception) {
-            onFailure(failure)
-          }
-          materialPreferences = null
-          if (wallpaperRegistered) {
-            WallpaperManager.getInstance(context).removeOnColorsChangedListener(wallpaperListener)
-            wallpaperRegistered = false
-          }
-          if (registered) {
-            try {
-              context.contentResolver.unregisterContentObserver(observer)
-            } catch (failure: Throwable) {
-              onFailure(failure)
-            }
-            registered = false
-          }
+          complete = registrations.release(onFailure)
         } finally {
-          // Keep the queue accepting callbacks until listener teardown has completed.
-          thread.quitSafely()
+          synchronized(this@Watch) {
+            cleanupQueued = false
+            // A failed release retains ownership and an idle looper for the next explicit retry.
+            if (complete) thread.quitSafely()
+          }
         }
+      }
+      if (!posted) {
+        cleanupQueued = false
+        onFailure(IllegalStateException("Monet observer cleanup queue is unavailable"))
       }
       // Release a probe's latch wait before the API 102 generation handover.
       thread.interrupt()

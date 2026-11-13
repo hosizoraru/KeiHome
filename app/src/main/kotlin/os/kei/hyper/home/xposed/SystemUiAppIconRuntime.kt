@@ -65,6 +65,8 @@ internal class SystemUiAppIconRuntime(
     } finally { lifecycle.leave() }
   }
 
+  // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
+  @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
   fun start() {
     check(Looper.myLooper() != Looper.getMainLooper())
     check(cache == null && !stopped) { "SystemUI app icon runtime already started or stopped" }
@@ -73,23 +75,6 @@ internal class SystemUiAppIconRuntime(
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
       refreshOnMinute = true, onReady = ::queueReplay)
     cache = iconCache
-    try {
-      // A notification can bind while the remaining profiles are still installing.
-      // Its first snapshot request must be admitted immediately, not dropped as inactive.
-      iconCache.start()
-      guard.run(Unit) {
-        report(Log.INFO, TAG, "Notification snapshot cache started before consumer hooks")
-      }
-      installBridges(profile)
-    } catch (failure: Throwable) {
-      stop(System.nanoTime())
-      throw failure
-    }
-  }
-
-  // Injected SystemUI hooks require LSPosed hidden-API access; the app UI does not call this path.
-  @SuppressLint("BlockedPrivateApi", "SoonBlockedPrivateApi")
-  private fun installBridges(profile: Profile) {
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     replace(profile.consumer, "$HOOK_ID.consumer", ::consume)
     val cachedProfile = guard.run<SystemUiNotificationAppIconProfile?>(null) {
@@ -188,6 +173,8 @@ internal class SystemUiAppIconRuntime(
         chain.proceed()
       }
     }
+    // Cold requests are retained without starting worker registration during bridge installation.
+    iconCache.start()
     statusBar?.bootstrap()
     queueReplay()
     try {

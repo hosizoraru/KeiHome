@@ -28,8 +28,8 @@ class CrossSurfaceIconCacheWorkloadTest {
     val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
       paletteState = { 0L }, eagerReload = false)
     try {
-      cache.start()
       assertNull(cache.get(name(0)))
+      cache.start()
       awaitSettled(cache)
       val first = requireNotNull(cache.get(name(0)))
       assertFalse("LruCache.put returns the old value, not insertion success", cache.isMissing(name(0)))

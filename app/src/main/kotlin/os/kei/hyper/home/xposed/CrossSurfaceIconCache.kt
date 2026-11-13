@@ -122,6 +122,7 @@ internal class CrossSurfaceIconCache(
       handler.post {
         registerResources()
       }
+      wanted.keys.forEach { enqueueLocked(it) }
     }
   }
 
@@ -157,23 +158,15 @@ internal class CrossSurfaceIconCache(
   }
 
   fun get(packageName: String, activityName: String? = null): Bitmap? {
-    if (!active || !validDottedName(packageName) || packageName.length > 240) return null
+    if (!validDottedName(packageName) || packageName.length > 240) return null
     val activity = activityName?.takeIf { validDottedName(it) && it.length <= 240 }
     synchronized(lock) {
-      if (!active) return null
-      val key = keys.retain(packageName, activity)
-      // Keep the working set aligned with the bitmap bound, including negative results.
-      // Native task/notification owners may still hold a returned bitmap: never recycle on eviction.
-      wanted[key] = Unit
-      if (wanted.size > maxEntries) {
-        val oldest = wanted.keys.first()
-        wanted.remove(oldest)
-        keys.remove(oldest)
-        pending.remove(oldest)
-        misses.remove(oldest)
-        dynamicMinutes.remove(oldest)
-        cache.remove(oldest)
+      if (!active) {
+        // Only remember identities. Threads, decoding and Binder work wait for start().
+        if (!started && !stopping) retainWantedLocked(packageName, activity)
+        return null
       }
+      val key = retainWantedLocked(packageName, activity)
       dynamicMinutes[key]?.let { minute ->
         if (minute != System.currentTimeMillis() / 60_000L) cache.remove(key)
       }
@@ -182,6 +175,22 @@ internal class CrossSurfaceIconCache(
       enqueueLocked(key)
     }
     return null
+  }
+
+  private fun retainWantedLocked(packageName: String, activity: String?): Key {
+    val key = keys.retain(packageName, activity)
+    // Bound cold requests and the active working set; never recycle host-owned bitmaps.
+    wanted[key] = Unit
+    if (wanted.size > maxEntries) {
+      val oldest = wanted.keys.first()
+      wanted.remove(oldest)
+      keys.remove(oldest)
+      pending.remove(oldest)
+      misses.remove(oldest)
+      dynamicMinutes.remove(oldest)
+      cache.remove(oldest)
+    }
+    return key
   }
 
   /** A definitive miss, distinct from an asynchronously pending snapshot. */
@@ -374,6 +383,8 @@ internal class CrossSurfaceIconCache(
         revision.incrementAndGet()
         if (started && ::handler.isInitialized) handler.removeCallbacksAndMessages(null)
         else if (!started) {
+          wanted.clear()
+          keys.clear()
           cleanupComplete = true
           cleanupStage = "complete"
         }

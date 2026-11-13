@@ -175,15 +175,21 @@ Heads-up reports must distinguish the module's own reload notification from
 notifications arriving after activation. Release425 logs show old-runtime
 retirement at 16:02:32.339, the cached header boundary at 33.623, an authenticated
 view bind at 33.657, bridge installation completing at 33.764, and the first
-finalized snapshot applying at 33.851. Previously the shared cache started only
-after all bridges installed, so requests from that early bound view were dropped
-while inactive and had to wait for startup replay. The cache now starts before
-consumer hooks become visible; partial bridge-install failure stops the runtime
-and cache. Native fallback and the existing ready replay remain unchanged.
-This removes the evidenced inactive-cache interval; it does not prove absence
-of every pre-hook handoff frame. No separate heads-up consumer or global mask was
-added. Acceptance requires the first ordinary self-reload banner, not an extra
-reload or a later notification, to verify the transient report.
+finalized snapshot applying at 33.851. Requests from that early bound view were
+dropped while the cache was inactive and had to wait for startup replay. Cold
+requests now retain only validated identities in the existing bounded working
+set. Worker registration and rendering keep their established order, after
+bridge installation; startup then drains those identities. Stopping before
+startup clears them and remains terminal.
+
+An experimental earlier worker start was withdrawn after the AVD repeatedly
+showed global attach/provider contention following reload. The exact causal
+link remains unresolved; keeping the original registration order avoids adding
+that dependency. Native fallback and ready replay remain unchanged. There is no
+separate heads-up consumer or global mask. This closes lost cold requests,
+without proving absence of every pre-hook handoff frame. Acceptance requires
+the first ordinary self-reload banner, rather than an extra reload or a later
+notification, to verify the transient report.
 
 Focused evidence for this extension is retained under
 `.artifacts/research/perfect-night-statusbar-20261113/`. Source contracts,

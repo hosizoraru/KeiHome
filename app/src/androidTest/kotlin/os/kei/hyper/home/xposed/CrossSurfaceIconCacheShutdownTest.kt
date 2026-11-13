@@ -20,6 +20,27 @@ import org.junit.Test
 
 /** Exercises real worker loopers and controlled registration races without installing hooks. */
 class CrossSurfaceIconCacheShutdownTest {
+  @Test fun coldRequestsStayBoundedWithoutStartingResourcesAndDrainOnStart() {
+    val context = RecordingContext()
+    val readyCalls = java.util.concurrent.atomic.AtomicInteger()
+    val cache = CrossSurfaceIconCache(context, maxEntries = 1,
+      themeFile = java.io.File(context.cacheDir, "qa-absent-theme-${System.nanoTime()}"),
+      paletteState = { 0L }, onReady = { readyCalls.incrementAndGet() })
+    try {
+      assertEquals(null, cache.get("com.example.first"))
+      assertEquals(null, cache.get("com.example.last"))
+      assertEquals(0, context.receiverRegistrations)
+      assertFalse(worker(cache).isAlive)
+      cache.start()
+      awaitRegistration(cache)
+      assertTrue(cache.isMissing("com.example.last"))
+      assertFalse(cache.isMissing("com.example.first"))
+      assertEquals(0, readyCalls.get())
+    } finally {
+      assertTrue(cache.stop())
+    }
+  }
+
   @Test fun firstFrameworkStopWaitsForCleanupAndWorkerExit() {
     val gate = Gate()
     val context = RecordingContext().apply { unregisterGate = gate }
@@ -210,6 +231,7 @@ class CrossSurfaceIconCacheShutdownTest {
   @Test fun stopBeforeStartIsTerminalAndIdempotent() {
     val context = RecordingContext()
     val cache = CrossSurfaceIconCache(context) {}
+    assertEquals(null, cache.get("com.example.pending"))
     assertTrue(cache.stop())
     cache.start()
     assertFalse(worker(cache).isAlive)

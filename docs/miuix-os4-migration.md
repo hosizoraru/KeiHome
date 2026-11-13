@@ -134,7 +134,8 @@ selection from the pager.
 
 App Settings exposes **Navigation bar style**, independently of page gestures
 and the blur mode. The stable serialized names are `IOS_LIKE` and `OS4_GLASS`.
-Missing or unknown keys retain iOS-like as the original default. Selecting a
+Missing or unknown keys default to OS4 Glass. Saved iOS-like and OS4 Glass
+choices retain their values across upgrades. Selecting a
 style updates the preference immediately; it does not recreate the pager,
 reset the current page, or change the launcher's Dock. Only the selected
 implementation is composed. Disabling blur also gives iOS-like its opaque

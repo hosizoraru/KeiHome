@@ -7,14 +7,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class NavigationBarStylePreferencesTest {
-  @Test fun missingStylePreservesOriginalExperienceWithoutWritingPreferences() {
-    val store = Store(legacyValues())
-    val before = store.values.toMap()
+  @Test fun missingStyleDefaultsToOs4GlassWithoutWritingPreferences() {
+    assertEquals(AppNavigationBarStyle.OS4_GLASS, AppPreferencesState().navigationBarStyle)
+    for (values in listOf(mutableMapOf<String, Any>(), legacyValues())) {
+      val store = Store(values)
+      val before = store.values.toMap()
 
-    assertEquals(AppNavigationBarStyle.IOS_LIKE, AppPreferencesState().navigationBarStyle)
-    assertEquals(AppNavigationBarStyle.IOS_LIKE, store.open().state.value.navigationBarStyle)
-    assertEquals(before, store.values)
-    assertFalse(store.values.containsKey("navigation_bar_style"))
+      assertEquals(AppNavigationBarStyle.OS4_GLASS, store.open().state.value.navigationBarStyle)
+      assertEquals(before, store.values)
+      assertFalse(store.values.containsKey("navigation_bar_style"))
+    }
   }
 
   @Test fun bothStylesRestoreWithoutOverwritingOtherPreferences() {
@@ -49,7 +51,7 @@ class NavigationBarStylePreferencesTest {
       val before = store.values.toMap()
       val preferences = store.open()
 
-      assertEquals(AppNavigationBarStyle.IOS_LIKE, preferences.state.value.navigationBarStyle)
+      assertEquals(AppNavigationBarStyle.OS4_GLASS, preferences.state.value.navigationBarStyle)
       assertEquals(before, store.values)
       preferences.setNavigationBarStyle(AppNavigationBarStyle.OS4_GLASS)
       assertEquals(AppNavigationBarStyle.OS4_GLASS, preferences.state.value.navigationBarStyle)

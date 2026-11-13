@@ -67,7 +67,7 @@ internal data class AppPreferencesState(
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
   val monetInspiration: Boolean? = null,
   val compactPackHints: Boolean = false,
-  val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.IOS_LIKE,
+  val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.OS4_GLASS,
   val cacheReminderBytes: Long = 0L,
 ) {
   val recommendedIconMappings: RecommendedIconMappings
@@ -141,7 +141,7 @@ internal class AppPreferences internal constructor(
     compactPackHints = preferences.getBoolean("compact_pack_hints", false),
     navigationBarStyle = AppNavigationBarStyle.entries.firstOrNull {
       it.name == preferences.getString("navigation_bar_style", null)
-    } ?: AppNavigationBarStyle.IOS_LIKE,
+    } ?: AppNavigationBarStyle.OS4_GLASS,
     cacheReminderBytes = preferences.getLong("cache_reminder_bytes", 0L)
       .takeIf(CacheReminderBudget::isValidCustom) ?: 0L,
   )

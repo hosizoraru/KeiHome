@@ -403,7 +403,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }
       val paletteNames = appendNativeMonet(archive, index.entries, targets, check)
       val family = NativeRecommendedIconCompletion.additions(context, pack, targets, size, maskPolicy,
-        preservedPackages, recommendedMappings, phoneCompanionExclusions, check)
+        preservedPackages, recommendedMappings, phoneCompanionExclusions, archive, limits, check)
       if (family.isNotEmpty()) {
         val completed = File.createTempFile("icons-recommended-", ".zip", directory)
         try {

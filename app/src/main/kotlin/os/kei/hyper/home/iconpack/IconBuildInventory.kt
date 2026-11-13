@@ -28,7 +28,7 @@ internal object IconBuildInventory {
       if (pack.builtinKey?.startsWith("coloros-") == true) ":${BuiltinColorOsMappings.REVISION}" else ""
     is IconPackSource.Generated -> source.digest
   } + if (pack.format in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS))
-    ":${NativeDefaultAliasCompletion.REVISION}" else ""
+    ":${NativeDefaultAliasCompletion.REVISION}:${TelegramChannelIcons.NATIVE_REVISION}" else ""
 
   fun decodeSource(bytes: ByteArray): String {
     require(bytes.size in 1..4096)

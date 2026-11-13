@@ -113,10 +113,11 @@ class NativeDefaultAliasCompletionTest {
       IconPackSource.Imported(record), emptyList())
     val previous = "source-id\nimport-id"
     val current = IconBuildInventory.sourceIdentity(pack)
-    assertEquals("$previous:${NativeDefaultAliasCompletion.REVISION}", current)
+    val backend = "${NativeDefaultAliasCompletion.REVISION}:${TelegramChannelIcons.NATIVE_REVISION}"
+    assertEquals("$previous:$backend", current)
     assertEquals(current, IconBuildInventory.decodeSource(current.toByteArray()))
     assertEquals("$previous:palette-apk-1", IconBuildInventory.sourceIdentity(pack.copy(format = IconPackFormat.APK)))
     assertTrue(IconBuildInventory.sourceIdentity(pack.copy(format = IconPackFormat.MIUI_MTZ))
-      .endsWith(":${NativeDefaultAliasCompletion.REVISION}"))
+      .endsWith(":$backend"))
   }
 }

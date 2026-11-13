@@ -126,6 +126,16 @@ actual class independently. The foreign class namespace in Web/Beta must not
 be rewritten to `.web.DefaultIcon` or `.beta.DefaultIcon`; KeiHome's canonical
 native naming helper owns any required `package#class` representation.
 
+When a missing default channel is completed from a native pack, preserve the
+donor's complete native resource tree, including layer geometry, fancy programs,
+quiet images and night resources. Flattening the quiet image loses the native
+foreground scaling and makes the completed channel's airplane smaller even when
+its normalized PNG bounds resemble the donor's. Existing target namespaces and
+explicit target artwork remain authoritative; alternate aliases and preserved
+applications stay excluded. Static/APK donors retain their existing rendering
+path. Native additions are bounded and performed during export, with their
+policy revision included in publication identity.
+
 ## Evidence and limits
 
 Evidence is under

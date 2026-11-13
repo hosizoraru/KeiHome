@@ -4,12 +4,14 @@ import android.content.Context
 import os.kei.hyper.home.data.RecommendedIconMappings
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
+import java.io.File
 
-/** Add closed image-only pairs; never copy or rewrite an authored third-party program. */
+/** Keep native channel closures intact; render closed pairs when no native donor is available. */
 internal object NativeRecommendedIconCompletion {
   fun additions(context: Context, pack: IconPackDescriptor, targets: List<IconPackComponent>, size: Int,
     maskPolicy: IconMaskPolicy?, preserved: Set<String>, recommendedMappings: RecommendedIconMappings,
-    phoneCompanionExclusions: Set<String>, check: () -> Unit): Map<String, ByteArray> {
+    phoneCompanionExclusions: Set<String>, nativeArchive: File, limits: IconPackLimits,
+    check: () -> Unit): Map<String, ByteArray> {
     if (!recommendedMappings.telegramChannels && !recommendedMappings.phoneCompanions) return emptyMap()
     val family = TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
     val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
@@ -28,8 +30,11 @@ internal object NativeRecommendedIconCompletion {
         })))
     }
     if (wanted.isEmpty()) return emptyMap()
-    val output = linkedMapOf<String, ByteArray>()
-    val written = hashSetOf<String>()
+    val native = family.nativeAdditions(nativeArchive, wanted, ::existing, limits, check)
+    val output = LinkedHashMap(native.resources)
+    val written = native.names.toMutableSet()
+    val remaining = wanted.filter { (nativeLauncherActivityName(it) ?: it.packageName) !in written }
+    if (remaining.isEmpty()) return output
     val renderer = IconPackRenderer(context)
     renderer.open(pack, false, maskPolicy = maskPolicy, clipOutput = false,
       preservedPackages = preserved, recommendedMappings = recommendedMappings).use { day ->
@@ -44,7 +49,7 @@ internal object NativeRecommendedIconCompletion {
             bytes.toByteArray()
           } } finally { bitmap.recycle() }
         }
-        for (target in wanted) {
+        for (target in remaining) {
           check()
           val light = png(day, target) ?: continue
           val dark = png(night, target) ?: continue

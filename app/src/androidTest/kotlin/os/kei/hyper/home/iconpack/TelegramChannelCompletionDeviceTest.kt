@@ -122,7 +122,14 @@ class TelegramChannelCompletionDeviceTest {
       try { ZipFile(result.archive).use { zip ->
         for ((name, bytes) in original) assertArrayEquals(bytes, zip.getInputStream(zip.getEntry(name)).use { it.readBytes() })
         val beta = targets.last()
-        assertColor(zip, "nightmode/res/drawable-xxhdpi/${nativeLauncherActivityName(beta)}.png", Color.BLUE)
+        assertArrayEquals(night, zip.getInputStream(requireNotNull(
+          zip.getEntry("nightmode/res/drawable-xxhdpi/${nativeLauncherActivityName(beta)}.png"))).use { it.readBytes() })
+        for ((name, bytes) in original) {
+          for (completed in listOf(beta.packageName, requireNotNull(nativeLauncherActivityName(beta)))) {
+            val copied = name.replace(donor, completed)
+            assertArrayEquals(copied, bytes, zip.getInputStream(requireNotNull(zip.getEntry(copied))).use { it.readBytes() })
+          }
+        }
         assertNotNull(zip.getEntry("fancy_icons/${beta.packageName}/manifest.xml"))
         assertFalse(zip.entries().asSequence().any { "org.telegram.messenger.web" in it.name })
       } } finally { result.archive.delete() }
@@ -133,5 +140,36 @@ class TelegramChannelCompletionDeviceTest {
         assertFalse(zip.entries().asSequence().any { exclusions.containsPath(it.name) })
       } } finally { pruned.archive.delete() }
     } finally { folder.deleteRecursively() }
+  }
+
+  @Test fun explicitNativeDayOnlyRemainsExcludedAndAuthoredNightStaysExact() {
+    val beta = targets.last()
+    val alias = requireNotNull(nativeLauncherActivityName(beta))
+    for (authoredNight in listOf(false, true)) {
+      val folder = File(context.cacheDir, "telegram-explicit-${System.nanoTime()}").apply { mkdirs() }
+      try {
+        val ownDay = "res/drawable-xxhdpi/$alias.png"
+        val ownNight = "nightmode/res/drawable-xxhdpi/$alias.png"
+        val original = LinkedHashMap(NativeDayNightIcon.entries("org.telegram.messenger",
+          png(Color.RED), png(Color.BLUE))).apply {
+          put(ownDay, png(Color.GREEN))
+          if (authoredNight) put(ownNight, png(Color.YELLOW))
+        }
+        val input = File(folder, "native-explicit.zip")
+        write(input, original)
+        val record = input.inputStream().use { IconPackStore(File(folder, "store")).import(it, input.name).record }
+        val index = IconPackArchive().inspect(record.originalFile, File(folder, "nested.zip"))
+        val pack = IconPackDescriptor(record.id, "Explicit native target", index.format,
+          IconPackSource.Imported(record), index.entries)
+        val result = IconPackExporter(context, IconPackLimits()).export(pack, listOf(beta), false, 32,
+          installedOnly = true, maskPolicy = IconMaskPolicy(true)) {}
+        try { ZipFile(result.archive).use { zip ->
+          for ((name, bytes) in original) assertArrayEquals(name, bytes,
+            zip.getInputStream(requireNotNull(zip.getEntry(name))).use { it.readBytes() })
+          if (!authoredNight) assertNull(zip.getEntry(ownNight))
+          assertNull(zip.getEntry("fancy_icons/$alias/manifest.xml"))
+        } } finally { result.archive.delete() }
+      } finally { folder.deleteRecursively() }
+    }
   }
 }

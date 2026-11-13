@@ -38,6 +38,9 @@ does not automatically run navigation, color editing or native tests.
 | Appearance preferences/recovery | `ui-settings` |
 | Date/time display | `pack-time`; pill test only if its layout changes |
 | Perfect source/sync/history/health | `perfect-sync` |
+| Perfect static plates, live layered selectors and complete local admission | `perfect-night`; `perfect-night-device` for raster/alpha rendering and shared masked snapshots |
+| Status-bar app-artwork role resolution and cached-view adoption | `statusbar-icons`; `statusbar-icons-device` for branch preservation, replay and retirement; real existing notifications still need visual acceptance |
+| Native default launcher aliases using the same application artwork | `native-default-aliases`; `native-default-aliases-device` for package-manager identity and unchanged resource closures |
 | Native PNG-named raster content, original MAML and local publication recovery | `native-artwork-import`; `native-artwork-import-device` for Android decoding, isolated import/export/admission and same-process retry |
 | Perfect/ColorOS completion priority, source lifetime and choice restoration | `icon-completion`; `icon-completion-device` for archive and OS4 enable/disable flows |
 | Scope requests and authorization state | `scope`; manual onboarding check if wording/flow changes |

@@ -12,6 +12,21 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "perfect-night": ("jvm", "Perfect dark resource roles, selectors, caches and local date-frame admission", (
+        "PerfectDynamicNightTest", "PerfectDynamicNightSwitchTest", "PerfectIconRepositoryTest",
+        "LocalLayerTimeVisualValidatorTest", "LocalWeatherLayerProgramTest", "LocalNativeIconValidatorTest")),
+    "perfect-night-device": ("device", "Static/dynamic dark pixels and masked cross-surface snapshots", (
+        "os.kei.hyper.home.iconpack.perfect.PerfectStaticNightRendererDeviceTest",
+        "os.kei.hyper.home.iconpack.perfect.PerfectDynamicNightRendererDeviceTest",
+        "os.kei.hyper.home.xposed.SurfaceIconSnapshotRendererDeviceTest")),
+    "statusbar-icons": ("jvm", "Status-bar descriptor roles, content identity and cache rejection", (
+        "SystemUiStatusBarIconProfileTest", "SystemUiStatusBarOwnerPriorityTest")),
+    "statusbar-icons-device": ("device", "App-only masking, native branches, cached view replay and retirement", (
+        "os.kei.hyper.home.xposed.SystemUiStatusBarIconRuntimeDeviceTest",)),
+    "native-default-aliases": ("jvm", "Native default-entry resource identity, explicit art and export invalidation", (
+        "NativeDefaultAliasCompletionTest",)),
+    "native-default-aliases-device": ("device", "Real package-manager proof and isolated native alias exports", (
+        "os.kei.hyper.home.iconpack.NativeDefaultAliasCompletionDeviceTest",)),
     "native-artwork-import": ("jvm", "Raster headers, archive bounds, Perfect resources and local native admission", (
         "IconPackArchiveTest", "PerfectIconFormatTest", "PerfectLayeredIconTest",
         "LocalNativeIconValidatorTest", "LocalLayerTimeVisualValidatorTest", "ConvertedIconArchiveTest")),

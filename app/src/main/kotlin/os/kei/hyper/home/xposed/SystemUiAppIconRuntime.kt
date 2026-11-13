@@ -40,6 +40,7 @@ internal class SystemUiAppIconRuntime(
   },
 ) {
   @Volatile private var cache: CrossSurfaceIconCache? = null
+  @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
   @Volatile private var stopped = false
   private val currentUser = Process.myUid() / 100000
   private val guard = SystemUiHookGuard { reportFailure("notification app icon lookup", it) }
@@ -54,11 +55,13 @@ internal class SystemUiAppIconRuntime(
   private val boundLogged = AtomicBoolean()
   private val appliedLogged = AtomicBoolean()
   private val customLogged = AtomicBoolean()
+  private val statusBarLogged = AtomicBoolean()
   private val replay = Runnable {
     replayQueued.set(false)
     if (stopped || !lifecycle.enter()) return@Runnable
     try {
       bindings.snapshot().forEach { bound -> guard.run(Unit) { apply(bound) } }
+      statusBar?.replay()
     } finally { lifecycle.leave() }
   }
 
@@ -96,6 +99,46 @@ internal class SystemUiAppIconRuntime(
       }
       report(Log.INFO, TAG, "Cached notification app-icon boundary enabled")
     }
+    try {
+      val statusLoader = requireNotNull(profile.bitmap.declaringClass.classLoader)
+      val statusProfile = SystemUiStatusBarIconProfile.resolve(context, statusLoader)
+      val nativeManager = requireNotNull(statusProfile.nativeManager).invoke(null,
+        statusProfile.nativeCaches.first().declaringClass)
+      val runtime = SystemUiStatusBarIconRuntime(context, statusProfile, lifecycle, currentUser,
+        { name -> cache?.get(name) }, { failure -> reportFailure("status-bar app icon", failure) },
+        ready = ::queueReplay, nativeManagerInstance = nativeManager,
+        onBootstrap = { message -> report(Log.INFO, TAG, message) })
+      statusBar = runtime
+      replace(statusProfile.consumer, "$HOOK_ID.statusbar-descriptor.v1") { chain ->
+        val owner = chain.thisObject ?: return@replace chain.proceed()
+        val entry = chain.getArg(0) ?: return@replace chain.proceed()
+        runtime.descriptor(owner, entry, chain.getArg(1) as Boolean) { chain.proceed() }
+      }
+      replace(statusProfile.drawable, "$HOOK_ID.statusbar-drawable.v1") { chain ->
+        val view = chain.thisObject as? ImageView ?: return@replace chain.proceed()
+        val descriptor = chain.getArg(0) ?: return@replace chain.proceed()
+        runtime.drawable(view, descriptor) { chain.proceed() }
+      }
+      val create = Icon::class.java.getDeclaredMethod("createWithBitmap", Bitmap::class.java)
+      replace(create, "$HOOK_ID.statusbar-bitmap-icon.v1") { chain ->
+        val result = chain.proceed()
+        runtime.created(chain.getArg(0) as? Bitmap, result as? Icon)
+        result
+      }
+      val load = Icon::class.java.getDeclaredMethod("loadDrawableAsUser", Context::class.java,
+        Int::class.javaPrimitiveType)
+      replace(load, "$HOOK_ID.statusbar-user-drawable.v1") { chain ->
+        val result = chain.proceed()
+        val icon = chain.thisObject as? Icon ?: return@replace result
+        runtime.loaded(icon, result)
+      }
+      logOnce(statusBarLogged, "Status-bar app-icon descriptor and native refresh boundaries enabled")
+    } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+      statusBar?.requestStop()
+      statusBar = null
+      reportFailure("status-bar app icon profile", failure)
+    }
     for (name in listOf("setImageIcon", "setImageIconAsync")) {
       val method = ImageView::class.java.getDeclaredMethod(name, Icon::class.java)
       replace(method, "$HOOK_ID.$name") { chain -> bind(chain, name.endsWith("Async")) }
@@ -130,6 +173,7 @@ internal class SystemUiAppIconRuntime(
       }
     }
     iconCache.start()
+    statusBar?.bootstrap()
     queueReplay()
     try {
       report(Log.INFO, TAG, "Narrow app-icon bridge enabled: $BITMAP_METHOD")
@@ -231,6 +275,13 @@ internal class SystemUiAppIconRuntime(
   }
 
   fun intercept(chain: XposedInterface.Chain): Any? {
+    // An already-admitted cache probe must not resume native IO while retirement drains it.
+    val status = statusBar
+    if (status != null) {
+      val user = chain.getArg(0) as? Int
+      val name = chain.getArg(1) as? String
+      if (user != null && name != null) status.probeProducer(user, name)?.let { return it.bitmap }
+    }
     if (stopped || !lifecycle.enter()) return chain.proceed()
     try {
       val bitmap = guard.run<Bitmap?>(null) {
@@ -242,7 +293,13 @@ internal class SystemUiAppIconRuntime(
         cache?.get(packageName)?.takeUnless { it.isRecycled }
       }
       // The declared return type is Bitmap. Native failures must escape unchanged.
-      return bitmap ?: chain.proceed()
+      val result = bitmap ?: chain.proceed()
+      if (status != null) {
+        val user = chain.getArg(0) as? Int
+        val name = chain.getArg(1) as? String
+        if (user != null && name != null) status.produced(user, name, result)
+      }
+      return result
     } finally { lifecycle.leave() }
   }
 
@@ -361,14 +418,21 @@ internal class SystemUiAppIconRuntime(
 
   fun invalidate() = cache?.invalidate()
 
-  fun retirementStatus(): String = cache?.retirementStatus() ?: "cache released"
+  fun retirementStatus(): String =
+    "cache=${cache?.retirementStatus() ?: "released"}, statusbar=${statusBar?.retirementStatus() ?: "released"}"
 
   fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
     stopped = true
+    val stoppedStatus = try { statusBar?.stop(deadline) != false } catch (failure: Throwable) {
+      recoverableSystemUiFailure(failure)
+      reportFailure("status-bar app icon stop", failure)
+      false
+    }
+    // Keep the stopped probe gate until hook retirement drains already-admitted native calls.
     main.removeCallbacks(replay)
     replayQueued.set(false)
     bindings.clear()
-    val iconCache = cache ?: return true
+    val iconCache = cache ?: return stoppedStatus
     val stoppedCache = try {
       iconCache.requestStop()
       iconCache.awaitStopped(deadline)
@@ -379,7 +443,7 @@ internal class SystemUiAppIconRuntime(
     }
     // A false result still owns a worker/receiver. Keep it reachable for retirement retry.
     if (stoppedCache) cache = null
-    return stoppedCache
+    return stoppedCache && stoppedStatus
   }
 
   private fun checkInstanceMethod(modifiers: Int) {

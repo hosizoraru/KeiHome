@@ -91,7 +91,92 @@ instantiate a second plugin or invoke a plugin factory to recover a loader.
 This source check applies to this APK, not every future OEM implementation.
 An unavailable/changed lookup leaves native behavior in place.
 
-## Validation
+## Status-bar app artwork
+
+The notification card and the status bar use separate producers and caches.
+`SystemUiStatusBarIconProfile` resolves the status descriptor producer, its
+descriptor caches, the drawable reader and the view update method by linked
+DEX roles. A bounded content identity invalidates the cached descriptor profile
+when the host APK changes even if its version labels are unchanged. Resolution
+and host-member lookup run off the UI thread.
+
+Only artwork proven to come from the native app-bitmap branch receives the
+shared, already masked snapshot. People/conversation icons and native small
+notification icons retain their native branches. Descriptor and view bindings
+are weak and bounded. Snapshot readiness replays existing owned views, so a
+notification need not be sent again to repair its cached artwork.
+
+Cold adoption inspects existing views once. Exact native bitmap-cache identity
+can prove historical Icons, but an empty cache or a framework copy cannot.
+The additional entry path reads an already initialized manager from dependency
+values or a component provider's volatile instance field on a worker. It never
+calls a provider or lazy getter. Verified field paths then link the manager's
+collection, the exact notification object, and an existing pack/store view.
+The retained APK declares the manager collection through an interface and the
+connected-display store through concrete pipeline/collection types; comparison
+uses object identity along the verified field path, not declared-type equality.
+
+Only current bitmap views for non-important-conversation entries with a ready
+shared snapshot receive one bounded native safe entry update. The actual app
+producer is intercepted with that held snapshot, so recomputation cannot fall
+through to native bitmap IPC/decode. Adoption still requires the nested producer
+and returned Icon factory witness; native people/sensitive/small-icon decisions
+remain authoritative. Pending entries replay on cache readiness, and native
+connected-display listeners retain their normal fan-out. An unavailable owner,
+ambiguous link or ownership mismatch leaves native behavior intact. Retirement
+removes callbacks, stops owned work and releases host handles; no display-frame
+polling or per-icon DexKit scan is added.
+
+Debug417's live bootstrap recorded zero adopted views and the Updater remained
+square. The subsequent cold-owner implementation and concrete-collection repair
+require an integrated deploy and fresh bootstrap/visual receipts; synthetic
+fixtures and successful profile resolution do not establish visual acceptance.
+
+Debug419 resolved the schema-5 entry/store profile but reported
+`native-owner=false`, with no linked/rebound entries. Natural descriptor calls
+now retain their actual manager receiver weakly and schedule one retry per
+bounded weak owner against the already scanned views. This bypasses unavailable
+cold owner discovery while retaining the same collection/SBN/view identity and
+cache-only producer checks. A notification used to obtain that consumer witness
+must be reported as new-notification-assisted acceptance, not successful
+zero-notification bootstrap. Retirement clears these weak witnesses and views.
+
+The retained APK preserves `Provider<IconManager>` on the component's manager
+provider field. Cold lookup now prioritizes exact generic owner arguments on the
+application's shallow component roots and existing registry values. It reads only
+already initialized volatile Object slots, checks all matching slots for distinct
+owners, and returns before traversing unrelated Dagger descendants. It invokes no
+provider method or runtime method scan. The existing 1,024-object, 4,096-field per
+class-chain and 8,192-field total limits remain; priority inspection counts
+toward the fallback's field budget. A wide fixture places the typed provider last
+after 3,000 fields with unrelated descendants that would exhaust a broad walk.
+This addresses the budget hypothesis; Debug419 did not record the rejecting
+guard, so the next live bootstrap must still establish the actual result.
+
+For API102 continuity, authenticated view binding also writes a collision-checked
+private keyed tag. Its entire value is a JDK Object array containing a versioned
+String marker, package String, user Integer, and exact JDK WeakReference to the
+original framework Icon. No module classes, lambdas or Bitmaps enter that tag.
+Retirement deliberately leaves this data on the native view. New-loader
+bootstrap restores it only for the same user and the exact current bitmap Icon;
+replaced Icons, avatars, malformed tags and foreign values cannot supply proof.
+Normal authenticated binding may replace an owned tag, but never a foreign tag.
+Restored views register in the new weak ledger and replay when the existing
+shared cache becomes ready, without native owner or bitmap-cache discovery.
+
+The deployment that first acquires proof on untagged notifications may require
+an explicitly isolated QA notification to obtain the native manager consumer.
+Report this as assisted acquisition. A subsequent ordinary API102 reload must
+show `proof-tags restored` and ready-cache `replay refreshed` receipts, with no
+new notification, plus the actual existing-icon screenshot. Neither successful
+fixtures nor assisted acquisition alone establishes that continuity acceptance.
+
+Focused evidence for this extension is retained under
+`.artifacts/research/perfect-night-statusbar-20261113/`. Source contracts,
+synthetic device fixtures, live screenshots and API102 handoff checks establish
+different boundaries and are recorded separately.
+
+## Earlier validation
 
 Evidence lives in `.artifacts/research/systemui-hardening-20261108/`.
 

@@ -3,12 +3,16 @@ import json
 import re
 import struct
 import subprocess
+import tempfile
 import time
 import zlib
 from pathlib import Path
 
 SERIAL = "emulator-5580"
 DISPLAY = "4619827259835644672"
+DISPLAY_SIZE = (1120, 2436)
+MAX_CAPTURE_BYTES = 32 * 1024 * 1024
+CAPTURE_BACKENDS = ("auto", "console")
 
 
 def unlocked_user_state(text):
@@ -58,7 +62,7 @@ def png_size(data):
     """Validate complete chunks, not just screencap's occasionally empty header."""
     if not data.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError("Missing PNG signature")
-    offset, dimensions = 8, None
+    offset, dimensions, has_pixels = 8, None, False
     while offset + 12 <= len(data):
         length = struct.unpack_from(">I", data, offset)[0]
         end = offset + 12 + length
@@ -69,14 +73,33 @@ def png_size(data):
         crc = struct.unpack_from(">I", data, end - 4)[0]
         if zlib.crc32(kind + payload) != crc:
             raise ValueError("Invalid PNG chunk checksum")
-        if kind == b"IHDR" and length == 13:
-            dimensions = struct.unpack_from(">II", payload)
+        if offset == 8 and kind != b"IHDR":
+            raise ValueError("Missing initial PNG header")
+        if kind == b"IHDR":
+            if length != 13 or dimensions is not None:
+                raise ValueError("Invalid or duplicate PNG header")
+            width, height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", payload)
+            depths = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}
+            if depth not in depths.get(color, ()) or compression != 0 or filtering != 0 or interlace not in (0, 1):
+                raise ValueError("Invalid PNG header format")
+            dimensions = (width, height)
+        if kind == b"IDAT" and length:
+            has_pixels = True
         if kind == b"IEND" and length == 0:
-            if dimensions and min(dimensions) > 0 and end == len(data):
+            if dimensions and has_pixels and min(dimensions) > 0 and end == len(data):
                 return dimensions
             break
         offset = end
     raise ValueError("Incomplete screenshot")
+
+
+def display_png_size(data):
+    if len(data) > MAX_CAPTURE_BYTES:
+        raise ValueError("Screenshot exceeds capture size limit")
+    dimensions = png_size(data)
+    if dimensions != DISPLAY_SIZE:
+        raise ValueError(f"Unexpected screenshot size {dimensions}; expected {DISPLAY_SIZE}")
+    return dimensions
 
 
 def recent_failures(log, now, uptime):
@@ -96,20 +119,47 @@ def recent_failures(log, now, uptime):
     return failures[-12:]
 
 
-def check_health(evidence, runner=subprocess.run):
+def console_capture(probe):
+    # Emulator console paths containing spaces may ACK OK without writing.
+    # A fresh directory also prevents accepting an earlier screenshot.
+    with tempfile.TemporaryDirectory(prefix="keihome-avd-capture-", dir="/tmp") as capture:
+        response = probe("display-console", ["emu", "screenrecord", "screenshot", capture], 5)
+        if any(line.startswith(b"KO") for line in response.splitlines()):
+            raise RuntimeError("Emulator console screenshot rejected the capture")
+        files = []
+        for entry in Path(capture).iterdir():
+            files.append(entry)
+            if len(files) > 1:
+                break
+        if len(files) != 1 or files[0].is_symlink() or not files[0].is_file() or \
+                files[0].suffix.lower() != ".png":
+            raise RuntimeError("Emulator console must produce exactly one regular PNG")
+        if files[0].stat().st_size > MAX_CAPTURE_BYTES:
+            raise ValueError("Console screenshot exceeds capture size limit")
+        with files[0].open("rb") as source:
+            image = source.read(MAX_CAPTURE_BYTES + 1)
+        return image, display_png_size(image)
+
+
+def check_health(evidence, runner=subprocess.run, capture_backend="auto"):
     evidence = Path(evidence)
     evidence.mkdir(parents=True, exist_ok=True)
-    report = {"serial": SERIAL, "healthy": False, "checks": []}
+    report = {"serial": SERIAL, "healthy": False, "captureBackendRequested": capture_backend, "checks": []}
 
     def probe(name, args, timeout):
         started = time.monotonic()
         try:
             result = runner(["adb", "-s", SERIAL, *args], capture_output=True, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            report["checks"].append({
+        except (subprocess.TimeoutExpired, OSError) as error:
+            failed = {
                 "name": name, "seconds": round(time.monotonic() - started, 3),
-                "returnCode": None, "timedOut": True,
-            })
+                "returnCode": None,
+            }
+            if isinstance(error, subprocess.TimeoutExpired):
+                failed["timedOut"] = True
+            else:
+                failed["error"] = f"{type(error).__name__}: {error}"
+            report["checks"].append(failed)
             raise
         report["checks"].append({
             "name": name, "seconds": round(time.monotonic() - started, 3),
@@ -120,6 +170,8 @@ def check_health(evidence, runner=subprocess.run):
         return result.stdout
 
     try:
+        if capture_backend not in CAPTURE_BACKENDS:
+            raise ValueError(f"Unknown capture backend: {capture_backend!r}")
         avd = probe("authorized-AVD", ["emu", "avd", "name"], 3).decode(errors="replace")
         if "KeiOS_HyperOS4_Phone" not in avd.splitlines():
             raise RuntimeError("The selected serial is not the authorized Phone AVD")
@@ -161,11 +213,6 @@ def check_health(evidence, runner=subprocess.run):
         report["systemUiMainStates"] = states
         if states == ["D", "D"]:
             raise RuntimeError("SystemUI main thread remains in uninterruptible kernel wait")
-        # Full-resolution PNG encoding exceeded 8s on a responsive AVD under host load.
-        # Keep the independent renderer/main-thread/failure checks strict.
-        image = probe("display", ["exec-out", "screencap", "-d", DISPLAY, "-p"], 15)
-        report["displaySize"] = png_size(image)
-        (evidence / "preflight.png").write_bytes(image)
         clock = probe("clock", ["shell", "date +%s; cat /proc/uptime"], 3).split()
         now, uptime = float(clock[0]), float(clock[1])
         events = probe("recent-events", [
@@ -174,6 +221,25 @@ def check_health(evidence, runner=subprocess.run):
         report["recentFailures"] = recent_failures(events, now, uptime)
         if report["recentFailures"]:
             raise RuntimeError("Recent Provider/SystemUI/Watchdog failure; preserve the scene first")
+        # Capture only after every independent readiness gate has passed. A guest
+        # screencap failure can be transport/encoding trouble rather than GUI failure.
+        if capture_backend == "console":
+            image, dimensions = console_capture(probe)
+            backend = "emulator-console"
+        else:
+            try:
+                image = probe("display", ["exec-out", "screencap", "-d", DISPLAY, "-p"], 15)
+                dimensions = display_png_size(image)
+                backend = "guest-screencap"
+            except (subprocess.TimeoutExpired, RuntimeError, ValueError, OSError) as error:
+                report["captureFallbackReason"] = f"{type(error).__name__}: {error}"
+                if report["checks"][-1]["name"] == "display":
+                    report["checks"][-1]["error"] = report["captureFallbackReason"]
+                image, dimensions = console_capture(probe)
+                backend = "emulator-console"
+        report["displaySize"] = dimensions
+        report["captureBackend"] = backend
+        (evidence / "preflight.png").write_bytes(image)
         report["healthy"] = True
     except (subprocess.TimeoutExpired, RuntimeError, ValueError, IndexError, OSError) as error:
         report["error"] = str(error)
@@ -184,8 +250,14 @@ def check_health(evidence, runner=subprocess.run):
     return report
 
 
-if __name__ == "__main__":
+def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    print(json.dumps(check_health(parser.parse_args().evidence), indent=2))
+    parser.add_argument("--capture-backend", choices=CAPTURE_BACKENDS, default="console")
+    args = parser.parse_args(argv)
+    print(json.dumps(check_health(args.evidence, capture_backend=args.capture_backend), indent=2))
+
+
+if __name__ == "__main__":
+    main()

@@ -16,6 +16,16 @@ evidence rejects deployment. This check is read-only; subsequent ordinary
 deployments may keep KeiHome or a test screen foreground. Do not automatically
 unlock a credential-protected device.
 
+The deployment and standalone health CLIs use emulator-console capture by
+default. The console writes into a fresh directory without spaces; admission
+requires one complete 1120x2436 PNG with valid chunk checksums and visible
+nonblank content. This avoids repeatedly invoking a guest screenshot interface
+that has timed out on this AVD. `--capture-backend auto` explicitly tries guest
+capture first and uses the same validated console path on capture failure.
+The receipt records the requested and actual backend, including any failed
+guest attempt. User, keyguard, process and SystemUI responsiveness checks remain
+mandatory with either backend.
+
 Focused regression:
 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p test_avd_health.py -v`.
 

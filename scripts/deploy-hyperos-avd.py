@@ -138,6 +138,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", required=True, type=Path)
     parser.add_argument("--reload-native", action="store_true")
+    parser.add_argument(
+        "--capture-backend", choices=("auto", "console"), default="console",
+        help="Use console capture for readiness; auto tries guest screencap first.",
+    )
     parser.add_argument("--allow-downgrade", action="store_true",
                         help="Allow a lower code on the core-patched HyperOS test AVD")
     parser.add_argument("--evidence", required=True, type=Path)
@@ -145,7 +149,7 @@ def main():
     args.evidence.mkdir(parents=True, exist_ok=True)
     if "KeiOS_HyperOS4_Phone" not in adb("emu", "avd", "name").splitlines():
         raise RuntimeError("The selected serial is not the authorized HyperOS AVD")
-    check_health(args.evidence)
+    check_health(args.evidence, capture_backend=args.capture_backend)
     sdk = next(line.split("=", 1)[1] for line in (ROOT / "local.properties").read_text().splitlines()
                if line.startswith("sdk.dir="))
     aapt = Path(sdk) / "build-tools/37.0.0/aapt2"

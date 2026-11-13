@@ -56,9 +56,17 @@ public text; English and Japanese are translations. 1.6.0 describes the final
 changes from `v1.5.0` to `v1.6.0`. See
 [content provenance](release-notes-history.md) and the standalone
 [1.6.0 notes](releases/1.6.0.md). [1.7.0](releases/1.7.0.md) describes
-`v1.6.0..v1.7.0`; [1.8.0](releases/1.8.0.md) describes `v1.7.0..v1.8.0`; [1.9.0](releases/1.9.0.md) describes `v1.8.0..v1.9.0`.
+`v1.6.0..v1.7.0`; [1.8.0](releases/1.8.0.md) describes `v1.7.0..v1.8.0`;
+[1.9.0](releases/1.9.0.md) describes the confirmed public 1.9.0 build.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
+
+See the [public build ledger](released-versions.md) for exact shipped APK
+identities and feedback baselines. Unspecified "1.9.0" feedback means
+`1.9.0+g70ea216.b0394` (`109000394`, source `70ea216`); explicit full versions
+override that default. The local `v1.9.0` tag points to an older preparation
+commit and remains the catalog date anchor. Published 1.9.0 notes stay scoped
+to the public build, excluding pending features from later development.
 
 For a subsequent release, add localized content, its exact tag and target
 committer timestamp, and the desired upgrade expansion list. The catalog stores

@@ -2,9 +2,13 @@
 
 ## Source of truth
 
-`ReleaseNotesCatalog.kt` contains released versions, their exact tags, offset-aware target commit times, and localized resource references.
+`ReleaseNotesCatalog.kt` contains release-note versions, their exact catalog tags, offset-aware target commit times, and localized resource references.
 `release_notes_content.xml` in `values`, `values-zh-rCN` and `values-ja` contains
 the content. Versions are listed newest first.
+
+Exact publicly shipped APK identities and the default build for unspecified
+version feedback are recorded in the [public build ledger](released-versions.md).
+Catalog anchors and public artifact identities must be checked separately.
 
 Dates use the target commit's committer timestamp (`git show -s --format=%cI
 TAG^{commit}`), not the annotated tag's creation time, APK build time or the
@@ -19,6 +23,15 @@ deriving the calendar date.
 | 1.6.0 | `02c8badfcd929c0563fb8c25361167ae5eed0008` | `2026-11-11T03:24:52+08:00` |
 | 1.5.0 | `1bf0c4ccb43d049d3caa09f1f3cef96d74052c68` | `2026-11-07T14:07:22+08:00` |
 | 1.4.0 | `e00c6c6c5cc46e979633bf14942a455bde5d5a44` | `2026-11-06T11:43:46+08:00` |
+
+For 1.9.0, the local tag targets preparation commit
+`d23803205de01c61ec9f48515d32a93fd7df1bfd`. The user-confirmed public APK is
+`1.9.0+g70ea216.b0394`, versionCode `109000394`, built from
+`70ea21606be2d8277da0c1031853d94b257b396f`, four commits later. Public
+confirmation is dated 2026-11-13 in Asia/Singapore. The tag and its catalog
+timestamp remain unchanged; use the ledger's artifact and certificate digests
+to identify the shipped build. Unspecified subsequent "1.9.0" feedback refers
+to that public APK; an explicit full version overrides this default.
 
 The catalog starts at 1.4.0, the first public release. Its Chinese introduction,
 twelve feature title/body pairs and closing note are the user-supplied public
@@ -82,7 +95,7 @@ The following later work is deliberately absent from 1.6.0 notes:
 - Launcher 8607 and the subsequent Security APK matrix refresh (`5e707b3`).
 - The 1.7.0 version bump and the release-notes feature itself.
 
-## 1.7.0 and 1.8.0 editorial boundaries
+## 1.7.0 through 1.9.0 editorial boundaries
 
 [1.7.0 notes](releases/1.7.0.md) group the final effects of OS4 migration,
 the two bottom-navigation styles, Desktop categories and material controls,
@@ -100,7 +113,9 @@ Representative in-range commits: `ff3ec6d`, `290ca54`, `a5c8203`, `879c1aa`,
 See `docs/perfect-git-sync.md`, `docs/icon-mask-preview.md`,
 `docs/ui-performance.md` and `docs/onboarding.md` for scope and limits.
 
-[1.9.0 notes](releases/1.9.0.md) cover `v1.8.0..v1.9.0`: component/adaptive
+[1.9.0 notes](releases/1.9.0.md) describe the public 1.9.0 build, whose source
+boundary is `v1.8.0^{commit}..70ea21606be2d8277da0c1031853d94b257b396f`.
+The older `v1.9.0` preparation tag remains the catalog anchor. The notes cover component/adaptive
 icon and dynamic snapshot fixes, publication-aware masked previews, preserved
 originals and optional recommended mappings, independent Perfect completion,
 OS4 Glass controls and list actions, removable imports, fixed cache reminders
@@ -110,6 +125,11 @@ behavior rather than individual commits. First upgrade presentation expands
 `docs/icon-rendering-alias-regression-20261112.md`,
 `docs/recommended-icon-mappings.md`, `docs/perfect-icons.md`,
 `docs/hook-hot-path-performance.md` and `docs/miuix-os4-migration.md`.
+
+Later development, including the new default-on in-call UI to Telecom/Phone
+recommended mapping, is outside this public build. Keep those pending changes
+out of the published 1.9.0 notes; retaining the same version prefix does not
+extend the shipped artifact's scope.
 
 The catalogs retain the supplied Chinese 1.4.0 and 1.5.0 announcements and
 existing 1.6.0 notes. The focused catalog check validates XML and localized key /

@@ -5,7 +5,7 @@ control. The resolver uses mapped instruction contracts, without reading symbols
 The symbol/debugdata files used during research are independent role oracles.
 
 The durable inventory is `fixtures.json`: 7722, 8593, 8602, 8604, 8607, 9209,
-9226 and 9239. Each exact ELF lives at
+9226, 9239 and 9248. Each exact ELF lives at
 `.artifacts/inputs/launchers/<version>/libapp.so`, next to its unpacked
 `debug.elf`. No fixture is copied into version control.
 
@@ -25,7 +25,7 @@ test-only inventory. The runner compiles the current host resolver, compares
 five resolved roles with independent symbols, verifies `debug.elf` matches
 embedded debugdata, then executes both freshly assembled and linked ARM64
 bridges. It also reproduces the expanded label patterns from the applicable
-9209/9226/9239 fixture oracles and compares the output with production.
+9209/9226/9239/9248 fixture oracles and compares the output with production.
 It snapshots the supplied payload before use and authenticates every
 bridge byte and entry offset against current assembly. `payload.json` records
 the full SO SHA-256, bridge SHA-256, source SHA-256 and entry offsets.
@@ -63,7 +63,7 @@ python scripts/tests/launcher-labels/test_bridge.py \
   .artifacts/inputs/launchers/9239/libapp.so
 ```
 
-The suite has 686 execution cases per fixture (5,488 for the full eight-fixture
+The suite has 686 execution cases per fixture (6,174 for the full nine-fixture
 inventory). These stub the original Dart measurement, prefix, allocation,
 constructor, fade, visibility, editing and title-refresh callees. They assert original return
 PCs, tagged roots, simulated relocation during multiple calls, prefix-dependent
@@ -92,8 +92,20 @@ That run checks five independent debug-symbol roles, 19 rejection mutations and
 `symbols/arm64-v8a/` subdirectory. Linked checks authenticate and execute the
 bridge, while resolver checks compile current C++ source on the host.
 
+9248 also passes the unchanged production graph. Focused baseline and final
+9248/9239 evidence is under
+`.artifacts/research/launcher-9248-20261114/labels-highlight/`.
+Each fixture passes five independent debug-symbol role comparisons, 19
+rejection mutations and 686 modeled executions per source or linked bridge.
+The archived payload is
+`.artifacts/releases/109000457/libkeihome_hyos_lsp.so`.
+Its bridge bytes and entry offsets match current assembly. The evidence also
+checks all allocated sections against the native library packaged in the
+archived release APK. These authenticate payload identity; the resolver is
+still compiled from current host C++ source.
+
 `generate_variants.py` reproduces the reviewed newer instruction shapes from
-the external 9209/9226/9239 debug-data oracles. It covers inline title configuration,
+the external 9209/9226/9239/9248 debug-data oracles. It covers inline title configuration,
 the expanded grid field access and changed item-event prefix. Runtime resolution
 still derives fields, live root slots and targets from mapped code. The shared
 visibility tail is located uniquely within a bounded span so the new native

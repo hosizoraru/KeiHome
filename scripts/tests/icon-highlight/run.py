@@ -5,6 +5,7 @@ import argparse
 import ctypes as C
 import hashlib
 import json
+import lzma
 import os
 from pathlib import Path
 import struct
@@ -220,13 +221,22 @@ def main():
     results = []
     for path in args.images:
         image = Image(path)
+        debug = path.with_name("debug.elf").read_bytes()
+        assert debug == lzma.decompress(image.section(".gnu_debugdata")), path
         result = resolver_tests(lib, image, template)
         from test_unicorn import execute
         result["execution"] = execute(image, result["profile"], result["fields"], result.pop("bridge"))
         result["image"] = str(path)
         result["sha256"] = hashlib.sha256(image.data).hexdigest()
+        result["debug_sha256"] = hashlib.sha256(debug).hexdigest()
+        result["symbol_oracles"] = dict(ROLES)
         results.append(result)
         print(json.dumps(result), flush=True)
+    generated = args.output / "icon_highlight_patterns.inc"
+    subprocess.run([sys.executable, str(Path(__file__).with_name("generate_profiles.py")),
+                    *map(str, args.images), "--output", str(generated)], check=True)
+    assert generated.read_bytes() == (CPP / "icon_highlight_patterns.inc").read_bytes()
+    print("All selected highlight debug oracles reproduce current production patterns.", flush=True)
     (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
 
 

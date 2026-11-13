@@ -1,6 +1,6 @@
 # Rust MAML ZIP metadata release
 
-Run the durable framework inventory plus the 8607 and 9239 launcher widget-SDK
+Run the durable framework inventory plus the 8607, 9239 and 9248 launcher widget-SDK
 negative fixtures from the repository root:
 
 ```sh
@@ -26,6 +26,13 @@ Its widget SDK is byte-identical to the archived 8602 and 8604 SDKs. It has no
 ZIP role symbols and remains rejected with a zero output address. This check
 compiles the current resolver on the host; it does not execute the shipping
 MAML C++ code or establish positive launcher-SDK support.
+
+9248 has 3,130 decompressed debug symbols, no ZIP archive or `Arc<Shared>`
+drop-role symbols, and returns the same rejection with a zero output address.
+Both external framework SDK controls still pass all 328 checks each. Focused
+baseline and final evidence is under
+`.artifacts/research/launcher-9248-20261114/labels-highlight/`.
+No production pattern or role admission was broadened.
 
 The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
 ring. The host test covers 9,095 exactly-once releases, initialization failures,

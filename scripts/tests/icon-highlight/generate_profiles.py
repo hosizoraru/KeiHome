@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Generate reviewed masked words; both independent debug-symbol bodies must agree."""
+"""Generate reviewed masked words; all independent debug-symbol bodies must agree."""
 import argparse
 from pathlib import Path
 from elf_fixture import Image, ROLES, masks
 
 p = argparse.ArgumentParser()
-p.add_argument("images", nargs=2)
+p.add_argument("images", nargs="+")
 p.add_argument("--output", required=True)
 args = p.parse_args()
 images = [Image(path) for path in args.images]
@@ -16,10 +16,11 @@ lines = ["// SPDX-License-Identifier: Apache-2.0",
          "// Only call displacements, pool/table slots and linked fields relocate."]
 for role, name in ROLES:
     codes = [im.words(name) for im in images]
-    assert len(codes[0]) == len(codes[1]), name
     mask = masks(codes[0], role)
-    assert mask == masks(codes[1], role), name
-    assert all(a & m == b & m for a, b, m in zip(*codes, mask)), name
+    for image, code in zip(args.images[1:], codes[1:]):
+        assert len(codes[0]) == len(code), (name, image)
+        assert mask == masks(code, role), (name, image)
+        assert all(a & m == b & m for a, b, m in zip(codes[0], code, mask)), (name, image)
     lines += [f"constexpr PatternWord k{role}[] = {{"]
     for a, m in zip(codes[0], mask):
         lines += [f"    {{0x{a & m:08x}u, 0x{m:08x}u}},"]

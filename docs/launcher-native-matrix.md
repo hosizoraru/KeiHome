@@ -7,6 +7,11 @@ import/apply contract continues to use DexKit.
 
 ## Source fixtures
 
+The [9248 follow-up](launcher-9248-compatibility.md) extends the retained
+Phone fixture inventory to nine versions: 7722, 8593, 8602, 8604, 8607, 9209,
+9226, 9239 and 9248. Its identity and acceptance boundaries are documented
+separately; the original five-version results below remain historical evidence.
+
 The [9239 follow-up](launcher-9239-compatibility.md) extends the Phone regression
 set to seven fixtures and records an actual temporary 9239 AVD upgrade, current
 shipping-payload tests and restoration separately from host-only evidence.

@@ -6,7 +6,7 @@ libraries, bridge objects and results stay under `--output`.
 
 With no positional ELFs, the runner uses the shared test-only
 `scripts/tests/launcher-labels/fixtures.json` inventory: 7722, 8593, 8602,
-8604, 8607, 9209, 9226 and 9239. Explicit ELF paths or `--inventory` override it.
+8604, 8607, 9209, 9226, 9239 and 9248. Explicit ELF paths or `--inventory` override it.
 Install pinned Python dependencies with
 `python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt`.
 Add `--payload /absolute/path/to/current/unstripped/libkeihome_hyos_lsp.so`
@@ -15,6 +15,22 @@ authenticates all 64 template bytes against freshly assembled current source,
 and records the full SO, source and bridge SHA-256 values in `payload.json`.
 Run once without `--payload` and once with it for separate source/linked
 execution evidence. Authentication covers the bridge, not other payload C++.
+
+The runner verifies each adjacent `debug.elf` against embedded debugdata and
+records its hash and all five symbol roles. It regenerates patterns from all
+selected independent symbol bodies and requires byte equality with production.
+These symbols and hashes are test evidence; runtime resolution uses instruction
+contracts.
+
+9248 and 9239 pass unchanged production patterns in both source and linked
+bridge modes. Focused baseline and final evidence is under
+`.artifacts/research/launcher-9248-20261114/labels-highlight/`.
+Each fixture in each mode passes 242 resolver/builder checks, 288 native
+baselines and 1,440 patched executions (including 1,120 disabled bypasses).
+Each invocation also passes 945 exact-patch assertions. The linked run uses
+`.artifacts/releases/109000457/libkeihome_hyos_lsp.so`; the evidence checks its
+allocated sections against the archived APK as well as authenticating its
+64-byte bridge against current assembly.
 
 8607 passes without changing production patterns. Focused evidence is retained
 under `.artifacts/research/oem-refresh-20261111/labels-highlight/` in

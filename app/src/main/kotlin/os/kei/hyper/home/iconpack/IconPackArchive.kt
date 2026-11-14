@@ -44,35 +44,48 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
 
   fun inspect(
     file: File, nestedIconsFile: File, sdk: Int = 37, checkCancelled: () -> Unit = {},
+  ): IconPackArchiveIndex = inspect(file, nestedIconsFile, sdk, checkCancelled, null)
+
+  internal fun inspectPreviouslyValidated(
+    proof: IconPackValidationCache.VerifiedContents, nestedIconsFile: File,
+    sdk: Int, checkCancelled: () -> Unit,
+  ): IconPackArchiveIndex = inspect(proof.original, nestedIconsFile, sdk, checkCancelled, proof)
+
+  private fun inspect(
+    file: File, nestedIconsFile: File, sdk: Int, checkCancelled: () -> Unit,
+    proof: IconPackValidationCache.VerifiedContents?,
   ): IconPackArchiveIndex {
     val budget = Budget()
-    val paths = validate(file, budget, allowIconsModule = true, checkCancelled)
+    val paths = validate(file, budget, allowIconsModule = true, checkCancelled, proof == null)
     if ("AndroidManifest.xml" in paths && "resources.arsc" in paths) {
       // Compiled names may be shortened/obfuscated in the ZIP (e.g. Lawnicons 2.19.0).
       // Android resource-table lookup, not ZIP filenames, must supply this index.
       return IconPackArchiveIndex(IconPackFormat.APK, emptyList())
     }
     if ("icons" in paths) {
-      if (nestedIconsFile.canonicalFile == file.canonicalFile) throw IconPackException("Invalid staging file")
-      ZipFile(file).use { zip ->
-        zip.getInputStream(zip.getEntry("icons")).use { input ->
-          nestedIconsFile.outputStream().use { output -> copyBounded(input, output, limits.maxInputBytes, checkCancelled) }
+      val icons = proof?.icons ?: nestedIconsFile
+      if (icons.canonicalFile == file.canonicalFile) throw IconPackException("Invalid staging file")
+      if (proof?.icons == null) {
+        ZipFile(file).use { zip ->
+          zip.getInputStream(zip.getEntry("icons")).use { input ->
+            icons.outputStream().use { output -> copyBounded(input, output, limits.maxInputBytes, checkCancelled) }
+          }
         }
       }
-      val innerPaths = validate(nestedIconsFile, budget, allowIconsModule = false, checkCancelled)
-      val inner = nativeIndex(nestedIconsFile, innerPaths, IconArchivePart.ICONS, checkCancelled)
+      val innerPaths = validate(icons, budget, allowIconsModule = false, checkCancelled, proof == null)
+      val inner = nativeIndex(icons, innerPaths, IconArchivePart.ICONS, checkCancelled)
       if (inner.entries.isEmpty()) throw IconPackException("MTZ contains no recognized native icons")
       val description = if ("description.xml" in paths) description(file, checkCancelled) else IconPackDescription()
       val previews = paths.filter { it.startsWith("preview/") && it.count { c -> c == '/' } == 1 }
         .filter { it.substringAfterLast('.').lowercase() in setOf("png", "jpg", "jpeg", "webp") }
         .sorted().take(12).map { IconArchiveVariant(it, IconResourceQualifiers("drawable-nodpi", densityDpi = 0)) }
       return inner.copy(format = IconPackFormat.MIUI_MTZ, description = description, previews = previews,
-        nativeIconsSha256 = sha256(nestedIconsFile, checkCancelled))
+        nativeIconsSha256 = proof?.nativeSha256 ?: sha256(icons, checkCancelled))
     }
     if (paths.any { filterVariant(it) != null }) return classicIndex(file, paths, sdk, checkCancelled)
     val native = nativeIndex(file, paths, IconArchivePart.ORIGINAL, checkCancelled)
     if (native.entries.isEmpty()) throw IconPackException("No supported appfilter, APK resources, or MIUI icons module")
-    return native.copy(nativeIconsSha256 = sha256(file, checkCancelled))
+    return native.copy(nativeIconsSha256 = proof?.nativeSha256 ?: sha256(file, checkCancelled))
   }
 
   // Final resources share one budget across both levels. Only the exact outer icons
@@ -82,6 +95,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
 
   private fun validate(
     file: File, budget: Budget, allowIconsModule: Boolean, checkCancelled: () -> Unit,
+    verifyPayloads: Boolean = true,
   ): Set<String> {
     if (!file.isFile || file.length() !in 1..limits.maxInputBytes) throw IconPackException("Archive size limit exceeded")
     ZipFile(file).use { zip ->
@@ -113,6 +127,14 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
           entry.size > limits.maxExpandedBytes - expandedBytes ||
           (!intermediate && entry.size > limits.maxExpandedBytes - budget.resourceBytes)
         ) throw IconPackException("Archive expansion limit exceeded")
+        if (!verifyPayloads) {
+          // Fresh compressed hashes plus a receipt prove these exact payloads already passed
+          // inflation/CRC checks. Metadata, path and shared expansion budgets still apply.
+          if (entry.isDirectory && entry.size != 0L) throw IconPackException("Corrupt ZIP directory")
+          expandedBytes += entry.size
+          if (!intermediate) budget.resourceBytes += entry.size
+          continue
+        }
         var actual = 0L
         val crc = CRC32()
         zip.getInputStream(entry).use { input ->

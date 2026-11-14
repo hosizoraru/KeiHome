@@ -24,7 +24,16 @@ internal fun iconPackTargets(context: Context, check: () -> Unit = {}): List<Ico
   return (launcher + nativeSystem).distinct()
 }
 
-internal fun isResourceOverlay(pm: PackageManager, info: ApplicationInfo): Boolean = try {
+private val overlayVerdicts = ResourceOverlayCache()
+
+internal fun isResourceOverlay(pm: PackageManager, info: ApplicationInfo): Boolean {
+  val identity = info.sourceDir?.let {
+    overlayApkIdentity(info.packageName, info.uid, listOf(it) + info.splitSourceDirs.orEmpty())
+  }
+  return overlayVerdicts.resolve(identity) { readResourceOverlay(pm, info) }
+}
+
+private fun readResourceOverlay(pm: PackageManager, info: ApplicationInfo): Boolean? = try {
   pm.getResourcesForApplication(info).assets.openXmlResourceParser("AndroidManifest.xml").use { xml ->
     var matchesPackage = false
     var overlay = false
@@ -38,4 +47,5 @@ internal fun isResourceOverlay(pm: PackageManager, info: ApplicationInfo): Boole
     }
     matchesPackage && overlay
   }
-} catch (_: Exception) { false }
+} catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
+} catch (_: Exception) { null }

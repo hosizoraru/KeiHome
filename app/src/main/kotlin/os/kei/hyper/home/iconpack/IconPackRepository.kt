@@ -28,6 +28,7 @@ internal class IconPackRepository(
   private val application = context.applicationContext
   private val worker = dispatcher.limitedParallelism(2)
   private val store = IconPackStore(File(application.noBackupFilesDir, "icon-packs"), limits)
+  private val validationCache = IconPackValidationCache(File(application.cacheDir, "icon-pack-validation"), limits)
   private val builtinRoot = File(application.cacheDir, "builtin-icon-packs")
   private val builtins = BuiltinIconPackStore(application.assets, limits)
   private val android = AndroidIconPackResources(application, limits)
@@ -232,24 +233,18 @@ internal class IconPackRepository(
 
   private fun load(record: StoredIconPack, check: () -> Unit): IconPackDescriptor {
     synchronized(importedCache) { importedCache[record.id]?.let { return it } }
-    if (sha256(record.originalFile, check) != record.id) throw IconPackException("Stored archive checksum mismatch")
     val descriptor = if (record.format == IconPackFormat.APK) {
+      if (sha256(record.originalFile, check) != record.id) throw IconPackException("Stored archive checksum mismatch")
       val info = android.archiveInfo(record.originalFile)
       val index = android.index(info, record.originalFile, check)
         ?: throw IconPackException("APK contains no supported appfilter")
       IconPackDescriptor(record.id, index.displayName, record.format, IconPackSource.Imported(record), index.entries,
         description = apkDescription(info, record.originalFile, check), notices = index.notices, directives = index.directives)
     } else {
-      val scratch = File.createTempFile("icon-pack-index-", ".zip", application.cacheDir)
-      try {
-        val index = IconPackArchive(limits).inspect(record.originalFile, scratch, Build.VERSION.SDK_INT, check)
-        if (index.nativeIconsSha256 != record.nativeIconsSha256 ||
-          (record.iconsFile != null && sha256(record.iconsFile, check) != record.nativeIconsSha256)
-        ) throw IconPackException("Stored icons module checksum mismatch")
-        IconPackDescriptor(record.id, index.description.title ?: record.originalName, index.format,
-          IconPackSource.Imported(record), index.entries, index.description, index.previews, index.notices, index.directives,
-          colorOsProfile = ColorOsPackProfile.load(record, check))
-      } finally { scratch.delete() }
+      val index = validationCache.inspect(record, Build.VERSION.SDK_INT, check).index
+      IconPackDescriptor(record.id, index.description.title ?: record.originalName, index.format,
+        IconPackSource.Imported(record), index.entries, index.description, index.previews, index.notices, index.directives,
+        colorOsProfile = ColorOsPackProfile.load(record, check))
     }
     check()
     synchronized(importedCache) { importedCache[record.id] = descriptor }

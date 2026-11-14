@@ -311,3 +311,9 @@ bulk deletion of upstream artwork.
 Focused validation and before/after captures are retained under
 `.artifacts/research/glass-interactions-20261113/`; the
 `ui-glass-interactions` check group excludes unrelated native and export tests.
+
+Expanded list search, joined view selectors, short anchored explanations and
+the value-based Gaussian backdrop pipeline are documented in
+[OS4 search and contextual help](os4-search-and-context.md). Their focused
+regression group is `ui-os4-context`; long guidance and live diagnostic cards
+remain separate from the short-help popup pattern.

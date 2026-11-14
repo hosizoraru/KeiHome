@@ -78,6 +78,12 @@ GROUPS = {
     "ui-os4-controls": ("device", "Glass selectors, disabled options, dialog actions and menus", (
         UI + "Os4SelectorPreferenceUiTest", UI + "Os4DialogDeviceTest",
         UI + "Os4DropdownMenuDeviceTest")),
+    "ui-os4-context": ("device", "Search editing, joined view modes, anchored help and Gaussian pipeline reuse", (
+        UI + "Os4SearchInteractionTest", UI + "Os4SegmentedTabsDeviceTest",
+        UI + "Os4InfoPopupDeviceTest",
+        "os.kei.hyper.home.ui.components.KeiHomeBackdropPipelineDeviceTest",
+        UI + "SettingsSearchUiTest", UI + "CacheStorageUiTest", UI + "PackGuidanceDeviceTest",
+        UI + "PreservedIconsUiTest", UI + "PreservedIconsScreenTest")),
     "ui-glass-interactions": ("device", "Disclosure geometry, press cancellation, sheet tabs and Apple selection", (
         UI + "GlassInteractionsUiTest", UI + "AppleSelectionToolbarDeviceTest",
         UI + "MonetColorEditorTest", UI + "CacheStorageUiTest", UI + "IconMaskSettingsUiTest")),

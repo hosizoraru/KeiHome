@@ -12,7 +12,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,7 +25,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.drawBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal val LocalKeiHomeBackdrop = staticCompositionLocalOf<Backdrop?> { null }
@@ -71,12 +70,12 @@ internal fun KeiHomeBarSurface(
 ) {
   val blurActive = blurEnabled && backdrop != null && style != AppTopBarBlur.OFF
   Box {
-    if (blurActive && style == AppTopBarBlur.GAUSSIAN) {
+    if (blurActive && style == AppTopBarBlur.GAUSSIAN && backdrop != null) {
+      val pipeline = rememberKeiHomeBackdropPipeline(colors = barBlurColors(), blurRadius = 10f)
       Box(
-        modifier = Modifier.matchParentSize().textureBlur(
-            backdrop = backdrop, shape = RectangleShape, blurRadius = 10f,
-            colors = barBlurColors(),
-          ),
+        modifier = Modifier.matchParentSize().drawBackdrop(
+          backdrop = backdrop, pipeline = pipeline,
+        ),
       )
     }
     CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop.takeIf { blurActive },

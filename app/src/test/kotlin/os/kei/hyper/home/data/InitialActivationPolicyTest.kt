@@ -165,6 +165,28 @@ class InitialActivationPolicyTest {
     assertTrue(rebooted.completed)
   }
 
+  @Test fun revocationFirstObservedAfterRebootRequiresRegrantAndAnotherReboot() {
+    for (systemLoaded in listOf(false, true)) {
+      val revoked = InitialActivationPolicy.observe(
+        InitialActivationRecord(scopeGranted = true, bootCount = 12),
+        13, scopeGranted = false, systemLoaded = systemLoaded,
+      )
+      assertEquals(InitialActivationRecord(), revoked)
+
+      val rearmed = InitialActivationPolicy.observe(
+        InitialActivationRecord.decode(revoked.encode()),
+        13, scopeGranted = true, systemLoaded = false,
+      )
+      assertFalse(rearmed.completed)
+      assertEquals(13, rearmed.bootCount)
+      assertEquals(InitialActivationStatus.REBOOT_REQUIRED,
+        InitialActivationPolicy.status(rearmed, 13))
+      assertTrue(InitialActivationPolicy.observe(
+        rearmed, 14, scopeGranted = true, systemLoaded = false,
+      ).completed)
+    }
+  }
+
   @Test fun missingBootCountWaitsForKnownCountThenRequiresItsNextChange() {
     val withoutBoot = InitialActivationPolicy.observe(
       InitialActivationRecord(), null, scopeGranted = true, systemLoaded = false,

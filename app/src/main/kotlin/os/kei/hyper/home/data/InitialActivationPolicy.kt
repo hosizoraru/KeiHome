@@ -30,7 +30,8 @@ internal object InitialActivationPolicy {
     if (previous.completed) return previous
     val boot = bootCount?.takeIf { it >= 0 }
     if (scopeGranted == true && systemLoaded ||
-      previous.scopeGranted && previous.bootCount != null && boot != null && boot != previous.bootCount)
+      scopeGranted != false && previous.scopeGranted &&
+      previous.bootCount != null && boot != null && boot != previous.bootCount)
       return previous.copy(completed = true)
     return when (scopeGranted) {
       true -> InitialActivationRecord(scopeGranted = true,

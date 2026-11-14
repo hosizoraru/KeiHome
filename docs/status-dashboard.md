@@ -13,7 +13,7 @@ Design references:
 
 These UI references informed the composition; no KernelSU source was copied.
 
-## State and disclosure
+## State and detail sheets
 
 The Hero combines API 102 system-module loading with a separate native endpoint
 observation. Its framework release name and version code still come from
@@ -22,15 +22,35 @@ not depend on a Java target entry for the Flutter launcher. Text and symbols
 accompany every color, and unavailable, outdated and failed observations remain
 distinct from readiness.
 
-Runtime and Monet details expand independently and keep their state across tab
-changes. Their collapsed summaries and app capability counts fit together on
-the tested phone screen. Text can increase the card height; the decorative
-symbol does not determine layout height or cover the text column.
+Runtime and Monet cards keep compact status pills on the dashboard. Tapping
+either card opens an OS4 Glass bottom sheet without expanding or scrolling the
+page. Sheets are transient: Back, outside dismissal and page recreation close
+them. No extra polling is started by opening a sheet; existing lifecycle and
+freshness observers still update both the card and the open sheet.
 
-The expanded runtime card retains the Java target report as a secondary detail.
-It also shows the authenticated launcher PID and current reporting module
-generation. Recent callback counts describe completed dispatch, not observed
-icon rendering. The Monet switch and palette remain separate from hook readiness.
+The runtime sheet begins with module readiness, the app version prefix,
+framework identity/API, and system/native status pills for screenshot context.
+Diagnostic text precedes compact PID, reporting-generation and installed-version
+pills; system scope and Java target reports remain secondary details. Recent
+callback counts describe completed dispatch, not observed icon rendering.
+
+The Monet sheet retains separate icon-switch and palette-readiness pills,
+last-read time, source, style and available family/shade counts. The app version
+is included for screenshot context. Read failures hide old successful palette
+values. An explicit Monet settings action waits for the native sheet to finish
+closing before navigating, and cannot navigate twice. Merely opening or
+dismissing either sheet does not change settings.
+
+The sheet itself provides the surface: the overview has no nested card fill.
+Overview pills, details, notes and the settings action share the native content
+insets. A thin divider separates the overview from compact detail rows. Values
+wrap without ellipsis; narrow content widths and font scales above 1.3 use
+stacked labels and values, while diagnostic text always uses a stacked layout.
+
+Focused device group: `python3 scripts/checks.py ui-status-sheets --serial
+emulator-5580 --run`. Coverage includes unchanged dashboard geometry, actual
+elapsed-time expiry while open, read failure/recovery, aligned sheet content,
+long values at 1.6 font scale and one-time navigation.
 
 ## Native observation
 

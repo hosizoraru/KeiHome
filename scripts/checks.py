@@ -87,7 +87,7 @@ GROUPS = {
     "ui-glass-interactions": ("device", "Disclosure geometry, press cancellation, sheet tabs and Apple selection", (
         UI + "GlassInteractionsUiTest", UI + "AppleSelectionToolbarDeviceTest",
         UI + "MonetColorEditorTest", UI + "CacheStorageUiTest", UI + "IconMaskSettingsUiTest")),
-    "ui-status": ("device", "Status cards, disclosures and detail navigation", (
+    "ui-status": ("device", "Status cards, readiness and detail navigation", (
         UI + "MonetStatusContentTest",)),
     "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (
         UI + "ThemeEffectsCardTest",)),
@@ -120,6 +120,8 @@ GROUPS = {
         UI + "LogExportConfirmationTest",)),
     "ui-pack-file-import": ("device", "Floating APK/archive import guides, cancellation and picker handoff", (
         UI + "PackFileImportUiTest",)),
+    "ui-status-sheets": ("device", "Dashboard sheets, freshness, failure recovery and navigation handoff", (
+        UI + "StatusDetailSheetTest", UI + "MonetStatusContentTest",)),
     "ui-local-packs": ("device", "Pack counts, confirmed local-copy removal and storage links", (
         UI + "LocalPackRemovalDeviceTest", UI + "CacheStorageUiTest")),
     "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (

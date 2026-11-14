@@ -59,6 +59,7 @@ does not automatically run navigation, color editing or native tests.
 | Cache pills, chart layout, reminder editor and resource navigation | `ui-cache` |
 | App log warning, five-second export gate, cancellation and reopening | `ui-log-export` |
 | Floating APK/archive import guides, cancellation and picker handoff | `ui-pack-file-import` |
+| Status sheets, freshness, failure recovery and navigation handoff | `ui-status-sheets` |
 | Pack counts, local-copy removal/cancellation and storage navigation | `ui-local-packs` |
 | OS4 scope page, component versions, grant states and large text | `ui-scope` |
 | OS4 guide, resume/replay, destination round trips and large text | `ui-onboarding` |

@@ -8,14 +8,17 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import os.kei.hyper.home.MainActivity
 import os.kei.hyper.home.R
 import org.junit.Rule
 import org.junit.Test
 
 class MainScreenTest {
-  @get:Rule val composeTestRule = createAndroidComposeRule<MainActivity>()
+  @get:Rule(order = 0) val foreground = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
 
   @Test
@@ -73,33 +76,30 @@ class MainScreenTest {
   @Test
   fun statusMonetSummaryOpensMonetPage() {
     val context = composeTestRule.activity
-    composeTestRule.onNode(
-      hasText(context.getString(R.string.settings_monet_title)) and
-        hasClickAction() and !isSelectable(),
-    ).performClick()
+    composeTestRule.onNodeWithTag("status.monet.card").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("status.monet.settings").performScrollTo().performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_seed_source)).assertExists()
   }
 
   @Test
-  fun retainsChromeAndExpandedRuntimeAcrossRepeatedStatusAndMonetNavigation() {
+  fun keepsRuntimeSheetTransientAcrossRepeatedStatusAndMonetNavigation() {
     val context = composeTestRule.activity
-    composeTestRule.onNode(
-      hasText(context.getString(R.string.dashboard_runtime)) and hasClickAction(),
-    ).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.dashboard_system_scope)).assertExists()
     repeat(3) {
-      composeTestRule.onNode(
-        hasText(context.getString(R.string.navigation_monet)) and isSelectable(),
-      ).performClick()
+      composeTestRule.onNodeWithTag("status.runtime.card").performScrollTo().performClick()
+      composeTestRule.onNodeWithTag("status.runtime.sheet").assertExists()
+      composeTestRule.runOnUiThread { context.onBackPressedDispatcher.onBackPressed() }
+      composeTestRule.waitUntil(5_000) {
+        runCatching { composeTestRule.onNodeWithTag("status.runtime.sheet").assertDoesNotExist(); true }.getOrDefault(false)
+      }
+      composeTestRule.onNodeWithTag("status.monet.card").performScrollTo().performClick()
+      composeTestRule.onNodeWithTag("status.monet.settings").performScrollTo().performClick()
       composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
-      composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh))
-        .assertExists()
-      composeTestRule.onNode(
-        hasText(context.getString(R.string.navigation_status)) and isSelectable(),
-      ).performClick()
+      composeTestRule.runOnUiThread { context.onBackPressedDispatcher.onBackPressed() }
+      composeTestRule.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable())
+        .performClick()
       composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
-      composeTestRule.onNodeWithText(context.getString(R.string.dashboard_system_scope)).assertExists()
+      composeTestRule.onNodeWithTag("status.runtime.sheet").assertDoesNotExist()
       composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh))
         .assertExists()
     }

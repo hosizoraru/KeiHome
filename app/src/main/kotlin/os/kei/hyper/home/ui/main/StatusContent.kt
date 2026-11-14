@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,7 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -34,12 +35,12 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -52,8 +53,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import io.github.libxposed.service.HookedTarget
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
-import os.kei.hyper.home.ui.components.Os4DisclosureHeader
-import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4DialogButton
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.R
@@ -67,6 +69,7 @@ import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
@@ -126,19 +129,13 @@ internal fun StatusBody(
   coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: (() -> Unit)? = null,
   scopeContent: @Composable () -> Unit = {},
 ) {
-  // The containing page's SaveableStateProvider retains these across tab switches.
-  var runtimeExpanded by rememberSaveable { mutableStateOf(false) }
-  var monetExpanded by rememberSaveable { mutableStateOf(false) }
   val framework = frameworkCardState(connected, readFailed, snapshot)
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    RuntimeStatusSection(framework, runtime, runtimeExpanded,
-      { runtimeExpanded = !runtimeExpanded }, onRefresh, onOpenEnvironment)
+    RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment)
     scopeContent()
     DashboardMonetCard(
       snapshot = monetSnapshot,
       readFailed = monetReadFailed,
-      expanded = monetExpanded,
-      onToggle = { monetExpanded = !monetExpanded },
       onOpenMonet = onOpenMonet,
     )
     Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, indication = null, onClick = onOpenPacks),
@@ -291,8 +288,6 @@ internal fun moduleStatusPresentation(
 private fun RuntimeStatusSection(
   framework: FrameworkCardState,
   runtime: RuntimeStatusUiState,
-  expanded: Boolean,
-  onToggle: () -> Unit,
   onRefresh: () -> Unit,
   onOpenEnvironment: (() -> Unit)?,
 ) {
@@ -314,7 +309,7 @@ private fun RuntimeStatusSection(
   }
   val native = runtimeCardState(current, maxOf(elapsed, SystemClock.elapsedRealtime()))
   FrameworkHero(framework, native, onRefresh, onOpenEnvironment)
-  RuntimeStatusCard(framework, native, expanded, onToggle)
+  RuntimeStatusCard(framework, native)
 }
 
 @Composable
@@ -384,17 +379,32 @@ private fun frameworkVersionLabel(version: String?, code: Long?): String = when 
 private fun RuntimeStatusCard(
   state: FrameworkCardState,
   runtime: RuntimeCardState,
-  expanded: Boolean,
-  onToggle: () -> Unit,
 ) {
   val report = runtime.report
   val loadedAccent = colorResource(if (LocalKeiHomeDarkTheme.current)
     R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent)
-  DashboardExpandableCard(
+  DashboardSheetCard(
     title = stringResource(R.string.dashboard_runtime),
-    expanded = expanded,
-    onToggle = onToggle,
-    footer = {
+    tag = "status.runtime",
+    overview = {
+      val presentation = moduleStatusPresentation(state, runtime)
+      DashboardPillRow {
+        MetadataPill(stringResource(presentation.title), when (presentation.tone) {
+          StatusTone.READY -> loadedAccent
+          StatusTone.ERROR -> MiuixTheme.colorScheme.error
+          StatusTone.WARNING -> MiuixTheme.colorScheme.onSurfaceSecondary
+        })
+        MetadataPill(BuildConfig.VERSION_NAME.substringBefore('+'), MiuixTheme.colorScheme.primary)
+        state.apiVersion?.let {
+          MetadataPill(stringResource(R.string.runtime_framework_api) + " $it", MiuixTheme.colorScheme.primary)
+        }
+      }
+      Text(listOfNotNull(state.name, frameworkVersionLabel(state.frameworkVersion, state.frameworkVersionCode))
+        .joinToString(" · "), style = MiuixTheme.textStyles.footnote2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    },
+    footer = { sheet ->
+      val suffix = if (sheet) ".sheet" else ""
       DashboardPillRow {
         DashboardStatePill(stringResource(R.string.dashboard_pill_system),
           targetLabel(state.systemState, state.reported), when (state.systemState) {
@@ -402,7 +412,7 @@ private fun RuntimeStatusCard(
             HookedTarget.State.FAILED -> StatusTone.ERROR
             HookedTarget.State.RELOADING, HookedTarget.State.STALE -> StatusTone.WARNING
             null -> null
-          }, "status.runtime.system")
+          }, "status.runtime.system$suffix")
         DashboardStatePill(stringResource(R.string.dashboard_pill_launcher),
           stringResource(if (runtime.kind == NativeStatusKind.READY) R.string.dashboard_pill_ready
             else runtime.kind.label), when (runtime.kind) {
@@ -411,36 +421,34 @@ private fun RuntimeStatusCard(
             NativeStatusKind.NOT_REPORTED, NativeStatusKind.INACTIVE_USER,
             NativeStatusKind.UNAVAILABLE -> null
             else -> StatusTone.WARNING
-          }, "status.runtime.launcher")
+          }, "status.runtime.launcher$suffix")
         DashboardCallbackReceipt(report?.refresh)
       }
     },
   ) {
-    report?.launcherPid?.let { pid ->
-      DashboardDetail(
-        title = stringResource(R.string.runtime_launcher_process),
-        value = stringResource(R.string.runtime_launcher_pid, pid),
-        pillColor = MiuixTheme.colorScheme.primary,
-      )
-    }
     report?.detail?.takeIf { it.isNotBlank() }?.let { detail ->
       DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail, stacked = true)
     }
     if (runtime.kind == NativeStatusKind.CAPABILITY_MISSING) {
       DashboardFootnote(
         text = stringResource(R.string.runtime_capability_missing_note),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(vertical = 8.dp),
       )
     }
-    report?.let {
-      DashboardDetail(
-        title = stringResource(R.string.runtime_reporting_generation),
-        value = stringResource(R.string.dashboard_version_code, it.moduleVersion),
-        pillColor = MiuixTheme.colorScheme.primary,
-      )
+    DashboardPillRow {
+      report?.launcherPid?.let { pid ->
+        MetadataPill(stringResource(R.string.runtime_launcher_pid, pid), MiuixTheme.colorScheme.primary)
+      }
+      report?.let {
+        MetadataPill(stringResource(R.string.runtime_reporting_generation) + " ${it.moduleVersion}",
+          MiuixTheme.colorScheme.primary)
+      }
+      MetadataPill(stringResource(R.string.polish_installed_version) + " ${BuildConfig.VERSION_CODE}",
+        MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     DashboardDetail(
       title = stringResource(R.string.dashboard_system_scope),
+      modifier = Modifier.testTag("status.runtime.scope"),
       value = stringResource(when (state.systemInScope) {
         true -> R.string.status_scope_enabled
         false -> R.string.status_scope_missing
@@ -458,21 +466,9 @@ private fun RuntimeStatusCard(
       TargetDetail(stringResource(R.string.runtime_java_load_report),
         state.launcherState, state.launcherVersion, state.reported)
     }
-    DashboardDetail(
-      title = stringResource(R.string.dashboard_framework_version),
-      value = frameworkVersionLabel(state.frameworkVersion, state.frameworkVersionCode),
-    )
-    state.apiVersion?.let {
-      DashboardDetail(title = stringResource(R.string.runtime_framework_api), value = it.toString())
-    }
-    DashboardDetail(
-      title = stringResource(R.string.polish_installed_version),
-      value = BuildConfig.VERSION_CODE.toString(),
-      pillColor = MiuixTheme.colorScheme.primary,
-    )
     DashboardFootnote(
       text = stringResource(R.string.runtime_native_note),
-      modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+      modifier = Modifier.padding(bottom = 8.dp),
     )
   }
 }
@@ -504,8 +500,6 @@ private fun targetLabel(state: HookedTarget.State?, reported: Boolean): String =
 private fun DashboardMonetCard(
   snapshot: MonetPaletteSnapshot?,
   readFailed: Boolean,
-  expanded: Boolean,
-  onToggle: () -> Unit,
   onOpenMonet: () -> Unit,
 ) {
   val current = snapshot.takeUnless { readFailed }
@@ -523,28 +517,32 @@ private fun DashboardMonetCard(
     false -> R.string.dashboard_off
     null -> R.string.status_unknown
   })
-  DashboardExpandableCard(
+  DashboardSheetCard(
     title = stringResource(R.string.settings_monet_title),
-    expanded = expanded,
-    onToggle = onToggle,
+    tag = "status.monet",
     onOpen = onOpenMonet,
-    openLabel = stringResource(R.string.monet_open_details),
-    footer = {
+    openLabel = stringResource(R.string.status_sheet_monet_settings),
+    overview = {
+      MetadataPill("KeiHome " + BuildConfig.VERSION_NAME.substringBefore('+'), MiuixTheme.colorScheme.primary)
+    },
+    footer = { sheet ->
+      val suffix = if (sheet) ".sheet" else ""
       DashboardPillRow {
         DashboardStatePill(stringResource(R.string.dashboard_pill_icons), iconsLabel,
-          if (current?.monochrome?.enabled == true) StatusTone.READY else null, "status.monet.icons")
+          if (current?.monochrome?.enabled == true) StatusTone.READY else null, "status.monet.icons$suffix")
         DashboardStatePill(stringResource(R.string.dashboard_pill_palette), paletteLabel, when {
           readFailed || palette?.state == MonetReadState.UNAVAILABLE -> StatusTone.ERROR
           palette == null || palette.state == MonetReadState.NOT_PROVIDED ||
             palette.generatedColorCount == 0 -> null
           else -> StatusTone.READY
-        }, "status.monet.palette")
+        }, "status.monet.palette$suffix")
         if (current != null) DashboardPaletteAge(current.lastAppliedRevision)
       }
     },
   ) {
     DashboardDetail(
       title = stringResource(R.string.monet_seed_source),
+      modifier = Modifier.testTag("status.monet.source"),
       value = stringResource(when (current?.source) {
         "HOME_WALLPAPER", "home_wallpaper" -> R.string.monet_source_home
         "LOCK_WALLPAPER", "lock_wallpaper" -> R.string.monet_source_lock
@@ -557,10 +555,12 @@ private fun DashboardMonetCard(
     )
     DashboardDetail(
       title = stringResource(R.string.dashboard_style),
+      modifier = Modifier.testTag("status.monet.style"),
       value = dashboardMonetStyle(current?.style),
     )
     DashboardDetail(
       title = stringResource(R.string.monet_palette),
+      modifier = Modifier.testTag("status.monet.colors"),
       value = if (palette?.state == MonetReadState.AVAILABLE && palette.generatedColorCount > 0) {
         stringResource(R.string.monet_palette_value, palette.families.size, palette.generatedColorCount)
       } else paletteLabel,
@@ -569,7 +569,7 @@ private fun DashboardMonetCard(
     )
     DashboardFootnote(
       text = stringResource(R.string.dashboard_monet_report_note),
-      modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+      modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
     )
   }
 }
@@ -689,55 +689,95 @@ private fun CapabilityCount(count: Int?, label: String, color: Color) {
 }
 
 @Composable
-private fun DashboardExpandableCard(
+private fun DashboardSheetCard(
   title: String,
-  expanded: Boolean,
-  onToggle: () -> Unit,
+  tag: String,
   onOpen: (() -> Unit)? = null,
   openLabel: String? = null,
-  footer: @Composable () -> Unit,
+  overview: @Composable ColumnScope.() -> Unit = {},
+  footer: @Composable ColumnScope.(Boolean) -> Unit,
   content: @Composable ColumnScope.() -> Unit,
 ) {
-  val contentPressSource = rememberOs4PressSource()
-  val actionLabel = stringResource(
-    if (expanded) R.string.dashboard_collapse else R.string.dashboard_expand, title,
-  )
-  val expansionState = stringResource(
-    if (expanded) R.string.dashboard_expanded else R.string.dashboard_collapsed,
-  )
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    Os4DisclosureHeader(
-      title = title, summary = null, expanded = expanded,
-      actionLabel = actionLabel, stateLabel = expansionState, onToggle = onToggle,
-      bottomAction = footer,
+  var mounted by remember { mutableStateOf(false) }
+  var showing by remember { mutableStateOf(false) }
+  var openAfterExit by remember { mutableStateOf(false) }
+  val openDestination by rememberUpdatedState(onOpen)
+  val pressSource = rememberOs4PressSource()
+  val actionLabel = stringResource(R.string.status_sheet_open, title)
+  Card(Modifier.fillMaxWidth().testTag("$tag.card"), insideMargin = PaddingValues(0.dp)) {
+    BasicComponent(
+      title = title, modifier = Modifier.glassPress(pressSource),
+      interactionSource = pressSource, onClickLabel = actionLabel, role = Role.Button,
+      onClick = {
+        if (!mounted) {
+          openAfterExit = false
+          mounted = true
+          showing = true
+        }
+      },
+      endActions = { DashboardArrow() },
+      bottomAction = { footer(false) },
     )
-    Os4DisclosureContent(expanded) {
-      if (onOpen != null && openLabel != null) {
-        BasicComponent(
-          modifier = Modifier.glassPress(contentPressSource).semantics { contentDescription = openLabel },
-          interactionSource = contentPressSource,
-          insideMargin = PaddingValues(0.dp),
-          onClick = onOpen, onClickLabel = openLabel, role = Role.Button,
-          content = content,
-        )
-      } else Column(content = content)
+  }
+  if (mounted) Os4DetailsSheet(
+    show = showing, title = title, modifier = Modifier.testTag("$tag.sheet"),
+    onDismissRequest = { showing = false },
+    onDismissFinished = {
+      if (mounted) {
+        mounted = false
+        val open = openAfterExit
+        openAfterExit = false
+        if (open) openDestination?.invoke()
+      }
+    },
+  ) {
+    Column(Modifier.fillMaxWidth().testTag("$tag.overview"),
+      verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      overview()
+      footer(true)
     }
+    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    content()
+    if (onOpen != null && openLabel != null) Os4DialogButton(
+      text = openLabel, modifier = Modifier.fillMaxWidth().testTag("$tag.settings"),
+      role = GlassDialogButtonRole.Primary, enabled = showing,
+      onClick = {
+        if (showing && !openAfterExit) {
+          openAfterExit = true
+          showing = false
+        }
+      },
+    )
   }
 }
 
 @Composable
-private fun DashboardDetail(title: String, value: String, stacked: Boolean = false, pillColor: Color? = null) {
-  BasicComponent(
-    title = title,
-    summary = value.takeIf { stacked },
-    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-    endActions = if (stacked) null else ({
+private fun DashboardDetail(
+  title: String,
+  value: String,
+  stacked: Boolean = false,
+  pillColor: Color? = null,
+  modifier: Modifier = Modifier,
+) {
+  BoxWithConstraints(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    val vertical = stacked || maxWidth < 320.dp || LocalDensity.current.fontScale > 1.3f
+    val valueContent: @Composable () -> Unit = {
       if (pillColor != null) MetadataPill(value, pillColor)
       else Text(value, style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
-    }),
-  )
+        textAlign = if (vertical) TextAlign.Start else TextAlign.End)
+    }
+    if (vertical) {
+      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, style = MiuixTheme.textStyles.body2, fontWeight = FontWeight.Medium)
+        valueContent()
+      }
+    } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp),
+      verticalAlignment = Alignment.CenterVertically) {
+      Text(title, Modifier.weight(0.4f), style = MiuixTheme.textStyles.body2, fontWeight = FontWeight.Medium)
+      Box(Modifier.weight(0.6f), contentAlignment = Alignment.CenterEnd) { valueContent() }
+    }
+  }
 }
 
 @Composable

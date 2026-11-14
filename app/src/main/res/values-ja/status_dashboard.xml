@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_sheet_open">%1$s の詳細を表示</string>
+    <string name="status_sheet_monet_settings">Monet 設定</string>
     <string name="dashboard_pill_system">システム</string>
     <string name="dashboard_pill_launcher">ホーム</string>
     <string name="dashboard_pill_icons">アイコン</string>

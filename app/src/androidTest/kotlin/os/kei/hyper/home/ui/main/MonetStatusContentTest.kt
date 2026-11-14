@@ -46,6 +46,7 @@ import os.kei.hyper.home.data.MonetPaletteSource
 import os.kei.hyper.home.data.MonetReadState
 import os.kei.hyper.home.data.WallpaperColorSnapshot
 import os.kei.hyper.home.status.FrameworkSnapshot
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class MonetStatusContentTest {
@@ -191,19 +192,24 @@ class MonetStatusContentTest {
     var openedMonet = false
     var openedEnvironment = false
     var onOpenEnvironment by mutableStateOf<(() -> Unit)?>(null)
+    val backHost = Os4NavigationTestHost()
     composeTestRule.setContent {
-      KeiHomeTheme {
-        Box(Modifier.verticalScroll(rememberScrollState())) {
-          StatusBody(
-            connected = false,
-            snapshot = null,
-            readFailed = false,
-            monetSnapshot = null,
-            monetReadFailed = false,
-            onRefresh = { refreshed = true },
-            onOpenMonet = { openedMonet = true },
-            onOpenEnvironment = onOpenEnvironment,
-          )
+      backHost.Provide {
+        KeiHomeTheme {
+          KeiHomeScaffold {
+            Box(Modifier.verticalScroll(rememberScrollState())) {
+              StatusBody(
+                connected = false,
+                snapshot = null,
+                readFailed = false,
+                monetSnapshot = null,
+                monetReadFailed = false,
+                onRefresh = { refreshed = true },
+                onOpenMonet = { openedMonet = true },
+                onOpenEnvironment = onOpenEnvironment,
+              )
+            }
+          }
         }
       }
     }
@@ -225,19 +231,19 @@ class MonetStatusContentTest {
       hasText(context.getString(R.string.settings_monet_title)) and hasClickAction(),
     )
     assertEquals(
-      context.getString(R.string.dashboard_expand, context.getString(R.string.settings_monet_title)),
+      context.getString(R.string.status_sheet_open, context.getString(R.string.settings_monet_title)),
       monetCard.fetchSemanticsNode().config[SemanticsActions.OnClick].label,
     )
-    val monetDetails = composeTestRule.onNodeWithContentDescription(context.getString(R.string.monet_open_details))
+    val monetDetails = composeTestRule.onNodeWithTag("status.monet.settings")
     monetDetails.assertDoesNotExist()
     monetCard.performClick()
     composeTestRule.runOnIdle { assertFalse(openedMonet) }
     composeTestRule.onNodeWithText(context.getString(R.string.action_label_details)).assertDoesNotExist()
-    assertEquals(context.getString(R.string.monet_open_details),
-      monetDetails.fetchSemanticsNode().config[SemanticsActions.OnClick].label)
-    monetDetails.performScrollTo().performClick()
-    monetDetails.assertExists()
-    monetCard.performScrollTo().performClick()
+    monetDetails.performScrollTo()
+    composeTestRule.onNodeWithText(context.getString(R.string.status_sheet_monet_settings),
+      useUnmergedTree = true).assertExists()
+    monetDetails.performClick()
+    composeTestRule.waitUntil(5_000) { openedMonet }
     monetDetails.assertDoesNotExist()
     composeTestRule.runOnIdle {
       assertTrue(refreshed)

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_sheet_open">View %1$s details</string>
+    <string name="status_sheet_monet_settings">Monet settings</string>
     <string name="dashboard_pill_system">System</string>
     <string name="dashboard_pill_launcher">Launcher</string>
     <string name="dashboard_pill_icons">Icons</string>

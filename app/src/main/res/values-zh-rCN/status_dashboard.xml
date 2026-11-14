@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="status_sheet_open">查看%1$s详情</string>
+    <string name="status_sheet_monet_settings">Monet 设置</string>
     <string name="dashboard_pill_system">系统</string>
     <string name="dashboard_pill_launcher">桌面</string>
     <string name="dashboard_pill_icons">图标</string>

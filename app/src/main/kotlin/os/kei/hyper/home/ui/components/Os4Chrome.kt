@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
@@ -27,10 +29,20 @@ import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import os.kei.hyper.home.data.AppTopBarBlur
 
 private val LocalGlassToolbar = staticCompositionLocalOf { false }
+
+@Composable
+internal fun Modifier.keiHomeTopBarScroll(scrollBehavior: ScrollBehavior): Modifier {
+  val state = scrollBehavior.state
+  val onOffsetChanged: (Float) -> Unit = remember(state) { { state.overscrollOffset = it } }
+  // Keep actual scroll inside the spring so rebound never accumulates in contentOffset.
+  return overScrollVertical(onOffsetChanged = onOffsetChanged)
+    .nestedScroll(scrollBehavior.nestedScrollConnection)
+}
 
 @Composable
 internal fun KeiHomeScaffold(
@@ -68,22 +80,15 @@ internal fun KeiHomeTopAppBar(
   scrollBehavior: ScrollBehavior? = null,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
-  if (backdrop == null) {
-    top.yukonga.miuix.kmp.basic.TopAppBar(
-      title = title, modifier = modifier, color = color,
-      navigationIcon = navigationIcon, actions = actions, scrollBehavior = scrollBehavior,
-    )
-  } else {
-    val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
-    GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
-      progressiveBlur = progressive,
-      style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
-      navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
-      actions = { CompositionLocalProvider(LocalGlassToolbar provides true) { actions() } },
-      scrollBehavior = scrollBehavior,
-      bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(MiuixTheme.colorScheme.surface)
-        else SolidColor(Color.Transparent))
-  }
+  val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
+  GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
+    progressiveBlur = progressive && backdrop != null,
+    style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
+    navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
+    actions = { CompositionLocalProvider(LocalGlassToolbar provides true) { actions() } },
+    scrollBehavior = scrollBehavior,
+    bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)
+      else SolidColor(Color.Transparent))
 }
 
 @Composable
@@ -98,7 +103,7 @@ internal fun KeiHomeIconButton(
   content: @Composable () -> Unit,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
-  if (LocalGlassToolbar.current && backdrop != null && enabled && !holdDownState &&
+  if (LocalGlassToolbar.current && enabled && !holdDownState &&
     backgroundColor == Color.Unspecified) {
     GlassIconButton(onClick = onClick, modifier = modifier, backdrop = backdrop,
       style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),

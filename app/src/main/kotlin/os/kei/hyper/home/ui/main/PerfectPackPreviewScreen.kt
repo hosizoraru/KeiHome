@@ -28,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -336,9 +336,9 @@ internal fun PerfectSubpage(
         })
     }
   }, floatingActionButton = floatingActionButton, floatingToolbar = floatingToolbar) { padding ->
-    LazyColumn(Modifier.fillMaxSize()
+    LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .nestedScroll(behavior.nestedScrollConnection),
+      .keiHomeTopBarScroll(behavior),
       contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
         bottom = padding.calculateBottomPadding() + bottomSpacing),
       content = content)

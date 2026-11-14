@@ -106,7 +106,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   var removingPack by remember { mutableStateOf<IconPackDescriptor?>(null) }
   var confirmRemoval by remember { mutableStateOf(false) }
   val busy = state.importing || state.nativeImporting != null || state.removing != null
-  LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
+  LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
       "home" -> {

@@ -29,7 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringArrayResource
@@ -138,8 +138,8 @@ internal fun ReleaseNotesScreen(
               if (fadeHeight > 0f) drawRect(fade, topLeft = Offset(0f, start), size = Size(size.width, fadeHeight))
             }
           }
-          .nestedScroll(behavior.nestedScrollConnection)
-          .verticalScroll(scroll)
+          .keiHomeTopBarScroll(behavior)
+          .verticalScroll(scroll, overscrollEffect = null)
           .padding(
             start = 16.dp, end = 16.dp,
             top = insets.calculateTopPadding() + 12.dp,

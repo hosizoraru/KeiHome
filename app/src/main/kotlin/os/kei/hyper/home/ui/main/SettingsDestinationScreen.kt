@@ -15,7 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -119,7 +119,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
       })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection).verticalScroll(rememberScrollState())
+      Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior).verticalScroll(rememberScrollState(), overscrollEffect = null)
         .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() + if (section == SettingsSection.CACHE) actionBottomPadding else 24.dp)) {
         when {

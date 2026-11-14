@@ -44,7 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -433,7 +433,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       modifier = Modifier.onSizeChanged { actionHeight = it.height })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      LazyColumn(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection), state = listState,
+      LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior), state = listState,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() +

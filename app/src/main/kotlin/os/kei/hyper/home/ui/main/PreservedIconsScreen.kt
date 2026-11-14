@@ -26,7 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -192,8 +192,8 @@ internal fun PreservedIconsPage(
         })
     }
   }) { padding ->
-    LazyColumn(state = list, modifier = Modifier.fillMaxSize()
-      .nestedScroll(behavior.nestedScrollConnection)
+    LazyColumn(overscrollEffect = null, state = list, modifier = Modifier.fillMaxSize()
+      .keiHomeTopBarScroll(behavior)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .testTag("preserved-icons.list"),
       contentPadding = PaddingValues(start = 12.dp, end = 12.dp,

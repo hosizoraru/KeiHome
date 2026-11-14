@@ -30,7 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -154,8 +154,8 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       Column(Modifier.fillMaxSize().testTag("setup.desktop.content")
-        .nestedScroll(behavior.nestedScrollConnection)
-        .verticalScroll(rememberScrollState()).padding(insets)
+        .keiHomeTopBarScroll(behavior)
+        .verticalScroll(rememberScrollState(), overscrollEffect = null).padding(insets)
         .padding(16.dp)) { DesktopPage(model, onOpenSection) }
     }
   }

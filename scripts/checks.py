@@ -70,8 +70,8 @@ GROUPS = {
         "os.kei.hyper.home.ui.main.ReleaseNotesNavigationTest")),
     "ui-actions": ("device", "FABs, disclosures, links and metadata pills", (
         UI + "UiActionPolishDeviceTest",)),
-    "ui-navigation": ("device", "Both navbar styles, tabs, themes and large text", (
-        UI + "Os4ChromeDeviceTest", UI + "MainTabNavigationDeviceTest",
+    "ui-navigation": ("device", "Both navbar styles, release/cancel gestures, spring offsets, themes and large text", (
+        UI + "Os4ChromeDeviceTest", UI + "Os4ScrollInteractionTest", UI + "MainTabNavigationDeviceTest",
         "os.kei.hyper.home.data.PagerGestureMigrationDeviceTest")),
     "ui-menus": ("device", "Native Glass/opaque menus, preferences, coordinates and Back", (
         UI + "Os4DropdownMenuDeviceTest",)),

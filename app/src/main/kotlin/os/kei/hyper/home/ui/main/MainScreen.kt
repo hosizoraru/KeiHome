@@ -29,7 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -167,7 +167,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
         savedPages.SaveableStateProvider(page) {
-        val pageModifier = Modifier.fillMaxSize().nestedScroll(behaviors[tab].nestedScrollConnection)
+        val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
         if (tab == 1) {
           AppsPage(model, appList, padding, pageModifier)
         } else if (page == 3) {
@@ -176,7 +176,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
-          Column(modifier = pageModifier.verticalScroll(pageScrolls[tab]).padding(padding),
+          Column(modifier = pageModifier.verticalScroll(pageScrolls[tab], overscrollEffect = null).padding(padding),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
               0 -> {

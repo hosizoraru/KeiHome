@@ -21,7 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -157,9 +157,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() + if (section == "coloros" || fallback) actionBottomPadding else 24.dp)
-      val contentModifier = Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)
+      val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
       if (fallback) {
-        Column(contentModifier.verticalScroll(rememberScrollState()).padding(padding),
+        Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
             BasicComponent(title = stringResource(R.string.preserved_icons_title),

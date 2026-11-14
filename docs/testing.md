@@ -44,7 +44,7 @@ does not automatically run navigation, color editing or native tests.
 | Change | Group / acceptance |
 | --- | --- |
 | FAB, centered action, disclosure, metadata pill | `ui-actions`; affected screen screenshot |
-| Navbar, tabs, themes or font geometry | `ui-navigation` |
+| Navbar, release/cancel gestures, top-bar rebound, themes or font geometry | `ui-navigation` |
 | Glass/opaque dropdowns, preference selection, popup coordinates or Back | `ui-menus` |
 | OS4 Glass selector migration, unavailable choices and dialog buttons | `ui-os4-controls` |
 | Disclosure layout, Glass press, preview tabs, sheets and Apple selection | `ui-glass-interactions` |

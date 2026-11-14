@@ -2,7 +2,7 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -132,8 +132,8 @@ internal fun ScopeAuthorizationPage(
   }) { padding ->
     val managerAction = onOpenManager ?: rememberFrameworkManagerAction()
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-    Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)
-      .verticalScroll(scroll).padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 12.dp,
+    Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
+      .verticalScroll(scroll, overscrollEffect = null).padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 12.dp,
         bottom = padding.calculateBottomPadding() + 24.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp)) {
       ScopeAuthorizationSummary(state, declared, reading, metadataFailed)

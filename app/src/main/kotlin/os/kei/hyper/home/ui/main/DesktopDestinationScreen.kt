@@ -13,7 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -57,8 +57,8 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
     }
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      Column(Modifier.fillMaxSize().nestedScroll(behavior.nestedScrollConnection)
-        .verticalScroll(rememberScrollState()).padding(PaddingValues(
+      Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
+        .verticalScroll(rememberScrollState(), overscrollEffect = null).padding(PaddingValues(
           start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {

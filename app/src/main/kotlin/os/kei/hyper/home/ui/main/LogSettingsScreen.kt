@@ -28,7 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -140,8 +140,8 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
     val openFrameworkLogs = rememberFrameworkManagerAction(os.kei.hyper.home.status.FrameworkManagerProtocol.LOGS)
     Column(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .nestedScroll(behavior.nestedScrollConnection)
-      .verticalScroll(rememberScrollState())
+      .keiHomeTopBarScroll(behavior)
+      .verticalScroll(rememberScrollState(), overscrollEffect = null)
       .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp,
         bottom = padding.calculateBottomPadding() + actionBottomPadding),
       verticalArrangement = Arrangement.spacedBy(12.dp)) {

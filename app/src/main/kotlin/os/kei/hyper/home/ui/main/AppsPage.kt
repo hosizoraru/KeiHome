@@ -105,7 +105,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val colors = remember(monet.snapshot?.activePalette, monet.snapshot?.customization,
     monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
-  LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
+  LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item(key = "search", contentType = "search") {
       LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,

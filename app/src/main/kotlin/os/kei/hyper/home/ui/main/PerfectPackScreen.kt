@@ -23,7 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -126,9 +126,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         modifier = Modifier.testTag("icon-packs.perfect.generate"))
     },
   ) { padding ->
-    LazyColumn(Modifier.fillMaxSize()
+    LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .nestedScroll(behavior.nestedScrollConnection), contentPadding = PaddingValues(
+      .keiHomeTopBarScroll(behavior), contentPadding = PaddingValues(
       top = padding.calculateTopPadding() + 8.dp,
       bottom = padding.calculateBottomPadding() + actionBottom)) {
       item("status") {

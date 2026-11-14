@@ -42,7 +42,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Copy
-import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.Os4CategoryTabs
 import os.kei.hyper.home.ui.components.IconPreviewMode
 import os.kei.hyper.home.ui.components.IconPreviewModeTabs
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -105,7 +105,7 @@ internal fun MonetPaletteDetails(
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       Text(stringResource(R.string.monet_details_family), modifier = Modifier.padding(16.dp),
         style = MiuixTheme.textStyles.body2)
-      Os4ViewTabs(items = familyNames, selectedIndex = familyIndex,
+      Os4CategoryTabs(items = familyNames, selectedIndex = familyIndex,
         onSelect = { familyIndex = it },
         modifier = Modifier.padding(horizontal = 16.dp).testTag("monet.tones.views"))
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),

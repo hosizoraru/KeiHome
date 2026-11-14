@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome は LSPosed API 102 を使用します。管理アプリでモジュールを有効にし、必要なスコープを許可してください。未完了でも先に進めます。</string>
     <string name="setup_service_connected">フレームワークに接続済み</string>
     <string name="setup_service_disconnected">フレームワークに未接続</string>
-    <string name="setup_activation_note">初めてモジュールを有効にしてスコープを許可した後は、システムを一度再起動することをおすすめします。以降の更新は通常 API 102 の自動ホットリロードを使用し、対応設定は自動同期されます。許可と読み込みは別の状態です。「状態」で報告された対象を確認してください。</string>
+    <string name="setup_activation_note">初回の有効化には端末全体の再起動が必要です。モジュールを有効にして必要なスコープを許可し、端末を再起動してください。ロックを解除してホーム画面を開き、少しお待ちください。ガイドを開く・スキップする操作や、KeiHome・ランチャーの再起動では代わりになりません。以降の通常の更新は自動で再読み込みされます。ネイティブコードの変更時は別途再起動が必要な場合があります。</string>
     <string name="setup_icons_title">好みのアイコンを選ぶ</string>
     <string name="setup_icons_body">標準アイコン、Perfect、Apple、インポートしたパックから選べます。対応するシステム画面でも適用済み画像を使用できますが、対応範囲はホストとアプリによって異なります。</string>
     <string name="setup_native_icons_title">対応する標準アイコンは明暗へ自動追従</string>

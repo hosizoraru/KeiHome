@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.data.AppPreferences
+import os.kei.hyper.home.data.InitialActivationPreferences
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.data.IconPreviewRepository
 import os.kei.hyper.home.data.InstalledIconCapability
@@ -124,6 +125,7 @@ internal data class PageRefreshResult(val completedAt: Long, val failed: Boolean
 
 internal class HomeViewModel(application: Application) : AndroidViewModel(application) {
   val preferences = AppPreferences.get(application)
+  val initialActivation = InitialActivationPreferences(application)
   val browserOptions: StateFlow<IconBrowserOptions>
     field = MutableStateFlow(preferences.readBrowserOptions())
   val packSort: StateFlow<Pair<Int, Boolean>>
@@ -360,6 +362,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         dockGlass.reset()
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
+        if (service == null) initialActivation.observe(null)
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4)
             launch { readRuntimeStatus(includeIconTheme = visiblePage != 5) }
@@ -789,14 +792,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       }
       if (FrameworkConnection.service.value === service && scopeClient === client) {
         val accepted = scopeRequests.observePlan(service, scopeRead, scopePlan)
-        if (accepted) framework.value = FrameworkUiState(true, result)
+        if (accepted) {
+          framework.value = FrameworkUiState(true, result)
+          initialActivation.observe(result)
+        }
       }
     } catch (cancellation: CancellationException) {
       throw cancellation
     } catch (_: Exception) {
       if (FrameworkConnection.service.value === service && scopeClient === client) {
-        if (scopeRequests.readFailed(service, scopeRead))
+        if (scopeRequests.readFailed(service, scopeRead)) {
           framework.update { it.copy(readFailed = true) }
+          initialActivation.observe(null)
+        }
       }
     }
   }

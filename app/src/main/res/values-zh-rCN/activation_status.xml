@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activation_reboot_title">首次启用需重启设备</string>
+    <string name="activation_reboot_note">请先启用模块并完成所需作用域授权，再完整重启设备，解锁进入桌面后稍候。打开或跳过向导、重启 KeiHome 或桌面均不能替代设备重启。</string>
+    <string name="activation_reboot_unknown">暂时无法确认启用后是否已重启设备。首次启用时，请先启用模块并完成所需作用域授权，再完整重启设备，解锁进入桌面后稍候。</string>
+    <string name="activation_reboot_guide">查看使用向导</string>
+</resources>

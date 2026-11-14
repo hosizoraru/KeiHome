@@ -15,6 +15,12 @@ These UI references informed the composition; no KernelSU source was copied.
 
 ## State and detail sheets
 
+First activation has an independent, persistent
+[device-restart reminder](first-activation.md). While unconfirmed, the hero and
+runtime details prioritize this guidance over automatic-loading or per-scope
+restart advice. The reminder links to the existing setup guide; completing or
+skipping that guide does not hide it.
+
 The Hero combines API 102 system-module loading with a separate native endpoint
 observation. Its framework release name and version code still come from
 XposedService, separately from the API and module version. Native readiness does

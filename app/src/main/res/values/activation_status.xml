@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activation_reboot_title">First activation requires a device reboot</string>
+    <string name="activation_reboot_note">Enable the module and grant the required scopes, then fully reboot the device. Unlock to the Home screen and wait briefly. Opening or skipping the guide, or restarting KeiHome or the launcher, does not replace the device reboot.</string>
+    <string name="activation_reboot_unknown">Unable to confirm whether the device has rebooted since activation. For first activation, enable the module and grant the required scopes, then fully reboot the device. Unlock to the Home screen and wait briefly.</string>
+    <string name="activation_reboot_guide">View setup guide</string>
+</resources>

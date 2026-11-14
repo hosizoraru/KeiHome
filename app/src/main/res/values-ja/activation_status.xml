@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activation_reboot_title">初回の有効化には端末の再起動が必要です</string>
+    <string name="activation_reboot_note">モジュールを有効にして必要なスコープを許可し、端末全体を再起動してください。ロックを解除してホーム画面を開き、少しお待ちください。ガイドを開く・スキップする操作や、KeiHome・ランチャーの再起動では代わりになりません。</string>
+    <string name="activation_reboot_unknown">有効化後に端末が再起動されたか確認できません。初回は、モジュールを有効にして必要なスコープを許可し、端末全体を再起動してください。ロックを解除してホーム画面を開き、少しお待ちください。</string>
+    <string name="activation_reboot_guide">使い方ガイドを開く</string>
+</resources>

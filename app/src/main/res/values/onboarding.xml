@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome uses LSPosed API 102. Enable the module in your manager and grant the scopes needed by the features you use. You can continue even if setup is incomplete.</string>
     <string name="setup_service_connected">Framework service connected</string>
     <string name="setup_service_disconnected">Framework service not connected yet</string>
-    <string name="setup_activation_note">After first enabling the module and granting scopes, one system reboot is recommended. Later updates normally use API 102 automatic hot reload; supported settings sync automatically. Authorization is separate from loading. Check Status for the reported targets.</string>
+    <string name="setup_activation_note">First activation requires a full device reboot. Enable the module and grant the required scopes, then reboot. Unlock to the Home screen and wait briefly. Opening or skipping this guide, or restarting KeiHome or the launcher, does not replace this step. Later updates normally reload automatically; native payload changes may require a restart.</string>
     <string name="setup_icons_title">Choose an icon style</string>
     <string name="setup_icons_body">Choose system icons, Perfect, Apple or an imported pack. Supported system surfaces can reuse the applied artwork; coverage depends on the host and app.</string>
     <string name="setup_native_icons_title">Supported system icons follow light/dark mode</string>

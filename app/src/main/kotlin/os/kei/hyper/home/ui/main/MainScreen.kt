@@ -185,7 +185,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                     focus.clearFocus(force = true)
                     tabNavigation.selectPage(2, animate = false) { onOpenPackSection("monet") }
                   },
-                    onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") })
+                    onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") },
+                    onOpenGuide = { onOpenSettingsSection("setup") })
                   RefreshFeedback(model, 0)
                 }
               }
@@ -206,7 +207,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
 
 @Composable
 private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet: () -> Unit,
-  onOpenPacks: () -> Unit, onOpenEnvironment: () -> Unit) {
+  onOpenPacks: () -> Unit, onOpenEnvironment: () -> Unit, onOpenGuide: () -> Unit) {
+  val activation by model.initialActivation.state.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
@@ -225,7 +227,9 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     runtime = runtime,
     iconSource = runtime.report?.iconTheme, coveredApps = covered,
     onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment,
-    scopeContent = { StaticScopeCard(model, attentionOnly = true) })
+    scopeContent = { StaticScopeCard(model, attentionOnly = true) },
+    activation = activation ?: os.kei.hyper.home.data.InitialActivationStatus.COMPLETE,
+    onOpenGuide = onOpenGuide)
 }
 
 @Composable

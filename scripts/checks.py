@@ -128,6 +128,10 @@ GROUPS = {
         UI + "ScopeAuthorizationUiTest",)),
     "ui-onboarding": ("device", "OS4 first use, resume, replay, optional routes and large text", (
         UI + "OnboardingNavigationTest", UI + "OnboardingChromeTest")),
+    "initial-activation": ("jvm", "Initial scope activation, boot identity and persisted completion", (
+        "InitialActivationPolicyTest",)),
+    "ui-initial-activation": ("device", "Independent reboot reminder, skipped guide and restart persistence", (
+        "os.kei.hyper.home.data.InitialActivationPreferencesTest", UI + "InitialActivationStatusTest")),
     "cache-budget": ("jvm", "Fixed reminder, log accounting and protected resource storage", (
         "CacheReminderBudgetTest", "CacheUsageTest", "AppLogExportCacheTest", "PerfectIconRepositoryTest")),
     "hook-hot-paths": ("jvm", "Reusable request keys and live authenticated connection contracts", (

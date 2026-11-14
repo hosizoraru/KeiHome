@@ -63,6 +63,8 @@ does not automatically run navigation, color editing or native tests.
 | Pack counts, local-copy removal/cancellation and storage navigation | `ui-local-packs` |
 | OS4 scope page, component versions, grant states and large text | `ui-scope` |
 | OS4 guide, resume/replay, destination round trips and large text | `ui-onboarding` |
+| First activation, boot identity, persistence and upgrade rules | `initial-activation` |
+| Reboot reminder independent of guide completion | `ui-initial-activation` |
 | Version-prefix upgrade decisions and skipped release history | `release-notes`; `ui-release-notes` for navigation and large text |
 | Fixed cache reminder, log/export accounting and protected resources | `cache-budget` |
 | Hook key reuse and authenticated connection contracts | `hook-hot-paths`; [ART/member probe](../scripts/tests/hook-hot-paths/README.md) and the affected cache/host device tests |

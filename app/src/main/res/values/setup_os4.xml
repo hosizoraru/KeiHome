@@ -13,7 +13,7 @@
     <string name="setup_os4_framework_manager">Open framework</string>
     <string name="setup_os4_scope">Scope permissions</string>
     <string name="setup_os4_scope_body">Check host permissions and versions. A grant does not confirm loading.</string>
-    <string name="setup_os4_activation">One system reboot is recommended after first enabling. Later updates normally hot reload; a newly authorized host may need its next process start.</string>
+    <string name="setup_os4_activation">First activation requires a full device reboot. Enable the module and grant scopes, reboot, then unlock to the Home screen and wait briefly. Later updates normally reload automatically; native payload changes may require a restart.</string>
     <string name="setup_os4_icons_more">More icon settings</string>
     <string name="setup_os4_desktop_dock">Dock materials</string>
     <string name="setup_os4_desktop_appearance">Appearance and text</string>

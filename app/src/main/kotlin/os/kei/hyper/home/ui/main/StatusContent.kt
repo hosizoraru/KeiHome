@@ -53,6 +53,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import io.github.libxposed.service.HookedTarget
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.data.InitialActivationStatus
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
@@ -128,10 +129,12 @@ internal fun StatusBody(
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
   coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: (() -> Unit)? = null,
   scopeContent: @Composable () -> Unit = {},
+  activation: InitialActivationStatus = InitialActivationStatus.COMPLETE,
+  onOpenGuide: () -> Unit = {},
 ) {
   val framework = frameworkCardState(connected, readFailed, snapshot)
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment)
+    RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment, activation, onOpenGuide)
     scopeContent()
     DashboardMonetCard(
       snapshot = monetSnapshot,
@@ -290,6 +293,8 @@ private fun RuntimeStatusSection(
   runtime: RuntimeStatusUiState,
   onRefresh: () -> Unit,
   onOpenEnvironment: (() -> Unit)?,
+  activation: InitialActivationStatus,
+  onOpenGuide: () -> Unit,
 ) {
   val current = if (framework.connected && !framework.readFailed) runtime else RuntimeStatusUiState()
   val checkedAt = current.report?.checkedAtElapsed
@@ -308,13 +313,24 @@ private fun RuntimeStatusSection(
     }
   }
   val native = runtimeCardState(current, maxOf(elapsed, SystemClock.elapsedRealtime()))
-  FrameworkHero(framework, native, onRefresh, onOpenEnvironment)
-  RuntimeStatusCard(framework, native)
+  FrameworkHero(framework, native, onRefresh, onOpenEnvironment, activation)
+  if (activation != InitialActivationStatus.COMPLETE) {
+    Card(Modifier.fillMaxWidth().testTag("status.activation"), insideMargin = PaddingValues(16.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(if (activation == InitialActivationStatus.UNKNOWN)
+          R.string.activation_reboot_unknown else R.string.activation_reboot_note),
+          style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Os4DialogButton(stringResource(R.string.activation_reboot_guide),
+          modifier = Modifier.fillMaxWidth().testTag("status.activation.guide"), onClick = onOpenGuide)
+      }
+    }
+  }
+  RuntimeStatusCard(framework, native, activation)
 }
 
 @Composable
 private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, onRefresh: () -> Unit,
-  onOpenEnvironment: (() -> Unit)?) {
+  onOpenEnvironment: (() -> Unit)?, activation: InitialActivationStatus) {
   val context = LocalContext.current
   val environment by produceState<AboutDeviceDetails?>(null, context) {
     value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
@@ -329,7 +345,9 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
       device.flutterVersion?.takeIf(String::isNotBlank)?.let { "Flutter ${it.substringBefore("-mi-")}" })
       .takeIf { it.isNotEmpty() }?.joinToString(" · "),
   ).joinToString("\n")
-  val presentation = moduleStatusPresentation(state, runtime)
+  val presentation = if (activation != InitialActivationStatus.COMPLETE)
+    ModuleStatusPresentation(R.string.activation_reboot_title, StatusTone.WARNING)
+  else moduleStatusPresentation(state, runtime)
   val summary = when {
     !state.connected -> stringResource(R.string.status_framework_disconnected)
     state.readFailed -> stringResource(R.string.status_framework_error)
@@ -351,6 +369,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     actionLabel = if (onOpenEnvironment != null) stringResource(R.string.status_open_environment) else null,
     environmentSummary = environmentSummary,
     footer = when {
+      activation != InitialActivationStatus.COMPLETE -> null
       // Java hot reload is a separate observation from the resident native endpoint.
       state.launcherState == HookedTarget.State.STALE ||
         state.launcherState == HookedTarget.State.RELOADING -> stringResource(
@@ -379,6 +398,7 @@ private fun frameworkVersionLabel(version: String?, code: Long?): String = when 
 private fun RuntimeStatusCard(
   state: FrameworkCardState,
   runtime: RuntimeCardState,
+  activation: InitialActivationStatus,
 ) {
   val report = runtime.report
   val loadedAccent = colorResource(if (LocalKeiHomeDarkTheme.current)
@@ -387,7 +407,9 @@ private fun RuntimeStatusCard(
     title = stringResource(R.string.dashboard_runtime),
     tag = "status.runtime",
     overview = {
-      val presentation = moduleStatusPresentation(state, runtime)
+      val presentation = if (activation != InitialActivationStatus.COMPLETE)
+        ModuleStatusPresentation(R.string.activation_reboot_title, StatusTone.WARNING)
+      else moduleStatusPresentation(state, runtime)
       DashboardPillRow {
         MetadataPill(stringResource(presentation.title), when (presentation.tone) {
           StatusTone.READY -> loadedAccent
@@ -429,7 +451,11 @@ private fun RuntimeStatusCard(
     report?.detail?.takeIf { it.isNotBlank() }?.let { detail ->
       DashboardDetail(title = stringResource(R.string.runtime_diagnostic), value = detail, stacked = true)
     }
-    if (runtime.kind == NativeStatusKind.CAPABILITY_MISSING) {
+    if (activation != InitialActivationStatus.COMPLETE) {
+      DashboardFootnote(stringResource(if (activation == InitialActivationStatus.UNKNOWN)
+        R.string.activation_reboot_unknown else R.string.activation_reboot_note),
+        Modifier.padding(vertical = 8.dp))
+    } else if (runtime.kind == NativeStatusKind.CAPABILITY_MISSING) {
       DashboardFootnote(
         text = stringResource(R.string.runtime_capability_missing_note),
         modifier = Modifier.padding(vertical = 8.dp),

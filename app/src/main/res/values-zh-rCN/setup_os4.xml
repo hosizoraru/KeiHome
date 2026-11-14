@@ -13,7 +13,7 @@
     <string name="setup_os4_framework_manager">打开框架</string>
     <string name="setup_os4_scope">作用域授权</string>
     <string name="setup_os4_scope_body">查看宿主授权与版本，已授权不代表已加载</string>
-    <string name="setup_os4_activation">首次启用后建议重启系统一次；后续更新通常自动热重载，新授权的宿主可能需等下次进程启动。</string>
+    <string name="setup_os4_activation">首次启用必须完整重启设备。启用模块并授权作用域后，重启设备，解锁进入桌面后稍候。后续常规更新通常自动热重载；原生载荷变更可能需要另行重启。</string>
     <string name="setup_os4_icons_more">图标更多设置</string>
     <string name="setup_os4_desktop_dock">Dock 质感</string>
     <string name="setup_os4_desktop_appearance">外观与文字</string>

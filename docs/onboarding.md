@@ -39,6 +39,11 @@ copied, and the configured device's setup wizard was not rerun or reset.
 2. **Framework:** actual connection and grant-count pills, an explicit request
    action when scopes can be requested, and links to the framework manager and
    dedicated scope viewer. The old all-in-one scope card is not embedded here.
+   First activation explicitly requires a device restart after enabling the
+   module and granting scopes, then unlocking to HOME. Skipping or finishing
+   the guide cannot acknowledge this requirement. The independent
+   [Status reminder](first-activation.md) remains until restart or actual
+   system-target injection is confirmed.
 3. **Icons:** Library, Perfect, its resource manager and Apple, followed by Monet,
    artwork completion, Icon mask, Keep original icons, Recommended mappings and Icon packs > More
    settings. The resource manager downloads selected styles and required shared

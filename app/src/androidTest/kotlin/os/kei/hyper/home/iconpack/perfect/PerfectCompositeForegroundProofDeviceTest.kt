@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.CancellationException
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -120,11 +121,18 @@ class PerfectCompositeForegroundProofDeviceTest {
       "28dbe8937aa4546e528825bb468b2e967d6350e78d6739715b71e840957a1055",
     )
     val context = InstrumentationRegistry.getInstrumentation().targetContext
-    val files = hashes.map { File(context.filesDir, "perfect-icons/blobs/$it") }
+    val fixtureDirectory = InstrumentationRegistry.getArguments()
+      .getString("perfectCompositeForegroundFixtures")
+      ?.let(::File) ?: File(context.filesDir, "perfect-icons/blobs")
+    val files = hashes.map { File(fixtureDirectory, it) }
     assumeTrue("Requires the retained upstream source fixture already cached locally; never downloads it",
       files.all { it.isFile })
     val bytes = files.mapIndexed { i, file ->
-      file.readBytes().also { assertEquals("Retained source identity", hashes[i], PerfectIconFormat.sha(it)) }
+      file.readBytes().also { source ->
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(source)
+          .joinToString("") { "%02x".format(it.toInt() and 255) }
+        assertEquals("Retained source identity", hashes[i], sha256)
+      }
     }
     return Fixture(bytes[0], bytes[1], bytes[2])
   }

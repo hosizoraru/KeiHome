@@ -1,5 +1,9 @@
 # Launcher 9248 compatibility
 
+The public `109000394` capability-unavailable feedback and current-build
+cross-check are recorded in
+[`launcher-9248-user-report-20261114.md`](launcher-9248-user-report-20261114.md).
+
 Input: `RELEASE-8.01.02.9248-261013-11112305-R`, package
 `com.miui.home`, version code `801029248`.
 

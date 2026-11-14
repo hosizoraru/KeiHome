@@ -11,7 +11,7 @@
     <string name="runtime_generation_mismatch">上报版本不一致</string>
     <string name="runtime_unavailable">等待桌面连接</string>
     <string name="runtime_capability_missing">桌面能力未加载</string>
-    <string name="runtime_capability_missing_note">桌面已连接，但取色能力尚未就绪。请等待 API 102 自动热重载完成后再次检查；若持续不可用，先导出 LSPosed 日志，再考虑重启桌面。</string>
+    <string name="runtime_capability_missing_note">桌面已连接，但取色能力不可用。若刚升级 KeiHome，请重新启动一次系统桌面以加载新版能力，或重启设备并解锁进入桌面。热重载无法替换桌面已加载的原生代码。若仍不可用，请导出 LSPosed 日志。</string>
     <string name="runtime_inactive_user">非当前用户</string>
     <string name="runtime_timed_out">状态查询超时</string>
     <string name="runtime_read_failed">无法读取状态</string>

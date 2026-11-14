@@ -11,7 +11,7 @@
     <string name="runtime_generation_mismatch">Reporting build differs</string>
     <string name="runtime_unavailable">Waiting for launcher connection</string>
     <string name="runtime_capability_missing">Launcher capability not loaded</string>
-    <string name="runtime_capability_missing_note">The launcher is connected, but its color capability is not ready. Let API 102 automatic hot reload finish, then check again. If it stays unavailable, export LSPosed logs before considering a launcher restart.</string>
+    <string name="runtime_capability_missing_note">The launcher is connected, but its color capability is unavailable. If you just updated KeiHome, restart the system launcher once to load the updated capability, or restart the device and unlock to the Home screen. Hot reload cannot replace native code already loaded in the launcher. If it remains unavailable, export LSPosed logs.</string>
     <string name="runtime_inactive_user">User inactive</string>
     <string name="runtime_timed_out">Status query timed out</string>
     <string name="runtime_read_failed">Unable to read status</string>

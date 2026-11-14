@@ -11,7 +11,7 @@
     <string name="runtime_generation_mismatch">報告ビルドが不一致</string>
     <string name="runtime_unavailable">ホームの接続を待機中</string>
     <string name="runtime_capability_missing">ホーム機能が未読込</string>
-    <string name="runtime_capability_missing_note">ランチャーは接続済みですが、配色機能の準備ができていません。API 102 の自動ホットリロード完了後に再確認してください。利用できない状態が続く場合は、ランチャーの再起動を検討する前に LSPosed ログを書き出してください。</string>
+    <string name="runtime_capability_missing_note">ランチャーは接続済みですが、配色機能を利用できません。KeiHome を更新した直後は、システムランチャーを一度再起動して新しい機能を読み込むか、端末を再起動してロックを解除し、ホーム画面を開いてください。ホットリロードでは、読み込み済みのネイティブコードは置き換わりません。解決しない場合は LSPosed ログを書き出してください。</string>
     <string name="runtime_inactive_user">現在のユーザーではありません</string>
     <string name="runtime_timed_out">状態の照会がタイムアウト</string>
     <string name="runtime_read_failed">状態の取得に失敗</string>

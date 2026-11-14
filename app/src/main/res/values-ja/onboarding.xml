@@ -38,18 +38,19 @@
     <string name="setup_finish_body">ガイドはここまでです。未完了の設定はあとでも行えます。「設定」からいつでもこのガイドを開けます。</string>
     <string name="setup_finish_note_body">「状態」には報告された対象とランチャー接続が表示されます。スコープの許可だけでは、すべてのホストの読み込みは確認できません。普段使う共有画面、設定、サイドバーを開いてアイコンを確認してください。利用可否はシステムのバージョンやアプリによって異なります。</string>
     <string name="setup_logs_title">モジュール機能の問題には LSPosed ログを</string>
-    <string name="setup_logs_body">アイコン、Dock、サイドバー、その他の Hook の問題やランチャーの遅延には LSPosed ログを書き出してください。App ログは KeiHome 自体の画面や設定の問題用です。問題のある画面と「アプリについて」の環境情報も添えてください。</string>
+    <string name="setup_logs_body">アイコン、Dock、通知、サイドバーなどのモジュール機能やホームの動作に問題がある場合は、LSPosed ログを出力してください。App ログは KeiHome 自体の画面、設定、クラッシュ専用で、出力には確認と 5 秒の待機が必要です。スクリーンショットと「このアプリについて」の完全なバージョン・環境情報も添えてください。</string>
     <string name="setup_open_logs_body">機能の問題は LSPosed へ。App 自体の問題はフローティングボタンでログを書き出し</string>
     <string name="setup_open_cache_body">使用量・ログ・通知のしきい値を確認。プレビューのメモリ消去では取得済み画像と適用済みテーマを保持</string>
     <string name="setup_search_keywords">初回 初期設定 はじめに ガイド</string>
-    <string name="setup_perfect_body">スタイルを選び、アイコンを確認してパックを生成します。取得済みスタイルはオフラインでも使え、更新時は未変更のリソースを再利用します。</string>
-    <string name="setup_apple_body">iOS、iPadOS、macOS の画像を選び、アプリ別の対応を確認して、キャッシュ画像から差分生成できます。</string>
+    <string name="setup_perfect_body">スタイルを選び、プレビューで明暗などを調整してから、パックを生成・更新して適用します。ダウンロード済みのスタイルはオフラインでも使えます。再生成が必要な場合はページ上部の案内を確認してください。</string>
+    <string name="setup_apple_body">iOS、iPadOS、macOS のアイコンを選び、アプリ別の対応を確認して生成・適用します。検索やダウンロードにはキャッシュを再利用します。変更後はページ上部の再生成案内を確認してください。</string>
     <string name="setup_local_icons_title">ローカル画像とキャッシュの再利用</string>
-    <string name="setup_local_icons_body">システム画面ではローカルのテーマ画像を使用し、メモリキャッシュに上限を設けています。非対応の項目は元のアイコンを保持します。Perfect の同期や Apple の検索・ダウンロードは操作時に通信します。プレビューのメモリ消去では、取得済み画像と適用済みパックを保持します。</string>
+    <string name="setup_local_icons_body">システム画面ではローカルのテーマ画像と容量を制限したメモリキャッシュを再利用し、未対応の項目は元のアイコンを使います。プレビューメモリを消去しても、取得済み画像と適用中のパックは保持されます。\n\n完美アイコンの同期や Apple の検索・ダウンロードは操作時に通信します。制限された場合はカウントダウン終了後に再試行してください。連続して試しても待ち時間は短くなりません。</string>
     <string name="setup_verify_title">普段使う画面で確認</string>
     <string name="setup_open_scope_body">インストール済みの対象への許可を確認。実際の読み込みとは別の状態です</string>
     <string name="setup_perfect_resources_body">選んだスタイルと必要な共有リソースだけを取得。削除時も他のスタイルが使うリソースは保持します。上部メニューで絞り込み・並べ替えができます。</string>
     <string name="setup_preserved_body">アプリ名やパッケージ名で検索し、絞り込み・並べ替えで選択。再生成して適用すると、選んだアプリは元のアイコンを使います。</string>
     <string name="setup_cache_body">整理の通知は既定で 520 MB。Perfect のダウンロード量には左右されません。アプリログもキャッシュに含まれ、キャッシュ画面のログ項目から確認・書き出しできます。通知による自動削除はありません。</string>
     <string name="setup_recommended_mappings_body">必要に応じて、システムアプリ名の照合、Telegram 公式配信版間の共有、ColorOS テーマストアのマッピングを選べます。元のアイコンを保持するアプリの指定が優先されます。</string>
+    <string name="setup_local_icons_summary">通信、キャッシュ再利用、生成パックの保持について</string>
 </resources>

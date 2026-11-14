@@ -11,6 +11,9 @@ short grouped links, and separate floating Back and Continue controls. The foote
 has no enclosing opaque panel. Content scrolls behind the controls through a
 cached gradient matching the theme surface. The guide uses its own full-screen
 `OnboardingPageLayout`, rather than the shared settings scaffold's app-bar slot.
+An outer MIUIX Scaffold supplies the popup host required by native glass sheets;
+its app-bar slots and content insets are unused. The custom layout continues to
+measure the floating header, footer and full-height scrolling content.
 Header and footer are measured before the body; their clearances, including
 system-bar safe areas, are padding **inside** the scrolling content. The viewport
 extends behind both controls. Cards can therefore scroll through the header's
@@ -21,7 +24,7 @@ layer for the fades.
 Content and controls are centered within a 640dp maximum width on wider windows.
 The artwork shrinks at larger font scales; content remains scrollable.
 
-MIUIX supplies the glass Back button, primary action, grouped rows, disclosures,
+MIUIX supplies the glass Back button, primary action, grouped rows, detail sheets,
 and page transitions. The welcome artwork is KeiHome's own vector. Each page has
 one short entrance animation; there are no looping animations or new dependencies.
 The primary action places its directional arrow after the label.
@@ -69,13 +72,18 @@ copied, and the configured device's setup wizard was not rerun or reset.
    distinguishes generated packs from applied themes: after changing artwork,
    completion, recommended mappings, masks, kept originals or generation scope, update or regenerate,
    then apply. Downloads and previews do not apply a theme. Local-resource details
-   use the shared OS4 disclosure.
+   open a shared OS4 details sheet, with cache/network behavior and the default
+   latest-generated archive retention policy. Apple and Perfect each retain their
+   newest successful generation; manual imports are preserved. The default direct
+   navigation option and floating import workflow are introduced in this step.
 4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
    plus the category overview. Each destination returns to the originating step.
    The short status note explains that search-bar material can follow Dock or be
    configured independently.
 5. **Finish:** current framework/scope states, shortcuts to scope authorization,
    App logs and cache management, and the distinction between App and LSPosed logs.
+   App export requires confirmation with a five-second wait; runtime diagnostics
+   and complete About environment information help identify the right log.
    Finishing the guide does not claim that every host hook has loaded. Check the
    launcher and the share sheet, Settings or Sidebar actually used.
    Cache guidance explains the fixed default cleanup reminder of **520 MB**,

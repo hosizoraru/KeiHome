@@ -3,7 +3,7 @@
     <string name="setup_os4_welcome_title">ホーム画面を、あなたらしく</string>
     <string name="setup_os4_welcome_body">アイコンからホーム画面まで、好みに合わせて設定しましょう。</string>
     <string name="setup_os4_framework_title">まずモジュールを準備</string>
-    <string name="setup_os4_framework_body">LSPosed で KeiHome を有効にし、ホストのスコープを許可します。先に進んで、あとから設定することもできます。</string>
+    <string name="setup_os4_framework_body">LSPosed で KeiHome を有効にし、ホストスコープを許可します。初回利用には端末の再起動も必要です。先へ進み、後から設定することもできます。</string>
     <string name="setup_os4_icons_title">お気に入りのアイコンを</string>
     <string name="setup_os4_icons_body">画像を選び、プレビューしてから生成・適用します。ダウンロードやプレビューではテーマは適用されません。</string>
     <string name="setup_os4_desktop_title">ホーム画面を、使いやすく</string>
@@ -19,7 +19,7 @@
     <string name="setup_os4_desktop_appearance">外観と文字</string>
     <string name="setup_os4_desktop_launch">アイコンと起動</string>
     <string name="setup_os4_help">お困りのときは</string>
-    <string name="setup_os4_help_body">接続や許可だけでは、全ホストの読み込みは確認できません。普段使うホーム画面、共有画面、設定、サイドバーでアイコンを確認してください。Hook の問題は LSPosed ログ、アプリの問題はアプリログを確認してください。</string>
+    <string name="setup_os4_help_body">まずステータスの動作状況と診断シートを確認し、症状に応じたログを選んでください。バージョン、動作環境、再現手順も添えて報告してください。</string>
     <string name="setup_os4_next">続ける</string>
     <string name="setup_os4_start">設定を始める</string>
     <string name="setup_os4_done">完了</string>
@@ -28,7 +28,7 @@
     <string name="setup_os4_module_ready">フレームワーク接続済み</string>
     <string name="setup_os4_module_pending">フレームワーク未接続</string>
     <string name="setup_os4_framework_action_summary">モジュールの有効化と対象の管理</string>
-    <string name="setup_os4_icons_more_body">プレビュー、操作、表示の設定</string>
+    <string name="setup_os4_icons_more_body">プレビュー、生成パックの保持設定、ステータスから使用中パックへの直接移動を管理します。直接移動は初期状態で有効です。</string>
     <string name="setup_os4_desktop_note">必要な項目を調整し、各カテゴリで反映状況を確認できます。検索バーの質感は Dock に合わせるか、個別に設定できます。</string>
     <string name="setup_os4_feature_icons">アイコン</string>
     <string name="setup_os4_feature_desktop">ホーム設定</string>

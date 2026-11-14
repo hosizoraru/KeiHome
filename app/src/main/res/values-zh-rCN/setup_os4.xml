@@ -3,7 +3,7 @@
     <string name="setup_os4_welcome_title">你的桌面，由你定义</string>
     <string name="setup_os4_welcome_body">从图标到桌面，按喜好一步步设置。</string>
     <string name="setup_os4_framework_title">先让模块准备好</string>
-    <string name="setup_os4_framework_body">在 LSPosed 中启用 KeiHome 并授权宿主作用域，也可以先继续，稍后完善。</string>
+    <string name="setup_os4_framework_body">在 LSPosed 中启用 KeiHome、授权宿主作用域；首次使用还需要重启系统。也可以先继续，稍后完成。</string>
     <string name="setup_os4_icons_title">选一套喜欢的图标</string>
     <string name="setup_os4_icons_body">选择资源、预览效果，再生成并应用；下载或预览不会应用主题。</string>
     <string name="setup_os4_desktop_title">让桌面用起来顺手</string>
@@ -19,7 +19,7 @@
     <string name="setup_os4_desktop_appearance">外观与文字</string>
     <string name="setup_os4_desktop_launch">图标与启动</string>
     <string name="setup_os4_help">遇到问题</string>
-    <string name="setup_os4_help_body">已连接、已授权不代表所有宿主已加载。请到常用的桌面、分享面板、设置或侧边栏确认图标。Hook 问题查看 LSPosed 日志；应用问题查看应用日志。</string>
+    <string name="setup_os4_help_body">先查看状态页的运行状态与诊断 sheet，再按异常类型选择日志。反馈时附上版本、环境和复现步骤。</string>
     <string name="setup_os4_next">继续</string>
     <string name="setup_os4_start">开始设置</string>
     <string name="setup_os4_done">完成</string>
@@ -28,7 +28,7 @@
     <string name="setup_os4_module_ready">框架已连接</string>
     <string name="setup_os4_module_pending">框架未连接</string>
     <string name="setup_os4_framework_action_summary">启用模块与管理作用域</string>
-    <string name="setup_os4_icons_more_body">预览、操作与界面偏好</string>
+    <string name="setup_os4_icons_more_body">管理预览效果、生成包保留策略与状态卡直达当前图标包；最后一项默认开启。</string>
     <string name="setup_os4_desktop_note">按需调整后，在各分类查看生效状态。搜索栏质感可跟随 Dock，也可单独设置。</string>
     <string name="setup_os4_feature_icons">图标风格</string>
     <string name="setup_os4_feature_desktop">桌面定制</string>

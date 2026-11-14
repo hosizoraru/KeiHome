@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -44,8 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.R as LucideR
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.ScopeRequestFeedback
-import os.kei.hyper.home.ui.components.Os4DisclosureContent
-import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -156,7 +156,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
         }
       }
       SetupNote(R.string.setup_icon_tip_body, R.string.setup_icon_tip_title)
-      SetupStorageDisclosure()
+      SetupStorageHelp()
     }
     3 -> {
       Card(Modifier.fillMaxWidth()) {
@@ -263,19 +263,27 @@ private fun SetupConnectionPanel(model: HomeViewModel) {
 }
 
 @Composable
-private fun SetupStorageDisclosure() {
-  var expanded by rememberSaveable { mutableStateOf(false) }
+private fun SetupStorageHelp() {
+  var mounted by rememberSaveable { mutableStateOf(false) }
+  var showing by rememberSaveable { mutableStateOf(false) }
   Card(Modifier.fillMaxWidth()) {
-    Column {
-      val action = stringResource(if (expanded) R.string.polish_details_collapse else R.string.polish_details_expand)
-      Os4DisclosureHeader(stringResource(R.string.setup_local_icons_title), null, expanded,
-        action, action, { expanded = !expanded })
-      Os4DisclosureContent(expanded) {
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-          Text(stringResource(R.string.setup_local_icons_body), style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
+    SetupLink(R.string.setup_local_icons_title, R.string.setup_local_icons_summary) {
+      if (!mounted) {
+        mounted = true
+        showing = true
       }
     }
+  }
+  if (mounted) Os4DetailsSheet(
+    show = showing,
+    title = stringResource(R.string.setup_local_icons_title),
+    modifier = Modifier.testTag("setup.storage-help.sheet"),
+    onDismissRequest = { showing = false },
+    onDismissFinished = { mounted = false },
+  ) {
+    Text(stringResource(R.string.setup_local_icons_body), style = MiuixTheme.textStyles.body2,
+      color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    Text(stringResource(R.string.generated_pack_retention_note), style = MiuixTheme.textStyles.body2,
+      color = MiuixTheme.colorScheme.onSurfaceSecondary)
   }
 }

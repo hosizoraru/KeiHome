@@ -3,7 +3,7 @@
     <string name="setup_os4_welcome_title">Your desktop, your way</string>
     <string name="setup_os4_welcome_body">Make icons and your desktop your own, one step at a time.</string>
     <string name="setup_os4_framework_title">Get the module ready</string>
-    <string name="setup_os4_framework_body">Enable KeiHome in LSPosed and grant host scopes. You can continue and finish this later.</string>
+    <string name="setup_os4_framework_body">Enable KeiHome in LSPosed and grant its host scopes. First activation also requires a device restart. You can continue now and finish later.</string>
     <string name="setup_os4_icons_title">Find icons you love</string>
     <string name="setup_os4_icons_body">Choose artwork, preview the result, then generate and apply. Downloading or previewing does not apply a theme.</string>
     <string name="setup_os4_desktop_title">Make your desktop feel right</string>
@@ -19,7 +19,7 @@
     <string name="setup_os4_desktop_appearance">Appearance and text</string>
     <string name="setup_os4_desktop_launch">Icons and launching</string>
     <string name="setup_os4_help">Need help?</string>
-    <string name="setup_os4_help_body">Connection and grants do not confirm every host is loaded. Check icons on the launcher, share sheet, Settings or Sidebar you use. For hook issues, use LSPosed logs; for app issues, use app logs.</string>
+    <string name="setup_os4_help_body">Check the runtime status and diagnostic sheet on Status first, then choose the right log for the issue. Include your version, environment and reproduction steps.</string>
     <string name="setup_os4_next">Continue</string>
     <string name="setup_os4_start">Start setup</string>
     <string name="setup_os4_done">Finish</string>
@@ -28,7 +28,7 @@
     <string name="setup_os4_module_ready">Framework connected</string>
     <string name="setup_os4_module_pending">Framework not connected</string>
     <string name="setup_os4_framework_action_summary">Enable the module and manage its scopes</string>
-    <string name="setup_os4_icons_more_body">Preview, action and display preferences</string>
+    <string name="setup_os4_icons_more_body">Manage previews, generated archive retention and direct navigation from Status to the active icon pack. Direct navigation is on by default.</string>
     <string name="setup_os4_desktop_note">Adjust what you need, then check each category’s status. Search bar material can follow Dock or be set independently.</string>
     <string name="setup_os4_feature_icons">Icon style</string>
     <string name="setup_os4_feature_desktop">Your desktop</string>

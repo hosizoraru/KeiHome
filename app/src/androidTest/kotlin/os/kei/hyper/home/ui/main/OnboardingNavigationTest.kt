@@ -270,6 +270,28 @@ class OnboardingNavigationTest {
     }
   }
 
+  @Test fun storageHelpSheetDismissesAndReopensWithoutChangingTheGuideOrSettings() {
+    val before = AppPreferences.get(context).state.value
+    store.visit(2)
+    rule.setContent { KeiHomeTheme { MainNavigation(store) } }
+    page(2)
+    repeat(2) {
+      openLink(R.string.setup_local_icons_title)
+      destination("setup.storage-help.sheet")
+      rule.onNodeWithText(context.getString(R.string.setup_local_icons_body)).assertIsDisplayed()
+      rule.onNodeWithText(context.getString(R.string.generated_pack_retention_note))
+        .performScrollTo().assertIsDisplayed()
+      screenshot("storage-help-$it")
+      back()
+      rule.waitUntil(10_000) {
+        rule.onAllNodesWithTag("setup.storage-help.sheet").fetchSemanticsNodes().isEmpty()
+      }
+      page(2)
+      assertEquals(2, store.state.value)
+      assertEquals(before, AppPreferences.get(context).state.value)
+    }
+  }
+
   @Test fun rapidContinueDoesNotDuplicateTheNextStep() {
     rule.setContent { KeiHomeTheme { MainNavigation(store) } }
     page(0)

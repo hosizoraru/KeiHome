@@ -74,17 +74,17 @@ def main():
             f'<g transform="translate(-18,-18)">{mark(palette, tint)}</g></g>'
         )
 
-    def text(x, y, content, size=17, fill="#5A6665"):
+    def text(x, y, content, size=17, fill="#75616B"):
         return f'<text x="{x}" y="{y}" font-family="sans-serif" font-size="{size}" fill="{fill}">{content}</text>'
 
-    body = defs + '<path fill="#F7F8F5" d="M0,0H1200V780H0Z"/>'
-    body += text(56, 62, "KeiHome / A home for icons", 30, "#173D42")
+    body = defs + '<path fill="#FAF5F8" d="M0,0H1200V780H0Z"/>'
+    body += text(56, 62, "KeiHome / A home for icons", 30, "#71354E")
     body += text(56, 96, "Your home screen. Your icons. Your colors.")
     variants = [
         ("LIGHT", light, None, None),
         ("DARK", dark, None, None),
-        ("MONET / LIGHT", light, "#174E45", "#C6EADB"),
-        ("MONET / DARK", dark, "#ADEEDB", "#234F48"),
+        ("MONET / LIGHT", light, "#71354E", "#FFD9E6"),
+        ("MONET / DARK", dark, "#FFB1CE", "#57233C"),
     ]
     for column, (label, palette, tint, bg) in enumerate(variants):
         x = 56 + column * 286

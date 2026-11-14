@@ -201,7 +201,8 @@ private fun AboutAppIcon(model: HomeViewModel) {
       if (useMonet) (if (night) colors?.darkBackground else colors?.lightBackground) else null,
       Modifier.size(96.dp), previews?.backgroundMask, previews?.maskPathData)
   } else Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null,
-    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(25.dp)).background(Color(0xfff3f5ef)))
+    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(25.dp))
+      .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
 }
 
 @Composable

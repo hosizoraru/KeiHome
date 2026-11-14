@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#10252B</color>
-    <color name="ic_launcher_teal">#95E9D8</color>
-    <color name="ic_launcher_mint">#49BBA8</color>
-    <color name="ic_launcher_coral">#FFC0A2</color>
+    <color name="ic_launcher_background">#2B1E28</color>
+    <color name="ic_launcher_home">#FF99BB</color>
+    <color name="ic_launcher_tile">#FF5893</color>
+    <color name="ic_launcher_floating_tile">#FFFFFF</color>
     <color name="window_background">#000000</color>
     <color name="splash_background">@color/window_background</color>
 </resources>

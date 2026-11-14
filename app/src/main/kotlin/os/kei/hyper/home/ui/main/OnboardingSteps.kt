@@ -69,7 +69,9 @@ internal fun OnboardingHero(page: Int) {
       .graphicsLayer { alpha = reveal; translationY = (1f - reveal) * 12.dp.toPx() }
       .background(Brush.radialGradient(listOf(primary.copy(alpha = 0.14f), primary.copy(alpha = 0.02f), Color.Transparent)), CircleShape),
       contentAlignment = Alignment.Center) {
-      if (page == 0) Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(156.dp))
+      if (page == 0) Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(156.dp)
+        .clip(RoundedCornerShape(40.dp))
+        .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
       else Icon(setupHeroIcon(page), null, Modifier.size(76.dp), tint = primary)
     }
     val title = when (page) {

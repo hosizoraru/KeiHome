@@ -20,6 +20,20 @@ paths. The regular palette comes from `values/colors.xml`; the dark palette
 comes from `values-night/colors.xml`. The exporter checks that the master and
 Android light colors agree.
 
+The palette references Kei's cherry blossom pink halo and white hair. The
+original three paths are unchanged. App UI accent colors remain independent
+of this branding palette.
+
+| Element | Light | Dark |
+| --- | --- | --- |
+| Home outline | `#D4427A` | `#FF99BB` |
+| Seated app tile | `#FF76A5` | `#FF5893` |
+| Floating app tile | `#FFFFFF` | `#FFFFFF` |
+| Adaptive background | `#E8C4D4` | `#2B1E28` |
+
+Startup uses the adaptive icon so the white tile retains its contrasting
+background. The onboarding logo and About fallback use the same background.
+
 ## Android adaptation
 
 Following [Android's adaptive-icon guidance](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive):

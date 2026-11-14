@@ -24,6 +24,10 @@ for version, tag, timestamp in entries:
     assert tag == f"v{version}"
 current = re.search(r'^keihome.versionName=(.+)$', (ROOT / "gradle.properties").read_text(), re.M)[1]
 assert entries[0][0] == current, "The current release must have its own catalog entry"
+tagged_properties = subprocess.check_output(
+    ["git", "show", f"v{current}:gradle.properties"], cwd=ROOT, text=True,
+)
+assert f"keihome.versionName={current}" in tagged_properties.splitlines()
 for filename in ("release_notes_content.xml", "release_notes_ui.xml"):
     catalogs = []
     for locale in ("values", "values-zh-rCN", "values-ja"):

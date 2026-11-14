@@ -31,7 +31,8 @@ network requests, APK inspection or native hooks.
 - The manual Settings entry remains available independently of startup.
 
 `ReleaseNote.expandOnUpgrade` controls the cards initially expanded during the
-one-time upgrade presentation. For 1.9.0 this includes 1.9.0, 1.8.0, 1.7.0 and 1.6.0; older
+one-time upgrade presentation. For 1.10.0 only the new 1.10.0 details expand by default.
+For 1.9.0 this includes 1.9.0, 1.8.0, 1.7.0 and 1.6.0; older
 unread versions remain available without being forced open. Manual Settings
 entry always defaults to the current release only. The selection is authored
 before release and does not change the prefix-based automatic presentation rule.
@@ -58,6 +59,8 @@ changes from `v1.5.0` to `v1.6.0`. See
 [1.6.0 notes](releases/1.6.0.md). [1.7.0](releases/1.7.0.md) describes
 `v1.6.0..v1.7.0`; [1.8.0](releases/1.8.0.md) describes `v1.7.0..v1.8.0`;
 [1.9.0](releases/1.9.0.md) describes the confirmed public 1.9.0 build.
+[1.10.0](releases/1.10.0.md) records the subsequent OS4, performance, icon,
+activation and startup work with matching English, Chinese and Japanese content.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

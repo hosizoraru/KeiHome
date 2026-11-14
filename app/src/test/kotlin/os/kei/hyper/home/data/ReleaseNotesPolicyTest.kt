@@ -102,7 +102,7 @@ class ReleaseNotesPolicyTest {
 
   @Test fun unconfiguredReleasesDoNotInheritAnotherReleasesExpansionSelection() {
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = true))
-    assertEquals(listOf("1.9.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.10.0", upgrade = true))
+    assertEquals(listOf("1.10.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.11.0", upgrade = true))
     assertEquals(emptyList<String>(), ReleaseNotesCatalog.initiallyExpandedVersions("broken", upgrade = true))
   }
 
@@ -137,4 +137,28 @@ class ReleaseNotesPolicyTest {
     assertEquals(listOf("1.9.0", "1.8.0", "1.7.0", "1.6.0"), skipped.pendingVersions)
   }
 
+  @Test fun release110UpgradeFrom19ShowsOnlyNewNotesOnceAcrossBuilds() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val updated = observe(ReleaseNotesState("1.9.0", "1.9.0"),
+      "1.10.0+g1234567.b0001", notes = releases)
+    assertEquals("1.10.0", updated.pendingVersion)
+    assertEquals(listOf("1.10.0"), updated.pendingVersions)
+    assertEquals(updated, observe(updated, "1.10.0+g1234567.b0001", notes = releases))
+    val closed = ReleaseNotesPolicy.acknowledge(updated)
+    assertEquals("1.10.0", closed.readThrough)
+    assertEquals(closed, observe(closed, "1.10.0+g7654321.b9999", notes = releases))
+    assertEquals(listOf("1.10.0"),
+      ReleaseNotesCatalog.initiallyExpandedVersions("1.10.0", upgrade = true))
+    assertEquals(listOf("1.10.0"),
+      ReleaseNotesCatalog.initiallyExpandedVersions("1.10.0", upgrade = false))
+  }
+
+  @Test fun release110FreshInstallAndSkippedUpgradeRetainTheirOwnRules() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val fresh = observe(version = "1.10.0", updated = false, notes = releases)
+    assertEquals("", fresh.pendingVersion)
+    assertEquals("1.10.0", fresh.readThrough)
+    val skipped = observe(ReleaseNotesState("1.8.0", "1.8.0"), "1.10.0", notes = releases)
+    assertEquals(listOf("1.10.0", "1.9.0"), skipped.pendingVersions)
+  }
 }

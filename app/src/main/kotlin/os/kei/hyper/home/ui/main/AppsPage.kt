@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +38,6 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +61,7 @@ import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
 import os.kei.hyper.home.ui.components.IconPreviewMode
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -73,9 +72,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Help
-import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Ok
-import androidx.compose.animation.AnimatedVisibility
 
 @Composable
 internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues, modifier: Modifier) {
@@ -86,7 +83,6 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val monet by model.monet.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   var query by rememberSaveable { mutableStateOf("") }
-  var showPreviewNote by rememberSaveable { mutableStateOf(false) }
   var focusedRow by remember { mutableStateOf<IconBrowserRow?>(null) }
   var showInspection by remember { mutableStateOf(false) }
   val rows by produceState(emptyList<IconBrowserRow>(), scan.capabilities, source, options) {
@@ -112,34 +108,30 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
         modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
     }
     item(key = "summary", contentType = "summary") {
-      val disclosure = stringResource(if (showPreviewNote) R.string.browser_note_hide else R.string.browser_note_show)
-      Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, onClickLabel = disclosure, indication = null) {
-        showPreviewNote = !showPreviewNote
-      }, insideMargin = PaddingValues(0.dp)) {
-      Column(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-        .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text(stringResource(browserScopeLabels()[options.scope]), style = MiuixTheme.textStyles.body2,
-            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-          MetadataPill(if (scan.capabilities == null) stringResource(R.string.browser_loading)
-            else stringResource(R.string.browser_count_compact, visible.size, matches.second),
-            MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (scan.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(browserScopeLabels()[options.scope]), style = MiuixTheme.textStyles.body2,
+                  modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                MetadataPill(if (scan.capabilities == null) stringResource(R.string.browser_loading)
+                  else stringResource(R.string.browser_count_compact, visible.size, matches.second),
+                  MiuixTheme.colorScheme.onSurfaceSecondary)
+                if (scan.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+              }
+              Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
+            }
+            Os4InfoPopup(
+              title = stringResource(R.string.browser_preview_help_title),
+              summary = stringResource(if (source == null) R.string.browser_source_pending else R.string.browser_preview_note),
+              modifier = Modifier.padding(start = 4.dp),
+            )
+          }
+          RefreshFeedback(model, 1)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
-            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
-          Icon(MiuixIcons.Glass.Info, contentDescription = disclosure, modifier = Modifier.size(16.dp),
-            tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        AnimatedVisibility(showPreviewNote) {
-          Text(stringResource(if (source == null) R.string.browser_source_pending else R.string.browser_preview_note),
-            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        RefreshFeedback(model, 1)
-      }
       }
     }
     scan.error?.let { error -> item(key = "error", contentType = "message") {

@@ -28,6 +28,7 @@
   <string name="browser_sort_updated">更新日時</string>
   <string name="browser_sort_covered">対応アイコンを優先</string>
   <string name="browser_reset">フィルターをリセット</string>
+  <string name="browser_preview_help_title">プレビューについて</string>
   <string name="browser_preview_note">現在のパックのリソースプレビュー。動的アイコンは静止画を表示。実際の動作はホーム画面で確認。</string>
   <string name="browser_source_pending">パックの読み込み待ち · APK リソースを表示</string>
   <string name="browser_dynamic">動的アイコン · ホーム画面で確認</string>

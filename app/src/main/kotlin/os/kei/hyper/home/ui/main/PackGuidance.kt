@@ -25,6 +25,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -35,6 +36,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackHelpAction(notes: List<String>) {
   if (notes.isEmpty()) return
+  if (notes.size == 1) {
+    Os4InfoPopup(
+      title = stringResource(R.string.pack_guidance_title),
+      summary = notes.single(),
+    )
+    return
+  }
   var showing by rememberSaveable { mutableStateOf(false) }
   val title = stringResource(R.string.pack_guidance_title)
   IconButton(onClick = { showing = true }) { Icon(MiuixIcons.Glass.Info, title) }

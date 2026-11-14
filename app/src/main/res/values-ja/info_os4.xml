@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="info_os4_show">%1$sについて</string>
+    <string name="info_os4_expanded">説明を表示中</string>
+    <string name="info_os4_collapsed">説明を閉じています</string>
+</resources>

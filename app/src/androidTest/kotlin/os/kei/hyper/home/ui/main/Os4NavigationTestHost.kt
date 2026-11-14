@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.navigationevent.DirectNavigationEventInput
+import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.NavigationEventDispatcherOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
@@ -33,4 +34,10 @@ internal class Os4NavigationTestHost {
   }
 
   fun completeBack() { input.backCompleted() }
+
+  fun cancelBack() {
+    input.backStarted(NavigationEvent(progress = 0f))
+    input.backProgressed(NavigationEvent(progress = 0.55f))
+    input.backCancelled()
+  }
 }

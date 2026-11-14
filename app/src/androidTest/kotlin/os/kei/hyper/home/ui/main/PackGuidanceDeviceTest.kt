@@ -7,7 +7,10 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.rules.RuleChain
@@ -31,7 +34,7 @@ class PackGuidanceDeviceTest {
 
   @Test fun sharedGuidanceCollapsesAndCanBeReadFromTheHelpDialog() {
     rule.setContent { KeiHomeTheme { KeiHomeScaffold { Column {
-      PackHelpAction(listOf("Help-only explanation"))
+      PackHelpAction(listOf("Help-only explanation", "Another help step"))
       PackGuidanceCard(listOf("Brief explanation", "Page explanation"))
     } } } }
     rule.onNodeWithText("Brief explanation").assertExists()
@@ -44,6 +47,26 @@ class PackGuidanceDeviceTest {
     rule.onNodeWithText("Help-only explanation").assertExists()
     rule.onNodeWithText(text(R.string.pack_guidance_done)).performClick()
     rule.onNodeWithText("Help-only explanation").assertDoesNotExist()
+  }
+
+  @Test fun compactHelpCanBeReopenedAndClosed() {
+    rule.setContent { KeiHomeTheme { KeiHomeScaffold {
+      PackHelpAction(listOf("Single short explanation"))
+    } } }
+    val trigger = rule.onNodeWithContentDescription(
+      context.getString(R.string.info_os4_show, text(R.string.pack_guidance_title)),
+    )
+    repeat(2) {
+      trigger.performClick()
+      rule.onNodeWithTag("info.popup.title").assertExists()
+      rule.onNodeWithText("Single short explanation").assertExists()
+      rule.onNodeWithText(text(R.string.pack_guidance_done)).assertDoesNotExist()
+      rule.onNodeWithTag("info.popup.title")
+        .performSemanticsAction(SemanticsActions.Dismiss) { dismiss -> dismiss() }
+      rule.waitForIdle()
+      rule.onNodeWithTag("info.popup.host").assertDoesNotExist()
+      rule.onNodeWithText("Single short explanation").assertDoesNotExist()
+    }
   }
 
   @Test fun authorsAndRegenerationStayVisibleWithoutAnExplanationToggle() {

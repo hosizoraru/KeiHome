@@ -28,6 +28,7 @@
   <string name="browser_sort_updated">最近更新</string>
   <string name="browser_sort_covered">图标包覆盖优先</string>
   <string name="browser_reset">重置筛选</string>
+  <string name="browser_preview_help_title">预览说明</string>
   <string name="browser_preview_note">当前图标包资源预览；动态资源展示静态备用图，实际动画与脚本以桌面为准。</string>
   <string name="browser_source_pending">等待当前图标包资源 · 暂显示 APK 资源</string>
   <string name="browser_dynamic">动态资源 · 待桌面验证</string>

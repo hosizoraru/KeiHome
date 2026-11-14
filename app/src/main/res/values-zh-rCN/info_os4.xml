@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="info_os4_show">关于%1$s</string>
+    <string name="info_os4_expanded">说明已展开</string>
+    <string name="info_os4_collapsed">说明已收起</string>
+</resources>

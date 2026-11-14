@@ -28,6 +28,7 @@
   <string name="browser_sort_updated">Recently updated</string>
   <string name="browser_sort_covered">Pack artwork first</string>
   <string name="browser_reset">Reset filters</string>
+  <string name="browser_preview_help_title">Preview information</string>
   <string name="browser_preview_note">Current pack resource previews. Dynamic artwork uses a static fallback; live scripts require desktop verification.</string>
   <string name="browser_source_pending">Waiting for pack resources · showing APK resources</string>
   <string name="browser_dynamic">Dynamic artwork · verify on desktop</string>

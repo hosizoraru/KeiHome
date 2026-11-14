@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="info_os4_show">About %1$s</string>
+    <string name="info_os4_expanded">Explanation open</string>
+    <string name="info_os4_collapsed">Explanation closed</string>
+</resources>

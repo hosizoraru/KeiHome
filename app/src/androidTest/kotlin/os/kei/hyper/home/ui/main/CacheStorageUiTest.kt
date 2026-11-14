@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
@@ -156,14 +158,17 @@ class CacheStorageUiTest {
 
   @Test fun categoryInfoExplainsAllFourBucketsAtLargeFontScaleWithoutNavigating() {
     var navigated = false
+    val backHost = Os4NavigationTestHost()
     rule.setContent {
       KeiHomeTheme {
         val density = LocalDensity.current
         CompositionLocalProvider(LocalDensity provides Density(density.density, 1.6f)) {
-          KeiHomeScaffold { padding ->
-            Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
-              CacheStorageContent(sample(), false, false, 0L, {},
-                onOpenPack = { navigated = true }, onOpenLogs = { navigated = true })
+          backHost.Provide {
+            KeiHomeScaffold { padding ->
+              Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+                CacheStorageContent(sample(), false, false, 0L, {},
+                  onOpenPack = { navigated = true }, onOpenLogs = { navigated = true })
+              }
             }
           }
         }
@@ -174,11 +179,24 @@ class CacheStorageUiTest {
     descriptions.forEachIndexed { index, description ->
       rule.onNodeWithTag("cache.category.info.$index").performScrollTo().performClick()
       rule.onNodeWithText(app.getString(description)).assertIsDisplayed()
-      rule.onNodeWithTag("cache.category.info.close").performClick()
+      rule.onNodeWithTag("cache.category.info.close").assertDoesNotExist()
+      if (index % 2 == 0) {
+        rule.onNodeWithTag("info.popup.title")
+          .performSemanticsAction(SemanticsActions.Dismiss) { it() }
+      } else {
+        rule.runOnIdle { backHost.completeBack() }
+      }
+      rule.waitForIdle()
+      rule.onNodeWithTag("info.popup.host").assertDoesNotExist()
       rule.onNodeWithText(app.getString(description)).assertDoesNotExist()
     }
     rule.runOnIdle { assertEquals(false, navigated) }
     rule.onNodeWithTag("cache.category.info.4").assertDoesNotExist()
+    rule.onNodeWithTag("cache.category.info.7").performScrollTo().performClick()
+    rule.onNodeWithTag("cache.category.info.close").assertIsDisplayed()
+    rule.onNodeWithTag("info.popup.host").assertDoesNotExist()
+    rule.onNodeWithTag("cache.category.info.imported").performScrollTo().performClick()
+    rule.runOnIdle { assertEquals(true, navigated) }
   }
 
   @Test fun partialMeasurementDoesNotClaimHealthyUsage() {

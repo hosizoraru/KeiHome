@@ -46,6 +46,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -101,7 +102,14 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
             Text(if (ready) Formatter.formatShortFileSize(context, value) else "\u2014",
               style = MiuixTheme.textStyles.subtitle)
           }
-          if (index in storageDescriptions) {
+          if (index in 0..3) {
+            Os4InfoPopup(
+              title = stringResource(storageLabels[index]),
+              summary = stringResource(storageDescriptions.getValue(index)),
+              contentDescription = stringResource(R.string.storage_category_info, stringResource(storageLabels[index])),
+              modifier = Modifier.testTag("cache.category.info.$index"),
+            )
+          } else if (index in storageDescriptions) {
             KeiHomeIconButton(
               onClick = { infoCategory = index; showingInfo = true },
               modifier = Modifier.testTag("cache.category.info.$index"),
@@ -121,7 +129,8 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
     summary = stringResource(storageDescriptions.getValue(infoCategory)),
     modifier = Modifier.testTag("cache.category.info.card")) {
     if (infoCategory == 7) Os4DialogButton(stringResource(R.string.icon_pack_library),
-      { showingInfo = false; onOpenPack("library") }, Modifier.fillMaxWidth())
+      { showingInfo = false; onOpenPack("library") },
+      Modifier.fillMaxWidth().testTag("cache.category.info.imported"))
     Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },
       Modifier.fillMaxWidth().testTag("cache.category.info.close"))
   }

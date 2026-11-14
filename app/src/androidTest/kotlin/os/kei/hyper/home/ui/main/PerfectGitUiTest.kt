@@ -38,6 +38,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -148,7 +149,80 @@ class PerfectGitUiTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     waitForDisplayed(hasText(context.getString(R.string.perfect_resource_style_ready)), "single-style-actions")
     compose.onNodeWithText(context.getString(R.string.action_label_update)).performClick()
+    waitForDismissed("perfect.resources.style-download")
     compose.runOnIdle { assertEquals(listOf(setOf("default")), requests) }
+  }
+
+  @Test fun styleDialogReopenCancelsPendingHandoffAndRejectsStaleCallbacks() {
+    val dialog = PerfectResourceStyleDialogState()
+    dialog.open("default")
+    val first = dialog.session!!
+    dialog.dismiss(first.id, PerfectResourceStyleDialogState.Action.PREVIEW)
+    assertEquals("default", dialog.session!!.style)
+    assertEquals(false, dialog.session!!.show)
+    dialog.dismiss(first.id, PerfectResourceStyleDialogState.Action.DOWNLOAD)
+    dialog.dismiss(first.id)
+    assertEquals(PerfectResourceStyleDialogState.Action.PREVIEW, dialog.session!!.action)
+
+    dialog.open("default")
+    val reopened = dialog.session!!
+    assertTrue(reopened.show)
+    assertNull(reopened.action)
+    dialog.dismiss(first.id, PerfectResourceStyleDialogState.Action.DOWNLOAD)
+    assertEquals(reopened, dialog.session)
+    assertNull(dialog.finish(first.id))
+    assertNull(dialog.finish(reopened.id))
+    dialog.dismiss(reopened.id, PerfectResourceStyleDialogState.Action.REMOVE)
+    dialog.dismiss(first.id, PerfectResourceStyleDialogState.Action.DOWNLOAD)
+    assertNull(dialog.finish(first.id))
+    val finished = dialog.finish(reopened.id)!!
+    assertEquals("default", finished.style)
+    assertEquals(PerfectResourceStyleDialogState.Action.REMOVE, finished.action)
+    assertNull(dialog.finish(reopened.id))
+    assertNull(dialog.session)
+  }
+
+  @Test fun styleDetailsBackKeepsContentUntilExitAndReopensWithoutActions() {
+    val host = Os4NavigationTestHost()
+    val requests = mutableListOf<Set<String>>()
+    val previews = mutableListOf<String>()
+    setResourceContent(resourceState(), backHost = host, onDownload = { requests += it },
+      onRemove = { requests += it }, onPreview = { previews += it })
+    compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
+    waitForDisplayed(hasTestTag("perfect.resources.style-close"), "style-details-before-back")
+    compose.mainClock.autoAdvance = false
+    compose.runOnIdle { host.completeBack() }
+    compose.mainClock.advanceTimeByFrame()
+    compose.onAllNodesWithTag("perfect.resources.style-close").assertCountEquals(1)
+    compose.mainClock.autoAdvance = true
+    waitForDismissed("perfect.resources.style-close")
+    compose.runOnIdle { assertTrue(requests.isEmpty()); assertTrue(previews.isEmpty()) }
+
+    compose.onNodeWithTag("perfect.resources.style.Rounded").performScrollTo().performClick()
+    waitForDisplayed(hasTestTag("perfect.resources.style-close"), "style-details-reopened")
+    compose.onNodeWithTag("perfect.resources.style-close").performClick()
+    waitForDismissed("perfect.resources.style-close")
+    compose.runOnIdle { assertTrue(requests.isEmpty()); assertTrue(previews.isEmpty()) }
+  }
+
+  @Test fun singleStyleRemovalWaitsForDetailExitBeforePresentingConfirmation() {
+    val requests = mutableListOf<Set<String>>()
+    setResourceContent(resourceState(), onRemove = { requests += it })
+    compose.onNodeWithTag("perfect.resources.style.default").performScrollTo().performClick()
+    waitForDisplayed(hasTestTag("perfect.resources.style-remove"), "style-details-before-remove")
+    compose.mainClock.autoAdvance = false
+    compose.onNodeWithTag("perfect.resources.style-remove").performClick()
+    compose.mainClock.advanceTimeByFrame()
+    compose.onAllNodesWithTag("perfect.resources.style-download").assertCountEquals(1)
+    compose.onAllNodesWithTag("perfect.resources.confirm-remove").assertCountEquals(0)
+    compose.runOnIdle { assertTrue(requests.isEmpty()) }
+    compose.mainClock.autoAdvance = true
+    waitForDisplayed(hasTestTag("perfect.resources.confirm-remove"), "single-style-remove-presented")
+    compose.onAllNodesWithTag("perfect.resources.style-download").assertCountEquals(0)
+    compose.runOnIdle { assertTrue(requests.isEmpty()) }
+    compose.onNodeWithTag("perfect.resources.cancel-remove").performClick()
+    waitForDismissed("perfect.resources.cancel-remove")
+    compose.runOnIdle { assertTrue(requests.isEmpty()) }
   }
 
   @Test fun selectionControlsClearHiddenItemsAndBackReturnsToBrowsing() {
@@ -240,6 +314,7 @@ class PerfectGitUiTest {
     assertTrue(update.fetchSemanticsNode().boundsInRoot.bottom <= close.fetchSemanticsNode().boundsInRoot.top)
     compose.runOnIdle { assertEquals(emptyList<Set<String>>(), requests) }
     update.performClick()
+    waitForDismissed("perfect.resources.style-download")
     compose.runOnIdle { assertEquals(listOf(setOf("default")), requests) }
   }
 
@@ -257,7 +332,13 @@ class PerfectGitUiTest {
     waitForDisplayed(hasTestTag("perfect.resources.style-preview"), "downloaded-style-details")
     compose.onNodeWithTag("perfect.resources.style-own-size", useUnmergedTree = true).assertIsDisplayed()
     compose.onNodeWithTag("perfect.resources.style-shared-size", useUnmergedTree = true).assertIsDisplayed()
+    compose.mainClock.autoAdvance = false
     compose.onNodeWithTag("perfect.resources.style-preview").performClick()
+    compose.mainClock.advanceTimeByFrame()
+    compose.onAllNodesWithTag("perfect.resources.style-preview").assertCountEquals(1)
+    compose.runOnIdle { assertTrue(previews.isEmpty()); assertTrue(requests.isEmpty()) }
+    compose.mainClock.autoAdvance = true
+    waitForDismissed("perfect.resources.style-preview")
     compose.runOnIdle {
       assertEquals(listOf("default"), previews)
       assertTrue(requests.isEmpty())

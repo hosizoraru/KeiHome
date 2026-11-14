@@ -16,7 +16,7 @@ import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.apple.AppleArtworkPreview
 import os.kei.hyper.home.iconpack.apple.AppleDynamicArtwork
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
-import top.yukonga.miuix.kmp.basic.Button
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -44,10 +44,9 @@ internal fun AppleMappingInspection(
         if (row.app?.let { AppleDynamicArtwork.kind(it, state.options) } != null)
           Text(stringResource(R.string.apple_dynamic_preview_note),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        Button(onClick = onEdit, enabled = enabled, modifier = Modifier.fillMaxWidth()
-          .testTag("apple.mapping.inspection.edit")) {
-          Text(stringResource(R.string.apple_glass_change_mapping))
-        }
+        Os4DialogButton(stringResource(R.string.apple_glass_change_mapping),
+          onClick = onEdit, enabled = enabled, modifier = Modifier.fillMaxWidth()
+            .testTag("apple.mapping.inspection.edit"))
       }
     }) { mode ->
     val artwork = preview.second

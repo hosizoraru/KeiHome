@@ -14,11 +14,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -26,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -118,6 +121,49 @@ class GlassInteractionsUiTest {
       assertEquals(1, finished)
       assertEquals(2, selected)
     }
+    compose.onNodeWithTag("glass.details").assertDoesNotExist()
+  }
+
+  @Test fun reopeningASheetDuringExitCancelsTheOldCompletion() {
+    var visible by mutableStateOf(true)
+    var dismissals = 0
+    var finished = 0
+    val host = Os4NavigationTestHost()
+    compose.setContent {
+      host.Provide {
+        KeiHomeTheme {
+          KeiHomeScaffold(Modifier.fillMaxSize()) {
+            Os4DetailsSheet(visible, { dismissals++; visible = false }, title = "Preview",
+              modifier = Modifier.testTag("glass.details"), onDismissFinished = { finished++ }) {
+              Text("Retained preview")
+            }
+          }
+        }
+      }
+    }
+    compose.onNodeWithText("Retained preview").assertIsDisplayed()
+    val openBounds = compose.onNodeWithTag("glass.details").getUnclippedBoundsInRoot()
+    compose.mainClock.autoAdvance = false
+    // Back requests dismissal only after sliding off-screen; use the wrapper's immediate dismissal.
+    compose.onNodeWithTag("glass.details").performSemanticsAction(SemanticsActions.Dismiss) { dismiss ->
+      dismiss()
+    }
+    compose.mainClock.advanceTimeBy(80)
+    compose.runOnIdle {
+      assertTrue("Dismissal must start before reopening", !visible)
+      assertEquals(1, dismissals)
+      assertEquals("Native exit must still be running before reopening", 0, finished)
+    }
+    val exitingBounds = compose.onNodeWithTag("glass.details").getUnclippedBoundsInRoot()
+    assertTrue("The sheet must move before interrupting its exit", exitingBounds.top > openBounds.top)
+    compose.runOnIdle { visible = true }
+    compose.mainClock.advanceTimeBy(1_000)
+    compose.runOnIdle { assertEquals(1, dismissals); assertEquals(0, finished) }
+    compose.onNodeWithText("Retained preview").assertIsDisplayed()
+    compose.mainClock.autoAdvance = true
+    compose.runOnIdle { host.completeBack() }
+    compose.waitForIdle()
+    compose.runOnIdle { assertEquals(2, dismissals); assertEquals(1, finished) }
     compose.onNodeWithTag("glass.details").assertDoesNotExist()
   }
 

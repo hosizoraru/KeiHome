@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +82,39 @@ import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Date
 import java.util.Locale
+
+@Stable
+internal class PerfectResourceStyleDialogState {
+  enum class Action { DOWNLOAD, REMOVE, PREVIEW }
+
+  data class Session(
+    val style: String,
+    val id: Long,
+    val show: Boolean = true,
+    val action: Action? = null,
+  )
+
+  var session by mutableStateOf<Session?>(null)
+    private set
+  private var nextId = 0L
+
+  fun open(style: String) {
+    session = Session(style, ++nextId)
+  }
+
+  fun dismiss(id: Long, action: Action? = null) {
+    val current = session ?: return
+    if (current.id != id || !current.show) return
+    session = current.copy(show = false, action = action)
+  }
+
+  fun finish(id: Long): Session? {
+    val current = session ?: return null
+    if (current.id != id || current.show) return null
+    session = null
+    return current
+  }
+}
 
 @Composable
 internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit, onPreview: (String) -> Unit = {}) {
@@ -144,7 +178,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   // A completed back gesture leaves selection before leaving the resource page.
   NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None),
     isBackEnabled = selecting, onBackCompleted = { exitSelection() })
-  var focusedStyle by remember { mutableStateOf<String?>(null) }
+  val styleDialog = remember { PerfectResourceStyleDialogState() }
   var removalTargets by remember { mutableStateOf(emptySet<String>()) }
   var showInfo by remember { mutableStateOf(false) }
   var showClear by remember { mutableStateOf(false) }
@@ -187,11 +221,27 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
           }, role = GlassDialogButtonRole.Primary,
           tag = "icon-packs.perfect.confirm-download")))
 
-    focusedStyle?.let { style ->
+    styleDialog.session?.let { session ->
+      val style = session.style
       val styleName = if (style == "default") defaultName else style
       val detail = state.catalog?.styleDetails?.get(style)
       val identity = state.catalog?.sourceHash.orEmpty()
-      Os4ActionDialog(true, { focusedStyle = null }, title = if (style in downloaded) styleName
+      Os4ActionDialog(session.show, { styleDialog.dismiss(session.id) },
+        onDismissFinished = {
+          // Keep the old panel and scrim until native exit, then hand off exactly once.
+          val finished = styleDialog.finish(session.id)
+          if (finished != null && !busy) {
+            when (finished.action) {
+              PerfectResourceStyleDialogState.Action.DOWNLOAD ->
+                if (!cooling) onDownload(setOf(finished.style))
+              PerfectResourceStyleDialogState.Action.REMOVE ->
+                if (finished.style in downloaded) removalTargets = setOf(finished.style)
+              PerfectResourceStyleDialogState.Action.PREVIEW ->
+                if (finished.style in downloaded) onPreview(finished.style)
+              null -> Unit
+            }
+          }
+        }, title = if (style in downloaded) styleName
         else stringResource(R.string.perfect_resource_download_title, styleName),
         summary = stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
           else R.string.perfect_resource_style_missing),
@@ -216,18 +266,20 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         },
         actions = buildList {
           add(Os4DialogAction(stringResource(if (style in downloaded) R.string.action_label_update
-            else R.string.action_label_download), enabled = !busy && !cooling,
+            else R.string.action_label_download), enabled = session.show && !busy && !cooling,
             role = GlassDialogButtonRole.Primary, tag = "perfect.resources.style-download",
-            onClick = { focusedStyle = null; onDownload(setOf(style)) }))
+            onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.DOWNLOAD) }))
           if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_remove_short),
-            enabled = !busy, role = GlassDialogButtonRole.Destructive, onClick = {
-              focusedStyle = null; removalTargets = setOf(style)
+            enabled = session.show && !busy, role = GlassDialogButtonRole.Destructive,
+            tag = "perfect.resources.style-remove", onClick = {
+              styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.REMOVE)
             }))
           if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_preview),
-            enabled = !busy, tag = "perfect.resources.style-preview",
-            onClick = { focusedStyle = null; onPreview(style) }))
+            enabled = session.show && !busy, tag = "perfect.resources.style-preview",
+            onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.PREVIEW) }))
           add(Os4DialogAction(stringResource(if (style in downloaded) R.string.perfect_resource_close
-            else R.string.logs_cancel), { focusedStyle = null }))
+            else R.string.logs_cancel), { styleDialog.dismiss(session.id) },
+            enabled = session.show, tag = "perfect.resources.style-close"))
         })
     }
     Os4DetailsSheet(showInfo, { showInfo = false }, scrollContent = false, title = stringResource(R.string.perfect_resource_info)) {
@@ -408,7 +460,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         val detail = state.catalog?.styleDetails?.get(style)
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
           startAction = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, state.catalog?.sourceHash.orEmpty()) } },
-          onClick = { if (selecting) toggle(style) else focusedStyle = style }, endActions = {
+          onClick = { if (selecting) toggle(style) else styleDialog.open(style) }, endActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
               Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
               MetadataPill(stringResource(when {

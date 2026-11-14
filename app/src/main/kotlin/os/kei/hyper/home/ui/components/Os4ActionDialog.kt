@@ -48,10 +48,12 @@ internal fun Os4ActionDialog(
   icon: ImageVector? = null,
   actions: List<Os4DialogAction>,
   artwork: (@Composable () -> Unit)? = null,
+  onDismissFinished: (() -> Unit)? = null,
   details: @Composable () -> Unit = {},
 ) {
   val maxHeight = LocalWindowInfo.current.containerDpSize.height * 0.7f
-  Os4Dialog(show, onDismissRequest, modifier = Modifier.semantics { paneTitle = title }) {
+  Os4Dialog(show, onDismissRequest, modifier = Modifier.semantics { paneTitle = title },
+    onDismissFinished = onDismissFinished) {
     // The MIUIX host already supplies 24dp insets. Keep only spacing between content here.
     Column(Modifier.fillMaxWidth().heightIn(max = maxHeight),
       horizontalAlignment = Alignment.CenterHorizontally,

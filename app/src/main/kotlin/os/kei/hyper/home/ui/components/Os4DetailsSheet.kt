@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +53,7 @@ internal fun Os4DetailsSheet(
     CompositionLocalProvider(locals) {
       Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
         .then(if (scrollContent) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+        .navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         summary?.let {
           Text(it, style = MiuixTheme.textStyles.body2,

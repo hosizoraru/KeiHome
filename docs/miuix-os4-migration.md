@@ -2,7 +2,9 @@
 
 ## Version and source boundary
 
-The migration pins every MIUIX module to `0.9.4-9d4b9c85-SNAPSHOT`, published
+The current dependency and scroll/overlay follow-up are documented in
+[the 2026-11-14 migration](miuix-19b5b831-migration.md).
+The historical 2026-11-12 migration below pinned every module to `0.9.4-9d4b9c85-SNAPSHOT`, published
 from upstream revision `9d4b9c85c18707c7da12cf8c497ea57955fcf81e`.
 The revision was checked against the upstream `main` branch and the published
 Maven publication on 2026-11-12. Do not use Maven's `latest` field alone:

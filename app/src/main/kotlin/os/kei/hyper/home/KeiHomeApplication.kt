@@ -21,6 +21,7 @@ class KeiHomeApplication : Application() {
     logStartupPhase("onCreate.begin")
     super.onCreate()
     if (!Process.isIsolated()) {
+      AppLaunchAppearance.initialize(this)
       DeferredProfileInstaller(this)
       OnboardingPreferences.get(this)
       XposedServiceHelper.registerListener(FrameworkConnection)

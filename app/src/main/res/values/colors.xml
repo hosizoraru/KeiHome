@@ -5,6 +5,6 @@
     <color name="ic_launcher_mint">#45BDA9</color>
     <color name="ic_launcher_coral">#EEA080</color>
     <color name="ic_launcher_monochrome">#FFFFFFFF</color>
-    <color name="window_background">#F8F9FC</color>
-    <color name="splash_background">#F8F9FC</color>
+    <color name="window_background">#F7F7F7</color>
+    <color name="splash_background">@color/window_background</color>
 </resources>

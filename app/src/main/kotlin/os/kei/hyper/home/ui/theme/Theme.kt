@@ -5,6 +5,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.activity.compose.LocalActivity
 import androidx.core.view.WindowCompat
 import androidx.compose.runtime.remember
@@ -74,6 +77,9 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
     AppAppearance.DARK -> true
   }
   val activity = LocalActivity.current
+  LaunchedEffect(appearance) {
+    os.kei.hyper.home.AppLaunchAppearance.synchronize(context.applicationContext, appearance)
+  }
   SideEffect {
     activity?.window?.let { window ->
       WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -83,7 +89,15 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
     }
   }
   CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark) {
-    MiuixTheme(controller = controller, content = content)
+    MiuixTheme(controller = controller) {
+      // Include Monet's surface when the system hands the starting window to Compose.
+      val windowBackground = MiuixTheme.colorScheme.surface.toArgb()
+      DisposableEffect(activity, windowBackground) {
+        activity?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(windowBackground))
+        onDispose {}
+      }
+      content()
+    }
   }
 }
 

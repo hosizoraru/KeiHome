@@ -27,12 +27,12 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.AppData
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
-import top.yukonga.miuix.kmp.icon.glass.Book
-import top.yukonga.miuix.kmp.icon.glass.Folder
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Link
-import top.yukonga.miuix.kmp.icon.glass.Notes
+import top.yukonga.miuix.kmp.icon.glass.Log
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
@@ -61,10 +61,10 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
           val icon = when (section) {
             SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
             SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
-            SettingsSection.GUIDE -> MiuixIcons.Glass.Book
+            SettingsSection.GUIDE -> MiuixIcons.Glass.UsageHelp
             SettingsSection.HOOK -> MiuixIcons.Glass.Link
-            SettingsSection.CACHE -> MiuixIcons.Glass.Folder
-            SettingsSection.LOG -> MiuixIcons.Glass.Notes
+            SettingsSection.CACHE -> MiuixIcons.Glass.AppData
+            SettingsSection.LOG -> MiuixIcons.Glass.Log
             SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
             SettingsSection.ABOUT -> MiuixIcons.Glass.Info
           }

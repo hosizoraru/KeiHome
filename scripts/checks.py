@@ -73,6 +73,9 @@ GROUPS = {
     "ui-navigation": ("device", "Both navbar styles, release/cancel gestures, spring offsets, themes and large text", (
         UI + "Os4ChromeDeviceTest", UI + "Os4ScrollInteractionTest", UI + "MainTabNavigationDeviceTest",
         "os.kei.hyper.home.data.PagerGestureMigrationDeviceTest")),
+    "ui-miuix-migration": ("device", "Collapsed title groups, toolbar actions, navigation and pack help", (
+        UI + "MiuixTopBarMigrationTest", UI + "Os4ChromeDeviceTest",
+        UI + "Os4ScrollInteractionTest", UI + "PackGuidanceDeviceTest")),
     "ui-menus": ("device", "Native Glass/opaque menus, preferences, coordinates and Back", (
         UI + "Os4DropdownMenuDeviceTest",)),
     "ui-os4-controls": ("device", "Glass selectors, disabled options, dialog actions and menus", (

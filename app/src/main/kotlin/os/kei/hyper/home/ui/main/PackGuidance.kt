@@ -34,7 +34,7 @@ import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Informational notes only; errors, progress and actionable warnings stay in the page. */
@@ -90,7 +90,7 @@ internal fun PackHelpAction(
   }
   val title = stringResource(R.string.pack_guidance_title)
   IconButton(onClick = { showing = true }, modifier = Modifier.testTag("pack-guidance.help.${page.storageKey}")) {
-    Icon(MiuixIcons.Glass.Info, title)
+    Icon(MiuixIcons.Glass.UsageHelp, title)
   }
   // Keep the native sheet composed through its drag/back exit animation.
   Os4DetailsSheet(show = sheetVisible, title = title, scrollContent = false,

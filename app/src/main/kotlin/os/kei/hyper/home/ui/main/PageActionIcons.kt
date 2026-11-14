@@ -10,10 +10,11 @@ import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Delete
 import top.yukonga.miuix.kmp.icon.glass.Download
 import top.yukonga.miuix.kmp.icon.glass.GridView
+import top.yukonga.miuix.kmp.icon.glass.Item
 import top.yukonga.miuix.kmp.icon.glass.Link
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.Search
-import top.yukonga.miuix.kmp.icon.glass.Settings
+import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
 import top.yukonga.miuix.kmp.icon.glass.Update
 
 internal enum class PageActionIcon {
@@ -30,7 +31,7 @@ internal fun actionIcon(action: PageActionIcon): ImageVector = when (action) {
   PageActionIcon.FETCH -> MiuixIcons.Glass.Download
   PageActionIcon.OPEN_INTERNAL -> MiuixIcons.Glass.ChevronForward
   PageActionIcon.APPS -> MiuixIcons.Glass.GridView
-  PageActionIcon.SETTINGS -> MiuixIcons.Glass.Settings
+  PageActionIcon.SETTINGS -> MiuixIcons.Glass.SettingsOutline
   PageActionIcon.SEARCH -> MiuixIcons.Glass.Search
   PageActionIcon.MATCH -> MiuixIcons.Glass.Link
   PageActionIcon.IMPORT -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_file_input)
@@ -38,7 +39,7 @@ internal fun actionIcon(action: PageActionIcon): ImageVector = when (action) {
   PageActionIcon.EXPORT -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_file_output)
   PageActionIcon.OPEN_EXTERNAL -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_square_arrow_out_up_right)
   PageActionIcon.STATUS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_activity)
-  PageActionIcon.PACKS -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_shapes)
+  PageActionIcon.PACKS -> MiuixIcons.Glass.Item
   PageActionIcon.DESKTOP -> MiuixIcons.Home
   PageActionIcon.HISTORY -> ImageVector.vectorResource(LucideR.drawable.lucide_ic_history)
 }

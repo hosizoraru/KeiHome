@@ -1,0 +1,129 @@
+package os.kei.hyper.home.ui.main
+
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.TopAppBarState
+import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.glass.GlassIconButton
+import top.yukonga.miuix.kmp.glass.GlassTopAppBar
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
+
+class MiuixTopBarMigrationTest {
+  @get:Rule(order = 0) val host = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val rule = createAndroidComposeRule<ComponentActivity>()
+
+  @Test fun collapsedGlassTitleAndSubtitleRemainOneCenteredGroup() = checkSubtitleGroup(glass = true)
+
+  @Test fun collapsedStandardTitleAndSubtitleRemainOneCenteredGroup() = checkSubtitleGroup(glass = false)
+
+  private fun checkSubtitleGroup(glass: Boolean) {
+    val direction = mutableStateOf(LayoutDirection.Ltr)
+    val fontScale = mutableStateOf(1f)
+    lateinit var state: TopAppBarState
+    var clicks = 0
+    rule.setContent {
+      val density = LocalDensity.current
+      val dark = fontScale.value > 1f
+      val controller = remember(dark) {
+        ThemeController(colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+      }
+      CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale.value),
+        LocalLayoutDirection provides direction.value, LocalKeiHomeDarkTheme provides dark) {
+        MiuixTheme(controller = controller) {
+          state = rememberTopAppBarState()
+          val behavior = MiuixScrollBehavior(state)
+          val navigation = @androidx.compose.runtime.Composable {
+            GlassIconButton(onClick = {}, modifier = Modifier.testTag("leading")) { Text("‹") }
+          }
+          val actions: @androidx.compose.runtime.Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+            GlassIconButton(onClick = { clicks++ }, modifier = Modifier.testTag("action")) { Text("+") }
+            GlassIconButton(onClick = {}, modifier = Modifier.testTag("secondary")) { Text("⋯") }
+          }
+          Box(Modifier.width(360.dp)) {
+            if (glass) {
+              GlassTopAppBar(title = "Perfect Icons", largeTitle = "Expanded heading",
+                subtitle = "Backup and cache", scrollBehavior = behavior,
+                navigationIcon = navigation, actions = actions)
+            } else {
+              TopAppBar(title = "Perfect Icons", largeTitle = "Expanded heading",
+                subtitle = "Backup and cache", scrollBehavior = behavior,
+                navigationIcon = navigation, actions = actions)
+            }
+          }
+        }
+      }
+    }
+    for (layout in listOf(LayoutDirection.Ltr, LayoutDirection.Rtl)) {
+      for (scale in listOf(1f, 1.6f)) {
+        rule.runOnIdle { direction.value = layout; fontScale.value = scale }
+        rule.waitForIdle()
+        rule.runOnIdle { state.heightOffset = state.heightOffsetLimit; state.contentOffset = -1_000f }
+        rule.waitForIdle()
+        val title = rule.onNodeWithText("Perfect Icons", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val leading = rule.onNodeWithTag("leading").fetchSemanticsNode().boundsInRoot
+        val trailing = rule.onNodeWithTag("action").fetchSemanticsNode().boundsInRoot
+        // The expanded subtitle is also composed; select the one directly below the collapsed title.
+        val subtitle = rule.onAllNodesWithText("Backup and cache", useUnmergedTree = true)
+          .fetchSemanticsNodes().map { it.boundsInRoot }.minBy { abs(it.top - title.bottom) }
+        assertEquals("Title and subtitle share a horizontal center", title.center.x, subtitle.center.x, 2f)
+        assertEquals("Center the whole group against controls", leading.center.y,
+          (title.top + subtitle.bottom) / 2, 2f)
+        assertEquals("Subtitle follows the title without overlap", title.bottom, subtitle.top, 2f)
+        val left = if (layout == LayoutDirection.Ltr) leading.right else trailing.right
+        val right = if (layout == LayoutDirection.Ltr) trailing.left else leading.left
+        assertTrue("Text must clear both controls", title.left >= left - 1 && title.right <= right + 1)
+        rule.onNodeWithTag("action").performClick()
+      }
+    }
+    rule.runOnIdle { assertEquals(4, clicks) }
+  }
+
+  @Test fun appTopBarKeepsBothActionsReachableWithALongTitle() {
+    var clicks = 0
+    rule.setContent {
+      KeiHomeTheme {
+        val state = rememberTopAppBarState()
+        val behavior = MiuixScrollBehavior(state)
+        Box(Modifier.width(320.dp)) {
+          KeiHomeTopAppBar(title = "完美图标补全计划", scrollBehavior = behavior,
+            actions = {
+              GlassIconButton(onClick = { clicks++ }, modifier = Modifier.testTag("help")) { Text("?") }
+              GlassIconButton(onClick = { clicks++ }, modifier = Modifier.testTag("refresh")) { Text("+") }
+            })
+        }
+      }
+    }
+    rule.onNodeWithTag("help").performClick()
+    rule.onNodeWithTag("refresh").performClick()
+    rule.runOnIdle { assertEquals(2, clicks) }
+  }
+}

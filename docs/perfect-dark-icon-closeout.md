@@ -171,6 +171,9 @@ directory above. Final optimized Release acceptance is recorded separately.
 
 ## Reopened own-update heads-up masking, November 14
 
+Current status: **resolved by user visual acceptance at 21:23**, recorded below.
+The following 13:46 findings describe the earlier reproduction.
+
 **Status: known unresolved visual defect; further repair deferred.**
 
 The user supplied a new Phone AVD screenshot at 13:46 showing the floating
@@ -215,4 +218,21 @@ successful handoff receipt cannot substitute for that visual check.
 The later Wallet, Weather and folded-notification quiet-image defects have a
 separate archive-boundary repair documented in
 [published composite masks](published-icon-composite-masks-20261114.md). Those
-checks must not be used to close the first self-reload heads-up issue above.
+checks alone did not close the first self-reload heads-up issue above.
+
+### Resolved after notification-center repairs, November 14 at 21:23
+
+The user explicitly confirmed that the own-reload square-icon defect is now
+resolved and supplied a fresh Phone AVD screenshot. It shows KeiHome's
+`Xposed module updated` banner, reporting nine reloaded processes, with the
+wrench artwork contained in a correctly rounded dark icon. Mark this issue
+**resolved by user visual acceptance**. The earlier 13:46 reproduction and
+limited diagnostic evidence remain historical records.
+
+The user observed the resolution after the notification-center repairs.
+Shared icon-handling paths are a plausible connection; the exact contributing
+change has not been isolated. This closure does not claim an independently
+repeated agent acceptance run or infer an APK version from the screenshot.
+Retained evidence:
+`.artifacts/research/self-reload-headsup-resolved-20261114/`, containing
+`user-self-reload-rounded.png` and `report.json`.

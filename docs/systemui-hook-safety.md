@@ -191,9 +191,12 @@ without proving absence of every pre-hook handoff frame. Acceptance requires
 the first ordinary self-reload banner, rather than an extra reload or a later
 notification, to verify the transient report.
 
-The November 14 Phone AVD screenshot reproduced a square wrench background in
-KeiHome's own reload banner. Treat this visual path as **known unresolved**;
-the earlier row-refresh success is a limited diagnostic result. See
+The November 14 13:46 Phone AVD screenshot reproduced a square wrench background
+in KeiHome's own reload banner; the earlier row-refresh success remained a
+limited diagnostic result. At 21:23 the user supplied a new own-reload banner
+with a correctly rounded wrench icon and explicitly confirmed resolution after
+the notification-center repairs. This path is now **resolved by user visual
+acceptance**; attribution to a particular shared-path change remains unisolated. See
 [`perfect-dark-icon-closeout.md`](perfect-dark-icon-closeout.md#reopened-own-update-heads-up-masking-november-14)
 for the retained evidence and first-notice acceptance boundary.
 

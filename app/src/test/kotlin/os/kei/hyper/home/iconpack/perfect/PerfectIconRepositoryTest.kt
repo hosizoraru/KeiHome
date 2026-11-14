@@ -242,6 +242,56 @@ class PerfectIconRepositoryTest {
     assertEquals(1, f.http.calls.size)
   }
 
+  @Test fun dynamicRootQuietUsesNativeSnapshotRendererAndReusesItsCache() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.bitmapDynamic("third.party")
+    val source = "themes/default/layer_animating_icons/third.party/"
+    f.files[source + "quiet/quietImage.png"] = png(99)
+    f.files[source + "1/quiet/quietImage.png"] = png(12)
+    f.update()
+    var snapshots = 0
+    val repo = PerfectIconRepository(f.root, f.http, f.settings,
+      staticRenderer = { _, _, _ -> error("A proven dynamic root must use native night composition") },
+      staticEquivalentRenderer = { _, _, _, _ -> error("Do not reapply static pair night treatment") },
+      nativeSnapshotRenderer = { flat, layers, check ->
+        check()
+        snapshots++
+        assertArrayEquals(png(99), flat)
+        assertArrayEquals(png(20), layers[0])
+        assertArrayEquals(png(12), layers[1])
+        PerfectStaticPair(png(99), png(55))
+      },
+      dynamicNightRenderer = { bytes, _, check -> check(); bytes })
+    repo.catalog(refresh = true)
+    val options = PerfectIconOptions("default", staticNight = true)
+    repeat(2) {
+      val result = repo.generate(options, setOf("third.party")) {}
+      ZipFile(result.file).use { zip ->
+        assertArrayEquals(png(55), zip.getInputStream(zip.getEntry(
+          "nightmode/layer_animating_icons/third.party/quiet/quietImage.png")).readBytes())
+        assertArrayEquals(png(99), zip.getInputStream(zip.getEntry(
+          "layer_animating_icons/third.party/quiet/quietImage.png")).readBytes())
+      }
+    }
+    assertEquals("The derived root snapshot must have its own reusable cache", 1, snapshots)
+  }
+
+  @Test fun generationDoesNotImplicitlyPrunePreviousPublications() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.repo.catalog(refresh = true)
+    val prior = (1..5).map { index ->
+      File(f.root, "generated/perfect-legacy-$index.zip").also {
+        requireNotNull(it.parentFile).mkdirs()
+        it.writeBytes(byteArrayOf(index.toByte()))
+      }
+    }
+    f.repo.generate(PerfectIconOptions("default"), setOf("third.party")) {}
+    prior.forEachIndexed { index, file ->
+      assertArrayEquals("Retention belongs to successful import, not generation",
+        byteArrayOf((index + 1).toByte()), file.readBytes())
+    }
+  }
+
   @Test fun authoredNightProgramsKeepTheirOriginalClosureAndNeverInvokeDerivedRenderers() = runBlocking {
     val f = Fixture(temporary.newFolder())
     f.bitmapDynamic("third.party")

@@ -78,6 +78,8 @@ class PerfectIconRepository internal constructor(
     ((ByteArray, List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
   private val nativeCompositeRenderer:
     ((List<ByteArray>, () -> Unit) -> PerfectStaticPair)? = null,
+  private val nativeSnapshotRenderer:
+    ((ByteArray, List<ByteArray>, () -> Unit) -> PerfectStaticPair)? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
@@ -94,6 +96,10 @@ class PerfectIconRepository internal constructor(
     },
     nativeCompositeRenderer = { layers, check ->
       PerfectStaticNightRenderer.render(layers, null, check = check, nativeViewport = true)
+    },
+    nativeSnapshotRenderer = { flat, layers, check ->
+      PerfectStaticNightRenderer.render(listOf(flat), null, equivalentLayers = layers,
+        nativeNightComposition = true, check = check)
     },
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
@@ -1185,12 +1191,14 @@ class PerfectIconRepository internal constructor(
     inputs: List<PerfectIconBlob>, mask: String?, check: () -> Unit,
     read: (PerfectIconBlob) -> ByteArray,
     nativeViewport: Boolean = false,
+    nativeNightComposition: Boolean = false,
   ): PerfectStaticPair {
     val identity = "${PerfectStaticNightRenderer.REVISION}\n" +
       "${PerfectStaticNightRenderer.EQUIVALENT_LAYER_POLICY}\n${inputs.size}\n" +
       "${PerfectIconFormat.sha(mask.orEmpty().toByteArray())}\n" +
       inputs.joinToString("\n") { it.sha } +
-      if (nativeViewport) "\nnative-adaptive-viewport-1" else ""
+      (if (nativeViewport) "\nnative-adaptive-viewport-1" else "") +
+      (if (nativeNightComposition) "\nnative-night-composition-1:${PerfectDynamicNight.REVISION}" else "")
     val key = PerfectIconFormat.sha(identity.toByteArray())
     val file = File(renderedDir, "$key.zip")
     if (file.isFile && file.length() in 1..(9L * 1024 * 1024)) {
@@ -1227,6 +1235,8 @@ class PerfectIconRepository internal constructor(
     // Shape belongs to the final compositor. Baking it here prevents reversible mask comparisons.
     val pair = if (nativeViewport) {
       requireNotNull(nativeCompositeRenderer) { "Native composite renderer unavailable" }(source, check)
+    } else if (source.size == 3 && nativeNightComposition && nativeSnapshotRenderer != null) {
+      nativeSnapshotRenderer.invoke(source[0], source.drop(1), check)
     } else if (source.size == 3 && staticEquivalentRenderer != null) {
       staticEquivalentRenderer.invoke(source[0], source.drop(1), null, check)
     } else {
@@ -1375,7 +1385,8 @@ class PerfectIconRepository internal constructor(
                   .map(group.files::getValue)
                 val bytes = staticPair(inputs, null,
                   { coroutine.ensureActive() }, read,
-                  nativeViewport = group.compositeQuietLayers.isNotEmpty()).night
+                  nativeViewport = group.compositeQuietLayers.isNotEmpty(),
+                  nativeNightComposition = group.compositeQuietProofLayers.isNotEmpty()).night
                 renderedBytes += bytes.size
                 converted[path] = bytes
               }

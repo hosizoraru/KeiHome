@@ -221,6 +221,107 @@ class PerfectCompositeForegroundProofDeviceTest {
     assertTrue("The proof must repair actual date pixels", changed > 1000)
   }
 
+  @Test fun dynamicCalendarCoverHasCleanDateAndWeekdayCoverage() {
+    val fixture = retainedCalendar()
+    val before = existingNight(fixture.flat)
+    val actual = before.clone()
+    assertTrue(PerfectCompositeForegroundProof.repair(
+      fixture.flat, fixture.background, fixture.foreground, actual, {},
+      nativeNightComposition = true,
+    ))
+    val flat = requireNotNull(BitmapFactory.decodeByteArray(fixture.flat, 0, fixture.flat.size))
+    val background = requireNotNull(BitmapFactory.decodeByteArray(fixture.background, 0, fixture.background.size))
+    val foreground = requireNotNull(BitmapFactory.decodeByteArray(
+      fixture.foreground, 0, fixture.foreground.size))
+    val nightBackgroundBytes = requireNotNull(PerfectDynamicNightRenderer.render(fixture.background, true, {}))
+    val nightBackground = requireNotNull(BitmapFactory.decodeByteArray(
+      nightBackgroundBytes, 0, nightBackgroundBytes.size))
+    val nativeNight = Bitmap.createBitmap(background.width, background.height, Bitmap.Config.ARGB_8888)
+    val expected = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+    val coverage = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+    try {
+      // Independent fixture oracle: opaque neutral date tones are one ink. The weekday's
+      // known blue ink is unmatted using its red channel, not the production coverage solver.
+      fun mix(plate: Int, ink: Int, coverage: Double): Int {
+        var result = 255 shl 24
+        for (shift in intArrayOf(0, 8, 16)) {
+          val channel = ((plate ushr shift and 255) * (1 - coverage) +
+            (ink ushr shift and 255) * coverage + 0.5).toInt().coerceIn(0, 255)
+          result = result or (channel shl shift)
+        }
+        return result
+      }
+      for (y in 0 until flat.height) for (x in 0 until flat.width) {
+        val plate = nightBackground.getPixel(x, y)
+        val alpha = Color.alpha(foreground.getPixel(x, y))
+        val source = flat.getPixel(x, y)
+        val backgroundPixel = background.getPixel(x, y)
+        val result = if (alpha > 0) {
+          mix(plate, 0xffd6d6d6.toInt(), alpha / 255.0)
+        } else if (source != backgroundPixel) {
+          val coverage = ((Color.red(backgroundPixel) - Color.red(source)).toDouble() /
+            (Color.red(backgroundPixel) - 52)).coerceIn(0.0, 1.0)
+          mix(plate, 0xff2c6dd6.toInt(), coverage)
+        } else plate
+        nativeNight.setPixel(x, y, result)
+      }
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+      val bounds = Rect(0, 0, SIZE, SIZE)
+      Canvas(expected).drawBitmap(nativeNight, null, bounds, paint)
+      Canvas(coverage).drawBitmap(foreground, null, bounds, paint)
+      var covered = 0
+      var edges = 0
+      var weekdayFringe = 0
+      for (i in actual.indices) {
+        val x = i % SIZE
+        val y = i / SIZE
+        val alpha = Color.alpha(coverage.getPixel(x, y))
+        assertEquals("Caller alpha at $i", before[i] ushr 24, actual[i] ushr 24)
+        if (alpha > 0) {
+          covered++
+          if (alpha < 255) edges++
+          if (alpha == 255) {
+            for (shift in intArrayOf(0, 8, 16)) {
+              assertTrue("No opaque date rim at $i", (actual[i] ushr shift and 255) in 213..214)
+            }
+          }
+        }
+        val reference = expected.getPixel(x, y)
+        for (shift in 0..2) {
+          assertTrue("Independent unmatted text oracle at $i, channel $shift",
+            kotlin.math.abs((actual[i] ushr (shift * 8) and 255) -
+              (reference ushr (shift * 8) and 255)) <= 2)
+        }
+        if (x in 190..320 && y in 120..185) {
+          assertTrue("No white fragment in weekday area at $i", Color.red(actual[i]) <= 56)
+          if (Color.blue(actual[i]) > Color.red(actual[i]) + 8) weekdayFringe++
+        }
+      }
+      assertTrue("Exercise the date interior", covered > 1000)
+      assertTrue("Exercise the date's original partial alpha", edges > 100)
+      assertTrue("Exercise the unmatted blue weekday", weekdayFringe > 1000)
+      val rendered = PerfectStaticNightRenderer.render(listOf(fixture.flat), null,
+        equivalentLayers = listOf(fixture.background, fixture.foreground), nativeNightComposition = true)
+      assertArrayEquals("The exported root must retain the independently verified clean snapshot",
+        actual, pixels(rendered.night))
+      if (InstrumentationRegistry.getArguments().getString("exportPerfectCoverProof") == "true") {
+        val output = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "qa-cover-proof")
+        output.mkdirs()
+        File(output, "calendar-day.png").writeBytes(rendered.day)
+        File(output, "calendar-night.png").writeBytes(rendered.night)
+        val old = Bitmap.createBitmap(before, SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        try {
+          File(output, "calendar-night-before.png").outputStream().use {
+            old.compress(Bitmap.CompressFormat.PNG, 100, it)
+          }
+        } finally { old.recycle() }
+      }
+    } finally {
+      listOf(flat, background, foreground, nightBackground, nativeNight, expected, coverage)
+        .forEach { it.recycle() }
+    }
+  }
+
   @Test fun oneDisagreeingFaintSourceEdgeRejectsTheWholeRepair() {
     val fixture = retainedCalendar()
     val flat = requireNotNull(BitmapFactory.decodeByteArray(fixture.flat, 0, fixture.flat.size))
@@ -233,10 +334,13 @@ class PerfectCompositeForegroundProofDeviceTest {
     } finally { mutable.recycle() }
     val pixels = existingNight(fixture.flat)
     val before = pixels.clone()
-    assertFalse(PerfectCompositeForegroundProof.repair(
-      changedFlat, fixture.background, fixture.foreground, pixels, {},
-    ))
-    assertArrayEquals("One mismatched covered source pixel must reject every replacement", before, pixels)
+    for (native in listOf(false, true)) {
+      assertFalse(PerfectCompositeForegroundProof.repair(
+        changedFlat, fixture.background, fixture.foreground, pixels, {},
+        nativeNightComposition = native,
+      ))
+      assertArrayEquals("One mismatched covered source pixel must reject every replacement", before, pixels)
+    }
   }
 
   @Test fun differentAuthoredGridRejectsWithoutNormalizingItIntoAProof() {

@@ -17,10 +17,11 @@ internal object PerfectCompositeForegroundProof {
   private val PNG_SIGNATURE = byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)
 
   /**
-   * Restores only source-proven foreground RGB, preserving caller alpha and all other pixels.
-   * Replacement RGB is from the normal pair renderer's night output, including its final dim.
+   * Restores source-proven RGB while preserving caller alpha. A dynamic text snapshot can
+   * additionally recover colored text coverage against its independent smooth plate;
+   * otherwise only the explicitly separated foreground is replaced.
+   * Static fallbacks retain the normal pair renderer, including its final dim.
    * Rejection or cancellation before the final copy leaves [existingNightPixels512] untouched.
-   * A successful call neither proves nor replaces artwork outside the foreground's coverage.
    */
   fun repair(
     flatBytes: ByteArray,
@@ -28,6 +29,7 @@ internal object PerfectCompositeForegroundProof {
     fgBytes: ByteArray,
     existingNightPixels512: IntArray,
     check: () -> Unit,
+    nativeNightComposition: Boolean = false,
   ): Boolean {
     check()
     if (existingNightPixels512.size != SIZE * SIZE) return false
@@ -71,19 +73,47 @@ internal object PerfectCompositeForegroundProof {
         }
       }
       if (!hasForeground) return false
-      proof.recycle()
-
       check()
-      val pairLayers = if (inset == 0) listOf(bgBytes, fgBytes) else listOf(
-        croppedPng(background, crop, owned, check) ?: return false,
-        croppedPng(foreground, crop, owned, check) ?: return false,
-      )
-      val pair = PerfectStaticNightRenderer.render(
-        layers = pairLayers, maskPath = null, equivalentLayers = null,
-        check = check, nativeViewport = false,
-      )
-      val pairDay = decode(pair.day, owned, check) ?: return false
-      val pairNight = decode(pair.night, owned, check) ?: return false
+      val (pairDay, pairNight) = if (nativeNightComposition) {
+        val nightBackground = decode(
+          PerfectDynamicNightRenderer.render(bgBytes, true, check) ?: return false,
+          owned, check) ?: return false
+        if (nightBackground.width != background.width || nightBackground.height != background.height) return false
+        val clean = cleanTextSnapshot(
+          flat, background, foreground, nightBackground, crop, size, owned, check)
+        if (clean != null) {
+          val replacement = pixels(scaled(clean, owned, check), check)
+          val result = IntArray(existingNightPixels512.size) { i ->
+            (existingNightPixels512[i] and -0x1000000) or (replacement[i] and 0xffffff)
+          }
+          check()
+          result.copyInto(existingNightPixels512)
+          return true
+        }
+        val nightForeground = decode(
+          PerfectDynamicNightRenderer.render(fgBytes, false, check) ?: return false,
+          owned, check) ?: return false
+        if (nightBackground.width != background.width || nightBackground.height != background.height ||
+          nightForeground.width != foreground.width || nightForeground.height != foreground.height) return false
+        val nativeNight = bitmap(size, owned)
+        Canvas(nativeNight).apply {
+          drawBitmap(nightBackground, crop, nativeBounds, paint)
+          drawBitmap(nightForeground, crop, nativeBounds, paint)
+        }
+        // Compose original alpha at native resolution, then resize the completed snapshot once.
+        scaled(proof, owned, check) to scaled(nativeNight, owned, check)
+      } else {
+        val pairLayers = if (inset == 0) listOf(bgBytes, fgBytes) else listOf(
+          croppedPng(background, crop, owned, check) ?: return false,
+          croppedPng(foreground, crop, owned, check) ?: return false,
+        )
+        val pair = PerfectStaticNightRenderer.render(
+          layers = pairLayers, maskPath = null, equivalentLayers = null,
+          check = check, nativeViewport = false,
+        )
+        (decode(pair.day, owned, check) ?: return false) to
+          (decode(pair.night, owned, check) ?: return false)
+      }
       if (pairDay.width != SIZE || pairDay.height != SIZE ||
         pairNight.width != SIZE || pairNight.height != SIZE) return false
       val flat512 = bitmap(SIZE, owned)
@@ -124,6 +154,20 @@ internal object PerfectCompositeForegroundProof {
     }
   }
 
+  private fun cleanTextSnapshot(
+    flat: Bitmap, background: Bitmap, foreground: Bitmap, nightBackground: Bitmap,
+    crop: Rect, size: Int, owned: MutableList<Bitmap>, check: () -> Unit,
+  ): Bitmap? {
+    fun croppedPixels(bitmap: Bitmap) = IntArray(size * size).also {
+      check()
+      bitmap.getPixels(it, 0, size, crop.left, crop.top, size, size)
+    }
+    val result = PerfectCompositeTextCoverage.night(
+      pixels(flat, check), croppedPixels(background), croppedPixels(foreground),
+      croppedPixels(nightBackground), size, size, check) ?: return null
+    return bitmap(size, owned).also { it.setPixels(result, 0, size, 0, 0, size, size) }
+  }
+
   private fun croppedPng(
     source: Bitmap, crop: Rect, owned: MutableList<Bitmap>, check: () -> Unit,
   ): ByteArray? {
@@ -137,6 +181,21 @@ internal object PerfectCompositeForegroundProof {
     }
     check()
     return bytes.takeIf { it.size in 1..MAX_BYTES }
+  }
+
+  private fun scaled(source: Bitmap, owned: MutableList<Bitmap>, check: () -> Unit): Bitmap {
+    check()
+    return bitmap(SIZE, owned).also {
+      Canvas(it).drawBitmap(source, null, Rect(0, 0, SIZE, SIZE),
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+    }
+  }
+
+  private fun pixels(bitmap: Bitmap, check: () -> Unit): IntArray {
+    check()
+    return IntArray(bitmap.width * bitmap.height).also {
+      bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    }
   }
 
   private fun matches(a: Int, b: Int): Boolean {

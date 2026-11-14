@@ -115,7 +115,7 @@ GROUPS = {
         "os.kei.hyper.home.iconpack.IconMaskPreviewPipelineDeviceTest")),
     "pack-guidance-retention": ("jvm", "Versioned help, generated archive ownership and cover routing", (
         "PackGuidancePreferencesTest", "SystemFallbackPreferencesTest", "GeneratedPackRetentionTest",
-        "IconPackArchiveTest", "PerfectIconRepositoryTest")),
+        "IconPackArchiveTest", "PerfectIconRepositoryTest", "PerfectCompositeTextCoverageTest")),
     "ui-pack-guidance-retention": ("device", "First-visit sheets, shared retention setting and manual help", (
         UI + "PackGuidanceDeviceTest", UI + "PackSettingsGuidanceUiTest",
         UI + "PackSettingsOpenCurrentIconPackTest",

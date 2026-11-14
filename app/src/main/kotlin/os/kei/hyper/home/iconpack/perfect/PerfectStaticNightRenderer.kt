@@ -17,7 +17,7 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-11"
+  const val REVISION = "perfect-static-night-13"
   const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-4"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
@@ -37,6 +37,7 @@ internal object PerfectStaticNightRenderer {
     maskPath: String?,
     equivalentLayers: List<ByteArray>? = null,
     nativeViewport: Boolean = false,
+    nativeNightComposition: Boolean = false,
     check: () -> Unit = {},
   ): PerfectStaticPair {
     check()
@@ -122,7 +123,8 @@ internal object PerfectStaticNightRenderer {
         }
         if (layers.size == 1 && !wholeEquivalent && equivalentLayers?.size == 2) {
           PerfectCompositeForegroundProof.repair(
-            layers.single(), equivalentLayers[0], equivalentLayers[1], pixels, check)
+            layers.single(), equivalentLayers[0], equivalentLayers[1], pixels, check,
+            nativeNightComposition = nativeNightComposition)
         }
         night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
         if (nativeViewport) {

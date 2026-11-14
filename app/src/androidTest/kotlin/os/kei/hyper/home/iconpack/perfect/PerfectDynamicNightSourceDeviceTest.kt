@@ -497,7 +497,7 @@ class PerfectDynamicNightSourceDeviceTest {
     }
   }
 
-  @Test fun generatedCalendarRootNightLiftsProvenBlackDateAndPreservesUnmodeledWeekday() {
+  @Test fun generatedCalendarRootNightHasCleanNeutralDateAndBlueWeekday() {
     val originals = retainedDynamicBytes("com.android.calendar")
     val group = requireNotNull(classify(originals))
     assertTrue("Calendar keeps its authored flat preview geometry", group.compositeQuietLayers.isEmpty())
@@ -536,35 +536,52 @@ class PerfectDynamicNightSourceDeviceTest {
         var datePixels = 0
         var illegibleDatePixels = 0
         var weekdayPixels = 0
-        var changedWeekdayPixels = 0
+        var invalidWeekdayHue = 0
+        var whiteWeekdayFringe = 0
+        var darkestDateCore = 255
+        var lightestDateCore = 0
         var changedAlphaPixels = 0
         for (i in dayPixels.indices) {
           val dayPixel = dayPixels[i]
           val fg = foregroundPixels[i]
           val pixel = nightPixels[i]
           if (Color.alpha(pixel) != Color.alpha(previousPixels[i])) changedAlphaPixels++
-          // Opaque black date cores are independently selected from the actual native
+          // Opaque neutral date cores are independently selected from the actual native
           // foreground and original flat day, rather than from the repaired output.
           if (Color.alpha(fg) >= 250 &&
-            maxOf(Color.red(fg), Color.green(fg), Color.blue(fg)) <= 48 &&
-            maxOf(Color.red(dayPixel), Color.green(dayPixel), Color.blue(dayPixel)) <= 48) {
+            maxOf(Color.red(fg), Color.green(fg), Color.blue(fg)) <= 96 &&
+            maxOf(Color.red(dayPixel), Color.green(dayPixel), Color.blue(dayPixel)) <= 96) {
             datePixels++
+            darkestDateCore = minOf(darkestDateCore, Color.red(pixel), Color.green(pixel), Color.blue(pixel))
+            lightestDateCore = maxOf(lightestDateCore, Color.red(pixel), Color.green(pixel), Color.blue(pixel))
             if (minOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) < 128) {
               illegibleDatePixels++
             }
           }
-          // The blue weekday belongs to the third native layer, outside the date proof.
+          // Select the authored blue text independently, including its pale source fringes.
+          if (Color.alpha(fg) == 0 &&
+            Color.blue(dayPixel) - Color.red(dayPixel) > 8 &&
+            Color.blue(dayPixel) - Color.green(dayPixel) > 4 &&
+            minOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) > 128 &&
+            maxOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) -
+              minOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel)) < 20) {
+            whiteWeekdayFringe++
+          }
           if (Color.alpha(fg) == 0 && Color.alpha(dayPixel) >= 250 &&
             Color.blue(dayPixel) - Color.red(dayPixel) > 96 &&
             Color.blue(dayPixel) - Color.green(dayPixel) > 32) {
             weekdayPixels++
-            if (pixel != previousPixels[i]) changedWeekdayPixels++
+            if (Color.blue(pixel) - Color.red(pixel) <= 48 ||
+              Color.blue(pixel) - Color.green(pixel) <= 16) invalidWeekdayHue++
           }
         }
         assertTrue("Actual Calendar root must contain opaque black date artwork", datePixels > 1000)
         assertEquals("Every proven black date core must be legible at night", 0, illegibleDatePixels)
         assertTrue("Actual Calendar root must include its unmodeled blue weekday", weekdayPixels > 100)
-        assertEquals("Weekday keeps the existing flat fallback pixels", 0, changedWeekdayPixels)
+        assertTrue("Neutral date interiors must not retain inverted gray contours",
+          lightestDateCore - darkestDateCore <= 12)
+        assertEquals("Weekday must retain its blue hue", 0, invalidWeekdayHue)
+        assertEquals("Weekday must not retain a pale neutral matte", 0, whiteWeekdayFringe)
         assertEquals("Foreground repair must retain all caller alpha", 0, changedAlphaPixels)
       }
     } finally { owned.forEach { it.recycle() } }
@@ -823,7 +840,7 @@ class PerfectDynamicNightSourceDeviceTest {
     val proofLayers = if (nativeViewport) null else
       group.compositeQuietProofLayers.takeIf { it.isNotEmpty() }?.map(originals::getValue)
     return PerfectStaticNightRenderer.render(layers, null, equivalentLayers = proofLayers,
-      nativeViewport = nativeViewport).night
+      nativeViewport = nativeViewport, nativeNightComposition = proofLayers != null).night
   }
 
   private fun weatherNativeViewportBounds(): Rect {

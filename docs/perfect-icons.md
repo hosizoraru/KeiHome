@@ -241,6 +241,12 @@ can include complete warm stems and underlines touching a colored illustration,
 while requiring isolated neutral-core anchors. Colored illustration details and
 ambiguous ink retain conservative dimming.
 
+When system shape completion is enabled, the final published archive also clips
+recognized complete quiet images to its actual mask. This covers native-preserving
+handoffs and folded notification miniatures that bypass the ordinary bitmap
+bridge. Dynamic programs and their individual resource layers remain intact;
+see [the composite-mask investigation](published-icon-composite-masks-20261114.md).
+
 An authored gradient must be treated as a complete surface: accepting only the
 near-median portion leaves colored bands in generated night textures. The
 classifier compares a smooth edge-derived surface with the interior and retains

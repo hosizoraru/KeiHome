@@ -211,3 +211,8 @@ HOME, recording the first floating notice from appearance through its settled
 state. The icon must remain correctly masked, with no disruptive host restart.
 A second reload, another module's update, an already-visible status icon, or a
 successful handoff receipt cannot substitute for that visual check.
+
+The later Wallet, Weather and folded-notification quiet-image defects have a
+separate archive-boundary repair documented in
+[published composite masks](published-icon-composite-masks-20261114.md). Those
+checks must not be used to close the first self-reload heads-up issue above.

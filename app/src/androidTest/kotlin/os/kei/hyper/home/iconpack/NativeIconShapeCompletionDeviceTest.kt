@@ -1,6 +1,7 @@
 package os.kei.hyper.home.iconpack
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -44,7 +45,7 @@ class NativeIconShapeCompletionDeviceTest {
         val entries = icons(handoff.file)
         val generation = IconGenerationManifest.decode(entries.getValue(IconGenerationManifest.PATH))
         assertEquals(enabled, generation.completeSystemIconConfig)
-        assertEquals(4, generation.schemaVersion)
+        assertEquals(9, generation.schemaVersion)
         if (enabled) NativeIconShapeConfig.validateGenerated(entries.getValue(NativeIconShapeConfig.PATH))
         else assertFalse(entries.containsKey(NativeIconShapeConfig.PATH))
         ConvertedIconArchive.inspect(handoff.file, requireNotNull(handoff.convertedOrigin))
@@ -54,7 +55,7 @@ class NativeIconShapeCompletionDeviceTest {
 
   @Test fun nativeArchivesPreserveAuthoredAndLegacyShapesWhileFillingMissingContracts() = runBlocking {
     val folder = File(context.cacheDir, "shape-native-${System.nanoTime()}").apply { mkdirs() }
-    val bitmap = Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.DKGRAY) }
+    val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.DKGRAY) }
     val png = try { ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray() }
       finally { bitmap.recycle() }
     val authored = """<IconTransform><Config name="SupportLayerIcon" value="false"/><Config name="UseDynamicIcon" value="false"/><Config name="ConfigIconMask" value="M50 0A50 50 0 1 0 50 100Z"/></IconTransform>""".toByteArray()
@@ -75,12 +76,26 @@ class NativeIconShapeCompletionDeviceTest {
           IconPackStore(File(folder, "store-$index")).import(it, "source.zip").record
         }
         val pack = IconPackDescriptor(record.id, "Shape fixture", record.format, IconPackSource.Imported(record), emptyList())
+        val original = input.readBytes()
+        val stored = record.originalFile
+        val storedOriginal = stored.readBytes()
         for (enabled in listOf(true, false)) {
           val handoff = IconPackHandoffs.prepare(context, repository, previews, pack, emptyList(),
             IconPackAppearance.SYSTEM, includePalette = false, completeSystemIconConfig = enabled)
           try {
             val entries = icons(handoff.file)
-            for ((name, bytes) in supplied) assertArrayEquals(name, bytes, entries.getValue(name))
+            for ((name, bytes) in supplied) {
+              if (enabled && index == 0 && name.endsWith(".png")) {
+                val actual = requireNotNull(BitmapFactory.decodeByteArray(
+                  entries.getValue(name), 0, entries.getValue(name).size))
+                try {
+                  assertEquals(name, 0, Color.alpha(actual.getPixel(0, 0)))
+                  assertEquals(name, Color.DKGRAY, actual.getPixel(32, 32))
+                } finally { actual.recycle() }
+              } else assertArrayEquals(name, bytes, entries.getValue(name))
+            }
+            assertArrayEquals("Input ZIP must remain immutable", original, input.readBytes())
+            assertArrayEquals("Imported source must remain immutable", storedOriginal, stored.readBytes())
             when (index) {
               0 -> assertEquals(enabled, entries.containsKey(NativeIconShapeConfig.PATH))
               1 -> assertArrayEquals(authored, entries.getValue(NativeIconShapeConfig.PATH))

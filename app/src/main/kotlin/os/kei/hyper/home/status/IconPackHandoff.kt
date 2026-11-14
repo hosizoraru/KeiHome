@@ -181,6 +181,7 @@ internal object IconPackHandoffs {
         currentCoroutineContext().ensureActive()
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
         val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
+        val maskedIcons = File(context.cacheDir, "masked-icons-${UUID.randomUUID()}.zip")
         try {
           fun metadata(value: String?, length: Int) =
             value?.map { if (it.isISOControl()) ' ' else it }?.joinToString("")?.trim()?.take(length)?.takeIf { it.isNotEmpty() }
@@ -215,6 +216,8 @@ internal object IconPackHandoffs {
           RawIconArchive.write(icons, stampedIcons,
             includes = { it != IconBuildInventory.NAMES_PATH }, replacements = stamps,
             check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
+          val publishedIcons = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
+              enabled = completeSystemIconConfig, check = { caller.ensureActive() })) maskedIcons else stampedIcons
           ZipOutputStream(target.outputStream()).use { output ->
             output.putNextEntry(ZipEntry("description.xml").apply { time = 0 })
             val title = xml(pack.displayName)
@@ -226,7 +229,7 @@ internal object IconPackHandoffs {
               "<version>$version</version><uiVersion>13</uiVersion>" +
               "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
             output.closeEntry()
-            ImageArchiveZip.writeFile(output, "icons", stampedIcons) { caller.ensureActive() }
+            ImageArchiveZip.writeFile(output, "icons", publishedIcons) { caller.ensureActive() }
             // Themes crops previews to a portrait phone frame, including icons-only components.
             val cover = Bitmap.createBitmap(400, 860, Bitmap.Config.ARGB_8888)
             try {
@@ -245,7 +248,7 @@ internal object IconPackHandoffs {
               ImageArchiveZip.writeBytes(output, "preview/preview_icons_0.png", png) { caller.ensureActive() }
             } finally { cover.recycle() }
           }
-        } finally { stampedIcons.delete() }
+        } finally { stampedIcons.delete(); maskedIcons.delete() }
         IconPackHandoff(token, target, pack.id, pack.displayName, when (pack.format) {
           os.kei.hyper.home.iconpack.IconPackFormat.INSTALLED_APK,
           os.kei.hyper.home.iconpack.IconPackFormat.APK -> "CONVERTED_APK"

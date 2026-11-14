@@ -33,8 +33,11 @@ internal class IconPackImportMonitor(
     private val handler by lazy { Handler(thread.looper) }
     @Volatile override var closed = false
       private set
+    private val registrations = MonitorRegistrations()
+    override val cleanupComplete get() = registrations.complete
     private var prefs: SharedPreferences? = null
     private var handled: IconPackImportRequest? = null
+    private var authorization: IconAutoApplyAuthorization? = null
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> request() }
 
     private fun request() {
@@ -60,17 +63,20 @@ internal class IconPackImportMonitor(
           save(checkNotNull(journal), report, mayHaveImported, stage, convertedProof)
         }
       }
-      fun forDelivery(report: NativeIconImportReport): NativeIconImportReport {
+      fun isCurrent(): Boolean = !closed && !Thread.currentThread().isInterrupted &&
+        IconPackImportProtocol.read(prefs) == request &&
+        ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) == request.userId
+      fun forDelivery(report: NativeIconImportReport): NativeIconImportReport? {
+        if (!isCurrent()) return null
         val approved = receipt.forDelivery(report, onConvertedImport) { failure -> if (!closed) onFailure(failure) }
         if (!request.autoApply || !approved.imported || approved.convertedReady == false) return approved
-        return try {
-          if (NativeIconPackManager.authorizeAutoApply(base, request.token, requireNotNull(approved.localId)))
-            approved.copy(autoApplyToken = request.token) else approved
-        } catch (failure: Exception) {
-          if (failure is InterruptedException) Thread.currentThread().interrupt()
-          if (!closed) onFailure(failure)
-          approved.copy(message = "Imported; automatic application unavailable: ${failure.message}".take(512))
-        }
+        val state = authorization?.takeIf { it.matches(request, approved) }
+          ?: IconAutoApplyAuthorization(request, requireNotNull(approved.localId), SystemClock.elapsedRealtime())
+            .also { authorization = it }
+        return state.forDelivery(approved, SystemClock::elapsedRealtime, ::isCurrent,
+          authorize = { NativeIconPackManager.authorizeAutoApply(base, request.token, requireNotNull(approved.localId)) },
+          pause = { Thread.sleep(it) },
+          onFailure = { failure -> if (!closed) onFailure(failure) })
       }
       try {
         val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
@@ -79,8 +85,8 @@ internal class IconPackImportMonitor(
           .invoke(base, UserHandle.getUserHandleForUid(user * 100_000), 0) as Context
         fun deliver(report: NativeIconImportReport) {
           if (closed) return
-          val notification = forDelivery(report)
-          if (closed) return
+          val notification = forDelivery(report) ?: return
+          if (!isCurrent()) return
           context.contentResolver.call(RuntimeStatusInbox.AUTHORITY, IconPackImportProtocol.REPORT_METHOD,
             null, notification.bundle())
         }
@@ -186,7 +192,7 @@ internal class IconPackImportMonitor(
         if (!closed) {
           runCatching {
             val notification = forDelivery(outcome)
-            if (!closed) base.contentResolver.call(RuntimeStatusInbox.AUTHORITY,
+            if (notification != null && isCurrent()) base.contentResolver.call(RuntimeStatusInbox.AUTHORITY,
               IconPackImportProtocol.REPORT_METHOD, null, notification.bundle())
           }
           handled = request
@@ -202,19 +208,26 @@ internal class IconPackImportMonitor(
         if (closed) return@post
         try {
           prefs = preferences()
-          prefs?.registerOnSharedPreferenceChangeListener(listener)
+          prefs?.let { current ->
+            registrations.own { current.unregisterOnSharedPreferenceChangeListener(listener) }
+            current.registerOnSharedPreferenceChangeListener(listener)
+          }
           request()
         } catch (failure: Exception) { if (!closed) onFailure(failure) }
       }
     }
 
     override fun stop() {
-      if (closed) return
       closed = true
       handler.removeCallbacksAndMessages(null)
-      handler.post { prefs?.unregisterOnSharedPreferenceChangeListener(listener); prefs = null }
+      handler.post {
+        if (registrations.release(onFailure)) {
+          prefs = null
+          authorization = null
+          thread.quitSafely()
+        }
+      }
       thread.interrupt()
-      thread.quitSafely()
     }
   }
 
@@ -234,6 +247,75 @@ internal class IconPackImportMonitor(
     // AtomicFile logs sync/rename failures instead of throwing. Verify the committed receipt
     // before permitting native submission or releasing its only reconciliation source.
     if (!file.readFully().contentEquals(bytes)) throw IOException("Import receipt was not committed")
+  }
+}
+
+/** One logical request's authorization budget; rechecks and delivery failures cannot reset it. */
+internal class IconAutoApplyAuthorization(
+  private val request: IconPackImportRequest,
+  private val localId: String,
+  private val startedAt: Long,
+) {
+  private var attempts = 0
+  private var finished = false
+  private var authorized = false
+  private var failureMessage: String? = null
+
+  fun matches(other: IconPackImportRequest, report: NativeIconImportReport): Boolean =
+    request.copy(recheck = 0) == other.copy(recheck = 0) &&
+      report.token == request.token && report.userId == request.userId &&
+      report.sourceId == request.sourceId && report.localId == localId
+
+  fun forDelivery(
+    report: NativeIconImportReport,
+    now: () -> Long,
+    isCurrent: () -> Boolean,
+    authorize: () -> Boolean,
+    pause: (Long) -> Unit,
+    onFailure: (Exception) -> Unit,
+  ): NativeIconImportReport? {
+    require(matches(request, report) && request.autoApply && report.imported && report.convertedReady != false)
+    while (true) {
+      if (!isCurrent()) return null
+      if (!request.pending(now())) return report.copy(autoApplyToken = null,
+        message = "Imported; automatic application request expired")
+      if (finished) return report.copy(autoApplyToken = if (authorized) request.token else null,
+        message = failureMessage?.let { "Imported; automatic application unavailable: $it".take(512) }
+          ?: report.message)
+      if (attempts > 0) {
+        val delay = RETRY_DELAYS.getOrNull(attempts - 1)
+        val elapsed = now() - startedAt
+        if (delay == null || elapsed < 0 || elapsed + delay >= RETRY_WINDOW_MS) {
+          finished = true
+          continue
+        }
+        // This runs only on the owned import thread. Stop interrupts the wait; no timer outlives it.
+        pause(delay)
+        if (!isCurrent()) return null
+        if (!request.pending(now())) continue
+        if (now() - startedAt !in 0L until RETRY_WINDOW_MS) {
+          finished = true
+          continue
+        }
+      }
+      attempts++
+      try {
+        authorized = authorize()
+        finished = true // False can mean an already-consumed ticket: never retry or re-arm it.
+        failureMessage = null
+      } catch (cancelled: InterruptedException) {
+        throw cancelled
+      } catch (failure: Exception) {
+        failureMessage = failure.message ?: failure.javaClass.simpleName
+        if (failure !is IOException && failure !is android.os.RemoteException) finished = true
+        onFailure(failure)
+      }
+    }
+  }
+
+  private companion object {
+    val RETRY_DELAYS = longArrayOf(250, 750)
+    const val RETRY_WINDOW_MS = 15_000L
   }
 }
 

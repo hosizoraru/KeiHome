@@ -16,10 +16,27 @@ or assets are copied.
   cancel behavior and action tags remain owned by each caller.
 
 The shared layout covers Perfect style download/update, repair, removal and
-cache confirmation, log cleanup, framework-entry help, and Apple mapping
+cache confirmation, log cleanup/export, framework-entry help, and Apple mapping
 transfer results. Cache-budget and Monet editors retain their specialized
 content and use the same adaptive action group. Guidance/link lists and source
 information retain their content-oriented layouts.
+
+App log export has a dedicated confirmation before any ZIP creation or share
+intent. It distinguishes KeiHome UI/settings/crash reports from module-feature
+reports, which require LSPosed logs. Each presentation waits five seconds using
+elapsed realtime, displays the remaining seconds, and independently checks the
+deadline in its callback. Cancel/back/outside dismissal never exports; reopening
+or recreating the page starts a new wait. The selected time range is captured
+when opening the dialog. Export starts once, after the native dismissal finishes;
+the originating action remains disabled through that handoff. No log level,
+retention, or existing export format changes.
+This confirmation uses full-width stacked native actions so countdown labels
+remain readable across languages; other dialogs keep their existing adaptive
+action layout.
+
+Focused device coverage: `python3 scripts/checks.py ui-log-export --serial
+emulator-5580 --run`. Tests use the real monotonic clock and verify early/stale
+callbacks, one-time delivery, cancellation, Back, and a fresh wait after reopening.
 
 Perfect resource filtering lives in the top-right OS4 menu. It explicitly
 selects all styles or downloaded styles, marks the current option, and clears

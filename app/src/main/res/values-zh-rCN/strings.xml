@@ -31,6 +31,9 @@
     <string name="logs_size">日志大小</string>
     <string name="logs_lines">此范围内 %1$d 行</string>
     <string name="logs_export">导出 App 日志</string>
+    <string name="logs_export_confirm_title">确认需要 App 日志？</string>
+    <string name="logs_export_confirm_summary">仅当 KeiHome 自身出现界面、设置、崩溃等异常时，才应导出 App 日志。\n\n图标、Dock、Monet 等模块功能异常，请导出 LSPosed 日志。App 日志不包含排查这些问题所需的 Hook 运行记录。\n\n请阅读以上说明后再导出。</string>
+    <string name="logs_export_countdown">导出（%1$d 秒）</string>
     <string name="logs_clear">清理此范围</string>
     <string name="logs_clear_confirm">确定清理所选时间范围内的日志吗？</string>
     <string name="logs_cancel">取消</string>

@@ -31,6 +31,9 @@
     <string name="logs_size">Log size</string>
     <string name="logs_lines">%1$d lines in this range</string>
     <string name="logs_export">Export App logs</string>
+    <string name="logs_export_confirm_title">Are App logs the right choice?</string>
+    <string name="logs_export_confirm_summary">Export App logs only for problems with KeiHome itself, such as its screens, settings, or crashes.\n\nFor module features that do not work as expected, such as icons, Dock, or Monet, export LSPosed logs instead. App logs do not contain the Hook runtime records needed to investigate these issues.\n\nPlease read this before exporting.</string>
+    <string name="logs_export_countdown">Export (%1$ds)</string>
     <string name="logs_clear">Clear this range</string>
     <string name="logs_clear_confirm">Clear logs in the selected range?</string>
     <string name="logs_cancel">Cancel</string>

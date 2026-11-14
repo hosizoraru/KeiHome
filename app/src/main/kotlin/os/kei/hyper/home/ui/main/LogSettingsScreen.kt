@@ -83,6 +83,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   var refresh by remember { mutableIntStateOf(0) }
   var stats by remember { mutableStateOf(0L to 0) }
   var confirmClear by remember { mutableStateOf(false) }
+  var exportHours by remember { mutableStateOf<Long?>(null) }
   var exporting by remember { mutableStateOf(false) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -115,8 +116,14 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
       else R.string.action_label_export), actionIcon(PageActionIcon.EXPORT),
       description = stringResource(R.string.logs_export),
       onHeightChanged = { actionHeight = it },
-      modifier = Modifier.testTag("settings.logs.export"), enabled = hours > 0, busy = exporting, onClick = {
-        val since = System.currentTimeMillis() - hours * 3_600_000
+      modifier = Modifier.testTag("settings.logs.export"),
+      enabled = hours > 0 && exportHours == null, busy = exporting, onClick = {
+        if (!exporting && exportHours == null && hours > 0) exportHours = hours
+      })
+  }) { padding ->
+    exportHours?.let { selectedHours ->
+      LogExportConfirmationDialog(onDismissed = { exportHours = null }, onExport = {
+        val since = System.currentTimeMillis() - selectedHours * 3_600_000
         exporting = true
         scope.launch {
           try {
@@ -136,7 +143,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
           }
         }
       })
-  }) { padding ->
+    }
     val openFrameworkLogs = rememberFrameworkManagerAction(os.kei.hyper.home.status.FrameworkManagerProtocol.LOGS)
     Column(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)

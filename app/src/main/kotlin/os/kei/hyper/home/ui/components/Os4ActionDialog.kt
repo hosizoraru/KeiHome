@@ -49,6 +49,7 @@ internal fun Os4ActionDialog(
   actions: List<Os4DialogAction>,
   artwork: (@Composable () -> Unit)? = null,
   onDismissFinished: (() -> Unit)? = null,
+  verticalActions: Boolean = false,
   details: @Composable () -> Unit = {},
 ) {
   val maxHeight = LocalWindowInfo.current.containerDpSize.height * 0.7f
@@ -74,15 +75,19 @@ internal fun Os4ActionDialog(
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
         details()
       }
-      Os4DialogActions(actions, Modifier.padding(top = 8.dp))
+      Os4DialogActions(actions, Modifier.padding(top = 8.dp), forceVertical = verticalActions)
     }
   }
 }
 
 @Composable
-internal fun Os4DialogActions(actions: List<Os4DialogAction>, modifier: Modifier = Modifier) {
+internal fun Os4DialogActions(
+  actions: List<Os4DialogAction>,
+  modifier: Modifier = Modifier,
+  forceVertical: Boolean = false,
+) {
   BoxWithConstraints(modifier.fillMaxWidth()) {
-    val vertical = actions.size > 2 || maxWidth < 280.dp || LocalDensity.current.fontScale > 1.3f
+    val vertical = forceVertical || actions.size > 2 || maxWidth < 280.dp || LocalDensity.current.fontScale > 1.3f
     val button: @Composable (Os4DialogAction, Modifier) -> Unit = { action, modifier ->
       Os4DialogButton(action.text, action.onClick, enabled = action.enabled, role = action.role,
         modifier = modifier.then(action.tag?.let { Modifier.testTag(it) } ?: Modifier))

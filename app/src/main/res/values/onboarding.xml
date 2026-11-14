@@ -24,7 +24,7 @@
     <string name="setup_icons_title">Choose an icon style</string>
     <string name="setup_icons_body">Choose system icons, Perfect, Apple or an imported pack. Supported system surfaces can reuse the applied artwork; coverage depends on the host and app.</string>
     <string name="setup_native_icons_title">Supported system icons follow light/dark mode</string>
-    <string name="setup_library_body">Preview built-in styles, APK packs or MTZ / ZIP files before applying.</string>
+    <string name="setup_library_body">Browse built-in styles, or use the floating import button for APK, MTZ or ZIP files. Follow the sheet to import into system Themes; automatic application follows your setting.</string>
     <string name="setup_monet_body">Optional dynamic colors for supported icons. Choosing ColorOS Inspiration also enables Monet.</string>
     <string name="setup_fallback_body">ColorOS and Perfect can fill gaps in app coverage. Download any Perfect style first; HyperOS4 is recommended. Perfect completion pauses system fallback and restores your choice when turned off. Apps set to keep their original icons are excluded.</string>
     <string name="setup_mask_body">Compare original, HyperOS4 and custom masks on the same icons. With adaptation on, custom masks take priority; pack masks come next, then HyperOS4.</string>

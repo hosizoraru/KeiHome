@@ -8,6 +8,8 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
 import java.io.ByteArrayOutputStream
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 
@@ -15,8 +17,8 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-9"
-  const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-2"
+  const val REVISION = "perfect-static-night-10"
+  const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-3"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
 
@@ -34,6 +36,7 @@ internal object PerfectStaticNightRenderer {
     layers: List<ByteArray>,
     maskPath: String?,
     equivalentLayers: List<ByteArray>? = null,
+    nativeViewport: Boolean = false,
     check: () -> Unit = {},
   ): PerfectStaticPair {
     check()
@@ -90,9 +93,11 @@ internal object PerfectStaticNightRenderer {
         }
         check()
         night.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        var wholeEquivalent = false
         if (layers.size == 1) {
           val proved = equivalentLayers?.let { equivalentNight(layers.single(), it, check) }
           if (proved != null) {
+            wholeEquivalent = true
             // Day follows the original flat path, including its exact interpolated coverage.
             day.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
             for (y in 0 until SIZE) {
@@ -115,7 +120,17 @@ internal object PerfectStaticNightRenderer {
             pixels[offset] = PerfectNightPixels.dim(pixels[offset])
           }
         }
+        if (layers.size == 1 && !wholeEquivalent && equivalentLayers?.size == 2) {
+          PerfectCompositeForegroundProof.repair(
+            layers.single(), equivalentLayers[0], equivalentLayers[1], pixels, check)
+        }
         night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        if (nativeViewport) {
+          check()
+          applyNativeViewport(day)
+          check()
+          applyNativeViewport(night)
+        }
         if (mask != null) {
           check()
           val coverage = newBitmap()
@@ -231,6 +246,22 @@ internal object PerfectStaticNightRenderer {
       return null
     } finally {
       decoded.forEach { it.recycle() }
+    }
+  }
+
+  private fun applyNativeViewport(bitmap: Bitmap) {
+    val viewport = newBitmap()
+    try {
+      val child = BitmapDrawable(null, bitmap).apply { isFilterBitmap = true }
+      val adaptive = AdaptiveIconDrawable(child, null)
+      adaptive.setBounds(0, 0, SIZE, SIZE)
+      // Native scenes include adaptive overscan. Use the framework's child
+      // bounds; the final compositor still owns the icon mask.
+      child.draw(Canvas(viewport))
+      bitmap.eraseColor(0)
+      Canvas(bitmap).drawBitmap(viewport, 0f, 0f, null)
+    } finally {
+      viewport.recycle()
     }
   }
 

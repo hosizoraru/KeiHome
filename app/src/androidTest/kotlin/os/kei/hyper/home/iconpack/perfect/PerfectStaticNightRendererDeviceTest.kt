@@ -327,7 +327,7 @@ class PerfectStaticNightRendererDeviceTest {
     layers.indices.forEach { assertArrayEquals(originals[it], layers[it]) }
     assertArrayEquals(first.day, second.day)
     assertArrayEquals(first.night, second.night)
-    assertEquals("perfect-static-night-9", PerfectStaticNightRenderer.REVISION)
+    assertEquals("perfect-static-night-10", PerfectStaticNightRenderer.REVISION)
     for (bytes in listOf(first.day, first.night)) {
       assertArrayEquals(PNG_SIGNATURE, bytes.copyOf(8))
       val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))

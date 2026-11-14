@@ -55,11 +55,13 @@ internal object PerfectDynamicNightSwitch {
     }
     // Recheck the bytes being rewritten, rather than trusting a stale or manually constructed Group.
     val files = originals.mapValues { (path, bytes) ->
-      PerfectIconBlob(path, path, bytes.size.toLong())
+      PerfectIconBlob(path, PerfectIconFormat.sha(bytes), bytes.size.toLong())
     }
     val admitted = PerfectDynamicNight.group(files, { originals.getValue(it.path) }) ?: return null
     if (admitted.background != group.background || admitted.foreground != group.foreground ||
-      admitted.bgAssets != group.bgAssets || admitted.compositeQuiet != group.compositeQuiet) return null
+      admitted.bgAssets != group.bgAssets || admitted.compositeQuiet != group.compositeQuiet ||
+      admitted.compositeQuietLayers != group.compositeQuietLayers ||
+      admitted.compositeQuietProofLayers != group.compositeQuietProofLayers) return null
     val layers = NativeLayerConfig.parse(originals.getValue("config.xml"), IconPackLimits())
     val backgroundDirectory = layers.layers.first()
     for (path in group.nightPaths) {
@@ -125,6 +127,19 @@ internal object PerfectDynamicNightSwitch {
         .filter { it.isNotEmpty() && !it.equals("none", true) }
       if (updaters.any { it.equals("DarkMode", true) }) return null
       root.setAttribute("useVariableUpdater", (updaters + "DarkMode").joinToString(","))
+      val texts = document.getElementsByTagName("Text")
+      for (index in 0 until texts.length) {
+        val text = texts.item(index) as Element
+        // Keep the native Text, including its name, metrics variables and command targets.
+        val color = text.getAttribute("color")
+        PerfectDynamicIconValidator.nightTextColor(color)?.let {
+          // Folme Text reads its property wrapper instead of ColorParser on each draw.
+          if (text.getAttribute("folmeMode").equals("true", true)) return null
+          text.setAttribute("color", it)
+        }
+        if (text.hasAttribute("color") &&
+          !PerfectDynamicIconValidator.validLiveTextColor(text.getAttribute("color"), true)) return null
+      }
       val images = document.getElementsByTagName("Image")
       if (images.length == 0 && document.getElementsByTagName("Text").length == 0) return null
       val referenced = mutableSetOf<String>()

@@ -12,6 +12,31 @@ import os.kei.hyper.home.iconpack.IconPackLimits
 
 /** Checks local resource closure, independently of the native renderer's MAML execution policy. */
 internal object PerfectDynamicIconValidator {
+  private val literalTextColor = Regex("#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
+  private val generatedTextColor = Regex(
+    """argb\((0|[1-9][0-9]{0,2}),ifelse\(#__darkmode,216,(0|[1-9][0-9]?)\),ifelse\(#__darkmode,216,\2\),ifelse\(#__darkmode,216,\2\)\)""")
+
+  /** ColorParser consumes A,R,G,B expressions; Text's separate alpha stays authored. */
+  fun nightTextColor(literal: String): String? {
+    if (!literalTextColor.matches(literal)) return null
+    val argb = literal.drop(1).toLong(16)
+    val alpha = if (literal.length == 9) (argb ushr 24).toInt() else 255
+    val red = ((argb ushr 16) and 255).toInt()
+    val green = ((argb ushr 8) and 255).toInt()
+    val blue = (argb and 255).toInt()
+    if (red != green || red != blue || red > 32) return null
+    val channel = "ifelse(#__darkmode,216,$red)"
+    return "argb($alpha,$channel,$channel,$channel)"
+  }
+
+  /** Admit exactly our neutral-color template, never a general color expression. */
+  fun validLiveTextColor(value: String, observesDarkMode: Boolean): Boolean {
+    if (literalTextColor.matches(value)) return true
+    if (!observesDarkMode) return false
+    val match = generatedTextColor.matchEntire(value) ?: return false
+    return match.groupValues[1].toInt() <= 255 && match.groupValues[2].toInt() <= 32
+  }
+
   /** True means at least one declared layer uses fancy resources; quiet-only layers are static. */
   fun validate(resources: Map<String, PerfectIconBlob>, read: (PerfectIconBlob) -> ByteArray): Boolean {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })

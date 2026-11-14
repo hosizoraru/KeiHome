@@ -76,6 +76,8 @@ class PerfectIconRepository internal constructor(
   private val git: PerfectIconGitBackend? = null,
   private val staticEquivalentRenderer:
     ((ByteArray, List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
+  private val nativeCompositeRenderer:
+    ((List<ByteArray>, () -> Unit) -> PerfectStaticPair)? = null,
 ) {
   constructor(context: Context) : this(
     File(context.applicationContext.filesDir, "perfect-icons"),
@@ -89,6 +91,9 @@ class PerfectIconRepository internal constructor(
     },
     staticEquivalentRenderer = { flat, layers, mask, check ->
       PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
+    },
+    nativeCompositeRenderer = { layers, check ->
+      PerfectStaticNightRenderer.render(layers, null, check = check, nativeViewport = true)
     },
     dynamicNightRenderer = { bytes, background, check ->
       PerfectDynamicNightRenderer.render(bytes, background, check)
@@ -1179,11 +1184,13 @@ class PerfectIconRepository internal constructor(
   private fun staticPair(
     inputs: List<PerfectIconBlob>, mask: String?, check: () -> Unit,
     read: (PerfectIconBlob) -> ByteArray,
+    nativeViewport: Boolean = false,
   ): PerfectStaticPair {
     val identity = "${PerfectStaticNightRenderer.REVISION}\n" +
       "${PerfectStaticNightRenderer.EQUIVALENT_LAYER_POLICY}\n${inputs.size}\n" +
       "${PerfectIconFormat.sha(mask.orEmpty().toByteArray())}\n" +
-      inputs.joinToString("\n") { it.sha }
+      inputs.joinToString("\n") { it.sha } +
+      if (nativeViewport) "\nnative-adaptive-viewport-1" else ""
     val key = PerfectIconFormat.sha(identity.toByteArray())
     val file = File(renderedDir, "$key.zip")
     if (file.isFile && file.length() in 1..(9L * 1024 * 1024)) {
@@ -1218,7 +1225,9 @@ class PerfectIconRepository internal constructor(
       read(blob).also { require(PerfectIconFormat.sha(it) == blob.sha) { "Cached source icon integrity mismatch" } }
     }
     // Shape belongs to the final compositor. Baking it here prevents reversible mask comparisons.
-    val pair = if (source.size == 3 && staticEquivalentRenderer != null) {
+    val pair = if (nativeViewport) {
+      requireNotNull(nativeCompositeRenderer) { "Native composite renderer unavailable" }(source, check)
+    } else if (source.size == 3 && staticEquivalentRenderer != null) {
       staticEquivalentRenderer.invoke(source[0], source.drop(1), null, check)
     } else {
       val primary = if (source.size == 3) source.take(1) else source
@@ -1363,8 +1372,13 @@ class PerfectIconRepository internal constructor(
               }
               if (converted.size != group.bgAssets.size + group.foreground.size) { original(); continue }
               group.compositeQuiet?.let { path ->
-                val bytes = staticPair(listOf(group.files.getValue(path)), null,
-                  { coroutine.ensureActive() }, read).night
+                val inputs = group.compositeQuietLayers.ifEmpty {
+                  listOf(path) + group.compositeQuietProofLayers
+                }
+                  .map(group.files::getValue)
+                val bytes = staticPair(inputs, null,
+                  { coroutine.ensureActive() }, read,
+                  nativeViewport = group.compositeQuietLayers.isNotEmpty()).night
                 renderedBytes += bytes.size
                 converted[path] = bytes
               }

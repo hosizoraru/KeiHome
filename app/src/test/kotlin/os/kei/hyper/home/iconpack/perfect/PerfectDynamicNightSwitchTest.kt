@@ -179,6 +179,79 @@ class PerfectDynamicNightSwitchTest {
     }
   }
 
+  @Test fun neutralCalendarTextKeepsIdentityMetricsCommandsAndEveryOtherAttribute() {
+    val original = calendar().originals.toMutableMap()
+    original["weekday/fancy/manifest.xml"] = """
+      <Icon version="1" frameRate="0" width="351" height="351" screenWidth="1080"
+        useVariableUpdater="DateTime.Day">
+        <ExternalCommands>
+          <Trigger action="resume"><FrameRateCommand rate="30"/><FrameRateCommand rate="0" delay="100"/></Trigger>
+          <Trigger action="back_home"><FrameRateCommand rate="30"/><FrameRateCommand rate="0" delay="100"/></Trigger>
+        </ExternalCommands>
+        <Text name="weekSize" pivotX="#weekSize.text_width/2" pivotY="#weekSize.text_height/2"
+          scale="min(1,190/#weekSize.text_width)" x="351/2" y="351/2+31" align="center"
+          size="43.83" fontFamily="mipro-demibold" color="#000000"
+          textExp="strToUpperCase(ifelse(strContains(formatDate('EEEE',#time_sys),'&#x661f;&#x671f;'),formatDate('EEEE',#time_sys),formatDate('E',#time_sys)))"
+          alpha="255*0.75"/>
+      </Icon>
+    """.trimIndent().toByteArray()
+    val fixture = fixtureFrom(original)
+    val saved = original.mapValues { it.value.copyOf() }
+    val output = converted(fixture)
+    val before = parse(original.getValue("weekday/fancy/manifest.xml"))
+    val after = parse(output.getValue("weekday/fancy/manifest.xml"))
+    val text = after.getElementsByTagName("Text").item(0) as Element
+    assertEquals(1, after.getElementsByTagName("Text").length)
+    assertEquals(PerfectDynamicIconValidator.nightTextColor("#000000"), text.getAttribute("color"))
+    assertFalse(text.hasAttribute("colorExp"))
+    assertEquals("DateTime.Day,DarkMode", after.documentElement.getAttribute("useVariableUpdater"))
+    text.setAttribute("color", "#000000")
+    after.documentElement.setAttribute("useVariableUpdater", "DateTime.Day")
+    assertEquals(signature(withoutFormatting(before)), signature(withoutFormatting(after)))
+    for ((path, bytes) in saved) assertArrayEquals(path, bytes, original.getValue(path))
+  }
+
+  @Test fun neutralTextOnlyLayerPreservesArgbAlphaWithoutInventingBitmapResources() {
+    for (literal in listOf("#000000", "#00181818", "#80202020", "#FF1f1f1f")) {
+      val fixture = fixtureFrom((fixture().originals -
+        setOf("art/fancy/icon.png", "art/quiet/quietImage.png")) +
+        ("art/fancy/manifest.xml" to
+          "<Icon useVariableUpdater='none'><Text color='$literal' alpha='0.75' text='Mon'/></Icon>".toByteArray()))
+      val output = converted(fixture)
+      val root = parse(output.getValue("art/fancy/manifest.xml")).documentElement
+      val text = root.getElementsByTagName("Text").item(0) as Element
+      assertEquals("DarkMode", root.getAttribute("useVariableUpdater"))
+      assertEquals("0.75", text.getAttribute("alpha"))
+      assertEquals(PerfectDynamicIconValidator.nightTextColor(literal), text.getAttribute("color"))
+      assertFalse(output.keys.any { it.startsWith("art/fancy/keihome_night/") })
+    }
+  }
+
+  @Test fun coloredAndNonDarkTextRemainsAuthored() {
+    for (literal in listOf("#3482FF", "#000001", "#010000", "#212121")) {
+      val fixture = fixture(body = "<Image src='icon.png'/><Text color='$literal' text='Mon'/>")
+      val root = parse(converted(fixture).getValue("art/fancy/manifest.xml")).documentElement
+      assertEquals(literal, (root.getElementsByTagName("Text").item(0) as Element).getAttribute("color"))
+    }
+  }
+
+  @Test fun sourceExpressionsAndFolmeControlledNeutralTextAreNotRewritten() {
+    val expression = requireNotNull(PerfectDynamicIconValidator.nightTextColor("#000000"))
+    for (body in listOf(
+      "<Image src='icon.png'/><Text color='$expression' text='Mon'/>",
+      "<Image src='icon.png'/><Text color='#000000' colorExp='1' text='Mon'/>",
+      "<Image src='icon.png'/><Text color='#000000' folmeMode='true' text='Mon'/>",
+    )) assertNull(fixture(body = body).convert())
+  }
+
+  @Test fun revalidationRejectsForgedCompositeQuietProofLayers() {
+    val fixture = fixture()
+    assertNotNull(fixture.convert())
+    assertNull(PerfectDynamicNightSwitch.systemFiles(
+      fixture.group.copy(compositeQuietProofLayers = listOf("art/quiet/quietImage.png")),
+      fixture.originals, fixture.night))
+  }
+
   @Test fun textOnlyForegroundNeedsNoInventedBitmapAndKeepsItsLiteralColor() {
     val fixture = fixtureFrom((fixture().originals - setOf("art/fancy/icon.png", "art/quiet/quietImage.png")) +
       ("art/fancy/manifest.xml" to

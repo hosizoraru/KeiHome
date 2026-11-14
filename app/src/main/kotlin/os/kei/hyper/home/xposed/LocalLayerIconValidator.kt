@@ -297,7 +297,8 @@ internal object LocalLayerIconValidator {
           "property" -> require(value.split(',').all { it.trim().removeSurrounding("'") in geometry })
           "fontFamily" -> require(value == "mipro-semibold")
           "const" -> require(tag == "Var" && value in setOf("true", "false"))
-          "color" -> require(value.matches(Regex("#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?")))
+          "color" -> require(os.kei.hyper.home.iconpack.perfect.PerfectDynamicIconValidator
+            .validLiveTextColor(value, tag == "Text" && observesDarkMode))
           "textExp" -> require(value == "formatDate('E',#time_sys)") { "Unsupported date text expression" }
           "size" -> boundedInt(value, 1..256)
           "delay" -> boundedInt(value, 0..60_000)

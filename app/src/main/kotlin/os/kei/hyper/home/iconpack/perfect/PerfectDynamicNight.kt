@@ -6,7 +6,7 @@ import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 
 /** Resource roles, not package names or filenames such as "bg", determine the tint operation. */
 internal object PerfectDynamicNight {
-  const val REVISION = "perfect-dynamic-night-7"
+  const val REVISION = "perfect-dynamic-night-9"
 
   data class Group(
     val files: Map<String, PerfectIconBlob>,
@@ -14,6 +14,8 @@ internal object PerfectDynamicNight {
     val foreground: Set<String>,
     val bgAssets: Set<String> = setOf(background),
     val compositeQuiet: String? = null,
+    val compositeQuietLayers: List<String> = emptyList(),
+    val compositeQuietProofLayers: List<String> = emptyList(),
   ) {
     val nightPaths: Set<String> get() = bgAssets + foreground + listOfNotNull(compositeQuiet)
   }
@@ -35,6 +37,7 @@ internal object PerfectDynamicNight {
     if (rasters.size > 128) return null
     val bgAssets = linkedSetOf<String>()
     val textDirectories = mutableSetOf<String>()
+    var weatherDirectory: String? = null
     if (backgroundQuiet in files) bgAssets += backgroundQuiet
     val visualTags = setOf("Icon", "Image", "Group", "Text")
     val controlTags = setOf(
@@ -61,7 +64,10 @@ internal object PerfectDynamicNight {
       // Provider IO is admitted only by the shared exact source schema. This
       // does not add any binder/command tags to the generic program whitelist.
       if (directory != backgroundDirectory &&
-        NativeWeatherLayerProgram.resources(manifest, "$directory/fancy/", files.keys) != null) continue
+        NativeWeatherLayerProgram.resources(manifest, "$directory/fancy/", files.keys) != null) {
+        weatherDirectory = directory
+        continue
+      }
       if (xml.root != "Icon" || xml.elements.any { element ->
           element.name !in visualTags && element.name !in controlTags ||
             element.name == "ExternCommand" &&
@@ -112,7 +118,43 @@ internal object PerfectDynamicNight {
     // The root quiet image is the entire scene and needs static composition policy,
     // never the background-only recoloring operation.
     if (rasters != bgAssets + foreground + listOfNotNull(compositeQuiet)) return null
+    // This exact program places its artwork on the authored 351px canvas. Its
+    // flat preview has baked sky/cloud gradients that cannot be segmented safely.
+    val quietLayers = layers.layers.map { "$it/quiet/quietImage.png" }
+    val compositeQuietLayers = if (layers.layers.size == 2 &&
+      weatherDirectory == layers.layers.last() && compositeQuiet != null &&
+      backgroundDirectory in layers.quietOnly && weatherDirectory in layers.fancyOnly &&
+      "$backgroundDirectory/fancy/manifest.xml" in files &&
+      layers.layers.all { directory ->
+        files["$directory/quiet/quietImage.png"]?.sha?.let {
+          it == files["$directory/fancy/bg.png"]?.sha
+        } == true
+      } &&
+      PerfectIconFormat.xml(read(files.getValue("$backgroundDirectory/fancy/manifest.xml")))
+        .elements.let { elements ->
+          elements.size == 2 && elements[0].attributes["width"] == "351" &&
+            elements[0].attributes["height"] == "351" && elements[1].name == "Image" &&
+            elements[1].attributes == mapOf("x" to "351 / 2", "y" to "351 / 2",
+              "align" to "center", "alignV" to "center", "src" to "bg.png")
+        } &&
+      (quietLayers + compositeQuiet).all { path ->
+        check()
+        val bytes = read(files.getValue(path))
+        try {
+          PerfectIconFormat.png(bytes, square = true)
+          java.nio.ByteBuffer.wrap(bytes, 16, 8).let { it.int == 351 && it.int == 351 }
+        } catch (_: IllegalArgumentException) { false }
+      }) quietLayers else emptyList()
+    // A modified Weather canvas has no proven composition. Retain its complete
+    // authored preview rather than run the classifier known to fragment it.
+    val safeCompositeQuiet = compositeQuiet.takeUnless {
+      weatherDirectory != null && compositeQuietLayers.isEmpty()
+    }
+    val proofLayers = quietLayers.take(2).takeIf {
+      safeCompositeQuiet != null && compositeQuietLayers.isEmpty() &&
+        it.size == 2 && it.all(files::containsKey)
+    }.orEmpty()
     return Group(files, backgroundQuiet.takeIf { it in bgAssets } ?: bgAssets.first(),
-      foreground, bgAssets, compositeQuiet)
+      foreground, bgAssets, safeCompositeQuiet, compositeQuietLayers, proofLayers)
   }
 }

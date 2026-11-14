@@ -10,6 +10,8 @@
   <string name="pack_action_settings_summary">自動適用、生成範囲と使い方の設定</string>
   <string name="pack_settings_generation">生成と適用</string>
   <string name="pack_settings_experience">使い勝手</string>
+  <string name="pack_open_current">使用中のアイコンパックを直接開く</string>
+  <string name="pack_open_current_summary">状態画面のアイコンパックをタップすると専用ページを開きます。オフにするとアイコンパックのトップ画面を開きます。</string>
   <string name="pack_auto_apply">生成後に自動適用</string>
   <string name="pack_auto_apply_summary">インストールや更新後、システムテーマで自動適用して戻ります。</string>
   <string name="pack_installed_icons_only">インストール済みアプリのアイコンのみ生成</string>

@@ -141,7 +141,8 @@ internal fun StatusBody(
       readFailed = monetReadFailed,
       onOpenMonet = onOpenMonet,
     )
-    Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, indication = null, onClick = onOpenPacks),
+    Card(Modifier.fillMaxWidth().testTag("status.icon-pack.card")
+      .os4Clickable(role = Role.Button, indication = null, onClick = onOpenPacks),
       insideMargin = PaddingValues(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

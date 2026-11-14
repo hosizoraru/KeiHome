@@ -41,6 +41,8 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
 import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
 
+internal const val PERFECT_PACK_UI_STORAGE_ID = "perfect_icons_ui_v1"
+
 internal enum class PerfectPackError {
   LOCAL, CATALOG, NETWORK, CHECK, STYLE_NEEDED, COOLDOWN, INSTALLED, GENERATE, IMPORT, EMPTY, CACHE, DELETE,
 }
@@ -98,7 +100,7 @@ internal class PerfectPackController(
   private val scope: CoroutineScope,
   private val repository: PerfectIconRepository,
   private val packs: IconPackRepository,
-  private val storageId: String = "perfect_icons_ui_v1",
+  private val storageId: String = PERFECT_PACK_UI_STORAGE_ID,
   private val onGenerated: () -> Unit,
 ) {
   private val app = context.applicationContext

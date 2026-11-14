@@ -10,6 +10,8 @@
   <string name="pack_action_settings_summary">自动应用、生成范围与使用偏好</string>
   <string name="pack_settings_generation">生成与应用</string>
   <string name="pack_settings_experience">使用体验</string>
+  <string name="pack_open_current">状态卡直达当前图标包</string>
+  <string name="pack_open_current_summary">点击状态页的当前图标包，直接打开对应子页面；关闭后进入图标包首页。</string>
   <string name="pack_auto_apply">生成后自动应用</string>
   <string name="pack_auto_apply_summary">安装或更新图标包后，通过系统主题自动应用并返回。</string>
   <string name="pack_installed_icons_only">仅为已安装应用生成图标</string>

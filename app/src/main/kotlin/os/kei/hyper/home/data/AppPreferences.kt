@@ -48,6 +48,7 @@ internal data class AppPreferencesState(
   val pagerGesture: AppPagerGesture = AppPagerGesture.CROSS_AXIS,
   val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
   val autoApplyIconPack: Boolean = true,
+  val openCurrentIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
   val preservedIconPackages: Set<String> = emptySet(),
   val rememberMenuSelections: Boolean = true,
@@ -100,6 +101,7 @@ internal class AppPreferences internal constructor(
       ?: AppColorMode.FOLLOW_ICONS,
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
     autoApplyIconPack = preferences.getBoolean("auto_apply_icons", true),
+    openCurrentIconPack = preferences.getBoolean("open_current_icon_pack", true),
     installedIconsOnly = preferences.getBoolean("installed_icons_only", false),
     preservedIconPackages = PreservedIcons.read(preferences),
     rememberMenuSelections = preferences.getBoolean("remember_menus", true),
@@ -180,6 +182,11 @@ internal class AppPreferences internal constructor(
   fun setAutoApplyIconPack(value: Boolean) {
     preferences.edit().putBoolean("auto_apply_icons", value).apply()
     state.update { it.copy(autoApplyIconPack = value) }
+  }
+
+  fun setOpenCurrentIconPack(value: Boolean) {
+    preferences.edit().putBoolean("open_current_icon_pack", value).apply()
+    state.update { it.copy(openCurrentIconPack = value) }
   }
 
   fun setInstalledIconsOnly(value: Boolean) {

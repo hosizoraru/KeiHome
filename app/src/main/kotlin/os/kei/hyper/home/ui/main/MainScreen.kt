@@ -25,7 +25,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -81,6 +83,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
   // The tab order changed; retain logical page IDs for content and refresh state.
   val pager = androidx.compose.runtime.key("main-tabs-v3") { rememberPagerState { pages.size } }
   val navigationScope = rememberCoroutineScope()
+  var statusPackJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
   val tabNavigation = remember(pager, navigationScope) { MainTabNavigation(pager, navigationScope) }
   val focus = LocalFocusManager.current
   val selectedTab = tabNavigation.selectedPage.coerceIn(pages.indices)
@@ -185,7 +188,25 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                     focus.clearFocus(force = true)
                     tabNavigation.selectPage(2, animate = false) { onOpenPackSection("monet") }
                   },
-                    onOpenPacks = { selectTab(2) }, onOpenEnvironment = { onOpenSettingsSection("about/environment") },
+                    onOpenPacks = {
+                      if (!model.preferences.state.value.openCurrentIconPack) selectTab(2)
+                      else if (statusPackJob?.isActive != true) {
+                        val theme = runtimeCardState(model.runtime.value,
+                          android.os.SystemClock.elapsedRealtime()).report?.iconTheme
+                        statusPackJob = navigationScope.launch {
+                          val destination = loadStatusIconPackDestination(model.getApplication(), theme)
+                          if (tabNavigation.selectedPage == 0 &&
+                            lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                            runtimeCardState(model.runtime.value,
+                              android.os.SystemClock.elapsedRealtime()).report?.iconTheme == theme) {
+                            if (destination == null) selectTab(2) else {
+                              focus.clearFocus(force = true)
+                              onOpenPackSection(destination)
+                            }
+                          }
+                        }
+                      }
+                    }, onOpenEnvironment = { onOpenSettingsSection("about/environment") },
                     onOpenGuide = { onOpenSettingsSection("setup") })
                   RefreshFeedback(model, 0)
                 }

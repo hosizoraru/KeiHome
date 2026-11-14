@@ -59,7 +59,8 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit, onOpen
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
           model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews,
-          onOpenMask = onOpenMask)
+          onOpenMask = onOpenMask,
+          onOpenCurrentIconPack = model.preferences::setOpenCurrentIconPack)
       }
     }
   }
@@ -80,6 +81,7 @@ internal fun PackSettingsContent(
   showPreviews: Boolean = true,
   onCompleteSystemIconConfig: ((Boolean) -> Unit)? = null,
   onOpenMask: (() -> Unit)? = null,
+  onOpenCurrentIconPack: ((Boolean) -> Unit)? = null,
 ) {
   if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null || onOpenMask != null) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
@@ -103,9 +105,14 @@ internal fun PackSettingsContent(
         modifier = Modifier.testTag("icon-packs.open-mask"))
     }
   }
-  if (showRememberMenus || showCompactHints || showPreviews) {
+  if (showRememberMenus || showCompactHints || showPreviews || onOpenCurrentIconPack != null) {
     SmallTitle(stringResource(R.string.pack_settings_experience))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      if (onOpenCurrentIconPack != null) SwitchPreference(
+        title = stringResource(R.string.pack_open_current),
+        summary = stringResource(R.string.pack_open_current_summary),
+        checked = preferences.openCurrentIconPack, onCheckedChange = onOpenCurrentIconPack,
+        modifier = Modifier.testTag("icon-packs.open-current"))
       if (showRememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
         summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
         onCheckedChange = onRememberMenus)

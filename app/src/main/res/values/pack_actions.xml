@@ -10,6 +10,8 @@
   <string name="pack_action_settings_summary">Auto-apply, generation scope and preferences</string>
   <string name="pack_settings_generation">Generation &amp; application</string>
   <string name="pack_settings_experience">Experience</string>
+  <string name="pack_open_current">Open current icon pack directly</string>
+  <string name="pack_open_current_summary">Tap the current icon pack on Status to open its page. Turn off to open the Icon Packs overview.</string>
   <string name="pack_auto_apply">Apply after generation</string>
   <string name="pack_auto_apply_summary">Automatically apply installed or updated icons through system Themes, then return.</string>
   <string name="pack_installed_icons_only">Only generate icons for installed apps</string>

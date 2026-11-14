@@ -33,6 +33,8 @@ of this branding palette.
 
 Startup uses the adaptive icon so the white tile retains its contrasting
 background. The onboarding logo and About fallback use the same background.
+The full splash backdrop uses a lighter `#FFEDF5` or deeper `#26151F`
+companion shade, while normal App surfaces keep their selected theme.
 
 ## Android adaptation
 

@@ -4,6 +4,6 @@
     <color name="ic_launcher_home">#FF99BB</color>
     <color name="ic_launcher_tile">#FF5893</color>
     <color name="ic_launcher_floating_tile">#FFFFFF</color>
-    <color name="window_background">#000000</color>
-    <color name="splash_background">@color/window_background</color>
+    <color name="window_background">@color/splash_background</color>
+    <color name="splash_background">#26151F</color>
 </resources>

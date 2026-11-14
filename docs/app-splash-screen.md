@@ -6,11 +6,11 @@ startup animation dependency or wait for framework/status queries.
 
 ## Appearance and handoff
 
-- Both theme variants explicitly use the existing brand foreground vector.
-  Its existing night colors remain available without an adaptive-icon plate.
-- The neutral startup backgrounds match the MIUIX default surfaces:
-  `#F7F7F7` in light mode and black in dark mode. `windowBackground` and
-  `windowSplashScreenBackground` share the same color resource.
+- Both theme variants use the adaptive brand icon, retaining the background
+  behind the white tile in the Kei sakura palette.
+- Startup uses pale sakura `#FFEDF5` in light mode and dark rose `#26151F`
+  in dark mode. `windowBackground` and `windowSplashScreenBackground` share
+  this palette so HyperOS's legacy backing layer cannot cover the tint.
 - `AppLaunchAppearance` synchronizes the saved appearance using the public
   `UiModeManager.setApplicationNightMode` API. Android persists the app-local
   configuration for subsequent starting windows, before the process exists.
@@ -23,8 +23,9 @@ startup animation dependency or wait for framework/status queries.
   second day/night scheduler.
 - Inside the MIUIX theme provider, the Activity window background follows the
   actual surface, including Monet. This avoids exposing an unrelated window
-  color during the handoff. The pre-process splash remains a neutral surface;
-  it does not synchronously calculate a Monet palette.
+  color during the handoff. The pre-process splash uses the static brand
+  palette; it does not synchronously calculate a Monet palette. In-app
+  surfaces and accent colors continue to use the user's chosen theme.
 
 On the first run after upgrading from a version without synchronization, the
 system may already have created the starting window before the saved choice
@@ -32,7 +33,10 @@ can be migrated. The persisted override controls subsequent cold starts.
 
 ## Verification
 
-Evidence: `.artifacts/research/app-splash-20261114/`.
+Original appearance synchronization evidence:
+`.artifacts/research/app-splash-20261114/`.
+Sakura icon and full startup background verification:
+`.artifacts/research/sakura-app-icon-20261115/`.
 
 The signed, R8-optimized diagnostic was tested on the unlocked HyperOS Phone
 AVD with the real launcher and system transition. Cold-start recordings cover:

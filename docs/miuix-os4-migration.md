@@ -2,8 +2,12 @@
 
 ## Version and source boundary
 
-The current dependency and scroll/overlay follow-up are documented in
-[the 2026-11-14 migration](miuix-19b5b831-migration.md).
+For cross-project implementation, start with the
+[OS4 / Glass migration playbook](miuix-os4-playbook.md).
+The current reviewed dependency is recorded in
+[the d8efe187 migration](miuix-d8efe187-migration.md); the
+[2026-11-14 migration](miuix-19b5b831-migration.md) records the earlier
+scroll, search and overlay follow-up.
 The historical 2026-11-12 migration below pinned every module to `0.9.4-9d4b9c85-SNAPSHOT`, published
 from upstream revision `9d4b9c85c18707c7da12cf8c497ea57955fcf81e`.
 The revision was checked against the upstream `main` branch and the published
@@ -118,7 +122,7 @@ own animated background and specialized toolbar treatment.
 | Surface | Adapter / behavior |
 | --- | --- |
 | Page scaffold | `Os4Chrome.kt`; preserves MIUIX overlay hosting and safe-inset defaults. |
-| Top bar | `KeiHomeTopAppBar`; official `GlassTopAppBar` when a source exists, basic MIUIX fallback otherwise. |
+| Top bar | `KeiHomeTopAppBar`; official `GlassTopAppBar`, with its opaque fallback when no backdrop exists. |
 | Progressive treatment | Official `progressiveBlur` and band material; no extra legacy progressive layer. |
 | Gaussian treatment | Existing uniform blur underneath the bar; no additional progressive treatment. |
 | Toolbar actions | `KeiHomeIconButton`; official `GlassIconButton` inside a glass toolbar, native disabled/held/custom-color behavior retained. |

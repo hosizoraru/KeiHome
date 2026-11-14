@@ -1,5 +1,10 @@
 # OS4 search, view selectors and contextual help
 
+For current cross-project guidance and the shared source map, see the
+[OS4 / Glass migration playbook](miuix-os4-playbook.md). The work recorded
+below began at `19b5b831`; the reviewed dependency is now
+[`d8efe187`](miuix-d8efe187-migration.md).
+
 This work builds on MIUIX `0.9.4-19b5b831-SNAPSHOT`. It keeps the existing OS4
 theme, typography and navigation preferences. It does not change Hook code,
 static scopes, icon generation or published release notes.
@@ -41,9 +46,10 @@ Short, read-only explanations use an information button and
 the underlying page and remains composed through the native exit animation.
 It supports dismissal by Back, outside tap, Escape and accessibility action.
 
-Long guidance, editors, previews and multi-action dialogs remain sheets or
-dedicated pages. An expanding status card still serves a different purpose:
-its live diagnostic content is not a tooltip.
+Long guidance, editors and previews use sheets or dedicated pages;
+multi-action confirmations use dialogs. Runtime and Monet now retain compact
+dashboard cards and open live diagnostic sheets, with the summary repeated
+inside for useful screenshots. Their diagnostic content is not a tooltip.
 
 ### Backdrop pipeline
 

@@ -1,5 +1,8 @@
 # OS4 action and icon conventions
 
+For reusable architecture, lifecycle rules and validation recipes, see the
+[OS4 / Glass migration playbook](miuix-os4-playbook.md).
+
 The UI uses short visible action captions with full accessibility descriptions.
 EN, Chinese and Japanese captions share the same operation distinctions.
 
@@ -16,7 +19,7 @@ EN, Chinese and Japanese captions share the same operation distinctions.
 | Refresh | MIUIX Glass Refresh | Reread current state or reload a list |
 
 `PageActionIcons.kt` centralizes actions and bottom navigation semantics.
-The five tab symbols represent activity/status, applications, icon shapes,
+The five tab symbols represent activity/status, applications, the pack collection,
 the familiar HyperOS desktop outline and settings. Both selectable navigation implementations use
 these meanings while retaining their own geometry, optics and interactions.
 Existing suitable MIUIX icons remain the first choice. The supplemental
@@ -42,13 +45,14 @@ confirmation and existing import/apply readiness checks are preserved.
 
 `Os4DisclosureHeader` uses MIUIX's public OS4 BasicComponent and Glass
 ChevronForward, with a shared trailing position and coordinated spring
-rotation/expansion. The entire header performs a single disclosure action,
-with an accessible expanded/collapsed state. Status, Monet editor and pack
-guidance use this header. Monet's expanded information area itself opens its
-settings using MIUIX's native clickable component and a labelled accessibility
-action. There is no separate details button. The header independently toggles
-expansion; the collapsed card keeps only its state and timestamp pills.
-The short appearance note has 16dp bottom padding.
+rotation/expansion. Remaining inline disclosures expose one action and an
+accessible expanded/collapsed state.
+Runtime and Monet dashboard cards now open `Os4DetailsSheet`, retaining compact
+state/timestamp pills on the page. Their sheets repeat the overview, group
+diagnostics and defer navigation until dismissal finishes. Long pack guidance
+uses a first-visit sheet and a persistent manual help action; short explanations
+use anchored popups. These flows replace the historical expanding status/help
+cards.
 Runtime and Monet summaries use wrapping state pills: system/launcher and
 icons/palette are independent, with green for ready/on/read, grey for off or
 unknown/not provided, amber for pending/stale, and red for failures. Each pill

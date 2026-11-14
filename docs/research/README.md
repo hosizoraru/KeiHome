@@ -13,6 +13,11 @@ launcher-label traces, and retention of three Themes and five Home versions.
 
 ## Findings to reuse
 
+For app UI migration, start with the
+[MIUIX OS4 / Glass cross-project playbook](../miuix-os4-playbook.md).
+It covers the reviewed API baseline, sampling and overlay ownership, component
+selection, lifecycle, visual pitfalls, implementation references and validation.
+
 | Area | Durable conclusions and remaining limits | Main note |
 | --- | --- | --- |
 | Ordinary icon refresh | LauncherApps package and shortcut callbacks can refresh launcher-owned views without killing the launcher. Dock, folders and profiles need their own visible checks. | [Icon refresh](../icon-refresh.md) |

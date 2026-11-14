@@ -15,7 +15,7 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-8"
+  const val REVISION = "perfect-static-night-9"
   const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-2"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
@@ -73,8 +73,9 @@ internal object PerfectStaticNightRenderer {
                 // Native foregrounds may themselves contain an opaque baked plate.
                 val plate = PerfectNightPixels.bakedForegroundPlate(pixels, SIZE, SIZE, check)
                 if (plate != null) PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
-                else if (!PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check))
-                  PerfectNightPixels.liftForegroundComponents(pixels, underlay, SIZE, SIZE, check)
+                else if (!PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check) &&
+                  !PerfectNightPixels.liftForegroundComponents(pixels, underlay, SIZE, SIZE, check))
+                  PerfectWordmarkPixels.lift(pixels, underlay, SIZE, SIZE, check)
                 foreground.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
                 nightCanvas.drawBitmap(foreground, 0f, 0f, paint)
               } finally {

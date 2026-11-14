@@ -327,7 +327,7 @@ class PerfectStaticNightRendererDeviceTest {
     layers.indices.forEach { assertArrayEquals(originals[it], layers[it]) }
     assertArrayEquals(first.day, second.day)
     assertArrayEquals(first.night, second.night)
-    assertEquals("perfect-static-night-8", PerfectStaticNightRenderer.REVISION)
+    assertEquals("perfect-static-night-9", PerfectStaticNightRenderer.REVISION)
     for (bytes in listOf(first.day, first.night)) {
       assertArrayEquals(PNG_SIGNATURE, bytes.copyOf(8))
       val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
@@ -688,6 +688,118 @@ class PerfectStaticNightRendererDeviceTest {
         }.toByteArray() to listOf(background, foreground)
       } finally { flat.recycle() }
     } finally { native.recycle(); bg.recycle(); fg.recycle() }
+  }
+
+  @Test fun asymmetricWarmWordmarkLiftsWithoutRecoloringItsMascot() {
+    val background = image(512, 512) { _, _ -> Color.YELLOW }
+    val foreground = image(512, 512) { x, y ->
+      when {
+        // Two asymmetric, disconnected letter silhouettes with warm lower strokes.
+        y in 130..230 && (x in 100..115 || x in 210..225) ||
+          y in 130..145 && x in 100..180 ||
+          y in 175..190 && x in 100..160 ||
+          y in 215..230 && x in 210..300 ->
+          if (y < 180) Color.rgb(34, 33, 33) else Color.rgb(64, 41, 16)
+        y in 300..410 && x in 150..360 -> Color.rgb(255, 180, 20)
+        else -> Color.TRANSPARENT
+      }
+    }
+    rendered(listOf(background, foreground)) { day, night ->
+      assertAlphaEqual(day, night)
+      for ((x, y) in listOf(107 to 140, 107 to 220, 217 to 140, 280 to 222))
+        assertEquals(Color.rgb(214, 214, 214), night.getPixel(x, y))
+      assertEquals(PerfectNightPixels.dim(day.getPixel(200, 350)), night.getPixel(200, 350))
+    }
+  }
+
+  @Test fun disconnectedSolidEyesAndStaggeredInkDoNotBecomeWordmarks() {
+    val background = image(512, 512) { _, _ -> Color.YELLOW }
+    val foreground = image(512, 512) { x, y ->
+      when {
+        // Filled eyes cannot establish a sparse letter row.
+        x in 110..180 && y in 160..235 || x in 260..330 && y in 160..235 -> Color.rgb(34, 33, 33)
+        // Sparse shapes at different heights cannot establish a row either.
+        x in 60..75 && y in 280..370 || x in 60..130 && y in 355..370 ||
+          x in 330..345 && y in 350..440 || x in 330..400 && y in 425..440 -> Color.rgb(64, 41, 16)
+        else -> Color.TRANSPARENT
+      }
+    }
+    rendered(listOf(background, foreground)) { day, night ->
+      for ((x, y) in listOf(140 to 190, 290 to 190, 67 to 300, 337 to 380))
+        assertEquals(PerfectNightPixels.dim(day.getPixel(x, y)), night.getPixel(x, y))
+      assertAlphaEqual(day, night)
+    }
+  }
+
+  @Test fun inkInsideAColoredIllustrationCannotEstablishAWordmark() {
+    val background = image(512, 512) { _, _ -> Color.WHITE }
+    val foreground = image(512, 512) { x, y ->
+      when {
+        y in 130..230 && (x in 100..115 || x in 210..225) ||
+          y in 130..145 && x in 100..180 ||
+          y in 175..190 && x in 100..160 ||
+          y in 215..230 && x in 210..300 -> Color.rgb(34, 33, 33)
+        x in 80..350 && y in 100..260 -> Color.rgb(255, 180, 20)
+        else -> Color.TRANSPARENT
+      }
+    }
+    rendered(listOf(background, foreground)) { day, night ->
+      for ((x, y) in listOf(107 to 140, 217 to 140, 280 to 222, 250 to 200))
+        assertEquals(PerfectNightPixels.dim(day.getPixel(x, y)), night.getPixel(x, y))
+      assertAlphaEqual(day, night)
+    }
+  }
+
+  @Test fun retainedIdlefishAndMeituanWordmarksBecomeReadableAndKeepColoredArt() {
+    val directory = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+      .getString("perfectBrandLayerFixtures")
+    org.junit.Assume.assumeTrue("Optional retained brand source directory", !directory.isNullOrBlank())
+    for (pkg in listOf("com.taobao.idlefish", "com.sankuai.meituan")) {
+      val layers = (0..1).map { java.io.File(directory!!, "$pkg-$it.png").readBytes() }
+      val decoded = requireNotNull(BitmapFactory.decodeByteArray(layers[1], 0, layers[1].size))
+      val scaled = Bitmap.createScaledBitmap(decoded, 512, 512, true)
+      val inkPixels = IntArray(512 * 512)
+      try {
+        scaled.getPixels(inkPixels, 0, 512, 0, 0, 512, 512)
+      } finally {
+        if (scaled !== decoded) scaled.recycle()
+        decoded.recycle()
+      }
+      rendered(layers) { day, night ->
+        assertAlphaEqual(day, night)
+        val output = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+          .targetContext.cacheDir
+        java.io.File(output, "$pkg-brand-day.png").outputStream().use {
+          assertTrue(day.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }
+        java.io.File(output, "$pkg-brand-night.png").outputStream().use {
+          assertTrue(night.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }
+        val box = if (pkg == "com.taobao.idlefish") intArrayOf(120, 125, 370, 245)
+          else intArrayOf(120, 190, 395, 325)
+        var ink = 0
+        var readable = 0
+        for (y in box[1]..box[3]) for (x in box[0]..box[2]) {
+          val p = inkPixels[y * 512 + x]
+          val hi = maxOf(Color.red(p), Color.green(p), Color.blue(p))
+          val lo = minOf(Color.red(p), Color.green(p), Color.blue(p))
+          // Evaluate solid source ink. AA edges must retain their original alpha,
+          // so they correctly blend below the solid-letter brightness threshold.
+          if (Color.alpha(p) >= 240 && hi <= 112 && hi - lo <= 64) {
+            ink++
+            val n = night.getPixel(x, y)
+            if (minOf(Color.red(n), Color.green(n), Color.blue(n)) >= 190) readable++
+          }
+        }
+        assertTrue("$pkg missing retained ink", ink > 1000)
+        assertTrue("$pkg readable ink $readable/$ink", readable * 100L >= ink * 98L)
+        if (pkg == "com.taobao.idlefish") {
+          for ((x, y) in listOf(230 to 350, 275 to 400, 320 to 340))
+            assertEquals("Fish artwork changed", PerfectNightPixels.dim(day.getPixel(x, y)),
+              night.getPixel(x, y))
+        }
+      }
+    }
   }
 
   private fun rendered(

@@ -233,7 +233,13 @@ When the original foreground omits its updater or leaves it blank, the selector 
 
 Native local application has a separate admission step after generation. Its layer validator accepts only a literal local `src` paired with the exact `ifelse(#__darkmode,'keihome_night/<src>','<src>')` selector, a declared `DarkMode` updater and a complete validated texture pair. Date-frame selectors additionally retain the bounded original `srcid` frame family; Weather uses the separate canonical contract above. Other expressions, external URIs, missing files, mutable appearance state and arbitrary updater combinations remain rejected. This gate must be tested on the complete emitted archive, not just on individual converted textures.
 
-The current derivation keys are `perfect-static-night-8` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
+The current derivation keys are `perfect-static-night-9` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
+
+The [November 14 wordmark refinement](brand-dark-wordmarks-20261114.md) admits
+multiple substantial sparse ink shapes in a shared row. It preserves alpha and
+can include complete warm stems and underlines touching a colored illustration,
+while requiring isolated neutral-core anchors. Colored illustration details and
+ambiguous ink retain conservative dimming.
 
 An authored gradient must be treated as a complete surface: accepting only the
 near-median portion leaves colored bands in generated night textures. The

@@ -25,11 +25,16 @@ The inspected fixes cover:
 - Status-bar provenance and already-visible native icon continuity, followed by
   bounded requests arriving before the new SystemUI cache starts.
 
-The renderer identities remain `perfect-static-night-8` and
+The renderer identities are `perfect-static-night-9` and
 `perfect-dynamic-night-7`. Their composed rendering identity participates in
 native-source generation, preview and imported-source freshness checks. An old
 generated/imported archive must be updated and applied to obtain changed pixels;
 updating the module APK does not rewrite the user's existing theme archive.
+
+The November 14 [brand-wordmark follow-up](brand-dark-wordmarks-20261114.md)
+adds bounded word-row admission for warm, asymmetric lettering, including Idlefish
+and Meituan. Notification row and miniature-preview masks remain a separate
+acceptance gate from these generated pixels.
 
 ## Completed software checks
 

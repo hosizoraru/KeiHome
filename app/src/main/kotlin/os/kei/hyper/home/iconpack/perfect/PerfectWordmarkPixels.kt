@@ -80,53 +80,59 @@ internal object PerfectWordmarkPixels {
     // a row: anchor ink must also be separate from the colored opaque artwork.
     if (parts.size !in 2..128) return false
     val unit = minOf(width, height)
-    val anchors = parts.filter {
-      !it.touchesColor && it.neutralCore && it.width >= unit / 12 && it.height >= unit / 12 &&
-        it.area * 50L <= it.width.toLong() * it.height * 39
-    }
-    val parents = IntArray(anchors.size) { it }
-    fun root(i: Int): Int {
-      var n = i
-      while (parents[n] != n) n = parents[n]
-      return n
-    }
-    for (i in anchors.indices) {
-      check()
-      val a = anchors[i]
-      for (j in 0 until i) {
-        val b = anchors[j]
-        val overlap = minOf(a.bottom, b.bottom) - maxOf(a.top, b.top) + 1
-        val gap = maxOf(a.left, b.left) - minOf(a.right, b.right) - 1
-        val centreDistance = kotlin.math.abs(a.top + a.bottom - b.top - b.bottom)
-        if (overlap * 2 >= minOf(a.height, b.height) &&
-          centreDistance * 3 <= maxOf(a.height, b.height) * 2 &&
-          gap * 2 <= maxOf(a.height, b.height))
-          parents[root(i)] = root(j)
-      }
-    }
     val bands = IntArray(components + 1)
     val sizes = IntArray(bands.size)
     var band = 0
-    for (group in anchors.indices.groupBy { root(it) }.values) {
-      check()
-      if (group.size < 2) continue
-      val left = group.minOf { anchors[it].left }
-      val right = group.maxOf { anchors[it].right }
-      val top = group.minOf { anchors[it].top }
-      val bottom = group.maxOf { anchors[it].bottom }
-      val rowWidth = right - left + 1
-      val rowHeight = bottom - top + 1
-      if (rowWidth * 3 < width || rowWidth * 4 > width * 3 ||
-        rowHeight * 10 < height || rowHeight * 3 > height ||
-        rowWidth * 2 < rowHeight * 3) continue
-      band++
-      for (part in parts) {
-        // Include complete dots, stems and underlines, even when an underline
-        // touches the mascot. Never clip a larger ink component into this row.
-        if (part.left >= left - rowHeight / 3 && part.right <= right + rowHeight / 3 &&
-          part.top >= top - rowHeight / 8 && part.bottom <= bottom + rowHeight / 8) {
-          bands[part.id] = band
-          sizes[part.id] = part.area
+    // Preserve the original large-letter proof before admitting smaller text rows.
+    for (smallRow in listOf(false, true)) {
+      val anchors = parts.filter {
+        val minimum = unit / if (smallRow) 24 else 12
+        !it.touchesColor && it.neutralCore && it.width >= minimum && it.height >= minimum &&
+          it.area * 50L <= it.width.toLong() * it.height * 39
+      }
+      val parents = IntArray(anchors.size) { it }
+      fun root(i: Int): Int {
+        var n = i
+        while (parents[n] != n) n = parents[n]
+        return n
+      }
+      for (i in anchors.indices) {
+        check()
+        val a = anchors[i]
+        for (j in 0 until i) {
+          val b = anchors[j]
+          val overlap = minOf(a.bottom, b.bottom) - maxOf(a.top, b.top) + 1
+          val gap = maxOf(a.left, b.left) - minOf(a.right, b.right) - 1
+          val centreDistance = kotlin.math.abs(a.top + a.bottom - b.top - b.bottom)
+          if (overlap * 2 >= minOf(a.height, b.height) &&
+            centreDistance * 3 <= maxOf(a.height, b.height) * 2 &&
+            gap * 2 <= maxOf(a.height, b.height))
+            parents[root(i)] = root(j)
+        }
+      }
+      for (group in anchors.indices.groupBy { root(it) }.values) {
+        check()
+        // Small lettering needs a longer aligned row to distinguish it from facial details.
+        if (group.size < if (smallRow) 4 else 2) continue
+        val left = group.minOf { anchors[it].left }
+        val right = group.maxOf { anchors[it].right }
+        val top = group.minOf { anchors[it].top }
+        val bottom = group.maxOf { anchors[it].bottom }
+        val rowWidth = right - left + 1
+        val rowHeight = bottom - top + 1
+        if (rowWidth * 3 < width || rowWidth * 4 > width * 3 ||
+          rowHeight * (if (smallRow) 20 else 10) < height || rowHeight * 3 > height ||
+          rowWidth * 2 < rowHeight * 3) continue
+        band++
+        for (part in parts) {
+          // Include complete dots, stems and underlines, even when an underline
+          // touches the mascot. Never clip a larger ink component into this row.
+          if (bands[part.id] == 0 &&
+            part.left >= left - rowHeight / 3 && part.right <= right + rowHeight / 3 &&
+            part.top >= top - rowHeight / 8 && part.bottom <= bottom + rowHeight / 8) {
+            bands[part.id] = band
+            sizes[part.id] = part.area
+          }
         }
       }
     }

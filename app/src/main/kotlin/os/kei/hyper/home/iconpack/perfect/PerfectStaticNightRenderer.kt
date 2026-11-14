@@ -17,7 +17,7 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-10"
+  const val REVISION = "perfect-static-night-11"
   const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-3"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024

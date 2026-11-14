@@ -4,6 +4,12 @@ This records the remaining checks after the static, layered and cross-surface
 icon corrections. These changes are for the next release; the published 1.9.0
 baseline and public changelog are unchanged.
 
+**Latest status, November 14: own-update heads-up icon masking is unresolved.**
+The user's 13:46 screenshot again shows an opaque square behind the wrench
+icon in KeiHome's own module-update banner on the Phone AVD. Earlier isolated
+success and successful API 102 handoff do not close this visual issue. See
+[the reopened acceptance record](#reopened-own-update-heads-up-masking-november-14).
+
 ## Code and resource audit
 
 No further production renderer defect was identified in this closeout.
@@ -118,7 +124,7 @@ Evidence is in `.artifacts/research/dark-icon-physical-20261113/`, including the
 bounded notification identity, update receipt, module-log window, Release
 receipt and build/lint log. No phone restart or scope change was performed.
 
-## First-notice correction verified after the paired screenshots
+## Earlier first-notice correction in diagnostic 109000445
 
 The user's paired screenshots reopened this check: the own-update notice was
 square, while a later notice for another module was rounded. Bounded diagnostic
@@ -157,3 +163,46 @@ The temporary per-bitmap diagnostics were removed before Release compilation.
 Evidence: `row-loader-first-update.webm`, `row-loader-settled.png`,
 `row-loader-live.log` and `row-replay-device-tests.log` in the physical-research
 directory above. Final optimized Release acceptance is recorded separately.
+
+## Reopened own-update heads-up masking, November 14
+
+**Status: known unresolved visual defect; further repair deferred.**
+
+The user supplied a new Phone AVD screenshot at 13:46 showing the floating
+`Xposed module updated` notification for `os.kei.hyper.home`. Its wrench icon
+still has a solid square background. The banner says nine processes were hot
+reloaded. This is the first notice associated with reloading KeiHome itself,
+the same scenario previously distinguished from a later notification produced
+by updating another module.
+
+The last recorded installation is signed Release
+`1.9.0+g8edc759.b0495` (`109000495`). The screenshot does not independently
+identify the installed version. That deployment's API 102 handoff and
+Launcher/SystemUI/system_server continuity passed; the Runtime and Monet sheet
+visual checks also passed. Those are separate acceptance gates and do not
+establish correct heads-up icon masking.
+
+The diagnostic-445 recording above remains evidence that one native row
+refresh corrected one first notice. The new screenshot reopens the broader
+repair: neither a cache-ready notification nor that earlier successful refresh
+proves this path works consistently. The precise cause of this occurrence is
+unconfirmed. Initial handoff, native header caching and row-refresh timing are
+investigation directions, not established causes. No additional device
+reproduction, runtime-code change or build was performed for this report.
+
+Earlier live identity evidence associated this framework notice with package
+`android`, UID `1000`, channel `lsposed_module_updated`, and module tag
+`os.kei.hyper.home`. Those details were not re-probed from this screenshot.
+Preserve the distinction between its notification-specific wrench symbol and
+the application-icon header when resuming work.
+
+Retained evidence:
+`.artifacts/research/self-reload-headsup-open-20261114/`, containing
+`user-self-reload-square.png` and `report.json`. The dashboard-sheet acceptance
+receipt now explicitly excludes this unresolved notification path.
+
+Closure requires repeated ordinary self-reloads after unlocking and entering
+HOME, recording the first floating notice from appearance through its settled
+state. The icon must remain correctly masked, with no disruptive host restart.
+A second reload, another module's update, an already-visible status icon, or a
+successful handoff receipt cannot substitute for that visual check.

@@ -191,6 +191,12 @@ without proving absence of every pre-hook handoff frame. Acceptance requires
 the first ordinary self-reload banner, rather than an extra reload or a later
 notification, to verify the transient report.
 
+The November 14 Phone AVD screenshot reproduced a square wrench background in
+KeiHome's own reload banner. Treat this visual path as **known unresolved**;
+the earlier row-refresh success is a limited diagnostic result. See
+[`perfect-dark-icon-closeout.md`](perfect-dark-icon-closeout.md#reopened-own-update-heads-up-masking-november-14)
+for the retained evidence and first-notice acceptance boundary.
+
 Focused evidence for this extension is retained under
 `.artifacts/research/perfect-night-statusbar-20261113/`. Source contracts,
 synthetic device fixtures, live screenshots and API102 handoff checks establish

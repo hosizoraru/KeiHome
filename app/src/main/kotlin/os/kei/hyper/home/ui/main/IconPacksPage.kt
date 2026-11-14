@@ -312,9 +312,10 @@ internal fun ThemeEffectsCard(
   modifier: Modifier = Modifier,
   showStatus: Boolean = true,
 ) {
-  val snapshot = framework.snapshot.takeIf { framework.connected && !framework.readFailed }
+  val scopeChecking = framework.desktopScopeChecking()
+  val snapshot = framework.snapshot.takeIf { framework.connected && !framework.readFailed && !scopeChecking }
   val inScope = framework.themeEffectsInScope()
-  val available = inScope && !state.unavailable
+  val available = inScope && !scopeChecking && !state.unavailable
   val enabled = available && state.savedChoice != null && !state.loading && !state.saving && !state.readFailed
   val targetStatuses = listOfNotNull(
     snapshot?.takeIf { it.systemInScope }?.let {
@@ -331,14 +332,15 @@ internal fun ThemeEffectsCard(
     else -> null
   }
   val status = when {
-    !framework.connected -> stringResource(R.string.theme_effects_disconnected)
     framework.readFailed -> stringResource(R.string.theme_effects_framework_failed)
-    snapshot == null -> stringResource(R.string.theme_effects_loading)
-    !inScope -> stringResource(R.string.theme_effects_scope_needed)
-    state.unavailable -> stringResource(R.string.theme_effects_unavailable)
     state.saving -> stringResource(R.string.theme_effects_saving)
     state.saveFailed -> stringResource(R.string.theme_effects_save_failed)
     state.readFailed -> stringResource(R.string.theme_effects_read_failed)
+    scopeChecking -> stringResource(R.string.theme_effects_loading)
+    !framework.connected -> stringResource(R.string.theme_effects_disconnected)
+    snapshot == null -> stringResource(R.string.theme_effects_loading)
+    !inScope -> stringResource(R.string.theme_effects_scope_needed)
+    state.unavailable -> stringResource(R.string.theme_effects_unavailable)
     state.loading || state.savedChoice == null -> stringResource(R.string.theme_effects_loading)
     else -> stringResource(R.string.theme_effects_status,
       stringResource(if (state.savedChoice) R.string.theme_effects_saved_on else R.string.theme_effects_saved_off),
@@ -357,7 +359,7 @@ internal fun ThemeEffectsCard(
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2,
-          color = if (state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
+          color = if (framework.readFailed || state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
             else MiuixTheme.colorScheme.onSurfaceSecondary)
         if (state.readFailed || state.saveFailed) {
           TextButton(stringResource(R.string.theme_effects_resave_off),

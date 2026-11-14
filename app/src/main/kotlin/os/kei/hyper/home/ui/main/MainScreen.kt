@@ -242,6 +242,7 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
   } }
   val covered = remember(effective) { effective?.count { it.covered } }
   StatusBody(connected = framework.connected, snapshot = framework.snapshot, readFailed = framework.readFailed,
+    frameworkChecking = framework.checking,
     monetSnapshot = monet.snapshot, monetReadFailed = monet.readFailed, onRefresh = { model.refresh(0) },
     onOpenMonet = onOpenMonet, onOpenApps = onOpenApps,
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,

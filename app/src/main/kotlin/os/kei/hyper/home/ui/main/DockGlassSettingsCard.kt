@@ -44,12 +44,14 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
   // Retain the target after the controller clears pending, until the native ACK arrives.
   var lastEdited by remember { mutableStateOf(DockEditedField.STYLE) }
   val inScope = framework.dockGlassInScope()
+  val scopeChecking = framework.desktopScopeChecking()
   val choice = state.pending ?: state.saved
   val now = android.os.SystemClock.elapsedRealtime()
   val version = BuildConfig.VERSION_CODE.toLong()
   val supported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK)
   val layoutSupported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK_LAYOUT)
-  val controlsEnabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported)
+  val controlsEnabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null,
+    supported, scopeChecking)
   val cornerSummary = when (choice?.cornerStyle) {
     DockGlassCornerStyle.RECENTS -> R.string.dock_glass_corner_recents_summary
     DockGlassCornerStyle.ROUNDED -> R.string.dock_glass_corner_rounded_summary
@@ -61,9 +63,11 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
   val dockControls = desktopDockControls(choice, controlsEnabled, layoutSupported)
   val styles = listOf(DockGlassCornerStyle.RECENTS, DockGlassCornerStyle.ROUNDED,
     DockGlassCornerStyle.PAD, DockGlassCornerStyle.CONCENTRIC, DockGlassCornerStyle.CUSTOM)
-  val status = rememberDesktopOperationStatus(desktopDockStatus(state, runtime, inScope, now, version),
+  val status = rememberDesktopOperationStatus(
+    if (framework.readFailed) DesktopFeatureStatus.READ_FAILED
+    else desktopDockStatus(state, runtime, inScope, now, version, scopeChecking),
     choice, refreshes[5])
-  val layoutHint = if (supported == true && layoutSupported == false)
+  val layoutHint = if (!scopeChecking && supported == true && layoutSupported == false)
     "\n" + stringResource(R.string.dock_glass_layout_unavailable) else ""
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     SwitchPreference(title = stringResource(R.string.dock_glass_title),
@@ -131,7 +135,7 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
       modifier = Modifier.testTag("dock-glass.reset-geometry"))
     DockOptionProgress(DockEditedField.RESET, lastEdited, status)
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !state.saving && (state.pending?.let {
+      enabled = !scopeChecking && !state.saving && (state.pending?.let {
         desktopDockSaveSupported(it, supported, layoutSupported)
       } ?: true), onClick = {
         state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()

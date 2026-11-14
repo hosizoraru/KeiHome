@@ -85,7 +85,8 @@ private fun DesktopIconSettings(model: HomeViewModel, feature: DesktopFeature) {
   when (feature) {
     DesktopFeature.ICON_EFFECTS -> ThemeEffectsCard(effects, framework, model::setPreserveSystemMaterials, showStatus = false)
     DesktopFeature.SPLASH -> SplashAppearanceSettingsCard(splash, framework.splashAppearanceInScope(),
-      model::setSplashAppearance, showStatus = false)
+      model::setSplashAppearance, showStatus = false,
+      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     else -> Unit
   }
 }

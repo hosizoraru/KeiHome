@@ -37,6 +37,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
         if (plan != null) MetadataPill(stringResource(R.string.scope_count, plan.granted.size, plan.eligible.size), color)
       }
       val summary = when {
+        state.checking -> R.string.scope_loading
         !state.connected -> R.string.scope_disconnected
         state.readFailed -> R.string.scope_read_failed
         state.requesting -> R.string.scope_requesting

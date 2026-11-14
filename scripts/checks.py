@@ -89,6 +89,12 @@ GROUPS = {
         UI + "MonetColorEditorTest", UI + "CacheStorageUiTest", UI + "IconMaskSettingsUiTest")),
     "ui-status": ("device", "Status cards, readiness and detail navigation", (
         UI + "MonetStatusContentTest",)),
+    "startup-status": ("jvm", "Pending startup, bounded binding and genuine status failures", (
+        "FrameworkBindingTest", "StartupStatusPresentationTest", "StartupDesktopFeatureStatusTest",
+        "RuntimeStatusDashboardTest", "DesktopConnectionCardTest", "DesktopFeatureStatusTest",
+        "StaticScopeRequestsTest", "StatusDashboardTest")),
+    "ui-startup-status": ("device", "Pending status transitions, scope reads and genuine failures", (
+        UI + "StartupStatusUiTest", UI + "ScopeAuthorizationUiTest")),
     "ui-theme-effects": ("device", "Theme-effect controls and scope availability", (
         UI + "ThemeEffectsCardTest",)),
     "ui-color-editor": ("device", "Color input, confirmation and draft recreation", (

@@ -97,7 +97,7 @@ class RuntimeStatusDashboardTest {
     listOf(resumed, cleared).forEach {
       assertEquals(NativeStatusKind.CHECKING, it.kind)
       assertNull(it.report)
-      assertEquals(StatusTone.WARNING, presentation(runtime = it).tone)
+      assertEquals(StatusTone.CHECKING, presentation(runtime = it).tone)
     }
   }
 
@@ -136,7 +136,11 @@ class RuntimeStatusDashboardTest {
       val result = native(state)
       assertEquals(kind, result.kind)
       assertEquals(kind.label, presentation(runtime = result).title)
-      assertEquals(if (kind == NativeStatusKind.READ_FAILED) StatusTone.ERROR else StatusTone.WARNING,
+      assertEquals(when (kind) {
+        NativeStatusKind.READ_FAILED -> StatusTone.ERROR
+        NativeStatusKind.CHECKING -> StatusTone.CHECKING
+        else -> StatusTone.WARNING
+      },
         presentation(runtime = result).tone)
     }
     assertEquals(cases.size, cases.map { presentation(runtime = native(it.first)).title }.toSet().size)
@@ -159,7 +163,7 @@ class RuntimeStatusDashboardTest {
   fun readinessRequiresAConnectedFrameworkWithReadableStatusAndSystemScope() {
     assertEquals(StatusTone.ERROR, presentation(connected = false).tone)
     assertEquals(StatusTone.ERROR, presentation(readFailed = true).tone)
-    assertEquals(StatusTone.WARNING, presentation(framework = null).tone)
+    assertEquals(StatusTone.CHECKING, presentation(framework = null).tone)
     assertEquals(StatusTone.ERROR, presentation(snapshot().copy(systemInScope = false)).tone)
     assertEquals(StatusTone.WARNING,
       moduleStatusPresentation(frameworkCardState(true, false, snapshot()).copy(systemInScope = null),

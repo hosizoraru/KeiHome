@@ -24,6 +24,7 @@ internal fun SearchGlassSettingsCard(model: HomeViewModel) {
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
   val inScope = framework.launcherGlassInScope()
+  val scopeChecking = framework.desktopScopeChecking()
   val choices = listOf(R.string.search_glass_follow_dock,
     R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
   val now = android.os.SystemClock.elapsedRealtime()
@@ -34,18 +35,19 @@ internal fun SearchGlassSettingsCard(model: HomeViewModel) {
     os.kei.hyper.home.data.LauncherGlassChoice(dock, search)
   } }
   val status = rememberDesktopOperationStatus(
-    desktopSearchGlassStatus(state, runtime, inScope, now, version), choice, refreshes[5])
+    if (framework.readFailed) DesktopFeatureStatus.READ_FAILED
+    else desktopSearchGlassStatus(state, runtime, inScope, now, version, scopeChecking), choice, refreshes[5])
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     OverlaySpinnerPreference(title = stringResource(R.string.search_glass_title),
       summary = stringResource(R.string.search_glass_summary),
       items = choices.map { DropdownItem(text = stringResource(it)) },
       selectedIndex = (state.savedSearch ?: SearchGlassStyle.FOLLOW_DOCK).ordinal,
-      enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.savedSearch != null, supported),
+      enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.savedSearch != null, supported, scopeChecking),
       onSelectedIndexChange = { index -> SearchGlassStyle.entries.getOrNull(index)?.let(model.launcherGlass::saveSearch) },
       modifier = Modifier.testTag("search-glass.style"))
     DesktopSettingProgress(status, Modifier.testTag("desktop.feature.search-material.progress"))
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !state.saving, onClick = {
+      enabled = !scopeChecking && !state.saving, onClick = {
         when {
           state.pendingSearch != null -> model.launcherGlass.saveSearch(state.pendingSearch!!)
           state.pending != null -> model.launcherGlass.save(state.pending!!)

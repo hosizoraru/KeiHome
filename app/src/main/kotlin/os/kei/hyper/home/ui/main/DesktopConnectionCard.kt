@@ -59,7 +59,7 @@ internal data class DesktopConnectionPresentation(
   val native: DesktopConnectionStatus,
   val launcherJava: DesktopConnectionStatus? = null,
 ) {
-  val tone: StatusTone get() = primary.tone ?: StatusTone.WARNING
+  val tone: StatusTone get() = primary.tone ?: StatusTone.CHECKING
 }
 
 /** Connection evidence only: no saved preferences, feature ACKs or category capabilities. */
@@ -70,6 +70,7 @@ internal fun desktopConnectionPresentation(
   installedVersion: Long = BuildConfig.VERSION_CODE.toLong(),
 ): DesktopConnectionPresentation {
   val frameworkStatus = when {
+    framework.checking && !framework.readFailed && framework.snapshot == null -> DesktopConnectionStatus.CHECKING
     !framework.connected -> DesktopConnectionStatus.DISCONNECTED
     framework.readFailed -> DesktopConnectionStatus.READ_FAILED
     framework.snapshot == null -> DesktopConnectionStatus.WAITING
@@ -179,5 +180,5 @@ internal fun desktopStatusColor(tone: StatusTone?): Color = when (tone) {
   StatusTone.WARNING -> colorResource(if (LocalKeiHomeDarkTheme.current)
     R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent)
   StatusTone.ERROR -> MiuixTheme.colorScheme.error
-  null -> MiuixTheme.colorScheme.onSurfaceSecondary
+  null, StatusTone.CHECKING -> MiuixTheme.colorScheme.onSurfaceSecondary
 }

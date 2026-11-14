@@ -161,18 +161,17 @@ internal fun ScopeAuthorizationPage(
   }
 }
 
-@Composable
-private fun ScopeAuthorizationSummary(
-  state: StaticScopeUiState, declared: List<String>, reading: Boolean, metadataFailed: Boolean,
-) {
+internal fun scopeStatusPresentation(state: StaticScopeUiState): ModuleStatusPresentation {
   val plan = state.plan
-  val trusted = state.connected && !state.readFailed && plan != null
+  val pending = !state.readFailed && (state.checking || (state.connected && plan == null))
   val tone = when {
-    !trusted || plan?.unsupported?.isNotEmpty() == true -> StatusTone.ERROR
+    pending -> StatusTone.CHECKING
+    !state.connected || state.readFailed || plan?.unsupported?.isNotEmpty() == true -> StatusTone.ERROR
     plan?.complete == true -> StatusTone.READY
     else -> StatusTone.WARNING
   }
   val title = when {
+    pending -> R.string.runtime_checking
     !state.connected -> R.string.scope_page_disconnected
     state.readFailed -> R.string.scope_page_read_failed
     plan == null -> R.string.scope_page_unconfirmed
@@ -180,6 +179,16 @@ private fun ScopeAuthorizationSummary(
     plan.complete -> R.string.scope_page_ready
     else -> R.string.scope_page_incomplete
   }
+  return ModuleStatusPresentation(title, tone)
+}
+
+@Composable
+private fun ScopeAuthorizationSummary(
+  state: StaticScopeUiState, declared: List<String>, reading: Boolean, metadataFailed: Boolean,
+) {
+  val plan = state.plan
+  val trusted = state.connected && !state.readFailed && plan != null
+  val (title, tone) = scopeStatusPresentation(state)
   val color = desktopStatusColor(tone)
   Card(Modifier.fillMaxWidth().testTag("scope.page.summary")) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -205,7 +214,7 @@ private fun ScopeAuthorizationSummary(
       }
       if (metadataFailed) Text(stringResource(R.string.scope_page_metadata_failed),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
-      if (reading || state.requesting) LinearProgressIndicator(Modifier.fillMaxWidth())
+      if (reading || state.requesting || tone == StatusTone.CHECKING) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
   }
 }

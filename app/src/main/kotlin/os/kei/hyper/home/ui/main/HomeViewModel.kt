@@ -72,6 +72,7 @@ internal data class FrameworkUiState(
   val connected: Boolean = false,
   val snapshot: FrameworkSnapshot? = null,
   val readFailed: Boolean = false,
+  val checking: Boolean = false,
 )
 
 internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
@@ -177,13 +178,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val iconPacks: StateFlow<IconPacksUiState>
     field = MutableStateFlow(IconPacksUiState())
   val framework: StateFlow<FrameworkUiState>
-    field = MutableStateFlow(FrameworkUiState())
+    field = MutableStateFlow(FrameworkUiState(checking = true))
   val scopeRequests = StaticScopeRequests(viewModelScope, onReconciled = { readFramework() })
   private var scopeClient: LibxposedStaticScopeClient? = null
   val runtime: StateFlow<RuntimeStatusUiState>
-    field = MutableStateFlow(RuntimeStatusUiState())
+    field = MutableStateFlow(RuntimeStatusUiState(checking = true))
   val homeScreenRuntime: StateFlow<RuntimeStatusUiState>
-    field = MutableStateFlow(RuntimeStatusUiState())
+    field = MutableStateFlow(RuntimeStatusUiState(checking = true))
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
   val themeEffects: StateFlow<ThemeEffectsUiState>
@@ -351,18 +352,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       }
     }
     viewModelScope.launch {
-      FrameworkConnection.service.collectLatest { service ->
+      os.kei.hyper.home.status.frameworkBindings(FrameworkConnection.service).collectLatest { binding ->
+        val service = binding.service
         scopeClient = service?.let { LibxposedStaticScopeClient(application, it) }
-        scopeRequests.connect(scopeClient)
-        framework.value = FrameworkUiState(connected = service != null)
-        runtime.value = RuntimeStatusUiState()
-        homeScreenRuntime.value = RuntimeStatusUiState()
+        scopeRequests.connect(scopeClient, checking = binding.waiting || service != null)
+        framework.value = FrameworkUiState(connected = service != null, checking = binding.waiting || service != null)
+        runtime.value = RuntimeStatusUiState(checking = service != null)
+        homeScreenRuntime.value = RuntimeStatusUiState(checking = service != null)
         themeEffects.value = ThemeEffectsUiState()
         launcherLabels.reset()
         dockGlass.reset()
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
-        if (service == null) initialActivation.observe(null)
+        if (service == null && !binding.waiting) initialActivation.observe(null)
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4)
             launch { readRuntimeStatus(includeIconTheme = visiblePage != 5) }
@@ -830,7 +832,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     } catch (_: Exception) {
       if (FrameworkConnection.service.value === service && scopeClient === client) {
         if (scopeRequests.readFailed(service, scopeRead)) {
-          framework.update { it.copy(readFailed = true) }
+          framework.update { it.copy(readFailed = true, checking = false) }
           initialActivation.observe(null)
         }
       }

@@ -18,13 +18,17 @@ internal fun SplashAppearanceSettingsCard(
   inScope: Boolean,
   onChange: (Boolean) -> Unit,
   showStatus: Boolean = true,
+  scopeChecking: Boolean = false,
+  scopeReadFailed: Boolean = false,
 ) {
   val issue = when {
-    !inScope -> R.string.splash_scope
-    state.unavailable -> R.string.theme_effects_unavailable
     state.saving -> R.string.theme_effects_saving
     state.saveFailed -> R.string.theme_effects_save_failed
     state.readFailed -> R.string.theme_effects_read_failed
+    scopeReadFailed -> R.string.theme_effects_framework_failed
+    scopeChecking -> R.string.theme_effects_loading
+    !inScope -> R.string.splash_scope
+    state.unavailable -> R.string.theme_effects_unavailable
     state.loading || state.savedChoice == null -> R.string.theme_effects_loading
     else -> null
   }
@@ -32,11 +36,11 @@ internal fun SplashAppearanceSettingsCard(
     SwitchPreference(title = stringResource(R.string.splash_adapt),
       summary = stringResource(if (showStatus) issue ?: R.string.splash_adapt_summary else R.string.splash_adapt_summary),
       checked = state.savedChoice == true,
-      enabled = inScope && state.canSaveThemeEffects(state.savedChoice != true),
+      enabled = inScope && !scopeChecking && !scopeReadFailed && state.canSaveThemeEffects(state.savedChoice != true),
       onCheckedChange = onChange, modifier = Modifier.testTag("splash-appearance.switch"))
     if (inScope && (state.readFailed || state.saveFailed)) {
       BasicComponent(title = stringResource(R.string.theme_effects_resave_off),
-        enabled = state.canSaveThemeEffects(false), onClick = { onChange(false) })
+        enabled = !scopeChecking && !scopeReadFailed && state.canSaveThemeEffects(false), onClick = { onChange(false) })
     }
     DesktopSettingProgress(if (state.saving) DesktopFeatureStatus.SAVING else DesktopFeatureStatus.ACCEPTED,
       Modifier.testTag("desktop.feature.splash.progress"))

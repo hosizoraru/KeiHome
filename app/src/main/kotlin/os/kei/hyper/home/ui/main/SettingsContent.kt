@@ -225,7 +225,8 @@ internal fun SettingsContent(
       if (labels) launcherLabelsContent()
       if (dockGlass) dockGlassContent()
     }
-    if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange)
+    if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
+      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     if (autoApply || installedIconsOnly || rememberMenus || compactPackHints || previews) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
         onRememberMenusChange, onCompactPackHintsChange, onPreviewsChange,

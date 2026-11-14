@@ -13,13 +13,28 @@ internal enum class DesktopFeatureStatus {
   LAYOUT_UNAVAILABLE, PENDING, ACCEPTED,
 }
 
+internal fun FrameworkUiState.desktopScopeChecking(): Boolean =
+  !readFailed && (checking || (connected && snapshot == null))
+
+internal fun desktopAggregateTone(
+  statuses: List<DesktopFeatureStatus>,
+  ready: Boolean,
+  allUnsupported: Boolean,
+): StatusTone = when {
+  statuses.any { it == DesktopFeatureStatus.ERROR || it == DesktopFeatureStatus.READ_FAILED ||
+    it == DesktopFeatureStatus.TIMED_OUT } -> StatusTone.ERROR
+  statuses.any { it == DesktopFeatureStatus.CHECKING || it == DesktopFeatureStatus.LOADING } -> StatusTone.CHECKING
+  ready || allUnsupported -> StatusTone.READY
+  else -> StatusTone.WARNING
+}
+
 internal fun desktopCapability(
   runtime: RuntimeStatusUiState, now: Long, moduleVersion: Long, capability: Int,
 ): Boolean? = desktopRuntimeReport(runtime, now, moduleVersion)?.supportsLauncherCapability(capability)
 
 internal fun desktopControlEnabled(inScope: Boolean, saving: Boolean, unavailable: Boolean,
-  hasSaved: Boolean, supported: Boolean?): Boolean =
-  inScope && !saving && !unavailable && hasSaved && supported != false
+  hasSaved: Boolean, supported: Boolean?, scopeChecking: Boolean = false): Boolean =
+  inScope && !scopeChecking && !saving && !unavailable && hasSaved && supported != false
 
 internal fun desktopDockLayoutEnabled(dockEnabled: Boolean, controlsEnabled: Boolean,
   layoutSupported: Boolean?): Boolean = dockEnabled && controlsEnabled && layoutSupported != false
@@ -68,7 +83,9 @@ internal fun desktopDockStatus(
   inScope: Boolean,
   now: Long,
   moduleVersion: Long,
+  scopeChecking: Boolean = false,
 ): DesktopFeatureStatus {
+  desktopUnresolvedScopeStatus(scopeChecking, state.saving, state.failed, runtime)?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
   val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK)
   desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
@@ -86,7 +103,9 @@ internal fun desktopLabelStatus(
   inScope: Boolean,
   now: Long,
   moduleVersion: Long,
+  scopeChecking: Boolean = false,
 ): DesktopFeatureStatus {
+  desktopUnresolvedScopeStatus(scopeChecking, state.saving, state.failed, runtime)?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
   val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.LABELS)
   desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
@@ -102,7 +121,9 @@ internal fun desktopGlassStatus(
   inScope: Boolean,
   now: Long,
   moduleVersion: Long,
+  scopeChecking: Boolean = false,
 ): DesktopFeatureStatus {
+  desktopUnresolvedScopeStatus(scopeChecking, state.saving, state.failed, runtime)?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
   val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS)
   desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.saved != null, supported)
@@ -117,7 +138,9 @@ internal fun desktopSearchGlassStatus(
   inScope: Boolean,
   now: Long,
   moduleVersion: Long,
+  scopeChecking: Boolean = false,
 ): DesktopFeatureStatus {
+  desktopUnresolvedScopeStatus(scopeChecking, state.saving, state.failed, runtime)?.let { return it }
   val report = desktopRuntimeReport(runtime, now, moduleVersion)
   val supported = report?.supportsLauncherCapability(LauncherRuntimeCapabilities.GLASS_PAIR)
   desktopPreferenceStatus(inScope, state.unavailable, state.saving, state.failed, state.savedSearch != null, supported)
@@ -128,7 +151,12 @@ internal fun desktopSearchGlassStatus(
   return desktopReceiverStatus(runtime, report, supported, report?.acknowledgesSearchGlass(choice) == true)
 }
 
-internal fun desktopStoredStatus(state: ThemeEffectsUiState, inScope: Boolean): DesktopFeatureStatus = when {
+internal fun desktopStoredStatus(state: ThemeEffectsUiState, inScope: Boolean,
+  scopeChecking: Boolean = false): DesktopFeatureStatus = when {
+  scopeChecking && state.saving -> DesktopFeatureStatus.SAVING
+  scopeChecking && state.saveFailed -> DesktopFeatureStatus.ERROR
+  scopeChecking && state.readFailed -> DesktopFeatureStatus.READ_FAILED
+  scopeChecking -> DesktopFeatureStatus.CHECKING
   !inScope -> DesktopFeatureStatus.OUT_OF_SCOPE
   state.unavailable -> DesktopFeatureStatus.UNAVAILABLE
   state.saving -> DesktopFeatureStatus.SAVING
@@ -136,6 +164,16 @@ internal fun desktopStoredStatus(state: ThemeEffectsUiState, inScope: Boolean): 
   state.readFailed -> DesktopFeatureStatus.READ_FAILED
   state.loading || state.savedChoice == null -> DesktopFeatureStatus.LOADING
   else -> DesktopFeatureStatus.ACCEPTED
+}
+
+private fun desktopUnresolvedScopeStatus(scopeChecking: Boolean, saving: Boolean, failed: Boolean,
+  runtime: RuntimeStatusUiState): DesktopFeatureStatus? = when {
+  !scopeChecking -> null
+  saving -> DesktopFeatureStatus.SAVING
+  failed -> DesktopFeatureStatus.ERROR
+  runtime.readFailed -> DesktopFeatureStatus.READ_FAILED
+  runtime.timedOut -> DesktopFeatureStatus.TIMED_OUT
+  else -> DesktopFeatureStatus.CHECKING
 }
 
 private fun desktopReceiverStatus(runtime: RuntimeStatusUiState, report: RuntimeStatusReport?,

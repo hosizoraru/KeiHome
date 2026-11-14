@@ -68,6 +68,7 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
   val refreshes by model.refreshResults.collectAsStateWithLifecycle()
   val now = SystemClock.elapsedRealtime()
   val version = BuildConfig.VERSION_CODE.toLong()
+  val scopeChecking = framework.desktopScopeChecking()
   val glassLabels = listOf(R.string.launcher_glass_system, R.string.launcher_glass_light, R.string.launcher_glass_dark)
   val searchChoice = glass.saved?.let { saved -> glass.savedSearch?.let { search ->
     os.kei.hyper.home.data.LauncherGlassChoice(saved, search)
@@ -76,13 +77,13 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
     val raw = when (feature) {
       DesktopFeature.DOCK_MATERIAL -> DesktopStatusEntry(feature, R.string.desktop_glass_status_title,
         stringResource(glass.saved?.let { glassLabels[it.ordinal] } ?: R.string.theme_effects_loading),
-        desktopGlassStatus(glass, runtime, framework.launcherGlassInScope(), now, version),
+        desktopGlassStatus(glass, runtime, framework.launcherGlassInScope(), now, version, scopeChecking),
         desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.GLASS))
       DesktopFeature.DOCK_STYLE -> DesktopStatusEntry(feature, R.string.desktop_dock_status_title,
         dock.saved?.let { if (!it.enabled) stringResource(R.string.desktop_feature_off)
           else stringResource(R.string.desktop_dock_on, stringResource(it.cornerStyle.labelResource)) }
           ?: stringResource(R.string.theme_effects_loading),
-        desktopDockStatus(dock, runtime, framework.dockGlassInScope(), now, version),
+        desktopDockStatus(dock, runtime, framework.dockGlassInScope(), now, version, scopeChecking),
         desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK))
       DesktopFeature.SEARCH_MATERIAL -> DesktopStatusEntry(feature, R.string.search_glass_title,
         stringResource(when (glass.savedSearch) {
@@ -91,7 +92,7 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
           os.kei.hyper.home.data.SearchGlassStyle.LIGHT -> R.string.launcher_glass_light
           os.kei.hyper.home.data.SearchGlassStyle.DARK -> R.string.launcher_glass_dark
           null -> R.string.theme_effects_loading
-        }), desktopSearchGlassStatus(glass, runtime, framework.launcherGlassInScope(), now, version),
+        }), desktopSearchGlassStatus(glass, runtime, framework.launcherGlassInScope(), now, version, scopeChecking),
         desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.GLASS_PAIR))
       DesktopFeature.LABELS -> DesktopStatusEntry(feature, R.string.desktop_labels_status_title,
         stringResource(when (labels.saved) {
@@ -99,14 +100,14 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
           LauncherLabelMode.MARQUEE -> R.string.launcher_labels_marquee
           LauncherLabelMode.TWO_LINES -> R.string.launcher_labels_two_lines
           null -> R.string.theme_effects_loading
-        }), desktopLabelStatus(labels, runtime, framework.launcherLabelsInScope(), now, version),
+        }), desktopLabelStatus(labels, runtime, framework.launcherLabelsInScope(), now, version, scopeChecking),
         desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.LABELS))
       DesktopFeature.ICON_EFFECTS -> DesktopStatusEntry(feature, R.string.theme_effects_title,
         stringResource(if (effects.savedChoice == true) R.string.dashboard_on else R.string.dashboard_off),
-        desktopStoredStatus(effects, framework.themeEffectsInScope()), true)
+        desktopStoredStatus(effects, framework.themeEffectsInScope(), scopeChecking), true)
       DesktopFeature.SPLASH -> DesktopStatusEntry(feature, R.string.splash_adapt,
         stringResource(if (splash.savedChoice == true) R.string.dashboard_on else R.string.dashboard_off),
-        desktopStoredStatus(splash, framework.splashAppearanceInScope()), true)
+        desktopStoredStatus(splash, framework.splashAppearanceInScope(), scopeChecking), true)
     }
     val choiceKey: Any? = when (feature) {
       DesktopFeature.DOCK_MATERIAL -> glass.pending ?: glass.saved
@@ -122,19 +123,18 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
   val sync = desktopSyncSummary(statuses, entries.map { it.capability })
   val allUnsupported = entries.all { it.capability == false && it.status == DesktopFeatureStatus.UNAVAILABLE }
   val compatibilityUnknown = statuses.any { it == DesktopFeatureStatus.UNKNOWN }
-  val tone = when {
-    statuses.any { it in setOf(DesktopFeatureStatus.ERROR, DesktopFeatureStatus.READ_FAILED, DesktopFeatureStatus.TIMED_OUT) } -> StatusTone.ERROR
-    sync.ready || allUnsupported -> StatusTone.READY
-    else -> StatusTone.WARNING
-  }
+  val tone = desktopAggregateTone(statuses, sync.ready, allUnsupported)
   val storedOnly = section == DesktopSection.ICONS
   StatusOverviewCard(title = stringResource(when {
     tone == StatusTone.ERROR -> R.string.desktop_error_title
+    tone == StatusTone.CHECKING -> if (DesktopFeatureStatus.CHECKING in statuses)
+      R.string.desktop_status_checking else R.string.theme_effects_loading
     storedOnly && sync.ready -> R.string.desktop_saved_title
     sync.ready -> R.string.desktop_ready_title
     allUnsupported -> R.string.desktop_compatibility_title
     else -> R.string.desktop_pending_title
   }), summary = stringResource(when {
+    tone == StatusTone.CHECKING -> R.string.theme_effects_loading
     allUnsupported -> R.string.desktop_no_supported_settings
     compatibilityUnknown -> R.string.desktop_compatibility_pending
     storedOnly -> R.string.desktop_stored_count
@@ -158,6 +158,7 @@ private fun desktopPillColor(status: DesktopFeatureStatus) = when (status) {
   DesktopFeatureStatus.ACCEPTED -> desktopStatusColor(StatusTone.READY)
   DesktopFeatureStatus.ERROR, DesktopFeatureStatus.READ_FAILED, DesktopFeatureStatus.TIMED_OUT -> MiuixTheme.colorScheme.error
   DesktopFeatureStatus.UNAVAILABLE -> MiuixTheme.colorScheme.onSurfaceSecondary
+  DesktopFeatureStatus.CHECKING, DesktopFeatureStatus.LOADING -> desktopStatusColor(StatusTone.CHECKING)
   else -> desktopStatusColor(StatusTone.WARNING)
 }
 

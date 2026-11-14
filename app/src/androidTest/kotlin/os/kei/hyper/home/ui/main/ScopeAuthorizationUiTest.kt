@@ -37,6 +37,19 @@ class ScopeAuthorizationUiTest {
   private fun ready() = StaticScopeUiState(connected = true,
     plan = planStaticScope(names, names.toSet(), true) { true })
 
+  @Test fun initialBindingAndPlanReadDoNotShowAnUnavailableSummary() {
+    val state = mutableStateOf(StaticScopeUiState(checking = true))
+    compose.setContent { KeiHomeTheme {
+      ScopeAuthorizationPage(state.value, names, emptyMap(), false, false, {}, {}, {})
+    } }
+    compose.onNodeWithText(app.getString(R.string.runtime_checking)).assertIsDisplayed()
+    compose.onNodeWithText(app.getString(R.string.scope_page_disconnected)).assertDoesNotExist()
+    compose.runOnIdle { state.value = StaticScopeUiState(connected = true, checking = true) }
+    compose.onNodeWithText(app.getString(R.string.runtime_checking)).assertIsDisplayed()
+    compose.runOnIdle { state.value = ready() }
+    compose.onNodeWithText(app.getString(R.string.scope_page_ready)).assertIsDisplayed()
+  }
+
   @Test fun settingsRouteOpensTheDedicatedPageAndItsToolbar() {
     val store = ViewModelStore()
     val model = ViewModelProvider(store,

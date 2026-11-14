@@ -85,6 +85,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 internal enum class StatusTone {
+  CHECKING,
   READY,
   WARNING,
   ERROR,
@@ -131,8 +132,9 @@ internal fun StatusBody(
   scopeContent: @Composable () -> Unit = {},
   activation: InitialActivationStatus = InitialActivationStatus.COMPLETE,
   onOpenGuide: () -> Unit = {},
+  frameworkChecking: Boolean = false,
 ) {
-  val framework = frameworkCardState(connected, readFailed, snapshot)
+  val framework = frameworkCardState(connected, readFailed, snapshot, frameworkChecking)
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment, activation, onOpenGuide)
     scopeContent()
@@ -176,12 +178,14 @@ internal data class FrameworkCardState(
   val systemVersion: Long?,
   val launcherState: HookedTarget.State?,
   val launcherVersion: Long?,
+  val checking: Boolean = false,
 )
 
 internal fun frameworkCardState(
   connected: Boolean,
   readFailed: Boolean,
   snapshot: FrameworkSnapshot?,
+  checking: Boolean = false,
 ): FrameworkCardState {
   // Connection/read failures make previous identity, scope and target reports unavailable.
   val current = snapshot.takeIf { connected && !readFailed }
@@ -198,6 +202,7 @@ internal fun frameworkCardState(
     systemVersion = current?.target?.loadedVersionCode,
     launcherState = loadedState(current?.launcherTarget?.state, current?.launcherTarget?.loadedVersionCode),
     launcherVersion = current?.launcherTarget?.loadedVersionCode,
+    checking = !readFailed && current == null && (checking || connected),
   )
 }
 
@@ -266,6 +271,7 @@ internal fun moduleStatusPresentation(
   runtime: RuntimeCardState,
 ): ModuleStatusPresentation {
   val title = when {
+    framework.checking -> R.string.runtime_checking
     !framework.connected || framework.readFailed -> R.string.status_overview_error_title
     framework.systemInScope == false -> R.string.polish_status_scope_needed
     framework.systemState == HookedTarget.State.FAILED -> R.string.status_target_failed
@@ -281,8 +287,10 @@ internal fun moduleStatusPresentation(
   val frameworkTone = statusTone(framework.connected, framework.readFailed, framework.systemInScope,
     framework.systemState, framework.launcherState)
   val tone = when {
+    framework.checking -> StatusTone.CHECKING
     frameworkTone == StatusTone.ERROR || runtime.kind == NativeStatusKind.READ_FAILED -> StatusTone.ERROR
     title == R.string.runtime_module_ready -> StatusTone.READY
+    title == R.string.runtime_checking -> StatusTone.CHECKING
     else -> StatusTone.WARNING
   }
   return ModuleStatusPresentation(title, tone)
@@ -350,6 +358,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     ModuleStatusPresentation(R.string.activation_reboot_title, StatusTone.WARNING)
   else moduleStatusPresentation(state, runtime)
   val summary = when {
+    state.checking -> stringResource(R.string.dashboard_reading_status)
     !state.connected -> stringResource(R.string.status_framework_disconnected)
     state.readFailed -> stringResource(R.string.status_framework_error)
     !state.reported -> stringResource(R.string.dashboard_reading_status)
@@ -362,6 +371,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
   StatusOverviewCard(
     title = stringResource(presentation.title),
     titleBadge = BuildConfig.VERSION_NAME.substringBefore('+'),
+    modifier = Modifier.testTag("status.framework.card"),
     summary = summary,
     details = emptyList(),
     tone = presentation.tone,
@@ -415,7 +425,7 @@ private fun RuntimeStatusCard(
         MetadataPill(stringResource(presentation.title), when (presentation.tone) {
           StatusTone.READY -> loadedAccent
           StatusTone.ERROR -> MiuixTheme.colorScheme.error
-          StatusTone.WARNING -> MiuixTheme.colorScheme.onSurfaceSecondary
+          StatusTone.WARNING, StatusTone.CHECKING -> MiuixTheme.colorScheme.onSurfaceSecondary
         })
         MetadataPill(BuildConfig.VERSION_NAME.substringBefore('+'), MiuixTheme.colorScheme.primary)
         state.apiVersion?.let {
@@ -440,6 +450,7 @@ private fun RuntimeStatusCard(
           stringResource(if (runtime.kind == NativeStatusKind.READY) R.string.dashboard_pill_ready
             else runtime.kind.label), when (runtime.kind) {
             NativeStatusKind.READY -> StatusTone.READY
+            NativeStatusKind.CHECKING -> StatusTone.CHECKING
             NativeStatusKind.READ_FAILED, NativeStatusKind.TIMED_OUT -> StatusTone.ERROR
             NativeStatusKind.NOT_REPORTED, NativeStatusKind.INACTIVE_USER,
             NativeStatusKind.UNAVAILABLE -> null
@@ -821,7 +832,7 @@ private fun DashboardStatePill(label: String, value: String, tone: StatusTone?, 
     StatusTone.WARNING -> colorResource(if (LocalKeiHomeDarkTheme.current)
       R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent)
     StatusTone.ERROR -> MiuixTheme.colorScheme.error
-    null -> MiuixTheme.colorScheme.onSurfaceSecondary
+    null, StatusTone.CHECKING -> MiuixTheme.colorScheme.onSurfaceSecondary
   }
   MetadataPill(stringResource(R.string.dashboard_state_pill, label, value), color, Modifier.testTag(tag))
 }
@@ -868,21 +879,25 @@ internal fun StatusOverviewCard(
       if (dark) R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent,
     )
     StatusTone.ERROR -> colors.error
+    StatusTone.CHECKING -> colors.onSurfaceSecondary
   }
   val backgroundColor = when (tone) {
     StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_container_dark else R.color.status_hero_ready_container)
     StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_container_dark else R.color.status_hero_warning_container)
     StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_container_dark else R.color.status_hero_error_container)
+    StatusTone.CHECKING -> colors.surfaceContainer
   }
   val contentColor = when (tone) {
     StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_content_dark else R.color.status_hero_ready_content)
     StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_content_dark else R.color.status_hero_warning_content)
     StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
+    StatusTone.CHECKING -> colors.onSurface
   }
   val icon = when (tone) {
     StatusTone.READY -> MiuixIcons.Glass.Ok
     StatusTone.WARNING -> MiuixIcons.Glass.Info
     StatusTone.ERROR -> MiuixIcons.Glass.Report
+    StatusTone.CHECKING -> MiuixIcons.Glass.Info
   }
 
   Card(

@@ -24,10 +24,13 @@ internal fun LauncherLabelSettingsCard(model: HomeViewModel) {
   val runtime by model.homeScreenRuntime.collectAsStateWithLifecycle()
   val refreshes by model.refreshResults.collectAsStateWithLifecycle()
   val inScope = framework.launcherLabelsInScope()
+  val scopeChecking = framework.desktopScopeChecking()
   val now = android.os.SystemClock.elapsedRealtime()
   val version = BuildConfig.VERSION_CODE.toLong()
   val supported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.LABELS)
-  val status = rememberDesktopOperationStatus(desktopLabelStatus(state, runtime, inScope, now, version),
+  val status = rememberDesktopOperationStatus(
+    if (framework.readFailed) DesktopFeatureStatus.READ_FAILED
+    else desktopLabelStatus(state, runtime, inScope, now, version, scopeChecking),
     state.pending ?: state.saved, refreshes[5])
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     OverlaySpinnerPreference(title = stringResource(R.string.launcher_labels_title),
@@ -35,11 +38,11 @@ internal fun LauncherLabelSettingsCard(model: HomeViewModel) {
       items = listOf(R.string.launcher_labels_native, R.string.launcher_labels_marquee, R.string.launcher_labels_two_lines)
         .map { DropdownItem(text = stringResource(it)) },
       selectedIndex = (state.saved ?: LauncherLabelMode.NATIVE).ordinal,
-      enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported),
+      enabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null, supported, scopeChecking),
       onSelectedIndexChange = { model.launcherLabels.save(LauncherLabelMode.entries[it]) })
     DesktopSettingProgress(status, tag = "desktop.feature.labels.progress")
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
-      enabled = !state.saving && (state.pending == null || supported != false), onClick = {
+      enabled = !scopeChecking && !state.saving && (state.pending == null || supported != false), onClick = {
         state.pending?.let(model.launcherLabels::save) ?: run { model.readLauncherLabelSettings() }
       })
   }

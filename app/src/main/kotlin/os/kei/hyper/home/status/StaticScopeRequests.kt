@@ -55,9 +55,10 @@ internal data class StaticScopeUiState(
   val readFailed: Boolean = false,
   val feedback: ScopeRequestFeedback = ScopeRequestFeedback.NONE,
   val error: String? = null,
+  val checking: Boolean = false,
 ) {
   val canRequest: Boolean get() = connected && !requesting && !readFailed && plan?.missing?.isNotEmpty() == true
-  val needsAttention: Boolean get() = !connected || readFailed || plan?.complete != true || requesting
+  val needsAttention: Boolean get() = readFailed || (!checking && (!connected || plan?.complete != true || requesting))
 }
 
 internal interface StaticScopeClient {
@@ -78,7 +79,7 @@ internal class StaticScopeRequests(
   private val resumeGraceMillis: Long = 1_500,
   private val onReconciled: suspend () -> Unit = {},
 ) {
-  private val mutable = MutableStateFlow(StaticScopeUiState())
+  private val mutable = MutableStateFlow(StaticScopeUiState(checking = true))
   val state = mutable.asStateFlow()
   private var client: StaticScopeClient? = null
   private var requestId = 0L
@@ -86,11 +87,11 @@ internal class StaticScopeRequests(
   private var appliedRead = 0L
   private var timeout: Job? = null
 
-  fun connect(value: StaticScopeClient?) {
+  fun connect(value: StaticScopeClient?, checking: Boolean = value != null) {
     requestId++
     timeout?.cancel()
     client = value
-    mutable.value = StaticScopeUiState(connected = value != null)
+    mutable.value = StaticScopeUiState(connected = value != null, checking = checking)
   }
 
   fun beginRead(identity: Any): Long? = if (client?.identity === identity) ++readId else null
@@ -105,14 +106,14 @@ internal class StaticScopeRequests(
   fun readFailed(identity: Any, sequence: Long): Boolean {
     if (client?.identity !== identity || sequence < appliedRead) return false
     appliedRead = sequence
-    mutable.value = mutable.value.copy(readFailed = true)
+    mutable.value = mutable.value.copy(readFailed = true, checking = false)
     return true
   }
 
   private fun applyPlan(plan: StaticScopePlan) {
     val previous = mutable.value
     mutable.value = previous.copy(
-      plan = plan, readFailed = false,
+      plan = plan, readFailed = false, checking = false,
       feedback = if (plan.complete && previous.feedback != ScopeRequestFeedback.APPROVED)
         ScopeRequestFeedback.NONE else previous.feedback,
       error = if (plan.complete) null else previous.error,
@@ -136,7 +137,7 @@ internal class StaticScopeRequests(
     } catch (_: Exception) {
       if (client === current && sequence >= appliedRead) {
         appliedRead = sequence
-        mutable.value = mutable.value.copy(readFailed = true)
+        mutable.value = mutable.value.copy(readFailed = true, checking = false)
       }
     }
   }

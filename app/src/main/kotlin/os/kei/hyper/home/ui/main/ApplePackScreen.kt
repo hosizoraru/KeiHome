@@ -571,9 +571,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           } }
           item("filter") {
-            LocalizedInputField(query = filter, onQueryChange = { filter = it },
-              onSearch = { focus.clearFocus(); keyboard?.hide() }, expanded = false,
-              onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
+            Os4SearchField(query = filter, onQueryChange = { filter = it },
+              modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
           }
           item("count") {
             Text(stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
@@ -636,9 +635,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
           item("query") {
-            LocalizedInputField(query = query, onQueryChange = { query = it.take(100) },
-              onSearch = { searchNow() }, expanded = false, onExpandedChange = {},
-              modifier = Modifier.fillMaxWidth().testTag("apple.search.query"),
+            Os4SearchField(query = query, onQueryChange = { query = it.take(100) },
+              onSearch = { searchNow() },
+              modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("apple.search.query"),
               label = stringResource(R.string.apple_search_label))
           }
           if (state.searching) item("search-progress") {

@@ -173,8 +173,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("search") {
           Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-              onExpandedChange = {}, modifier = Modifier.weight(1f).testTag("packs.search"),
+            Os4SearchField(query = query, onQueryChange = { query = it },
+              modifier = Modifier.weight(1f), inputModifier = Modifier.testTag("packs.search"),
               label = stringResource(R.string.icon_pack_search))
             val description = stringResource(R.string.pack_list_result_count, cards.size, total)
             MetadataPill(if (cards.size == total) "$total" else "${cards.size}/$total",

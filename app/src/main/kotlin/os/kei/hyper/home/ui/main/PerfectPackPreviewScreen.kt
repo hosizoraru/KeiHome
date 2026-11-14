@@ -255,8 +255,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
     }
     if (pack != null) item("search") {
-      LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-        onExpandedChange = {}, label = stringResource(R.string.perfect_icons_preview_search),
+      Os4SearchField(query = query, onQueryChange = { query = it },
+        label = stringResource(R.string.perfect_icons_preview_search),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
     }
     if (pack != null) {

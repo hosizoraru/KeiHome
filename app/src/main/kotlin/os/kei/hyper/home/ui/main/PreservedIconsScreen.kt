@@ -23,6 +23,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -47,6 +48,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.drop
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.ui.components.BlurredBar
@@ -175,7 +177,11 @@ internal fun PreservedIconsPage(
     }
   }
   val list = rememberLazyListState()
-  LaunchedEffect(query, allApps, origin, sort, reverse) { list.scrollToItem(0) }
+  LaunchedEffect(list) {
+    // Preserve restored child-return position; reset only for a new search/filter.
+    snapshotFlow { Triple(query, allApps to origin, sort to reverse) }.drop(1)
+      .collect { list.scrollToItem(0) }
+  }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(backdrop = backdrop, modifier = Modifier.testTag("preserved-icons.page"), topBar = {
@@ -200,9 +206,9 @@ internal fun PreservedIconsPage(
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
       item("search", contentType = "search") {
-        LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-          onExpandedChange = {}, label = stringResource(R.string.preserved_icons_search),
-          modifier = Modifier.fillMaxWidth().testTag("preserved-icons.search"))
+        Os4SearchField(query = query, onQueryChange = { query = it },
+          label = stringResource(R.string.preserved_icons_search),
+          modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("preserved-icons.search"))
       }
       item("guidance", contentType = "guidance") {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {

@@ -52,8 +52,8 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
   var query by rememberSaveable { mutableStateOf("") }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-      onExpandedChange = {}, modifier = Modifier.fillMaxWidth().testTag("settings.search"),
+    Os4SearchField(query = query, onQueryChange = { query = it },
+      modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("settings.search"),
       label = stringResource(R.string.settings_search))
     if (query.isBlank()) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

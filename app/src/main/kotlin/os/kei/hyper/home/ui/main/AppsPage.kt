@@ -108,8 +108,8 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item(key = "search", contentType = "search") {
-      LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
-        onExpandedChange = {}, modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
+      Os4SearchField(query = query, onQueryChange = { query = it },
+        modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
     }
     item(key = "summary", contentType = "summary") {
       val disclosure = stringResource(if (showPreviewNote) R.string.browser_note_hide else R.string.browser_note_show)

@@ -312,8 +312,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       if (index >= 0) listState.animateScrollToItem(index)
     }
   }
-  LaunchedEffect(controller, section) {
-    controller.load()
+  LaunchedEffect(controller, section, locales) {
+    controller.ensureLoaded(locales)
     localLoadRequested = true
   }
   LaunchedEffect(state.retryAtMillis) {

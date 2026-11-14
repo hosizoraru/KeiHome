@@ -20,6 +20,7 @@ internal data class IconPackCardData(
 internal data class IconPacksUiState(
   val packs: List<IconPackCardData> = emptyList(),
   val loading: Boolean = false,
+  val loadingSections: Set<String> = emptySet(),
   val scanned: Boolean = false,
   val importing: Boolean = false,
   val removing: String? = null,

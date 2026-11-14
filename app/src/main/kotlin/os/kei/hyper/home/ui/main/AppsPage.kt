@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.data.IconCapabilityStatus
@@ -85,19 +87,32 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   var query by rememberSaveable { mutableStateOf("") }
   var focusedRow by remember { mutableStateOf<IconBrowserRow?>(null) }
   var showInspection by remember { mutableStateOf(false) }
-  val rows by produceState(emptyList<IconBrowserRow>(), scan.capabilities, source, options) {
-    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-      browserRows(scan.capabilities.orEmpty(), source, options, "")
+  // Capture immutable inputs: background work must not read a newer delegated State.
+  val capabilities = scan.capabilities
+  val currentSource = source
+  val currentOptions = options
+  val currentQuery = query
+  val rowsRequest = remember(capabilities, currentSource, currentOptions) { Any() }
+  val rows by produceState<Pair<Any, List<IconBrowserRow>>?>(null, rowsRequest) {
+    val apps = capabilities ?: return@produceState
+    val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+      browserRows(apps, currentSource, currentOptions, "")
     }
+    currentCoroutineContext().ensureActive()
+    value = rowsRequest to computed
   }
-  val matches by produceState(Pair(emptyList<IconBrowserRow>(), 0), rows, query) {
-    val currentRows = rows
-    val currentQuery = query
-    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-      currentRows.filter { it.app.matchesQuery(currentQuery) } to currentRows.size
+  val currentRows = rows?.takeIf { it.first === rowsRequest }?.second
+  val matchesRequest = remember(rowsRequest, currentQuery) { Any() }
+  val matches by produceState<AppsBrowserResult?>(null, matchesRequest, currentRows) {
+    val readyRows = currentRows ?: return@produceState
+    val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+      computeAppsBrowserMatches(matchesRequest, readyRows, currentQuery, rowsRequest)
     }
+    currentCoroutineContext().ensureActive()
+    value = computed
   }
-  val visible = matches.first
+  val display = AppsBrowserDisplay(matchesRequest, matches, rowsRequest)
+  val visible = display.rows
   val colors = remember(monet.snapshot?.activePalette, monet.snapshot?.customization,
     monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
@@ -115,10 +130,10 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
               Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(browserScopeLabels()[options.scope]), style = MiuixTheme.textStyles.body2,
                   modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                MetadataPill(if (scan.capabilities == null) stringResource(R.string.browser_loading)
-                  else stringResource(R.string.browser_count_compact, visible.size, matches.second),
+                MetadataPill(if (display.loading) stringResource(R.string.browser_loading)
+                  else stringResource(R.string.browser_count_compact, visible.size, display.total),
                   MiuixTheme.colorScheme.onSurfaceSecondary)
-                if (scan.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+                if (scan.loading || display.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
               }
               Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -141,7 +156,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
         TextButton(stringResource(R.string.refresh), onClick = { model.refresh(1) })
       }
     } }
-    if (scan.capabilities != null && visible.isEmpty()) item(key = "empty", contentType = "message") {
+    if (display.showEmpty && !scan.loading) item(key = "empty", contentType = "message") {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(20.dp)) {
         Text(stringResource(R.string.no_matching_apps), style = MiuixTheme.textStyles.body1)
       }
@@ -172,6 +187,30 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
       }
     }
   }
+}
+
+internal data class AppsBrowserResult(val request: Any, val rows: List<IconBrowserRow>, val total: Int,
+  val rowsRequest: Any = request)
+
+internal suspend fun computeAppsBrowserMatches(request: Any, rows: List<IconBrowserRow>,
+  query: String, rowsRequest: Any = request): AppsBrowserResult {
+  val context = currentCoroutineContext()
+  val matches = rows.filter {
+    context.ensureActive()
+    it.app.matchesQuery(query)
+  }
+  context.ensureActive()
+  return AppsBrowserResult(request, matches, rows.size, rowsRequest)
+}
+
+/** Only query changes may retain rows, with loading feedback; empty requires the exact current request. */
+internal class AppsBrowserDisplay(request: Any, result: AppsBrowserResult?, rowsRequest: Any = request) {
+  private val current = result?.takeIf { it.request === request && it.rowsRequest === rowsRequest }
+  private val usable = current ?: result?.takeIf { it.rowsRequest === rowsRequest && it.rows.isNotEmpty() }
+  val loading get() = current == null
+  val rows get() = usable?.rows.orEmpty()
+  val total get() = usable?.total ?: 0
+  val showEmpty get() = current != null && current.rows.isEmpty()
 }
 
 internal data class IconPreviewColors(val lightBackground: Int, val lightForeground: Int,

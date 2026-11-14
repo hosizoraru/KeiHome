@@ -101,6 +101,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   var removingPack by remember { mutableStateOf<IconPackDescriptor?>(null) }
   var confirmRemoval by remember { mutableStateOf(false) }
   val busy = state.importing || state.nativeImporting != null || state.removing != null
+  val sectionLoading = state.isSectionLoading(section)
   LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
@@ -210,10 +211,10 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             onRemove = if (card.pack.source is IconPackSource.Imported) ({
               removingPack = card.pack
               confirmRemoval = true
-            }) else null, removeEnabled = !busy && !state.loading,
+            }) else null, removeEnabled = !busy && !sectionLoading,
             removing = state.removing == card.pack.id)
         }
-        if (state.scanned && cards.isEmpty()) item("empty") {
+        if (!sectionLoading && (state.scanned || state.loading) && cards.isEmpty()) item("empty") {
           PackInfoCard(stringResource(if (filter.isActive) R.string.pack_list_filter_empty
             else if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
             Modifier.testTag("icon-packs.empty"))
@@ -221,7 +222,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
     }
     item("feedback") {
-      IconPackRefreshFeedback(model)
+      IconPackRefreshFeedback(model, section)
     }
   }
   Os4ActionDialog(confirmRemoval, { confirmRemoval = false },

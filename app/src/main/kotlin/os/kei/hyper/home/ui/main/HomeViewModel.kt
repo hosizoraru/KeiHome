@@ -571,6 +571,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       packRepository.invalidateInstalled()
       if (visiblePage in 0..1) scanApps()
       if (visiblePage == 3 || iconPacks.value.scanned) readIconPacks()
+      else applePacks.refreshTargetsIfLoaded()
       packageInventoryRevision.value++
     }
   }
@@ -725,36 +726,63 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  private suspend fun launcherIconTargets(): List<IconPackComponent> = withContext(Dispatchers.IO) {
-    val caller = currentCoroutineContext()
-    os.kei.hyper.home.data.iconPackTargets(getApplication()) { caller.ensureActive() }
+  private suspend fun launcherIconTargets(): List<IconPackComponent> = traceIconInformation("targets") {
+    withContext(Dispatchers.IO) {
+      val caller = currentCoroutineContext()
+      os.kei.hyper.home.data.iconPackTargets(getApplication()) { caller.ensureActive() }
+    }
   }
 
   private suspend fun readIconPacks() = iconPacksMutex.withLock {
     iconPacksDirty = false
     applePacks.refreshTargetsIfLoaded()
-    iconPacks.update { it.copy(loading = true, error = null) }
+    iconPacks.update { it.copy(loading = true, loadingSections = iconPackCatalogFamilies,
+      failedSources = 0, error = null) }
     try {
-      val targets = launcherIconTargets()
-      val scans = coroutineScope {
-        val installed = async { packRepository.listInstalled() }
-        val builtins = async { packRepository.listBuiltins() }
-        val imported = async { packRepository.listImported() }
-        val apple = async { appleRepository.descriptor() }
-        val builtinResult = builtins.await()
-        val builtinIds = builtinResult.packs.map { it.id }.toSet()
-        listOf(builtinResult, installed.await(),
-          imported.await().let { it.copy(packs = it.packs.filterNot { pack -> pack.id in builtinIds }) },
-          os.kei.hyper.home.iconpack.IconPackScanResult(listOfNotNull(apple.await()), emptyList()))
+      // Receipts are cheap and needed by cards as soon as the first family is published.
+      readImportState()?.let { stored ->
+        iconPacks.update { it.copy(nativeAssociations = stored.associations, nativeSources = stored.allSources) }
       }
-      val cards = withContext(Dispatchers.Default) {
-        scans.flatMap { it.packs }.map { iconPackCardData(it, targets) }
+      val catalog = ProgressiveIconPackCatalog(iconPacks.value.packs)
+      val failures = mutableMapOf<String, Int>()
+      val errors = mutableMapOf<String, String>()
+      val loaders: Map<String, suspend () -> os.kei.hyper.home.iconpack.IconPackScanResult> = linkedMapOf(
+        "builtin" to { packRepository.listBuiltins() },
+        "installed" to { packRepository.listInstalled() },
+        "imported" to { packRepository.listImported() },
+        "apple" to { os.kei.hyper.home.iconpack.IconPackScanResult(
+          listOfNotNull(appleRepository.descriptor()), emptyList()) },
+      )
+      coroutineScope {
+        val targets = async { launcherIconTargets() }
+        publishCatalogFamilies(loaders.mapValues { (family, load) -> suspend {
+          val scan = traceIconInformation(family, load)
+          val resolvedTargets = targets.await()
+          val cards = withContext(Dispatchers.Default) {
+            val caller = currentCoroutineContext()
+            scan.packs.map { caller.ensureActive(); iconPackCardData(it, resolvedTargets) }
+          }
+          cards to scan.failures.size
+        } }) { family, result ->
+          val cards = result.getOrNull()?.let { (cards, count) ->
+            failures[family] = count
+            catalog.replace(family, cards)
+          }
+          result.exceptionOrNull()?.let { failure ->
+            failures[family] = 1
+            errors[family] = failure.message.orEmpty()
+          }
+          iconPacks.update { state -> state.copy(packs = cards ?: state.packs,
+            loadingSections = state.loadingSections - family,
+            failedSources = failures.values.sum(),
+            error = if (errors.isEmpty()) state.error else
+              iconPackCatalogFamilies.mapNotNull { errors[it] }.joinToString("\n")) }
+        }
       }
-      iconPacks.update { it.copy(packs = cards, scanned = true,
-        failedSources = scans.sumOf { scan -> scan.failures.size }) }
+      iconPacks.update { it.copy(scanned = true) }
     } catch (cancelled: CancellationException) { iconPacksDirty = true; throw cancelled
     } catch (failure: Exception) { iconPacks.update { it.copy(error = failure.message.orEmpty()) }
-    } finally { iconPacks.update { it.copy(loading = false) } }
+    } finally { iconPacks.update { it.copy(loading = false, loadingSections = emptySet()) } }
   }
 
   private fun scanApps() {

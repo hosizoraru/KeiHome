@@ -76,10 +76,12 @@ private data class IconPackRefreshFeedbackState(
 private enum class RefreshPhase { LOADING, COMPLETE, FAILED }
 
 @Composable
-internal fun IconPackRefreshFeedback(model: HomeViewModel) {
-  val feedback by remember(model) {
+internal fun IconPackRefreshFeedback(model: HomeViewModel, section: String? = null) {
+  val feedback by remember(model, section) {
     combine(model.refreshing, model.refreshResults, model.iconPacks) { refreshing, results, packs ->
-      IconPackRefreshFeedbackState(3 in refreshing || packs.loading, results[3], packs.error, packs.failedSources)
+      IconPackRefreshFeedbackState(
+        if (section == null) 3 in refreshing || packs.loading else packs.isSectionLoading(section),
+        results[3].takeUnless { section != null && packs.loading }, packs.error, packs.failedSources)
     }.distinctUntilChanged()
   }.collectAsStateWithLifecycle(initialValue = IconPackRefreshFeedbackState())
   val phase = when {

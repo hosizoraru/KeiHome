@@ -94,7 +94,14 @@ GROUPS = {
     "ui-color-editor": ("device", "Color input, confirmation and draft recreation", (
         UI + "MonetColorEditorTest",)),
     "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
-        UI + "PackSettingsNavigationTest",)),
+        UI + "PackSettingsNavigationTest", UI + "PackSettingsOpenCurrentIconPackTest")),
+    "status-pack-shortcut": ("jvm", "Default-on preference and applied-source navigation", (
+        "OpenCurrentIconPackPreferencesTest", "StatusIconPackDestinationTest")),
+    "icon-pack-read": ("jvm", "Archive validation receipts, bounded metadata reuse and progressive loading", (
+        "IconPackArchiveTest", "IconPackValidationCacheTest", "ResourceOverlayCacheTest",
+        "ProgressiveIconPackCatalogTest", "ApplePackLoadGateTest", "AppsBrowserDisplayTest")),
+    "ui-pack-read": ("device", "Apple entry reuse, invalidation and asynchronous rows", (
+        UI + "ApplePackLoadingDeviceTest",)),
     "ui-pack-previews": ("device", "Compact actions, artwork alpha, published masks and preview invalidation", (
         UI + "CompactPackPreviewUiTest", UI + "AppliedPackThumbnailPolicyUiTest",
         UI + "MaskComparisonPreservationUiTest", UI + "IconPreviewShapeUiTest",

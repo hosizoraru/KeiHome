@@ -1,31 +1,36 @@
 package os.kei.hyper.home.ui.main
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import os.kei.hyper.home.ui.components.Os4DisclosureHeader
-import os.kei.hyper.home.ui.components.Os4DisclosureContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import os.kei.hyper.home.R
-import top.yukonga.miuix.kmp.basic.Card
+import os.kei.hyper.home.data.PackGuidancePage
+import os.kei.hyper.home.data.PackGuidancePreferences
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
-import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -34,41 +39,68 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Informational notes only; errors, progress and actionable warnings stay in the page. */
 @Composable
-internal fun PackHelpAction(notes: List<String>) {
-  if (notes.isEmpty()) return
-  if (notes.size == 1) {
-    Os4InfoPopup(
-      title = stringResource(R.string.pack_guidance_title),
-      summary = notes.single(),
-    )
-    return
+internal fun PackHelpAction(
+  notes: List<String>,
+  page: PackGuidancePage,
+  active: Boolean = true,
+  preferences: PackGuidancePreferences? = null,
+  revision: Int = PackGuidancePreferences.CURRENT_REVISION,
+) {
+  val guidance = remember(notes) { notes.filter { it.isNotBlank() }.distinct() }
+  if (guidance.isEmpty()) return
+  val context = LocalContext.current
+  val progress = remember(context, preferences) {
+    try {
+      preferences ?: PackGuidancePreferences.get(context)
+    } catch (failure: Exception) {
+      Log.w("KeiHomePackGuidance", "Cannot open guidance progress; using this page session", failure)
+      null
+    }
   }
-  var showing by rememberSaveable { mutableStateOf(false) }
+  val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+  // NavDisplay supplies an entry lifecycle; pager callers must additionally pass their active tab.
+  val foreground = active && lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+  var showing by rememberSaveable(page.storageKey, revision) { mutableStateOf(false) }
+  var presented by remember(page.storageKey, revision) { mutableStateOf(false) }
+  LaunchedEffect(progress, page, revision, foreground) {
+    if (!foreground) showing = false
+    else if (!presented) {
+      val seen = try {
+        progress?.hasSeen(page, revision) ?: false
+      } catch (failure: Exception) {
+        Log.w("KeiHomePackGuidance", "Cannot read guidance progress for ${page.storageKey}", failure)
+        false
+      }
+      if (!seen) showing = true
+    }
+  }
+  // Capture visibility so the key and guard agree even if the auto-open effect changes showing.
+  val sheetVisible = foreground && showing
+  LaunchedEffect(progress, page, revision, sheetVisible) {
+    // Record only after a visible sheet has been composed, never during inactive precomposition.
+    if (sheetVisible) {
+      // A failed save must not reopen help in this mount; a fresh entry can retry.
+      presented = true
+      try {
+        progress?.markSeen(page, revision)
+      } catch (failure: Exception) {
+        Log.w("KeiHomePackGuidance", "Cannot save guidance progress for ${page.storageKey}", failure)
+      }
+    }
+  }
   val title = stringResource(R.string.pack_guidance_title)
-  IconButton(onClick = { showing = true }) { Icon(MiuixIcons.Glass.Info, title) }
-  Os4DetailsSheet(show = showing, title = title, scrollContent = false, onDismissRequest = { showing = false }) {
-    GuidanceNotes(notes, Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
+  IconButton(onClick = { showing = true }, modifier = Modifier.testTag("pack-guidance.help.${page.storageKey}")) {
+    Icon(MiuixIcons.Glass.Info, title)
+  }
+  // Keep the native sheet composed through its drag/back exit animation.
+  Os4DetailsSheet(show = sheetVisible, title = title, scrollContent = false,
+    modifier = Modifier.testTag("pack-guidance.sheet.${page.storageKey}"),
+    onDismissRequest = { showing = false }) {
+    GuidanceNotes(guidance, Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
       .verticalScroll(rememberScrollState()))
     Os4DialogButton(stringResource(R.string.pack_guidance_done), onClick = { showing = false },
       modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
       role = GlassDialogButtonRole.Primary)
-  }
-}
-
-@Composable
-internal fun PackGuidanceCard(notes: List<String>, modifier: Modifier = Modifier) {
-  if (notes.isEmpty()) return
-  var expanded by rememberSaveable { mutableStateOf(false) }
-  val state = stringResource(if (expanded) R.string.pack_guidance_expanded else R.string.pack_guidance_collapsed)
-  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    Os4DisclosureHeader(
-      title = stringResource(R.string.pack_guidance_title), summary = notes.firstOrNull(),
-      expanded = expanded, stateLabel = state, onToggle = { expanded = !expanded },
-      actionLabel = stringResource(if (expanded) R.string.pack_guidance_collapse else R.string.pack_guidance_expand),
-    )
-    Os4DisclosureContent(expanded) {
-      GuidanceNotes(notes.drop(1), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp))
-    }
   }
 }
 

@@ -68,7 +68,7 @@ internal data class AppPreferencesState(
   val colorOsArtPlus: Boolean = true,
   val colorOsComponents: Map<String, Boolean> = emptyMap(),
   val monetInspiration: Boolean? = null,
-  val compactPackHints: Boolean = false,
+  val keepLatestGeneratedPacks: Boolean = true,
   val navigationBarStyle: AppNavigationBarStyle = AppNavigationBarStyle.OS4_GLASS,
   val cacheReminderBytes: Long = 0L,
 ) {
@@ -143,7 +143,7 @@ internal class AppPreferences internal constructor(
       .associate { it.removePrefix("coloros_component_") to preferences.getBoolean(it, false) },
     monetInspiration = if (preferences.contains("monet_inspiration"))
       preferences.getBoolean("monet_inspiration", false) else null,
-    compactPackHints = preferences.getBoolean("compact_pack_hints", false),
+    keepLatestGeneratedPacks = preferences.getBoolean("keep_latest_generated_packs", true),
     navigationBarStyle = AppNavigationBarStyle.entries.firstOrNull {
       it.name == preferences.getString("navigation_bar_style", null)
     } ?: AppNavigationBarStyle.OS4_GLASS,
@@ -253,9 +253,9 @@ internal class AppPreferences internal constructor(
     state.update { it.copy(showIconPreviews = value) }
   }
 
-  fun setCompactPackHints(value: Boolean) {
-    preferences.edit().putBoolean("compact_pack_hints", value).apply()
-    state.update { it.copy(compactPackHints = value) }
+  fun setKeepLatestGeneratedPacks(value: Boolean) {
+    preferences.edit().putBoolean("keep_latest_generated_packs", value).apply()
+    state.update { it.copy(keepLatestGeneratedPacks = value) }
   }
 
   fun setIconPackAppearance(value: IconPackAppearance) {

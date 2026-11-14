@@ -63,7 +63,7 @@ internal fun SettingsContent(
   searchGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
-  onCompactPackHintsChange: (Boolean) -> Unit = {},
+  onKeepLatestGeneratedPacksChange: (Boolean) -> Unit = {},
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
   onOpenRecommendedMappings: (() -> Unit)? = null,
   fallbackContent: @Composable () -> Unit,
@@ -128,8 +128,9 @@ internal fun SettingsContent(
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
   val rememberMenus = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
-  val compactPackHints = matches(SettingsSection.PACKS, R.string.pack_action_settings,
-    R.string.pack_compact_hints_title, R.string.pack_compact_hints_summary)
+  val keepLatestGeneratedPacks = matches(SettingsSection.PACKS, R.string.pack_action_settings,
+    R.string.pack_settings_experience, R.string.generated_pack_retention_title,
+    R.string.generated_pack_retention_summary)
   val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
     R.string.browser_pager_native, R.string.browser_pager_cross)
@@ -145,7 +146,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, compactPackHints,
+    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -227,10 +228,12 @@ internal fun SettingsContent(
     }
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
-    if (autoApply || installedIconsOnly || rememberMenus || compactPackHints || previews) {
+    if (autoApply || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
-        onRememberMenusChange, onCompactPackHintsChange, onPreviewsChange,
-        autoApply, installedIconsOnly, rememberMenus, compactPackHints, previews)
+        onRememberMenusChange, onPreviewsChange,
+        showAutoApply = autoApply, showInstalledOnly = installedIconsOnly,
+        showRememberMenus = rememberMenus, showPreviews = previews,
+        onKeepLatestGeneratedPacks = onKeepLatestGeneratedPacksChange.takeIf { keepLatestGeneratedPacks })
     }
     if (pageScroll || pagerMode) {
       SmallTitle(stringResource(R.string.browser_pager_title))

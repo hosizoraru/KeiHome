@@ -1,0 +1,5 @@
+<resources>
+    <string name="generated_pack_retention_title">生成したパックは最新版のみ保持</string>
+    <string name="generated_pack_retention_summary">Apple と Perfect Icons は、それぞれ最新の生成バージョンを保持します。新しいパックの保存に成功すると古いバージョンを自動削除します。手動でインポートしたアイコンパックは保持されます。</string>
+    <string name="generated_pack_retention_note">生成したパックの最新版のみを保持する設定は、デフォルトで有効です。Apple と Perfect Icons はそれぞれの最新版を保持し、新しいパックの保存に成功すると古いバージョンを自動削除します。生成履歴を残すには「アイコン > その他の設定」でこの設定をオフにしてください。手動でインポートしたアイコンパックは保持されます。</string>
+</resources>

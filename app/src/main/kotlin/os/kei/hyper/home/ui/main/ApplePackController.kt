@@ -67,6 +67,7 @@ internal class ApplePackController(
   private val repository: AppleIconRepository,
   private val rowDispatcher: CoroutineDispatcher = Dispatchers.IO,
   private val loadTargets: suspend () -> List<AppleAppTarget> = { repository.targets() },
+  private val keepLatestGeneratedPacks: () -> Boolean = { true },
   private val onGenerated: () -> Unit,
 ) {
   private val mutable = MutableStateFlow(ApplePackUiState(repository.options()))
@@ -283,7 +284,8 @@ internal class ApplePackController(
           mutable.update { it.copy(error = ApplePackError.EMPTY) }
           return@launch
         }
-        val result = repository.generate(targets, snapshot.options, retryIncomplete = refresh) { progress ->
+        val result = repository.generate(targets, snapshot.options, retryIncomplete = refresh,
+          keepLatest = keepLatestGeneratedPacks()) { progress ->
           mutable.update { it.copy(progress = progress) }
         }
         val bytes = repository.cacheBytes()

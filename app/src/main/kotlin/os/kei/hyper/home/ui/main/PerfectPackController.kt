@@ -101,6 +101,7 @@ internal class PerfectPackController(
   private val repository: PerfectIconRepository,
   private val packs: IconPackRepository,
   private val storageId: String = PERFECT_PACK_UI_STORAGE_ID,
+  private val keepLatestGeneratedPacks: () -> Boolean = { true },
   private val onGenerated: () -> Unit,
 ) {
   private val app = context.applicationContext
@@ -223,8 +224,10 @@ internal class PerfectPackController(
             val id = saved.optString("recordId")
             val pack = packs.listImported().packs.firstOrNull { it.id == id } ?: if (result.file.isFile) {
               failure = PerfectPackError.IMPORT
-              importGenerated(result.file, generatedOptions).also {
+              val keepLatest = keepLatestGeneratedPacks()
+              importGenerated(result.file, generatedOptions, keepLatest).also {
                 remember(result, generatedOptions, it.id)
+                if (keepLatest) prunePrevious(it, result.file)
                 withContext(Dispatchers.Main.immediate) { onGenerated() }
               }
             } else null
@@ -443,6 +446,7 @@ internal class PerfectPackController(
       return
     }
     val options = state.value.options
+    val keepLatest = keepLatestGeneratedPacks()
     mutableState.update { it.copy(generating = true, progress = null, clearedBytes = null, error = null) }
     scope.launch {
       var failure = PerfectPackError.INSTALLED
@@ -464,8 +468,9 @@ internal class PerfectPackController(
           loaded = false
           mutableState.update { it.copy(result = result, generatedOptions = options, pack = null) }
           failure = PerfectPackError.IMPORT
-          val pack = importGenerated(result.file, options)
+          val pack = importGenerated(result.file, options, keepLatest)
           remember(result, options, pack.id)
+          if (keepLatest) prunePrevious(pack, result.file)
           withContext(Dispatchers.Main.immediate) { onGenerated() }
           val targets = iconPackTargets(app) { coroutineContext.ensureActive() }
           mutableState.update { it.copy(pack = iconPackCardData(pack, targets)) }
@@ -535,15 +540,24 @@ internal class PerfectPackController(
     }
   }
 
-  private suspend fun importGenerated(file: File, options: PerfectIconOptions): IconPackDescriptor =
+  private suspend fun importGenerated(file: File, options: PerfectIconOptions,
+    keepLatest: Boolean = keepLatestGeneratedPacks()): IconPackDescriptor =
     when (val imported = packs.importPerfectPublication(file,
       app.getString(os.kei.hyper.home.R.string.perfect_icons_title) + " · " +
         (options.style.ifEmpty { app.getString(os.kei.hyper.home.R.string.perfect_icons_style_default) })
-          .take(96) + ".zip")) {
+          .take(96) + ".zip", keepLatest)) {
       is IconPackImportResult.Success -> imported.pack
       is IconPackImportResult.Failure ->
         throw IOException("Generated pack import failed: ${imported.message}", imported.cause)
     }
+
+  private suspend fun prunePrevious(pack: IconPackDescriptor, file: File) {
+    try { packs.prunePerfectPublications(pack, file)
+    } catch (cancelled: CancellationException) { throw cancelled
+    } catch (failure: Exception) {
+      android.util.Log.w("KeiHomePerfectIcons", "Previous generated packs could not be cleaned", failure)
+    }
+  }
 
   private fun remember(result: PerfectIconResult, options: PerfectIconOptions, recordId: String) {
     val saved = JSONObject().put("recordId", recordId).put("file", result.file.absolutePath)

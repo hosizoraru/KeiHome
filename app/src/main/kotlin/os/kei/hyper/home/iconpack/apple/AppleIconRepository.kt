@@ -330,6 +330,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
 
   suspend fun generate(targets: List<AppleAppTarget>, options: AppleIconOptions, refresh: Boolean = false,
     retryIncomplete: Boolean = false,
+    keepLatest: Boolean = true,
     progress: (AppleGenerationProgress) -> Unit): AppleGenerationResult = mutex.withLock {
     withContext(Dispatchers.IO) { try {
       val selected = targets.mapNotNull { target -> match(target, options)?.let { target to it } }
@@ -441,9 +442,11 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }
       resolved.keys.filterNot { it in failedUpdates }.forEach { settings.remove("updated.$it") }
       pruneImages(resolved.values.flatMap { listOfNotNull(it.light, it.dark) }.toSet())
-      // Keep the previous immutable archive for in-flight previews and conversion.
-      generated.listFiles().orEmpty().filter { it.extension == "zip" && it != archive }
-        .sortedByDescending { it.lastModified() }.drop(1).forEach { it.delete() }
+      if (keepLatest) {
+        val failures = os.kei.hyper.home.iconpack.pruneGeneratedArchives(generated, archive,
+          os.kei.hyper.home.iconpack.GeneratedPackProducer.APPLE)
+        if (failures.isNotEmpty()) android.util.Log.w("KeiHomeAppleIcons", "Some previous generated ZIPs could not be removed")
+      }
       progress(AppleGenerationProgress(selected.size, selected.size, ""))
       AppleGenerationResult(checkNotNull(descriptor()), assignments.size,
         assignments.values.count { resolved[it]?.dark != null }, reused, failed,

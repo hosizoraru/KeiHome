@@ -1,4 +1,0 @@
-<resources>
-    <string name="pack_compact_hints_title">精简图标包提示</string>
-    <string name="pack_compact_hints_summary">将较长图标包页面中的说明卡片收纳到顶栏帮助中，重要警告仍保留在页面上。</string>
-</resources>

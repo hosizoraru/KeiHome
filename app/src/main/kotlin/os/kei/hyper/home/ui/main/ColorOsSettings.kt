@@ -93,8 +93,6 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
       }
     }
-    if (!inspiration && !preferences.compactPackHints)
-      PackGuidanceCard(colorOsPackGuidance(preferences.autoApplyIconPack))
     if (card == null || result != null) Card(Modifier.fillMaxWidth(),
       insideMargin = PaddingValues(if (result?.imported == true) 0.dp else 16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

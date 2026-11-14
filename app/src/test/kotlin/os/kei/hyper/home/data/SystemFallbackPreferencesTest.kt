@@ -53,39 +53,34 @@ class SystemFallbackPreferencesTest {
     }
   }
 
-  @Test fun compactPackHintsDefaultOffWithoutWritingToLegacyPreferences() {
-    val store = Store(mutableMapOf("remember_menus" to false, "icon_previews" to false))
-    val before = store.values.toMap()
-    assertFalse(AppPreferencesState().compactPackHints)
-    assertFalse(store.open().state.value.compactPackHints)
-    assertEquals(before, store.values)
+  @Test fun generatedPackRetentionDefaultsOnAndIgnoresRetiredHintChoice() {
+    for (legacy in listOf(false, true)) {
+      val store = Store(mutableMapOf("compact_pack_hints" to legacy))
+      val before = store.values.toMap()
+      assertTrue(AppPreferencesState().keepLatestGeneratedPacks)
+      assertTrue(store.open().state.value.keepLatestGeneratedPacks)
+      assertEquals(before, store.values)
+    }
   }
 
-  @Test fun compactPackHintsRestoreBothSavedChoicesWithoutOverwritingStorage() {
+  @Test fun generatedPackRetentionRestoresBothChoicesWithoutWriting() {
     for (enabled in listOf(false, true)) {
-      val store = Store(mutableMapOf("compact_pack_hints" to enabled))
-      assertEquals(enabled, store.open().state.value.compactPackHints)
-      assertEquals(mapOf("compact_pack_hints" to enabled), store.values)
+      val store = Store(mutableMapOf("keep_latest_generated_packs" to enabled, "compact_pack_hints" to false))
+      val before = store.values.toMap()
+      assertEquals(enabled, store.open().state.value.keepLatestGeneratedPacks)
+      assertEquals(before, store.values)
     }
   }
 
-  @Test fun compactPackHintsTogglePersistsAcrossInstancesAndPreservesOtherSettings() {
-    val store = Store(mutableMapOf(
-      "icon_previews" to false,
-      "remember_menus" to false,
-      "coloros_component_com.example.app" to true,
-      "system_icon_fallback" to SystemIconFallback.CLASSIC.name,
-    ))
-    val originalValues = store.values.toMap()
-    val originalState = store.open().state.value
-    var preferences = store.open()
-    for (enabled in listOf(true, false, true)) {
-      preferences.setCompactPackHints(enabled)
-      assertEquals(originalState.copy(compactPackHints = enabled), preferences.state.value)
-      assertEquals(originalValues + ("compact_pack_hints" to enabled), store.values)
-      preferences = store.open()
-      assertEquals(originalState.copy(compactPackHints = enabled), preferences.state.value)
-    }
+  @Test fun generatedPackRetentionSetterPreservesUnrelatedPreferences() {
+    val store = Store(mutableMapOf("compact_pack_hints" to false, "icon_previews" to false))
+    val preferences = store.open()
+    preferences.setKeepLatestGeneratedPacks(false)
+    assertFalse(preferences.state.value.keepLatestGeneratedPacks)
+    preferences.setKeepLatestGeneratedPacks(true)
+    assertTrue(store.open().state.value.keepLatestGeneratedPacks)
+    assertEquals(false, store.values["compact_pack_hints"])
+    assertEquals(false, store.values["icon_previews"])
   }
 
   @Test fun legacySelectionsRestoreWhenBundledAndDegradeWithoutOverwritingSavedChoice() {

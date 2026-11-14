@@ -31,11 +31,11 @@ class PerfectPublicationDeviceTest {
     finally { root.deleteRecursively() }
   }
 
-  private fun writePack(file: File, transform: ByteArray? = null) {
+  private fun writePack(file: File, transform: ByteArray? = null, shade: Int = 0xff245688.toInt()) {
     file.parentFile?.mkdirs()
     val bitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
     val pixels = try {
-      bitmap.eraseColor(0xff245688.toInt())
+      bitmap.eraseColor(shade)
       ByteArrayOutputStream().use { output ->
         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
         output.toByteArray()
@@ -53,6 +53,22 @@ class PerfectPublicationDeviceTest {
         zip.closeEntry()
       }
     }
+  }
+
+  @Test fun successfulReplacementCleansBothPrivateCopiesAndLeavesLatestUsable() = fixture { repository, files ->
+    val old = File(files, "perfect-icons/generated/perfect-${"a".repeat(12)}-${"b".repeat(24)}.zip")
+    val latest = File(files, "perfect-icons/generated/perfect-${"c".repeat(12)}-${"d".repeat(24)}.zip")
+    writePack(old, HyperOs4IconModule.transform(false, null))
+    val first = repository.importPerfectPublication(old, keepLatest = false) as IconPackImportResult.Success
+    writePack(latest, HyperOs4IconModule.transform(false, null), 0xff668824.toInt())
+    val next = repository.importPerfectPublication(latest, keepLatest = true) as IconPackImportResult.Success
+    val oldRecord = (first.pack.source as IconPackSource.Imported).record
+    val latestRecord = (next.pack.source as IconPackSource.Imported).record
+    assertTrue(old.isFile && oldRecord.originalFile.isFile)
+    repository.prunePerfectPublications(next.pack, latest)
+    assertTrue(latest.isFile && latestRecord.originalFile.isFile)
+    assertTrue(!old.exists() && !oldRecord.originalFile.exists())
+    assertEquals(listOf(next.pack.id), repository.listImported().packs.map { it.id })
   }
 
   @Test fun independentModuleWithTheActualStockMaskIsAdmitted() = fixture { repository, files ->

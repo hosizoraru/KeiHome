@@ -161,12 +161,14 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     { pack, entry -> packPreviews.loadApplied(pack, entry) })
   private val packRepository = IconPackRepository(application)
   private val appleRepository = os.kei.hyper.home.iconpack.apple.AppleIconRepository(application)
-  val applePacks: ApplePackController = ApplePackController(viewModelScope, appleRepository) {
+  val applePacks: ApplePackController = ApplePackController(viewModelScope, appleRepository,
+    keepLatestGeneratedPacks = { preferences.state.value.keepLatestGeneratedPacks }) {
     iconPacksDirty = true
     viewModelScope.launch { readIconPacks() }
   }
   internal val perfectPacks = PerfectPackController(application, viewModelScope,
-    os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application), packRepository) {
+    os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(application), packRepository,
+    keepLatestGeneratedPacks = { preferences.state.value.keepLatestGeneratedPacks }) {
     importedPackRevision.value++
     iconPacksDirty = true
     viewModelScope.launch { readIconPacks() }

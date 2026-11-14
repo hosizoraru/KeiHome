@@ -1,6 +1,7 @@
 package os.kei.hyper.home.iconpack
 
 import android.content.Context
+import android.util.Log
 import os.kei.hyper.home.data.RecommendedIconMappings
 import android.content.Intent
 import android.content.pm.PackageInfo
@@ -165,7 +166,8 @@ internal class IconPackRepository(
   }
 
   /** Internal publication path; document imports continue to require a granted content URI. */
-  suspend fun importPerfectPublication(file: File, displayName: String = "Perfect Icons.zip"): IconPackImportResult = withContext(worker) {
+  suspend fun importPerfectPublication(file: File, displayName: String = "Perfect Icons.zip",
+    keepLatest: Boolean = true): IconPackImportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     try {
       val owned = File(application.filesDir, "perfect-icons/generated").canonicalFile
@@ -177,7 +179,8 @@ internal class IconPackRepository(
       caller.ensureActive()
       require(displayName.length in 1..256 && displayName.none { it.code < 32 })
       val stored = file.inputStream().use { input ->
-        store.import(input, displayName, Build.VERSION.SDK_INT, { caller.ensureActive() })
+        store.import(input, displayName, Build.VERSION.SDK_INT, { caller.ensureActive() },
+          generatedBy = GeneratedPackProducer.PERFECT, replacingGenerated = keepLatest)
       }
       require(stored.record.format == IconPackFormat.MIUI_ICONS) {
         "Expected a standalone Perfect Icons module"
@@ -187,6 +190,15 @@ internal class IconPackRepository(
     } catch (failure: Exception) {
       IconPackImportResult.Failure(failure.message ?: "Generated icon pack could not be imported", failure)
     }
+  }
+
+  suspend fun prunePerfectPublications(latest: IconPackDescriptor, file: File) = withContext(worker) {
+    val record = (latest.source as? IconPackSource.Imported)?.record ?: return@withContext
+    val root = File(application.filesDir, "perfect-icons/generated")
+    val removed = store.pruneGenerated(GeneratedPackProducer.PERFECT, record.id)
+    synchronized(importedCache) { removed.forEach { importedCache.remove(it) } }
+    val failures = pruneGeneratedArchives(root, file, GeneratedPackProducer.PERFECT)
+    if (failures.isNotEmpty()) Log.w("KeiHomePerfectIcons", "Some previous generated ZIPs could not be removed")
   }
 
   /** Classic/APK export is a static snapshot of one mode. Native imports preserve the entire

@@ -1,0 +1,5 @@
+<resources>
+    <string name="generated_pack_retention_title">Keep only the latest generated packs</string>
+    <string name="generated_pack_retention_summary">Apple and Perfect Icons each keep their latest generated version. Older versions are removed after a new pack is saved successfully. Manually imported icon packs are kept.</string>
+    <string name="generated_pack_retention_note">Keeping only the latest generated packs is enabled by default. Apple and Perfect Icons each keep their own latest generated version; older versions are removed after a new pack is saved successfully. To keep generated pack history, turn this off in Icon packs > More settings. Manually imported icon packs are kept.</string>
+</resources>

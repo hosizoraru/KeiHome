@@ -68,12 +68,12 @@ class PackSettingsOpenCurrentIconPackTest {
             onAutoApply = { unrelatedChanges += "auto-apply" },
             onInstalledOnly = { unrelatedChanges += "installed-only" },
             onRememberMenus = { unrelatedChanges += "remember-menus" },
-            onCompactHints = { unrelatedChanges += "compact-hints" },
             onPreviews = { unrelatedChanges += "previews" },
             onOpenCurrentIconPack = {
               changes += it
               current.setOpenCurrentIconPack(it)
             },
+            onKeepLatestGeneratedPacks = { unrelatedChanges += "keep-latest-generated-packs" },
           )
         }
       }

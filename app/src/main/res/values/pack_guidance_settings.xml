@@ -1,4 +1,0 @@
-<resources>
-    <string name="pack_compact_hints_title">Compact icon pack hints</string>
-    <string name="pack_compact_hints_summary">Move explanatory cards on long icon pack pages into the top bar help. Important warnings remain visible on the page.</string>
-</resources>

@@ -33,6 +33,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
@@ -139,10 +140,12 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           } }, actions = {
-            if (prefs.compactPackHints) when (section) {
-              "installed", "imported" -> PackHelpAction(packListGuidance(prefs.iconPackAppearance) +
-                if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList())
-              "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack))
+            when (section) {
+              "installed", "imported" -> PackHelpAction(
+                notes = packListGuidance(prefs.iconPackAppearance) +
+                  if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList(),
+                page = if (section == "installed") PackGuidancePage.INSTALLED else PackGuidancePage.IMPORTED)
+              "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack), PackGuidancePage.COLOROS)
             }
             if (section == "installed" || section == "imported") {
               PackFilterMenu(filter, updateFilter)

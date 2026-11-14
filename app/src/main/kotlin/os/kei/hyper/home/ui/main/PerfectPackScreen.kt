@@ -109,6 +109,11 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             }
           },
           actions = {
+            PackHelpAction(listOf(
+              stringResource(R.string.perfect_git_overview_summary),
+              stringResource(R.string.perfect_icons_limits_summary),
+              stringResource(R.string.generated_pack_retention_note),
+            ), page = os.kei.hyper.home.data.PackGuidancePage.PERFECT)
             IconButton(onClick = { vm.perfectPacks.checkUpdates() }, enabled = !busy && !cooling,
               modifier = Modifier.testTag("icon-packs.perfect.check-updates")) {
               Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_git_check))

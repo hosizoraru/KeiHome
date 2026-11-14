@@ -72,6 +72,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.iconpack.apple.AppleCorners
@@ -125,6 +126,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     if (main) {
       add(stringResource(R.string.apple_intro))
       add(stringResource(R.string.apple_source_note))
+      add(stringResource(R.string.generated_pack_retention_note))
       if (state.options.platform == ApplePlatform.IPADOS) add(stringResource(R.string.apple_ipad_note))
       add(stringResource(R.string.apple_resolution_summary))
       add(stringResource(R.string.apple_corners_summary))
@@ -341,7 +343,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } },
         actions = {
-          if (prefs.compactPackHints) PackHelpAction(notes = guidanceNotes)
+          PackHelpAction(notes = guidanceNotes, page = when {
+            main -> PackGuidancePage.APPLE
+            search -> PackGuidancePage.APPLE_SEARCH
+            matchedOnly -> PackGuidancePage.APPLE_MATCHED
+            else -> PackGuidancePage.APPLE_MAPPINGS
+          })
           if (!main && !search) {
             AppleMappingFilterMenu(mappingFilter, regionFilter, regions, matchedOnly,
               onFilter = { filterName = it.name; browserChanged(resetSelection = true) },
@@ -439,6 +446,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           bottom = insets.calculateBottomPadding() +
             maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (main && state.pack != null &&
+          (state.pendingChanges || state.publishedOptions != state.options)) item("pending-options") {
+          PackInfoCard(stringResource(R.string.apple_options_pending),
+            Modifier.testTag("apple.pending-options"))
+        }
         if (search && state.retryAtMillis > 0) item("request-cooldown") {
           PackInfoCard(stringResource(R.string.apple_cooldown_summary,
             android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
@@ -453,9 +465,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }))
             LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
           }
-        }
-        if (!prefs.compactPackHints) item("guidance") {
-          PackGuidanceCard(notes = guidanceNotes)
         }
         if (main) {
           if (state.retryAtMillis > 0) item("cooldown") {
@@ -496,9 +505,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 summary = stringResource(R.string.apple_mapping_manage_summary),
                 enabled = enabled, onClick = { onNavigate("apple-mappings") })
             }
-          }
-          if (state.pack != null && (state.pendingChanges || state.publishedOptions != state.options)) item("pending-options") {
-            PackInfoCard(stringResource(R.string.apple_options_pending))
           }
           item("cache") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

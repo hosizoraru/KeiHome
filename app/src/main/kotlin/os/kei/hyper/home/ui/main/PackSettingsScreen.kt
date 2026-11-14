@@ -58,9 +58,10 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit, onOpen
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
-          model.preferences::setCompactPackHints, model.preferences::setShowIconPreviews,
+          model.preferences::setShowIconPreviews,
           onOpenMask = onOpenMask,
-          onOpenCurrentIconPack = model.preferences::setOpenCurrentIconPack)
+          onOpenCurrentIconPack = model.preferences::setOpenCurrentIconPack,
+          onKeepLatestGeneratedPacks = model.preferences::setKeepLatestGeneratedPacks)
       }
     }
   }
@@ -72,16 +73,15 @@ internal fun PackSettingsContent(
   onAutoApply: (Boolean) -> Unit,
   onInstalledOnly: (Boolean) -> Unit,
   onRememberMenus: (Boolean) -> Unit,
-  onCompactHints: (Boolean) -> Unit,
   onPreviews: (Boolean) -> Unit,
   showAutoApply: Boolean = true,
   showInstalledOnly: Boolean = true,
   showRememberMenus: Boolean = true,
-  showCompactHints: Boolean = true,
   showPreviews: Boolean = true,
   onCompleteSystemIconConfig: ((Boolean) -> Unit)? = null,
   onOpenMask: (() -> Unit)? = null,
   onOpenCurrentIconPack: ((Boolean) -> Unit)? = null,
+  onKeepLatestGeneratedPacks: ((Boolean) -> Unit)? = null,
 ) {
   if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null || onOpenMask != null) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
@@ -105,7 +105,7 @@ internal fun PackSettingsContent(
         modifier = Modifier.testTag("icon-packs.open-mask"))
     }
   }
-  if (showRememberMenus || showCompactHints || showPreviews || onOpenCurrentIconPack != null) {
+  if (showRememberMenus || showPreviews || onOpenCurrentIconPack != null || onKeepLatestGeneratedPacks != null) {
     SmallTitle(stringResource(R.string.pack_settings_experience))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       if (onOpenCurrentIconPack != null) SwitchPreference(
@@ -115,10 +115,12 @@ internal fun PackSettingsContent(
         modifier = Modifier.testTag("icon-packs.open-current"))
       if (showRememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
         summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
-        onCheckedChange = onRememberMenus)
-      if (showCompactHints) SwitchPreference(title = stringResource(R.string.pack_compact_hints_title),
-        summary = stringResource(R.string.pack_compact_hints_summary), checked = preferences.compactPackHints,
-        onCheckedChange = onCompactHints, modifier = Modifier.testTag("settings.compact-pack-hints"))
+        onCheckedChange = onRememberMenus, modifier = Modifier.testTag("settings.remember-pack-menus"))
+      if (onKeepLatestGeneratedPacks != null) SwitchPreference(
+        title = stringResource(R.string.generated_pack_retention_title),
+        summary = stringResource(R.string.generated_pack_retention_summary),
+        checked = preferences.keepLatestGeneratedPacks, onCheckedChange = onKeepLatestGeneratedPacks,
+        modifier = Modifier.testTag("settings.keep-latest-generated-packs"))
       if (showPreviews) SwitchPreference(title = stringResource(R.string.polish_previews_title),
         summary = stringResource(R.string.polish_previews_summary), checked = preferences.showIconPreviews,
         onCheckedChange = onPreviews, modifier = Modifier.testTag("settings.icon-previews"))

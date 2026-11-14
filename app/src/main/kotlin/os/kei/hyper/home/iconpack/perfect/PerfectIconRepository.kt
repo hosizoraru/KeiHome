@@ -1287,9 +1287,6 @@ class PerfectIconRepository internal constructor(
     val destination = File(outputDir, "perfect-${snapshot.sourceHash.take(12)}-$key.zip")
     writeArchive(destination, plan, transform, options = options, mask = mask,
       renderProgress = renderProgress) { blob -> blobFile(blob.sha).readBytes() }
-    // Imports own an independent copy. Keep the new publication and two prior usable outputs.
-    outputDir.listFiles().orEmpty().filter { it != destination && it.name.startsWith("perfect-") && it.extension == "zip" }
-      .sortedByDescending { it.lastModified() }.drop(2).forEach { it.delete() }
     return destination
   }
 

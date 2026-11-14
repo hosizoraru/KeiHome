@@ -23,6 +23,7 @@ internal data class StoredIconPack(
   val iconsFile: File?,
   val storedBytes: Long,
   val nativeIconsSha256: String?,
+  val generatedBy: GeneratedPackProducer? = null,
 )
 
 internal data class IconPackFailure(val sourceId: String, val message: String)
@@ -53,6 +54,8 @@ internal class IconPackStore(
     displayName: String,
     sdk: Int = 37,
     checkCancelled: () -> Unit = {},
+    generatedBy: GeneratedPackProducer? = null,
+    replacingGenerated: Boolean = false,
     validateApk: (File) -> Unit = { throw IconPackException("APK import requires the Android resource reader") },
   ): StoredIconPackImport {
     ensureDirectory()
@@ -65,7 +68,8 @@ internal class IconPackStore(
       if (destination.exists()) {
         val existing = read(hash)
         if (sha256(existing.originalFile, checkCancelled) != hash) throw IconPackException("Stored archive checksum mismatch")
-        return StoredIconPackImport(existing, alreadyPresent = true)
+        if (generatedBy == null) updateOwnership(hash, null, userImported = true)
+        return StoredIconPackImport(read(hash), alreadyPresent = true)
       }
       val icons = File(stage, "icons")
       val index = IconPackArchive(limits).inspect(incoming, icons, sdk, checkCancelled)
@@ -75,8 +79,13 @@ internal class IconPackStore(
       // Corrupt catalog records still occupy disk and count toward the quota.
       val occupied = directory.listFiles().orEmpty().filter { ID.matches(it.name) }
       val usedBytes = occupied.sumOf { dir -> dir.listFiles().orEmpty().sumOf { if (it.isFile) it.length() else 0 } }
-      if (listing.records.size + listing.failures.size >= limits.maxStoredPacks ||
-        bytes > limits.maxStoredBytes - usedBytes
+      val replaceable = if (replacingGenerated && generatedBy != null)
+        listing.records.filter { it.generatedBy == generatedBy } else emptyList()
+      val replacementBytes = replaceable.sumOf { record ->
+        File(directory, record.id).listFiles().orEmpty().sumOf { if (it.isFile) it.length() else 0 }
+      }
+      if (listing.records.size + listing.failures.size - replaceable.size >= limits.maxStoredPacks ||
+        bytes > limits.maxStoredBytes - usedBytes + replacementBytes
       ) throw IconPackException("Icon-pack storage limit exceeded")
       val properties = Properties().apply {
         setProperty("schema", "1")
@@ -85,6 +94,8 @@ internal class IconPackStore(
         setProperty("format", index.format.name)
         setProperty("storedBytes", bytes.toString())
         index.nativeIconsSha256?.let { setProperty("nativeIconsSha256", it) }
+        generatedBy?.let { setProperty("generatedBy", it.name) }
+        setProperty("userImported", (generatedBy == null).toString())
       }
       Files.move(incoming.toPath(), File(stage, payloadName(index.format)).toPath())
       File(stage, "metadata.properties").outputStream().use { properties.store(it, "KeiHome private icon-pack catalog v1") }
@@ -113,6 +124,39 @@ internal class IconPackStore(
       } catch (failure: Exception) { failures += IconPackFailure(child.name, failure.message ?: "Invalid catalog record") }
     }
     return IconPackStoreListing(packs.sortedByDescending { it.importedAt }, failures)
+  }
+
+  private fun updateOwnership(id: String, producer: GeneratedPackProducer?, userImported: Boolean) {
+    val folder = File(directory, id)
+    val metadata = File(folder, "metadata.properties")
+    val properties = Properties().apply { metadata.inputStream().use(::load) }
+    if (properties.getProperty("userImported") == userImported.toString() &&
+      properties.getProperty("generatedBy") == producer?.name) return
+    if (producer == null) properties.remove("generatedBy") else properties.setProperty("generatedBy", producer.name)
+    properties.setProperty("userImported", userImported.toString())
+    val temp = File.createTempFile(".ownership-", ".tmp", folder)
+    try {
+      temp.outputStream().use { properties.store(it, "KeiHome private icon-pack catalog v1") }
+      try { Files.move(temp.toPath(), metadata.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+      } catch (_: AtomicMoveNotSupportedException) {
+        Files.move(temp.toPath(), metadata.toPath(), StandardCopyOption.REPLACE_EXISTING)
+      }
+    } finally { temp.delete() }
+  }
+
+  @Synchronized
+  fun pruneGenerated(producer: GeneratedPackProducer, keepId: String): List<String> {
+    val latest = read(keepId)
+    check(sha256(latest.originalFile) == latest.id) { "Latest generated archive is not intact" }
+    val removed = mutableListOf<String>()
+    for (old in list().records) {
+      if (old.id == keepId || old.generatedBy != producer) continue
+      try {
+        remove(old.id)
+        removed += old.id
+      } catch (_: IOException) { /* Preserve the successfully published replacement if cleanup fails. */ }
+    }
+    return removed
   }
 
   @Synchronized
@@ -157,7 +201,8 @@ internal class IconPackStore(
     val bytes = source.length() + (icons?.length() ?: 0)
     if (properties.getProperty("storedBytes")?.toLongOrNull() != bytes) throw IconPackException("Stored archive size changed")
     return StoredIconPack(id, properties.getProperty("originalName", "Icon pack").take(256),
-      properties.getProperty("importedAt")?.toLongOrNull() ?: 0L, format, source, icons, bytes, nativeHash)
+      properties.getProperty("importedAt")?.toLongOrNull() ?: 0L, format, source, icons, bytes, nativeHash,
+      GeneratedPackProducer.entries.firstOrNull { it.name == properties.getProperty("generatedBy") })
   }
 
   private fun ensureDirectory() {

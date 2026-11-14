@@ -197,10 +197,6 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             else stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
             Modifier.testTag("packs.file-import.status"))
         }
-        if (!preferences.compactPackHints) item("guidance") {
-          PackGuidanceCard(packListGuidance(preferences.iconPackAppearance) + if (section == "installed")
-            listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList())
-        }
         items(cards, key = { it.pack.id }, contentType = { "pack" }) { card ->
           IconPackCard(card, model.packPreviews, preferences.iconPackAppearance,
             state.nativeAssociations[preferences.systemIconFallback.sourceId(card.pack.id)],

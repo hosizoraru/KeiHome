@@ -113,6 +113,16 @@ GROUPS = {
         UI + "MaskComparisonPreservationUiTest", UI + "IconPreviewShapeUiTest",
         UI + "PackGuidanceDeviceTest", "os.kei.hyper.home.iconpack.OriginalIconShapePolicyDeviceTest",
         "os.kei.hyper.home.iconpack.IconMaskPreviewPipelineDeviceTest")),
+    "pack-guidance-retention": ("jvm", "Versioned help, generated archive ownership and cover routing", (
+        "PackGuidancePreferencesTest", "SystemFallbackPreferencesTest", "GeneratedPackRetentionTest",
+        "IconPackArchiveTest", "PerfectIconRepositoryTest")),
+    "ui-pack-guidance-retention": ("device", "First-visit sheets, shared retention setting and manual help", (
+        UI + "PackGuidanceDeviceTest", UI + "PackSettingsGuidanceUiTest",
+        UI + "PackSettingsOpenCurrentIconPackTest",
+        "os.kei.hyper.home.data.PackGuidanceStorageTest")),
+    "generated-pack-retention": ("device", "Perfect publication copies and Apple generation retention", (
+        "os.kei.hyper.home.iconpack.PerfectPublicationDeviceTest",
+        "os.kei.hyper.home.iconpack.AppleIconRepositoryDeviceTest")),
     "icon-mask": ("jvm", "Imported XML, shape preservation and generation identity", (
         "NativeIconMaskImportTest", "NativeIconShapeConfigTest", "IconGenerationManifestTest",
         "IconPackUpdateNoticeTest")),

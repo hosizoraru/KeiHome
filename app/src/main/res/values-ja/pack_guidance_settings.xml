@@ -1,4 +1,0 @@
-<resources>
-    <string name="pack_compact_hints_title">アイコンパックのヒントを簡潔に表示</string>
-    <string name="pack_compact_hints_summary">長いアイコンパックページの説明カードをトップバーのヘルプにまとめます。重要な警告はページに表示したままにします。</string>
-</resources>

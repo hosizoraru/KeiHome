@@ -133,6 +133,23 @@ class AppleIconRepositoryDeviceTest {
     assertTrue(server.requests.isEmpty()); assertEquals(modification, file.lastModified())
   }
 
+  @Test fun generatedArchiveRetentionHonorsOptOutThenKeepsOnlyTheLatestPublication() = fixture { repo, _, dir, _ ->
+    repo.setMatch(target, options, first)
+    val initial = repo.generate(listOf(target), options, keepLatest = false) {}
+    val firstFile = (initial.pack.source as IconPackSource.Generated).file
+    val changed = options.copy(resolution = 512)
+    repo.setMatch(target, changed, first)
+    val next = repo.generate(listOf(target), changed, keepLatest = false) {}
+    val secondFile = (next.pack.source as IconPackSource.Generated).file
+    assertNotEquals(firstFile.name, secondFile.name)
+    assertTrue(firstFile.isFile && secondFile.isFile)
+    val latest = repo.generate(listOf(target), options, keepLatest = true) {}
+    val latestFile = (latest.pack.source as IconPackSource.Generated).file
+    assertEquals(listOf(latestFile.name), File(dir, "generated").listFiles().orEmpty()
+      .filter { it.extension == "zip" }.map { it.name })
+    assertNotNull(repo.descriptor())
+  }
+
   @Test fun clearingDownloadsKeepsMappingsAndRestoresArtworkFromPublishedPackOffline() = fixture { repo, server, _, _ ->
     repo.setMatch(target, options, first)
     repo.generate(listOf(target), options) {}

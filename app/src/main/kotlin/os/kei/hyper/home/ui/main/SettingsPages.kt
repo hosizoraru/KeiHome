@@ -139,7 +139,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
           onClick = { onNavigate(SettingsSection.HOOK.route) })
       }
     },
-    onCompactPackHintsChange = model.preferences::setCompactPackHints,
+    onKeepLatestGeneratedPacksChange = model.preferences::setKeepLatestGeneratedPacks,
     onNavigationBarStyleChange = onNavigationBarStyleChange,
     onOpenRecommendedMappings = onOpenPerfectIcons?.let { open -> { open("recommended-mappings") } },
     desktopStatusObserver = {

@@ -44,6 +44,8 @@ internal class SystemUiAppIconRuntime(
   @Volatile private var cache: CrossSurfaceIconCache? = null
   @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
   @Volatile private var notificationRows: SystemUiNotificationRowReplay? = null
+  @Volatile private var island: SystemUiIslandAppIconAdapter? = null
+  private val islandLock = Any()
   @Volatile private var stopped = false
   private val currentUser = Process.myUid() / 100000
   private val guard = SystemUiHookGuard { reportFailure("notification app icon lookup", it) }
@@ -190,6 +192,33 @@ internal class SystemUiAppIconRuntime(
         }
         chain.proceed()
       }
+    }
+    // Optional plugin capability. Its custom picture/media paths never enter this factory.
+    var islandAdapter: SystemUiIslandAppIconAdapter? = null
+    try {
+      val islandProfile = SystemUiIslandAppIconProfile.resolve(context, loader)
+      val adapter = SystemUiIslandAppIconAdapter(currentUser, lifecycle,
+        snapshot = { name -> cache?.get(name) },
+        remember = { drawable, name -> bindings.remember(drawable, name) },
+        onFailure = { reportFailure("Super Island application icon lookup", it) })
+      islandAdapter = adapter
+      synchronized(islandLock) {
+        check(!stopped) { "Application icon runtime retired during Super Island resolution" }
+        island = adapter
+      }
+      replace(islandProfile.factory, "$HOOK_ID.island-app-factory.v1") { chain ->
+        adapter.intercept(chain.getArg(0) as? String, chain.getArg(1) as? Int,
+          chain.getArg(2) as? ApplicationInfo, chain.getArg(4) as? Context) { chain.proceed() }
+      }
+      report(Log.INFO, TAG, "Super Island native app-identity factory enabled; future binds only")
+    } catch (failure: Throwable) {
+      // Also fence a hook if registration succeeded before an optional reporter failed.
+      islandAdapter?.stop()
+      synchronized(islandLock) {
+        if (island === islandAdapter) island = null
+      }
+      recoverableSystemUiFailure(failure)
+      reportFailure("Super Island application icon profile", failure)
     }
     // Cold requests are retained without starting worker registration during bridge installation.
     iconCache.start()
@@ -448,7 +477,10 @@ internal class SystemUiAppIconRuntime(
     "cache=${cache?.retirementStatus() ?: "released"}, statusbar=${statusBar?.retirementStatus() ?: "released"}"
 
   fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
-    stopped = true
+    synchronized(islandLock) {
+      stopped = true
+      island?.stop()
+    }
     notificationRows?.clear()
     val stoppedStatus = try { statusBar?.stop(deadline) != false } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)

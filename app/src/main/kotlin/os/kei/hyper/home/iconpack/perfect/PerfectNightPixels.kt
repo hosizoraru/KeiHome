@@ -8,7 +8,7 @@ internal object PerfectNightPixels {
       (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
   }
 
-  /** A smooth, low-range native background is one plate, including radial gradients. */
+  /** Smooth native background canvases form one plate, including radial/multihue gradients. */
   fun backgroundPlate(
     pixels: IntArray, width: Int, height: Int, check: () -> Unit,
   ): BooleanArray? {
@@ -43,9 +43,53 @@ internal object PerfectNightPixels {
         if (interior && y > inset) pair(i - width)
       }
     }
-    if (pairs > 0 && roughPairs.toLong() * 200 <= pairs &&
+    val lowRange = pairs > 0 && roughPairs.toLong() * 200 <= pairs &&
       visible.toLong() * 5 >= pixels.size.toLong() * 3 &&
-      (0..2).all { maxs[it] - mins[it] <= 96 }) {
+      (0..2).all { maxs[it] - mins[it] <= 96 }
+    val smoothMultihue = !lowRange && width >= 5 && height >= 5 &&
+      visible == pixels.size && roughPairs == 0 && run {
+        var samples = 0
+        var curved = 0
+        fun channel(i: Int, shift: Int) = pixels[i] ushr shift and 255
+        for (y in 0 until height) {
+          check()
+          for (x in 0 until width) {
+            val i = y * width + x
+            if (pixels[i] ushr 24 < 250) return@run false
+            for (c in 0..2) {
+              val shift = c * 8
+              val value = channel(i, shift)
+              if (x > 0 && kotlin.math.abs(value - channel(i - 1, shift)) > 8) return@run false
+              if (y > 0 && kotlin.math.abs(value - channel(i - width, shift)) > 8) return@run false
+            }
+            if (x < 2 || y < 2 || x >= width - 2 || y >= height - 2) continue
+            samples++
+            var bends = false
+            for (c in 0..2) {
+              val shift = c * 8
+              var horizontal = 0
+              var vertical = 0
+              // Second differences of 3x3 means suppress PNG dither for classification only.
+              // The center terms cancel; sums retain exact precision until comparison.
+              for (d in -1..1) {
+                val row = i + d * width
+                horizontal += channel(row - 2, shift) - channel(row - 1, shift) -
+                  channel(row + 1, shift) + channel(row + 2, shift)
+                val column = i + d
+                vertical += channel(column - 2 * width, shift) - channel(column - width, shift) -
+                  channel(column + width, shift) + channel(column + 2 * width, shift)
+              }
+              if (kotlin.math.abs(horizontal) > 3 * 9 || kotlin.math.abs(vertical) > 3 * 9) {
+                bends = true
+                break
+              }
+            }
+            if (bends) curved++
+          }
+        }
+        samples > 0 && curved.toLong() * 200 <= samples
+      }
+    if (lowRange || smoothMultihue) {
       val background = BooleanArray(pixels.size)
       for (y in 0 until height) {
         check()

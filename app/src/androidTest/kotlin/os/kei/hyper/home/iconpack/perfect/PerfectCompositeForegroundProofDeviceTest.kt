@@ -2,7 +2,9 @@ package os.kei.hyper.home.iconpack.perfect
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,6 +24,170 @@ import org.junit.runner.RunWith
 /** Offline source fixture; no downloads, pack generation, installation or launcher operations. */
 @RunWith(AndroidJUnit4::class)
 class PerfectCompositeForegroundProofDeviceTest {
+  @Test fun retainedGameCenterCenteredCropRestoresControllerIncludingAntialiasedBottom() {
+    val fixture = retainedGameCenter()
+    val inputsBefore = listOf(fixture.flat.clone(), fixture.background.clone(), fixture.foreground.clone())
+    val generic = PerfectStaticNightRenderer.render(listOf(fixture.flat), null)
+    val result = PerfectStaticNightRenderer.render(
+      listOf(fixture.flat), null, equivalentLayers = listOf(fixture.background, fixture.foreground),
+    )
+    assertArrayEquals("Source-proven night repair must leave day bytes unchanged", generic.day, result.day)
+
+    // The retained native pair is 351 square; the authored preview is its exact central 235 square.
+    // Fixed source geometry, independent of the proof's computed crop and output selections.
+    val crop = Rect(58, 58, 293, 293)
+    val reference = PerfectStaticNightRenderer.render(
+      listOf(croppedPng(fixture.background, crop), croppedPng(fixture.foreground, crop)), null,
+    )
+    val expected = pixels(reference.night)
+    val actual = pixels(result.night)
+    val before = pixels(generic.night)
+    val repaired = before.clone()
+    assertTrue("The exact native crop must pass the foreground-only proof",
+      PerfectCompositeForegroundProof.repair(
+        fixture.flat, fixture.background, fixture.foreground, repaired, {},
+      ))
+    val coverage = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+    val foreground = requireNotNull(BitmapFactory.decodeByteArray(
+      fixture.foreground, 0, fixture.foreground.size))
+    val foregroundPixels = try {
+      assertEquals(351, foreground.width)
+      assertEquals(351, foreground.height)
+      assertEquals("Fixed faint bottom edge from upstream", 60, Color.alpha(foreground.getPixel(91, 234)))
+      assertEquals("The controller's lower body is intentionally translucent",
+        Color.argb(139, 255, 255, 255), foreground.getPixel(175, 200))
+      Canvas(coverage).drawBitmap(foreground, crop, Rect(0, 0, SIZE, SIZE),
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+      IntArray(SIZE * SIZE).also { coverage.getPixels(it, 0, SIZE, 0, 0, SIZE, SIZE) }
+    } finally {
+      foreground.recycle()
+      coverage.recycle()
+    }
+    var changed = 0
+    var bottomEdges = 0
+    var uncovered = 0
+    for (i in actual.indices) {
+      assertEquals("Caller alpha at $i", before[i] ushr 24, actual[i] ushr 24)
+      assertEquals("Raw partial repair preserves caller alpha at $i",
+        before[i] ushr 24, repaired[i] ushr 24)
+      for (shift in 0..2) {
+        assertTrue("Whole native crop RGB at $i, channel $shift",
+          kotlin.math.abs((actual[i] ushr (shift * 8) and 255) -
+            (expected[i] ushr (shift * 8) and 255)) <= 2)
+      }
+      if (foregroundPixels[i] ushr 24 == 0) {
+        uncovered++
+        assertEquals("Partial repair preserves unmodeled background at $i", before[i], repaired[i])
+        assertNeutralDark("Every uncovered native background pixel at $i", actual[i])
+      } else {
+        // Authored lower controller edge is at native y234..249, flat y176..191.
+        if (i / SIZE in 384..418 && (foregroundPixels[i] ushr 24) in 1..254) bottomEdges++
+      }
+      if (actual[i] != before[i]) changed++
+    }
+    assertTrue("Exercise the whole native background, not only controller coverage", uncovered > 100_000)
+    val gap = 370 * SIZE + 256 // Native (175,228), below the center and between the controller tips.
+    assertEquals("Fixed lower central gap is uncovered", 0, foregroundPixels[gap] ushr 24)
+    assertNeutralDark("The visible blue lower-gap patch must disappear", actual[gap])
+    assertTrue("The lower gap must retain the dark end of the background gradient",
+      Color.red(actual[gap]) in 20..32)
+    assertTrue("Exercise the actual antialiased lower edge", bottomEdges > 100)
+    assertTrue("Must replace the jagged generic classification", changed > 100)
+    assertEquals("Fixed translucent body landmark must use the native crop's composition",
+      expected[310 * SIZE + 256] and 0xffffff, actual[310 * SIZE + 256] and 0xffffff)
+    assertArrayEquals(inputsBefore[0], fixture.flat)
+    assertArrayEquals(inputsBefore[1], fixture.background)
+    assertArrayEquals(inputsBefore[2], fixture.foreground)
+
+    val customAlpha = before.clone()
+    for (i in customAlpha.indices step 97) {
+      customAlpha[i] = (customAlpha[i] and 0xffffff) or (((i / 97) % 256) shl 24)
+    }
+    val callerBefore = customAlpha.clone()
+    assertTrue(PerfectCompositeForegroundProof.repair(
+      fixture.flat, fixture.background, fixture.foreground, customAlpha, {},
+    ))
+    for (i in customAlpha.indices) {
+      assertEquals("Arbitrary caller alpha at $i", callerBefore[i] ushr 24, customAlpha[i] ushr 24)
+    }
+    val output = InstrumentationRegistry.getInstrumentation().targetContext.cacheDir
+    File(output, "gamecenter-proof-day.png").writeBytes(result.day)
+    File(output, "gamecenter-proof-night.png").writeBytes(result.night)
+    File(output, "gamecenter-proof-before.png").writeBytes(generic.night)
+  }
+
+  @Test fun broadMultihueSmoothDitheredBackgroundIsOneNeutralNightPlate() {
+    val width = 96
+    val source = multihueBackground(width)
+    val before = source.clone()
+    val mask = PerfectNightPixels.backgroundPlate(source, width, width, {})
+    assertTrue("Wide hue gradients must be admitted as a complete native plate",
+      mask != null && mask.all { it })
+    assertArrayEquals("Classification must not alter source artwork", before, source)
+    PerfectNightPixels.recolorPlate(source, width, width, requireNotNull(mask), {})
+    for (i in source.indices) {
+      assertEquals(before[i] ushr 24, source[i] ushr 24)
+      assertEquals(Color.red(source[i]), Color.green(source[i]))
+      assertEquals(Color.red(source[i]), Color.blue(source[i]))
+      assertTrue("Retain the full existing dark gradient", Color.red(source[i]) in 21..56)
+    }
+    assertEquals(56, Color.red(source.first()))
+    assertEquals(21, Color.red(source.last()))
+  }
+
+  @Test fun multihueTexturedAndSmallHardEdgedArtworkAreNotWholeBackgroundPlates() {
+    val width = 96
+    val textured = IntArray(width * width) { i ->
+      val x = i % width
+      val y = i / width
+      val texture = (x * 73) xor (y * 151) xor (x * y * 19)
+      Color.rgb(texture and 255, (texture * 37) and 255, (texture * 17 + 113) and 255)
+    }
+    val hardEdge = multihueBackground(width)
+    // Only 32 edge pairs: removing the range guard with the old 0.5% roughness budget
+    // would swallow this authored mark. The new full-gradient gate rejects every hard edge.
+    for (y in 44..51) for (x in 44..51) hardEdge[y * width + x] = Color.RED
+    for ((name, source) in listOf("textured color artwork" to textured, "small hard edge" to hardEdge)) {
+      val before = source.clone()
+      val mask = PerfectNightPixels.backgroundPlate(source, width, width, {})
+      assertFalse("$name must not be reclassified as a complete smooth plate",
+        mask != null && mask.all { it })
+      assertArrayEquals("Rejected classification must preserve $name", before, source)
+    }
+  }
+
+  @Test fun retainedGameCenterDisagreeingFaintBottomEdgeRejectsTheWholeCropRepair() {
+    val fixture = retainedGameCenter()
+    val flat = requireNotNull(BitmapFactory.decodeByteArray(fixture.flat, 0, fixture.flat.size))
+    val mutable = requireNotNull(flat.copy(Bitmap.Config.ARGB_8888, true))
+    flat.recycle()
+    val changed = try {
+      // (91,234) in the native foreground maps exactly to this alpha-60 edge in the flat grid.
+      assertEquals(235, mutable.width)
+      assertEquals(235, mutable.height)
+      mutable.setPixel(33, 176, Color.MAGENTA)
+      png(mutable)
+    } finally { mutable.recycle() }
+    val pixels = existingNight(fixture.flat)
+    val before = pixels.clone()
+    assertFalse(PerfectCompositeForegroundProof.repair(
+      changed, fixture.background, fixture.foreground, pixels, {},
+    ))
+    assertArrayEquals(before, pixels)
+  }
+
+  @Test fun nonIntegralCenteredCropRejectsWithoutRoundingOrResampling() {
+    val fixture = retainedGameCenter()
+    // 351 - 234 is odd: no single integer centered source crop is authorized.
+    val changed = croppedPng(fixture.flat, Rect(0, 0, 234, 234))
+    val pixels = existingNight(changed)
+    val before = pixels.clone()
+    assertFalse(PerfectCompositeForegroundProof.repair(
+      changed, fixture.background, fixture.foreground, pixels, {},
+    ))
+    assertArrayEquals(before, pixels)
+  }
+
   @Test fun retainedCalendarRestoresDateAndPreservesUnmodeledWeekday() {
     val fixture = retainedCalendar()
     val pixels = existingNight(fixture.flat)
@@ -90,7 +256,14 @@ class PerfectCompositeForegroundProofDeviceTest {
   }
 
   @Test fun cancellationAtTheLastFenceDoesNotPublishStagedPixels() {
-    val fixture = retainedCalendar()
+    assertLastFenceIsAtomic(retainedCalendar())
+  }
+
+  @Test fun centeredCropCancellationAtTheLastFenceDoesNotPublishStagedPixels() {
+    assertLastFenceIsAtomic(retainedGameCenter())
+  }
+
+  private fun assertLastFenceIsAtomic(fixture: Fixture) {
     val before = existingNight(fixture.flat)
     var totalChecks = 0
     assertTrue(PerfectCompositeForegroundProof.repair(
@@ -115,11 +288,23 @@ class PerfectCompositeForegroundProofDeviceTest {
   private fun retainedCalendar(): Fixture {
     // Exact PNG bodies from repository-complete.zip, themes/HyperOS4/layer_animating_icons/
     // com.android.calendar/{quiet,0/quiet,1/quiet}/quietImage.png. No synthetic substitute.
-    val hashes = listOf(
+    return retainedFixture(listOf(
       "0dd07584a436420ca2c3d0ee686e0a223436c6edeb3f294856bd5f2a75d258e8",
       "be52e29a6a43eaa4a35376e670f6d117f86efb66bc5ab2ff80fa114d28b4e47f",
       "28dbe8937aa4546e528825bb468b2e967d6350e78d6739715b71e840957a1055",
-    )
+    ))
+  }
+
+  private fun retainedGameCenter(): Fixture {
+    // Exact repository-complete.zip themes/HyperOS4/icons/com.xiaomi.gamecenter{.png,/0.png,/1.png}.
+    return retainedFixture(listOf(
+      "51c91a46aeb9f4f010b223725331f3e3182a88031afb7a6e8ddf24c1a6030d1a",
+      "44d0e17820d03aeeeb29dd0b426496be6b029d2caf6c2bb6946b0c46af0d4fbe",
+      "44053d9381325b522e3073cd1db7229281e69be6685df2ff307d937174cfea3f",
+    ))
+  }
+
+  private fun retainedFixture(hashes: List<String>): Fixture {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val fixtureDirectory = InstrumentationRegistry.getArguments()
       .getString("perfectCompositeForegroundFixtures")
@@ -138,13 +323,40 @@ class PerfectCompositeForegroundProofDeviceTest {
   }
 
   private fun existingNight(flat: ByteArray): IntArray {
-    val bytes = PerfectStaticNightRenderer.render(listOf(flat), null).night
+    return pixels(PerfectStaticNightRenderer.render(listOf(flat), null).night)
+  }
+
+  private fun assertNeutralDark(message: String, pixel: Int) {
+    val channels = intArrayOf(Color.red(pixel), Color.green(pixel), Color.blue(pixel))
+    assertTrue(message, channels.max() - channels.min() <= 1 && channels.all { it in 16..56 })
+  }
+
+  private fun multihueBackground(width: Int): IntArray = IntArray(width * width) { i ->
+    val x = i % width
+    val y = i / width
+    val dither = if ((x + y) % 2 == 0) 2 else -2
+    Color.argb(254 + (x + y) % 2,
+      30 + 180 * x / (width - 1) + dither,
+      40 + 160 * y / (width - 1) + dither,
+      220 - 180 * (x + y) / (2 * (width - 1)) + dither)
+  }
+
+  private fun pixels(bytes: ByteArray): IntArray {
     val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
     return try {
       assertEquals(SIZE, bitmap.width)
       assertEquals(SIZE, bitmap.height)
       IntArray(SIZE * SIZE).also { bitmap.getPixels(it, 0, SIZE, 0, 0, SIZE, SIZE) }
     } finally { bitmap.recycle() }
+  }
+
+  private fun croppedPng(bytes: ByteArray, crop: Rect): ByteArray {
+    val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+    val cropped = Bitmap.createBitmap(bitmap, crop.left, crop.top, crop.width(), crop.height())
+    return try { png(cropped) } finally {
+      if (cropped !== bitmap) cropped.recycle()
+      bitmap.recycle()
+    }
   }
 
   private fun png(bitmap: Bitmap): ByteArray = ByteArrayOutputStream().also {

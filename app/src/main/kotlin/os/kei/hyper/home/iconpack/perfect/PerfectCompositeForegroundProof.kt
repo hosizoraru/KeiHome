@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.ColorSpace
 import android.graphics.Paint
 import android.graphics.Rect
+import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 
 /** Proves a separated foreground without claiming that it explains the entire flat snapshot. */
@@ -36,16 +37,22 @@ internal object PerfectCompositeForegroundProof {
       val background = decode(bgBytes, owned, check) ?: return false
       val foreground = decode(fgBytes, owned, check) ?: return false
       val size = flat.width
-      if (flat.height != size || background.width != size || background.height != size ||
-        foreground.width != size || foreground.height != size) return false
+      if (flat.height != size || background.width != background.height ||
+        foreground.width != background.width || foreground.height != background.height ||
+        size > background.width) return false
+      val difference = background.width - size
+      if (difference % 2 != 0) return false
+      // Match the whole-image proof's integer centered crop; never register or rescale to fit.
+      val inset = difference / 2
+      val crop = Rect(inset, inset, inset + size, inset + size)
 
       val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
       val proof = bitmap(size, owned)
       val nativeBounds = Rect(0, 0, size, size)
       check()
       Canvas(proof).apply {
-        drawBitmap(background, null, nativeBounds, paint)
-        drawBitmap(foreground, null, nativeBounds, paint)
+        drawBitmap(background, crop, nativeBounds, paint)
+        drawBitmap(foreground, crop, nativeBounds, paint)
       }
       val sourceFlat = IntArray(size)
       val sourcePair = IntArray(size)
@@ -55,7 +62,7 @@ internal object PerfectCompositeForegroundProof {
         check()
         flat.getPixels(sourceFlat, 0, size, 0, y, size, 1)
         proof.getPixels(sourcePair, 0, size, 0, y, size, 1)
-        foreground.getPixels(sourceForeground, 0, size, 0, y, size, 1)
+        foreground.getPixels(sourceForeground, 0, size, inset, y + inset, size, 1)
         for (x in 0 until size) {
           if (sourceForeground[x] ushr 24 == 0) continue
           hasForeground = true
@@ -67,8 +74,12 @@ internal object PerfectCompositeForegroundProof {
       proof.recycle()
 
       check()
+      val pairLayers = if (inset == 0) listOf(bgBytes, fgBytes) else listOf(
+        croppedPng(background, crop, owned, check) ?: return false,
+        croppedPng(foreground, crop, owned, check) ?: return false,
+      )
       val pair = PerfectStaticNightRenderer.render(
-        layers = listOf(bgBytes, fgBytes), maskPath = null, equivalentLayers = null,
+        layers = pairLayers, maskPath = null, equivalentLayers = null,
         check = check, nativeViewport = false,
       )
       val pairDay = decode(pair.day, owned, check) ?: return false
@@ -81,7 +92,7 @@ internal object PerfectCompositeForegroundProof {
       check()
       Canvas(flat512).drawBitmap(flat, null, bounds, paint)
       check()
-      Canvas(foreground512).drawBitmap(foreground, null, bounds, paint)
+      Canvas(foreground512).drawBitmap(foreground, crop, bounds, paint)
 
       val replacement = existingNightPixels512.clone()
       val flatRow = IntArray(SIZE)
@@ -111,6 +122,21 @@ internal object PerfectCompositeForegroundProof {
     } finally {
       owned.forEach { if (!it.isRecycled) it.recycle() }
     }
+  }
+
+  private fun croppedPng(
+    source: Bitmap, crop: Rect, owned: MutableList<Bitmap>, check: () -> Unit,
+  ): ByteArray? {
+    check()
+    val cropped = Bitmap.createBitmap(source, crop.left, crop.top, crop.width(), crop.height())
+    owned += cropped
+    check()
+    val bytes = ByteArrayOutputStream().use { output ->
+      if (!cropped.compress(Bitmap.CompressFormat.PNG, 100, output)) return null
+      output.toByteArray()
+    }
+    check()
+    return bytes.takeIf { it.size in 1..MAX_BYTES }
   }
 
   private fun matches(a: Int, b: Int): Boolean {

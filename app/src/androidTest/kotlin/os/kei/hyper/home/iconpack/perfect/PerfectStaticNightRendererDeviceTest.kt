@@ -624,7 +624,8 @@ class PerfectStaticNightRendererDeviceTest {
     val decoded = requireNotNull(BitmapFactory.decodeByteArray(layers[0], 0, layers[0].size))
     val changed = requireNotNull(decoded.copy(Bitmap.Config.ARGB_8888, true))
     val alphaMismatch = try {
-      changed.setPixel(13, 13, Color.argb(203, 255, 255, 255))
+      // This lies beneath translucent foreground, so both proof paths must reject it.
+      changed.setPixel(32, 48, Color.argb(210, 255, 255, 255))
       ByteArrayOutputStream().also { assertTrue(changed.compress(Bitmap.CompressFormat.PNG, 100, it)) }
         .toByteArray()
     } finally { decoded.recycle(); changed.recycle() }
@@ -637,6 +638,30 @@ class PerfectStaticNightRendererDeviceTest {
       assertArrayEquals(baseline.day, result.day)
       assertArrayEquals(baseline.night, result.night)
     }
+  }
+
+  @Test fun croppedForegroundProofPreservesUncoveredAlphaMismatch() {
+    val (flat, layers) = equivalentFixture(backgroundAlpha = 200)
+    val baseline = PerfectStaticNightRenderer.render(listOf(flat), null)
+    val decoded = requireNotNull(BitmapFactory.decodeByteArray(layers[0], 0, layers[0].size))
+    val changed = requireNotNull(decoded.copy(Bitmap.Config.ARGB_8888, true))
+    val background = try {
+      // Outside foreground coverage; this disqualifies whole-image equivalence only.
+      changed.setPixel(13, 13, Color.argb(203, 255, 255, 255))
+      ByteArrayOutputStream().also { assertTrue(changed.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+        .toByteArray()
+    } finally { decoded.recycle(); changed.recycle() }
+    val result = PerfectStaticNightRenderer.render(listOf(flat), null,
+      equivalentLayers = listOf(background, layers[1]))
+    assertArrayEquals(baseline.day, result.day)
+    val before = requireNotNull(BitmapFactory.decodeByteArray(baseline.night, 0, baseline.night.size))
+    val after = requireNotNull(BitmapFactory.decodeByteArray(result.night, 0, result.night.size))
+    try {
+      assertAlphaEqual(before, after)
+      // The changed source pixel maps to flat (1,1), well outside the foreground footprint.
+      assertEquals(before.getPixel(16, 16), after.getPixel(16, 16))
+      assertFalse("Proven foreground should still be repaired", baseline.night.contentEquals(result.night))
+    } finally { before.recycle(); after.recycle() }
   }
 
   @Test fun provedLayerRenderingRetainsOriginalFlatCoverageAndPropagatesCancellation() {

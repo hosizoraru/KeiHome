@@ -1,0 +1,10 @@
+<resources>
+    <string name="pack_file_import_apk_title">添加 APK 图标包</string>
+    <string name="pack_file_import_archive_title">添加 MTZ / ZIP 图标包</string>
+    <string name="pack_file_import_apk_file">从设备中选择图标包 APK，无需安装也能读取。</string>
+    <string name="pack_file_import_archive_file">从设备中选择兼容的 MTZ 或 ZIP 图标包文件。</string>
+    <string name="pack_file_import_preview_title">读取并预览</string>
+    <string name="pack_file_import_preview_body">KeiHome 会保存本地副本并加入当前列表，随后可查看图标与效果。</string>
+    <string name="pack_file_import_apply_title">导入系统主题</string>
+    <string name="pack_file_import_apply_body">点击图标包条目的“导入”，生成图标方案并导入系统主题。是否自动应用遵循你的设置。</string>
+</resources>

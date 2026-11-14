@@ -101,6 +101,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     IconPackCatalogMatches.entries.getOrElse(filterMatches) { IconPackCatalogMatches.ALL },
   )
   val fallback = section == "fallback"
+  val fileImport = section == "installed" || section == "imported"
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -152,11 +153,15 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
             RefreshAction(model, 3)
           })
       }
-    }, floatingActionButton = { PackActionFab(model, 3, section, onHeightChanged = { actionHeight = it }) },
+    }, floatingActionButton = {
+      if (fileImport) PackFileImportAction(model, section, onHeightChanged = { actionHeight = it })
+      else PackActionFab(model, 3, section, onHeightChanged = { actionHeight = it })
+    },
   ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-        bottom = insets.calculateBottomPadding() + if (section == "coloros" || fallback) actionBottomPadding else 24.dp)
+        bottom = insets.calculateBottomPadding() +
+          if (section == "coloros" || fallback || fileImport) actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
       if (fallback) {
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),

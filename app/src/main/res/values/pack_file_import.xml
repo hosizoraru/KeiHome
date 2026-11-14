@@ -1,0 +1,10 @@
+<resources>
+    <string name="pack_file_import_apk_title">Add an APK icon pack</string>
+    <string name="pack_file_import_archive_title">Add an MTZ / ZIP icon pack</string>
+    <string name="pack_file_import_apk_file">Choose an icon pack APK from your device. It can be read without installing it.</string>
+    <string name="pack_file_import_archive_file">Choose a compatible MTZ or ZIP icon pack from your device.</string>
+    <string name="pack_file_import_preview_title">Read and preview</string>
+    <string name="pack_file_import_preview_body">KeiHome saves a local copy and adds the pack to this list. You can then check its icons and effects.</string>
+    <string name="pack_file_import_apply_title">Import into system themes</string>
+    <string name="pack_file_import_apply_body">Use Import on the pack to generate the icon scheme and import it into system themes. Automatic application follows your settings.</string>
+</resources>

@@ -1,7 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,9 +91,6 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val activeId = activeTheme?.localId
   val importReady = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
-  val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-    if (uri != null) model.importIconPack(uri)
-  }
   val activePackId = remember(activeId, state.nativeSources, state.nativeAssociations) {
     activeCatalogPackId(activeId, state)
   }
@@ -196,6 +191,11 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         }
         item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,
           model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true) }
+        if (state.importing || state.importName != null) item("import-status") {
+          PackInfoCard(if (state.importing) stringResource(R.string.icon_pack_importing)
+            else stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
+            Modifier.testTag("packs.file-import.status"))
+        }
         if (!preferences.compactPackHints) item("guidance") {
           PackGuidanceCard(packListGuidance(preferences.iconPackAppearance) + if (section == "installed")
             listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList())
@@ -217,19 +217,6 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           PackInfoCard(stringResource(if (filter.isActive) R.string.pack_list_filter_empty
             else if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
             Modifier.testTag("icon-packs.empty"))
-        }
-        item("import") {
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              PackActionButton(stringResource(if (state.importing) R.string.icon_pack_importing else
-                if (section == "installed") R.string.icon_pack_choose_apk_file else R.string.icon_pack_choose_file),
-                onClick = { picker.launch(arrayOf("*/*")) }, enabled = !busy, compact = false,
-                operation = PageActionIcon.IMPORT, modifier = Modifier.fillMaxWidth())
-              state.importName?.let { Text(stringResource(R.string.icon_pack_imported_name, it)) }
-              if (framework.snapshot?.themesInScope != true) Text(stringResource(R.string.icon_pack_scope_needed),
-                style = MiuixTheme.textStyles.footnote2)
-            }
-          }
         }
       }
     }

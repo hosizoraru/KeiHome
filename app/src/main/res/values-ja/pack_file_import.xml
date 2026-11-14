@@ -1,0 +1,10 @@
+<resources>
+    <string name="pack_file_import_apk_title">APK アイコンパックを追加</string>
+    <string name="pack_file_import_archive_title">MTZ / ZIP アイコンパックを追加</string>
+    <string name="pack_file_import_apk_file">端末からアイコンパックの APK を選択します。インストールせずに読み込めます。</string>
+    <string name="pack_file_import_archive_file">端末から対応する MTZ または ZIP 形式のアイコンパックを選択します。</string>
+    <string name="pack_file_import_preview_title">読み込みとプレビュー</string>
+    <string name="pack_file_import_preview_body">KeiHome がローカルコピーを保存して一覧に追加します。その後、アイコンや効果を確認できます。</string>
+    <string name="pack_file_import_apply_title">システムテーマにインポート</string>
+    <string name="pack_file_import_apply_body">アイコンパックの「インポート」からアイコン構成を生成し、システムテーマに取り込みます。自動適用は設定に従います。</string>
+</resources>

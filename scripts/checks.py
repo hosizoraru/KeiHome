@@ -118,6 +118,8 @@ GROUPS = {
         UI + "CacheStorageUiTest",)),
     "ui-log-export": ("device", "App log warning, five-second export gate, cancellation and reopening", (
         UI + "LogExportConfirmationTest",)),
+    "ui-pack-file-import": ("device", "Floating APK/archive import guides, cancellation and picker handoff", (
+        UI + "PackFileImportUiTest",)),
     "ui-local-packs": ("device", "Pack counts, confirmed local-copy removal and storage links", (
         UI + "LocalPackRemovalDeviceTest", UI + "CacheStorageUiTest")),
     "ui-scope": ("device", "OS4 scope page, component versions, authorization states and large text", (

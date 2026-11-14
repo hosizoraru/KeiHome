@@ -3,11 +3,27 @@
 ## Browsing the library
 
 The APK and MTZ/ZIP lists use compact light/dark previews and colored source
-and active-state pills. Installed APKs show their reported version name. File
-import remains available after the list, with a recommendation to install APK
-packs for easier version and update tracking; replacing a local file requires
-selecting the updated file again. ColorOS style previews use the same compact
-pair layout.
+and active-state pills. Installed APKs show their reported version name.
+Both lists expose a fixed Import FAB, including when the list is empty or
+filtered. The measured FAB height reserves space below the final item. The
+former file-import footer is removed.
+
+Import opens an OS4 Glass bottom sheet with format-specific guidance:
+choose an APK or compatible MTZ/ZIP, read a private copy and preview it, then
+use the pack's Import action for system themes. APK guidance recommends
+installation for easier version/update tracking. A missing Themes scope is
+explained in the sheet without blocking local file selection. Replacing a
+local file still requires selecting the updated file again. ColorOS style
+previews use the same compact pair layout.
+
+The system document picker opens once, after the sheet exits. Back, scrim
+dismissal and cancelled selection do not import anything. Busy import/removal
+states disable entry and selection; current busy state is rechecked before
+handoff. The existing broad MIME filter and repository parser are preserved
+for providers that label these formats inconsistently. Import progress and the
+last imported name remain visible near the top of the list, while failures keep
+the existing refresh/error feedback. This flow does not apply a theme merely
+by adding a source file.
 
 Both lists can search the pack name and installed package name or imported file
 name. The sorting menu offers name, package/file name, most recently updated or

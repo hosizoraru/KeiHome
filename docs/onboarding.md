@@ -111,9 +111,23 @@ Desktop > Icons and launching uses `icons` for desktop behavior settings;
 `preserved-icons` is not a `DesktopSection` key.
 
 Service connection, authorization, hook loading and visible icon results remain
-separate states. First activation recommends one system reboot; later updates
-normally use API 102 automatic hot reload. A newly authorized host may need its
-next process start. The guide itself does not restart hosts or the system.
+separate states. First activation **requires a full system restart** after
+enabling the module and granting scopes, followed by unlocking to the home screen.
+API 102 automatic hot reload updates only the Java part. An upgrade containing
+new `.so` native code, including 1.11.0, requires a manual system restart so
+processes load the new libraries. Restarting KeiHome or the launcher alone does
+not replace the first-activation requirement. A newly authorized host may need
+its next process start.
+
+After reading upgrade release notes and returning to the app's main page,
+restart advice appears once per version. Its confirmation button becomes
+available after five seconds. Confirming records that the advice was read;
+the user performs the system restart manually. This version advice is separate
+from the first-activation requirement: reading notes, skipping the guide or
+acknowledging advice does not establish that a system restart occurred.
+The guide and advice do not trigger an automatic restart or require clearing
+app data. See [release-note behavior](release-notes.md) and the
+[1.11.0 notes](releases/1.11.0.md).
 
 ## Entry, persistence and lifecycle
 
@@ -136,6 +150,10 @@ No new background polling or scanning service was introduced. EN, Simplified
 Chinese and Japanese resources share the same keys and placeholders.
 
 ## Focused verification
+
+Native-changing releases can opt into the reusable
+[upgrade restart reminder](upgrade-restart-reminders.md). This is independent
+from both release-note acknowledgement and the first-activation reboot state.
 
 For resource-only validation, run `python3 scripts/i18n/check_resources.py`.
 The latest guide changes also extend the existing navigation assertions for

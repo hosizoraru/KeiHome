@@ -64,10 +64,16 @@ GROUPS = {
     "ui-i18n": ("device", "Localized input semantics, clear behavior and search callbacks", (UI + "LocalizedInputFieldTest",)),
     "i18n": ("python", "Resource XML, locale coverage and formatter compatibility (stdlib only)", ()),
     "release-notes": ("jvm", "Fresh installs, real upgrades, skipped releases and acknowledgment", (
-        "ReleaseNotesPolicyTest", "ReleaseNotesMarkdownTest")),
+        "ReleaseNotesPolicyTest", "ReleaseNotesMarkdownTest", "UpgradeRestartPolicyTest")),
     "ui-release-notes": ("device", "Changelog navigation, persistence, disclosures and large text", (
         "os.kei.hyper.home.data.ReleaseNotesPreferencesTest",
         "os.kei.hyper.home.ui.main.ReleaseNotesNavigationTest")),
+    "ui-upgrade-restart": ("device", "Monotonic countdown and once-only native upgrade advice", (
+        UI + "UpgradeRestartReminderTest",)),
+    "notice-categories": ("jvm", "Exhaustive categories, stable routes and attribution identities", (
+        "ThirdPartyCategoryTest",)),
+    "ui-notices": ("device", "Category navigation, global search, source and license readers", (
+        UI + "NoticesUiTest",)),
     "ui-actions": ("device", "FABs, disclosures, links and metadata pills", (
         UI + "UiActionPolishDeviceTest",)),
     "ui-navigation": ("device", "Both navbar styles, release/cancel gestures, spring offsets, themes and large text", (

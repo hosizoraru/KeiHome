@@ -29,12 +29,14 @@ import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.PackDestinationScreen
 import os.kei.hyper.home.ui.main.SettingsDestinationScreen
 import os.kei.hyper.home.ui.main.ReleaseNotesScreen
+import os.kei.hyper.home.ui.main.UpgradeRestartReminder
 import os.kei.hyper.home.ui.main.OnboardingScreen
 import os.kei.hyper.home.ui.main.OnboardingDesktopScreen
 import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.data.ReleaseNotesPreferences
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
+import top.yukonga.miuix.kmp.nav.core.LocalNavTransitionScope
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
@@ -116,8 +118,18 @@ internal fun MainNavigation(
     effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
       dimAmount = 0.26f, blockInputDuringTransition = true,
       backdropColor = MiuixTheme.colorScheme.surface)) {
-    entry<Main> { MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
-      onOpenDesktopSection = ::openDesktop) }
+    entry<Main> {
+      val transitionRunning = LocalNavTransitionScope.current.isRunning
+      MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
+        onOpenDesktopSection = ::openDesktop, overlay = {
+          UpgradeRestartReminder(
+            version = releaseState?.restartReminderVersion.orEmpty().takeIf {
+              current == Main && pendingVersion.isEmpty() && !transitionRunning
+            }.orEmpty(),
+            onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
+          )
+        })
+    }
     entry<DesktopRoute> { route ->
       val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
       DesktopDestinationScreen(model, section, onBack = ::back)
@@ -149,7 +161,8 @@ internal fun MainNavigation(
         onOpenPackSection = ::open)
     }
     entry<ReleaseNotesUpgradeRoute> {
-      ReleaseNotesScreen(onBack = ::back, highlightedVersions = pending.toSet(), onContinue = {
+      ReleaseNotesScreen(onBack = ::back, currentVersion = releaseState?.observedVersion ?: BuildConfig.VERSION_NAME,
+        highlightedVersions = pending.toSet(), onContinue = {
         if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) back()
       })
     }

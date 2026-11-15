@@ -13,7 +13,7 @@
     <string name="setup_os4_framework_manager">Open framework</string>
     <string name="setup_os4_scope">Scope permissions</string>
     <string name="setup_os4_scope_body">Check host permissions and versions. A grant does not confirm loading.</string>
-    <string name="setup_os4_activation">First activation requires a full device reboot. Enable the module and grant scopes, reboot, then unlock to the Home screen and wait briefly. Later updates normally reload automatically; native payload changes may require a restart.</string>
+    <string name="setup_os4_activation">First activation requires a system restart: enable the module, grant scopes, manually reboot, then unlock to the home screen and wait briefly. API 102 automatic hot reload updates only the Java part. Updates that include new .so native code also require a manual system restart.\n\nAfter reading the upgrade notes and returning to the main page, restart advice appears once per version. You can confirm after five seconds. Confirmation only acknowledges the advice; you restart the device manually.</string>
     <string name="setup_os4_icons_more">More icon settings</string>
     <string name="setup_os4_desktop_dock">Dock materials</string>
     <string name="setup_os4_desktop_appearance">Appearance and text</string>

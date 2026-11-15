@@ -12,11 +12,22 @@ internal data class ReleaseNote(
   @param:ArrayRes val changes: Int = 0,
   @param:StringRes val footnote: Int = 0,
   val expandOnUpgrade: List<String> = emptyList(),
+  val recommendSystemRestart: Boolean = false,
 )
 
 internal object ReleaseNotesCatalog {
   // Dates come from the tagged commits, rather than tag creation or APK build time.
   val releases: List<ReleaseNote> = listOf(
+    ReleaseNote(
+      version = "1.11.0",
+      tag = "v1.11.0",
+      committedAt = "2026-11-15T13:20:18+08:00",
+      introduction = R.string.release_notes_1_11_0_introduction,
+      changes = R.array.release_notes_1_11_0_changes,
+      footnote = R.string.release_notes_1_11_0_footnote,
+      expandOnUpgrade = listOf("1.10.0"),
+      recommendSystemRestart = true,
+    ),
     ReleaseNote(
       version = "1.10.0",
       tag = "v1.10.0",

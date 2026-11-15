@@ -20,7 +20,7 @@
     <string name="setup_framework_body">KeiHome 通过 LSPosed API 102 工作。请在管理器中启用模块，并按需授权作用域；尚未配置好也可以继续浏览。</string>
     <string name="setup_service_connected">框架服务已连接</string>
     <string name="setup_service_disconnected">框架服务暂未连接</string>
-    <string name="setup_activation_note">首次启用必须完整重启设备。请先启用模块并完成所需作用域授权，再重启设备，解锁进入桌面后稍候。打开或跳过向导、重启 KeiHome 或桌面均不能替代此步骤。后续常规更新通常自动热重载；原生载荷变更可能需要另行重启。</string>
+    <string name="setup_activation_note">首次启用必须完整重启设备。请先启用模块并完成所需作用域授权，再重启设备，解锁进入桌面后稍候。打开或跳过向导、重启 KeiHome 或桌面均不能替代此步骤。API 102 自动热重载仅更新 Java 部分；升级包含新的 .so 原生代码时，需手动重启系统。\n\n升级后看完更新日志并返回主页，会显示每个版本一次的重启建议，确认按钮需等待 5 秒后可用。确认仅表示已阅读，系统重启由你手动完成。</string>
     <string name="setup_icons_title">选择喜欢的图标方案</string>
     <string name="setup_icons_body">可选择系统图标、完美图标、Apple 或导入的图标包。受支持的系统界面可沿用已应用的图标，覆盖情况取决于宿主与应用。</string>
     <string name="setup_native_icons_title">受支持的系统图标自动跟随深浅色</string>

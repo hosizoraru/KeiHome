@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="upgrade_restart_title">更新後の再起動をおすすめします</string>
+    <string name="upgrade_restart_body">バージョン %1$s ではモジュールのネイティブコードが更新されています。ホットリロードで Java のフックは更新できますが、ランチャーやシステムプロセスが読み込み済みのネイティブライブラリは置き換えられません。\n\n更新内容を完全に反映するため、都合のよいときに端末を一度再起動してください。</string>
+    <string name="upgrade_restart_note">確認しても自動で再起動せず、ホームの配置や設定も変更しません。この案内は再起動を推奨する更新ごとに一度だけ表示され、端末の故障を示すものではありません。</string>
+    <string name="upgrade_restart_countdown">お読みください · %1$d 秒</string>
+    <string name="upgrade_restart_acknowledge">確認しました、後で再起動</string>
+</resources>

@@ -9,6 +9,24 @@ import org.junit.Test
 class ReleaseNotesPreferencesTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+  @Test fun nativeUpgradeNoticePersistsIndependentlyFromReadingNotes() {
+    val id = "release_notes_test_${UUID.randomUUID()}"
+    try {
+      ReleaseNotesPreferences(context, id, "1.10.0", false)
+      val upgrade = ReleaseNotesPreferences(context, id, "1.11.0", true)
+      assertEquals("1.11.0", upgrade.state.value.restartReminderVersion)
+      upgrade.acknowledge()
+      val reopened = ReleaseNotesPreferences(context, id, "1.11.0+g1234567.b9999", true)
+      assertEquals("", reopened.state.value.pendingVersion)
+      assertEquals("1.11.0", reopened.state.value.restartReminderVersion)
+      reopened.acknowledgeRestart("1.11.0")
+      assertEquals("", ReleaseNotesPreferences(context, id, "1.11.0", true).state.value.restartReminderVersion)
+    } finally {
+      AppLocalStorage.open(context, id).close()
+      MMKV.removeStorage(id)
+    }
+  }
+
   @Test fun pendingUpgradeAndAcknowledgmentSurviveReopeningWithoutChangingAppSettings() {
     val id = "release_notes_test_${UUID.randomUUID()}"
     val before = AppPreferences.get(context).state.value

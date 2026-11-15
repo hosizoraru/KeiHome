@@ -13,7 +13,7 @@
     <string name="setup_os4_framework_manager">打开框架</string>
     <string name="setup_os4_scope">作用域授权</string>
     <string name="setup_os4_scope_body">查看宿主授权与版本，已授权不代表已加载</string>
-    <string name="setup_os4_activation">首次启用必须完整重启设备。启用模块并授权作用域后，重启设备，解锁进入桌面后稍候。后续常规更新通常自动热重载；原生载荷变更可能需要另行重启。</string>
+    <string name="setup_os4_activation">首次启用必须重启系统：启用模块并授权作用域后，手动重启，解锁进入桌面后稍候。API 102 自动热重载仅更新 Java 部分；升级包含新的 .so 原生代码时，也需手动重启系统。\n\n升级后看完更新日志、返回主页时，每个版本显示一次重启建议，等待 5 秒后可确认。确认仅表示已阅读，系统重启由你手动完成。</string>
     <string name="setup_os4_icons_more">图标更多设置</string>
     <string name="setup_os4_desktop_dock">Dock 质感</string>
     <string name="setup_os4_desktop_appearance">外观与文字</string>

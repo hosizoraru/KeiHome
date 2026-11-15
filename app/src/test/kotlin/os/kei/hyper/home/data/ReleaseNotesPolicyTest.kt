@@ -102,7 +102,8 @@ class ReleaseNotesPolicyTest {
 
   @Test fun unconfiguredReleasesDoNotInheritAnotherReleasesExpansionSelection() {
     assertEquals(listOf("1.6.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.6.0", upgrade = true))
-    assertEquals(listOf("1.10.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.11.0", upgrade = true))
+    assertEquals(listOf("1.11.0", "1.10.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.11.0", upgrade = true))
+    assertEquals(listOf("1.11.0"), ReleaseNotesCatalog.initiallyExpandedVersions("1.11.0", upgrade = false))
     assertEquals(emptyList<String>(), ReleaseNotesCatalog.initiallyExpandedVersions("broken", upgrade = true))
   }
 

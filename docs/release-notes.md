@@ -31,7 +31,8 @@ network requests, APK inspection or native hooks.
 - The manual Settings entry remains available independently of startup.
 
 `ReleaseNote.expandOnUpgrade` controls the cards initially expanded during the
-one-time upgrade presentation. For 1.10.0 only the new 1.10.0 details expand by default.
+one-time upgrade presentation. For 1.11.0, both 1.11.0 and 1.10.0 expand by default: 1.10.0 was not publicly released, so the public upgrade path is 1.9.0 to 1.11.0.
+For 1.10.0 only the new 1.10.0 details expanded by default.
 For 1.9.0 this includes 1.9.0, 1.8.0, 1.7.0 and 1.6.0; older
 unread versions remain available without being forced open. Manual Settings
 entry always defaults to the current release only. The selection is authored
@@ -50,6 +51,29 @@ upgrade presentation. A fresh installation or restored backup on a fresh
 installation primes the history without opening notes. This bootstrap does not
 invent an unknown previously installed prefix.
 
+## Restart advice after upgrade notes
+
+After the upgrade notes are acknowledged and the app returns to its main page,
+show restart advice once for the installed version. This is a general
+per-version upgrade policy, not a condition hardcoded to 1.11.0. The advice
+must follow the release notes rather than cover them. Its confirmation button
+becomes available after a five-second wait.
+
+Confirming acknowledges the advice; it does not initiate a reboot or count as
+proof of a completed system restart. The user restarts the device manually.
+API 102 automatic hot reload updates only the Java part and cannot replace
+native libraries already loaded in a process. Since 1.11.0 includes new `.so`
+native code, its notes explicitly ask for a system restart after upgrading.
+First activation independently requires a full system restart after module
+enablement and scope authorization, followed by unlocking to the home screen.
+Finishing or skipping the guide and confirming version advice cannot satisfy
+that requirement. Neither flow requires clearing app data.
+
+The catalog, persistence policy, reminder resources, UI and behavioral tests
+belong to the corresponding implementation. Documentation and resource checks
+alone do not establish that reminder timing or once-per-version behavior has
+passed runtime acceptance.
+
 ## Content
 
 The catalog begins with 1.4.0. Chinese 1.4.0 and 1.5.0 notes use the user's
@@ -61,6 +85,12 @@ changes from `v1.5.0` to `v1.6.0`. See
 [1.9.0](releases/1.9.0.md) describes the confirmed public 1.9.0 build.
 [1.10.0](releases/1.10.0.md) records the subsequent OS4, performance, icon,
 activation and startup work with matching English, Chinese and Japanese content.
+[1.11.0](releases/1.11.0.md) records Launcher 9258 structural and dependency-graph
+resolution, Selection/Monet/Dock/ImageRecovery adaptation, the native-update
+restart requirement and general once-per-version restart advice. Ten version
+fixtures passed the documented compatibility checks; this is not a guarantee
+for every unknown launcher version. Existing published entries remain verbatim,
+including MIUIX refinements already described in 1.10.0.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

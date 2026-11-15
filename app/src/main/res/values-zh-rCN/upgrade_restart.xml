@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="upgrade_restart_title">更新后建议重启系统</string>
+    <string name="upgrade_restart_body">%1$s 更新了模块的原生代码。热重载可以刷新 Java 层 Hook，但无法替换桌面或其他系统进程已经加载的原生库。\n\n建议在方便时重启一次系统，让更新后的能力完整生效。</string>
+    <string name="upgrade_restart_note">确认只表示已知晓，不会自动重启，也不会更改桌面布局和设置。此提醒仅在需要建议重启的版本更新后出现一次，不代表设备发生故障。</string>
+    <string name="upgrade_restart_countdown">请阅读 · %1$d 秒</string>
+    <string name="upgrade_restart_acknowledge">已了解，稍后重启</string>
+</resources>

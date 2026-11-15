@@ -54,6 +54,32 @@ class ReleaseNotesNavigationTest {
     bitmap.recycle()
   }
 
+  @Test fun nativeUpgradeWaitsForNotesThenShowsOneGuardedReminderOnHome() {
+    val storage = id()
+    ReleaseNotesPreferences(context, storage, "1.9.0", false)
+    val update = ReleaseNotesPreferences(context, storage, "1.11.0", true)
+    val onboarding = setup(true)
+    rule.setContent { KeiHomeTheme { MainNavigation(onboarding, update) } }
+    rule.onNodeWithTag("release-notes.body.1.11.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.10.0").assertExists()
+    rule.onNodeWithTag("upgrade.restart.confirm").assertDoesNotExist()
+    shot("111-upgrade")
+    rule.onNodeWithTag("release-notes.continue").performClick()
+    rule.waitUntil(5_000) {
+      rule.onAllNodesWithTag("upgrade.restart.confirm").fetchSemanticsNodes().isNotEmpty()
+    }
+    rule.onNodeWithTag("upgrade.restart.confirm").assertIsNotEnabled()
+    shot("111-restart-reminder")
+    rule.waitUntil(8_000) {
+      runCatching { rule.onNodeWithTag("upgrade.restart.confirm").assertIsEnabled(); true }.getOrDefault(false)
+    }
+    rule.onNodeWithTag("upgrade.restart.confirm").performClick()
+    rule.waitUntil(5_000) { update.state.value.restartReminderVersion.isEmpty() }
+    rule.onNodeWithTag("upgrade.restart.confirm").assertDoesNotExist()
+    assertEquals("", ReleaseNotesPreferences(context, storage,
+      "1.11.0+g7654321.b9999", true).state.value.restartReminderVersion)
+  }
+
   @Test fun release110UpgradeShowsOnlyCurrentDetailsAndDoesNotRepeatForAnotherBuild() {
     val storage = id()
     ReleaseNotesPreferences(context, storage, "1.9.0", false)
@@ -100,12 +126,12 @@ class ReleaseNotesNavigationTest {
     rule.onNodeWithTag("settings.entry.release-notes").performScrollTo().performClick()
     rule.onNodeWithTag("release-notes.page").assertIsDisplayed()
     rule.onNodeWithTag("release-notes.continue").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.body.1.10.0").assertExists()
+    rule.onNodeWithTag("release-notes.body.1.11.0").assertExists()
     rule.onNodeWithTag("release-notes.body.1.8.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.7.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.body.1.6.0").assertDoesNotExist()
-    rule.onNodeWithTag("release-notes.toggle.1.10.0").performClick()
-    rule.onNodeWithTag("release-notes.body.1.10.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.toggle.1.11.0").performClick()
+    rule.onNodeWithTag("release-notes.body.1.11.0").assertDoesNotExist()
     rule.onNodeWithTag("release-notes.date.1.5.0", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
     shot("manual-collapsed")
     rule.onNodeWithTag("release-notes.toggle.1.5.0").performClick()

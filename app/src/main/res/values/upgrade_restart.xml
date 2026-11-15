@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="upgrade_restart_title">Restart recommended after updating</string>
+    <string name="upgrade_restart_body">Version %1$s updates native module code. Hot reload refreshes Java hooks, but cannot replace native libraries already loaded by the launcher or other system processes.\n\nRestart your device once when convenient so the updated capabilities can load completely.</string>
+    <string name="upgrade_restart_note">Acknowledging this message will not restart your device or change your Home layout and settings. This reminder appears only once for an update that recommends a restart. It does not mean your device is faulty.</string>
+    <string name="upgrade_restart_countdown">Please read · %1$ds</string>
+    <string name="upgrade_restart_acknowledge">Understood, restart later</string>
+</resources>

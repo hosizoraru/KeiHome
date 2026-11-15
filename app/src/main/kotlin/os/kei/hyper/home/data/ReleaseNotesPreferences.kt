@@ -14,12 +14,13 @@ internal class ReleaseNotesPreferences(
   updatedInstallation: Boolean = isUpdatedInstallation(context),
   publishedVersions: List<String> = ReleaseNotesCatalog.releases.map { it.version },
   allowLegacyUpgrade: Boolean = true,
+  restartVersions: List<String> = ReleaseNotesCatalog.releases.filter { it.recommendSystemRestart }.map { it.version },
 ) {
   private val storage = AppLocalStorage.open(context, id)
   private val previous = decode(storage.decodeString(KEY))
   private val progress = MutableStateFlow(ReleaseNotesPolicy.observe(
     previous, versionName, updatedInstallation &&
-      (allowLegacyUpgrade || ReleaseVersion.parse(previous.observedVersion) != null), publishedVersions,
+      (allowLegacyUpgrade || ReleaseVersion.parse(previous.observedVersion) != null), publishedVersions, restartVersions,
   ))
   val state = progress.asStateFlow()
 
@@ -31,10 +32,20 @@ internal class ReleaseNotesPreferences(
     progress.value = next
   }
 
+  fun acknowledgeRestart(version: String) {
+    val next = ReleaseNotesPolicy.acknowledgeRestart(progress.value, version)
+    persist(next)
+    progress.value = next
+  }
+
   private fun persist(value: ReleaseNotesState) {
     val encoded = JSONObject().put("version", value.observedVersion).put("readThrough", value.readThrough)
-      .put("pending", JSONArray(value.pendingVersions)).put("pendingVersion", value.pendingVersion).toString()
-    if (storage.decodeString(KEY) != encoded) check(storage.encode(KEY, encoded))
+      .put("pending", JSONArray(value.pendingVersions)).put("pendingVersion", value.pendingVersion)
+      .put("restartPending", value.restartReminderVersion).put("restartReadThrough", value.restartReminderReadThrough).toString()
+    if (storage.decodeString(KEY) != encoded) {
+      check(storage.encode(KEY, encoded))
+      storage.sync()
+    }
   }
 
   companion object {
@@ -55,7 +66,8 @@ internal class ReleaseNotesPreferences(
       val json = JSONObject(text ?: return ReleaseNotesState())
       val pending = json.optJSONArray("pending")
       ReleaseNotesState(json.optString("version", ""), json.optString("readThrough", ""),
-        List(pending?.length() ?: 0) { pending!!.getString(it) }, json.optString("pendingVersion", ""))
+        List(pending?.length() ?: 0) { pending!!.getString(it) }, json.optString("pendingVersion", ""),
+        json.optString("restartPending", ""), json.optString("restartReadThrough", ""))
     }.getOrDefault(ReleaseNotesState())
   }
 }

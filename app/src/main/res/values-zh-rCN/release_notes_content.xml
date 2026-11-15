@@ -1,4 +1,14 @@
 <resources>
+    <string name="release_notes_1_11_0_introduction">适配 9258 版桌面，改进原生结构与依赖图的动态解析，并明确首次启用、原生代码升级和版本重启建议的区别。</string>
+    <string-array name="release_notes_1_11_0_changes">
+        <item>按结构解析桌面依赖图\n根据实际代码结构与依赖关系定位功能，修正代码和数据重定位导致的误拒，不使用版本号或固定地址硬编码适配。包含 9258 在内的 10 个版本样本检查通过；这仍不保证任意未知版本都兼容。</item>
+        <item>9258 的 Selection、Monet、Dock 与图像恢复适配\n完善 Selection 依赖图、Monet 图标处理、Dock 玻璃和 ImageRecovery 图像恢复的结构识别，保留必要的校验；结构不匹配或无法唯一确认时，不启用对应能力。</item>
+        <item>原生代码升级需要重启系统\n本版包含新的 .so 原生代码，升级后请手动重启系统，再解锁进入桌面。API 102 自动热重载仅更新 Java 部分，不能替换进程中已加载的原生库。</item>
+        <item>每个版本一次的重启建议\n升级后看完更新日志、返回主页时显示一次重启建议，确认按钮需等待 5 秒后可用。确认仅表示已阅读，系统重启由你手动完成。</item>
+        <item>开源声明与项目协议\n开源组件按用途拆分子页并保留全局搜索，优化许可证阅读页的 OS4 交互与 Glass 操作，在关于中新增项目协议入口，提供 Apache 2.0 项目许可。第三方组件保留各自许可和署名，并补充 MiuiBackGestureHook 的研究参考致谢。</item>
+    </string-array>
+    <string name="release_notes_1_11_0_footnote">首次启用仍必须在启用模块、授权作用域后重启系统；跳过向导或确认建议不能替代重启。兼容性取决于实际桌面结构与系统支持，10 个版本样本通过不代表任意未知版本均可用。</string>
+
     <string name="release_notes_1_10_0_introduction">完善 OS4 交互与状态提示，加快图标信息读取，修正完美图标的深色显示与通知图标，并改进 Apple 匹配和热重载稳定性。</string>
     <string-array name="release_notes_1_10_0_changes">
         <item>更顺手的 OS4 搜索与浮层\n退出搜索编辑后保留关键词、筛选和返回位置；短说明使用贴近按钮的玻璃浮层，完善关闭动画与操作衔接。切换视图使用分段页签，较长分类可横向滚动。更新 Glass 图标，改善折叠标题对齐与顶部渐隐。</item>

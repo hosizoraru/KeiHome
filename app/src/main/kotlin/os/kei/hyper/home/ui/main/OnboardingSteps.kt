@@ -149,6 +149,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupLink(R.string.icon_mask_entry_title, R.string.setup_mask_body, PageActionIcon.MATCH) { onOpenPack("icon-mask") }
           SetupDivider()
           SetupLink(R.string.preserved_icons_title, R.string.setup_preserved_body, PageActionIcon.APPS) { onOpenPack("preserved-icons") }
+          SetupLink(R.string.custom_icons_title, R.string.custom_icons_entry, PageActionIcon.PACKS) { onOpenPack("custom-icons") }
           SetupDivider()
           SetupLink(R.string.recommended_mappings_title, R.string.setup_recommended_mappings_body, PageActionIcon.MATCH) { onOpenPack("recommended-mappings") }
           SetupDivider()

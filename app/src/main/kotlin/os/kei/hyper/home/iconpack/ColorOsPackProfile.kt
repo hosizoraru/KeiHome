@@ -11,6 +11,7 @@ internal data class ColorOsPackProfile(
   val icons: Map<IconPackComponent, ColorOsIconSource>,
   val style: String = "classic",
   val builtin: BuiltinIconPack? = null,
+  val artPlus: Boolean? = null,
 ) {
   fun source(target: IconPackComponent): ColorOsIconSource? =
     icons[target] ?: icons[IconPackComponent(target.packageName)]
@@ -66,7 +67,8 @@ internal data class ColorOsPackProfile(
         icons[component] = ColorOsIconSource(mono, dynamic, dynamicNames != null && dynamicNames.length() > 0,
           runtimeMode("light"), runtimeMode("dark"), fromRuntime(row.optJSONObject("monochrome")?.optString("source_key")))
       }
-      return ColorOsPackProfile(file, "coloros-mask.png", icons, style, builtin)
+      return ColorOsPackProfile(file, "coloros-mask.png", icons, style, builtin,
+        when (root.optString("art")) { "on" -> true; "off" -> false; else -> null })
     }
   }
 }

@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.data.PackageRefreshTarget
@@ -91,6 +93,12 @@ private data class PreservedAppsState(
 @Composable
 internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
+  val customController = model.customIcons
+  val customState by customController.state.collectAsStateWithLifecycle()
+  val customized = remember(SnapshotIdentity(customState.selections)) {
+    customState.selections.mapTo(hashSetOf()) { it.packageName }
+  }
+  var conflict by rememberSaveable { mutableStateOf<String?>(null) }
   val context = LocalContext.current
   val inventory = remember(context) { PreservedIconInventory(context) }
   val configuration = LocalConfiguration.current
@@ -100,11 +108,21 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var retry by remember { mutableIntStateOf(0) }
   var manualRefreshing by remember { mutableStateOf(false) }
-  val state by produceState(PreservedAppsState(), inventory, lifecycle, configurationKey, localeTag, retry) {
+  var showHidden by rememberSaveable { mutableStateOf(false) }
+  val retained by rememberUpdatedState(prefs.preservedIconPackages + customized)
+  val state by produceState(PreservedAppsState(), inventory, lifecycle, configurationKey, localeTag, retry, showHidden) {
     val request = retry
     try { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       val pending = PendingPackageRefresh()
       callbackFlow<Unit> {
+        launch {
+          var previous = emptySet<String>()
+          snapshotFlow { retained }.collect { current ->
+            ((previous - current) + (current - previous)).forEach { pending.add(PackageRefreshTarget(it)) }
+            previous = current
+            trySend(Unit)
+          }
+        }
         // This producer, receiver and collector stay on Main. Only the wake-up is conflated.
         val observer = PackageChangeObserver(context, Handler(Looper.getMainLooper())) { name ->
           pending.add(PackageRefreshTarget(name))
@@ -119,7 +137,8 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
         value = value.copy(loading = true, failed = false)
         value = try {
           PreservedAppsState(apps = inventory.read(locale,
-            if (batch.global) null else batch.targets.mapTo(linkedSetOf()) { it.packageName }), loading = false)
+            if (batch.global) null else batch.targets.mapTo(linkedSetOf()) { it.packageName },
+            IconInventoryVisibility(showHidden, retained)), loading = false)
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (_: Exception) {
@@ -132,9 +151,30 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
   PreservedIconsPage(state.apps, prefs.preservedIconPackages, state.loading, state.failed,
     onToggle = { pkg ->
       val current = model.preferences.state.value.preservedIconPackages
-      model.setPreservedIconPackages(if (pkg in current) current - pkg else current + pkg)
+      if (pkg !in current && customState.selections.any { it.packageName == pkg }) conflict = pkg
+      else model.setPreservedIconPackages(if (pkg in current) current - pkg else current + pkg)
     }, onRetry = { manualRefreshing = true; retry++ }, onBack = onBack,
     refreshing = manualRefreshing,
+    showHidden = showHidden, onShowHiddenChange = { showHidden = it },
+    configuredPackages = customized,
+    editingEnabled = customState.ready && !customState.busy && !customState.loading,
+    dialogs = {
+      os.kei.hyper.home.ui.components.Os4DetailsSheet(conflict != null, { conflict = null },
+        title = stringResource(R.string.custom_icons_conflict_title),
+        summary = stringResource(R.string.custom_icons_conflict_custom)) {
+        conflict?.let { name ->
+          Text(state.apps.firstOrNull { it.packageName == name }?.label ?: name,
+            style = MiuixTheme.textStyles.body1)
+        }
+        top.yukonga.miuix.kmp.basic.Button(onClick = {
+          conflict?.let { customController.remove(it, preserveOriginal = true) }
+          conflict = null
+        }, enabled = customState.ready && !customState.busy && !customState.loading,
+          modifier = Modifier.fillMaxWidth()) {
+          Text(stringResource(R.string.custom_icons_conflict_preserve_action))
+        }
+      }
+    },
     appIcon = { app -> OriginalPreservedIcon(app, inventory, configurationKey) })
 }
 
@@ -148,6 +188,11 @@ internal fun PreservedIconsPage(
   onRetry: () -> Unit,
   onBack: () -> Unit,
   refreshing: Boolean = false,
+  showHidden: Boolean = false,
+  onShowHiddenChange: (Boolean) -> Unit = {},
+  configuredPackages: Set<String> = emptySet(),
+  editingEnabled: Boolean = true,
+  dialogs: @Composable () -> Unit = {},
   appIcon: @Composable (PreservedIconApp?) -> Unit = { PreservedIconPlaceholder() },
 ) {
   var query by rememberSaveable { mutableStateOf("") }
@@ -159,8 +204,10 @@ internal fun PreservedIconsPage(
   val collator = remember(localeTag) { Collator.getInstance(Locale.forLanguageTag(localeTag)) }
   val appsIdentity = SnapshotIdentity(apps)
   val appsByPackage = remember(appsIdentity) { apps.associateBy { it.packageName } }
-  val packages = remember(appsIdentity, SnapshotIdentity(preserved), allApps) {
-    if (allApps) apps.map { it.packageName } + (preserved - appsByPackage.keys).sorted()
+  val packages = remember(appsIdentity, SnapshotIdentity(preserved), SnapshotIdentity(configuredPackages), allApps, showHidden) {
+    if (allApps) apps.filter { showHidden || !it.hiddenByDefault || it.packageName in preserved ||
+      it.packageName in configuredPackages }
+      .map { it.packageName } + (preserved - appsByPackage.keys).sorted()
     else apps.filter { it.packageName in preserved }.map { it.packageName } +
       (preserved - appsByPackage.keys).sorted()
   }
@@ -212,7 +259,9 @@ internal fun PreservedIconsPage(
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } }, actions = {
-          PreservedIconsFilter(origin, onOriginChange = { origin = it }, onReset = { origin = 0 })
+          PreservedIconsFilter(origin, showHidden, onOriginChange = { origin = it },
+            onShowHiddenChange = onShowHiddenChange,
+            onReset = { origin = 0; onShowHiddenChange(false) })
           PreservedIconsSort(sort, reverse, onSortChange = { sort = it },
             onReverseChange = { reverse = !reverse })
         }, bottomContent = {
@@ -282,20 +331,21 @@ internal fun PreservedIconsPage(
               failed -> R.string.preserved_icons_unavailable
               else -> R.string.preserved_icons_uninstalled
             }), modifier = Modifier.testTag("preserved-icons.app:$pkg")
-              .os4Toggleable(checked, role = Role.Checkbox, onValueChange = { onToggle(pkg) }),
+              .os4Toggleable(checked, enabled = editingEnabled, role = Role.Checkbox, onValueChange = { onToggle(pkg) }),
             startAction = { appIcon(app) },
             endActions = { Checkbox(if (checked) ToggleableState.On else ToggleableState.Off, onClick = null,
-              modifier = Modifier.clearAndSetSemantics {}) })
+              enabled = editingEnabled, modifier = Modifier.clearAndSetSemantics {}) })
         }
       }
     }
   }
+    dialogs()
   }
 }
 
 @Composable
-private fun PreservedIconsFilter(origin: Int,
-  onOriginChange: (Int) -> Unit, onReset: () -> Unit) {
+private fun PreservedIconsFilter(origin: Int, showHidden: Boolean,
+  onOriginChange: (Int) -> Unit, onShowHiddenChange: (Boolean) -> Unit, onReset: () -> Unit) {
   val origins = listOf(R.string.browser_origin_all, R.string.browser_origin_user, R.string.browser_origin_system)
   val sources = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_origin),
@@ -303,17 +353,20 @@ private fun PreservedIconsFilter(origin: Int,
         DropdownItem(text = stringResource(label), selected = origin == index, onClick = { onOriginChange(index) })
       }),
   ))
+  val hidden = DropdownEntry(items = listOf(DropdownItem(
+    text = stringResource(R.string.icon_inventory_show_hidden), selected = showHidden,
+    onClick = { onShowHiddenChange(!showHidden) })))
   val reset = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_reset), onClick = onReset),
   ))
   OverlayIconCascadingDropdownMenu(
-    entries = listOf(sources, reset),
+    entries = listOf(sources, hidden, reset),
     modifier = Modifier.testTag("preserved-icons.filter"),
   ) {
     Icon(MiuixIcons.Glass.Filter,
       contentDescription = stringResource(R.string.preserved_icons_filter,
         stringResource(origins[origin.coerceIn(origins.indices)])),
-      tint = if (origin == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+      tint = if (origin == 0 && !showHidden) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
   }
 }
 
@@ -336,14 +389,15 @@ private fun PreservedIconsSort(sort: Int, reverse: Boolean, onSortChange: (Int) 
 }
 
 @Composable
-private fun OriginalPreservedIcon(app: PreservedIconApp?, inventory: PreservedIconInventory, configuration: String) {
-  val size = with(LocalDensity.current) { 44.dp.roundToPx().coerceIn(48, 192) }
+internal fun OriginalPreservedIcon(app: PreservedIconApp?, inventory: PreservedIconInventory,
+  configuration: String, iconSize: androidx.compose.ui.unit.Dp = 44.dp) {
+  val size = with(LocalDensity.current) { iconSize.roundToPx().coerceIn(48, 192) }
   val dark = LocalKeiHomeDarkTheme.current
   val bitmap by produceState<Bitmap?>(null, app, configuration, size, dark) {
     value = null
     if (app != null) value = inventory.icon(app, configuration, size, dark)
   }
-  Box(Modifier.size(44.dp)) {
+  Box(Modifier.size(iconSize)) {
     if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
     else PreservedIconPlaceholder()
   }

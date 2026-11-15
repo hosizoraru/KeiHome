@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="custom_icons_original">原始图标</string>
+  <string name="custom_icons_preview_loading">正在读取预览…</string>
+  <string name="custom_icons_source_matched">此应用的对应图标</string>
+  <string name="custom_icons_source_examples">未直接覆盖 · 图标示例</string>
+  <string name="custom_icons_style_art_on">%1$s · ART+</string>
+  <string name="icon_inventory_show_hidden">显示系统组件与测试包</string>
+    <string name="custom_icons_title">图标自定义</string>
+    <string name="custom_icons_entry">为应用固定使用其他图标包里的图标</string>
+    <string name="custom_icons_summary">把喜欢的图标留给指定应用，切换图标包后也会保留。</string>
+    <string name="custom_icons_add">添加自定义</string>
+    <string name="custom_icons_add_summary">依次选择应用、来源图标包和图标</string>
+    <string name="custom_icons_choose_app">选择应用</string>
+    <string name="custom_icons_choose_pack">选择图标包</string>
+    <string name="custom_icons_choose_icon">选择图标</string>
+    <string name="custom_icons_search">搜索</string>
+    <string name="custom_icons_reapply">修改后，请重新应用当前图标包使设置生效。</string>
+    <string name="custom_icons_remove">移除自定义</string>
+    <string name="custom_icons_empty">还没有自定义图标，应用会沿用当前图标方案。</string>
+    <string name="custom_icons_count">%1$d 个图标</string>
+    <string name="custom_icons_available">可选择已安装、已导入和已生成的图标包。Apple 和完美图标补全计划的资源请先生成图标包，再在这里选择。</string>
+    <string name="custom_icons_more">获取更多图标包</string>
+    <string name="custom_icons_source_missing">来源图标包已不可用，请返回选择其他来源。</string>
+    <string name="custom_icons_loading">正在读取…</string>
+    <string name="custom_icons_saving">正在保存图标…</string>
+    <string name="custom_icons_error">操作未完成，点击重新读取后再试。</string>
+    <string name="custom_icons_help">图标自定义拥有最高优先级，对本 App 管理的所有图标包生效。它与保留原始图标互斥，切换时会提示确认。同一应用在不同用户空间中使用相同的自定义。\n\n选中的图标会独立保存，同时保留来源提供的深浅色和动态资源。更新或删除来源图标包、清理图标包缓存，都不会移除已经保存的选择。\n\n添加、修改或移除后，请重新应用当前图标包。以后切换图标包时会自动带上这些选择。移除自定义后，该应用恢复使用当前图标包及正常的补全、回退规则。</string>
+    <string name="custom_icons_confirm">保存并固定此图标</string>
+    <string name="custom_icons_confirm_summary">将为所选应用固定使用此图标。保存后，请重新应用当前图标包。</string>
+    <string name="custom_icons_remove_summary">移除此项后，请重新应用图标包，以恢复正常的图标与回退规则。</string>
+    <string name="custom_icons_conflict_preserved">此应用已开启保留原始图标。保存自定义图标时，会同时取消该应用的保留设置。</string>
+    <string name="custom_icons_conflict_save_action">取消保留并固定此图标</string>
+    <string name="custom_icons_conflict_title">图标设置冲突</string>
+    <string name="custom_icons_conflict_custom">此应用已设置图标自定义。改为保留原始图标时，需要移除它的自定义选择。确认后，请重新应用当前图标包。</string>
+    <string name="custom_icons_conflict_preserve_action">移除自定义并保留原始图标</string>
+    <string name="custom_icons_show_all">查看全部图标</string>
+</resources>

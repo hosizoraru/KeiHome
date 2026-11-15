@@ -85,16 +85,44 @@ class PreservedIconInventoryTest {
     assertEquals(1, source.fullReads)
   }
 
+  @Test fun visibilitySwitchesRestoreHiddenRowsAndRetainedChangesOnlyQueryTheirPackages() = runBlocking {
+    val hidden = app("vendor.example.service", "Hidden component").copy(hiddenByDefault = true)
+    val source = Source(first, hidden)
+    val inventory = PreservedIconInventory(context, source)
+    assertEquals(listOf(first), inventory.read(Locale.US))
+    val retained = IconInventoryVisibility(retainedPackages = setOf(hidden.packageName))
+    assertEquals(2, inventory.read(Locale.US, emptySet(), retained).size)
+    assertEquals(listOf(hidden.packageName), source.targets)
+    assertEquals(1, source.fullReads)
+    assertEquals(listOf(first), inventory.read(Locale.US, emptySet()))
+    assertEquals(1, source.fullReads)
+    assertEquals(2, inventory.read(Locale.US, emptySet(), IconInventoryVisibility(showHidden = true)).size)
+    assertEquals(2, source.fullReads)
+    assertEquals(listOf(first), inventory.read(Locale.US, emptySet()))
+  }
+
+  @Test fun realInventoryHidesOnlyEligibleComponentsAndCanRevealThemAgain() = runBlocking {
+    val inventory = PreservedIconInventory(context)
+    val normal = inventory.read(Locale.getDefault())
+    val all = inventory.read(Locale.getDefault(), visibility = IconInventoryVisibility(showHidden = true))
+    assertEquals(all.filterNot { it.hiddenByDefault }.map { it.packageName }.toSet(),
+      normal.map { it.packageName }.toSet())
+    assertFalse(normal.isEmpty())
+    assertEquals(normal, inventory.read(Locale.getDefault()))
+    android.util.Log.i("KeiHomeInventoryAudit", "default=${normal.size}, all=${all.size}, hidden=${all.count { it.hiddenByDefault }}")
+    Unit
+  }
+
   private class Source(vararg rows: PreservedIconApp) : PreservedIconInventorySource {
     val apps = rows.associateByTo(linkedMapOf()) { it.packageName }
     val targets = mutableListOf<String>()
     var fullReads = 0
     var failure: RuntimeException? = null
-    override suspend fun readAll(): List<PreservedIconApp> {
+    override suspend fun readAll(visibility: IconInventoryVisibility): List<PreservedIconApp> {
       fullReads++
       return apps.values.map { it.copy() }
     }
-    override suspend fun readPackage(packageName: String): PreservedIconApp? {
+    override suspend fun readPackage(packageName: String, visibility: IconInventoryVisibility): PreservedIconApp? {
       targets += packageName
       if (packageName == "example.second") failure?.let { throw it }
       return apps[packageName]?.copy()

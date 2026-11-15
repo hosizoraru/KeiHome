@@ -56,6 +56,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  if (section == "custom-icons") {
+    CustomIconsScreen(model, onBack, onNavigate)
+    return
+  }
   if (section == "settings") {
     PackSettingsScreen(model, onBack) { onNavigate("icon-mask") }
     return
@@ -175,6 +179,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null) },
               modifier = Modifier.testTag("icon-packs.open-preserved-icons"),
               onClick = { onNavigate("preserved-icons") })
+            BasicComponent(title = stringResource(R.string.custom_icons_title),
+              summary = stringResource(R.string.custom_icons_entry),
+              onClick = { onNavigate("custom-icons") })
             BasicComponent(title = stringResource(R.string.recommended_mappings_title),
               summary = stringResource(R.string.recommended_mappings_entry),
               startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null) },

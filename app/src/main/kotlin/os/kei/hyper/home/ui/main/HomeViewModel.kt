@@ -164,6 +164,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private val scanner = InstalledIconScanner(application)
   private var previewCacheRevision = 0L
   val packPreviews = IconPackPreviewRepository(application)
+  val customIcons by lazy {
+    CustomIconsController(application, viewModelScope, packRepository, packPreviews,
+      onCustomSaved = { pkg -> setPreservedIconPackages(preferences.state.value.preservedIconPackages - pkg) },
+      onOriginalPreserved = { pkg -> setPreservedIconPackages(preferences.state.value.preservedIconPackages + pkg) })
+  }
   val currentPreviews = CurrentIconPreviewRepository(application,
     { pack, entry -> packPreviews.loadApplied(pack, entry) })
   private val packRepository = IconPackRepository(application)
@@ -302,7 +307,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         packageInventoryRevision) { _, _, _, _, _ -> Unit }
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(preferences.state.map { it.preservedIconPackages to it.recommendedIconMappings }.distinctUntilChanged()) { _, _ -> Unit }
-        .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }.collectLatest {
+        .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(os.kei.hyper.home.iconpack.CustomIconStore.revision) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
           if (iconPacks.value.nativeImporting != null) return@withContext false
@@ -332,11 +338,14 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           val fingerprints = nativeIconAdaptations.read(source.generation?.nativeAdaptations?.keys.orEmpty()) {
             caller.ensureActive()
           }
+          val custom = os.kei.hyper.home.iconpack.CustomIconSnapshot(
+            os.kei.hyper.home.iconpack.CustomIconStore.selections(application), emptyMap())
           iconPackNeedsUpdate(pack, source, targets, fallback, system, nameMatching, colorOsExtra, fingerprints,
             installedOnly = selected.installedIconsOnly, perfectSource = perfectSource,
             completeSystemIconConfig = selected.completeSystemIconConfig,
             iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
-            preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings) {
+            preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings,
+            customizedPackages = custom.packages, customIconIdentity = custom.identity) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled

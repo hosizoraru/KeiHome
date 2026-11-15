@@ -28,6 +28,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
@@ -55,6 +56,7 @@ class PreservedIconsUiTest {
   private val readerColor = 0xff006a60.toInt()
   private val galleryColor = 0xffc45c26.toInt()
   private var preserved by mutableStateOf(emptySet<String>())
+  private var includeHidden by mutableStateOf(false)
 
   @Test fun emptySavedListCanSelectAnAppWithOriginalImageAndRetainItInSaved() {
     show()
@@ -149,17 +151,34 @@ class PreservedIconsUiTest {
     assertRowOrder(reader.packageName, other.packageName)
     selectMenuItem("preserved-icons.filter", context.getString(R.string.browser_reset))
     rule.runOnIdle { assertEquals(saved, preserved) }
-    // Reset restores Saved/origin-all while retaining the query and reverse package order.
+    // Reset clears advanced filters while retaining the selected scope, query and sort.
     assertRowOrder(system.packageName, reader.packageName)
     row(reader.packageName).assertIsOn()
     row(system.packageName).assertIsOn()
-    row(other.packageName).assertDoesNotExist()
+    row(other.packageName).assertIsOff()
     row(gallery.packageName).assertDoesNotExist()
 
     clearSearch()
     scrollTo(gallery.packageName)
     row(gallery.packageName).assertIsOn()
-    row(other.packageName).assertDoesNotExist()
+    scrollTo(other.packageName)
+    row(other.packageName).assertIsOff()
+  }
+
+  @Test fun hiddenComponentsCanBeRevealedAndSavedChoicesRemainVisibleAfterHidingAgain() {
+    val hidden = reader.copy(packageName = "vendor.background", label = "Hidden component",
+      hiddenByDefault = true)
+    show(setOf(reader.packageName), listOf(reader, hidden))
+    selectMode("all")
+    row(hidden.packageName).assertDoesNotExist()
+    selectMenuItem("preserved-icons.filter", context.getString(R.string.icon_inventory_show_hidden))
+    row(hidden.packageName).assertIsOff().performClick()
+    selectMenuItem("preserved-icons.filter", context.getString(R.string.icon_inventory_show_hidden))
+    row(hidden.packageName).assertIsOn()
+    selectMode("saved")
+    row(hidden.packageName).assertIsOn().performClick().assertDoesNotExist()
+    selectMode("all")
+    row(hidden.packageName).assertDoesNotExist()
   }
 
   private fun show(
@@ -176,6 +195,7 @@ class PreservedIconsUiTest {
         KeiHomeTheme {
           PreservedIconsPage(
             apps = apps, preserved = preserved, loading = false, failed = false,
+            showHidden = includeHidden, onShowHiddenChange = { includeHidden = it },
             onToggle = { pkg -> preserved = if (pkg in preserved) preserved - pkg else preserved + pkg },
             onRetry = {}, onBack = {},
             appIcon = { app ->
@@ -228,7 +248,8 @@ class PreservedIconsUiTest {
   private fun selectMode(mode: String) {
     val label = if (mode == "saved") context.getString(R.string.preserved_icons_saved, preserved.size)
       else context.getString(R.string.preserved_icons_all)
-    selectMenuItem("preserved-icons.filter", label)
+    rule.onNodeWithText(label).assertIsDisplayed().performClick()
+    rule.waitForIdle()
   }
 
   private fun selectMenuItem(trigger: String, vararg labels: String) {

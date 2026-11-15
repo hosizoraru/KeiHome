@@ -35,11 +35,25 @@ internal data class PreservedIconApp(
   val activeLauncherClass: String? = null,
   val installedAt: Long = 0,
   val systemApp: Boolean = false,
+  val hiddenByDefault: Boolean = false,
 )
 
+internal data class IconInventoryVisibility(
+  val showHidden: Boolean = false,
+  val retainedPackages: Set<String> = emptySet(),
+) {
+  fun includes(packageName: String, hidden: Boolean) =
+    showHidden || !hidden || packageName in retainedPackages
+}
+
+internal fun hiddenIconInventoryPackage(
+  packageName: String, hasLauncher: Boolean, iconResource: Int, overlay: Boolean,
+): Boolean = overlay || isDevelopmentPackage(packageName) ||
+  (!hasLauncher && (iconResource == 0 || iconResource == android.R.drawable.sym_def_app_icon))
+
 internal interface PreservedIconInventorySource {
-  suspend fun readAll(): List<PreservedIconApp>
-  suspend fun readPackage(packageName: String): PreservedIconApp?
+  suspend fun readAll(visibility: IconInventoryVisibility): List<PreservedIconApp>
+  suspend fun readPackage(packageName: String, visibility: IconInventoryVisibility): PreservedIconApp?
 }
 
 private class AndroidPreservedIconInventorySource(context: Context) : PreservedIconInventorySource {
@@ -57,8 +71,13 @@ private class AndroidPreservedIconInventorySource(context: Context) : PreservedI
       components.mapNotNull { it.className }.distinct().singleOrNull()
     }
 
-  private fun app(pkg: PackageInfo, launcher: String?): PreservedIconApp? {
+  private fun app(pkg: PackageInfo, launcher: String?, hasLauncher: Boolean,
+    visibility: IconInventoryVisibility): PreservedIconApp? {
     val info = pkg.applicationInfo ?: return null
+    val hidden = hiddenIconInventoryPackage(pkg.packageName, hasLauncher, info.icon, false) ||
+      os.kei.hyper.home.data.isResourceOverlay(pm, info)
+    // Skip labels and all preview work for irrelevant components, before creating a row.
+    if (!visibility.includes(pkg.packageName, hidden)) return null
     val label = try {
       info.loadLabel(pm).toString().trim().ifEmpty { pkg.packageName }
     } catch (_: RuntimeException) {
@@ -66,24 +85,26 @@ private class AndroidPreservedIconInventorySource(context: Context) : PreservedI
     }
     return PreservedIconApp(pkg.packageName, label, PackageInfoCompat.getLongVersionCode(pkg),
       pkg.lastUpdateTime, info.sourceDir.orEmpty(), info.icon, launcher, pkg.firstInstallTime,
-      systemApp = info.flags and ApplicationInfo.FLAG_SYSTEM != 0)
+      systemApp = info.flags and ApplicationInfo.FLAG_SYSTEM != 0, hiddenByDefault = hidden)
   }
 
   @Suppress("DEPRECATION")
-  override suspend fun readAll(): List<PreservedIconApp> {
+  override suspend fun readAll(visibility: IconInventoryVisibility): List<PreservedIconApp> {
     val launchers = launchers()
     return pm.getInstalledPackages(0).mapNotNull { pkg ->
       currentCoroutineContext().ensureActive()
-      app(pkg, launchers[pkg.packageName])
+      app(pkg, launchers[pkg.packageName], pkg.packageName in launchers, visibility)
     }
   }
 
   @Suppress("DEPRECATION")
-  override suspend fun readPackage(packageName: String): PreservedIconApp? {
+  override suspend fun readPackage(packageName: String, visibility: IconInventoryVisibility): PreservedIconApp? {
     val pkg = try { pm.getPackageInfo(packageName, 0) }
     catch (_: PackageManager.NameNotFoundException) { return null }
     currentCoroutineContext().ensureActive()
-    return checkNotNull(app(pkg, launchers(packageName)[packageName])) { "Missing package metadata" }
+    checkNotNull(pkg.applicationInfo) { "Missing package metadata" }
+    val launchers = launchers(packageName)
+    return app(pkg, launchers[packageName], packageName in launchers, visibility)
   }
 }
 
@@ -97,25 +118,30 @@ internal class PreservedIconInventory(
   private var previous: List<PreservedIconApp>? = null
   private var previousConfiguration: Configuration? = null
   private var previousLocale: Locale? = null
+  private var previousVisibility: IconInventoryVisibility? = null
   private val iconWorkers = Semaphore(2)
   private val icons = object : LruCache<String, Bitmap>(4 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
   }
 
   /** Null requests an authoritative read; package events update only their named rows. */
-  suspend fun read(locale: Locale, packages: Set<String>? = null): List<PreservedIconApp> =
+  suspend fun read(locale: Locale, packages: Set<String>? = null,
+    visibility: IconInventoryVisibility = IconInventoryVisibility()): List<PreservedIconApp> =
     withContext(Dispatchers.IO) {
       inventoryLock.withLock {
-        val targets = packages?.toSet()
+        val retainedChanges = previousVisibility?.retainedPackages.orEmpty().let { old ->
+          (old - visibility.retainedPackages) + (visibility.retainedPackages - old)
+        }
+        val targets = packages?.toSet()?.plus(retainedChanges)
         val configuration = Configuration(appContext.resources.configuration)
         val old = previous
         val full = targets == null || old == null || previousLocale != locale ||
-          previousConfiguration != configuration
+          previousConfiguration != configuration || previousVisibility?.showHidden != visibility.showHidden
         if (!full && targets.isNullOrEmpty()) return@withLock old.orEmpty()
-        val replacements = if (full) source.readAll() else targets.orEmpty().mapNotNull {
+        val replacements = (if (full) source.readAll(visibility) else targets.orEmpty().mapNotNull {
           currentCoroutineContext().ensureActive()
-          source.readPackage(it)?.also { app -> require(app.packageName == it) }
-        }
+          source.readPackage(it, visibility)?.also { app -> require(app.packageName == it) }
+        }).filter { visibility.includes(it.packageName, it.hiddenByDefault) }
         val candidates = if (full) replacements
           else old.orEmpty().filterNot { it.packageName in targets.orEmpty() } + replacements
         val oldByName = old.orEmpty().associateBy { it.packageName }
@@ -132,6 +158,7 @@ internal class PreservedIconInventory(
         previous = result
         previousConfiguration = configuration
         previousLocale = locale
+        previousVisibility = visibility
         result
       }
     }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="custom_icons_original">Original icon</string>
+  <string name="custom_icons_preview_loading">Loading preview…</string>
+  <string name="custom_icons_source_matched">Icon for the selected app</string>
+  <string name="custom_icons_source_examples">No direct match · Sample icons</string>
+  <string name="custom_icons_style_art_on">%1$s · ART+</string>
+  <string name="icon_inventory_show_hidden">Show system components and test packages</string>
+    <string name="custom_icons_title">Custom icons</string>
+    <string name="custom_icons_entry">Pin an icon from another pack for any app</string>
+    <string name="custom_icons_summary">Use a favorite icon from any available pack, even after switching packs.</string>
+    <string name="custom_icons_add">Add a custom icon</string>
+    <string name="custom_icons_add_summary">Choose an app, a source pack and an icon</string>
+    <string name="custom_icons_choose_app">Choose app</string>
+    <string name="custom_icons_choose_pack">Choose icon pack</string>
+    <string name="custom_icons_choose_icon">Choose icon</string>
+    <string name="custom_icons_search">Search</string>
+    <string name="custom_icons_reapply">Changes take effect after applying your icon pack again.</string>
+    <string name="custom_icons_remove">Remove custom icon</string>
+    <string name="custom_icons_empty">No custom icons yet. Your current pack stays in use.</string>
+    <string name="custom_icons_count">%1$d icons</string>
+    <string name="custom_icons_available">Choose from installed, imported and generated packs. Generate Apple or Perfect Icons packs first to make their icons available here.</string>
+    <string name="custom_icons_more">Get more icon packs</string>
+    <string name="custom_icons_source_missing">This source is no longer available. Go back and choose another pack.</string>
+    <string name="custom_icons_loading">Loading…</string>
+    <string name="custom_icons_saving">Saving icon…</string>
+    <string name="custom_icons_error">Could not complete this action. Tap to reload, then try again.</string>
+    <string name="custom_icons_help">Custom icons have the highest priority. They are mutually exclusive with preserving original icons; switching asks for confirmation. A choice applies to this app in every icon pack managed by KeiHome.\n\nEach chosen icon is saved independently, including its available light, dark and dynamic resources. Source pack removal or cache cleanup does not remove your saved choice.\n\nAfter adding, changing or removing a choice, apply your current pack again. Future pack switches automatically carry your choices over. Remove a choice to return the app to the current pack and its normal fallback rules.</string>
+    <string name="custom_icons_confirm">Save custom icon</string>
+    <string name="custom_icons_confirm_summary">This icon will be pinned for the selected app. Apply your current pack again after saving.</string>
+    <string name="custom_icons_remove_summary">Remove this choice, then apply your pack again to restore its normal icon rules.</string>
+    <string name="custom_icons_conflict_preserved">This app currently keeps its original icon. Saving this custom icon will turn that setting off.</string>
+    <string name="custom_icons_conflict_save_action">Stop preserving and use this icon</string>
+    <string name="custom_icons_conflict_title">Icon settings conflict</string>
+    <string name="custom_icons_conflict_custom">This app has a custom icon. To preserve its original icon, remove the custom choice. Apply your current pack again afterwards.</string>
+    <string name="custom_icons_conflict_preserve_action">Remove custom icon and preserve original</string>
+    <string name="custom_icons_show_all">Show all icons</string>
+</resources>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="custom_icons_original">元のアイコン</string>
+  <string name="custom_icons_preview_loading">プレビューを読み込み中…</string>
+  <string name="custom_icons_source_matched">選択したアプリのアイコン</string>
+  <string name="custom_icons_source_examples">直接の対応なし · サンプル</string>
+  <string name="custom_icons_style_art_on">%1$s · ART+</string>
+  <string name="icon_inventory_show_hidden">システムコンポーネントとテストパッケージを表示</string>
+    <string name="custom_icons_title">アイコンのカスタマイズ</string>
+    <string name="custom_icons_entry">アプリごとに別のパックのアイコンを固定</string>
+    <string name="custom_icons_summary">お気に入りのアイコンを、パック切り替え後も使い続けられます。</string>
+    <string name="custom_icons_add">カスタマイズを追加</string>
+    <string name="custom_icons_add_summary">アプリ、アイコンパック、アイコンの順に選択</string>
+    <string name="custom_icons_choose_app">アプリを選択</string>
+    <string name="custom_icons_choose_pack">アイコンパックを選択</string>
+    <string name="custom_icons_choose_icon">アイコンを選択</string>
+    <string name="custom_icons_search">検索</string>
+    <string name="custom_icons_reapply">変更を反映するには、現在のアイコンパックを再適用してください。</string>
+    <string name="custom_icons_remove">カスタマイズを削除</string>
+    <string name="custom_icons_empty">カスタマイズはありません。現在のアイコン設定を使用します。</string>
+    <string name="custom_icons_count">%1$d 個のアイコン</string>
+    <string name="custom_icons_available">インストール済み、インポート済み、生成済みのパックから選択します。Apple と Perfect Icons のリソースは先にパックを生成してください。</string>
+    <string name="custom_icons_more">アイコンパックを追加</string>
+    <string name="custom_icons_source_missing">元のパックを利用できません。戻って別のパックを選択してください。</string>
+    <string name="custom_icons_loading">読み込み中…</string>
+    <string name="custom_icons_saving">アイコンを保存中…</string>
+    <string name="custom_icons_error">操作を完了できませんでした。タップして再読み込みし、もう一度お試しください。</string>
+    <string name="custom_icons_help">カスタムアイコンは最優先です。元のアイコンを保持する設定とは排他的で、切り替え時に確認します。KeiHome が管理するすべてのアイコンパックに適用されます。\n\n選択したアイコンはライト・ダーク・動的リソースとともに個別に保存されます。元のパックの削除やキャッシュの消去によって選択が失われることはありません。\n\n追加・変更・削除後は、現在のパックを再適用してください。その後のパック切り替えでは選択が自動的に引き継がれます。削除すると通常のアイコンと補完規則に戻ります。</string>
+    <string name="custom_icons_confirm">このアイコンを固定</string>
+    <string name="custom_icons_confirm_summary">選択したアプリにこのアイコンを固定します。保存後に現在のパックを再適用してください。</string>
+    <string name="custom_icons_remove_summary">削除後にパックを再適用すると、通常のアイコンとフォールバック規則に戻ります。</string>
+    <string name="custom_icons_conflict_preserved">このアプリは元のアイコンを保持しています。カスタムアイコンを保存すると、その設定は解除されます。</string>
+    <string name="custom_icons_conflict_save_action">保持を解除してこのアイコンを固定</string>
+    <string name="custom_icons_conflict_title">アイコン設定の競合</string>
+    <string name="custom_icons_conflict_custom">このアプリにはカスタムアイコンが設定されています。元のアイコンを保持するにはカスタマイズを削除してください。その後、現在のパックを再適用してください。</string>
+    <string name="custom_icons_conflict_preserve_action">カスタマイズを削除して元のアイコンを保持</string>
+    <string name="custom_icons_show_all">すべてのアイコンを表示</string>
+</resources>

@@ -24,7 +24,8 @@ files to 4 MiB. Lifting only the inventory limit would leave previews failing.
 ## Bounded read and publication
 
 Archive size and entry count now use the existing `IconPackLimits` contract:
-256 MiB input, 100,000 entries. Inventory still reads image signatures rather
+1 GiB input, 2 GiB expanded content and 100,000 entries. These byte budgets
+are shared with generation, handoff, native admission and rights inspection. Inventory still reads image signatures rather
 than loading image payloads. XML remains limited to 64 KiB per descriptor, with
 a separate 32 MiB cumulative budget for large collections of small descriptors.
 Incomplete or malformed sources remain incomplete; the warning is not hidden.

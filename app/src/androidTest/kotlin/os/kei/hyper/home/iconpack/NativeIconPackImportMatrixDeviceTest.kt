@@ -112,6 +112,29 @@ class NativeIconPackImportMatrixDeviceTest {
 
       save()
       try {
+        val requestedStyle = InstrumentationRegistry.getArguments().getString("perfectStyle")
+        val generatedDigest = if (requestedStyle != null) {
+          report.put("coverage", "Explicit Perfect Icons style only; other inventories are context")
+          check(requestedStyle == "iOS") { "Unsupported explicit style acceptance request" }
+          val perfect = os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(context)
+          check(requestedStyle in requireNotNull(perfect.catalog()).downloadedStyles) { "The requested style is not downloaded" }
+          val options = os.kei.hyper.home.iconpack.perfect.PerfectIconOptions(
+            style = requestedStyle, installedOnly = false, dynamic = true, staticNight = true)
+          val began = SystemClock.elapsedRealtime()
+          val existing = InstrumentationRegistry.getArguments().getString("existingPerfectArchive")?.let { name ->
+            check(name.matches(Regex("perfect-[a-f0-9]{12}-[a-f0-9]{24}\\.zip"))) { "Expected a publication filename" }
+            File(context.filesDir, "perfect-icons/generated/$name").also {
+              check(Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS))
+            }
+          }
+          val generated = if (existing == null) perfect.generate(options, emptySet()) {} else null
+          report.put("generatedStyle", requestedStyle).put("generationMs", SystemClock.elapsedRealtime() - began)
+            .put("generatedArchive", (generated?.file ?: existing!!).absolutePath)
+            .put("reusedExistingPublication", existing != null)
+          generated?.let { report.put("generatedMappings", it.mapped) }
+          val caller = currentCoroutineContext()
+          sha256(generated?.file ?: existing!!) { caller.ensureActive() }
+        } else null
         scan("installed", repository::listInstalled)
         scan("imported", repository::listImported)
         scan("builtin", repository::listBuiltins)
@@ -158,6 +181,7 @@ class NativeIconPackImportMatrixDeviceTest {
             }
           }
         }
+        if (generatedDigest != null) candidates.keys.retainAll(setOf(generatedDigest))
         check(candidates.isNotEmpty()) { "No import candidates were discovered" }
         candidates.values.forEach {
           rows.put(JSONObject().put("sourceId", it.pack.id).put("displayName", it.pack.displayName)

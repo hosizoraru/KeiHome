@@ -12,6 +12,24 @@ import org.junit.rules.TemporaryFolder
 import os.kei.hyper.home.iconpack.NativeIconPngFixtures
 
 class LocalLayerTimeVisualValidatorTest {
+  @Test fun layeredCalendarAdmitsOnlyTheExistingReadOnlyClockBroadcasts() {
+    admit("<VariableBinders/>")
+    val actions = listOf("TIME_SET", "DATE_CHANGED", "TIMEZONE_CHANGED", "LOCALE_CHANGED")
+    admit("<VariableBinders>" + actions.joinToString("") {
+      "<BroadcastBinder action='android.intent.action.$it'/>"
+    } + "</VariableBinders>")
+    for (binder in listOf(
+      "<BroadcastBinder action='android.intent.action.BATTERY_CHANGED'/>",
+      "<BroadcastBinder action='android.intent.action.DATE_CHANGED' name='extra'/>",
+      "<ContentProviderBinder uri='content://weather'/>",
+      "<SettingsBinder/>",
+      "<BroadcastBinder action='android.intent.action.DATE_CHANGED'><Variable name='payload'/></BroadcastBinder>",
+      "<BroadcastBinder action='android.intent.action.DATE_CHANGED'/><BroadcastBinder action='android.intent.action.DATE_CHANGED'/>",
+    )) reject("<VariableBinders>$binder</VariableBinders>")
+    reject("<Group><VariableBinders/></Group>")
+    reject("<VariableBinders/><VariableBinders/>")
+    reject("<BroadcastBinder action='android.intent.action.DATE_CHANGED'/>")
+  }
   @get:Rule val temporary = TemporaryFolder()
   private val base = "layer_animating_icons/com.example/0/fancy/"
   private val png = NativeIconPngFixtures.rgba(4)
@@ -59,7 +77,7 @@ class LocalLayerTimeVisualValidatorTest {
     for (name in listOf("bg", "fg", "CustomCanvas", "_canvas.layer-1")) {
       LocalNativeIconValidator.validate(archive(renamed(name)))
       for (body in listOf("<bg><Image src='icon.png'/></bg>", "<IntentCommand action='test'/>",
-        "<VariableBinders/>", "<Script/>")) {
+        "<VariableBinders><ContentProviderBinder/></VariableBinders>", "<Script/>")) {
         assertThrows(Exception::class.java) { LocalNativeIconValidator.validate(archive(renamed(name, body))) }
       }
       assertThrows(Exception::class.java) {

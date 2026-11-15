@@ -57,7 +57,11 @@ internal object LocalLayerIconValidator {
           val program = read(manifest, limits.maxXmlBytes.toLong())
           val weatherImages = LocalWeatherLayerProgram.resources(program, prefix + "fancy/", paths)
           if (weatherImages != null) weatherImages.forEach(::bitmap)
-          else consumed += visual(program, prefix + "fancy/", paths, read)
+          else {
+            val calendarImages = LocalCalendarLayerProgram.resources(program, prefix + "fancy/", paths)
+            if (calendarImages != null) calendarImages.forEach(::bitmap)
+            else consumed += visual(program, prefix + "fancy/", paths, read)
+          }
           consumed += manifest
         }
         fancyResources[prefix + "fancy/"].orEmpty().filter {
@@ -129,6 +133,8 @@ internal object LocalLayerIconValidator {
     val edges = linkedMapOf<String, MutableList<String>>()
     val costs = mutableMapOf<String, Int>()
     var visuals = 0
+    var binderGroups = 0
+    val clockBindings = mutableSetOf<String>()
     var observesDarkMode = false
     var tracks = 0
     var keyframes = 0
@@ -167,6 +173,8 @@ internal object LocalLayerIconValidator {
             (inLottieCompletion && tag == "VariableCommand" &&
               attrs == mapOf("name" to "useQuietImage", "type" to "number", "expression" to "1")))
         tag == "Consequent" -> parent?.tag == "IfCommand"
+        tag == "VariableBinders" -> parent?.tag == "Icon"
+        tag == "BroadcastBinder" -> parent?.tag == "VariableBinders"
         tag == "Trigger" -> parent?.tag in setOf("ExternalCommands", "Triggers")
         tag == "Triggers" -> parent?.tag == "Lottie"
         tag == "Function" -> parent?.tag == "Icon"
@@ -192,6 +200,8 @@ internal object LocalLayerIconValidator {
         "FolmeConfig" -> setOf("name", "property", "ease", "fromSpeed", "onBegin", "onComplete")
         "ExternalCommands", "Triggers", "Consequent" -> emptySet()
         "Trigger" -> setOf("action")
+        "VariableBinders" -> emptySet()
+        "BroadcastBinder" -> setOf("action")
         "Function" -> setOf("name")
         "FunctionCommand" -> setOf("target")
         "IfCommand" -> setOf("ifCondition")
@@ -256,8 +266,11 @@ internal object LocalLayerIconValidator {
               value == "ifelse(#__darkmode,'keihome_night/$source','$source')" &&
               resources.all { base + "keihome_night/$it" in paths }) { "Unsupported local appearance selector" }
           }
-          "action" -> require(if (parent?.tag == "Triggers") value == "complete"
-            else value.split(',').all { it in lifecycle }) { "Unsupported layer trigger action" }
+          "action" -> require(when {
+            tag == "BroadcastBinder" -> LocalNativeIconValidator.validClockBinding(attrs)
+            parent?.tag == "Triggers" -> value == "complete"
+            else -> value.split(',').all { it in lifecycle }
+          }) { "Unsupported layer trigger or clock binding action" }
           "target" -> {
             val kind = when (tag) { "FunctionCommand" -> "function"; "LottieCommand" -> "lottie"; else -> "target" }
             references += kind to (if (kind == "function") name(value) else visualName(value))
@@ -315,6 +328,8 @@ internal object LocalLayerIconValidator {
         }
       }
       when (tag) {
+        "VariableBinders" -> require(++binderGroups == 1) { "Duplicate clock binding container" }
+        "BroadcastBinder" -> require(clockBindings.add(requireNotNull(attrs["action"]))) { "Duplicate clock broadcast" }
         "Group" -> if (attrs["layered"] == "true") {
           val width = attrs["w"]?.toIntOrNull()
           val height = attrs["h"]?.toIntOrNull()

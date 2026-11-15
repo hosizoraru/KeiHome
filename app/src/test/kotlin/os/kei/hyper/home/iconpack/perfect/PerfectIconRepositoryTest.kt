@@ -24,6 +24,19 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class PerfectIconRepositoryTest {
+  @Test fun completedPublicationIsReusedWithoutRewritingAndChangedBytesAreRebuilt() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.repo.catalog(refresh = true)
+    val options = PerfectIconOptions(installedOnly = false, dynamic = false, staticNight = false)
+    val original = f.repo.generate(options, emptySet()) {}
+    val bytes = original.file.readBytes()
+    assertTrue(original.file.setLastModified(1_234_000L))
+    assertEquals(original.file, f.repo.generate(options, emptySet()) {}.file)
+    assertEquals(1_234_000L, original.file.lastModified())
+    original.file.appendBytes(byteArrayOf(1, 2, 3))
+    assertArrayEquals(bytes, f.repo.generate(options, emptySet()) {}.file.readBytes())
+    assertEquals(1, f.http.calls.size)
+  }
   @get:Rule val temporary = TemporaryFolder()
 
   private class Settings : PerfectIconSettings {
@@ -393,6 +406,8 @@ class PerfectIconRepositoryTest {
     val options = PerfectIconOptions("default", staticNight = true)
     val first = repo.generate(options, setOf("third.party")) {}
     File(f.root, "rendered-static-night").listFiles()!!.single().writeBytes(byteArrayOf(1, 2))
+    // Force publication rebuilding to exercise the corrupted intermediate render cache.
+    File(f.root, "publication-proofs").deleteRecursively()
     assertArrayEquals(first.file.readBytes(), repo.generate(options, setOf("third.party")) {}.file.readBytes())
     assertEquals(2, renders)
     mask = "M0,0 H100 V100 H0 Z"
@@ -935,9 +950,8 @@ class PerfectIconRepositoryTest {
     val storageBefore = f.repo.storageUsage()
     assertTrue(storageBefore.complete)
     assertEquals(protectedBytes + before, storageBefore.total)
-    assertEquals(blobs, before)
-    assertEquals(blobs, f.repo.clearDownloadCache())
-    assertEquals(before - blobs, f.repo.cacheBytes())
+    assertEquals(blobs + File(f.root, "publication-proofs").listFiles()!!.sumOf { it.length() }, before)
+    assertEquals(before, f.repo.clearDownloadCache())
     assertEquals(0L, f.repo.cacheBytes())
     val storageAfter = f.repo.storageUsage()
     assertTrue(storageAfter.complete)

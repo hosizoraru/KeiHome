@@ -202,16 +202,22 @@ internal data class IconPackDirective(val tag: String, val attributes: Map<Strin
 
 internal class IconPackException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
+internal object IconPackBudgets {
+  const val ARCHIVE_BYTES = 1024L * 1024 * 1024
+  const val EXPANDED_BYTES = 2L * ARCHIVE_BYTES
+  const val STORED_BYTES = 4L * ARCHIVE_BYTES
+}
+
 internal data class IconPackLimits(
-  val maxInputBytes: Long = 256L * 1024 * 1024,
-  val maxExpandedBytes: Long = 512L * 1024 * 1024,
+  val maxInputBytes: Long = IconPackBudgets.ARCHIVE_BYTES,
+  val maxExpandedBytes: Long = IconPackBudgets.EXPANDED_BYTES,
   val maxEntryBytes: Long = 96L * 1024 * 1024,
   val maxEntries: Int = 100_000,
   val maxCompressionRatio: Int = 512,
   val maxXmlBytes: Int = 16 * 1024 * 1024,
   val maxMappings: Int = 100_000,
   val maxStoredPacks: Int = 32,
-  val maxStoredBytes: Long = 1024L * 1024 * 1024,
+  val maxStoredBytes: Long = IconPackBudgets.STORED_BYTES,
 ) {
   init {
     require(maxInputBytes > 0 && maxExpandedBytes > 0 && maxEntryBytes > 0 && maxEntries > 0 &&

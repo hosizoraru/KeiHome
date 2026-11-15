@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import os.kei.hyper.home.iconpack.IconPackBudgets
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -15,7 +16,7 @@ import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
 /** Scoped proofs for generated icons or validated local visual modules, never opaque MTZs. */
 internal object ConvertedIconArchive {
-  const val MAX_BYTES = 256L * 1024 * 1024
+  const val MAX_BYTES = IconPackBudgets.ARCHIVE_BYTES
   const val LOCAL_NATIVE = "LOCAL_NATIVE_ICONS"
   private val origins = setOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP", LOCAL_NATIVE)
   fun supportsOrigin(origin: String): Boolean = origin in origins

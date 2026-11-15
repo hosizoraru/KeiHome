@@ -30,6 +30,8 @@ internal object LocalNativeIconValidator {
     "android.intent.action.TIME_SET", "android.intent.action.TIMEZONE_CHANGED",
     "android.intent.action.DATE_CHANGED", "android.intent.action.LOCALE_CHANGED",
   )
+  internal fun validClockBinding(attrs: Map<String, String>): Boolean =
+    attrs.keys == setOf("action") && attrs["action"] in clockActions
   private val localPath = Regex("[A-Za-z0-9_./-]*")
   private val quoted = Regex("'([^']*)'|\"([^\"]*)\"")
   private val pureFunctions = setOf("ifelse", "eq", "ne", "gt", "ge", "lt", "le",
@@ -171,7 +173,7 @@ internal object LocalNativeIconValidator {
       if (tag == "Icon") require(attrs["useVariableUpdater"].let { it == null || it == "DateTime" }) {
         "Unsupported local icon updater"
       }
-      if (tag == "BroadcastBinder") require(attrs.keys == setOf("action") && attrs["action"] in clockActions) {
+      if (tag == "BroadcastBinder") require(validClockBinding(attrs)) {
         "Unsupported local icon broadcast binding"
       }
       if (tag == "Var" || tag == "VariableCommand") {

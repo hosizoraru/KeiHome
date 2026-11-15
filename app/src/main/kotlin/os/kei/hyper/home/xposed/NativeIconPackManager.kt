@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import os.kei.hyper.home.iconpack.IconPackBudgets
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -68,7 +69,7 @@ internal object NativeIconPackManager {
   private const val PROVIDER_URI = "content://com.android.thememanager.theme_provider"
   private const val PC_DESCRIPTOR = "com.android.thememanager.service.IThemePCService"
   private const val THEME_CONTEXT = "u:object_r:theme_data_file:s0"
-  private const val MAX_ARCHIVE_BYTES = 256L * 1024 * 1024
+  private const val MAX_ARCHIVE_BYTES = IconPackBudgets.ARCHIVE_BYTES
   private const val MAX_METADATA_BYTES = 32L * 1024 * 1024
   private val stageRoot = File("/data/system/theme/.keihome-import")
   private val importing = AtomicBoolean()

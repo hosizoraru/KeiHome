@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import os.kei.hyper.home.iconpack.IconPackBudgets
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
@@ -56,7 +57,7 @@ internal class ThemeConvertedContent(
   private val cache: File,
   private val provider: (String) -> InputStream?,
 ) {
-  private val limit = 256L * 1024 * 1024
+  private val limit = IconPackBudgets.ARCHIVE_BYTES
 
   fun inspect(subject: ThemeConvertedSubject, grant: ConvertedIconGrant): Boolean {
     cache.mkdirs()

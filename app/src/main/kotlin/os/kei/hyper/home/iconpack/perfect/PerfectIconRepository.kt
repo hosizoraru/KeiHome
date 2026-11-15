@@ -114,6 +114,7 @@ class PerfectIconRepository internal constructor(
   private val blobsDir get() = File(root, "blobs")
   private val outputDir get() = File(root, "generated")
   private val previewDir get() = File(root, "previews")
+  private val publicationProofDir get() = File(root, "publication-proofs")
   private val renderedDir get() = File(root, "rendered-static-night")
   // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
   private var fallbackIndex: FallbackIndex? = null
@@ -705,7 +706,7 @@ class PerfectIconRepository internal constructor(
   }
 
   private fun resourceDirectories() = listOf(File(root, "git"), sourceDir, blobsDir, previewDir,
-    renderedDir, File(root, "trees"))
+    renderedDir, publicationProofDir, File(root, "trees"))
 
   internal suspend fun resourceBytes(): Long = withContext(ioDispatcher) {
     mutex.withLock {
@@ -793,7 +794,8 @@ class PerfectIconRepository internal constructor(
   }
 
   private fun clearable(file: File): Boolean = file.isFile &&
-    (file.parentFile == blobsDir || file.parentFile == renderedDir || file.toPath().startsWith(previewDir.toPath()) ||
+    (file.parentFile == blobsDir || file.parentFile == renderedDir || file.parentFile == publicationProofDir ||
+      file.toPath().startsWith(previewDir.toPath()) ||
       file.toPath().startsWith(File(root, "trees").toPath()) || file.name.endsWith(".part"))
 
   private data class Snapshot(
@@ -1291,12 +1293,29 @@ class PerfectIconRepository internal constructor(
       append('\n').append(options.dynamic).append('\n')
       if (options.staticNight) append(PerfectStaticNightRenderer.REVISION)
         .append(':').append(PerfectDynamicNight.REVISION).append('\n')
+      append(listOf(staticRenderer != null, staticEquivalentRenderer != null,
+        nativeSnapshotRenderer != null, dynamicNightRenderer != null).joinToString(":")).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
     }
     val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
     val destination = File(outputDir, "perfect-${snapshot.sourceHash.take(12)}-$key.zip")
+    val proofs = publicationProofDir.apply { mkdirs() }
+    val proof = File(proofs, "${destination.name}.sha256")
+    val coroutine = currentCoroutineContext()
+    if (Files.isRegularFile(destination.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+      destination.length() in 1..os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES &&
+      Files.isRegularFile(proof.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) && proof.length() == 64L &&
+      previewHash(destination, os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES) ==
+      proof.readText(Charsets.US_ASCII)) {
+      coroutine.ensureActive()
+      return destination
+    }
     writeArchive(destination, plan, transform, options = options, mask = mask,
       renderProgress = renderProgress) { blob -> blobFile(blob.sha).readBytes() }
+    val digest = previewHash(destination, os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES)
+    atomic(proof, digest.toByteArray(Charsets.US_ASCII)) { coroutine.ensureActive() }
+    proofs.listFiles().orEmpty().filter { it.extension == "sha256" }
+      .sortedByDescending { it.lastModified() }.drop(64).forEach { it.delete() }
     return destination
   }
 
@@ -1304,7 +1323,7 @@ class PerfectIconRepository internal constructor(
     destination: File,
     plan: PerfectIconPlan,
     transform: ByteArray,
-    maxFile: Long = 1024L * 1024 * 1024,
+    maxFile: Long = os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES,
     options: PerfectIconOptions = PerfectIconOptions(),
     mask: String? = null,
     renderProgress: (Int, Int) -> Unit = { _, _ -> },
@@ -1511,7 +1530,7 @@ class PerfectIconRepository internal constructor(
     return sourceReader.read(source) { coroutine.ensureActive() }
   }
 
-  private suspend fun previewHash(file: File): String {
+  private suspend fun previewHash(file: File, maxFile: Long = MAX_PREVIEW_FILE): String {
     val coroutine = currentCoroutineContext()
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().buffered().use { input ->
@@ -1522,7 +1541,7 @@ class PerfectIconRepository internal constructor(
         val read = input.read(buffer)
         if (read < 0) break
         count += read
-        require(count <= MAX_PREVIEW_FILE)
+        require(count <= maxFile)
         digest.update(buffer, 0, read)
       }
     }

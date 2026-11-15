@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import os.kei.hyper.home.iconpack.IconPackBudgets
 import android.app.ActivityManager
 import android.content.Context
 import android.content.SharedPreferences
@@ -147,7 +148,7 @@ internal class IconPackImportMonitor(
               val count = source.read(buffer)
               if (count < 0) break
               bytes += count
-              check(bytes <= 256L * 1024 * 1024) { "Icon handoff exceeds size limit" }
+              check(bytes <= IconPackBudgets.ARCHIVE_BYTES) { "Icon handoff exceeds size limit" }
               output.write(buffer, 0, count)
             }
           }

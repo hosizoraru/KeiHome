@@ -101,7 +101,7 @@ class ServiceReloadCapture:
                     # Open first, so a pathname replacement cannot mix inodes.
                     command = (
                         f"exec 3< {shlex.quote(path)} || exit 1; "
-                        "stat -Lc '%i %s' /proc/self/fd/3; "
+                        "stat -Lc '%i %s' /proc/$$/fd/3 || exit 1; "
                         f"tail -c +{offset + 1} <&3 | head -c {length}"
                     )
                     raw = subprocess.check_output(
@@ -163,8 +163,9 @@ def settle_service_reloads(capture, out, timeout=6):
     deadline = time.monotonic() + timeout
     last_signature = None
     stable_since = time.monotonic()
-    while time.monotonic() < deadline:
-        capture.poll(timeout=min(2, max(0.01, deadline - time.monotonic())))
+    # Do not start another adb round trip with only a few milliseconds left.
+    while deadline - time.monotonic() >= 0.5:
+        capture.poll(timeout=min(3, deadline - time.monotonic()))
         report = capture.save(out)
         signature = json.dumps(report["targets"], sort_keys=True)
         if signature != last_signature:

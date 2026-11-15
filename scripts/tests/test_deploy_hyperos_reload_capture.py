@@ -42,7 +42,7 @@ class CaptureTest(unittest.TestCase):
         command = read.call_args.args[0][-1]
         self.assertIn("tail -c +501", command)
         self.assertIn(f"head -c {len(REAL)}", command)
-        self.assertIn("/proc/self/fd/3", command)
+        self.assertIn("/proc/$$/fd/3 || exit 1", command)
         self.assertEqual(1, capture.report()["counts"]["failed"])
         self.assertEqual(9, capture.report()["counts"]["success"])
 
@@ -175,7 +175,8 @@ class AsyncWaitTest(unittest.TestCase):
                 patch.object(deploy, "adb") as adb:
             report = deploy.settle_service_reloads(capture, Path(directory), timeout=2)
         adb.assert_not_called()
-        self.assertEqual(2, clock.now)
+        self.assertGreaterEqual(clock.now, 1.5)
+        self.assertLessEqual(clock.now, 2)
         self.assertEqual(10, report["counts"]["unknown"])
         self.assertEqual("unknown", report["result"])
 

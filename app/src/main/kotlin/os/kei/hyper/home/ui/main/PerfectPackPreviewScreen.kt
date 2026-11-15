@@ -374,7 +374,7 @@ internal fun PerfectSubpage(
     LazyColumn(state = listState, overscrollEffect = null, modifier = Modifier.fillMaxSize()
       .padding(bottom = viewportBottomInset)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .keiHomeTopBarScroll(behavior),
+      .keiHomeTopBarScroll(behavior, overScrollEnabled = !pullRefresh || refreshEnabled && !refreshing),
       contentPadding = listPadding,
       content = content)
     }

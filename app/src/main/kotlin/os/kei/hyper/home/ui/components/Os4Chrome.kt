@@ -42,11 +42,13 @@ private val LocalGlassToolbar = staticCompositionLocalOf { false }
 internal fun keiHomeIconButtonSize(): Dp = if (LocalGlassToolbar.current) 40.dp else 48.dp
 
 @Composable
-internal fun Modifier.keiHomeTopBarScroll(scrollBehavior: ScrollBehavior): Modifier {
+internal fun Modifier.keiHomeTopBarScroll(scrollBehavior: ScrollBehavior, overScrollEnabled: Boolean = true): Modifier {
   val state = scrollBehavior.state
   val onOffsetChanged: (Float) -> Unit = remember(state) { { state.overscrollOffset = it } }
   // Keep actual scroll inside the spring so rebound never accumulates in contentOffset.
-  return overScrollVertical(onOffsetChanged = onOffsetChanged)
+  // MIUIX overscroll can drive its inherited pull state directly, bypassing a parent's
+  // disabled nested-scroll connection. Disable that spring too while a pull is unavailable.
+  return overScrollVertical(onOffsetChanged = onOffsetChanged, isEnabled = { overScrollEnabled })
     .nestedScroll(scrollBehavior.nestedScrollConnection)
 }
 

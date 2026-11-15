@@ -185,8 +185,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           IconPackRefreshFeedback(model)
         }
       } else if (fileImport) {
-        PagePullToRefresh(model, 3, padding, Modifier.testTag("icon-packs.$section.pull-to-refresh")) {
-          IconPacksPage(model, list, padding, contentModifier, section, onNavigate,
+        PagePullToRefresh(model, 3, padding, Modifier.testTag("icon-packs.$section.pull-to-refresh")) { busy ->
+          IconPacksPage(model, list, padding,
+            Modifier.fillMaxSize().keiHomeTopBarScroll(behavior, overScrollEnabled = !busy), section, onNavigate,
             filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
         }
       } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate,

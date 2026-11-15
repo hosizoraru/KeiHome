@@ -481,6 +481,10 @@ launchd `KeepAlive` 任务反复拉起 ColorOS，已禁用卸载；手动启动�
 拥挤工具栏可以把列表读取迁移到原生 `PullToRefresh`。`isRefreshing` 是业务状态，
 需要在回调里及时抬起，完成和失败都收回；检查与现有 overscroll、折叠顶栏的
 嵌套滚动连接，避免重复处理下拉。下拉刷新不应扩大原按钮的业务范围。
+MIUIX `overScrollVertical` 可直接驱动继承的 PullToRefresh 状态；仅在外层阻止
+nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring 的 `isEnabled`，
+保留列表正常滚动和顶栏滚动连接，避免出现“松开刷新”却不执行的提示。
+不提供下拉刷新的 Apple 首页与搜索页不挂载 PullToRefresh，保留原有弹性滚动。
 
 应用更新后的性能需要保留进程复现。仅重启后验收会掩盖键比较或缓存生命周期问题。
 具体调用栈、修复策略与验收条件见

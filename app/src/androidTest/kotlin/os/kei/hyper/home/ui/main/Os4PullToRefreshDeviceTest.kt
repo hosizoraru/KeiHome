@@ -162,6 +162,30 @@ class Os4PullToRefreshDeviceTest {
     }
   }
 
+  @Test fun backgroundScanDoesNotArmTheInheritedPullStateWhileTheFingerIsDown() {
+    scanning.value = true
+    showList()
+    compose.mainClock.autoAdvance = false
+    compose.onNodeWithTag("pull").performTouchInput {
+      down(Offset(center.x, height * .1f))
+      repeat(20) {
+        advanceEventTime(30)
+        moveBy(Offset(0f, height * .04f))
+      }
+    }
+    compose.mainClock.advanceTimeBy(200)
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    compose.onNodeWithText(context.getString(R.string.pull_refresh_release)).assertDoesNotExist()
+    compose.onNodeWithText(context.getString(R.string.refresh_in_progress)).assertDoesNotExist()
+    compose.onNodeWithTag("pull").performTouchInput { up() }
+    compose.mainClock.advanceTimeBy(1_000)
+    compose.runOnIdle {
+      assertEquals(0, requests)
+      assertEquals(0, list.firstVisibleItemIndex)
+      assertEquals(0, list.firstVisibleItemScrollOffset)
+    }
+  }
+
   @Test fun requestLatchRejectsSecondActionBeforeCoroutineStartedBusyIsObserved() {
     showList(deferredStart = true)
     val refresh = compose.onNodeWithTag("pull").fetchSemanticsNode()
@@ -249,7 +273,8 @@ class Os4PullToRefreshDeviceTest {
               onDispose { disposals++ }
             }
             LazyColumn(state = list, overscrollEffect = null,
-              modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)) {
+              modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior,
+                overScrollEnabled = !scanning.value && !refreshing.value)) {
               items((0 until 200).toList(), key = { it }) {
                 Text("App $it", Modifier.height(48.dp).testTag("row:$it"))
               }

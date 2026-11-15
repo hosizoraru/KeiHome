@@ -183,12 +183,16 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
         val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
         if (tab == 1) {
           PagePullToRefresh(model, 1, padding, Modifier.testTag("apps.pull-to-refresh")) { busy ->
-            AppsPage(model, appList, padding, pageModifier, rememberAppsRefreshContent(appsBrowser, busy))
+            AppsPage(model, appList, padding,
+              Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
+              rememberAppsRefreshContent(appsBrowser, busy))
           }
         } else if (page == 3) {
           val sectionList = rememberLazyListState()
-          PagePullToRefresh(model, 3, padding) {
-            IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
+          PagePullToRefresh(model, 3, padding) { busy ->
+            IconPacksPage(model, sectionList, padding,
+              Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
+              "home", onOpenPackSection)
           }
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's

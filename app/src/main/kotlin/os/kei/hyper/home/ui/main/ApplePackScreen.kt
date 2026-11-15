@@ -458,12 +458,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() +
           maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp))
-      Os4PullToRefresh(refreshing = !main && !search && localLoading,
-        enabled = !main && !search && enabled && !selecting,
-        onRefresh = controller::load, contentPadding = listPadding,
-        refreshLabel = stringResource(R.string.apple_refresh_mappings),
-        modifier = Modifier.testTag("apple.$section.pull-to-refresh")) {
-      LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior), state = listState,
+      val list: @Composable () -> Unit = {
+      LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
+        .keiHomeTopBarScroll(behavior, overScrollEnabled = main || search || enabled && !selecting && !localLoading), state = listState,
         contentPadding = listPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (main && state.pack != null &&
@@ -726,6 +723,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         } }
       }
     }
+      if (main || search) list() else {
+        Os4PullToRefresh(refreshing = localLoading, enabled = enabled && !selecting,
+          onRefresh = controller::load, contentPadding = listPadding,
+          refreshLabel = stringResource(R.string.apple_refresh_mappings),
+          modifier = Modifier.testTag("apple.$section.pull-to-refresh")) { list() }
+      }
     }
     inspectionRow?.let { row ->
       key(row.target.packageName, state.options.platform, state.options.country) {

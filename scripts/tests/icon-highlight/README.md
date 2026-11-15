@@ -6,7 +6,7 @@ libraries, bridge objects and results stay under `--output`.
 
 With no positional ELFs, the runner uses the shared test-only
 `scripts/tests/launcher-labels/fixtures.json` inventory: 7722, 8593, 8602,
-8604, 8607, 9209, 9226, 9239 and 9248. Explicit ELF paths or `--inventory` override it.
+8604, 8607, 9209, 9226, 9239, 9248 and 9258. Explicit ELF paths or `--inventory` override it.
 Install pinned Python dependencies with
 `python3 -m pip install -r scripts/tests/icon-highlight/requirements-emulation.txt`.
 Add `--payload /absolute/path/to/current/unstripped/libkeihome_hyos_lsp.so`

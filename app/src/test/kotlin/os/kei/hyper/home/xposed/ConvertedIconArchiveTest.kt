@@ -1,5 +1,9 @@
 package os.kei.hyper.home.xposed
 
+import java.awt.BasicStroke
+import java.awt.Color
+import java.awt.Font
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.file.Files
@@ -8,6 +12,7 @@ import java.util.zip.CRC32
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import javax.imageio.ImageIO
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -226,12 +231,48 @@ class ConvertedIconArchiveTest {
     rejects(zip(entries.filterKeys { !it.startsWith("$fancy/night_clock_") }))
   }
 
-  @Test fun dynamicTemplatesRequireEveryFixedAssetAndByteIdenticalNormalBackgroundFallbacks() {
+  @Test fun acceptsColorOsClockAndCalendarSnapshotsIndependentOfLiveBackgrounds() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      val name = if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) "com.android.deskclock"
+        else "com.android.calendar"
+      for (fixedDark in listOf(null, false, true)) for (dim in listOf(false, true)) {
+        val entries = generatedDynamic(kind, fixedDark, dim, nativeName = name, snapshots = true)
+        val root = "fancy_icons/$name"
+        val lightPath = "res/drawable-xxhdpi/$name.png"
+        val darkPath = "nightmode/res/drawable-xxhdpi/$name.png"
+        assertFalse(entries.getValue(lightPath).contentEquals(entries.getValue("$root/day.png")))
+        assertFalse(entries.getValue(darkPath).contentEquals(entries.getValue("$root/night.png")))
+        val content = zip(*entries.toList().reversed().toTypedArray())
+        withArchive(content) { file ->
+          for (origin in listOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")) {
+            assertEquals(hash(content, "SHA-256"), ConvertedIconArchive.inspect(file, origin).icons.sha256)
+          }
+        }
+      }
+    }
+  }
+
+  @Test fun legacyColorOsFallbacksEqualToBackgroundsRemainCompatible() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      val entries = generatedDynamic(kind)
+      assertTrue(entries.getValue(day).contentEquals(entries.getValue("$fancy/day.png")))
+      assertTrue(entries.getValue(night).contentEquals(entries.getValue("$fancy/night.png")))
+      withArchive(zip(entries)) { file ->
+        for (origin in listOf("CONVERTED_APK", "CONVERTED_CLASSIC_ZIP")) {
+          ConvertedIconArchive.inspect(file, origin)
+        }
+      }
+    }
+  }
+
+  @Test fun dynamicTemplatesRequireEveryFixedAssetAndBoundedIndependentFallbacks() {
     for (kind in NativeColorOsDynamicIcon.Kind.entries) {
       val entries = generatedDynamic(kind)
       for (missing in entries.keys) rejects(zip(entries - missing))
       for (path in listOf(day, night, "$fancy/day.png", "$fancy/night.png")) {
-        rejects(zip(entries + (path to png(2, pixel = 22))))
+        for (invalid in listOf("bad".toByteArray(), png(513), png(2, height = 1))) {
+          rejects(zip(entries + (path to invalid)))
+        }
       }
       for (extra in listOf("fallback.png", "fallback-night.png", "clock_day_second.png",
         "clock_night_bg.png", "clock_day_minute.png", "bg.png")) {
@@ -242,6 +283,30 @@ class ConvertedIconArchiveTest {
     val clock = generatedDynamic(NativeColorOsDynamicIcon.Kind.CLOCK)
     rejects(zip(calendar + clock.filterKeys { it.contains("/clock_day_") }))
     rejects(zip(clock + generatedPalette().filterKeys { it.endsWith("/mask.png") || it.endsWith("/bg.png") }))
+  }
+
+  @Test fun snapshotFallbacksDoNotAuthorizeForeignMamlPathsOrClockHandSchemas() {
+    for (kind in NativeColorOsDynamicIcon.Kind.entries) {
+      val entries = generatedDynamic(kind, snapshots = true)
+      val manifestPath = "$fancy/manifest.xml"
+      val manifest = entries.getValue(manifestPath).toString(Charsets.UTF_8)
+      for (changed in listOf(
+        manifest.replace("day.png", "../day.png"),
+        manifest.replace("</Icon>", "<Script>anything</Script></Icon>"),
+        manifest.replace("DateTime.Minute", "DateTime.Second"),
+      )) rejects(zip(entries + (manifestPath to changed.toByteArray())))
+      for (missing in entries.keys) rejects(zip(entries - missing))
+      rejects(zip(entries + ("$fancy/fallback.png" to dynamicSnapshot(kind, false))))
+      rejects(zip(entries + (day to ByteArray(4 * 1024 * 1024 + 1))))
+      rejects(zip(entries + ("$fancy/day.png" to ByteArray(4 * 1024 * 1024 + 1))))
+      if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) {
+        rejects(zip(entries + ("$fancy/clock_day_hour_rectangle.png" to png(4))))
+        rejects(zip(entries + ("$fancy/night_clock_day_minute_rectangle.png" to png(4))))
+        rejects(zip(entries + ("$fancy/clock_day_second.png" to png(3))))
+        rejects(zip(entries + (manifestPath to
+          manifest.replace("#hour12*30+#minute/2", "#hour12*30").toByteArray())))
+      }
+    }
   }
 
   @Test fun dynamicManifestsCannotChangeExpressionsUpdaterViewportOrAddOtherMaml() {
@@ -445,14 +510,42 @@ class ConvertedIconArchiveTest {
 
   private fun generatedDynamic(
     kind: NativeColorOsDynamicIcon.Kind, fixedDark: Boolean? = null, dim: Boolean = false, clockSize: Int = 3,
+    nativeName: String = "com.example", snapshots: Boolean = false,
   ): Map<String, ByteArray> {
     val assets = linkedMapOf("day.png" to png(2), "night.png" to png(2, pixel = 1))
+    if (snapshots) {
+      assets["fallback.png"] = dynamicSnapshot(kind, false)
+      assets["fallback-night.png"] = dynamicSnapshot(kind, true)
+    }
     if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) {
       for ((index, leaf) in listOf("clock_day_bg.png", "clock_day_hour_rectangle.png",
         "clock_day_minute_rectangle.png", "night_clock_day_bg.png", "night_clock_day_hour_rectangle.png",
         "night_clock_day_minute_rectangle.png").withIndex()) assets[leaf] = png(clockSize, pixel = (index + 2).toByte())
     }
-    return NativeColorOsDynamicIcon.entries("com.example", kind, assets, fixedDark, dim)
+    return NativeColorOsDynamicIcon.entries(nativeName, kind, assets, fixedDark, dim)
+  }
+
+  /** A rendered fixed-time/date fallback, with live backgrounds and hands kept separately. */
+  private fun dynamicSnapshot(kind: NativeColorOsDynamicIcon.Kind, dark: Boolean): ByteArray {
+    val image = BufferedImage(96, 96, BufferedImage.TYPE_INT_ARGB)
+    val graphics = image.createGraphics()
+    try {
+      graphics.color = if (dark) Color(32, 32, 32) else Color.WHITE
+      graphics.fillRect(0, 0, 96, 96)
+      graphics.color = if (dark) Color.WHITE else Color.BLACK
+      graphics.stroke = BasicStroke(4f)
+      if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) {
+        graphics.drawOval(8, 8, 80, 80)
+        graphics.drawLine(48, 48, 24, 34)
+        graphics.drawLine(48, 48, 74, 32)
+      } else {
+        graphics.font = Font(Font.SANS_SERIF, Font.BOLD, 44)
+        graphics.drawString("23", 20, 72)
+        graphics.color = Color(10, 127, 251)
+        graphics.fillRect(8, 8, 80, 16)
+      }
+    } finally { graphics.dispose() }
+    return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
   }
 
   private fun zip(entries: Map<String, ByteArray>) = zip(*entries.toList().toTypedArray())

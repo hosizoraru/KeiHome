@@ -11,11 +11,14 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.IconRasterHeader
+import os.kei.hyper.home.iconpack.NativeMamlPair
+import os.kei.hyper.home.iconpack.NativeMamlCalendarPair
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 
 /** Admission for local, image-only icon modules. Unknown MAML programs remain ineligible. */
 internal object LocalNativeIconValidator {
   private const val IMAGE_LIMIT = 8L * 1024 * 1024
+  private const val PAIR_XML_LIMIT = 64 * 1024
   private val limits = IconPackLimits(maxInputBytes = ConvertedIconArchive.MAX_BYTES)
   private val visualTags = setOf(
     "Icon", "Group", "Image", "Var", "DateTime", "VariableBinders", "BroadcastBinder",
@@ -51,10 +54,19 @@ internal object LocalNativeIconValidator {
         return bytes
       }
       val layered = LocalLayerIconValidator.validate(paths, ::read, ::image)
+      val templates = PairTemplates()
+      val validatedImages = mutableSetOf<String>()
+      fun bitmap(path: String) {
+        if (path !in validatedImages) {
+          image(read(path, IMAGE_LIMIT))
+          validatedImages += path
+        }
+      }
       for (path in paths) {
         if (Thread.currentThread().isInterrupted) throw InterruptedException("Local icon inspection interrupted")
         when {
           path in layered -> Unit
+          path in validatedImages -> Unit
           path == IconBuildInventory.SOURCE_PATH -> IconBuildInventory.decodeSource(read(path, 4096))
           path == IconGenerationManifest.PATH -> IconGenerationManifest.decode(read(path, 1024 * 1024))
           path == os.kei.hyper.home.iconpack.IconThemeMetadata.PATH ->
@@ -65,6 +77,18 @@ internal object LocalNativeIconValidator {
             val parts = path.split('/')
             require(parts.size == 3) { "Unexpected local manifest location" }
             val bytes = read(path, limits.maxXmlBytes.toLong())
+            val pair = templates.parse(bytes)
+            val calendar = if (pair == null) templates.calendar(bytes) else null
+            val images = pair?.let { setOf(it.light, it.dark) } ?: calendar?.images
+            if (images != null) {
+              val base = path.removeSuffix("manifest.xml")
+              for (name in images) {
+                val artwork = base + name
+                require(artwork in paths) { "Missing closed native image: $artwork" }
+                bitmap(artwork)
+              }
+              continue
+            }
             try {
               xml(bytes, transform = false)
             } catch (failure: Exception) {
@@ -81,11 +105,44 @@ internal object LocalNativeIconValidator {
             }
           }
           (path.startsWith("res/") || path.startsWith("nightmode/res/") || path.startsWith("fancy_icons/")) &&
-            (path.endsWith(".png") || path.endsWith(".webp")) -> image(read(path, IMAGE_LIMIT))
+            (path.endsWith(".png") || path.endsWith(".webp")) -> bitmap(path)
           else -> error("Unsupported local icon resource: $path")
         }
       }
       require(paths.any { it.endsWith(".png") || it.endsWith(".webp") }) { "No local icon artwork" }
+    }
+  }
+
+  /** Per-validation cache of exact bytes, including non-matches; never caches artwork admission. */
+  internal class PairTemplates(
+    private val parser: (ByteArray) -> NativeMamlPair? = { bytes ->
+      NativeMamlPair.parse(bytes) {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Local icon inspection interrupted")
+      }
+    },
+  ) {
+    private class Key(val bytes: ByteArray) {
+      override fun equals(other: Any?) = other is Key && bytes.contentEquals(other.bytes)
+      override fun hashCode() = bytes.contentHashCode()
+    }
+    private data class Proof(val pair: NativeMamlPair?, val calendar: NativeMamlCalendarPair?)
+    private val entries = linkedMapOf<Key, Proof>()
+
+    fun parse(bytes: ByteArray): NativeMamlPair? = proof(bytes)?.pair
+    fun calendar(bytes: ByteArray): NativeMamlCalendarPair? = proof(bytes)?.calendar
+
+    private fun proof(bytes: ByteArray): Proof? {
+      if (bytes.size > PAIR_XML_LIMIT) return null
+      val key = Key(bytes)
+      entries[key]?.let { return it }
+      val pair = parser(bytes)
+      val calendar = if (pair == null) NativeMamlCalendarPair.parse(bytes) {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Local icon inspection interrupted")
+      } else null
+      val proof = Proof(pair, calendar)
+      if (entries.size == 32) entries.remove(entries.keys.first())
+      entries[Key(bytes.copyOf())] = proof
+      return proof
     }
   }
 

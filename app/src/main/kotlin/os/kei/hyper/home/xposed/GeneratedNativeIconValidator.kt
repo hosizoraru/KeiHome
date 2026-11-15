@@ -24,6 +24,7 @@ internal object GeneratedNativeIconValidator {
     val cache = HashMap<String, ByteArray>()
     var pngLimit = PNG_LIMIT
     fun bytes(path: String) = cache.getOrPut(path) {
+      require(path in paths) { "Missing generated native resource: $path" }
       val limit = if (path == "${root}manifest.xml") 64L * 1024 else pngLimit
       read(path, limit).also {
         require(it.size.toLong() <= limit) { "Oversized generated icon resource: $path" }
@@ -32,8 +33,15 @@ internal object GeneratedNativeIconValidator {
     val manifest = bytes("${root}manifest.xml")
     val appleKind = NativeAppleDynamicIcon.kindOfManifest(manifest)
     if (appleKind != null) pngLimit = APPLE_PNG_LIMIT
-    val light = bytes("res/drawable-xxhdpi/$name.png")
-    val dark = bytes("nightmode/res/drawable-xxhdpi/$name.png")
+    val lightFallback = "res/drawable-xxhdpi/$name.png"
+    val darkFallback = "nightmode/res/drawable-xxhdpi/$name.png"
+    // appendNativeMonet deliberately publishes only fancy resources for an
+    // authored native pair. A partial fallback tree is still an invalid export.
+    val fancyOnlyPalette = appleKind == null && "${root}mask.png" in actualPaths &&
+      lightFallback !in paths && darkFallback !in paths
+    val light = bytes(if (fancyOnlyPalette) "${root}day.png" else lightFallback)
+    val dark = if (fancyOnlyPalette && "${root}night.png" !in actualPaths) light
+      else bytes(if (fancyOnlyPalette) "${root}night.png" else darkFallback)
     // Asset presence selects one fixed template; every path and byte must still match.
     val legacyExpanded = light.contentEquals(dark) && "${root}night.png" in actualPaths
     fun matches(canonical: Map<String, ByteArray>): Boolean {
@@ -75,8 +83,11 @@ internal object GeneratedNativeIconValidator {
 
     val kind = if (clockNames.any { "$root$it" in actualPaths }) NativeColorOsDynamicIcon.Kind.CLOCK
       else NativeColorOsDynamicIcon.Kind.CALENDAR
-    // Handoff uses the source backgrounds as its normal fallback pair, without optional snapshots.
-    val assets = linkedMapOf("day.png" to light, "night.png" to dark)
+    // Ordinary PNGs may be rendered snapshots; live backgrounds remain separate assets.
+    val assets = linkedMapOf(
+      "day.png" to bytes("${root}day.png"), "night.png" to bytes("${root}night.png"),
+      "fallback.png" to light, "fallback-night.png" to dark,
+    )
     if (kind == NativeColorOsDynamicIcon.Kind.CLOCK) {
       for (leaf in clockNames) assets[leaf] = bytes("$root$leaf")
     }

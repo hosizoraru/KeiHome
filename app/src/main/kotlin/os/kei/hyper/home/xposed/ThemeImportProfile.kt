@@ -19,7 +19,7 @@ internal class ThemeImportProfile private constructor(private val methods: Map<S
 
   companion object {
     private const val PREFIX = "com.android.thememanager."
-    private val roles = setOf("rights", "apply", "detailReady", "validate", "parent", "inner", "registry",
+    private val roles = setOf("rights", "downloadRights", "apply", "detailReady", "validate", "parent", "inner", "registry",
       "iconContext", "controllerManager", "lookup", "appContext")
 
     fun resolve(loader: ClassLoader, info: ApplicationInfo): ThemeImportProfile {
@@ -31,7 +31,7 @@ internal class ThemeImportProfile private constructor(private val methods: Map<S
         .filter { it.name.matches(Regex("classes(?:[0-9]+)?\\.dex")) || it.name == "AndroidManifest.xml" }
         .sortedBy { it.name }.joinToString { "${it.name}:${it.size}:${it.crc}" } }
       require(dexStamp.isNotEmpty())
-      val identity = "theme-import-roles-v1:${apk.canonicalPath}:$dexStamp"
+      val identity = "theme-import-roles-v2:${apk.canonicalPath}:$dexStamp"
       val key = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
       val cache = AtomicFile(File(directory, "$key.json"))
       val cached = runCatching {
@@ -95,6 +95,9 @@ internal class ThemeImportProfile private constructor(private val methods: Map<S
           listOf(context, controller, PREFIX + "controller.online.DrmService", resource), true) {
           it.invokes.any { call -> call.className == PREFIX + "controller.online.DrmService" && call.returnTypeName == "miui.drm.DrmManager\$DrmResult" }
         }
+        pick("downloadRights", PREFIX + "controller.online.DrmService",
+          PREFIX + "controller.online.DrmService\$GettingRightsResponse",
+          listOf(resource, "int", "java.lang.String", "boolean"), false)
         pick("apply", PREFIX + "module.detail.util.ResourceApplyHelper", "void",
           listOf("android.app.Activity", "java.lang.String", resource, "int", "int", "boolean",
             "androidx.lifecycle.MutableLiveData", "boolean", "boolean", "boolean", "boolean"), true) {

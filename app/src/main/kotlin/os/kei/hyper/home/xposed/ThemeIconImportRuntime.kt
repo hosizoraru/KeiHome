@@ -33,6 +33,7 @@ internal class ThemeIconImportRuntime(
   private val initializationScheduled = AtomicBoolean()
   @Volatile private var initializationThread: Thread? = null
   @Volatile private var grantsReady = false
+  @Volatile private var convertedGuard: ThemeConvertedGuard? = null
 
   fun install(oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
     val attach = Application::class.java.getDeclaredMethod("attach", Context::class.java)
@@ -47,6 +48,8 @@ internal class ThemeIconImportRuntime(
     val drmResults = requireNotNull(drmResult.enumConstants)
     val success = drmResults.single { (it as Enum<*>).name == "DRM_SUCCESS" }
     val unknown = drmResults.single { (it as Enum<*>).name == "DRM_ERROR_UNKNOWN" }
+    val downloadRights = profile["downloadRights"]
+    val downloadResponse = downloadRights.returnType.getConstructor(Int::class.javaPrimitiveType)
     // Resolve the host's LiveData from its signature. Class.forName with a full AndroidX
     // name is rewritten by R8 to KeiHome's own obfuscated class, absent from the host loader.
     val apply = profile["apply"].also { candidate ->
@@ -99,13 +102,35 @@ internal class ThemeIconImportRuntime(
     installHook(method, HOOK_ID, hooker, oldHooks)
     installHook(rights, RIGHTS_HOOK_ID, XposedInterface.Hooker { chain ->
       if (!gate.enter()) unknown else try {
-        if (approved { grants.eligible(requireNotNull(chain.getArg(0)), requireNotNull(chain.getArg(3))) }) success
+        if (approved {
+            val hostContext = requireNotNull(chain.getArg(0))
+            val supplied = requireNotNull(chain.getArg(3))
+            convertedGuard?.approve(supplied, hostContext) ?: grants.eligible(hostContext, supplied)
+          }) success
         else chain.proceed()
+      } finally { gate.leave() }
+    }, oldHooks)
+    installHook(downloadRights, DOWNLOAD_RIGHTS_HOOK_ID, XposedInterface.Hooker { chain ->
+      if (!gate.enter()) downloadResponse.newInstance(100001) else try {
+        ThemeConvertedApproval.dispatch(
+          approval = {
+            if (approved { convertedGuard?.approve(requireNotNull(chain.getArg(0)), null) == true }) {
+              xposed.log(Log.INFO, TAG,
+                "Converted preapproved standard rights generation=$generation pid=${Process.myPid()}")
+              downloadResponse.newInstance(ThemeConvertedGuard.RIGHTS_SUCCESS)
+            } else null
+          },
+          original = { chain.proceed() },
+          failed = ::warnApproval,
+        )
       } finally { gate.leave() }
     }, oldHooks)
     installHook(apply, APPLY_HOOK_ID, XposedInterface.Hooker { chain ->
       if (!gate.enter()) null else try {
-        if (chain.getArg(1) == "icons" && grantsReady && grants.iconsOnly(requireNotNull(chain.getArg(2)))) {
+        if (chain.getArg(1) == "icons" && approvedScope {
+            val supplied = requireNotNull(chain.getArg(2))
+            convertedGuard?.iconsOnly(supplied) == true || grants.iconsOnly(supplied)
+          }) {
           val args = chain.args.toTypedArray()
           args[8] = false // withRelateResource; native icons otherwise also relates wallpaper.
           chain.proceed(args)
@@ -114,8 +139,11 @@ internal class ThemeIconImportRuntime(
     }, oldHooks)
     installHook(validate, VALIDATE_HOOK_ID, XposedInterface.Hooker { chain ->
       if (!gate.enter()) Pair(false, unknown) else try {
-        if (approved { grants.validates(requireNotNull(chain.thisObject), chain.getArg(1) as String,
-            chain.getArg(0) as Context) }) Pair(true, success)
+        if (approved {
+            convertedGuard?.validates(requireNotNull(chain.thisObject), chain.getArg(1) as String)
+              ?: grants.validates(requireNotNull(chain.thisObject), chain.getArg(1) as String,
+                chain.getArg(0) as Context)
+          }) Pair(true, success)
         else chain.proceed()
       } finally { gate.leave() }
     }, oldHooks)
@@ -157,6 +185,7 @@ internal class ThemeIconImportRuntime(
     if (!grantsReady) return
     val info = application.applicationInfo
     if (info.packageName != PACKAGE_NAME || info.uid != Process.myUid()) return
+    if (convertedGuard == null) convertedGuard = ThemeConvertedGuard(application, classLoader, profile)
     if (initializationThread?.isAlive == true) return
     if (!initializationScheduled.compareAndSet(false, true)) return
     if (!gate.enter()) { initializationScheduled.set(false); return }
@@ -201,7 +230,7 @@ internal class ThemeIconImportRuntime(
   }
 
   private fun approved(check: () -> Boolean): Boolean = try {
-      grantsReady && Looper.myLooper() != Looper.getMainLooper() && check()
+      (convertedGuard != null || grantsReady) && Looper.myLooper() != Looper.getMainLooper() && check()
     }
     catch (failure: Exception) {
       warnApproval(failure)
@@ -215,6 +244,9 @@ internal class ThemeIconImportRuntime(
     }
   }
 
+  private fun approvedScope(check: () -> Boolean): Boolean = try { (convertedGuard != null || grantsReady) && check() }
+    catch (failure: Exception) { warnApproval(failure); false }
+
   /** Never wait on an import from a lifecycle callback. Refuse reload until active calls finish. */
   fun retire(saveState: () -> Unit): Boolean = gate.retire(
     workersStopped = { initializationThread?.isAlive != true },
@@ -222,6 +254,7 @@ internal class ThemeIconImportRuntime(
     saveState()
     grants.retire()
     grantsReady = false
+    convertedGuard = null
   }
 
   private fun resolveNativeBinder(service: Any): IBinder {
@@ -301,6 +334,7 @@ internal class ThemeIconImportRuntime(
     const val AUTHORIZE_AUTO_APPLY = 0x004b4802
     private const val AUTO_APPLY_HOOK_ID = "keihome.theme.icon.auto_apply.v1"
     private const val RIGHTS_HOOK_ID = "keihome.theme.converted_icon.rights.v1"
+    private const val DOWNLOAD_RIGHTS_HOOK_ID = "keihome.theme.converted_icon.download_rights.v1"
     private const val APPLY_HOOK_ID = "keihome.theme.converted_icon.apply.v1"
     private const val VALIDATE_HOOK_ID = "keihome.theme.converted_icon.validate.v1"
     private const val TAG = "KeiHomeThemeImport"

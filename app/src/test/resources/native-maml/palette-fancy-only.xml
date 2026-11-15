@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Icon version="1" width="320" height="320" screenWidth="1080" resDensity="480" frameRate="0" useVariableUpdater="none">
+  <VariableBinders>
+    <ContentProviderBinder name="palette_state" uri="content://settings/system/keihome_maml_palette_state" columns="value" updateInterval="-1" queryAtStart="true">
+      <Variable name="palette_state" type="double" column="value" row="0" />
+    </ContentProviderBinder>
+  </VariableBinders>
+  <Image x="0" y="0" w="320" h="320" src="day.png" visibility="(1-int(#palette_state/281474976710656))*(1-#__darkmode)" />
+  <Image x="0" y="0" w="320" h="320" src="night.png" visibility="(1-int(#palette_state/281474976710656))*#__darkmode" />
+  <Image x="0" y="0" w="320" h="320" src="bg.png" tint="argb(255,int((#palette_state%16777216)/65536),int((#palette_state%65536)/256),#palette_state%256)" tintmode="5" visibility="int(#palette_state/281474976710656)" />
+  <Image x="0" y="0" w="320" h="320" src="mask.png" tint="argb(255,int((#palette_state%281474976710656)/1099511627776),int((#palette_state%1099511627776)/4294967296),int((#palette_state%4294967296)/16777216))" tintmode="5" visibility="int(#palette_state/281474976710656)" />
+</Icon>

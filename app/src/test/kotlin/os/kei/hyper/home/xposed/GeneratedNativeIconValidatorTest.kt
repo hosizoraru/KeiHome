@@ -39,6 +39,61 @@ class GeneratedNativeIconValidatorTest {
     }
   }
 
+  @Test fun acceptsFancyOnlyNativeMonetWithoutInventingStaticFallbackTrees() {
+    for (entries in listOf(
+      entries(true, light), entries(true, dark), legacyEntries(true), scalarCompactEntries(),
+    )) {
+      val fancyOnly = entries.filterKeys { it.startsWith("$root/") }
+      val before = fancyOnly.getValue(manifestPath).copyOf()
+      validate(fancyOnly)
+      assertArrayEquals(before, fancyOnly.getValue(manifestPath))
+    }
+  }
+
+  @Test fun acceptsCapturedWebViewPaletteManifestWithOnlyItsCompleteFancyResources() {
+    val nativeName = "com.google.android.webview"
+    val nativeRoot = "fancy_icons/$nativeName/"
+    val manifest = requireNotNull(javaClass.getResourceAsStream("/native-maml/palette-fancy-only.xml"))
+      .use { it.readBytes() }
+    val entries = NativePaletteIcon.entries(nativeName,
+      NativeIconPngFixtures.rgba(320), NativeIconPngFixtures.rgba(320) { _, _ -> 128 },
+      NativeIconPngFixtures.mask(320), NativeIconPngFixtures.mask(320))
+      .filterKeys { it.startsWith(nativeRoot) } + (nativeRoot + "manifest.xml" to manifest)
+    validate(entries, nativeName)
+  }
+
+  @Test fun fancyOnlyPaletteStillRejectsPartialFallbacksMissingImagesAndNoncanonicalResources() {
+    for (export in listOf(
+      entries(true, light), entries(true, dark), legacyEntries(true), scalarCompactEntries(),
+    )) {
+      val fancyOnly = export.filterKeys { it.startsWith("$root/") }
+      // Once a fallback exists, both fallback trees and their artwork must match.
+      for (fallback in listOf("res/drawable-xxhdpi/$name.png", nightFallback)) {
+        rejects(fancyOnly + (fallback to export.getValue(fallback)))
+      }
+      for (leaf in listOf("day.png", "night.png", "mask.png", "bg.png")) {
+        if ("$root/$leaf" in fancyOnly) rejects(fancyOnly - "$root/$leaf")
+      }
+      rejects(fancyOnly + ("$root/extra.png" to light))
+      rejects(fancyOnly + ("$root/mask.png" to byteArrayOf(1, 2, 3)))
+      rejects(fancyOnly + ("$root/bg.png" to NativeIconPngFixtures.mask(4)))
+      val canonical = fancyOnly.getValue(manifestPath).toString(Charsets.UTF_8)
+      for (xml in listOf(
+        canonical.replace("settings/system/", "settings/secure/"),
+        canonical.replace("updateInterval=\"-1\"", "updateInterval=\"0\""),
+        canonical.replace("day.png", "../day.png"),
+        canonical.replace("frameRate=\"0\"", "frameRate=\"60\""),
+        canonical.replace("tintmode=\"5\"", "tintmode=\"3\""),
+        canonical.replace("</Icon>", "<UnknownCommand/></Icon>"),
+        canonical + "\n",
+      )) rejects(fancyOnly + (manifestPath to xml.toByteArray()))
+      rejects(fancyOnly + mapOf(
+        "res/drawable-xxhdpi/$name.png" to NativeIconPngFixtures.rgba { _, _ -> 64 },
+        nightFallback to dark,
+      ))
+    }
+  }
+
   @Test fun rejectsNoncanonicalXmlInBothCompactAndLegacyTemplates() {
     for (palette in listOf(false, true)) {
       for (entries in listOf(entries(palette, light), entries(palette, dark), legacyEntries(palette)) +
@@ -118,8 +173,8 @@ class GeneratedNativeIconValidatorTest {
       .replace("  <Image x=\"0\" y=\"0\" w=\"2\" h=\"2\" src=\"night.png\" visibility=\"(1-#palette_enabled)*#__darkmode\" />\n", "")
       .toByteArray())
 
-  private fun validate(entries: Map<String, ByteArray>) {
-    GeneratedNativeIconValidator.validate(name, entries.keys) { path, limit ->
+  private fun validate(entries: Map<String, ByteArray>, nativeName: String = name) {
+    GeneratedNativeIconValidator.validate(nativeName, entries.keys) { path, limit ->
       entries.getValue(path).also { assertTrue(it.size.toLong() <= limit) }
     }
   }

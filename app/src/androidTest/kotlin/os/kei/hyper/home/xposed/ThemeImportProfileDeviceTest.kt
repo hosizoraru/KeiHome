@@ -25,7 +25,7 @@ class ThemeImportProfileDeviceTest {
       require(provided.length() in 1..16)
       repeat(provided.length()) { paths += provided.getString(it) }
     }
-    val expected = setOf("rights", "apply", "detailReady", "validate", "parent", "inner", "registry",
+    val expected = setOf("rights", "downloadRights", "apply", "detailReady", "validate", "parent", "inner", "registry",
       "iconContext", "controllerManager", "lookup", "appContext")
     val sharedLibraries = context.packageManager.getApplicationInfo(ThemeIconImportRuntime.PACKAGE_NAME,
       PackageManager.GET_SHARED_LIBRARY_FILES).sharedLibraryFiles.orEmpty()
@@ -44,6 +44,11 @@ class ThemeImportProfileDeviceTest {
         val method = DexMethod(descriptor).getMethodInstance(loader)
         assertEquals("Role owner mismatch: $role in $path", method.declaringClass.classLoader, loader)
       }
+      val download = DexMethod(proof.getValue("downloadRights")).getMethodInstance(loader)
+      assertEquals("com.android.thememanager.controller.online.DrmService", download.declaringClass.name)
+      assertEquals(listOf("com.android.thememanager.basemodule.resource.model.Resource", "int",
+        "java.lang.String", "boolean"), download.parameterTypes.map { it.name })
+      assertNotNull(download.returnType.getConstructor(Int::class.javaPrimitiveType))
       val info = requireNotNull(context.packageManager.getPackageArchiveInfo(path, 0))
       assertEquals(ThemeIconImportRuntime.PACKAGE_NAME, info.packageName)
       reports.put(JSONObject().put("apk", path).put("versionName", info.versionName)

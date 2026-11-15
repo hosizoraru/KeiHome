@@ -27,6 +27,7 @@ internal object NativeIconShapeConfig {
     return try {
       val names = linkedSetOf<String>()
       var authoredTransform = false
+      var misspelledFalse = false
       BoundedPackXml.read(original, IconPackLimits(maxXmlBytes = MAX_BYTES, maxMappings = 256),
         start = { name, attrs, depth ->
           if (depth == 1) {
@@ -34,6 +35,7 @@ internal object NativeIconShapeConfig {
             if (attrs.isNotEmpty()) authoredTransform = true
           }
           if (depth == 2 && name == "Config") {
+            if (attrs["name"] == DYNAMIC && attrs["value"] == "fales") misspelledFalse = true
             attrs["name"]?.let { require(names.add(it)) { "Ambiguous icon configuration" } }
             if (attrs.keys != setOf("name", "value") || attrs["name"] !in setOf(LAYERS, DYNAMIC, MASK)) {
               authoredTransform = true
@@ -45,13 +47,22 @@ internal object NativeIconShapeConfig {
       // Full-mask mode bypasses the legacy matrix/filter compositor, so never opt an
       // authored transform program into that path merely because its mask is absent.
       if (authoredTransform) return original
-      if (LAYERS in names && MASK in names && DYNAMIC in names && customMask == null) return original
+      if (LAYERS in names && MASK in names && DYNAMIC in names && customMask == null &&
+        !misspelledFalse) return original
       val document = DocumentBuilderFactory.newInstance().apply {
         isNamespaceAware = true
         isExpandEntityReferences = false
       }.newDocumentBuilder().parse(ByteArrayInputStream(original))
       val root = document.documentElement
       require(root.nodeName == "IconTransform" && root.namespaceURI.isNullOrEmpty())
+      if (misspelledFalse) {
+        val configs = root.getElementsByTagName("Config")
+        for (i in 0 until configs.length) {
+          val element = configs.item(i) as org.w3c.dom.Element
+          if (element.getAttribute("name") == DYNAMIC && element.getAttribute("value") == "fales")
+            element.setAttribute("value", "false")
+        }
+      }
       if (customMask != null && MASK in names) {
         val configs = root.getElementsByTagName("Config")
         for (i in 0 until configs.length) {

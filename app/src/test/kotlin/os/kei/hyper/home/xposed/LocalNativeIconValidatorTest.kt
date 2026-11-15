@@ -15,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import os.kei.hyper.home.iconpack.NativeIconPngFixtures
+import os.kei.hyper.home.iconpack.NativeMamlPair
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 
 class LocalNativeIconValidatorTest {
@@ -261,6 +262,197 @@ class LocalNativeIconValidatorTest {
       }.isFailure)
     }
   }
+
+  @Test fun admitsOnlyClosedNativeCrossfadeTemplatesWithoutRewritingTheirPublication() {
+    for (xml in listOf(closedPair(), closedPair().replace("DateTime.Day", "none"))) {
+      val file = archive(closedModule(xml))
+      val before = file.readBytes()
+      val proof = ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE)
+      assertEquals(ConvertedIconArchive.LOCAL_NATIVE, proof.origin)
+      assertArrayEquals(before, file.readBytes())
+    }
+  }
+
+  @Test fun cachedTemplateStillRequiresBothImagesInEachComponent() {
+    val first = closedModule()
+    val second = closedModule(base = "fancy_icons/com.second/")
+    for (missing in listOf("iconBg_0.png", "iconBg_1.png")) {
+      val file = archive(first + (second - "fancy_icons/com.second/$missing"))
+      assertThrows("Missing image must not inherit another component's proof", Exception::class.java) {
+        ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun closedPairKeepsExistingImageIntegritySizeAndDimensionBudgets() {
+    for (bad in listOf(
+      byteArrayOf(1, 2, 3),
+      png.clone().also { it[29] = (it[29].toInt() xor 1).toByte() },
+      NativeIconPngFixtures.png(2049, 8, 6, byteArrayOf(0)),
+    )) {
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(closedModule() + ("${root}iconBg_1.png" to bad)),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+    val oversized = png.copyOf(8 * 1024 * 1024 + 1)
+    val file = temporary.newFile().apply {
+      writeBytes(zip(closedModule() + ("${root}iconBg_1.png" to oversized), stored = true))
+    }
+    assertThrows(IllegalArgumentException::class.java) { LocalNativeIconValidator.validate(file) }
+  }
+
+  @Test fun closedPairDoesNotAdmitOtherUpdatersCommandsPathsOrTimingPrograms() {
+    for (changed in listOf(
+      closedPair().replace("DateTime.Day", "DateTime.Second"),
+      closedPair().replace("iconBg.png", "../iconBg.png"),
+      closedPair().replace("frameRate=\"60\"", "frameRate=\"120\""),
+      closedPair().replace("srcid=\"1\"", "srcid=\"#date\""),
+      closedPair().replace("</Icon>", "<ContentProviderBinder uri='content://settings/system'/></Icon>"),
+      closedPair().replace("</Icon>", "<IntentCommand action='android.intent.action.VIEW'/></Icon>"),
+    )) {
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(closedModule(changed)), ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun closedPairCannotExtendTheSixtyFourKiBManifestBudgetOrAcceptTransformTypos() {
+    val oversized = closedPair().replace("</Icon>", "${" ".repeat(64 * 1024)}</Icon>")
+    assertThrows(Exception::class.java) {
+      ConvertedIconArchive.inspect(archive(closedModule(oversized)), ConvertedIconArchive.LOCAL_NATIVE)
+    }
+    val typo = "<IconTransform><Config name='UseDynamicIcon' value='fales'/></IconTransform>"
+    assertThrows(Exception::class.java) {
+      ConvertedIconArchive.inspect(archive(closedModule() + ("transform_config.xml" to typo.toByteArray())),
+        ConvertedIconArchive.LOCAL_NATIVE)
+    }
+  }
+
+  @Test fun repeatedClosedTemplatesAndNonMatchesAreParsedOnlyOncePerExactByteSequence() {
+    var calls = 0
+    val cache = LocalNativeIconValidator.PairTemplates { bytes -> calls++; NativeMamlPair.parse(bytes) }
+    val one = closedPair().toByteArray()
+    val two = closedPair().replace("DateTime.Day", "none").toByteArray()
+    val unknown = "<Icon><Image src='image.png'/></Icon>".toByteArray()
+    repeat(13_389) { assertNotNull(cache.parse(if (it % 2 == 0) one else two)) }
+    repeat(100) { assertNull(cache.parse(unknown)) }
+    assertEquals(3, calls)
+    // The retained key cannot be changed by a caller reusing its input buffer.
+    one[0] = '!'.code.toByte()
+    assertNotNull(cache.parse(closedPair().toByteArray()))
+    assertEquals(3, calls)
+  }
+
+  @Test fun closedTemplateCacheRetainsAtMostThirtyTwoTemplatesAndSkipsOversizedProofs() {
+    var calls = 0
+    val cache = LocalNativeIconValidator.PairTemplates { bytes -> calls++; NativeMamlPair.parse(bytes) }
+    val variants = (32..64).map { closedPair().replace("168", "$it").toByteArray() }
+    variants.forEach { assertNotNull(cache.parse(it)) }
+    assertEquals(33, calls)
+    assertNotNull(cache.parse(variants[2]))
+    assertEquals(33, calls)
+    assertNotNull(cache.parse(variants[0]))
+    assertEquals(34, calls)
+    assertNull(cache.parse(ByteArray(64 * 1024 + 1)))
+    assertEquals(34, calls)
+  }
+
+  @Test fun admitsNativeMonetFancyOnlyPublicationWithoutStaticFallbackTrees() {
+    for (night in listOf(png, NativeIconPngFixtures.rgba(4) { _, _ -> 128 })) {
+      val generated = NativePaletteIcon.entries("com.generated", png, night,
+        NativeIconPngFixtures.mask(4), NativeIconPngFixtures.mask(4))
+        .filterKeys { it.startsWith("fancy_icons/com.generated/") }
+      val file = archive(module() + generated)
+      val before = file.readBytes()
+      assertEquals(ConvertedIconArchive.LOCAL_NATIVE,
+        ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE).origin)
+      assertArrayEquals(before, file.readBytes())
+      val manifestPath = "fancy_icons/com.generated/manifest.xml"
+      val bad = generated.getValue(manifestPath).toString(Charsets.UTF_8)
+        .replace("settings/system/", "settings/secure/").toByteArray()
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(module() + generated + (manifestPath to bad)),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun admitsCapturedClosedCalendarWithoutRewritingThePublishedManifest() {
+    val file = archive(calendarModule())
+    val before = file.readBytes()
+    assertEquals(ConvertedIconArchive.LOCAL_NATIVE,
+      ConvertedIconArchive.inspect(file, ConvertedIconArchive.LOCAL_NATIVE).origin)
+    assertArrayEquals(before, file.readBytes())
+  }
+
+  @Test fun closedCalendarRequiresEveryDayAndNightImageEvenAfterAnotherComponentWasValidated() {
+    val second = "fancy_icons/com.second/"
+    for (missing in listOf(
+      "calendar_0/themed_icon_calendar_1.png", "calendar_0/themed_icon_calendar_31.png",
+      "calendar_1/themed_icon_calendar_1.png", "calendar_1/themed_icon_calendar_31.png",
+    )) {
+      assertThrows("Missing calendar PNG: $missing", Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(calendarModule() + (calendarModule(second) - (second + missing))),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+  }
+
+  @Test fun closedCalendarRetainsExistingImageIntegritySizeAndDimensionBudgets() {
+    val path = "${root}calendar_1/themed_icon_calendar_31.png"
+    for (bad in listOf(
+      byteArrayOf(1, 2, 3),
+      png.clone().also { it[29] = (it[29].toInt() xor 1).toByte() },
+      NativeIconPngFixtures.png(2049, 8, 6, byteArrayOf(0)),
+    )) {
+      assertThrows(Exception::class.java) {
+        ConvertedIconArchive.inspect(archive(calendarModule() + (path to bad)),
+          ConvertedIconArchive.LOCAL_NATIVE)
+      }
+    }
+    val file = temporary.newFile().apply {
+      writeBytes(zip(calendarModule() + (path to png.copyOf(8 * 1024 * 1024 + 1)), stored = true))
+    }
+    assertThrows(IllegalArgumentException::class.java) { LocalNativeIconValidator.validate(file) }
+  }
+
+  @Test fun calendarAndStaticProofsShareOneThirtyTwoTemplateCache() {
+    var calls = 0
+    val cache = LocalNativeIconValidator.PairTemplates { bytes -> calls++; NativeMamlPair.parse(bytes) }
+    val calendar = calendarPair().toByteArray()
+    repeat(100) {
+      assertNull(cache.parse(calendar))
+      assertNotNull(cache.calendar(calendar))
+    }
+    assertEquals(1, calls)
+    (32..63).forEach { assertNotNull(cache.parse(closedPair().replace("168", "$it").toByteArray())) }
+    assertEquals(33, calls)
+    assertNotNull(cache.calendar(calendar))
+    assertEquals(34, calls)
+    assertNull(cache.calendar(ByteArray(64 * 1024 + 1)))
+    assertEquals(34, calls)
+  }
+
+  private fun calendarPair() = requireNotNull(javaClass.getResourceAsStream("/native-maml/calendar-pair.xml"))
+    .use { it.readBytes().toString(Charsets.UTF_8) }
+
+  private fun calendarModule(base: String = root): Map<String, ByteArray> = linkedMapOf(
+    base + "manifest.xml" to calendarPair().toByteArray(),
+    "transform_config.xml" to "<IconTransform><Config name='UseDynamicIcon' value='false'/></IconTransform>"
+      .toByteArray(),
+  ).apply {
+    for (mode in 0..1) for (day in 1..31) put(base + "calendar_$mode/themed_icon_calendar_$day.png", png)
+  }
+
+  private fun closedPair() = requireNotNull(javaClass.getResourceAsStream("/native-maml/image-pair.xml"))
+    .use { it.readBytes().toString(Charsets.UTF_8) }
+
+  private fun closedModule(xml: String = closedPair(), base: String = root) = linkedMapOf(
+    base + "manifest.xml" to xml.toByteArray(),
+    base + "iconBg_0.png" to png,
+    base + "iconBg_1.png" to png,
+    "transform_config.xml" to "<IconTransform><Config name='UseDynamicIcon' value='false'/></IconTransform>".toByteArray())
 
   private fun module(xml: String = selector) = linkedMapOf(
     "res/drawable-xxhdpi/com.example.png" to png,

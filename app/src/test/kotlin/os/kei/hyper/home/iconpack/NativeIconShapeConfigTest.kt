@@ -4,6 +4,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeIconShapeConfigTest {
+  @Test fun knownDynamicFalseTypoIsNormalizedWithoutEnablingTheAuthorsLegacyStyle() {
+    val source = """<IconTransform><Config name="SupportLayerIcon" value="false"/>
+      <Config name="UseDynamicIcon" value="fales"/><Config name="ConfigIconMask" value="M0 0H100V100H0Z"/></IconTransform>""".toByteArray()
+    val changed = requireNotNull(NativeIconShapeConfig.complete(source, "M0 0H100V100H0Z"))
+    assertFalse(changed.toString(Charsets.UTF_8).contains("fales"))
+    assertTrue(changed.toString(Charsets.UTF_8).contains("name=\"SupportLayerIcon\" value=\"false\""))
+    assertTrue(changed.toString(Charsets.UTF_8).contains("value=\"false\""))
+    assertArrayEquals(changed, NativeIconShapeConfig.complete(changed, "M0 0H100V100H0Z"))
+  }
+
   private val systemMask = "M0 40C0 10 10 0 40 0H60C90 0 100 10 100 40V60C100 90 90 100 60 100H40C10 100 0 90 0 60Z"
 
   @Test fun explicitCustomMaskReplacesOnlyTheSimpleMaskAndPreservesAuthoredFlags() {

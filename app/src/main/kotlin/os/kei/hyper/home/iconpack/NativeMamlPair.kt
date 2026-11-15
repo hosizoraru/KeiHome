@@ -46,10 +46,22 @@ internal data class NativeMamlPair(val light: String, val dark: String) {
       val images = elements.filter { it.tag == "Image" }
       if (images.size != 2) return null
       val src = images[0].attrs["src"] ?: return null
-      if (!src.matches(Regex("[A-Za-z0-9_][A-Za-z0-9_.-]{0,95}\\.png")) ||
-        images[1].attrs["src"] != src) return null
+      // Canonical output of the calendar recognizer: no updater or srcid remains.
+      val direct = attrs["useVariableUpdater"] == "none" && src == "day.png" &&
+        images[1].attrs["src"] == "night.png" && images.all { "srcid" !in it.attrs }
+      if (!direct && (!src.matches(Regex("[A-Za-z0-9_][A-Za-z0-9_.-]{0,95}\\.png")) ||
+        images[1].attrs["src"] != src)) return null
       fun e(tag: String, depth: Int, vararg values: Pair<String, String>) =
         Element(tag, linkedMapOf(*values), depth)
+      fun image(dark: Boolean) = Element("Image", linkedMapOf(
+        "name" to if (dark) "darkIcon" else "lightIcon",
+        "x" to "0", "y" to "0", "w" to "$width", "h" to "$width",
+        "src" to if (direct) { if (dark) "night.png" else "day.png" } else src,
+      ).apply {
+        if (!direct) put("srcid", if (dark) "1" else "0")
+        put("alpha", "255")
+        put("folmeMode", "true")
+      }, 2)
       val expected = listOf(
         e("ExternalCommands", 2),
         e("Trigger", 3, "action" to "init,resume"),
@@ -74,12 +86,10 @@ internal data class NativeMamlPair(val light: String, val dark: String) {
           "config" to "'config'"),
         e("FolmeCommand", 4, "target" to "darkIcon", "states" to "'darkIconState'", "command" to "to",
           "config" to "'config'"),
-        e("Image", 2, "name" to "lightIcon", "x" to "0", "y" to "0", "w" to "$width", "h" to "$width",
-          "src" to src, "srcid" to "0", "alpha" to "255", "folmeMode" to "true"),
-        e("Image", 2, "name" to "darkIcon", "x" to "0", "y" to "0", "w" to "$width", "h" to "$width",
-          "src" to src, "srcid" to "1", "alpha" to "255", "folmeMode" to "true"),
+        image(false), image(true),
       )
       if (elements.drop(1) != expected) return null
+      if (direct) return NativeMamlPair("day.png", "night.png")
       val stem = src.removeSuffix(".png")
       return NativeMamlPair("${stem}_0.png", "${stem}_1.png")
     }

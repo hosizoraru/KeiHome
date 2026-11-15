@@ -43,7 +43,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBack: () -> Unit,
-  onNavigate: (String) -> Unit, onOpenPackSection: (String) -> Unit) {
+  onNavigate: (String) -> Unit, onOpenPackSection: (String) -> Unit,
+  releaseNotesPreferences: os.kei.hyper.home.data.ReleaseNotesPreferences? = null,
+  onReleaseNotesViewed: (Set<String>) -> Unit = {}) {
   // Retain restored navigation state from before these preferences moved to Packs.
   if (route == SettingsSection.PACKS.route) {
     PackSettingsScreen(model, onBack)
@@ -64,7 +66,9 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     return
   }
   if (route == SettingsSection.RELEASE_NOTES.route) {
-    ReleaseNotesScreen(onBack)
+    val state = releaseNotesPreferences?.state?.collectAsStateWithLifecycle()?.value
+    ReleaseNotesScreen(onBack, unreadVersions = state?.unreadVersions.orEmpty().toSet(),
+      onReadVersions = { releaseNotesPreferences?.markRead(it) }, onViewedVersionsChanged = onReleaseNotesViewed)
     return
   }
   if (route == "notices" || noticeCategoryForRoute(route) != null ||

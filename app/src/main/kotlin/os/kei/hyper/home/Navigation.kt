@@ -28,6 +28,7 @@ import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.PackDestinationScreen
 import os.kei.hyper.home.ui.main.SettingsDestinationScreen
+import os.kei.hyper.home.ui.main.SettingsSection
 import os.kei.hyper.home.ui.main.ReleaseNotesScreen
 import os.kei.hyper.home.ui.main.UpgradeRestartReminder
 import os.kei.hyper.home.ui.main.OnboardingScreen
@@ -99,7 +100,15 @@ internal fun MainNavigation(
     if (DesktopSection.entries.none { it != DesktopSection.OVERVIEW && it.route == section }) return
     backStack.add(DesktopRoute(section))
   }
+  val releaseReadSession = remember { mutableSetOf<String>() }
+  fun recordReleaseViews(versions: Set<String>) {
+    releaseReadSession.clear()
+    releaseReadSession.addAll(versions)
+  }
   fun back() {
+    val route = backStack.lastOrNull()
+    if (route == ReleaseNotesUpgradeRoute || route == SettingsRoute(SettingsSection.RELEASE_NOTES.route))
+      releaseNotesPreferences?.markRead(releaseReadSession)
     if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) releaseNotesPreferences?.acknowledge()
     if (backStack.size > 1) backStack.removeLastOrNull()
   }
@@ -158,11 +167,15 @@ internal fun MainNavigation(
     entry<SettingsRoute>(swipeDismiss = swipe) { route ->
       SettingsDestinationScreen(model, route.section,
         onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings,
-        onOpenPackSection = ::open)
+        onOpenPackSection = ::open, releaseNotesPreferences = releaseNotesPreferences,
+        onReleaseNotesViewed = ::recordReleaseViews)
     }
     entry<ReleaseNotesUpgradeRoute> {
       ReleaseNotesScreen(onBack = ::back, currentVersion = releaseState?.observedVersion ?: BuildConfig.VERSION_NAME,
-        highlightedVersions = pending.toSet(), onContinue = {
+        highlightedVersions = pending.toSet(),
+        unreadVersions = releaseState?.unreadVersions.orEmpty().toSet(),
+        onViewedVersionsChanged = ::recordReleaseViews,
+        onReadVersions = { releaseNotesPreferences?.markRead(it) }, onContinue = {
         if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) back()
       })
     }

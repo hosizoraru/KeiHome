@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,6 +50,7 @@ import os.kei.hyper.home.data.ReleaseVersion
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
@@ -55,10 +59,12 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -67,6 +73,9 @@ internal fun ReleaseNotesScreen(
   currentVersion: String = BuildConfig.VERSION_NAME.substringBefore('+'),
   highlightedVersions: Set<String> = emptySet(),
   onContinue: (() -> Unit)? = null,
+  unreadVersions: Set<String> = highlightedVersions,
+  onReadVersions: (Set<String>) -> Unit = {},
+  onViewedVersionsChanged: (Set<String>) -> Unit = {},
 ) {
   val parsedCurrent = remember(currentVersion) { ReleaseVersion.parse(currentVersion) }
   val releases = remember(parsedCurrent) {
@@ -80,6 +89,11 @@ internal fun ReleaseNotesScreen(
     onContinue != null,
     stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it }),
   ) { mutableStateOf(ReleaseNotesCatalog.initiallyExpandedVersions(currentVersion, upgrade = onContinue != null)) }
+  var viewedVersions by rememberSaveable { mutableStateOf(openedVersions) }
+  var unreadOnly by rememberSaveable { mutableStateOf(false) }
+  val leave = { onReadVersions(viewedVersions.toSet()); onBack() }
+  LaunchedEffect(viewedVersions) { onViewedVersionsChanged(viewedVersions.toSet()) }
+  val unreadCount = releases.count { it.version in unreadVersions }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionClearance = if (onContinue != null) {
     maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -99,10 +113,25 @@ internal fun ReleaseNotesScreen(
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           scrollBehavior = behavior,
           navigationIcon = {
-            IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp,
+            IconButton(onClick = leave, minHeight = 48.dp, minWidth = 48.dp,
               modifier = Modifier.testTag("release-notes.back")) {
               Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
             }
+          },
+          actions = {
+            if (onContinue == null && unreadCount > 0) {
+              IconButton(onClick = { onReadVersions(releases.map { it.version }.toSet()) },
+                modifier = Modifier.testTag("release-notes.read-all")) {
+                Icon(MiuixIcons.Glass.SelectAll, stringResource(R.string.release_notes_ui_read_all))
+              }
+            }
+          },
+          bottomContent = {
+            Os4ViewTabs(items = listOf(
+              stringResource(R.string.browser_view_count, stringResource(R.string.release_notes_ui_all), releases.size),
+              stringResource(R.string.browser_view_count, stringResource(R.string.release_notes_ui_unread), unreadCount)),
+              selectedIndex = if (unreadOnly) 1 else 0, onSelect = { unreadOnly = it == 1 },
+              modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("release-notes.views"))
           },
         )
       }
@@ -112,7 +141,7 @@ internal fun ReleaseNotesScreen(
         PageActionFab(
           label = stringResource(R.string.release_notes_ui_continue),
           icon = MiuixIcons.Glass.ChevronForward,
-          onClick = onContinue,
+          onClick = { onReadVersions(viewedVersions.toSet()); onContinue() },
           trailingIcon = true,
           onHeightChanged = { actionHeight = it },
           modifier = Modifier.widthIn(max = 320.dp).testTag("release-notes.continue"),
@@ -125,6 +154,10 @@ internal fun ReleaseNotesScreen(
         .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
       contentAlignment = Alignment.TopCenter,
     ) {
+      Crossfade(targetState = unreadOnly to if (unreadOnly) unreadVersions else emptySet(),
+        animationSpec = tween(180), label = "release-notes.views") { (onlyUnread, viewUnread) ->
+      val visible = releases.filter { !onlyUnread || it.version in viewUnread }
+      val viewScroll = if (onlyUnread) rememberScrollState() else scroll
       Column(
         Modifier.widthIn(max = 840.dp).fillMaxSize()
           .testTag("release-notes.content")
@@ -139,7 +172,7 @@ internal fun ReleaseNotesScreen(
             }
           }
           .keiHomeTopBarScroll(behavior)
-          .verticalScroll(scroll, overscrollEffect = null)
+          .verticalScroll(viewScroll, overscrollEffect = null)
           .padding(
             start = 16.dp, end = 16.dp,
             top = insets.calculateTopPadding() + 12.dp,
@@ -147,26 +180,31 @@ internal fun ReleaseNotesScreen(
           ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        releases.forEach { release ->
+        visible.forEach { release ->
           key(release.version) {
             ReleaseNotesCard(
               release = release,
               expanded = release.version in openedVersions,
-              highlighted = release.version in highlightedVersions,
+              highlighted = release.version in unreadVersions,
+              onRead = { onReadVersions(setOf(release.version)) },
               onToggle = {
                 openedVersions = if (release.version in openedVersions) {
                   openedVersions - release.version
-                } else openedVersions + release.version
+                } else {
+                  viewedVersions = (viewedVersions + release.version).distinct()
+                  openedVersions + release.version
+                }
               },
             )
           }
         }
-        if (releases.isEmpty()) {
-          Text(stringResource(R.string.release_notes_ui_empty),
+        if (visible.isEmpty()) {
+          Text(stringResource(if (onlyUnread) R.string.release_notes_ui_no_unread else R.string.release_notes_ui_empty),
             style = MiuixTheme.textStyles.body2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         Spacer(Modifier.fillMaxWidth().height(1.dp).testTag("release-notes.end"))
+      }
       }
     }
   }
@@ -178,6 +216,7 @@ private fun ReleaseNotesCard(
   expanded: Boolean,
   highlighted: Boolean,
   onToggle: () -> Unit,
+  onRead: () -> Unit,
 ) {
   val date = remember(release.committedAt) {
     runCatching {
@@ -218,6 +257,8 @@ private fun ReleaseNotesCard(
     )
     Os4DisclosureContent(expanded) {
       ReleaseNotesBody(release)
+      if (highlighted) TextButton(text = stringResource(R.string.release_notes_ui_mark_read), onClick = onRead,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("release-notes.read.${release.version}"))
     }
   }
 }

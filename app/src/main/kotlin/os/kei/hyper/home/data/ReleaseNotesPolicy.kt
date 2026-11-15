@@ -23,10 +23,44 @@ internal data class ReleaseNotesState(
   val pendingVersion: String = "",
   val restartReminderVersion: String = "",
   val restartReminderReadThrough: String = "",
+  val unreadVersions: List<String> = emptyList(),
+  val readVersions: List<String> = emptyList(),
+  val readTrackingInitialized: Boolean = false,
 )
 
 internal object ReleaseNotesPolicy {
   fun observe(
+    previous: ReleaseNotesState,
+    versionName: String,
+    updatedInstallation: Boolean,
+    publishedVersions: List<String>,
+    restartVersions: List<String> = emptyList(),
+    initialUnreadVersions: List<String> = publishedVersions,
+    newInstallation: Boolean = false,
+  ): ReleaseNotesState {
+    val core = observePresentation(previous, versionName, updatedInstallation, publishedVersions, restartVersions)
+    val current = ReleaseVersion.parse(versionName) ?: return previous
+    val available = normalize(publishedVersions).filter { ReleaseVersion.parse(it)!! <= current }
+    val initialized = previous.readTrackingInitialized && !newInstallation
+    val initial = when {
+      !updatedInstallation -> available.filter { it == current.toString() }
+      previous.observedVersion.isBlank() && previous.readThrough.isBlank() ->
+        core.pendingVersions.filter { it in initialUnreadVersions }
+      else -> core.pendingVersions
+    }
+    val read = if (initialized) normalize(previous.readVersions) else available.filter { it !in initial }
+    val unread = normalize(if (initialized) previous.unreadVersions + core.pendingVersions else initial)
+      .filter { it !in read }
+    return core.copy(
+      pendingVersions = core.pendingVersions.filter { it !in read },
+      unreadVersions = unread, readVersions = read, readTrackingInitialized = true,
+    )
+  }
+
+  private fun normalize(versions: List<String>): List<String> =
+    versions.mapNotNull(ReleaseVersion::parse).distinct().sortedDescending().map { it.toString() }
+
+  private fun observePresentation(
     previous: ReleaseNotesState,
     versionName: String,
     updatedInstallation: Boolean,
@@ -62,6 +96,15 @@ internal object ReleaseNotesPolicy {
   fun acknowledge(state: ReleaseNotesState): ReleaseNotesState {
     val read = (state.pendingVersions + state.readThrough).mapNotNull(ReleaseVersion::parse).maxOrNull()
     return state.copy(readThrough = read?.toString().orEmpty(), pendingVersions = emptyList(), pendingVersion = "")
+  }
+
+  fun markRead(state: ReleaseNotesState, versions: Set<String>): ReleaseNotesState {
+    val acknowledged = state.unreadVersions.filter { it in versions }
+    if (acknowledged.isEmpty()) return state
+    val highest = normalize(acknowledged + state.readThrough).firstOrNull().orEmpty()
+    return state.copy(readThrough = highest, pendingVersions = state.pendingVersions - acknowledged.toSet(),
+      unreadVersions = state.unreadVersions - acknowledged.toSet(),
+      readVersions = normalize(state.readVersions + acknowledged))
   }
 
   fun acknowledgeRestart(state: ReleaseNotesState, version: String): ReleaseNotesState {

@@ -15,16 +15,40 @@ internal class ReleaseNotesPreferences(
   publishedVersions: List<String> = ReleaseNotesCatalog.releases.map { it.version },
   allowLegacyUpgrade: Boolean = true,
   restartVersions: List<String> = ReleaseNotesCatalog.releases.filter { it.recommendSystemRestart }.map { it.version },
+  installationTime: Long = firstInstallTime(context),
 ) {
   private val storage = AppLocalStorage.open(context, id)
-  private val previous = decode(storage.decodeString(KEY))
+  private val previous = decode(storage.decodeString(KEY)).let { snapshot ->
+    runCatching {
+      val ledger = JSONObject(storage.decodeString(READ_KEY) ?: return@runCatching snapshot)
+      fun versions(key: String): List<String> {
+        val list = ledger.optJSONArray(key) ?: return emptyList()
+        return List(list.length()) { list.getString(it) }
+      }
+      snapshot.copy(unreadVersions = versions("unread"), readVersions = versions("read"), readTrackingInitialized = true)
+    }.getOrDefault(snapshot)
+  }
+  private val oldInstallationTime = storage.decodeLong(INSTALL_KEY, 0L)
+  private val restoredInstallation = oldInstallationTime > 0 && installationTime > 0 && oldInstallationTime != installationTime
   private val progress = MutableStateFlow(ReleaseNotesPolicy.observe(
-    previous, versionName, updatedInstallation &&
+    previous, versionName, updatedInstallation && !restoredInstallation &&
       (allowLegacyUpgrade || ReleaseVersion.parse(previous.observedVersion) != null), publishedVersions, restartVersions,
+    initialUnreadVersions = ReleaseNotesCatalog.initiallyExpandedVersions(versionName, upgrade = true),
+    newInstallation = restoredInstallation,
   ))
   val state = progress.asStateFlow()
 
-  init { persist(progress.value) }
+  init {
+    if (installationTime > 0 && installationTime != oldInstallationTime) check(storage.encode(INSTALL_KEY, installationTime))
+    persist(progress.value, installationTime > 0 && installationTime != oldInstallationTime)
+  }
+
+  fun markRead(versions: Set<String>) {
+    val next = ReleaseNotesPolicy.markRead(progress.value, versions)
+    if (next == progress.value) return
+    persist(next)
+    progress.value = next
+  }
 
   fun acknowledge() {
     val next = ReleaseNotesPolicy.acknowledge(progress.value)
@@ -38,18 +62,27 @@ internal class ReleaseNotesPreferences(
     progress.value = next
   }
 
-  private fun persist(value: ReleaseNotesState) {
+  private fun persist(value: ReleaseNotesState, dirty: Boolean = false) {
+    val ledger = JSONObject().put("unread", JSONArray(value.unreadVersions)).put("read", JSONArray(value.readVersions)).toString()
+    var changed = dirty
+    if (storage.decodeString(READ_KEY) != ledger) {
+      check(storage.encode(READ_KEY, ledger))
+      changed = true
+    }
     val encoded = JSONObject().put("version", value.observedVersion).put("readThrough", value.readThrough)
       .put("pending", JSONArray(value.pendingVersions)).put("pendingVersion", value.pendingVersion)
       .put("restartPending", value.restartReminderVersion).put("restartReadThrough", value.restartReminderReadThrough).toString()
     if (storage.decodeString(KEY) != encoded) {
       check(storage.encode(KEY, encoded))
-      storage.sync()
+      changed = true
     }
+    if (changed) storage.sync()
   }
 
   companion object {
     private const val KEY = "snapshot_v1"
+    private const val READ_KEY = "read_ledger_v1"
+    private const val INSTALL_KEY = "read_installation_v1"
     @Volatile private var instance: ReleaseNotesPreferences? = null
 
     fun get(context: Context, hasCompletedSetup: Boolean): ReleaseNotesPreferences = instance ?: synchronized(this) {
@@ -61,6 +94,10 @@ internal class ReleaseNotesPreferences(
       val info = context.packageManager.getPackageInfo(context.packageName, 0)
       info.firstInstallTime > 0 && info.lastUpdateTime > info.firstInstallTime
     }.getOrDefault(false)
+
+    private fun firstInstallTime(context: Context): Long = runCatching {
+      context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+    }.getOrDefault(0L)
 
     private fun decode(text: String?): ReleaseNotesState = runCatching {
       val json = JSONObject(text ?: return ReleaseNotesState())

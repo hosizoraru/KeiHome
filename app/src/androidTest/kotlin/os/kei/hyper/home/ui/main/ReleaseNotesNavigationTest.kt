@@ -31,6 +31,25 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 class ReleaseNotesNavigationTest {
+  @Test fun completedBackKeepsNativeNavigationAndPersistsTheOpenedUpgradeVersions() {
+    val storage = id()
+    ReleaseNotesPreferences(context, storage, "1.9.0", false).markRead(setOf("1.9.0"))
+    val update = ReleaseNotesPreferences(context, storage, "1.11.0", true, restartVersions = emptyList())
+    val onboarding = setup(true)
+    val backHost = Os4NavigationTestHost()
+    rule.setContent { backHost.Provide { KeiHomeTheme { MainNavigation(onboarding, update) } } }
+    rule.onNodeWithTag("release-notes.body.1.11.0").assertExists()
+    rule.runOnIdle { backHost.cancelBack() }
+    rule.onNodeWithTag("release-notes.body.1.11.0").assertExists()
+    assertEquals(listOf("1.11.0", "1.10.0"), update.state.value.unreadVersions)
+    rule.runOnIdle { backHost.completeBack() }
+    rule.waitForIdle()
+    rule.onNodeWithTag("release-notes.screen").assertDoesNotExist()
+    assertTrue(update.state.value.unreadVersions.isEmpty())
+    assertEquals("", update.state.value.pendingVersion)
+    assertTrue(ReleaseNotesPreferences(context, storage, "1.11.0+same", true,
+      restartVersions = emptyList()).state.value.unreadVersions.isEmpty())
+  }
   @get:Rule(order = 0) val host = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createAndroidComposeRule<ComponentActivity>()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext

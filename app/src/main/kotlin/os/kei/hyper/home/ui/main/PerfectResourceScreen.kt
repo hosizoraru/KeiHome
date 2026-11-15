@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -39,6 +41,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -58,6 +63,7 @@ import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -171,6 +177,8 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   LaunchedEffect(visible) { selection = retainedPerfectSelection(selection, visible) }
   val filterLabels = listOf(R.string.perfect_git_filter_all, R.string.perfect_git_filter_downloaded,
     R.string.perfect_list_not_downloaded)
+  val listState = rememberLazyListState()
+  val viewCounts = listOf(available.size, available.count { it in downloaded }, available.count { it !in downloaded })
   fun exitSelection() { selecting = false; selection = emptyList() }
   fun toggle(style: String) {
     selection = if (style in selection) selection - style else selection + style
@@ -316,27 +324,27 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
       }
     }
   }
-  var actionHeight by remember { mutableIntStateOf(0) }
-  val actionInset = with(LocalDensity.current) { actionHeight.toDp() }
+  val view = LocalView.current
+  var actionObstruction by remember { mutableIntStateOf(0) }
+  val actionInset = if (selecting) {
+    if (actionObstruction > 0) with(LocalDensity.current) { actionObstruction.toDp() } + 12.dp else 96.dp
+  } else 0.dp
   PerfectSubpage(if (selecting) stringResource(R.string.perfect_git_selection_count, selected.size)
     else stringResource(R.string.perfect_git_resources),
     onBack = { if (selecting) exitSelection() else onBack() },
+    listState = listState,
+    bottomContent = {
+      Os4ViewTabs(items = filterLabels.mapIndexed { index, label ->
+        stringResource(R.string.browser_view_count, stringResource(label), viewCounts[index])
+      }, selectedIndex = filter.ordinal, onSelect = {
+        if (it != filter.ordinal) {
+          selection = emptyList()
+          filterName = PerfectResourceFilter.entries[it].name
+        }
+        listState.requestScrollToItem(0)
+      }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("perfect.resources.views"))
+    },
     actions = {
-      OverlayIconCascadingDropdownMenu(entries = listOf(
-        DropdownEntry(items = PerfectResourceFilter.entries.map {
-          DropdownItem(text = stringResource(filterLabels[it.ordinal]), selected = filter == it,
-            onClick = { filterName = it.name })
-        }),
-        DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.browser_reset),
-          onClick = { filterName = PerfectResourceFilter.ALL.name }))),
-        ),
-        modifier = Modifier.testTag("perfect.resources.filter")) {
-        Icon(MiuixIcons.Glass.Filter,
-          contentDescription = stringResource(R.string.perfect_resource_filter_description,
-            stringResource(filterLabels[filter.ordinal])),
-          modifier = Modifier.size(24.dp),
-          tint = if (filter != PerfectResourceFilter.ALL) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface)
-      }
       if (!selecting) PerfectListSortMenu(listOf(R.string.perfect_list_recommended, R.string.perfect_list_name,
         R.string.perfect_list_downloads, R.string.perfect_list_size), sort.ordinal, reverse,
         onSort = { sortName = PerfectResourceSort.entries[it].name },
@@ -364,13 +372,15 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
 
         )))) { Icon(MiuixIcons.Glass.More, stringResource(R.string.perfect_resource_manage),
           Modifier.testTag("perfect.resources.manage")) }
-    }, bottomSpacing = if (selecting) actionInset + 24.dp else 24.dp,
+    }, viewportBottomInset = actionInset,
     floatingActionButton = { dialogs() },
     floatingToolbar = {
       if (selecting) {
         val shape = GlassShape(32.dp)
         Row(Modifier.widthIn(max = 320.dp).fillMaxWidth()
-          .onSizeChanged { actionHeight = it.height }
+          .onGloballyPositioned { coordinates ->
+            actionObstruction = (view.height - coordinates.boundsInWindow().top.toInt()).coerceAtLeast(0)
+          }
           .testTag("perfect.resources.toolbar")
           .glassPanel(backdrop = LocalKeiHomeBackdrop.current, shape = shape,
             style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
@@ -456,7 +466,8 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     items(visible, key = { "style:$it" }, contentType = { "style" }) { style ->
-      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)) {
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)
+        .animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null)) {
         val detail = state.catalog?.styleDetails?.get(style)
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
           startAction = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, state.catalog?.sourceHash.orEmpty()) } },

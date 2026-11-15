@@ -2,7 +2,7 @@
 <resources>
     <string name="icon_pack_version_unspecified">バージョン情報なし</string>
     <string name="icon_pack_version_label">バージョン %1$s</string>
-    <string name="icon_pack_native_eligibility_failed">取り込み済みですが、ローカルアイコンの適用準備ができていません。詳細から更新を再試行できます。</string>
+    <string name="icon_pack_native_eligibility_failed">取り込み済みですが、ローカルアイコンの適用準備ができていません。右上の「？」から説明を確認して、更新を再試行してください。</string>
     <string name="navigation_icon_packs">アイコン</string>
     <string name="pack_monet_summary">テーマアイコン、配色方式とカラーパレットを設定。</string>
     <string name="icon_pack_active">ホームで使用中</string>

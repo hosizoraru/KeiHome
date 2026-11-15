@@ -43,6 +43,14 @@ internal fun perfectPreviewRows(
   }
 }
 
+internal fun perfectPreviewViews(
+  rows: List<PerfectPreviewListItem>, query: String, nightOnly: Boolean, installedOnly: Boolean,
+  sort: PerfectPreviewSort, reverse: Boolean, locale: Locale,
+): List<List<PerfectPreviewListItem>> {
+  val all = perfectPreviewRows(rows, query, if (nightOnly) 3 else 0, installedOnly, sort, reverse, locale)
+  return listOf(all, all.filter { !it.dynamic }, all.filter { it.dynamic })
+}
+
 internal fun perfectResourceRows(
   recommended: List<String>, downloaded: Set<String>, sizes: Map<String, Long>,
   filter: PerfectResourceFilter, sort: PerfectResourceSort, reverse: Boolean,
@@ -55,7 +63,10 @@ internal fun perfectResourceRows(
       PerfectResourceFilter.NOT_DOWNLOADED -> it !in downloaded
     }
   }
-  if (sort == PerfectResourceSort.RECOMMENDED) return if (reverse) filtered.reversed() else filtered
+  if (sort == PerfectResourceSort.RECOMMENDED) {
+    val ordered = if (reverse) filtered.reversed() else filtered
+    return ordered.sortedBy { it !in downloaded }
+  }
   val collator = Collator.getInstance(locale)
   fun name(value: String) = if (value == "default") defaultName else value
   return filtered.sortedWith { a, b ->

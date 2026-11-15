@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -236,7 +237,8 @@ internal fun PreservedIconsPage(
         }
       }
       if (filtered.isEmpty() && !loading && !failed) item("empty", contentType = "empty") {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(20.dp)) {
+        Card(Modifier.fillMaxWidth().animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null),
+          insideMargin = PaddingValues(20.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(when {
               query.isNotBlank() -> R.string.preserved_icons_no_matches
@@ -251,7 +253,8 @@ internal fun PreservedIconsPage(
       items(filtered, key = { "app:$it" }, contentType = { "app" }) { pkg ->
         val app = appsByPackage[pkg]
         val checked = pkg in preserved
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(Modifier.fillMaxWidth().animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null),
+          insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = app?.label ?: pkg,
             summary = if (app != null) pkg else stringResource(when {
               loading -> R.string.preserved_icons_checking

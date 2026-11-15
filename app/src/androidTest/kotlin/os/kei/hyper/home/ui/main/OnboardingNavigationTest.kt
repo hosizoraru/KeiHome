@@ -175,7 +175,7 @@ class OnboardingNavigationTest {
       page(2)
     }
     openLink(R.string.perfect_git_resources)
-    destination("perfect.resources.filter")
+    destination("perfect.resources.views")
     back()
     page(2)
     openLink(R.string.navigation_monet)

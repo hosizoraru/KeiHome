@@ -23,6 +23,8 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -235,11 +237,9 @@ class PerfectGitUiTest {
     compose.onNodeWithTag("perfect.resources.none").performClick()
     compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
     compose.onNodeWithTag("perfect.resources.all").performClick()
-    compose.onNodeWithTag("perfect.resources.filter").performClick()
     val filterLabel = ApplicationProvider.getApplicationContext<Context>()
       .getString(R.string.perfect_git_filter_downloaded)
-    waitForDisplayed(hasText(filterLabel), "resource-filter-menu")
-    compose.onNodeWithText(filterLabel).performClick()
+    compose.onNode(hasText(filterLabel, substring = true) and hasAnyAncestor(hasTestTag("perfect.resources.views"))).performClick()
     compose.onNodeWithTag("perfect.resources.download").assertIsNotEnabled()
     compose.onAllNodesWithTag("perfect.resources.style.Square").assertCountEquals(0)
     compose.runOnIdle { backHost.completeBack() }

@@ -3,7 +3,7 @@
     <string name="pack_guidance_title">使い方</string>
     <string name="pack_guidance_done">閉じる</string>
     <string name="pack_guidance_collapse">説明を折りたたむ</string>
-    <string name="pack_guidance_expand">説明を開く</string>
+    <string name="pack_guidance_expand">説明を見る</string>
     <string name="pack_guidance_expanded">展開済み</string>
     <string name="pack_guidance_collapsed">折りたたみ済み</string>
     <string name="pack_guidance_author">作者 %1$s</string>

@@ -4,6 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PerfectIconStylesTest {
+  @Test fun downloadedStylesLeadWithoutChangingPriorityInsideEitherGroup() {
+    assertEquals(listOf("HyperOS4", "default", "iOS", "HyperOSClassic", "Hyper", "Rounded"),
+      PerfectIconStyles.ordered(listOf("Rounded", "iOS", "Hyper", "", "HyperOSClassic", "HyperOS4"),
+        listOf("iOS", "", "HyperOS4", "Unavailable")))
+  }
   @Test fun preferredStylesPrecedeDefaultAndRemainingStyles() {
     assertEquals(listOf("HyperOS4", "HyperOSClassic", "HyperOS3", "Hyper", "default", "Aquamarine", "Rounded"),
       PerfectIconStyles.ordered(listOf("Rounded", "", "HyperOS3", "Aquamarine", "HyperOS4", "Hyper",

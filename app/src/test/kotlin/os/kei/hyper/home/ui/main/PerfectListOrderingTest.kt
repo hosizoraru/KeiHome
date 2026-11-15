@@ -15,10 +15,10 @@ class PerfectListOrderingTest {
     filter, sort, reverse, "Default", Locale.US)
 
   @Test fun recommendedOrderAndDownloadFiltersPreserveSourcePriority() {
-    assertEquals(recommended, resources())
+    assertEquals(listOf("HyperOSClassic", "Hyper", "default", "HyperOS4", "HyperOS3"), resources())
     assertEquals(listOf("HyperOSClassic", "Hyper", "default"), resources(PerfectResourceFilter.DOWNLOADED))
     assertEquals(listOf("HyperOS4", "HyperOS3"), resources(PerfectResourceFilter.NOT_DOWNLOADED))
-    assertEquals(recommended.reversed(), resources(reverse = true))
+    assertEquals(listOf("default", "Hyper", "HyperOSClassic", "HyperOS3", "HyperOS4"), resources(reverse = true))
   }
 
   @Test fun sizeSortKeepsUnknownAndUndownloadedSizesLastInEitherDirection() {
@@ -67,6 +67,15 @@ class PerfectListOrderingTest {
   private fun previews(query: String = "", category: Int = 0, installed: Boolean = false,
     sort: PerfectPreviewSort = PerfectPreviewSort.ORIGINAL, reverse: Boolean = false) =
     perfectPreviewRows(preview, query, category, installed, sort, reverse, Locale.US).map { it.key }
+
+  @Test fun previewViewCountsShareSearchNightAndInstalledConstraints() {
+    fun groups(query: String = "", night: Boolean = false, installed: Boolean = false) =
+      perfectPreviewViews(preview, query, night, installed, PerfectPreviewSort.NAME, true, Locale.US)
+        .map { rows -> rows.map { it.key } }
+    assertEquals(listOf(3, 2, 1), groups().map { it.size })
+    assertEquals(listOf(listOf("z"), listOf("z"), emptyList<String>()), groups("ORG.Z", night = true, installed = true))
+    assertEquals(listOf(2, 1, 1), groups(installed = true).map { it.size })
+  }
 
   @Test fun previewCategoriesInstalledScopeAndSearchComposeWithoutReplacingResources() {
     assertEquals(listOf("z", "a", "b"), previews())

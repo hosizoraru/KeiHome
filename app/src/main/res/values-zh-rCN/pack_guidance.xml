@@ -3,7 +3,7 @@
     <string name="pack_guidance_title">使用说明</string>
     <string name="pack_guidance_done">知道了</string>
     <string name="pack_guidance_collapse">收起说明</string>
-    <string name="pack_guidance_expand">展开说明</string>
+    <string name="pack_guidance_expand">查看说明</string>
     <string name="pack_guidance_expanded">已展开</string>
     <string name="pack_guidance_collapsed">已收起</string>
     <string name="pack_guidance_author">作者 %1$s</string>

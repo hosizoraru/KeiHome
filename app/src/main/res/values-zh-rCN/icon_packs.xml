@@ -49,7 +49,7 @@
     <string name="icon_pack_native_uncertain">正在等待系统主题完成导入，图标较多时可能需要数分钟。自动查询次数有限，也可手动查询导入状态。</string>
     <string name="icon_pack_native_unsupported">暂不支持当前系统的原生主题导入。</string>
     <string name="icon_pack_native_failed">未能完成系统主题操作。</string>
-    <string name="icon_pack_native_eligibility_failed">已导入，但本地图标适配未就绪。可展开说明后重试更新。</string>
+    <string name="icon_pack_native_eligibility_failed">已导入，但本地图标适配未就绪。请点右上角“？”查看说明，再重试更新。</string>
     <string name="icon_pack_native_note">APK/ZIP 导出已安装应用的深浅色静态图标，新增应用后需重新导入。MTZ 保留原始资源。请在系统主题页应用。</string>
     <string name="icon_pack_recheck">查询导入结果</string>
     <string name="icon_pack_native_update">更新导入的图标</string>

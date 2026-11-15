@@ -30,19 +30,28 @@ class MainScreenTest {
     val labels = listOf(R.string.browser_all, R.string.browser_origin_user, R.string.browser_origin_system)
       .map { context.getString(it) }
     val initial = labels.indexOfFirst { label ->
-      composeTestRule.onNodeWithText(label).fetchSemanticsNode().config
+      composeTestRule.onNodeWithText(label, substring = true).fetchSemanticsNode().config
         .getOrElse(SemanticsProperties.Selected) { false }
     }
     try {
+      fun count(label: String): Int? {
+        val text = composeTestRule.onNodeWithText(label, substring = true).fetchSemanticsNode()
+          .config[SemanticsProperties.Text].joinToString { it.text }
+        return Regex("\\d+$").find(text)?.value?.toIntOrNull()
+      }
+      composeTestRule.waitUntil(10_000) { labels.all { runCatching { count(it) }.getOrNull() != null } }
+      assertTrue(count(labels[0])!! >= count(labels[1])!! + count(labels[2])!!)
+      composeTestRule.onNodeWithTag("apps.preview-help").assertExists()
+      composeTestRule.onNodeWithText(context.getString(R.string.browser_scope_installed)).assertDoesNotExist()
       assertTrue(composeTestRule.onNodeWithTag("apps.origins").fetchSemanticsNode().boundsInRoot.bottom <=
         composeTestRule.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot.top)
-      composeTestRule.onNodeWithText(labels[2]).performClick().assertIsSelected()
+      composeTestRule.onNodeWithText(labels[2], substring = true).performClick().assertIsSelected()
       composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
       composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
-      composeTestRule.onNodeWithText(labels[2]).assertIsSelected()
-      composeTestRule.onNodeWithText(labels[1]).performClick().assertIsSelected()
+      composeTestRule.onNodeWithText(labels[2], substring = true).assertIsSelected()
+      composeTestRule.onNodeWithText(labels[1], substring = true).performClick().assertIsSelected()
     } finally {
-      composeTestRule.onNodeWithText(labels[initial.coerceAtLeast(0)]).performClick()
+      composeTestRule.onNodeWithText(labels[initial.coerceAtLeast(0)], substring = true).performClick()
     }
   }
 

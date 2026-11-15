@@ -26,6 +26,7 @@ import org.junit.Test
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
+import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -40,6 +41,45 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 class MiuixTopBarMigrationTest {
   @get:Rule(order = 0) val host = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createAndroidComposeRule<ComponentActivity>()
+
+  @Test fun sharedToolbarKeepsActionGapsAtCollapsedTitleWithLargeTextAndRtl() {
+    val direction = mutableStateOf(LayoutDirection.Ltr)
+    val scale = mutableStateOf(1f)
+    lateinit var state: TopAppBarState
+    var clicks = 0
+    var pixelsPerDp = 1f
+    rule.setContent {
+      val density = LocalDensity.current
+      pixelsPerDp = density.density
+      CompositionLocalProvider(LocalDensity provides Density(density.density, scale.value),
+        LocalLayoutDirection provides direction.value) {
+        KeiHomeTheme {
+          state = rememberTopAppBarState()
+          Box(Modifier.width(360.dp)) {
+            KeiHomeTopAppBar(title = "完美图标补全计划", scrollBehavior = MiuixScrollBehavior(state),
+              navigationIcon = { KeiHomeIconButton(onClick = {}) { Text("<") } },
+              actions = {
+                repeat(3) { index ->
+                  KeiHomeIconButton(onClick = { clicks++ }, modifier = Modifier.testTag("spaced-action-$index")) {
+                    Text("$index")
+                  }
+                }
+              })
+          }
+        }
+      }
+    }
+    for (font in listOf(1f, 1.6f)) for (layout in listOf(LayoutDirection.Ltr, LayoutDirection.Rtl)) {
+      rule.runOnIdle { scale.value = font; direction.value = layout; state.heightOffset = state.heightOffsetLimit }
+      rule.waitForIdle()
+      val bounds = (0..2).map { rule.onNodeWithTag("spaced-action-$it").fetchSemanticsNode().boundsInRoot }.sortedBy { it.left }
+      bounds.zipWithNext().forEach { (left, right) ->
+        assertTrue("Action targets need an 8dp gap", right.left - left.right >= 8f * pixelsPerDp - 1f)
+      }
+      (0..2).forEach { rule.onNodeWithTag("spaced-action-$it").performClick() }
+    }
+    rule.runOnIdle { assertEquals(12, clicks) }
+  }
 
   @Test fun collapsedGlassTitleAndSubtitleRemainOneCenteredGroup() = checkSubtitleGroup(glass = true)
 

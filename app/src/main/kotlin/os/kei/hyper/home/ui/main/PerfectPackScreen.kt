@@ -315,8 +315,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
 internal fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List<String>?,
   downloadedStyles: List<String>, enabled: Boolean, onOptionsChange: (PerfectIconOptions) -> Unit) {
   Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-    val styles = remember(catalogStyles, options.style) {
-      PerfectIconStyles.ordered(listOf("") + catalogStyles.orEmpty() + options.style)
+    val styles = remember(catalogStyles, options.style, downloadedStyles) {
+      PerfectIconStyles.ordered(listOf("") + catalogStyles.orEmpty() + options.style, downloadedStyles)
         .map { it.takeUnless { style -> style == "default" }.orEmpty() }
     }
     val defaultStyle = stringResource(R.string.perfect_icons_style_default)

@@ -221,22 +221,27 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       .mapTo(hashSetOf()) { it.target.packageName } else emptySet()
   }
   val locale = LocalConfiguration.current.locales[0]
-  val mappingFilter = AppleMappingFilter.entries.firstOrNull { it.name == filterName } ?: AppleMappingFilter.ALL
+  val savedFilter = AppleMappingFilter.entries.firstOrNull { it.name == filterName } ?: AppleMappingFilter.ALL
+  var mappingView by rememberSaveable(section) {
+    mutableIntStateOf(appleMappingViews.indexOf(savedFilter).coerceAtLeast(0))
+  }
+  val mappingFilter = savedFilter.takeUnless { it == AppleMappingFilter.MAPPED || it == AppleMappingFilter.UNMAPPED }
+    ?: AppleMappingFilter.ALL
   val mappingSort = AppleMappingSort.entries.firstOrNull { it.name == sortName } ?: AppleMappingSort.NAME
   val browserRequest = remember(state.rows, filter, mappingFilter, mappingSort, state.options.country,
     regionFilter, matchedOnly, locales, batchClock) { Any() }
   // Retain the previous rows until this exact filtering request finishes.
   val browserResult = if (!main && !search) {
-    val result by produceState<Pair<Any, List<AppleMappingRow>>?>(null, browserRequest) {
+    val result by produceState<Pair<Any, List<List<AppleMappingRow>>>?>(null, browserRequest) {
       val rows = withContext(Dispatchers.Default) {
         appleMappingRows(state.rows, filter, mappingFilter, mappingSort, state.options.country,
-          regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now)
+          regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now).let(::appleMappingViewRows)
       }
       value = browserRequest to rows
     }
     result
   } else null
-  val browserRows = browserResult?.second.orEmpty()
+  val browserRows = browserResult?.second?.getOrNull(if (batchBrowser) mappingView.coerceIn(0, 2) else 0).orEmpty()
   val browserLoading = !main && !search && browserResult?.first !== browserRequest
   val regions = remember(main, search, state.rows, state.options.country) {
     if (main || search) emptyList() else state.rows.mapNotNull {
@@ -283,7 +288,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   fun browserChanged(resetSelection: Boolean = false) {
     if (resetSelection) exitSelection()
     focus.clearFocus(); keyboard?.hide()
-    uiScope.launch { listState.scrollToItem(0) }
+    listState.requestScrollToItem(0)
   }
   fun exportSelectedMappings() {
     if (!enabled || browserLoading || selection.export.isEmpty()) return
@@ -352,8 +357,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           if (!main && !search) {
             AppleMappingFilterMenu(mappingFilter, regionFilter, regions, matchedOnly,
               onFilter = { filterName = it.name; browserChanged(resetSelection = true) },
-              onRegion = { regionFilter = it; browserChanged(resetSelection = true) })
-            AppleMappingSortMenu(mappingSort) { sortName = it.name; browserChanged() }
+              onRegion = { regionFilter = it; browserChanged(resetSelection = true) },
+              sort = mappingSort, onSort = { sortName = it.name; browserChanged() })
           }
           if (!main && !search && !selecting) AppleSelectionEntry(
             enabled = enabled && !browserLoading && visibleEligible.isNotEmpty(),
@@ -389,6 +394,16 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               Icon(MiuixIcons.Glass.More, stringResource(R.string.apple_mapping_transfer))
             }
           }
+        }, bottomContent = {
+          if (batchBrowser) os.kei.hyper.home.ui.components.Os4ViewTabs(
+            items = appleMappingViews.mapIndexed { index, view ->
+              val title = stringResource(view.label)
+              browserResult?.second?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
+            },
+            selectedIndex = mappingView.coerceIn(0, 2),
+            onSelect = { mappingView = it; browserChanged(resetSelection = true) },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("apple.mapping.views"),
+          )
         })
     }
   }, floatingActionButton = {

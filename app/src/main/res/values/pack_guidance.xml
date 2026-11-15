@@ -3,7 +3,7 @@
     <string name="pack_guidance_title">Page guidance</string>
     <string name="pack_guidance_done">Got it</string>
     <string name="pack_guidance_collapse">Collapse guidance</string>
-    <string name="pack_guidance_expand">Expand guidance</string>
+    <string name="pack_guidance_expand">View guidance</string>
     <string name="pack_guidance_expanded">Expanded</string>
     <string name="pack_guidance_collapsed">Collapsed</string>
     <string name="pack_guidance_author">Author: %1$s</string>

@@ -2,6 +2,9 @@ package os.kei.hyper.home.ui.components
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.systemBars
@@ -86,7 +89,12 @@ internal fun KeiHomeTopAppBar(
     progressiveBlur = progressive && backdrop != null,
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
-    actions = { CompositionLocalProvider(LocalGlassToolbar provides true) { actions() } },
+    actions = {
+      CompositionLocalProvider(LocalGlassToolbar provides true) {
+        Row(modifier = Modifier.padding(start = 12.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
+      }
+    },
     scrollBehavior = scrollBehavior,
     bottomContent = bottomContent,
     bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)

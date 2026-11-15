@@ -14,6 +14,34 @@ import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 
 class AppsBrowserDisplayTest {
+  @Test fun pendingFilterRetainsRowsAndCountsWithinTheSameDatasetOnly() {
+    val dataset = Any()
+    val oldRows = listOf(row("com.example.one"), row("com.example.two"))
+    val old = AppsBrowserResult(Any(), oldRows, 20, Any(), dataset)
+    val pending = AppsBrowserDisplay(Any(), old, Any(), dataset)
+    assertTrue(pending.loading)
+    assertFalse(pending.showEmpty)
+    assertSame(oldRows, pending.rows)
+    assertEquals(listOf(2, 2, 0), pending.counts)
+
+    val replacedSource = AppsBrowserDisplay(Any(), old, Any(), Any())
+    assertTrue(replacedSource.loading)
+    assertTrue(replacedSource.rows.isEmpty())
+    assertEquals(null, replacedSource.counts)
+  }
+
+  @Test fun originCountsPartitionMatchesAndKeepUninstalledResourcesInAllOnly() {
+    val user = row("com.example.user")
+    val system = row("com.example.system").let { it.copy(app = it.app.copy(systemApp = true)) }
+    val uninstalled = row("com.example.missing").copy(installed = false)
+    val request = Any()
+    val display = AppsBrowserDisplay(request, AppsBrowserResult(request, listOf(user, system, uninstalled), 30))
+    assertEquals(listOf(3, 1, 1), display.counts)
+    assertEquals(listOf(user), display.originRows[1])
+    assertEquals(listOf(system), display.originRows[2])
+    assertFalse(display.loading)
+  }
+
   @Test fun cachedCapabilitiesWithoutCompletedProjectionShowLoadingInsteadOfNoMatches() {
     val display = AppsBrowserDisplay(Any(), null)
 

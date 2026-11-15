@@ -11,6 +11,15 @@ import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 
 class AppleMappingBrowserTest {
+  @Test fun viewsPartitionTheSameSortedAndFilteredRows() {
+    val filtered = appleMappingRows(rows, "", AppleMappingFilter.ALL, AppleMappingSort.NAME, "us", "", false, Locale.US)
+    val groups = appleMappingViewRows(filtered).map { group -> group.map { it.target.packageName } }
+    assertEquals(listOf("app.a", "app.b", "app.c", "app.z"), groups[0])
+    assertEquals(listOf("app.a", "app.z"), groups[1])
+    assertEquals(listOf("app.b", "app.c"), groups[2])
+    val custom = appleMappingRows(rows, "", AppleMappingFilter.CUSTOM, AppleMappingSort.NAME, "us", "", false, Locale.US)
+    assertEquals(listOf(2, 1, 1), appleMappingViewRows(custom).map { it.size })
+  }
   private val rows = listOf(
     AppleMappingRow(AppleAppTarget("app.z", "Zoo", false),
       AppleAppMatch("1108187390", "Apple Music", "Apple", "com.apple.Music", "jp"), true),

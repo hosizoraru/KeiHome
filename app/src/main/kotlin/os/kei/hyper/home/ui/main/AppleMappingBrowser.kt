@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
@@ -74,10 +75,13 @@ internal enum class AppleMappingSort { NAME, NAME_DESC, PACKAGE, APPLE_NAME, REG
 
 @Composable
 internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, regions: List<String>,
-  matchedOnly: Boolean, onFilter: (AppleMappingFilter) -> Unit, onRegion: (String) -> Unit) {
+  matchedOnly: Boolean, onFilter: (AppleMappingFilter) -> Unit, onRegion: (String) -> Unit,
+  sort: AppleMappingSort, onSort: (AppleMappingSort) -> Unit) {
   val locale = LocalConfiguration.current.locales[0]
-  val choices = AppleMappingFilter.entries.filter { !matchedOnly ||
-    it !in listOf(AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED, AppleMappingFilter.EXCLUDED) }
+  val choices = AppleMappingFilter.entries.filter {
+    it !in listOf(AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED) &&
+      (!matchedOnly || it != AppleMappingFilter.EXCLUDED)
+  }
   val groups = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.apple_browser_filter), children = choices.map {
       DropdownItem(text = stringResource(it.label), selected = filter == it, onClick = { onFilter(it) })
@@ -85,6 +89,9 @@ internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, 
     DropdownItem(text = stringResource(R.string.apple_region), children = (listOf("") + regions).map {
       DropdownItem(text = if (it.isBlank()) stringResource(R.string.apple_region_filter_all)
         else appleRegionName(it, locale), selected = region == it, onClick = { onRegion(it) })
+    }),
+    DropdownItem(text = stringResource(R.string.browser_sort), children = AppleMappingSort.entries.map {
+      DropdownItem(text = stringResource(it.label), selected = sort == it, onClick = { onSort(it) })
     }),
   ))
   val reset = DropdownEntry(items = listOf(
@@ -98,6 +105,11 @@ internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, 
       else MiuixTheme.colorScheme.onBackground)
   }
 }
+
+internal val appleMappingViews = listOf(AppleMappingFilter.ALL, AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED)
+
+internal fun appleMappingViewRows(rows: List<AppleMappingRow>): List<List<AppleMappingRow>> =
+  listOf(rows, rows.filter { it.app != null }, rows.filter { it.app == null })
 
 @Composable
 internal fun AppleMappingSortMenu(sort: AppleMappingSort, onSort: (AppleMappingSort) -> Unit) {
@@ -217,7 +229,8 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
     else Modifier.os4Clickable(enabled = enabled, role = Role.Button,
       onClickLabel = stringResource(if (row.app == null) R.string.apple_choose_icon else R.string.apple_glass_inspect),
       onClick = { onSelect(row) })
-    Card(Modifier.fillMaxWidth().testTag("apple.mapping.${row.target.packageName}").then(cardInteraction),
+    Card(Modifier.fillMaxWidth().testTag("apple.mapping.${row.target.packageName}")
+      .animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null).then(cardInteraction),
       insideMargin = PaddingValues(14.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val app = row.app

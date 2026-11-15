@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +40,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
@@ -102,6 +106,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   }
   var query by rememberSaveable(state.options.style) { mutableStateOf("") }
   var filter by rememberSaveable { mutableIntStateOf(0) }
+  var nightOnly by rememberSaveable { mutableStateOf(filter == 3) }
   var installedOnly by rememberSaveable { mutableStateOf(false) }
   var sortName by rememberSaveable { mutableStateOf(PerfectPreviewSort.ORIGINAL.name) }
   var reverse by rememberSaveable { mutableStateOf(false) }
@@ -127,10 +132,17 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
         label != null, entry.quietSnapshot, entry.dark != null && entry.dark != entry.light)
     }
   }
-  val visible = remember(byKey, rows, query, filter, installedOnly, sort, reverse, locales) {
-    perfectPreviewRows(rows, query, filter, installedOnly, sort, reverse,
-      Locale.forLanguageTag(locales.substringBefore(','))).map { byKey.getValue(it.key) }
+  val projection by produceState<Pair<IconPackDescriptor?, List<List<IconPackEntry>>>?>(null,
+    pack, rows, query, nightOnly, installedOnly, sort, reverse, locales) {
+    value = withContext(Dispatchers.Default) {
+      pack to perfectPreviewViews(rows, query, nightOnly, installedOnly, sort, reverse,
+        Locale.forLanguageTag(locales.substringBefore(','))).map { group -> group.map { byKey.getValue(it.key) } }
+    }
   }
+  val groups = projection?.takeIf { it.first === pack }?.second
+  val view = filter.takeIf { it in 0..2 } ?: 0
+  val visible = groups?.get(view).orEmpty()
+  val listState = rememberLazyListState()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   LaunchedEffect(vm, lifecycle, state.options, state.catalog?.sourceHash, state.busy) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -141,22 +153,29 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   PerfectSubpage(stringResource(R.string.perfect_icons_preview_title), onBack,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
     refreshEnabled = !state.busy && state.ready,
+    listState = listState,
+    bottomContent = {
+      if (pack != null) os.kei.hyper.home.ui.components.Os4ViewTabs(
+        items = filters.take(3).mapIndexed { index, label ->
+          val title = stringResource(label)
+          groups?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
+        }, selectedIndex = view, onSelect = { filter = it; listState.requestScrollToItem(0) },
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("perfect.preview.views"))
+    },
     actions = {
       if (pack != null) {
         OverlayIconCascadingDropdownMenu(entries = listOf(
-          DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.perfect_list_icon_type),
-            children = filters.mapIndexed { index, label ->
-              DropdownItem(text = stringResource(label), selected = filter == index, onClick = { filter = index })
-            }))),
           DropdownEntry(items = listOf(
+            DropdownItem(text = stringResource(R.string.perfect_icons_preview_dark), selected = nightOnly,
+              onClick = { nightOnly = !nightOnly }),
             DropdownItem(text = stringResource(R.string.perfect_list_installed_only), selected = installedOnly,
               onClick = { installedOnly = !installedOnly }),
             DropdownItem(text = stringResource(R.string.browser_reset),
-              onClick = { filter = 0; installedOnly = false }),
+              onClick = { nightOnly = false; installedOnly = false }),
           )),
         ), modifier = Modifier.testTag("perfect.preview.filter")) {
           Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
-            tint = if (filter == 0 && !installedOnly) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+            tint = if (!nightOnly && !installedOnly) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
         }
         PerfectListSortMenu(listOf(R.string.perfect_list_original, R.string.perfect_list_name,
           R.string.perfect_list_identity), sort.ordinal, reverse,
@@ -223,7 +242,6 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
               Text(style, style = MiuixTheme.textStyles.subtitle)
               Text(stringResource(R.string.perfect_icons_preview_count, visible.size, pack?.entries?.size ?: 0),
                 style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              MetadataPill(stringResource(filters[filter.coerceIn(filters.indices)]), MiuixTheme.colorScheme.primary)
               MetadataPill(stringResource(if (state.options.staticNight) R.string.perfect_icons_night_mode_derived
                 else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
             }
@@ -261,7 +279,9 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     }
     if (pack != null) {
       items(visible, key = { it.key }, contentType = { "icon" }) { entry ->
-        Card(Modifier.padding(horizontal = 12.dp, vertical = 4.dp).os4Clickable(cornerRadius = CardDefaults.CornerRadius,
+        Card(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+          .animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null)
+          .os4Clickable(cornerRadius = CardDefaults.CornerRadius,
           onClickLabel = stringResource(R.string.preview_glass_inspect),
           onClick = { focusedIcon = pack to entry; showInspection = true })) {
           Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically,
@@ -283,7 +303,12 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
           }
         }
       }
-      if (visible.isEmpty()) item("empty") {
+      if (groups == null) item("projecting") {
+        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+          CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+        }
+      }
+      if (groups != null && visible.isEmpty()) item("empty") {
         BasicComponent(title = stringResource(R.string.perfect_icons_preview_empty))
       }
     }
@@ -314,9 +339,12 @@ internal fun PerfectSubpage(
   onRefresh: (() -> Unit)? = null,
   refreshEnabled: Boolean = true,
   actions: @Composable RowScope.() -> Unit = {},
+  bottomContent: @Composable () -> Unit = {},
+  listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
   floatingActionButton: @Composable () -> Unit = {},
   floatingToolbar: @Composable () -> Unit = {},
   bottomSpacing: androidx.compose.ui.unit.Dp = 24.dp,
+  viewportBottomInset: androidx.compose.ui.unit.Dp = 0.dp,
   content: LazyListScope.() -> Unit,
 ) {
   val behavior = MiuixScrollBehavior()
@@ -333,10 +361,11 @@ internal fun PerfectSubpage(
           if (onRefresh != null) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
             Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
           }
-        })
+        }, bottomContent = bottomContent)
     }
   }, floatingActionButton = floatingActionButton, floatingToolbar = floatingToolbar) { padding ->
-    LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
+    LazyColumn(state = listState, overscrollEffect = null, modifier = Modifier.fillMaxSize()
+      .padding(bottom = viewportBottomInset)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior),
       contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,

@@ -20,11 +20,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,7 +67,6 @@ import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
 import os.kei.hyper.home.ui.components.IconPreviewMode
 import os.kei.hyper.home.ui.components.os4Clickable
-import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -77,76 +80,40 @@ import top.yukonga.miuix.kmp.icon.glass.Help
 import top.yukonga.miuix.kmp.icon.glass.Ok
 
 @Composable
-internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues, modifier: Modifier) {
+internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues, modifier: Modifier, browser: AppsBrowserUi) {
   val scan by model.apps.collectAsStateWithLifecycle()
-  val options by model.browserOptions.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
-  val runtime by model.runtime.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
-  var query by rememberSaveable { mutableStateOf("") }
   var focusedRow by remember { mutableStateOf<IconBrowserRow?>(null) }
   var showInspection by remember { mutableStateOf(false) }
-  // Capture immutable inputs: background work must not read a newer delegated State.
-  val capabilities = scan.capabilities
-  val currentSource = source
-  val currentOptions = options
-  val currentQuery = query
-  val rowsRequest = remember(capabilities, currentSource, currentOptions) { Any() }
-  val rows by produceState<Pair<Any, List<IconBrowserRow>>?>(null, rowsRequest) {
-    val apps = capabilities ?: return@produceState
-    val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-      browserRows(apps, currentSource, currentOptions, "")
+  val display = browser.display
+  val visible = browser.visibleRows
+  val rowAlpha by animateFloatAsState(if (display.loading) 0.72f else 1f, tween(160), label = "apps.filter")
+  var previousOrigin by remember { mutableIntStateOf(browser.origin) }
+  LaunchedEffect(browser.origin) {
+    if (previousOrigin != browser.origin) {
+      listState.requestScrollToItem(0)
+      previousOrigin = browser.origin
     }
-    currentCoroutineContext().ensureActive()
-    value = rowsRequest to computed
   }
-  val currentRows = rows?.takeIf { it.first === rowsRequest }?.second
-  val matchesRequest = remember(rowsRequest, currentQuery) { Any() }
-  val matches by produceState<AppsBrowserResult?>(null, matchesRequest, currentRows) {
-    val readyRows = currentRows ?: return@produceState
-    val computed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-      computeAppsBrowserMatches(matchesRequest, readyRows, currentQuery, rowsRequest)
-    }
-    currentCoroutineContext().ensureActive()
-    value = computed
-  }
-  val display = AppsBrowserDisplay(matchesRequest, matches, rowsRequest)
-  val visible = display.rows
   val colors = remember(monet.snapshot?.activePalette, monet.snapshot?.customization,
     monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
   LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item(key = "search", contentType = "search") {
-      Os4SearchField(query = query, onQueryChange = { query = it },
-        modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Os4SearchField(query = browser.query, onQueryChange = browser.onQueryChange,
+          modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
+        RefreshFeedback(model, 1)
+      }
     }
-    item(key = "summary", contentType = "summary") {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(browserScopeLabels()[options.scope]), style = MiuixTheme.textStyles.body2,
-                  modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                MetadataPill(if (display.loading) stringResource(R.string.browser_loading)
-                  else stringResource(R.string.browser_count_compact, visible.size, display.total),
-                  MiuixTheme.colorScheme.onSurfaceSecondary)
-                if (scan.loading || display.loading) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
-              }
-              Text(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
-            }
-            Os4InfoPopup(
-              title = stringResource(R.string.browser_preview_help_title),
-              summary = stringResource(if (source == null) R.string.browser_source_pending else R.string.browser_preview_note),
-              modifier = Modifier.padding(start = 4.dp),
-            )
-          }
-          RefreshFeedback(model, 1)
-        }
+    if ((display.loading || scan.loading) && visible.isEmpty()) item(key = "loading", contentType = "message") {
+      Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+        Text(stringResource(R.string.browser_loading), style = MiuixTheme.textStyles.body2)
       }
     }
     scan.error?.let { error -> item(key = "error", contentType = "message") {
@@ -156,7 +123,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
         TextButton(stringResource(R.string.refresh), onClick = { model.refresh(1) })
       }
     } }
-    if (display.showEmpty && !scan.loading) item(key = "empty", contentType = "message") {
+    if (!display.loading && visible.isEmpty() && !scan.loading) item(key = "empty", contentType = "message") {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(20.dp)) {
         Text(stringResource(R.string.no_matching_apps), style = MiuixTheme.textStyles.body1)
       }
@@ -164,7 +131,9 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     items(visible, key = { it.key }, contentType = { "application" }) { row ->
       AppCapabilityCard(row.app, model.previews, scan.previewGeneration, configuration, colors,
         preferences.showIconPreviews, row, source, model,
-        onInspect = { focusedRow = row; showInspection = true })
+        onInspect = { focusedRow = row; showInspection = true },
+        modifier = Modifier.animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null)
+          .graphicsLayer { alpha = rowAlpha })
     }
   }
   focusedRow?.let { focused ->
@@ -190,27 +159,32 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
 }
 
 internal data class AppsBrowserResult(val request: Any, val rows: List<IconBrowserRow>, val total: Int,
-  val rowsRequest: Any = request)
+  val rowsRequest: Any = request, val dataset: Any = rowsRequest,
+  val originRows: List<List<IconBrowserRow>> = listOf(rows,
+    rows.filter { it.installed && !it.app.systemApp }, rows.filter { it.installed && it.app.systemApp }))
 
 internal suspend fun computeAppsBrowserMatches(request: Any, rows: List<IconBrowserRow>,
-  query: String, rowsRequest: Any = request): AppsBrowserResult {
+  query: String, rowsRequest: Any = request, dataset: Any = rowsRequest): AppsBrowserResult {
   val context = currentCoroutineContext()
   val matches = rows.filter {
     context.ensureActive()
     it.app.matchesQuery(query)
   }
   context.ensureActive()
-  return AppsBrowserResult(request, matches, rows.size, rowsRequest)
+  return AppsBrowserResult(request, matches, rows.size, rowsRequest, dataset)
 }
 
-/** Only query changes may retain rows, with loading feedback; empty requires the exact current request. */
-internal class AppsBrowserDisplay(request: Any, result: AppsBrowserResult?, rowsRequest: Any = request) {
-  private val current = result?.takeIf { it.request === request && it.rowsRequest === rowsRequest }
-  private val usable = current ?: result?.takeIf { it.rowsRequest === rowsRequest && it.rows.isNotEmpty() }
+/** Retain pending filters only within the same application inventory and icon source. */
+internal class AppsBrowserDisplay(request: Any, result: AppsBrowserResult?, rowsRequest: Any = request,
+  dataset: Any = rowsRequest) {
+  private val current = result?.takeIf { it.request === request && it.rowsRequest === rowsRequest && it.dataset === dataset }
+  private val usable = current ?: result?.takeIf { it.dataset === dataset && it.rows.isNotEmpty() }
   val loading get() = current == null
   val rows get() = usable?.rows.orEmpty()
   val total get() = usable?.total ?: 0
   val showEmpty get() = current != null && current.rows.isEmpty()
+  val originRows = usable?.originRows ?: listOf(emptyList(), emptyList(), emptyList())
+  val counts = usable?.originRows?.map { it.size }
 }
 
 internal data class IconPreviewColors(val lightBackground: Int, val lightForeground: Int,
@@ -231,14 +205,14 @@ internal fun previewColors(snapshot: MonetPaletteSnapshot?): IconPreviewColors? 
 internal fun AppCapabilityCard(app: InstalledIconCapability, repository: IconPreviewRepository,
   generation: Int, configuration: String, colors: IconPreviewColors?, showPreviews: Boolean,
   browser: IconBrowserRow? = null, source: IconBrowserSource? = null, model: HomeViewModel? = null,
-  onInspect: () -> Unit,
+  onInspect: () -> Unit, modifier: Modifier = Modifier,
 ) {
   val previews by androidx.compose.runtime.key(app, generation, configuration, source?.revision) {
     produceState<AppIconPreviews?>(null) {
       value = if (model != null && browser != null) browserPreview(model, browser, source) else repository.load(app)
     }
   }
-  Card(modifier = Modifier.fillMaxWidth().os4Clickable(cornerRadius = CardDefaults.CornerRadius,
+  Card(modifier = modifier.fillMaxWidth().os4Clickable(cornerRadius = CardDefaults.CornerRadius,
     onClickLabel = stringResource(R.string.preview_glass_inspect), onClick = onInspect),
     insideMargin = PaddingValues(12.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -95,6 +95,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     tabNavigation.selectPage(index)
   }
   val page = pages[selectedTab]
+  val appsBrowser = rememberAppsBrowserState(model, enabled = selectedTab == 1)
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, selectedTab, locales) {
@@ -132,15 +133,14 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           scrollBehavior = behaviors[selectedTab],
           actions = {
             if (selectedTab == 1) {
+              AppsPreviewHelp(model)
               AppsFilterMenu(model)
               AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
             }
             if (page != 4) RefreshAction(model, page)
           },
           bottomContent = {
-            if (selectedTab == 1) AppsOriginTabs(model) {
-              navigationScope.launch { appList.scrollToItem(0) }
-            }
+            if (selectedTab == 1) AppsOriginTabs(model, appsBrowser)
           },
         )
       }
@@ -180,7 +180,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
         savedPages.SaveableStateProvider(page) {
         val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
         if (tab == 1) {
-          AppsPage(model, appList, padding, pageModifier)
+          AppsPage(model, appList, padding, pageModifier, appsBrowser)
         } else if (page == 3) {
           val sectionList = rememberLazyListState()
           IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
@@ -264,18 +264,35 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
 }
 
 @Composable
-private fun AppsOriginTabs(model: HomeViewModel, onSelect: () -> Unit) {
+private fun AppsOriginTabs(model: HomeViewModel, browser: AppsBrowserUi) {
   val options by model.browserOptions.collectAsStateWithLifecycle()
   Os4ViewTabs(
     items = listOf(R.string.browser_all, R.string.browser_origin_user, R.string.browser_origin_system)
-      .map { stringResource(it) },
+      .mapIndexed { index, label ->
+        val title = stringResource(label)
+        browser.display.counts?.get(index)?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
+      },
     selectedIndex = options.origin,
     onSelect = {
       model.updateBrowserOptions(model.browserOptions.value.copy(origin = it))
-      onSelect()
     },
     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
       .testTag("apps.origins"),
+  )
+}
+
+@Composable
+private fun AppsPreviewHelp(model: HomeViewModel) {
+  val runtime by model.runtime.collectAsStateWithLifecycle()
+  val source by model.browserSource.collectAsStateWithLifecycle()
+  val options by model.browserOptions.collectAsStateWithLifecycle()
+  os.kei.hyper.home.ui.components.Os4InfoPopup(
+    title = stringResource(R.string.browser_preview_help_title),
+    summary = listOf(runtime.report?.iconTheme?.title ?: stringResource(R.string.status_unknown),
+      stringResource(browserScopeLabels()[options.scope.coerceIn(0, 2)]),
+      stringResource(if (source == null) R.string.browser_source_pending else R.string.browser_preview_note))
+      .joinToString("\n\n"),
+    modifier = Modifier.testTag("apps.preview-help"),
   )
 }
 

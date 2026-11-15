@@ -14,6 +14,10 @@
     <string name="notices_source_offer">源码与重新构建说明</string>
     <string name="notices_source_unavailable">没有可打开此源码链接的应用。</string>
     <string name="notices_retry">点按重试</string>
+    <string name="notices_search">搜索项目、许可证或版本</string>
+    <string name="notices_search_empty">没有匹配的组件，请尝试其他项目名称或许可证。</string>
+    <string name="notices_copy_document">复制完整文档</string>
+    <string name="notices_back_gesture_thanks">感谢 wxxsfxyzm 与 MiuiBackGestureHook 贡献者提供原生 Hook 基础设施、Hook 页面生命周期和 HyperOS 进程激活方面的研究参考。本条目说明参考研究，不表示应用包含其手势实现代码。Apache License 2.0。</string>
     <string name="notices_role_miuix">界面、导航、偏好设置与模糊 · Apache 2.0</string>
     <string name="notices_role_android">Android 与 Compose 基础组件 · Apache 2.0</string>
     <string name="notices_role_compose">Compose 跨平台组件 · Apache 2.0</string>
@@ -29,7 +33,7 @@
     <string name="notices_role_annotations">注解与编译契约 · Apache 2.0</string>
     <string name="notices_role_cxx">原生 C++ 构建支持 · Apache 2.0 与 LLVM 例外</string>
     <string name="notices_role_glass">经 MIUIX 改编的玻璃与动画示例 · Apache 2.0</string>
-    <string name="notices_role_native">原生 Hook 基础设施参考 · Apache 2.0</string>
+    <string name="notices_role_native">原生 Hook 研究参考 · wxxsfxyzm · Apache 2.0</string>
     <string name="notices_role_history">早期原生后端，当前载荷未包含 · LGPL 3.0</string>
     <string name="notices_role_markdown">更新日志 Markdown 解析 · BSD 2-Clause</string>
 </resources>

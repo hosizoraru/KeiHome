@@ -15,6 +15,10 @@
     <string name="notices_source_offer">Source and rebuilding information</string>
     <string name="notices_source_unavailable">No app can open this source link.</string>
     <string name="notices_retry">Tap to retry</string>
+    <string name="notices_search">Search projects, licenses or versions</string>
+    <string name="notices_search_empty">No matching components. Try another project name or license.</string>
+    <string name="notices_copy_document">Copy complete document</string>
+    <string name="notices_back_gesture_thanks">Thanks to wxxsfxyzm and MiuiBackGestureHook contributors for the research reference on native hook infrastructure, hook-page lifecycle and HyperOS process activation. This acknowledgement describes reference research; it does not claim that gesture implementation code is bundled. Apache License 2.0.</string>
     <string name="notices_role_miuix">Interface, navigation, preferences and blur · Apache 2.0</string>
     <string name="notices_role_android">Android and Compose infrastructure · Apache 2.0</string>
     <string name="notices_role_compose">Compose multiplatform components · Apache 2.0</string>
@@ -30,7 +34,7 @@
     <string name="notices_role_annotations">Annotations and compiler contracts · Apache 2.0</string>
     <string name="notices_role_cxx">Native C++ build support · Apache 2.0 with LLVM exceptions</string>
     <string name="notices_role_glass">Adapted glass and animation examples, via MIUIX · Apache 2.0</string>
-    <string name="notices_role_native">Reference for native hook infrastructure · Apache 2.0</string>
+    <string name="notices_role_native">Native hook research reference · wxxsfxyzm · Apache 2.0</string>
     <string name="notices_role_history">Earlier native backend; not included in the current payload · LGPL 3.0</string>
     <string name="notices_role_markdown">Release-note Markdown parsing · BSD 2-Clause</string>
 </resources>

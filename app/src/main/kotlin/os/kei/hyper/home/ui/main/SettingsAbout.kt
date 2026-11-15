@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -59,11 +58,10 @@ import os.kei.hyper.home.MainActivity
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppIconPreviews
-import os.kei.hyper.home.data.AppTopBarBlur
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.ui.components.about.AboutBackground
-import os.kei.hyper.home.ui.components.LocalKeiHomeTopBarBlur
+import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -75,17 +73,15 @@ import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.glass.GlassIconButton
-import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Copy
-import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit,
+  onOpenProjectLicense: () -> Unit,
   focusEnvironment: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val aboutScroll = rememberScrollState()
@@ -111,27 +107,13 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   }
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(containerColor = Color.Transparent, backdrop = backdrop, topBar = {
-    if (backdrop != null) {
-      val style = GlassDefaults.style(LocalKeiHomeDarkTheme.current)
-      // Keep the animated About background visible through the native toolbar band.
-      GlassTopAppBar(title = "", backdrop = backdrop, style = style, bandBrush = SolidColor(Color.Transparent),
-        progressiveBlur = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE,
-        navigationIcon = {
-          GlassIconButton(onClick = onBack, backdrop = backdrop, style = style) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
-          }
-        }, actions = {
-          GlassIconButton(onClick = copyVersion, backdrop = backdrop, style = style,
-            modifier = Modifier.testTag("aboutCopy")) {
-            Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
-          }
-        })
-    } else {
+    BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = "", color = Color.Transparent,
-        navigationIcon = { IconButton(onClick = onBack) {
+        navigationIcon = { IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } }, actions = {
-          IconButton(onClick = copyVersion, modifier = Modifier.testTag("aboutCopy")) {
+          IconButton(onClick = copyVersion, minHeight = 48.dp, minWidth = 48.dp,
+            modifier = Modifier.testTag("aboutCopy")) {
             Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
           }
         })
@@ -144,7 +126,8 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
         Column(Modifier.fillMaxSize().testTag("about.scroll").verticalScroll(aboutScroll)
           .navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding())) {
           Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
-          AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices, onBackground = true)
+          AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices,
+            onOpenProjectLicense = onOpenProjectLicense, onBackground = true)
           Spacer(Modifier.height(12.dp))
           AboutDetails()
           Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
@@ -213,12 +196,13 @@ private fun aboutCardColors() = CardDefaults.defaultColors(
 
 @Composable
 internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit,
-  onBackground: Boolean = false, showChannel: Boolean = true) {
+  onBackground: Boolean = false, showChannel: Boolean = true, onOpenProjectLicense: (() -> Unit)? = null) {
   val context = LocalContext.current
   val colors = if (onBackground) aboutCardColors() else CardDefaults.defaultColors()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = colors) {
     if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
       endActions = { AboutDetailValue(stringResource(R.string.settings_source_private)) })
+    if (onOpenProjectLicense != null) ProjectLicenseEntry(onOpenProjectLicense)
     if (showChannel) BasicComponent(title = stringResource(R.string.update_channel),
       summary = stringResource(R.string.update_channel_summary), onClick = {
         if (!UpdateChannel.open(context))

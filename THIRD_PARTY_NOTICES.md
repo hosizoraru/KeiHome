@@ -1,5 +1,24 @@
 # Third-party notices
 
+## KeiHome project license
+
+Copyright 2026 KeiHome contributors.
+
+KeiHome original code is licensed under the Apache License, Version 2.0.
+The complete, unmodified license text is in the repository's `LICENSE` and
+the app's `licenses/KeiHome-Apache-2.0.txt`. Project attribution and the
+third-party boundary are recorded in `NOTICE`.
+
+This declaration applies to KeiHome original code. Third-party code,
+dependencies, icons, artwork, and other resources retain their respective
+licenses, copyright notices, and source obligations. In particular, the
+GPL and LGPL components listed below are not relicensed under Apache 2.0.
+
+The KeiHome source repository is not public yet. This license declaration
+does not assert that the project source has already been published.
+Third-party source offers and rebuilding information remain applicable as
+described in the component sections below.
+
 ## Eclipse JGit core
 
 Perfect Icons uses the official Eclipse JGit core artifact
@@ -216,22 +235,25 @@ for usage patterns; their implementation code is not copied, translated or
 bundled by this migration. See `docs/miuix-os4-migration.md` for the source
 boundary and reproducible migration notes.
 
-## MiuiBackGestureHook native hook infrastructure
+## MiuiBackGestureHook research acknowledgement
 
-The LSPosed native hook backend, madvise hook-page guard, HYOS process
-activation, and ARM64 operand decoding / mapped-image resolution approach
-under `app/src/main/cpp/` are adapted from
-wxxsfxyzm/MiuiBackGestureHook:
+Thanks to **wxxsfxyzm and MiuiBackGestureHook contributors** for the research
+reference on the LSPosed native hook backend, madvise hook-page guard,
+hook-page lifecycle, HYOS process activation, and ARM64 operand decoding /
+mapped-image resolution approach used when developing KeiHome's native
+infrastructure under `app/src/main/cpp/`.
 
 Source: <https://github.com/wxxsfxyzm/MiuiBackGestureHook>
 
 Dynamic resolver reference:
-`miui-home-hyos-native/runtime_profile_resolver.cpp`. KeiHome adapts the
-bounded scan, unique structural candidate and decoded-call-graph mechanism
-to its own Dart icon paths; the gesture-specific Rust targets are not used.
+`miui-home-hyos-native/runtime_profile_resolver.cpp`. KeiHome's own Dart
+icon paths use the bounded scan, unique structural candidate and
+decoded-call-graph approach as a research reference. This acknowledgement
+does not claim that upstream gesture implementation code is bundled; the
+gesture-specific Rust targets are not used.
 
 Licensed under the Apache License, Version 2.0. See
-`LICENSES/Apache-2.0.txt`.
+`LICENSES/Apache-2.0.txt` (bundled as `licenses/Apache-2.0.txt`).
 
 ## LSPlt
 

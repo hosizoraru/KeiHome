@@ -55,6 +55,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   if (route == SettingsSection.ABOUT.route || route == "about/environment") {
     AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
+      onOpenProjectLicense = { onNavigate("license/keihome") },
       focusEnvironment = route == "about/environment")
     return
   }
@@ -66,14 +67,11 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     ReleaseNotesScreen(onBack)
     return
   }
-  val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
-  val license = bundledLicenseForRoute(route)
-  val component = thirdPartyComponentForRoute(route)
-  val licenseTitle = when (license?.key) {
-    "notices" -> stringResource(R.string.notices_full)
-    "dexkit-source" -> stringResource(R.string.notices_source_offer)
-    else -> license?.title
+  if (route == "notices" || bundledLicenseForRoute(route) != null || thirdPartyComponentForRoute(route) != null) {
+    NoticesDestinationScreen(route, onBack, onNavigate)
+    return
   }
+  val section = SettingsSection.entries.firstOrNull { it.route == route } ?: SettingsSection.APP
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -90,8 +88,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = licenseTitle ?: component?.name ?: stringResource(if (route == "notices") R.string.settings_notices else section.title), scrollBehavior = behavior,
-        color = if (backdrop != null && license == null) Color.Transparent else MiuixTheme.colorScheme.surface,
+      TopAppBar(title = stringResource(section.title), scrollBehavior = behavior,
+        color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
           if (route == SettingsSection.CACHE.route) {
             val preferences by model.preferences.state.collectAsStateWithLifecycle()
@@ -123,9 +121,6 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
         .padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() + if (section == SettingsSection.CACHE) actionBottomPadding else 24.dp)) {
         when {
-          license != null -> LicenseDocument(license.asset)
-          component != null -> ThirdPartyComponentDetails(component, onNavigate)
-          route == "notices" -> ThirdPartyNotices(onNavigate)
           section == SettingsSection.CACHE -> CacheOverview(model, cacheRefresh, onOpenPackSection,
             onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,

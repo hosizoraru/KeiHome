@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -57,8 +58,30 @@ import os.kei.hyper.home.xposed.MonochromeMaskQuality
 internal class ColorOsFallbackRenderer(
   private val context: Context,
   private val style: String = "classic",
+  private val sources: Sources = Sources(context),
   private val onSkip: (IconPackComponent, SkipReason) -> Unit = { _, _ -> },
 ) {
+  internal class Sources(private val context: Context) {
+    private val apps = ColorOsGenerationCache<String, ApplicationInfo>(256)
+    private val activities = ColorOsGenerationCache<IconPackComponent, ActivityInfo?>(256)
+    private val resources = ColorOsGenerationCache<Pair<String, Boolean>, Resources>(16)
+
+    fun app(packageName: String): ApplicationInfo = apps.get(packageName) {
+      context.packageManager.getApplicationInfo(packageName,
+        PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()))
+    }
+
+    fun activity(target: IconPackComponent, load: () -> ActivityInfo): ActivityInfo =
+      activities.get(target) {
+        try { load() } catch (_: PackageManager.NameNotFoundException) { null }
+      } ?: throw PackageManager.NameNotFoundException(target.flattened)
+
+    fun resources(app: ApplicationInfo, configuration: Configuration, dark: Boolean): Resources =
+      resources.get(app.packageName to dark) {
+        context.packageManager.getResourcesForApplication(app, configuration)
+      }
+  }
+
   enum class SkipReason {
     MISSING_ACTIVITY, AMBIGUOUS_ACTIVITY, MISSING_ICON, RESOURCE_UNAVAILABLE,
     DYNAMIC_CLOCK, DYNAMIC_CALENDAR, ANIMATED_DRAWABLE, CUSTOM_DRAWABLE,
@@ -93,12 +116,10 @@ internal class ColorOsFallbackRenderer(
     check()
     val reason = try {
       val pm = context.packageManager
-      val activity = activity(target, pm)
+      val activity = sources.activity(target) { activity(target, pm) }
       dynamicReason(target.packageName, activity.metaData)?.let { throw Unavailable(it) }
       // ActivityInfo.applicationInfo does not promise application-level GET_META_DATA contents.
-      val app = pm.getApplicationInfo(target.packageName, PackageManager.ApplicationInfoFlags.of(
-        PackageManager.GET_META_DATA.toLong(),
-      ))
+      val app = sources.app(target.packageName)
       dynamicReason(target.packageName, app.metaData)?.let { throw Unavailable(it) }
       val id = activity.iconResource
       if (id == 0) throw Unavailable(SkipReason.MISSING_ICON)
@@ -106,7 +127,7 @@ internal class ColorOsFallbackRenderer(
         uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
           if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
       }
-      val resources = pm.getResourcesForApplication(activity.applicationInfo, configuration)
+      val resources = sources.resources(activity.applicationInfo, configuration, dark)
       validate(resources, id, ResourceBudget(), 0, check)
       check()
       val drawable = resources.getDrawable(id, null).mutate().apply {

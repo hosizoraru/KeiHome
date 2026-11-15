@@ -15,6 +15,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.iconpack.IconMaskPolicy
+import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
@@ -28,10 +29,14 @@ class PublishedIconCompositeMaskDeviceTest {
     """<IconTransform><Config name="SupportLayerIcon" value="true"/>
       <Config name="ConfigIconMask" value="$mask"/></IconTransform>""".toByteArray()
 
-  private fun png(size: Int = 64, height: Int = size): ByteArray {
+  private fun png(
+    size: Int = 64,
+    height: Int = size,
+    color: Int = Color.rgb(24, 38, 52),
+  ): ByteArray {
     val bitmap = Bitmap.createBitmap(size, height, Bitmap.Config.ARGB_8888)
     return try {
-      bitmap.eraseColor(Color.rgb(24, 38, 52))
+      bitmap.eraseColor(color)
       ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     } finally { bitmap.recycle() }
   }
@@ -39,7 +44,11 @@ class PublishedIconCompositeMaskDeviceTest {
   private fun entries(vararg extra: Pair<String, ByteArray>) = linkedMapOf(
     NativeIconShapeConfig.PATH to config(), flat to png()).apply { putAll(extra) }
 
-  private fun archive(files: Map<String, ByteArray>, block: (File, File) -> Unit) {
+  private fun archive(
+    files: Map<String, ByteArray>,
+    prepare: (File) -> Unit = {},
+    block: (File, File) -> Unit,
+  ) {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val root = File(context.cacheDir, "published-mask-${java.util.UUID.randomUUID()}").apply { mkdirs() }
     val source = File(root, "source.zip")
@@ -52,6 +61,7 @@ class PublishedIconCompositeMaskDeviceTest {
           zip.closeEntry()
         }
       }
+      prepare(source)
       val original = source.readBytes()
       try { block(source, output) }
       finally { assertArrayEquals("Source ZIP must remain byte-identical", original, source.readBytes()) }
@@ -72,6 +82,138 @@ class PublishedIconCompositeMaskDeviceTest {
   private fun rounded(bytes: ByteArray) = pixels(bytes) {
     assertEquals(0, Color.alpha(it.getPixel(0, 0)))
     assertEquals(Color.rgb(24, 38, 52), it.getPixel(32, 32))
+  }
+
+  @Test fun caseDistinctApplicationResourcesKeepExactPathsAndAreMaskedIndependently() {
+    val names = listOf(
+      "appcloner" to "appcloneR",
+      "com.sina.weibo" to "com.sina.weibO",
+      "dsfile" to "DSfile",
+      "com.VCB" to "com.vcb",
+    ).flatMap { listOf(it.first, it.second) }
+    val files = linkedMapOf(NativeIconShapeConfig.PATH to config())
+    val colors = linkedMapOf<String, Int>()
+    for ((index, name) in names.withIndex()) {
+      val day = Color.rgb(32 + index * 24, 70, 110)
+      val night = Color.rgb(170, 40 + index * 20, 90)
+      files.putAll(NativeDayNightIcon.entries(name, png(color = day), png(color = night)))
+      colors["res/drawable-xxhdpi/$name.png"] = day
+      colors["fancy_icons/$name/day.png"] = day
+      colors["fancy_icons/$name/night.png"] = night
+    }
+    // Case-sensitive file/directory ancestry is legal too, not just sibling filenames.
+    files["metadata/DSfile"] = "retained file".toByteArray()
+    files["metadata/dsfile/info.xml"] = "<Metadata/>".toByteArray()
+    archive(files) { source, output ->
+      assertTrue(PublishedIconCompositeMask.write(source, output, true))
+      val result = read(output)
+      ZipFile(output).use { assertEquals(files.size, it.size()) }
+      assertEquals("Every original path must retain its exact spelling", files.keys, result.keys)
+      for ((name, bytes) in files) {
+        val color = colors[name]
+        if (color == null) {
+          assertArrayEquals("XML and non-composites must retain their bytes: $name",
+            bytes, result.getValue(name))
+        } else pixels(result.getValue(name)) {
+          assertEquals(name, 64, it.width)
+          assertEquals(name, 64, it.height)
+          for ((x, y) in listOf(0 to 0, 63 to 0, 0 to 63, 63 to 63))
+            assertEquals("Each distinct image must be clipped: $name ($x,$y)",
+              0, Color.alpha(it.getPixel(x, y)))
+          assertEquals("Case-distinct images must not reuse each other's artwork: $name",
+            color.toInt(), it.getPixel(32, 32))
+        }
+      }
+    }
+  }
+
+  @Test fun moreThan8192CompositesPublishWithinSharedEntryAndExpandedBudgets() {
+    val count = 8193
+    val colors = listOf(Color.rgb(32, 96, 160), Color.rgb(192, 80, 40))
+    val images = colors.map { png(size = 16, color = it) }
+    val files = linkedMapOf(NativeIconShapeConfig.PATH to config())
+    repeat(count) { index ->
+      files["res/drawable-xxhdpi/com.example.bulk$index.png"] = images[index % images.size]
+    }
+    archive(files) { source, output ->
+      assertTrue("Composite count must use the shared entry budget",
+        PublishedIconCompositeMask.write(source, output, true,
+          limits = IconPackLimits(maxEntries = files.size)))
+      ZipFile(output).use { zip ->
+        assertEquals(count + 1, zip.size())
+        assertEquals(files.keys, zip.entries().asSequence().map { it.name }.toSet())
+        assertArrayEquals(files.getValue(NativeIconShapeConfig.PATH),
+          zip.getInputStream(zip.getEntry(NativeIconShapeConfig.PATH)).use { it.readBytes() })
+        repeat(count) { index ->
+          val name = "res/drawable-xxhdpi/com.example.bulk$index.png"
+          val image = zip.getInputStream(requireNotNull(zip.getEntry(name))).use { it.readBytes() }
+          pixels(image) {
+            assertEquals(name, 16, it.width)
+            assertEquals(name, 16, it.height)
+            assertEquals("Every candidate, including those above 8192, must be clipped: $name",
+              0, Color.alpha(it.getPixel(0, 0)))
+            assertEquals(name, colors[index % colors.size].toInt(), it.getPixel(8, 8))
+          }
+        }
+      }
+      val expanded = files.values.sumOf { it.size.toLong() }
+      for ((name, limits) in listOf(
+        "entry-limit" to IconPackLimits(maxEntries = files.size - 1),
+        "expanded-limit" to IconPackLimits(maxExpandedBytes = expanded - 1),
+      )) {
+        val rejected = File(output.parentFile, "$name.zip")
+        val failure = assertThrows(Exception::class.java) {
+          PublishedIconCompositeMask.write(source, rejected, true, limits = limits)
+        }
+        assertTrue("$name must reject because of archive validation, not an unrelated failure",
+          failure is IllegalArgumentException || failure is IconPackException)
+        assertFalse("$name must not leave partial output", rejected.exists())
+      }
+    }
+  }
+
+  @Test fun exactDuplicateResourceNamesStillRejectWithoutLeavingOutput() {
+    val other = flat.replace("wallet", "wallex")
+    archive(entries(other to png(color = Color.RED)), prepare = { source ->
+      // ZipOutputStream refuses duplicates; rename both ZIP headers before admission.
+      val original = other.toByteArray(Charsets.UTF_8)
+      val replacement = flat.toByteArray(Charsets.UTF_8)
+      assertEquals(original.size, replacement.size)
+      val bytes = source.readBytes()
+      var renamed = 0
+      for (offset in 0..bytes.size - original.size) {
+        if (original.indices.all { bytes[offset + it] == original[it] }) {
+          replacement.copyInto(bytes, offset)
+          renamed++
+        }
+      }
+      assertEquals("The local and central headers must both carry the exact duplicate", 2, renamed)
+      source.writeBytes(bytes)
+    }) { source, output ->
+      val failure = assertThrows(Exception::class.java) {
+        PublishedIconCompositeMask.write(source, output, true)
+      }
+      assertTrue(failure is IllegalArgumentException || failure is IconPackException ||
+        failure is java.util.zip.ZipException)
+      assertFalse(output.exists())
+    }
+  }
+
+  @Test fun exactFileDirectoryCollisionsStillRejectInEitherEntryOrder() {
+    val file = "metadata/resource" to "file".toByteArray()
+    val child = "metadata/resource/child.xml" to "<Child/>".toByteArray()
+    val directory = "metadata/resource/" to byteArrayOf()
+    for (collision in listOf(listOf(file, child), listOf(child, file),
+        listOf(file, directory), listOf(directory, file))) {
+      archive(entries(*collision.toTypedArray())) { source, output ->
+        val failure = assertThrows(Exception::class.java) {
+          PublishedIconCompositeMask.write(source, output, true)
+        }
+        assertTrue(failure is IllegalArgumentException || failure is IconPackException ||
+          failure is java.util.zip.ZipException)
+        assertFalse("Exact file/directory collisions must not leave output", output.exists())
+      }
+    }
   }
 
   @Test fun flatAliasesAndClosedDayNightCompositesAreMaskedWithoutChangingXmlOrLayers() {
@@ -226,7 +368,8 @@ class PublishedIconCompositeMaskDeviceTest {
       assertTrue(PublishedIconCompositeMask.write(source, output, true))
       assertArrayEquals("Unsupported image must retain its original bytes", retained, read(output).getValue(flat))
     }
-    archive(entries(flat to ByteArray(4 * 1024 * 1024 + 1))) { source, output ->
+    val oversized = ByteArray(4 * 1024 * 1024 + 1).also { java.util.Random(0).nextBytes(it) }
+    archive(entries(flat to oversized)) { source, output ->
       assertTrue(PublishedIconCompositeMask.write(source, output, true))
       assertArrayEquals("An admitted oversized asset must be streamed without decoding",
         read(source).getValue(flat), read(output).getValue(flat))

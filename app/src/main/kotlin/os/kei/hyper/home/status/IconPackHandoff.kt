@@ -33,6 +33,9 @@ import os.kei.hyper.home.iconpack.apple.AppleDynamicIconArchive
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.data.RecommendedIconMappings
 import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
+import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
+import os.kei.hyper.home.iconpack.ColorOsGenerationProgress
+import os.kei.hyper.home.iconpack.ColorOsGenerationStage
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconThemeMetadata
@@ -61,7 +64,12 @@ internal object IconPackHandoffs {
     includePalette: Boolean = true, systemFallback: SystemIconFallback? = null,
     systemAppNameMatching: Boolean = false, colorOsForOtherPacks: Boolean = false,
     installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true,
-    recommendedMappings: RecommendedIconMappings? = null): IconPackHandoff {
+    recommendedMappings: RecommendedIconMappings? = null,
+    onProgress: (ColorOsGenerationProgress) -> Unit = {}): IconPackHandoff {
+    val sources = if (pack.colorOsProfile != null) ColorOsFallbackRenderer.Sources(context) else null
+    fun progress(stage: ColorOsGenerationStage): (Int, Int, String) -> Unit = { done, total, name ->
+      onProgress(ColorOsGenerationProgress(stage, done, total, name.takeIf { it.isNotEmpty() }))
+    }
     val mappings = recommendedMappings ?: withContext(Dispatchers.IO) { RecommendedIconMappings.snapshot(context) }
     val pack = BuiltinColorOsMappings.selected(pack, mappings.colorOsThemeStores)
     val iconMask = withContext(Dispatchers.IO) {
@@ -73,10 +81,12 @@ internal object IconPackHandoffs {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
+    onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.LIGHT))
     val light = repository.exportNativeIcons(pack, exportTargets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
       colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
-      preservedPackages = preserved, recommendedMappings = mappings)
+      preservedPackages = preserved, recommendedMappings = mappings, colorOsSources = sources,
+      onProgress = progress(ColorOsGenerationStage.LIGHT))
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -84,17 +94,20 @@ internal object IconPackHandoffs {
     val target = file(context, token)
     try {
       val icons = if (light.preservesNativeResources) light.archive else {
+        onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.DARK))
         val dark = when (sourceAppearance) {
           IconPackAppearance.SYSTEM ->
             repository.exportNativeIcons(pack, exportTargets, darkMode = true, systemFallback = systemFallback,
               systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
-              installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved, recommendedMappings = mappings)
+              installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved, recommendedMappings = mappings,
+              colorOsSources = sources, onProgress = progress(ColorOsGenerationStage.DARK))
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
             dimmedIcons(context, light.archive).also { darkFile = it }
           else -> light.archive
         }
+        onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PAIRING))
         withContext(Dispatchers.IO) {
           val current = currentCoroutineContext()
           val exclusions = os.kei.hyper.home.iconpack.PreservedIconResources(preserved, targets)
@@ -162,6 +175,7 @@ internal object IconPackHandoffs {
       }
       val first = iconPackPreviewEntry(pack, exportTargets)
       val artwork = first?.let { previews.load(pack, it, 144, maskPolicy = iconMask) }
+      onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.ADAPTATIONS))
       return withContext(Dispatchers.IO) {
         val caller = currentCoroutineContext()
         val exports = listOfNotNull(light, darkResult)
@@ -170,7 +184,8 @@ internal object IconPackHandoffs {
           exports.flatMapTo(linkedSetOf()) { it.colorOsPackages },
           (targets + exports.flatMap { it.exportedTargets } + exports.flatMap { it.skippedTargets.map { skip -> skip.component } })
             .mapTo(linkedSetOf()) { it.flattened },
-          NativeIconAdaptations(context).read(nativeTargets) { caller.ensureActive() },
+          NativeIconAdaptations(context).read(nativeTargets, sources,
+            progress(ColorOsGenerationStage.ADAPTATIONS)) { caller.ensureActive() },
           installedOnly = installedOnly,
           completeSystemIconConfig = completeSystemIconConfig,
           iconMaskIdentity = iconMask.identity,
@@ -179,6 +194,7 @@ internal object IconPackHandoffs {
           recommendedMappings = mappings,
         )
         currentCoroutineContext().ensureActive()
+        onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
         val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
         val maskedIcons = File(context.cacheDir, "masked-icons-${UUID.randomUUID()}.zip")
@@ -216,8 +232,12 @@ internal object IconPackHandoffs {
           RawIconArchive.write(icons, stampedIcons,
             includes = { it != IconBuildInventory.NAMES_PATH }, replacements = stamps,
             check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
+          onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.MASKING))
+          val maskingProgress = progress(ColorOsGenerationStage.MASKING)
           val publishedIcons = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
-              enabled = completeSystemIconConfig, check = { caller.ensureActive() })) maskedIcons else stampedIcons
+              enabled = completeSystemIconConfig, check = { caller.ensureActive() },
+              onProgress = { done, total -> maskingProgress(done, total, "") })) maskedIcons else stampedIcons
+          onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
           ZipOutputStream(target.outputStream()).use { output ->
             output.putNextEntry(ZipEntry("description.xml").apply { time = 0 })
             val title = xml(pack.displayName)
@@ -253,7 +273,8 @@ internal object IconPackHandoffs {
           os.kei.hyper.home.iconpack.IconPackFormat.INSTALLED_APK,
           os.kei.hyper.home.iconpack.IconPackFormat.APK -> "CONVERTED_APK"
           os.kei.hyper.home.iconpack.IconPackFormat.CLASSIC_ZIP -> "CONVERTED_CLASSIC_ZIP"
-          os.kei.hyper.home.iconpack.IconPackFormat.MIUI_ICONS ->
+          os.kei.hyper.home.iconpack.IconPackFormat.MIUI_ICONS,
+          os.kei.hyper.home.iconpack.IconPackFormat.MIUI_MTZ ->
             os.kei.hyper.home.xposed.ConvertedIconArchive.LOCAL_NATIVE
           else -> null
         })

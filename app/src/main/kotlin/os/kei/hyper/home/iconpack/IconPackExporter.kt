@@ -128,7 +128,9 @@ internal class IconPackExporter(private val context: Context, private val limits
     installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null,
     preservedPackages: Set<String> = PreservedIcons.snapshot(context),
     recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context),
-    phoneCompanionExclusions: Set<String> = emptySet(), check: () -> Unit,
+    phoneCompanionExclusions: Set<String> = emptySet(),
+    colorOsSources: ColorOsFallbackRenderer.Sources? = null,
+    onProgress: ((Int, Int, String) -> Unit)? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
@@ -206,7 +208,8 @@ internal class IconPackExporter(private val context: Context, private val limits
         val colorOsPackages = linkedSetOf<String>()
         val nativeAdaptationTargets = linkedSetOf<IconPackComponent>()
         val colorOs = pack.colorOsProfile ?: colorOsFallback?.colorOsProfile
-        val fallback = colorOs?.let { ColorOsFallbackRenderer(context, style = it.style) }
+        val fallback = colorOs?.let { ColorOsFallbackRenderer(context, style = it.style,
+          sources = colorOsSources ?: ColorOsFallbackRenderer.Sources(context)) }
         val systemNames = linkedSetOf<String>()
         val mask = colorOs?.read(colorOs.maskPath, check)?.let { bytes ->
           GeneratedIconPng.squareSize(bytes)
@@ -222,7 +225,7 @@ internal class IconPackExporter(private val context: Context, private val limits
           return encodePng(if (scaled === bitmap) bitmap.copy(Bitmap.Config.ARGB_8888, false) else scaled)
         }
         var paletteBackground = mask?.let(::scaledPng)
-        IconPackRenderer(context).open(pack, darkMode, colorOsFallback,
+        IconPackRenderer(context, colorOsSources).open(pack, darkMode, colorOsFallback,
           maskPolicy = maskPolicy, clipOutput = false, preservedPackages = preservedPackages,
           recommendedMappings = recommendedMappings,
           phoneCompanionExclusions = phoneCompanionExclusions).use { renderer ->
@@ -239,6 +242,8 @@ internal class IconPackExporter(private val context: Context, private val limits
               names[name] = hash
               ImageArchiveZip.writeBytes(zip, "res/drawable-xxhdpi/$name.png", png, check = check)
             }
+            var processed = 0
+            onProgress?.invoke(0, normalized.size, "")
             for ((pkg, group) in normalized.groupBy { it.packageName }) {
               check()
               val matches = group.associateWith { target -> renderer.completedEntry(target, match(target)) }
@@ -252,6 +257,7 @@ internal class IconPackExporter(private val context: Context, private val limits
               var packageWritten = false
               for ((target, entry) in matches) {
                 check()
+                onProgress?.invoke(processed++, normalized.size, target.packageName)
                 if (colorOs?.source(target)?.requiresLiveIcon == true || requiresLive(target, entry)) {
                   skipped += IconPackExportSkip(target, "Live source handled by native template or original launcher icon")
                   continue
@@ -326,6 +332,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                 if (renderer.usedRuntimeArtwork(target)) colorOsPackages += pkg
               }
             }
+            onProgress?.invoke(processed, normalized.size, "")
             systemRenderer?.validateCompletionSource()
             if (systemFallback != null) {
               ImageArchiveZip.writeBytes(zip, SystemIconFallbackManifest.PATH,

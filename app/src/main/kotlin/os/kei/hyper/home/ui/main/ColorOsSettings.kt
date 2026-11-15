@@ -21,7 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -87,6 +91,13 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
       SwitchPreference(title = stringResource(R.string.pack_art_plus),
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,
         enabled = !busy, onCheckedChange = model.preferences::setColorOsArtPlus)
+    }
+    state.colorOsProgress?.takeIf { state.preparing }?.let { progress ->
+      PackGenerationStatus(progress, model::cancelIconPackPreparation)
+    }
+    state.error?.takeIf { it.isNotBlank() }?.let { message ->
+      Text(message, modifier = Modifier.testTag("coloros.generation.error")
+        .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1)
     }
     val result = state.nativeResult?.takeIf {
       it.sourceId == card?.pack?.id?.let { id ->

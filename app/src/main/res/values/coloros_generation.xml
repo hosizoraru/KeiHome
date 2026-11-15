@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="coloros_generation_applications">Reading installed apps</string>
+  <string name="coloros_generation_light">Generating light icons</string>
+  <string name="coloros_generation_dark">Generating dark icons</string>
+  <string name="coloros_generation_pairing">Combining light and dark icons</string>
+  <string name="coloros_generation_adaptations">Checking original app artwork</string>
+  <string name="coloros_generation_packaging">Preparing theme package</string>
+  <string name="coloros_generation_masking">Compositing theme icons</string>
+  <string name="coloros_generation_count">Processed %1$d / %2$d</string>
+  <string name="coloros_generation_cancel">Cancel generation</string>
+  <string name="coloros_generation_cancelled">Generation cancelled. You can try again.</string>
+</resources>

@@ -126,7 +126,10 @@ internal class IconPackPreviewRepository(
 }
 
 /** Used by preview and explicit static export, with one resource session for a batch. */
-internal class IconPackRenderer(private val context: Context) {
+internal class IconPackRenderer(
+  private val context: Context,
+  private val colorOsSources: ColorOsFallbackRenderer.Sources? = null,
+) {
   private val android = AndroidIconPackResources(context)
   private val maskLock = Any()
   private val previewMasks = LruCache<MaskKey, ResolvedMask>(16)
@@ -227,7 +230,8 @@ internal class IconPackRenderer(private val context: Context) {
     private val previewMask by lazy(LazyThreadSafetyMode.NONE) {
       previewMask(pack, maskPolicy ?: IconMaskPolicy.snapshot(context))
     }
-    private val originals = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style) }
+    private val originals = pack.colorOsProfile?.let { ColorOsFallbackRenderer(context, style = it.style,
+      sources = colorOsSources ?: ColorOsFallbackRenderer.Sources(context)) }
     private val nativePairs = mutableMapOf<IconPackComponent, Boolean>()
     private val supplementState = lazy(LazyThreadSafetyMode.NONE) {
       supplementary?.let { open(it, dark, maskPolicy = maskPolicy, clipOutput = false,

@@ -7,22 +7,19 @@ import android.graphics.Paint
 import android.graphics.Rect
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.nio.file.Files
-import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import java.util.zip.ZipOutputStream
 import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.IconPackLimits
-import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeLayerConfig
 import os.kei.hyper.home.iconpack.NativeMamlPair
 import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+import os.kei.hyper.home.iconpack.RawIconArchive
 import os.kei.hyper.home.iconpack.validNativeIconName
 
 /** Masks complete published canvases, never the imported ZIP or individual animation layers. */
@@ -30,11 +27,17 @@ internal object PublishedIconCompositeMask {
   private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
   private const val MAX_DIMENSION = 1024
   private const val MAX_XML_BYTES = NativeIconShapeConfig.MAX_BYTES
-  private const val MAX_COMPOSITES = 8192
   private val staticImageTypes = setOf("image/png", "image/jpeg", "image/webp")
   private val flat = Regex("(?:nightmode/)?res/drawable(?:-[A-Za-z0-9]+)*/([^/]+)\\.png")
   private val fancy = Regex("(?:nightmode/)?fancy_icons/([^/]+)/")
   private val layered = Regex("(?:nightmode/)?layer_animating_icons/([^/]+)/")
+  private val groupPatterns = listOf(fancy, layered)
+
+  private class Template(val bytes: ByteArray) {
+    private val hash = bytes.contentHashCode()
+    override fun hashCode() = hash
+    override fun equals(other: Any?) = other is Template && bytes.contentEquals(other.bytes)
+  }
 
   /** False leaves output absent; callers must explicitly opt into the completed shape policy. */
   fun write(
@@ -43,6 +46,7 @@ internal object PublishedIconCompositeMask {
     enabled: Boolean,
     check: () -> Unit = {},
     limits: IconPackLimits = IconPackLimits(),
+    onProgress: (Int, Int) -> Unit = { _, _ -> },
   ): Boolean {
     require(source.canonicalFile != output.canonicalFile)
     require(!Files.isSymbolicLink(output.toPath()) && !output.exists())
@@ -54,7 +58,7 @@ internal object PublishedIconCompositeMask {
       ZipFile(source).use { zip ->
         require(zip.size() <= limits.maxEntries)
         val entries = linkedMapOf<String, ZipEntry>()
-        val foldedNames = hashSetOf<String>()
+        val normalizedNames = hashSetOf<String>()
         var expanded = 0L
         zip.entries().asSequence().forEach { entry ->
           check()
@@ -64,7 +68,7 @@ internal object PublishedIconCompositeMask {
               it.none { c -> c == '\\' || c == ':' || c.isISOControl() }
           }) { "Unsafe published icon path" }
           require(entries.put(entry.name, entry) == null) { "Duplicate published icon path" }
-          require(foldedNames.add(entry.name.removeSuffix("/").lowercase(Locale.ROOT))) {
+          require(normalizedNames.add(entry.name.removeSuffix("/"))) {
             "Ambiguous published icon path"
           }
           require(entry.size in 0..limits.maxEntryBytes)
@@ -72,12 +76,12 @@ internal object PublishedIconCompositeMask {
           require(expanded <= limits.maxExpandedBytes)
         }
         val files = entries.values.asSequence().filterNot { it.isDirectory }
-          .map { it.name.lowercase(Locale.ROOT) }.toHashSet()
+          .map { it.name }.toHashSet()
         for (name in entries.keys) {
           check()
           var slash = name.indexOf('/')
           while (slash >= 0) {
-            require(name.substring(0, slash).lowercase(Locale.ROOT) !in files) {
+            require(name.substring(0, slash) !in files) {
               "File used as a published icon directory"
             }
             slash = name.indexOf('/', slash + 1)
@@ -106,24 +110,32 @@ internal object PublishedIconCompositeMask {
         fun add(name: String) {
           if (entries[name]?.isDirectory == false) {
             candidates += name
-            require(candidates.size <= MAX_COMPOSITES) { "Published composite count limit exceeded" }
           }
         }
         val groups = linkedMapOf<String, MutableSet<String>>()
         for (name in entries.keys) {
           check()
           flat.matchEntire(name)?.groupValues?.get(1)?.takeIf(::validNativeIconName)?.let { add(name) }
-          for (pattern in listOf(fancy, layered)) {
+          for (pattern in groupPatterns) {
             val match = pattern.find(name)?.takeIf { it.range.first == 0 } ?: continue
             if (validNativeIconName(match.groupValues[1]))
               groups.getOrPut(match.value) { linkedSetOf() } += name.removePrefix(match.value)
           }
         }
+        // Large native packs commonly repeat one day/night XML template for thousands of apps.
+        val templates = linkedMapOf<Template, NativeMamlPair?>()
         for ((root, paths) in groups) {
           check()
           val base = if ("${root}manifest.xml" in entries) root else "${root}fancy/"
           val pair = try {
-            read("${base}manifest.xml", MAX_XML_BYTES)?.let { NativeMamlPair.parse(it, check) }
+            read("${base}manifest.xml", MAX_XML_BYTES)?.let { bytes ->
+              val key = Template(bytes)
+              if (templates.containsKey(key)) templates[key]
+              else NativeMamlPair.parse(bytes, check).also {
+                if (templates.size == 32) templates.remove(templates.keys.first())
+                templates[key] = it
+              }
+            }
           } catch (_: IconPackException) { null }
           if (pair != null) {
             add(base + pair.light)
@@ -146,71 +158,26 @@ internal object PublishedIconCompositeMask {
             add("${root}quiet/quietImage.png")
         }
         if (candidates.isEmpty()) return false
-        Files.createFile(output.toPath())
-        owned = true
-        var publishedBytes = 0L
-        val bounded = object : FilterOutputStream(output.outputStream().buffered()) {
-          override fun write(value: Int) {
-            require(++publishedBytes <= limits.maxInputBytes)
-            out.write(value)
-          }
-          override fun write(bytes: ByteArray, offset: Int, count: Int) {
-            publishedBytes += count
-            require(publishedBytes <= limits.maxInputBytes)
-            out.write(bytes, offset, count)
-          }
-        }
-        ZipOutputStream(bounded).use { out ->
-          for ((name, entry) in entries) {
-            check()
-            if (name !in candidates || entry.size > MAX_IMAGE_BYTES) {
-              val copy = ZipEntry(name).apply {
-                time = entry.time
-                if (entry.method == ZipEntry.STORED) {
-                  method = ZipEntry.STORED
-                  size = entry.size
-                  compressedSize = entry.size
-                  crc = entry.crc
-                }
-              }
-              out.putNextEntry(copy)
-              zip.getInputStream(entry).use { input ->
-                val buffer = ByteArray(32 * 1024)
-                var copied = 0L
-                while (true) {
-                  check()
-                  val count = input.read(buffer)
-                  if (count < 0) break
-                  copied += count
-                  require(copied <= entry.size) { "Published entry exceeded its declared size" }
-                  out.write(buffer, 0, count)
-                }
-                require(copied == entry.size)
-              }
-              out.closeEntry()
-              continue
+        val scanner = MaskScanner(mask)
+        val total = entries.values.count { !it.isDirectory }
+        var visited = 0
+        onProgress(0, total)
+        RawIconArchive.write(source, output, check = check, limits = limits,
+          maxOutputBytes = limits.maxInputBytes, transform = transform@{ _, entry ->
+            onProgress(++visited, total)
+            if (entry.name !in candidates || entry.size > MAX_IMAGE_BYTES) return@transform null
+            val image = requireNotNull(read(entry.name, MAX_IMAGE_BYTES)) {
+              "Published image size limit exceeded"
             }
-            val image = requireNotNull(read(name, MAX_IMAGE_BYTES)) { "Published image size limit exceeded" }
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(image, 0, image.size, options)
             if (options.outMimeType !in staticImageTypes || options.outWidth !in 1..MAX_DIMENSION ||
-              options.outHeight != options.outWidth) {
-              ImageArchiveZip.writeBytes(out, name, image, entry.time, check)
-              continue
-            }
+              options.outHeight != options.outWidth) return@transform null
             check()
-            val bitmap = BitmapFactory.decodeByteArray(image, 0, image.size)
-            if (bitmap == null) {
-              ImageArchiveZip.writeBytes(out, name, image, entry.time, check)
-              continue
-            }
+            val bitmap = BitmapFactory.decodeByteArray(image, 0, image.size) ?: return@transform null
             var clipped: Bitmap? = null
             try {
-              check()
-              if (!needsMask(bitmap, mask, check)) {
-                ImageArchiveZip.writeBytes(out, name, image, entry.time, check)
-                continue
-              }
+              if (!scanner.needsMask(bitmap, check)) return@transform null
               val result = IconMaskPolicy.clip(bitmap, mask)
               clipped = result
               val encoded = ByteArrayOutputStream()
@@ -227,13 +194,14 @@ internal object PublishedIconCompositeMask {
               }
               require(result.compress(Bitmap.CompressFormat.PNG, 100, pngOutput))
               check()
-              ImageArchiveZip.writeBytes(out, name, encoded.toByteArray(), entry.time, check)
+              encoded.toByteArray()
             } finally {
               if (clipped !== bitmap) clipped?.recycle()
               bitmap.recycle()
             }
-          }
-        }
+          })
+        owned = true
+        onProgress(total, total)
         check()
       }
       return true
@@ -243,20 +211,32 @@ internal object PublishedIconCompositeMask {
     }
   }
 
-  private fun needsMask(bitmap: Bitmap, mask: NativeAdaptiveIconMask, check: () -> Unit): Boolean {
-    val stencil = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-    try {
-      Canvas(stencil).drawPath(mask.pathForBounds(Rect(0, 0, bitmap.width, bitmap.height)),
-        Paint(Paint.ANTI_ALIAS_FLAG))
-      val pixels = IntArray(bitmap.width)
-      val alpha = IntArray(bitmap.width)
-      for (y in 0 until bitmap.height) {
+  private class MaskScanner(private val mask: NativeAdaptiveIconMask) {
+    private var size = 0
+    private var coverage = IntArray(0)
+    private var pixels = IntArray(0)
+
+    fun needsMask(bitmap: Bitmap, check: () -> Unit): Boolean {
+      if (size != bitmap.width) {
+        size = bitmap.width
+        coverage = IntArray(size * size)
+        pixels = IntArray(size * size)
+        val stencil = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        try {
+          Canvas(stencil).drawPath(mask.pathForBounds(Rect(0, 0, size, size)),
+            Paint(Paint.ANTI_ALIAS_FLAG))
+          stencil.getPixels(coverage, 0, size, 0, 0, size, size)
+        } finally { stencil.recycle() }
+      }
+      bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
+      for (y in 0 until size) {
         check()
-        bitmap.getPixels(pixels, 0, bitmap.width, 0, y, bitmap.width, 1)
-        stencil.getPixels(alpha, 0, bitmap.width, 0, y, bitmap.width, 1)
-        if (pixels.indices.any { (pixels[it] ushr 24) > (alpha[it] ushr 24) }) return true
+        for (x in 0 until size) {
+          val index = y * size + x
+          if ((pixels[index] ushr 24) > (coverage[index] ushr 24)) return true
+        }
       }
       return false
-    } finally { stencil.recycle() }
+    }
   }
 }

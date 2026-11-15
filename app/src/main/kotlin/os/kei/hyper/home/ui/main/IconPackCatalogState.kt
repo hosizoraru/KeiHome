@@ -29,6 +29,7 @@ internal data class IconPacksUiState(
   val failedSources: Int = 0,
   val nativeImporting: String? = null,
   val preparing: Boolean = false,
+  val colorOsProgress: os.kei.hyper.home.iconpack.ColorOsGenerationProgress? = null,
   val nativeAssociations: Map<String, String> = emptyMap(),
   val nativeSources: Map<String, String> = emptyMap(),
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,

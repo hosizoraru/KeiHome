@@ -166,6 +166,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("settings") { ColorOsSettings(model, importReady) }
       }
       else -> {
+        state.colorOsProgress?.takeIf { state.preparing }?.let { progress ->
+          item("generation-progress") { PackGenerationStatus(progress, model::cancelIconPackPreparation) }
+        }
         item("search") {
           Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {

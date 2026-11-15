@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.InitialActivationPreferences
 import os.kei.hyper.home.data.IconPackAppearance
@@ -245,6 +246,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   private var nativeImportGeneration = 0L
+  private var iconPackPreparationJob: Job? = null
   private data class NativeReceiptVisibility(val observers: Int = 0, val generation: Long = 0)
   private val nativeReceiptVisibility = MutableStateFlow(NativeReceiptVisibility())
   private val nativeReceiptRetries = NativeImportReceiptRetries(SystemClock::elapsedRealtime)
@@ -643,24 +645,38 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val selected = preferences.state.value
     val appearance = appearanceOverride ?: selected.iconPackAppearance
     val pack = original.copy(id = selected.systemIconFallback.sourceId(original.id))
-    if (pack.builtinKey != null) preferences.prepareColorOsComponent(pack.id, includePalette)
     // Retain the previous receipt while replacing it so detail rows keep their height.
-    iconPacks.update { it.copy(nativeImporting = pack.id, preparing = true) }
-    viewModelScope.launch {
+    iconPacks.update { it.copy(nativeImporting = pack.id, preparing = true, error = null,
+      colorOsProgress = os.kei.hyper.home.iconpack.ColorOsGenerationProgress(
+        os.kei.hyper.home.iconpack.ColorOsGenerationStage.APPLICATIONS)) }
+    val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
+        if (pack.builtinKey != null) preferences.prepareColorOsComponent(pack.id, includePalette)
+        val caller = currentCoroutineContext()
+        val progress = os.kei.hyper.home.iconpack.ColorOsProgressReporter({ value ->
+          caller.ensureActive()
+          if (generation == nativeImportGeneration) {
+            iconPacks.update { it.copy(colorOsProgress = value) }
+          }
+        })
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
           selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly,
-          selected.completeSystemIconConfig, selected.recommendedIconMappings)
-        if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false) }
+          selected.completeSystemIconConfig, selected.recommendedIconMappings, onProgress = progress::update)
+        caller.ensureActive()
+        if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         if (!result.imported && !result.pending) android.util.Log.e("KeiHomePackImport",
           "Native icon import ${result.status}: ${result.message}")
         readIconPacks()
-      } catch (cancelled: CancellationException) { throw cancelled
+      } catch (cancelled: CancellationException) {
+        if (generation == nativeImportGeneration) iconPacks.update {
+          it.copy(error = getApplication<Application>().getString(R.string.coloros_generation_cancelled))
+        }
+        throw cancelled
       } catch (failure: Exception) {
         android.util.Log.e("KeiHomePackImport", "Icon pack preparation or import failed: ${pack.id}", failure)
         val stored = readImportState()
@@ -672,7 +688,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val pending = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
           // Unknown storage state must retain the handoff, never turn into a false failure/cleanup.
           val stored = readImportState()
-          if (stored == null) pack.id else stored.pendingSource
+          if (stored == null && handoff != null) pack.id else stored?.pendingSource
         }
         if (pending != pack.id) handoff?.file?.delete()
         if (generation == nativeImportGeneration) {
@@ -680,10 +696,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           // for UI, since a newer receipt may have arrived while returning to Main.
           val current = IconPackImportProtocol.states(getApplication()).value
           iconPacks.update { it.copy(nativeImporting = if (current == null) pending else current.pendingSource,
-            preparing = false) }
+            preparing = false, colorOsProgress = null) }
+          iconPackPreparationJob = null
         }
       }
     }
+    iconPackPreparationJob = job
+    job.start()
+  }
+
+  fun cancelIconPackPreparation() {
+    if (iconPacks.value.preparing && iconPacks.value.colorOsProgress != null) iconPackPreparationJob?.cancel()
   }
 
   fun setSystemIconFallback(value: os.kei.hyper.home.data.SystemIconFallback) {

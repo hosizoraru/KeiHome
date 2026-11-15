@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="coloros_generation_applications">インストール済みアプリを読み込み中</string>
+  <string name="coloros_generation_light">ライトモードのアイコンを生成中</string>
+  <string name="coloros_generation_dark">ダークモードのアイコンを生成中</string>
+  <string name="coloros_generation_pairing">ライトとダークのアイコンを統合中</string>
+  <string name="coloros_generation_adaptations">アプリ本来のアイコンを確認中</string>
+  <string name="coloros_generation_packaging">テーマパッケージを準備中</string>
+  <string name="coloros_generation_masking">テーマアイコンを合成中</string>
+  <string name="coloros_generation_count">処理済み %1$d / %2$d</string>
+  <string name="coloros_generation_cancel">生成をキャンセル</string>
+  <string name="coloros_generation_cancelled">生成をキャンセルしました。再試行できます。</string>
+</resources>

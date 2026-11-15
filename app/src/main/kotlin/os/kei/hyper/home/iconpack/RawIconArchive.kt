@@ -17,6 +17,10 @@ import java.util.zip.ZipOutputStream
  * Rechecks all source metadata, including excluded entries. Does not replace reader admission.
  * Output is caller-owned empty/new staging; caller remains responsible for atomic publication.
  * Replacements are unconditional, retain an existing entry's method, and otherwise use DEFLATED.
+ * Optional transforms run synchronously on this writer's thread, only for included source files
+ * not overridden by replacements. Return null to preserve the original compressed payload.
+ * Returned bytes are written before invoking the next transform; neither they nor their encoded
+ * Source are collected. The callback must not close/mutate the source or retain its entries.
  */
 internal object RawIconArchive {
   data class Result(
@@ -25,6 +29,7 @@ internal object RawIconArchive {
     val replacementEntries: Int,
     val expandedBytes: Long,
     val outputBytes: Long,
+    val transformedEntries: Int = 0,
   )
 
   fun write(
@@ -35,6 +40,7 @@ internal object RawIconArchive {
     check: () -> Unit = {},
     maxOutputBytes: Long,
     limits: IconPackLimits = IconPackLimits(),
+    transform: ((ZipFile, ZipEntry) -> ByteArray?)? = null,
   ): Result {
     require(maxOutputBytes > 0)
     val input = source.canonicalFile
@@ -80,8 +86,10 @@ internal object RawIconArchive {
         if (!entry.directory && name !in additions && includes(name)) {
           selected[name] = entry
           outputPaths.add(name)
-          expanded = addWithin(expanded, entry.size, limits.maxExpandedBytes)
-          compressedLowerBound = addWithin(compressedLowerBound, entry.compressed, maxOutputBytes)
+          if (transform == null) {
+            expanded = addWithin(expanded, entry.size, limits.maxExpandedBytes)
+            compressedLowerBound = addWithin(compressedLowerBound, entry.compressed, maxOutputBytes)
+          }
           compressedLowerBound = addWithin(compressedLowerBound, headerBytes(name), maxOutputBytes)
         }
       }
@@ -112,34 +120,62 @@ internal object RawIconArchive {
         check()
         if (target.length() > maxOutputBytes) fail("Raw archive output size limit exceeded")
       }
-      val raw = CheckedSource(map, ::checkpoint)
-      for (name in selected.keys) {
-        check()
-        raw.select(name, name, ZipSource.COMPRESSION_NO_CHANGE, 0)
+      fun encoded(name: String, bytes: ByteArray, method: Int): Source {
+        checkpoint()
+        if (bytes.size.toLong() > entryLimit(name, limits)) fail("Raw archive replacement size limit exceeded")
+        val level = if (method == ZipEntry.STORED) Deflater.NO_COMPRESSION else Deflater.DEFAULT_COMPRESSION
+        val added = BytesSource(bytes, name, level)
+        checkpoint()
+        ratio(bytes.size.toLong(), added.compressedSize, limits)
+        compressedLowerBound = addWithin(compressedLowerBound, added.compressedSize, maxOutputBytes)
+        return added
       }
+      var transformed = 0
       // Zipflinger treats every existing file as a ZIP, including createTempFile's empty staging.
       if (maxOutputBytes < 22) fail("Raw archive output size limit exceeded")
       ZipOutputStream(target.outputStream()).use { }
-      ZipArchive(target).use { archive ->
-        checkpoint()
-        archive.add(raw)
-        checkpoint()
-        for ((name, bytes) in additions) {
+      (if (transform != null) ZipFile(input) else null).use { zip ->
+        val raw = CheckedSource(map, ::checkpoint) { original ->
+          if (transform == null) original
+          else {
+            val name = original.name
+            val metadata = selected.getValue(name)
+            val reader = requireNotNull(zip)
+            val bytes = transform(reader, requireNotNull(reader.getEntry(name)))
+            checkpoint()
+            if (bytes == null) {
+              expanded = addWithin(expanded, metadata.size, limits.maxExpandedBytes)
+              compressedLowerBound = addWithin(compressedLowerBound, metadata.compressed, maxOutputBytes)
+              original
+            } else {
+              expanded = addWithin(expanded, bytes.size.toLong(), limits.maxExpandedBytes)
+              val added = encoded(name, bytes, metadata.method)
+              transformed++
+              added
+            }
+          }
+        }
+        for (name in selected.keys) {
+          check()
+          raw.select(name, name, ZipSource.COMPRESSION_NO_CHANGE, 0)
+        }
+        ZipArchive(target).use { archive ->
           checkpoint()
-          val method = sourceEntries[name]?.method ?: ZipEntry.DEFLATED
-          val level = if (method == ZipEntry.STORED) Deflater.NO_COMPRESSION else Deflater.DEFAULT_COMPRESSION
-          val added = BytesSource(bytes, name, level)
-          ratio(bytes.size.toLong(), added.compressedSize, limits)
-          compressedLowerBound = addWithin(compressedLowerBound, added.compressedSize, maxOutputBytes)
-          archive.add(added)
+          archive.add(raw)
           checkpoint()
+          for ((name, bytes) in additions) {
+            val method = sourceEntries[name]?.method ?: ZipEntry.DEFLATED
+            archive.add(encoded(name, bytes, method))
+            checkpoint()
+          }
         }
       }
       checkpoint()
       if (input.length() != originalSize || input.lastModified() != originalModified) {
         fail("Raw archive source changed during transfer")
       }
-      return Result(selected.size + additions.size, selected.size, additions.size, expanded, target.length())
+      return Result(selected.size + additions.size, selected.size - transformed, additions.size,
+        expanded, target.length(), transformed)
     } catch (failure: Throwable) {
       if (owned && target.exists() && !target.delete()) {
         failure.addSuppressed(java.io.IOException("Could not remove raw archive staging: $target"))
@@ -206,14 +242,19 @@ internal object RawIconArchive {
   }
 
   /** ZipArchive iterates this public list while its source channel is open: one check per raw entry. */
-  private class CheckedSource(map: ZipMap, private val checkpoint: () -> Unit) : ZipSource(map) {
+  private class CheckedSource(
+    map: ZipMap,
+    private val checkpoint: () -> Unit,
+    private val convert: (Source) -> Source,
+  ) : ZipSource(map) {
     override fun getSelectedEntries(): List<Source> {
       val entries = super.getSelectedEntries()
       return object : AbstractList<Source>() {
         override val size: Int get() = entries.size
         override fun get(index: Int): Source {
           checkpoint()
-          return entries[index]
+          // ZipArchive writes this returned Source immediately; keep only raw metadata in entries.
+          return convert(entries[index])
         }
       }
     }

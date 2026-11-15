@@ -11,14 +11,22 @@ import java.security.MessageDigest
 /** Worker-only fingerprints. Unchanged official artwork does not demand a new static theme. */
 internal class NativeIconAdaptations(private val context: Context) {
   private val cache = LruCache<String, String>(2048)
-  fun read(targets: Set<String>, check: () -> Unit): Map<String, String> {
-    val installed = context.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
+  fun read(targets: Set<String>, sources: ColorOsFallbackRenderer.Sources? = null,
+    onProgress: ((Int, Int, String) -> Unit)? = null, check: () -> Unit): Map<String, String> {
+    check()
+    if (targets.isEmpty()) return emptyMap()
+    val installed = if (sources != null) emptyMap() else
+      context.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
       .associateBy { it.packageName }
-    val renderer = ColorOsFallbackRenderer(context)
+    val renderer = ColorOsFallbackRenderer(context, sources = sources ?: ColorOsFallbackRenderer.Sources(context))
+    var done = 0
     return targets.associateWith { name ->
       check()
       val target = requireNotNull(IconPackComponent.parse(name))
-      val app = installed[target.packageName]
+      onProgress?.invoke(done++, targets.size, target.packageName)
+      val app = if (sources == null) installed[target.packageName] else try {
+        sources.app(target.packageName)
+      } catch (_: PackageManager.NameNotFoundException) { null }
       if (app == null) "none" else {
         val paths = listOf(app.sourceDir) + app.splitSourceDirs.orEmpty()
         val key = name + ":" + paths.joinToString { "$it:${File(it).lastModified()}:${File(it).length()}" } +
@@ -43,6 +51,6 @@ internal class NativeIconAdaptations(private val context: Context) {
           (if (adapted) digest.digest().joinToString("") { "%02x".format(it) } else "none").also { cache.put(key, it) }
         }
       }
-    }
+    }.also { onProgress?.invoke(done, targets.size, "") }
   }
 }

@@ -134,6 +134,7 @@ internal object NativeIconPackManager {
               ImportResult(ImportStatus.ALREADY_IMPORTED, it.localId, it.name))
           }
           checkInterrupted()
+          NativeIconImportStorage.checkAvailable(checkNotNull(stage).length(), stageRoot.usableSpace)
           // Set before transact: transport failure can occur after the native worker accepted it.
           submitted = true
           val reply = pcRequest(pc, 2, checkNotNull(stage).path)

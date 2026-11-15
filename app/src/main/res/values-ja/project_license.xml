@@ -1,4 +1,10 @@
 <resources>
+    <string name="project_license_category_presentation">UI と描画</string>
+    <string name="project_license_category_system">Hook とシステム連携</string>
+    <string name="project_license_category_images">アイコンと画像</string>
+    <string name="project_license_category_data">データ・通信・文書</string>
+    <string name="project_license_category_runtime">言語と基盤</string>
+    <string name="project_license_category_references">研究・過去の参考資料</string>
     <string name="project_license_documents_menu">ライセンス文書メニュー</string>
     <string name="project_license_group_count">%1$s · %2$d</string>
     <string name="project_license_title">KeiHome のライセンス</string>

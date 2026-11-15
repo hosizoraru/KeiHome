@@ -67,7 +67,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     ReleaseNotesScreen(onBack)
     return
   }
-  if (route == "notices" || bundledLicenseForRoute(route) != null || thirdPartyComponentForRoute(route) != null) {
+  if (route == "notices" || noticeCategoryForRoute(route) != null ||
+    bundledLicenseForRoute(route) != null || thirdPartyComponentForRoute(route) != null) {
     NoticesDestinationScreen(route, onBack, onNavigate)
     return
   }

@@ -44,15 +44,16 @@ class NoticesUiTest {
   private val navigation = Os4NavigationTestHost()
   private val openedSources = mutableListOf<String>()
 
-  @Test fun overviewShowsComponentsAndOpensDocumentsFromAnchoredMenu() {
+  @Test fun overviewShowsCategoriesAndOpensDocumentsFromAnchoredMenu() {
     start()
-    rule.waitUntil(5_000) {
-      rule.onAllNodesWithTag("notices.component.miuix").fetchSemanticsNodes().isNotEmpty()
-    }
+    awaitCategories()
     rule.onNodeWithTag("notices.search").assertIsDisplayed()
-    rule.onNodeWithTag("notices.component.lucide").assertIsDisplayed()
-    rule.onNodeWithTag("notices.component.miuix").assertIsDisplayed()
-    rule.onNodeWithTag("notices.component.androidx").assertIsDisplayed()
+    for (category in NoticeCategory.entries) {
+      rule.onNodeWithTag("notices.category.${category.key}").assertExists()
+    }
+    rule.onNodeWithTag("notices.category.presentation").assertIsDisplayed()
+    rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
+    rule.onNodeWithTag("notices.component.androidx").assertDoesNotExist()
     rule.onNodeWithText(context.getString(R.string.notices_thanks)).assertDoesNotExist()
     rule.onNodeWithTag("about.project-license").assertDoesNotExist()
     rule.onNodeWithTag("notices.full").assertDoesNotExist()
@@ -66,6 +67,51 @@ class NoticesUiTest {
     rule.onNodeWithText(context.getString(R.string.notices_full)).performClick()
     awaitDocument()
     rule.onNodeWithTag("notices.document").assertTextEquals(asset("THIRD_PARTY_NOTICES.md"))
+  }
+
+  @Test fun categorySearchIsScopedAndRestoredAfterComponentAndRootReturn() {
+    start()
+    awaitCategories()
+    rule.onNodeWithTag("notices.category.system").performScrollTo().performClick()
+    awaitComponent("dexkit")
+    rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
+    rule.onNodeWithTag("notices.search").performClick().performTextReplacement("DexKit")
+    rule.onNodeWithTag("notices.search").performImeAction()
+    assertGroupCount(NoticeCategory.SYSTEM, 1)
+    rule.onNodeWithTag("notices.component.dexkit").performScrollTo().performClick()
+    rule.onNodeWithTag("notices.back").performClick()
+    rule.onNodeWithTag("notices.search").assertTextEquals("DexKit")
+    rule.onNodeWithTag("notices.search").performTextReplacement("MIUIX")
+    awaitEmpty()
+    rule.onNodeWithTag("notices.empty").assertExists()
+    rule.onNodeWithTag("notices.search").performTextReplacement("DexKit")
+    rule.onNodeWithTag("notices.back").performClick()
+    rule.onNodeWithTag("notices.search").assertTextEquals("")
+    rule.onNodeWithTag("notices.category.system").assertExists()
+    rule.onNodeWithTag("notices.category.system").performScrollTo().performClick()
+    rule.onNodeWithTag("notices.search").assertTextEquals("DexKit")
+    awaitComponent("dexkit")
+    rule.onNodeWithTag("notices.component.dexkit").assertExists()
+  }
+
+  @Test fun globalSearchMatchesSourcesAcrossCategoriesAndKeepsLicenseSearch() {
+    start()
+    awaitCategories()
+    rule.onNodeWithTag("notices.search").performClick().performTextReplacement("github.com")
+    rule.onNodeWithTag("notices.search").performImeAction()
+    rule.onNodeWithTag("notices.category.system").assertDoesNotExist()
+    rule.onNodeWithTag("notices.component.miuix").assertExists()
+    rule.onNodeWithTag("notices.component.dexkit").performScrollTo().performClick()
+    rule.onNodeWithTag("notices.back").performClick()
+    rule.onNodeWithTag("notices.search").assertTextEquals("github.com")
+    rule.onNodeWithTag("notices.search").performScrollTo().performTextReplacement("GNU GPL")
+    awaitComponent("dexkit")
+    rule.onNodeWithTag("notices.component.dexkit").assertExists()
+    rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
+    assertGroupCount(NoticeCategory.SYSTEM, 1)
+    rule.onNodeWithTag("notices.search").performTextReplacement("")
+    rule.onNodeWithTag("notices.category.presentation").assertExists()
+    rule.onNodeWithTag("notices.component.dexkit").assertDoesNotExist()
   }
 
   @Test fun aboutProjectEntryShowsScopeAndKeepsPrivateSourceStatus() {
@@ -86,8 +132,7 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.search").performScrollTo().performClick()
       .performTextReplacement("wxxsfxyzm")
     rule.onNodeWithTag("notices.search").performImeAction()
-    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
-      context.getString(R.string.notices_sources), 1)).assertExists()
+    assertGroupCount(NoticeCategory.REFERENCES, 1)
     rule.onNodeWithTag("notices.component.back-gesture").performScrollTo().performClick()
     rule.onNodeWithText(context.getString(R.string.notices_back_gesture_thanks)).assertExists()
     rule.onNodeWithTag("notices.source").performScrollTo().performClick()
@@ -102,21 +147,19 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.component.back-gesture").assertExists()
     rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
     rule.onNodeWithTag("notices.search").performScrollTo().performTextReplacement("no-such-notice-123")
+    awaitEmpty()
     rule.onNodeWithText(context.getString(R.string.notices_search_empty)).assertExists()
     rule.onNodeWithText(context.getString(R.string.project_license_group_count,
-      context.getString(R.string.notices_sources), 1)).assertDoesNotExist()
+      context.getString(NoticeCategory.REFERENCES.title), 1)).assertDoesNotExist()
   }
 
   @Test fun gplComponentStillOpensItsOwnUnmodifiedLicense() {
     start()
-    rule.waitUntil(5_000) {
-      rule.onAllNodesWithTag("notices.component.dexkit").fetchSemanticsNodes().isNotEmpty()
-    }
+    awaitCategories()
     rule.onNodeWithTag("notices.search").performScrollTo().performClick()
       .performTextReplacement("DexKit")
     rule.onNodeWithTag("notices.search").performImeAction()
-    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
-      context.getString(R.string.notices_dependencies), 1)).assertExists()
+    assertGroupCount(NoticeCategory.SYSTEM, 1)
     rule.onNodeWithTag("notices.component.dexkit").performScrollTo().performClick()
     rule.onNodeWithTag("notices.license.gpl").performScrollTo().performClick()
     awaitDocument()
@@ -141,6 +184,31 @@ class NoticesUiTest {
   }
 
   private fun asset(path: String) = context.assets.open(path).bufferedReader().use { it.readText() }
+
+  private fun assertGroupCount(category: NoticeCategory, count: Int) {
+    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
+      context.getString(category.title), count)).assertExists()
+  }
+
+  private fun awaitComponent(key: String) {
+    rule.waitUntil(5_000) {
+      rule.onAllNodesWithTag("notices.component.$key").fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private fun awaitEmpty() {
+    rule.waitUntil(5_000) {
+      rule.onAllNodesWithTag("notices.empty").fetchSemanticsNodes().isNotEmpty()
+    }
+  }
+
+  private fun awaitCategories() {
+    rule.waitUntil(5_000) {
+      NoticeCategory.entries.all {
+        rule.onAllNodesWithTag("notices.category.${it.key}").fetchSemanticsNodes().isNotEmpty()
+      }
+    }
+  }
 
   private fun awaitDocument() {
     rule.waitUntil(5_000) {

@@ -111,11 +111,12 @@ private fun noticeText(asset: String, retry: Int): State<NoticeText> {
 internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavigate: (String) -> Unit) {
   val license = bundledLicenseForRoute(route)
   val component = thirdPartyComponentForRoute(route)
+  val category = noticeCategoryForRoute(route)
   val title = when (license?.key) {
     "keihome" -> stringResource(R.string.project_license_title)
     "notices" -> stringResource(R.string.notices_full)
     "dexkit-source" -> stringResource(R.string.notices_source_offer)
-    else -> license?.title ?: component?.name ?: stringResource(R.string.settings_notices)
+    else -> license?.title ?: component?.name ?: stringResource(category?.title ?: R.string.settings_notices)
   }
   var retry by remember(route) { mutableIntStateOf(0) }
   val document = if (license != null) noticeText(license.asset, retry).value else NoticeText()
@@ -132,7 +133,7 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           }
         }, actions = {
-          if (route == "notices") {
+          if (route == "notices" || category != null) {
             OverlayIconCascadingDropdownMenu(
               entries = listOf(DropdownEntry(items = listOf(
                 DropdownItem(text = stringResource(R.string.project_license_title),
@@ -174,7 +175,7 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
               LicenseDocument(document) { retry++ }
             }
             component != null -> ThirdPartyComponentDetails(component, onNavigate)
-            else -> ThirdPartyNotices(onNavigate)
+            else -> ThirdPartyNotices(onNavigate, category)
           }
         }
       }
@@ -195,9 +196,9 @@ private fun NoticePlaceholder(failed: Boolean, onRetry: () -> Unit) {
 }
 
 @Composable
-internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
+internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCategory? = null) {
   val context = LocalContext.current
-  var query by rememberSaveable { mutableStateOf("") }
+  var query by rememberSaveable(category?.key) { mutableStateOf("") }
   var retry by remember { mutableIntStateOf(0) }
   val state by noticeText("third-party-dependencies.tsv", retry)
   val dependencies = remember(state.text) {
@@ -213,25 +214,37 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
     val searchable = listOf(component.name, context.getString(component.description), component.source,
       component.licenseKeys.joinToString(" ") { key -> bundledLicenses.first { it.key == key }.title },
       component.dependencies(dependencies.orEmpty()).joinToString(" ") { it.coordinate }).joinToString(" ")
-    terms.all { searchable.contains(it, ignoreCase = true) }
+    (category == null || component.category == category) &&
+      terms.all { searchable.contains(it, ignoreCase = true) }
   }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Os4SearchField(query = query, onQueryChange = { query = it },
       label = stringResource(R.string.notices_search),
       inputModifier = Modifier.testTag("notices.search"))
     if (dependencies == null) NoticePlaceholder(state.failed || state.text != null) { retry++ }
-    if (filtered.isEmpty()) {
+    if (filtered.isEmpty() && dependencies != null) {
       Text(stringResource(R.string.notices_search_empty), style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary, modifier = Modifier.padding(16.dp))
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        modifier = Modifier.testTag("notices.empty").padding(16.dp))
     }
-    AttributionKind.entries.forEach { kind ->
-      val entries = filtered.filter { it.kind == kind }
+    if (category == null && terms.isEmpty()) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        NoticeCategory.entries.forEach { entry ->
+          val count = filtered.count { it.category == entry }
+          if (count > 0) BasicComponent(
+            title = stringResource(R.string.project_license_group_count, stringResource(entry.title), count),
+            modifier = Modifier.testTag("notices.category.${entry.key}"),
+            onClick = { onNavigate("notices/category/${entry.key}") },
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+          )
+        }
+      }
+      return@Column
+    }
+    NoticeCategory.entries.forEach { entry ->
+      val entries = filtered.filter { it.category == entry }
       if (entries.isNotEmpty()) {
-        val groupTitle = stringResource(when (kind) {
-          AttributionKind.DEPENDENCY -> R.string.notices_dependencies
-          AttributionKind.SOURCE -> R.string.notices_sources
-          AttributionKind.HISTORY -> R.string.notices_history
-        })
+        val groupTitle = stringResource(entry.title)
         SmallTitle(stringResource(R.string.project_license_group_count, groupTitle, entries.size))
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           entries.forEach { component ->

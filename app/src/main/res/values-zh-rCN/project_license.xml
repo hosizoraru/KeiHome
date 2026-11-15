@@ -1,4 +1,10 @@
 <resources>
+    <string name="project_license_category_presentation">界面与呈现</string>
+    <string name="project_license_category_system">Hook 与系统集成</string>
+    <string name="project_license_category_images">图标与图像</string>
+    <string name="project_license_category_data">数据、网络与文档</string>
+    <string name="project_license_category_runtime">语言与基础设施</string>
+    <string name="project_license_category_references">研究与历史参考</string>
     <string name="project_license_documents_menu">许可文档菜单</string>
     <string name="project_license_group_count">%1$s · %2$d</string>
     <string name="project_license_title">KeiHome 项目许可</string>

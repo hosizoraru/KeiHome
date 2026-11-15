@@ -165,7 +165,7 @@ class PerfectLayeredIconTest {
 
   @Test fun rejectsUnsafeMamlWithoutLooseningLegacyAdmission() {
     for (body in listOf(
-      "<VariableBinders><BroadcastBinder action='android.intent.action.TIME_SET'/></VariableBinders>",
+      "<VariableBinders><BroadcastBinder action='android.intent.action.BATTERY_CHANGED'/></VariableBinders>",
       "<ExternalCommands><Trigger action='arbitrary'><FrameRateCommand rate='0'/></Trigger></ExternalCommands>",
       "<ExternalCommands><Trigger action='init'><IntentCommand action='anything'/></Trigger></ExternalCommands>",
       "<Image src='../outside.png'/>", "<Image src='file:/data/secret'/>",

@@ -8,8 +8,7 @@
     <string name="project_license_documents_menu">License documents</string>
     <string name="project_license_group_count">%1$s · %2$d</string>
     <string name="project_license_title">KeiHome license</string>
-    <string name="project_license_summary">Original code · Apache License 2.0</string>
     <string name="project_license_copyright">Copyright 2026 KeiHome contributors</string>
-    <string name="project_license_scope">KeiHome original code is licensed under the Apache License, Version 2.0. Third-party code, libraries, icons and other resources retain their own licenses and copyright notices. This license does not relicense those materials; see the open-source notices for their terms.</string>
+    <string name="project_license_scope">The KeiHome project license is the Apache License, Version 2.0. Third-party code, libraries, icons and other resources retain their own licenses and copyright notices. This license does not relicense those materials; see the open-source notices for their terms.</string>
     <string name="project_license_source_status">The KeiHome source repository is not public yet. A license declaration does not provide source access. Third-party source offers and rebuilding information remain in the complete notices and component details.</string>
 </resources>

@@ -322,7 +322,6 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
 @Composable
 internal fun ProjectLicenseEntry(onClick: () -> Unit) {
   BasicComponent(title = stringResource(R.string.project_license_title),
-    summary = stringResource(R.string.project_license_summary),
     modifier = Modifier.testTag("about.project-license"),
     onClick = onClick,
     endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })

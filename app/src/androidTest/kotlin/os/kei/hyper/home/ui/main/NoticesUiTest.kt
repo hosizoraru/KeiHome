@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -86,7 +87,8 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.empty").assertExists()
     rule.onNodeWithTag("notices.search").performTextReplacement("DexKit")
     rule.onNodeWithTag("notices.back").performClick()
-    rule.onNodeWithTag("notices.search").assertTextEquals("")
+    assertEquals("", rule.onNodeWithTag("notices.search").fetchSemanticsNode()
+      .config[SemanticsProperties.EditableText].text)
     rule.onNodeWithTag("notices.category.system").assertExists()
     rule.onNodeWithTag("notices.category.system").performScrollTo().performClick()
     rule.onNodeWithTag("notices.search").assertTextEquals("DexKit")

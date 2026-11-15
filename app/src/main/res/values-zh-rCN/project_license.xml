@@ -8,8 +8,7 @@
     <string name="project_license_documents_menu">许可文档菜单</string>
     <string name="project_license_group_count">%1$s · %2$d</string>
     <string name="project_license_title">KeiHome 项目许可</string>
-    <string name="project_license_summary">原创代码 · Apache License 2.0</string>
     <string name="project_license_copyright">Copyright 2026 KeiHome contributors</string>
-    <string name="project_license_scope">KeiHome 原创代码采用 Apache License, Version 2.0。第三方代码、依赖库、图标和其他资源保留各自的许可证与版权声明，本项目许可不改变这些材料的授权。具体条款请查阅开源声明。</string>
+    <string name="project_license_scope">KeiHome 的项目许可为 Apache License, Version 2.0。第三方代码、依赖库、图标和其他资源保留各自的许可证与版权声明，本项目许可不改变这些材料的授权。具体条款请查阅开源声明。</string>
     <string name="project_license_source_status">KeiHome 源码仓库暂未公开，许可声明不等于已经提供源码。第三方源码提供与重新构建信息仍保留在完整声明和对应组件详情中。</string>
 </resources>

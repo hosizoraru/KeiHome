@@ -181,7 +181,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         items(state.selections, key = { it.packageName }, contentType = { "custom" }) { item ->
-          val sourcePack = catalog.packs.firstOrNull { it.id == item.sourceId }
+          val sourcePack = catalog.packs.firstOrNull { it.pack.id == item.sourceId }?.pack
           val sourceTitle = if (sourcePack?.source is IconPackSource.Builtin && sourcePack.colorOsProfile != null)
             "ColorOS · ${customIconSourceTitle(sourcePack)}" else item.sourceTitle
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

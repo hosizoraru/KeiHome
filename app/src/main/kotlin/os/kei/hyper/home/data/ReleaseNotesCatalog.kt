@@ -21,7 +21,7 @@ internal object ReleaseNotesCatalog {
     ReleaseNote(
       version = "1.11.0",
       tag = "v1.11.0",
-      committedAt = "2026-11-15T13:20:18+08:00",
+      committedAt = "2026-11-15T13:24:02+08:00",
       introduction = R.string.release_notes_1_11_0_introduction,
       changes = R.array.release_notes_1_11_0_changes,
       footnote = R.string.release_notes_1_11_0_footnote,

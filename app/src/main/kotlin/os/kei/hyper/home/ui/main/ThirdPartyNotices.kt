@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -197,7 +198,7 @@ private fun NoticePlaceholder(failed: Boolean, onRetry: () -> Unit) {
 
 @Composable
 internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCategory? = null) {
-  val context = LocalContext.current
+  val resources = LocalResources.current
   var query by rememberSaveable(category?.key) { mutableStateOf("") }
   var retry by remember { mutableIntStateOf(0) }
   val state by noticeText("third-party-dependencies.tsv", retry)
@@ -211,7 +212,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
   }
   val terms = remember(query) { query.trim().split(Regex("\\s+")).filter(String::isNotBlank) }
   val filtered = included.filter { component ->
-    val searchable = listOf(component.name, context.getString(component.description), component.source,
+    val searchable = listOf(component.name, resources.getString(component.description), component.source,
       component.licenseKeys.joinToString(" ") { key -> bundledLicenses.first { it.key == key }.title },
       component.dependencies(dependencies.orEmpty()).joinToString(" ") { it.coordinate }).joinToString(" ")
     (category == null || component.category == category) &&

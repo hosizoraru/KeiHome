@@ -19,6 +19,20 @@ class IconPackUpdateNoticeTest {
     iconPackNeedsUpdate(original, current, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
       recommendedMappings = mappings)
 
+  @Test fun customChangesInEitherDirectionRequireReapplyAndOverrideStalePreservation() {
+    val identity = "a".repeat(64)
+    val generation = IconGenerationManifest(schemaVersion = 10, customIconIdentity = identity)
+    val applied = source.copy(generation = generation)
+    fun changed(current: IconBrowserSource, saved: String?) =
+      iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT, emptySet(),
+        preservedPackages = setOf(target.packageName), customizedPackages = setOf(target.packageName),
+        customIconIdentity = saved)
+    assertFalse(changed(applied, identity))
+    assertTrue(changed(source, identity))
+    assertTrue(changed(applied, "b".repeat(64)))
+    assertTrue(changed(applied, null))
+  }
+
   @Test fun mappingChangesInEitherDirectionNeedRegenerationAndMatchingSettingsStayClean() {
     val preserved = setOf("os.test.preserved")
     val adaptations = mapOf(target.flattened to "a".repeat(64))

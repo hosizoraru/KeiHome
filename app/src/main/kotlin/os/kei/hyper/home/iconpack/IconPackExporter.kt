@@ -130,6 +130,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context),
     phoneCompanionExclusions: Set<String> = emptySet(),
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
+    allowEmpty: Boolean = false,
     onProgress: ((Int, Int, String) -> Unit)? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
@@ -343,7 +344,15 @@ internal class IconPackExporter(private val context: Context, private val limits
           }
           } finally { nativeAdaptationTargets += renderer.nativeAdaptationTargets; mask?.recycle() }
         }
-        if (exported.isEmpty()) throw IconPackException("No selected launcher icons could be exported")
+        if (exported.isEmpty()) {
+          if (!allowEmpty) throw IconPackException("No selected launcher icons could be exported")
+          // A later custom-icon merge supplies the artwork when this base has no coverage.
+          check()
+          val hash = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
+          success = true
+          return IconPackExportResult(archive, hash, exported, skipped, 0, darkMode)
+        }
         val verified = IconPackArchive(limits).inspect(archive, nested, checkCancelled = check)
         if (verified.format != IconPackFormat.MIUI_ICONS || verified.entries.size != names.size) {
           throw IconPackException("Native icon archive validation failed")

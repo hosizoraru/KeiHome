@@ -23,10 +23,14 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
     os.kei.hyper.home.iconpack.IconMaskPolicy.DEFAULT_IDENTITY else "original",
   preservedPackages: Set<String> = emptySet(),
   recommendedMappings: RecommendedIconMappings = RecommendedIconMappings(),
+  customizedPackages: Set<String> = emptySet(),
+  customIconIdentity: String? = null,
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
   if ((source.generation?.recommendedMappings ?: RecommendedIconMappings()) != recommendedMappings) return true
-  if (source.generation?.preservedIconPackages.orEmpty() != preservedPackages) return true
+  if (source.generation?.customIconIdentity != customIconIdentity) return true
+  val effectivePreserved = preservedPackages - customizedPackages
+  if (source.generation?.preservedIconPackages.orEmpty() != effectivePreserved) return true
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||
     (source.generation?.completeSystemIconConfig ?: false) != completeSystemIconConfig ||
     (completeSystemIconConfig && (source.generation?.schemaVersion?.let { it < 4 } == true ||
@@ -45,7 +49,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   val names = source.nativeNames ?: return false
   val converted = pack.format !in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS)
   if (converted && source.generation?.schemaVersion?.let { it < 7 } == true) return true
-  val eligible = targets.filterNot { it.packageName in preservedPackages }
+  val eligible = targets.filterNot { it.packageName in effectivePreserved }
   if (converted && source.generation?.schemaVersion?.let { it >= 6 } == true &&
     activeLauncherSelectionChanged(source, eligible, names)) return true
   if (source.generation?.nativeAdaptations?.any { (target, fingerprint) ->
@@ -53,6 +57,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   val components = pack.entries.mapNotNull { it.component }.toSet()
   val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
   return eligible.any { target ->
+    if (target.packageName in customizedPackages) return@any false
     val aliases = nativeLauncherIconNames(target)
     val perfect = fallback.isPerfect
     if (aliases.any { it in names } || target.flattened in source.generation?.considered.orEmpty() ||

@@ -22,6 +22,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,6 +44,30 @@ class NoticesUiTest {
   private val navigation = Os4NavigationTestHost()
   private val openedSources = mutableListOf<String>()
 
+  @Test fun overviewShowsComponentsAndOpensDocumentsFromAnchoredMenu() {
+    start()
+    rule.waitUntil(5_000) {
+      rule.onAllNodesWithTag("notices.component.miuix").fetchSemanticsNodes().isNotEmpty()
+    }
+    rule.onNodeWithTag("notices.search").assertIsDisplayed()
+    rule.onNodeWithTag("notices.component.lucide").assertIsDisplayed()
+    rule.onNodeWithTag("notices.component.miuix").assertIsDisplayed()
+    rule.onNodeWithTag("notices.component.androidx").assertIsDisplayed()
+    rule.onNodeWithText(context.getString(R.string.notices_thanks)).assertDoesNotExist()
+    rule.onNodeWithTag("about.project-license").assertDoesNotExist()
+    rule.onNodeWithTag("notices.full").assertDoesNotExist()
+    rule.onNodeWithContentDescription(context.getString(R.string.project_license_documents_menu))
+      .assertIsDisplayed().performClick()
+    rule.onNodeWithText(context.getString(R.string.project_license_title)).performClick()
+    awaitDocument()
+    rule.onNodeWithTag("notices.document").assertTextEquals(asset("licenses/KeiHome-Apache-2.0.txt"))
+    rule.onNodeWithTag("notices.back").performClick()
+    rule.onNodeWithContentDescription(context.getString(R.string.project_license_documents_menu)).performClick()
+    rule.onNodeWithText(context.getString(R.string.notices_full)).performClick()
+    awaitDocument()
+    rule.onNodeWithTag("notices.document").assertTextEquals(asset("THIRD_PARTY_NOTICES.md"))
+  }
+
   @Test fun aboutProjectEntryShowsScopeAndKeepsPrivateSourceStatus() {
     start("about")
     rule.onNodeWithText(context.getString(R.string.settings_source_private)).assertExists()
@@ -61,6 +86,8 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.search").performScrollTo().performClick()
       .performTextReplacement("wxxsfxyzm")
     rule.onNodeWithTag("notices.search").performImeAction()
+    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
+      context.getString(R.string.notices_sources), 1)).assertExists()
     rule.onNodeWithTag("notices.component.back-gesture").performScrollTo().performClick()
     rule.onNodeWithText(context.getString(R.string.notices_back_gesture_thanks)).assertExists()
     rule.onNodeWithTag("notices.source").performScrollTo().performClick()
@@ -74,6 +101,10 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.search").assertTextEquals("wxxsfxyzm")
     rule.onNodeWithTag("notices.component.back-gesture").assertExists()
     rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
+    rule.onNodeWithTag("notices.search").performScrollTo().performTextReplacement("no-such-notice-123")
+    rule.onNodeWithText(context.getString(R.string.notices_search_empty)).assertExists()
+    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
+      context.getString(R.string.notices_sources), 1)).assertDoesNotExist()
   }
 
   @Test fun gplComponentStillOpensItsOwnUnmodifiedLicense() {
@@ -84,6 +115,8 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.search").performScrollTo().performClick()
       .performTextReplacement("DexKit")
     rule.onNodeWithTag("notices.search").performImeAction()
+    rule.onNodeWithText(context.getString(R.string.project_license_group_count,
+      context.getString(R.string.notices_dependencies), 1)).assertExists()
     rule.onNodeWithTag("notices.component.dexkit").performScrollTo().performClick()
     rule.onNodeWithTag("notices.license.gpl").performScrollTo().performClick()
     awaitDocument()

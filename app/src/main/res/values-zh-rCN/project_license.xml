@@ -1,4 +1,6 @@
 <resources>
+    <string name="project_license_documents_menu">许可文档菜单</string>
+    <string name="project_license_group_count">%1$s · %2$d</string>
     <string name="project_license_title">KeiHome 项目许可</string>
     <string name="project_license_summary">原创代码 · Apache License 2.0</string>
     <string name="project_license_copyright">Copyright 2026 KeiHome contributors</string>

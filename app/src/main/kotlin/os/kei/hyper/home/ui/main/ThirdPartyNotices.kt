@@ -31,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -44,11 +43,14 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.DropdownEntry
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -58,6 +60,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Copy
+import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class BundledLicense(val key: String, val title: String, val asset: String)
@@ -129,6 +132,19 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           }
         }, actions = {
+          if (route == "notices") {
+            OverlayIconCascadingDropdownMenu(
+              entries = listOf(DropdownEntry(items = listOf(
+                DropdownItem(text = stringResource(R.string.project_license_title),
+                  onClick = { onNavigate("license/keihome") }),
+                DropdownItem(text = stringResource(R.string.notices_full),
+                  onClick = { onNavigate("license/notices") }),
+              ))),
+              modifier = Modifier.testTag("notices.documents"),
+            ) {
+              Icon(MiuixIcons.Glass.More, stringResource(R.string.project_license_documents_menu))
+            }
+          }
           if (license != null) IconButton(
             enabled = document.text != null,
             minHeight = 48.dp, minWidth = 48.dp,
@@ -199,27 +215,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
       component.dependencies(dependencies.orEmpty()).joinToString(" ") { it.coordinate }).joinToString(" ")
     terms.all { searchable.contains(it, ignoreCase = true) }
   }
-  val componentCount = included.count { it.kind == AttributionKind.DEPENDENCY }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Column(Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text(stringResource(R.string.notices_thanks), style = MiuixTheme.textStyles.title2,
-        modifier = Modifier.semantics { heading() })
-      Text(stringResource(R.string.notices_intro), style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      if (dependencies != null) {
-        MetadataPill(pluralStringResource(R.plurals.notices_component_count, componentCount, componentCount),
-          MiuixTheme.colorScheme.primary)
-      }
-    }
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      ProjectLicenseEntry { onNavigate("license/keihome") }
-      BasicComponent(title = stringResource(R.string.notices_full),
-        summary = stringResource(R.string.notices_full_summary),
-        onClick = { onNavigate("license/notices") },
-        modifier = Modifier.testTag("notices.full"),
-        endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
-    }
     Os4SearchField(query = query, onQueryChange = { query = it },
       label = stringResource(R.string.notices_search),
       inputModifier = Modifier.testTag("notices.search"))
@@ -231,11 +227,12 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit) {
     AttributionKind.entries.forEach { kind ->
       val entries = filtered.filter { it.kind == kind }
       if (entries.isNotEmpty()) {
-        SmallTitle(stringResource(when (kind) {
+        val groupTitle = stringResource(when (kind) {
           AttributionKind.DEPENDENCY -> R.string.notices_dependencies
           AttributionKind.SOURCE -> R.string.notices_sources
           AttributionKind.HISTORY -> R.string.notices_history
-        }))
+        })
+        SmallTitle(stringResource(R.string.project_license_group_count, groupTitle, entries.size))
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           entries.forEach { component ->
             val versions = component.dependencies(dependencies.orEmpty()).map { it.version }.distinct()

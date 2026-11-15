@@ -164,8 +164,7 @@ context-reg、BLR-reg 破坏的 4 个反例。证据见
 契约仍仅由旧 9 个样本生成，未把 9258 加入生成集合。
 9258 新 Image 测试已通过 **11 positives / 132 rejections**，证据见
 [ImageRecovery 9258 日志](../.artifacts/research/launcher-9258-20261115/profiles/image-recovery-9258.log)。
-这是新增规则的单样本阶段结果，不代表最终十样本 ImageRecovery、shipping、
-Native 或设备验证已经完成。
+这是隔离的单样本阶段结果；最终十样本与实际产物、设备结果另见后文。
 
 ## 契约生成与 holdout 边界
 
@@ -183,40 +182,56 @@ Selection、Dock 与 ImageRecovery 均不新增 9258 版本、库哈希到 RVA �
 日志明确为 `host_only`，其中包括不同加载基址、未知文件身份、指令变异拒绝、
 PP 槽重定位及 publication 检查。
 
-该 Selection 结果支持继续迭代结构发现模型；**它不代表最终九样本生产契约已经完成
-最终四套十样本回归，也不代表 shipping、Native 桥接或 HyperOS-AVD 运行/视觉验收通过。**
-这里的“仅用 9248”是隔离泛化实验，不替代旧九样本生产输入集合。
+这里的“仅用 9248”是隔离泛化实验，不替代旧九样本生产输入集合；
+最终四套十样本、实际产物与设备结果分别见下文。
 
-## 验证（最终结果待补）
+## 最终验证
 
-当前已确认上述静态审计、9248-only Selection 的 host-only 80 项检查、
-旧九样本生成契约后的 Dock 十样本各 128 项检查，以及 9258 ImageRecovery 的
-11 positives / 132 rejections。各项属于不同阶段，不能合并为最终全链路通过。
-
-最终四套十样本 matrix 正在
-[verified-matrix](../.artifacts/research/launcher-9258-20261115/verified-matrix/)
-中执行，最终汇总尚待补入；构建及 HyperOS-AVD 未验收，
-shipping/Native/device 结论仍待确认，整体保持**待验收**。
-本节最终结果由主任务负责人填写，不能从 9248 历史记录或阶段日志借用通过结论。
-
-| 验证门槛 | 最终状态与证据 |
+| 验证门槛 | 结果与证据 |
 | --- | --- |
-| 旧九样本生成输入隔离、9258 holdout 身份及最终契约产物 | 待补最终核对 |
-| Dock 阶段十样本结构/拒绝检查 | 已通过：每样本 128 项，见 `profiles/dock-matrix.json` |
-| ImageRecovery 9258 阶段正例/拒绝检查 | 已通过：11 positives / 132 rejections，见 `profiles/image-recovery-9258.log` |
-| 最终四套十样本 resolver 与拒绝 matrix | 正在 `verified-matrix/` 执行，最终结果待填 |
-| 干净源构建 | 待验证，结果待填 |
-| shipping 链接/打包载荷及精确身份 | 待验收，结果待填 |
-| Native bridge、安装/发布及相关安全验证 | 待验收，结果待填 |
-| HyperOS-AVD 实际 APK/Native 映射、运行及逐项视觉验收 | 待验收，结果待填 |
+| 生成输入隔离 | 生产契约来自旧 9 个样本；9258 仅用于运行验收。`verified-matrix/report.json` 明确记录 contract 与 held-out 集合 |
+| 四套十样本 | Selection、Tint、ImageRecovery、Monochrome gate 全部通过；包含生成器逐字节复现、结构/拒绝检查及 ARM64 模型 |
+| 独立深层图回归 | 9248、9258 各新增 15/15 正反例，并分别保留原有 80/80 检查；见 `graph-relocation-tests/evidence.json` |
+| Dock | 十样本各 128 项结构/拒绝检查通过；闭包地址允许重定位，寄存器/移位/调用契约破坏被拒绝 |
+| Release/R8、Lint | 签名 Release 与 Lint 通过，构建耗时 4 分 16 秒 |
+| 实际原生产物 | 未剥离与 APK 内原生库的 27 个已分配区段逐项相同，Build ID 一致；实际编译的桥接指令通过验证 |
+| shipping Monet | 十个样本的实际 Selection、Tint、ImageRecovery 桥接模型通过，见 `shipping-monet/report.json` |
+| shipping Dock/材质 | 模式、几何、刷新与十样本材质模型通过；材质共 1372 个 ARM64 case，见 `dock-material/final-matrix.json` |
+| 标签、高光 | 标签在 9248/9258 通过 source+linked 检查；高光在十样本上通过 linked 检查，使用本次实际原生 ELF |
+| AVD 部署 | 原位更新 `110000463 → 110000464`，API 102 Java 交接通过；为原生更新重建桌面宿主，未重启系统或清数据 |
+| AVD 运行状态 | 状态卡恢复“模块已就绪 / 桌面已连接”，Home 9258；ImageRecovery、Dock、标签、高光、材质均有本次新进程安装记录 |
+| AVD 现场冒烟 | Monet 开关可操作，开→关后恢复初始关闭状态；桌面与文件夹预览、Dock 显示已观察；桌面 PID 在此期间保持 2040 |
+| 收尾 | 健康检查通过，用户解锁且服务响应正常；保留 9258，AVD 继续运行；未启动 ColorOS，未操作实体机 |
 
-9258 继续作为后续主要验收版本；系统分区内置桌面、安装更新与实际运行映射身份
-必须分开记录，不以旧基线元数据推断回退。
+最终四套 matrix：[report.json](../.artifacts/research/launcher-9258-20261115/verified-matrix/report.json)。
+实际原生验证回执：[validated-native.json](../.artifacts/research/launcher-9258-20261115/validated-native.json)。
+部署回执：[deployment.json](../.artifacts/research/launcher-9258-20261115/final-deployment/deployment.json)。
+现场与设置还原：[live-smoke.json](../.artifacts/research/launcher-9258-20261115/live-smoke.json)。
+状态截图：[final-status-restored.png](../.artifacts/research/launcher-9258-20261115/final-status-restored.png)。
 
-## 交付（最终结果待补）
+安装/Java 交接窗口中的关键进程与原生桌面宿主更新分开记录：
+`system_server`（8718 / start 2432）和 SystemUI（9684 / start 3157）身份保持，
+桌面及其宿主按原生更新要求重建。不能声称所有进程均未变化。
 
-由主任务负责人补入最终源码提交、构建版本、APK/载荷哈希、签名、
-R8 mapping/Native symbols 留存路径及验收证据。当前不填写尚未产生的交付身份，
-也不宣称已经提交、发布或完成设备验收。
+9258 的实际 APK SHA-256 在部署前后均与提供文件一致：
+`9fcd6d47d132efaeebbe30daf096840ecd228f7ba659a966fe5f48b6f1b8774d`。
+实际运行映射仍指向 `/data/app/` 更新包；系统分区的 7722 是独立的内置版本，
+不构成本次回退。原生重载后现场日志未见再次出现本次解析拒绝或新增崩溃。
+离线 ARM64 模型与现场冒烟不等同于所有实际 Dart GC/GPU 场景的压力测试。
 
-本次文档子任务只写入本文；未修改其余源码或文档，未执行构建、设备操作或 commit。
+## 交付与后续基线
+
+- 核心修复：`5bf8c00`；构建源码：`ba51dfa5f750fc0ad59b810f148fcc3d226e7b35`。
+- 签名候选：`1.10.0+gba51dfa.b0464`，versionCode `110000464`。
+- APK：[KeiHome 1.10.0 候选](../.artifacts/releases/110000464/KeiHome-1.10.0+gba51dfa.b0464.apk)。
+- APK SHA-256：`00242b4f0d516f06b216e905d368167f42e097d557f623fa4269fc03d5affd9a`。
+- Release 证书 SHA-256：`c5c4c43ba6d03268773122bc99d1e870908609ae5251c7c8ad4b6029b573c82a`。
+- packaged native：`c5b2c101d0c18219f9914cc5346f7ec37a9c31302b2f8733159edbf47bd1660c`。
+- unstripped native：`fc0556e80d8be11a02b992253e4ed5b4a83528f8e4571223b3c3485e33a8662d`。
+- Native Build ID：`4fd4fdcf1b887c27fd39da86dcc6f747479d1971`。
+- APK、R8 mapping/配置与 Native symbols 均保留于 `.artifacts/releases/110000464/`。
+
+后续 UI 修改应以本节原生库与验证回执为当前基线，避免复用历史 UI 辅助脚本时
+带回旧原生产物。测试清单/文档可继续完善，应用编译输入须与构建源码核对一致。
+9258 继续作为 HyperOS Phone AVD 的主要验收版本，保留当前更新包及用户数据。
+已有 release tag 未移动；未推送或远程发布。

@@ -1,5 +1,14 @@
 # Native launcher compatibility matrix
 
+Current HyperOS Phone AVD acceptance baseline (2026-11-15): **9258**,
+`RELEASE-8.01.02.9258-261013-11132207-R`. Keep this installed update after
+acceptance; older restoration records below are historical evidence, not
+instructions to restore 8593 or 9248. Do not launch ColorOS for this work.
+
+The [9258 follow-up](launcher-9258-compatibility.md) extends the runtime fixture
+inventory to ten versions. Production contracts remain generated from the nine
+reviewed inputs through 9248, with 9258 held out to verify dynamic discovery.
+
 This checkpoint adds the user's three newer launcher APKs to the two existing
 fixtures. All five are ARM64 Flutter/Rust launchers with no DEX payload. These
 contracts therefore use mapped native instructions; the separate Themes APK

@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
@@ -52,6 +53,7 @@ import kotlinx.coroutines.flow.drop
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.os4Toggleable
@@ -191,10 +193,18 @@ internal fun PreservedIconsPage(
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } }, actions = {
-          PreservedIconsFilter(allApps, preserved.size, origin, onModeChange = { allApps = it },
-            onOriginChange = { origin = it }, onReset = { allApps = false; origin = 0 })
+          PreservedIconsFilter(origin, onOriginChange = { origin = it }, onReset = { origin = 0 })
           PreservedIconsSort(sort, reverse, onSortChange = { sort = it },
             onReverseChange = { reverse = !reverse })
+        }, bottomContent = {
+          Os4ViewTabs(
+            items = listOf(stringResource(R.string.preserved_icons_saved, preserved.size),
+              stringResource(R.string.preserved_icons_all)),
+            selectedIndex = if (allApps) 1 else 0,
+            onSelect = { allApps = it == 1 },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+              .testTag("preserved-icons.views"),
+          )
         })
     }
   }) { padding ->
@@ -213,8 +223,6 @@ internal fun PreservedIconsPage(
       item("guidance", contentType = "guidance") {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetadataPill(stringResource(R.string.preserved_icons_saved, preserved.size),
-              MiuixTheme.colorScheme.primary)
             Text(stringResource(R.string.preserved_icons_explanation), style = MiuixTheme.textStyles.footnote1,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
             if (loading || failed) {
@@ -261,15 +269,9 @@ internal fun PreservedIconsPage(
 }
 
 @Composable
-private fun PreservedIconsFilter(allApps: Boolean, savedCount: Int, origin: Int,
-  onModeChange: (Boolean) -> Unit, onOriginChange: (Int) -> Unit, onReset: () -> Unit) {
-  val saved = stringResource(R.string.preserved_icons_saved, savedCount)
-  val all = stringResource(R.string.preserved_icons_all)
+private fun PreservedIconsFilter(origin: Int,
+  onOriginChange: (Int) -> Unit, onReset: () -> Unit) {
   val origins = listOf(R.string.browser_origin_all, R.string.browser_origin_user, R.string.browser_origin_system)
-  val modes = DropdownEntry(items = listOf(
-    DropdownItem(text = saved, selected = !allApps, onClick = { onModeChange(false) }),
-    DropdownItem(text = all, selected = allApps, onClick = { onModeChange(true) }),
-  ))
   val sources = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_origin),
       children = origins.mapIndexed { index, label ->
@@ -280,13 +282,13 @@ private fun PreservedIconsFilter(allApps: Boolean, savedCount: Int, origin: Int,
     DropdownItem(text = stringResource(R.string.browser_reset), onClick = onReset),
   ))
   OverlayIconCascadingDropdownMenu(
-    entries = listOf(modes, sources, reset),
+    entries = listOf(sources, reset),
     modifier = Modifier.testTag("preserved-icons.filter"),
   ) {
     Icon(MiuixIcons.Glass.Filter,
       contentDescription = stringResource(R.string.preserved_icons_filter,
-        "${if (allApps) all else saved}, ${stringResource(origins[origin.coerceIn(origins.indices)])}"),
-      tint = if (allApps && origin == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
+        stringResource(origins[origin.coerceIn(origins.indices)])),
+      tint = if (origin == 0) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
   }
 }
 

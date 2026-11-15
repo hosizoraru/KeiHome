@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -33,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -133,6 +136,11 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
               AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
             }
             if (page != 4) RefreshAction(model, page)
+          },
+          bottomContent = {
+            if (selectedTab == 1) AppsOriginTabs(model) {
+              navigationScope.launch { appList.scrollToItem(0) }
+            }
           },
         )
       }
@@ -256,6 +264,22 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
 }
 
 @Composable
+private fun AppsOriginTabs(model: HomeViewModel, onSelect: () -> Unit) {
+  val options by model.browserOptions.collectAsStateWithLifecycle()
+  Os4ViewTabs(
+    items = listOf(R.string.browser_all, R.string.browser_origin_user, R.string.browser_origin_system)
+      .map { stringResource(it) },
+    selectedIndex = options.origin,
+    onSelect = {
+      model.updateBrowserOptions(model.browserOptions.value.copy(origin = it))
+      onSelect()
+    },
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+      .testTag("apps.origins"),
+  )
+}
+
+@Composable
 private fun AppsFilterMenu(model: HomeViewModel) {
   val options by model.browserOptions.collectAsStateWithLifecycle()
   @Composable
@@ -265,8 +289,6 @@ private fun AppsFilterMenu(model: HomeViewModel) {
         selected = selected == index, onClick = { update(index) }) })
   val filters = DropdownEntry(items = listOf(
     group(R.string.browser_scope, browserScopeLabels(), options.scope) { model.updateBrowserOptions(options.copy(scope = it)) },
-    group(R.string.browser_origin, listOf(R.string.browser_origin_all, R.string.browser_origin_user, R.string.browser_origin_system),
-      options.origin) { model.updateBrowserOptions(options.copy(origin = it)) },
     group(R.string.browser_coverage, listOf(R.string.browser_all, R.string.browser_covered, R.string.browser_original),
       options.coverage) { model.updateBrowserOptions(options.copy(coverage = it)) },
     group(R.string.browser_support, listOf(R.string.browser_all, R.string.filter_night, R.string.filter_monochrome,
@@ -283,7 +305,7 @@ private fun AppsFilterMenu(model: HomeViewModel) {
   ))
   OverlayIconCascadingDropdownMenu(entries = listOf(filters, controls)) {
     Icon(MiuixIcons.Glass.Filter, stringResource(R.string.filter_title), tint =
-      if (options.copy(sort = 0, reverse = false) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
+      if (options.copy(origin = 0, sort = 0, reverse = false) != IconBrowserOptions()) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
 

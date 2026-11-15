@@ -10,6 +10,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.semantics.SemanticsProperties
+import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.performScrollTo
 import os.kei.hyper.home.MainActivity
 import os.kei.hyper.home.R
@@ -20,6 +23,28 @@ class MainScreenTest {
   @get:Rule(order = 0) val foreground = ForegroundComposeHostRule()
   @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+  @Test
+  fun appOriginSwitchIsVisibleAboveSearchAndSurvivesPageNavigation() {
+    val context = composeTestRule.activity
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
+    val labels = listOf(R.string.browser_all, R.string.browser_origin_user, R.string.browser_origin_system)
+      .map { context.getString(it) }
+    val initial = labels.indexOfFirst { label ->
+      composeTestRule.onNodeWithText(label).fetchSemanticsNode().config
+        .getOrElse(SemanticsProperties.Selected) { false }
+    }
+    try {
+      assertTrue(composeTestRule.onNodeWithTag("apps.origins").fetchSemanticsNode().boundsInRoot.bottom <=
+        composeTestRule.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot.top)
+      composeTestRule.onNodeWithText(labels[2]).performClick().assertIsSelected()
+      composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
+      composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
+      composeTestRule.onNodeWithText(labels[2]).assertIsSelected()
+      composeTestRule.onNodeWithText(labels[1]).performClick().assertIsSelected()
+    } finally {
+      composeTestRule.onNodeWithText(labels[initial.coerceAtLeast(0)]).performClick()
+    }
+  }
 
   @Test
   fun keepsAppSearchWhenReturningFromSettings() {
@@ -36,7 +61,7 @@ class MainScreenTest {
     val context = composeTestRule.activity
     composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
-    composeTestRule.onNodeWithText(context.getString(R.string.settings_language)).assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.settings_app_section)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertDoesNotExist()
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertExists()
@@ -56,6 +81,7 @@ class MainScreenTest {
   fun settingsOffersAppLanguages() {
     val context = composeTestRule.activity
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.settings_app_section)).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.settings_language)).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.language_chinese)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.language_english)).assertExists()
@@ -66,8 +92,9 @@ class MainScreenTest {
   fun opensIndependentMonetPage() {
     val context = composeTestRule.activity
     composeTestRule.onNode(
-      hasText(context.getString(R.string.navigation_monet)) and isSelectable(),
+      hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable(),
     ).performClick()
+    composeTestRule.onNodeWithText(context.getString(R.string.navigation_monet)).performScrollTo().performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_current_theme)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.monet_seed_source)).assertExists()
     composeTestRule.onNodeWithText(context.getString(R.string.dashboard_runtime)).assertDoesNotExist()

@@ -78,6 +78,7 @@ internal fun KeiHomeTopAppBar(
   navigationIcon: @Composable () -> Unit = {},
   actions: @Composable RowScope.() -> Unit = {},
   scrollBehavior: ScrollBehavior? = null,
+  bottomContent: @Composable () -> Unit = {},
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
   val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
@@ -87,6 +88,7 @@ internal fun KeiHomeTopAppBar(
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
     actions = { CompositionLocalProvider(LocalGlassToolbar provides true) { actions() } },
     scrollBehavior = scrollBehavior,
+    bottomContent = bottomContent,
     bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)
       else SolidColor(Color.Transparent))
 }

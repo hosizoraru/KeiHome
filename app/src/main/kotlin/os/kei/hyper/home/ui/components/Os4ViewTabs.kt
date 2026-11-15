@@ -4,6 +4,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
@@ -25,7 +26,10 @@ import top.yukonga.miuix.kmp.glass.GlassSegmentedTabRowDefaults
 import top.yukonga.miuix.kmp.glass.GlassTabRow
 import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
 import top.yukonga.miuix.kmp.material.GlassDefaults
+import top.yukonga.miuix.kmp.material.GlassShadows
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.abs
+import kotlin.math.ceil
 
 /** Mutually exclusive views of the same content share the native joined track. */
 @Composable
@@ -89,37 +93,53 @@ private fun Os4NativeTabs(
   val minimumWidth = (textWidth + horizontalPadding * 2) * items.size +
     tabGap * (items.size - 1) + trackPadding * 2
   val scroll = rememberScrollState()
+  val shadow = GlassShadows.Float
+  // Native shadow ink lies outside the track. Keep its full reach and one clear
+  // physical pixel inside any scroll viewport or clipping parent.
+  val shadowReach = (shadow.radius + maxOf(abs(shadow.offsetX), abs(shadow.offsetY))) /
+    GlassDefaults.SourceDensity
+  val shadowPadding = with(density) {
+    (ceil(shadowReach * this.density).toInt() + 1).toDp()
+  }
   BoxWithConstraints(modifier.fillMaxWidth()) {
-    val trackWidth = if (constraints.hasBoundedWidth) maxOf(maxWidth, minimumWidth) else minimumWidth
-    LaunchedEffect(selected, trackWidth, maxWidth, scroll.maxValue) {
-      if (constraints.hasBoundedWidth) {
+    val availableWidth = (maxWidth - shadowPadding * 2).coerceAtLeast(0.dp)
+    val trackWidth = if (constraints.hasBoundedWidth) maxOf(availableWidth, minimumWidth) else minimumWidth
+    val overflows = constraints.hasBoundedWidth && minimumWidth > availableWidth
+    LaunchedEffect(selected, trackWidth, maxWidth, scroll.maxValue, overflows, shadowPadding) {
+      if (overflows && scroll.maxValue != Int.MAX_VALUE) {
         val tabWidth = (trackWidth - trackPadding * 2 - tabGap * (items.size - 1)) / items.size
+        val halo = with(density) { shadowPadding.roundToPx() }
         val start = with(density) {
-          (trackPadding + (tabWidth + tabGap) * selected).roundToPx()
+          (shadowPadding + trackPadding + (tabWidth + tabGap) * selected).roundToPx()
         }
         val end = start + with(density) { tabWidth.roundToPx() }
         val viewport = with(density) { maxWidth.roundToPx() }
         val target = when {
-          start < scroll.value -> start
-          end > scroll.value + viewport -> end - viewport
+          selected == 0 -> 0
+          selected == items.lastIndex -> scroll.maxValue
+          start - halo < scroll.value -> start - halo
+          end + halo > scroll.value + viewport -> end + halo - viewport
           else -> scroll.value
         }.coerceIn(0, scroll.maxValue)
         if (target != scroll.value) scroll.animateScrollTo(target)
       }
     }
     // Keep full-size labels readable without letting a wide native track escape the page.
-    Box(if (constraints.hasBoundedWidth) Modifier.fillMaxWidth().horizontalScroll(scroll) else Modifier) {
+    Box(if (overflows) Modifier.fillMaxWidth().horizontalScroll(scroll) else Modifier.fillMaxWidth()) {
+      val trackModifier = Modifier
+        .padding(shadowPadding)
+        .width(trackWidth)
       if (joined) {
         GlassSegmentedTabRow(tabs = items, selectedIndex = selected,
           onSelect = { if (it in items.indices && it != selected) onSelect(it) },
-          backdrop = surfaceBackdrop, modifier = Modifier.width(trackWidth),
+          backdrop = surfaceBackdrop, modifier = trackModifier,
           surfaceAlpha = if (LocalKeiHomeBackdrop.current == null) 0f else 1f,
           height = height, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
       } else {
         GlassTabRow(tabs = items, selectedIndex = selected,
           onSelect = { if (it in items.indices && it != selected) onSelect(it) },
           backdrop = surfaceBackdrop.takeIf { LocalKeiHomeBackdrop.current != null },
-          modifier = Modifier.width(trackWidth), height = height,
+          modifier = trackModifier, height = height,
           style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
       }
     }

@@ -1,0 +1,5 @@
+<resources>
+    <string name="pull_refresh_hint">Pull down to refresh</string>
+    <string name="pull_refresh_release">Release to refresh</string>
+    <string name="pull_refresh_finished">Refresh finished</string>
+</resources>

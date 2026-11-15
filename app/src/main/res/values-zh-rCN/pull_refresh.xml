@@ -1,0 +1,5 @@
+<resources>
+    <string name="pull_refresh_hint">下拉刷新</string>
+    <string name="pull_refresh_release">松开刷新</string>
+    <string name="pull_refresh_finished">刷新已结束</string>
+</resources>

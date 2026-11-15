@@ -80,6 +80,7 @@ import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
@@ -215,8 +216,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   var batchClock by remember { mutableLongStateOf(System.currentTimeMillis()) }
   val now = maxOf(batchClock, System.currentTimeMillis())
+  val rowsIdentity = SnapshotIdentity(state.rows)
   // Row retries advance batchClock below; unrelated progress updates need no eligibility scan.
-  val eligiblePackages = remember(batchBrowser, state.rows, batchClock) {
+  val eligiblePackages = remember(batchBrowser, rowsIdentity, batchClock) {
     if (batchBrowser) state.rows.asSequence().filter { appleBatchSelectable(it, now) }
       .mapTo(hashSetOf()) { it.target.packageName } else emptySet()
   }
@@ -228,7 +230,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val mappingFilter = savedFilter.takeUnless { it == AppleMappingFilter.MAPPED || it == AppleMappingFilter.UNMAPPED }
     ?: AppleMappingFilter.ALL
   val mappingSort = AppleMappingSort.entries.firstOrNull { it.name == sortName } ?: AppleMappingSort.NAME
-  val browserRequest = remember(state.rows, filter, mappingFilter, mappingSort, state.options.country,
+  val browserRequest = remember(rowsIdentity, filter, mappingFilter, mappingSort, state.options.country,
     regionFilter, matchedOnly, locales, batchClock) { Any() }
   // Retain the previous rows until this exact filtering request finishes.
   val browserResult = if (!main && !search) {
@@ -242,23 +244,24 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     result
   } else null
   val browserRows = browserResult?.second?.getOrNull(if (batchBrowser) mappingView.coerceIn(0, 2) else 0).orEmpty()
+  val browserRowsIdentity = SnapshotIdentity(browserRows)
   val browserLoading = !main && !search && browserResult?.first !== browserRequest
-  val regions = remember(main, search, state.rows, state.options.country) {
+  val regions = remember(main, search, rowsIdentity, state.options.country) {
     if (main || search) emptyList() else state.rows.mapNotNull {
       it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
     }.distinct().sorted()
   }
-  val mappedCount = remember(state.rows) { state.rows.count { it.app != null } }
-  val visibleMatchEligible = remember(browserRows, eligiblePackages) {
+  val mappedCount = remember(rowsIdentity) { state.rows.count { it.app != null } }
+  val visibleMatchEligible = remember(browserRowsIdentity, SnapshotIdentity(eligiblePackages)) {
     browserRows.filter { it.target.packageName in eligiblePackages }.mapTo(linkedSetOf()) { it.target.packageName }
   }
-  val selection = remember(browserRows, selectedPackages, batchBrowser, batchClock) {
+  val selection = remember(browserRowsIdentity, SnapshotIdentity(selectedPackages), batchBrowser, batchClock) {
     appleMappingSelection(browserRows, selectedPackages, batchBrowser, now)
   }
   val visibleEligible = selection.selectable
   val selectedVisible = selection.selected
   val selectedBatch = selection.match
-  LaunchedEffect(batchBrowser, state.rows, batchClock, mappingFilter) {
+  LaunchedEffect(batchBrowser, rowsIdentity, batchClock, mappingFilter) {
     if (!batchBrowser) return@LaunchedEffect
     val time = System.currentTimeMillis()
     val next = state.rows.asSequence().flatMap { row -> buildList {
@@ -269,7 +272,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     kotlinx.coroutines.delay((next - time).coerceAtLeast(0) + 25)
     batchClock = System.currentTimeMillis()
   }
-  LaunchedEffect(visibleEligible, selecting, localLoading, browserLoading, state.batchRunning) {
+  LaunchedEffect(SnapshotIdentity(visibleEligible), selecting, localLoading, browserLoading, state.batchRunning) {
     if (selecting && !localLoading && !browserLoading && !state.batchRunning) {
       val retained = retainedAppleSelection(selectedPackages, visibleEligible)
       if (retained != selectedPackages) selectedPackages = retained
@@ -364,10 +367,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             enabled = enabled && !browserLoading && visibleEligible.isNotEmpty(),
             onClick = { focus.clearFocus(); keyboard?.hide(); selectedPackages = emptyList(); selecting = true })
           if (!search && !selecting) {
-            val browserActions = if (!main) listOf(DropdownEntry(items = buildList {
-              add(DropdownItem(text = stringResource(R.string.apple_refresh_mappings), enabled = enabled,
-                onClick = controller::load))
-            })) else emptyList()
             val transferActions = DropdownEntry(items = listOf(
               DropdownItem(text = stringResource(R.string.apple_mapping_export), enabled = enabled, onClick = {
                 transferring = true
@@ -390,7 +389,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 }
               }),
             ))
-            OverlayIconCascadingDropdownMenu(entries = browserActions + transferActions) {
+            OverlayIconCascadingDropdownMenu(entries = listOf(transferActions)) {
               Icon(MiuixIcons.Glass.More, stringResource(R.string.apple_mapping_transfer))
             }
           }
@@ -455,11 +454,17 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       modifier = Modifier.onSizeChanged { actionHeight = it.height })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
+      val listPadding = PaddingValues(start = 16.dp, end = 16.dp,
+        top = insets.calculateTopPadding() + 4.dp,
+        bottom = insets.calculateBottomPadding() +
+          maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp))
+      Os4PullToRefresh(refreshing = !main && !search && localLoading,
+        enabled = !main && !search && enabled && !selecting,
+        onRefresh = controller::load, contentPadding = listPadding,
+        refreshLabel = stringResource(R.string.apple_refresh_mappings),
+        modifier = Modifier.testTag("apple.$section.pull-to-refresh")) {
       LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior), state = listState,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp,
-          top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() +
-            maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)),
+        contentPadding = listPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (main && state.pack != null &&
           (state.pendingChanges || state.publishedOptions != state.options)) item("pending-options") {
@@ -720,6 +725,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }))
         } }
       }
+    }
     }
     inspectionRow?.let { row ->
       key(row.target.packageName, state.options.platform, state.options.country) {

@@ -2,9 +2,11 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +18,9 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onFirst
@@ -39,6 +44,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
+import os.kei.hyper.home.ui.components.KeiHomeIconButton
+import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
@@ -55,7 +62,8 @@ class Os4InfoPopupDeviceTest {
   private val showTrigger = mutableStateOf(true)
 
   @Test fun nativeMorphStartsAtAnchorAndBackKeepsHostUntilExitCompletes() {
-    showInfo(glass = true)
+    showInfo(glass = true, toolbar = true)
+    compose.onNodeWithContentDescription(TRIGGER).assertWidthIsEqualTo(40.dp).assertHeightIsEqualTo(40.dp)
     val trigger = compose.onNodeWithContentDescription(TRIGGER)
     val source = trigger.fetchSemanticsNode().boundsInRoot
     compose.mainClock.autoAdvance = false
@@ -139,7 +147,34 @@ class Os4InfoPopupDeviceTest {
     assertClosed()
   }
 
-  private fun showInfo(glass: Boolean, customTypography: Boolean = false, largeText: Boolean = false) {
+  @Test fun toolbarInfoMatchesPeersAndStandaloneButtonsRetain48Dp() {
+    compose.setContent {
+      KeiHomeTheme {
+        backHost.Provide {
+          val source = rememberLayerBackdrop()
+          CompositionLocalProvider(LocalKeiHomeBackdrop provides source) {
+            KeiHomeScaffold { padding ->
+              Column(Modifier.padding(padding)) {
+                KeiHomeTopAppBar(title = "Icons", actions = {
+                  Os4InfoPopup("Cache", SUMMARY, contentDescription = TRIGGER)
+                  KeiHomeIconButton({}, Modifier.testTag("toolbar.peer")) {}
+                })
+                Os4InfoPopup("Cache", SUMMARY, contentDescription = "Standalone info")
+                KeiHomeIconButton({}, Modifier.testTag("standalone.peer")) {}
+              }
+            }
+          }
+        }
+      }
+    }
+    listOf(compose.onNodeWithContentDescription(TRIGGER), compose.onNodeWithTag("toolbar.peer"))
+      .forEach { it.assertWidthIsEqualTo(40.dp).assertHeightIsEqualTo(40.dp) }
+    listOf(compose.onNodeWithContentDescription("Standalone info"), compose.onNodeWithTag("standalone.peer"))
+      .forEach { it.assertWidthIsEqualTo(48.dp).assertHeightIsEqualTo(48.dp) }
+  }
+
+  private fun showInfo(glass: Boolean, customTypography: Boolean = false, largeText: Boolean = false,
+    toolbar: Boolean = false) {
     compose.setContent {
       KeiHomeTheme {
         backHost.Provide {
@@ -157,17 +192,20 @@ class Os4InfoPopupDeviceTest {
                 subtitle = typography.subtitle.copy(fontSize = 27.sp, fontFamily = FontFamily.Monospace),
                 body2 = typography.body2.copy(fontSize = 23.sp, fontFamily = FontFamily.Monospace),
               ) else typography) {
-                Box(
-                  Modifier.fillMaxSize().padding(padding)
-                    .layerBackdrop(source).background(Color(0xFFB7D0C5)),
-                  contentAlignment = Alignment.BottomEnd,
-                ) {
-                  if (showTrigger.value) Os4InfoPopup(
-                    title = "Cache explanation",
-                    summary = if (largeText) SUMMARY.repeat(12) else SUMMARY,
-                    contentDescription = TRIGGER,
-                    modifier = Modifier.padding(12.dp),
-                  )
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                  // Keep the glass toolbar outside its sampled recording, as MainScreen does.
+                  Box(Modifier.matchParentSize().layerBackdrop(source).background(Color(0xFFB7D0C5)))
+                  Box(Modifier.matchParentSize(), contentAlignment = Alignment.BottomEnd) {
+                    val trigger: @Composable () -> Unit = {
+                      if (showTrigger.value) Os4InfoPopup(
+                        title = "Cache explanation",
+                        summary = if (largeText) SUMMARY.repeat(12) else SUMMARY,
+                        contentDescription = TRIGGER,
+                        modifier = if (toolbar) Modifier else Modifier.padding(12.dp),
+                      )
+                    }
+                    if (toolbar) KeiHomeTopAppBar(title = "Icons", actions = { trigger() }) else trigger()
+                  }
                 }
               }
             }

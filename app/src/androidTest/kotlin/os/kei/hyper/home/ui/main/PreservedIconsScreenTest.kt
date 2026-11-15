@@ -23,9 +23,16 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class PreservedIconsScreenTest {
@@ -111,6 +118,42 @@ class PreservedIconsScreenTest {
     row(apps.first().packageName).performClick()
     rule.onNodeWithText(context.getString(R.string.preserved_icons_saved, 0)).assertIsSelected()
     rule.onNodeWithTag("preserved-icons.empty").assertIsDisplayed()
+  }
+
+  @Test fun backgroundInventoryLoadingKeepsNativeRefreshHiddenAndTheListScrollable() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val apps = List(100) { first.copy(packageName = "example.app$it", label = "App ${it.toString().padStart(3, '0')}") }
+    var requests = 0
+    setContent {
+      KeiHomeTheme {
+        PreservedIconsPage(apps, apps.mapTo(linkedSetOf()) { it.packageName },
+          loading = true, failed = false, onToggle = {}, onRetry = { requests++ }, onBack = {})
+      }
+    }
+    rule.onNodeWithText(context.getString(R.string.refresh_in_progress)).assertDoesNotExist()
+    val refresh = rule.onNodeWithTag("preserved-icons.pull-to-refresh")
+      .fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+    rule.runOnIdle { assertFalse(refresh.action()) }
+    val list = rule.onNodeWithTag("preserved-icons.list")
+    val before = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+    list.performTouchInput { swipeUp(durationMillis = 700) }
+    val after = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+    assertTrue(after > before)
+    assertEquals(0, requests)
+  }
+
+  @Test fun explicitManualRefreshShowsNativeIndicatorAndRetainsSavedRows() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    setContent {
+      KeiHomeTheme {
+        PreservedIconsPage(listOf(first, second), setOf(first.packageName, second.packageName),
+          loading = true, failed = false, refreshing = true,
+          onToggle = {}, onRetry = {}, onBack = {})
+      }
+    }
+    rule.onNodeWithText(context.getString(R.string.refresh_in_progress)).assertExists()
+    row(first.packageName).assertExists()
+    row(second.packageName).assertExists()
   }
 
   private fun row(pkg: String) = rule.onNodeWithTag("preserved-icons.app:$pkg")

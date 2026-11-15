@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
@@ -34,6 +35,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
@@ -260,19 +263,25 @@ class PerfectGitUiTest {
     resourceBytes = 8L * 1024 * 1024, cacheBytes = 1024L * 1024)
 
   @Test fun synchronizationDisablesNewSelectionAndRefresh() {
-    setResourceContent(resourceState().copy(refreshing = true))
+    var checks = 0
+    setResourceContent(resourceState().copy(refreshing = true), onCheck = { checks++ })
     compose.onNodeWithTag("perfect.resources.selection-mode").assertIsNotEnabled()
-    compose.onNodeWithTag("perfect.resources.refresh").assertIsNotEnabled()
+    compose.onNodeWithTag("perfect.resources.refresh").assertDoesNotExist()
+    compose.onNodeWithTag("perfect.resources.pull-to-refresh").performTouchInput { swipeDown() }
+    compose.runOnIdle { assertEquals(0, checks) }
     compose.onAllNodesWithTag("perfect.resources.download").assertCountEquals(0)
   }
 
-  @Test fun iconToolbarHasFiveNamedActionsAndDoneClearsSelection() {
+  @Test fun pullRefreshChecksResourcesAndSelectionToolbarStillHasFiveNamedActions() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     var checks = 0
     setResourceContent(resourceState(), onCheck = { checks++ })
     compose.onNodeWithTag("perfect.resources.selection-mode")
       .assertContentDescriptionEquals(context.getString(R.string.perfect_resource_select))
-    compose.onNodeWithTag("perfect.resources.refresh").performClick()
+    compose.onNodeWithTag("perfect.resources.refresh").assertDoesNotExist()
+    val refresh = compose.onNodeWithTag("perfect.resources.pull-to-refresh")
+      .fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+    compose.runOnIdle { assertTrue(refresh.action()) }
     compose.runOnIdle { assertEquals(1, checks) }
     compose.onNodeWithTag("perfect.resources.selection-mode").performClick()
     listOf("all" to R.string.perfect_git_select_all, "none" to R.string.perfect_resource_select_none,

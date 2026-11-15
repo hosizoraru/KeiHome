@@ -53,7 +53,10 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.drop
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackageChangeObserver
+import os.kei.hyper.home.data.PackageRefreshTarget
+import os.kei.hyper.home.data.PendingPackageRefresh
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
@@ -80,9 +83,9 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 
 private data class PreservedAppsState(
-  val apps: List<PreservedIconApp> = emptyList(),
   val loading: Boolean = true,
   val failed: Boolean = false,
+  val apps: List<PreservedIconApp> = emptyList(),
 )
 
 @Composable
@@ -96,29 +99,42 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
   val locale = remember(localeTag) { Locale.forLanguageTag(localeTag) }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var retry by remember { mutableIntStateOf(0) }
-  val state by produceState(PreservedAppsState(), inventory, lifecycle, configurationKey, retry) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+  var manualRefreshing by remember { mutableStateOf(false) }
+  val state by produceState(PreservedAppsState(), inventory, lifecycle, configurationKey, localeTag, retry) {
+    val request = retry
+    try { lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      val pending = PendingPackageRefresh()
       callbackFlow<Unit> {
-        val observer = PackageChangeObserver(context, Handler(Looper.getMainLooper())) { trySend(Unit) }
+        // This producer, receiver and collector stay on Main. Only the wake-up is conflated.
+        val observer = PackageChangeObserver(context, Handler(Looper.getMainLooper())) { name ->
+          pending.add(PackageRefreshTarget(name))
+          trySend(Unit)
+        }
+        pending.add()
         trySend(Unit)
         awaitClose { observer.close() }
       }.conflate().collect {
+        val batch = pending.drain()
+        if (!batch.global && batch.targets.isEmpty()) return@collect
         value = value.copy(loading = true, failed = false)
         value = try {
-          PreservedAppsState(inventory.read(locale), loading = false)
+          PreservedAppsState(apps = inventory.read(locale,
+            if (batch.global) null else batch.targets.mapTo(linkedSetOf()) { it.packageName }), loading = false)
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (_: Exception) {
           value.copy(loading = false, failed = true)
         }
+        if (retry == request) manualRefreshing = false
       }
-    }
+    } } finally { if (retry == request) manualRefreshing = false }
   }
   PreservedIconsPage(state.apps, prefs.preservedIconPackages, state.loading, state.failed,
     onToggle = { pkg ->
       val current = model.preferences.state.value.preservedIconPackages
       model.setPreservedIconPackages(if (pkg in current) current - pkg else current + pkg)
-    }, onRetry = { retry++ }, onBack = onBack,
+    }, onRetry = { manualRefreshing = true; retry++ }, onBack = onBack,
+    refreshing = manualRefreshing,
     appIcon = { app -> OriginalPreservedIcon(app, inventory, configurationKey) })
 }
 
@@ -131,6 +147,7 @@ internal fun PreservedIconsPage(
   onToggle: (String) -> Unit,
   onRetry: () -> Unit,
   onBack: () -> Unit,
+  refreshing: Boolean = false,
   appIcon: @Composable (PreservedIconApp?) -> Unit = { PreservedIconPlaceholder() },
 ) {
   var query by rememberSaveable { mutableStateOf("") }
@@ -140,13 +157,14 @@ internal fun PreservedIconsPage(
   var reverse by rememberSaveable { mutableStateOf(false) }
   val localeTag = androidx.compose.ui.text.intl.Locale.current.toLanguageTag()
   val collator = remember(localeTag) { Collator.getInstance(Locale.forLanguageTag(localeTag)) }
-  val appsByPackage = remember(apps) { apps.associateBy { it.packageName } }
-  val packages = remember(apps, preserved, allApps) {
+  val appsIdentity = SnapshotIdentity(apps)
+  val appsByPackage = remember(appsIdentity) { apps.associateBy { it.packageName } }
+  val packages = remember(appsIdentity, SnapshotIdentity(preserved), allApps) {
     if (allApps) apps.map { it.packageName } + (preserved - appsByPackage.keys).sorted()
     else apps.filter { it.packageName in preserved }.map { it.packageName } +
       (preserved - appsByPackage.keys).sorted()
   }
-  val filtered = remember(packages, appsByPackage, query, origin, sort, reverse, collator) {
+  val filtered = remember(SnapshotIdentity(packages), SnapshotIdentity(appsByPackage), query, origin, sort, reverse, collator) {
     val search = query.trim()
     packages.filter { pkg ->
       val app = appsByPackage[pkg]
@@ -209,12 +227,15 @@ internal fun PreservedIconsPage(
         })
     }
   }) { padding ->
+    val listPadding = PaddingValues(start = 12.dp, end = 12.dp,
+      top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp)
+    Os4PullToRefresh(refreshing = refreshing, enabled = !loading, onRefresh = onRetry, contentPadding = listPadding,
+      modifier = Modifier.testTag("preserved-icons.pull-to-refresh")) {
     LazyColumn(overscrollEffect = null, state = list, modifier = Modifier.fillMaxSize()
       .keiHomeTopBarScroll(behavior)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .testTag("preserved-icons.list"),
-      contentPadding = PaddingValues(start = 12.dp, end = 12.dp,
-        top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+      contentPadding = listPadding,
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
       item("search", contentType = "search") {
         Os4SearchField(query = query, onQueryChange = { query = it },
@@ -268,6 +289,7 @@ internal fun PreservedIconsPage(
         }
       }
     }
+  }
   }
 }
 

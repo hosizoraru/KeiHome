@@ -3,6 +3,9 @@ package os.kei.hyper.home.ui.main
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.runtime.Immutable
@@ -14,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.iconpack.IconPackComponent
@@ -32,43 +37,104 @@ internal data class PreservedIconApp(
   val systemApp: Boolean = false,
 )
 
-/** Package resources only: never use the selected theme or its preview renderer. */
-internal class PreservedIconInventory(context: Context) {
-  private val appContext = context.applicationContext
-  private val pm = appContext.packageManager
-  private val iconWorkers = Semaphore(2)
-  private val icons = object : LruCache<String, Bitmap>(4 * 1024 * 1024) {
-    override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
-  }
+internal interface PreservedIconInventorySource {
+  suspend fun readAll(): List<PreservedIconApp>
+  suspend fun readPackage(packageName: String): PreservedIconApp?
+}
+
+private class AndroidPreservedIconInventorySource(context: Context) : PreservedIconInventorySource {
+  private val pm = context.packageManager
 
   @Suppress("DEPRECATION")
-  suspend fun read(locale: Locale): List<PreservedIconApp> = withContext(Dispatchers.IO) {
-    val collator = Collator.getInstance(locale)
-    val launchers = pm.queryIntentActivities(
-      Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0,
+  private suspend fun launchers(packageName: String? = null): Map<String, String?> =
+    pm.queryIntentActivities(
+      Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName), 0,
     ).mapNotNull { resolved ->
       currentCoroutineContext().ensureActive()
       val activity = resolved.activityInfo ?: return@mapNotNull null
       IconPackComponent.parse("${activity.packageName}/${activity.name}")
     }.groupBy { it.packageName }.mapValues { (_, components) ->
-      // Duplicate filters are harmless; distinct visible launchers have no single selected artwork.
       components.mapNotNull { it.className }.distinct().singleOrNull()
     }
-    pm.getInstalledPackages(0).mapNotNull { pkg ->
+
+  private fun app(pkg: PackageInfo, launcher: String?): PreservedIconApp? {
+    val info = pkg.applicationInfo ?: return null
+    val label = try {
+      info.loadLabel(pm).toString().trim().ifEmpty { pkg.packageName }
+    } catch (_: RuntimeException) {
+      pkg.packageName
+    }
+    return PreservedIconApp(pkg.packageName, label, PackageInfoCompat.getLongVersionCode(pkg),
+      pkg.lastUpdateTime, info.sourceDir.orEmpty(), info.icon, launcher, pkg.firstInstallTime,
+      systemApp = info.flags and ApplicationInfo.FLAG_SYSTEM != 0)
+  }
+
+  @Suppress("DEPRECATION")
+  override suspend fun readAll(): List<PreservedIconApp> {
+    val launchers = launchers()
+    return pm.getInstalledPackages(0).mapNotNull { pkg ->
       currentCoroutineContext().ensureActive()
-      val info = pkg.applicationInfo ?: return@mapNotNull null
-      val label = try {
-        info.loadLabel(pm).toString().trim().ifEmpty { pkg.packageName }
-      } catch (_: RuntimeException) {
-        pkg.packageName
-      }
-      PreservedIconApp(pkg.packageName, label, PackageInfoCompat.getLongVersionCode(pkg),
-        pkg.lastUpdateTime, info.sourceDir.orEmpty(), info.icon, launchers[pkg.packageName], pkg.firstInstallTime,
-        systemApp = info.flags and ApplicationInfo.FLAG_SYSTEM != 0)
-    }.sortedWith { a, b ->
-      collator.compare(a.label, b.label).takeIf { it != 0 } ?: a.packageName.compareTo(b.packageName)
+      app(pkg, launchers[pkg.packageName])
     }
   }
+
+  @Suppress("DEPRECATION")
+  override suspend fun readPackage(packageName: String): PreservedIconApp? {
+    val pkg = try { pm.getPackageInfo(packageName, 0) }
+    catch (_: PackageManager.NameNotFoundException) { return null }
+    currentCoroutineContext().ensureActive()
+    return checkNotNull(app(pkg, launchers(packageName)[packageName])) { "Missing package metadata" }
+  }
+}
+
+/** Package resources only: never use the selected theme or its preview renderer. */
+internal class PreservedIconInventory(
+  context: Context,
+  private val source: PreservedIconInventorySource = AndroidPreservedIconInventorySource(context.applicationContext),
+) {
+  private val appContext = context.applicationContext
+  private val inventoryLock = Mutex()
+  private var previous: List<PreservedIconApp>? = null
+  private var previousConfiguration: Configuration? = null
+  private var previousLocale: Locale? = null
+  private val iconWorkers = Semaphore(2)
+  private val icons = object : LruCache<String, Bitmap>(4 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
+  }
+
+  /** Null requests an authoritative read; package events update only their named rows. */
+  suspend fun read(locale: Locale, packages: Set<String>? = null): List<PreservedIconApp> =
+    withContext(Dispatchers.IO) {
+      inventoryLock.withLock {
+        val targets = packages?.toSet()
+        val configuration = Configuration(appContext.resources.configuration)
+        val old = previous
+        val full = targets == null || old == null || previousLocale != locale ||
+          previousConfiguration != configuration
+        if (!full && targets.isNullOrEmpty()) return@withLock old.orEmpty()
+        val replacements = if (full) source.readAll() else targets.orEmpty().mapNotNull {
+          currentCoroutineContext().ensureActive()
+          source.readPackage(it)?.also { app -> require(app.packageName == it) }
+        }
+        val candidates = if (full) replacements
+          else old.orEmpty().filterNot { it.packageName in targets.orEmpty() } + replacements
+        val oldByName = old.orEmpty().associateBy { it.packageName }
+        val collator = Collator.getInstance(locale)
+        val merged = candidates.map { app ->
+          currentCoroutineContext().ensureActive()
+          oldByName[app.packageName]?.takeIf { it == app } ?: app
+        }.sortedWith { a, b ->
+          collator.compare(a.label, b.label).takeIf { it != 0 } ?: a.packageName.compareTo(b.packageName)
+        }
+        currentCoroutineContext().ensureActive()
+        val result = if (old != null && old.size == merged.size && old.indices.all { old[it] === merged[it] })
+          old else merged
+        previous = result
+        previousConfiguration = configuration
+        previousLocale = locale
+        result
+      }
+    }
 
   suspend fun icon(app: PreservedIconApp, configuration: String, size: Int, dark: Boolean): Bitmap? =
     withContext(Dispatchers.IO) {

@@ -77,12 +77,15 @@ class MainScreenTest {
   }
 
   @Test
-  fun showsFilterAndTopBarRefresh() {
+  fun appsKeepFiltersWithPullRefreshAndStatusKeepsToolbarRefresh() {
     val context = composeTestRule.activity
     composeTestRule.onNode(hasText(context.getString(R.string.navigation_apps)) and isSelectable()).performClick()
     composeTestRule.onNodeWithText(context.getString(R.string.search_apps)).assertExists()
     composeTestRule.onNodeWithContentDescription(context.getString(R.string.filter_title))
       .assertExists()
+    composeTestRule.onNodeWithTag("apps.pull-to-refresh").assertExists()
+    composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh)).assertDoesNotExist()
+    composeTestRule.onNode(hasText(context.getString(R.string.navigation_status)) and isSelectable()).performClick()
     composeTestRule.onNodeWithContentDescription(context.getString(R.string.refresh)).assertExists()
   }
 

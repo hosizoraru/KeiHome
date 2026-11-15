@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -137,7 +139,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
               AppsFilterMenu(model)
               AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
             }
-            if (page != 4) RefreshAction(model, page)
+            if (page != 1 && page != 3 && page != 4) RefreshAction(model, page)
           },
           bottomContent = {
             if (selectedTab == 1) AppsOriginTabs(model, appsBrowser)
@@ -180,10 +182,14 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
         savedPages.SaveableStateProvider(page) {
         val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
         if (tab == 1) {
-          AppsPage(model, appList, padding, pageModifier, appsBrowser)
+          PagePullToRefresh(model, 1, padding, Modifier.testTag("apps.pull-to-refresh")) { busy ->
+            AppsPage(model, appList, padding, pageModifier, rememberAppsRefreshContent(appsBrowser, busy))
+          }
         } else if (page == 3) {
           val sectionList = rememberLazyListState()
-          IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
+          PagePullToRefresh(model, 3, padding) {
+            IconPacksPage(model, sectionList, padding, pageModifier, "home", onOpenPackSection)
+          }
         } else {
           // These pages are a single form. A nested lazy-item saveable owner drops the form's
           // draft/expansion state when the outer page provider saves during tab disposal.
@@ -349,6 +355,45 @@ private fun AppsSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
     Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
       tint = if (options.reverse) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
+}
+
+@Composable
+internal fun PagePullToRefresh(
+  model: HomeViewModel,
+  page: Int,
+  padding: PaddingValues,
+  modifier: Modifier = Modifier,
+  content: @Composable (busy: Boolean) -> Unit,
+) {
+  val refreshing by remember(model, page) { model.refreshing.map { page in it }.distinctUntilChanged() }
+    .collectAsStateWithLifecycle(initialValue = false)
+  val loadingFlow = remember(model, page) {
+    if (page == 1) model.apps.map { it.loading }.distinctUntilChanged()
+    else model.iconPacks.map { it.loading }.distinctUntilChanged()
+  }
+  val loading by loadingFlow.collectAsStateWithLifecycle(initialValue = false)
+  val busy = refreshing || loading
+  Os4PullToRefresh(refreshing = refreshing, enabled = !loading, onRefresh = { model.refresh(page) },
+    contentPadding = padding, modifier = modifier) { content(busy) }
+}
+
+private class AppsRefreshContent {
+  var display: AppsBrowserDisplay? = null
+  var pending = false
+}
+
+@Composable
+internal fun rememberAppsRefreshContent(browser: AppsBrowserUi, busy: Boolean): AppsBrowserUi {
+  val retained = remember(browser.query) { AppsRefreshContent() }
+  val display = if ((busy || retained.pending) && browser.display.loading) {
+    retained.display ?: browser.display
+  } else browser.display
+  // A committed holder avoids snapshot writes for the display object recreated each composition.
+  SideEffect {
+    if (!browser.display.loading) retained.display = browser.display
+    retained.pending = busy || (retained.pending && browser.display.loading)
+  }
+  return AppsBrowserUi(browser.query, browser.onQueryChange, browser.origin, display)
 }
 
 @Composable

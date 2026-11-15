@@ -1,0 +1,5 @@
+<resources>
+    <string name="pull_refresh_hint">下に引いて更新</string>
+    <string name="pull_refresh_release">離して更新</string>
+    <string name="pull_refresh_finished">更新が終了しました</string>
+</resources>

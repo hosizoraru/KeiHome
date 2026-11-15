@@ -75,6 +75,7 @@ fun Os4InfoPopup(
   var nativeContentMounted by remember { mutableStateOf(false) }
   var restoreFocus by remember { mutableStateOf(false) }
   val anchor = rememberGlassPopupAnchor()
+  val buttonSize = keiHomeIconButtonSize()
   var anchorReady by remember { mutableStateOf(false) }
   val triggerFocus = remember { FocusRequester() }
   val popupFocus = remember { FocusRequester() }
@@ -119,10 +120,10 @@ fun Os4InfoPopup(
         }
       },
       enabled = enabled,
-      minHeight = 48.dp,
-      minWidth = 48.dp,
+      minHeight = buttonSize,
+      minWidth = buttonSize,
       modifier = modifier
-        .glassPopupAnchor(anchor, cornerRadius = 24.dp)
+        .glassPopupAnchor(anchor, cornerRadius = buttonSize / 2)
         .onGloballyPositioned { anchorReady = it.size.width > 0 && it.size.height > 0 }
         .focusRequester(triggerFocus)
         // The native clickable otherwise rejects focus in touch mode, including restoration.

@@ -81,7 +81,6 @@ import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.More
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.material.GlassShape
@@ -332,6 +331,11 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   PerfectSubpage(if (selecting) stringResource(R.string.perfect_git_selection_count, selected.size)
     else stringResource(R.string.perfect_git_resources),
     onBack = { if (selecting) exitSelection() else onBack() },
+    onRefresh = onCheck,
+    pullRefresh = true,
+    refreshing = state.loading || state.checking,
+    refreshEnabled = !busy && !cooling && !selecting,
+    refreshLabel = stringResource(R.string.perfect_git_check),
     listState = listState,
     bottomContent = {
       Os4ViewTabs(items = filterLabels.mapIndexed { index, label ->
@@ -355,10 +359,6 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         onClick = { selection = emptyList(); selecting = true }) {
         Icon(ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square_check),
           stringResource(R.string.perfect_resource_select), Modifier.size(24.dp))
-      }
-      if (!selecting) IconButton(onClick = onCheck, enabled = !busy && !cooling,
-        modifier = Modifier.testTag("perfect.resources.refresh")) {
-        Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_git_check))
       }
       if (!selecting) OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
           DropdownItem(text = stringResource(R.string.perfect_resource_info), onClick = { showInfo = true }),

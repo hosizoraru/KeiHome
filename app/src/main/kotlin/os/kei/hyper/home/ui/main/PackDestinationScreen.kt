@@ -153,7 +153,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
                 scope.launch { list.scrollToItem(0) }
               }
             }
-            RefreshAction(model, 3)
+            if (!fileImport) RefreshAction(model, 3)
           })
       }
     }, floatingActionButton = {
@@ -184,8 +184,13 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
           IconPackRefreshFeedback(model)
         }
+      } else if (fileImport) {
+        PagePullToRefresh(model, 3, padding, Modifier.testTag("icon-packs.$section.pull-to-refresh")) {
+          IconPacksPage(model, list, padding, contentModifier, section, onNavigate,
+            filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
+        }
       } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate,
-        filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
+          filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
     }
   }
 }

@@ -39,6 +39,9 @@ import os.kei.hyper.home.data.AppTopBarBlur
 private val LocalGlassToolbar = staticCompositionLocalOf { false }
 
 @Composable
+internal fun keiHomeIconButtonSize(): Dp = if (LocalGlassToolbar.current) 40.dp else 48.dp
+
+@Composable
 internal fun Modifier.keiHomeTopBarScroll(scrollBehavior: ScrollBehavior): Modifier {
   val state = scrollBehavior.state
   val onOffsetChanged: (Float) -> Unit = remember(state) { { state.overscrollOffset = it } }
@@ -108,8 +111,8 @@ internal fun KeiHomeIconButton(
   enabled: Boolean = true,
   holdDownState: Boolean = false,
   backgroundColor: Color = Color.Unspecified,
-  minHeight: Dp = 40.dp,
-  minWidth: Dp = 40.dp,
+  minHeight: Dp = keiHomeIconButtonSize(),
+  minWidth: Dp = keiHomeIconButtonSize(),
   content: @Composable () -> Unit,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current

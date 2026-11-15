@@ -64,10 +64,12 @@ def branch(pc, w):
     return pc + ((imm ^ (1 << (bits - 1))) - (1 << (bits - 1))) * 4, mask
 
 
-def canonical(words, base):
+def canonical(words, base, scope_size=None):
     """Keep opcodes/registers/layout/CFG; relocate only decoded external edges,
     PP slots and static-table slots. Preserve repeated-slot identity locally.
-    This algorithm is mirrored (and fixture-checked) in selection_profile.cpp.
+    Short prefixes retain branches local to their complete function scope.
+    External edges are authenticated by the closed dependency graph. This
+    algorithm is mirrored (and fixture-checked) in selection_profile.cpp.
     """
     out = list(words)
     pools, statics = [], []
@@ -80,17 +82,21 @@ def canonical(words, base):
 
     for i, w in enumerate(words):
         b = branch(base + 4*i, w)
-        if b and not base <= b[0] < base + 4*len(words):
+        if b and not base <= b[0] < base + (scope_size or 4*len(words)):
             out[i] = w & ~b[1]
         # LDR Xt, [PP, #slot]; low VM reserved slots remain exact.
-        if w & 0xffc003e0 == 0xf9400360 and ((w >> 10) & 4095)*8 >= 256:
+        pointer_load = w & 0xffc003e0 == 0xf9400360
+        double_load = w & 0xffc003e0 == 0xfd400360
+        if (pointer_load or double_load) and ((w >> 10) & 4095)*8 >= 256:
             out[i] = (w & ~0x003ffc00) | ordinal(pools, ((w >> 10) & 4095)*8) << 10
         if i + 1 == len(words):
             continue
         next_word = words[i+1]
         reg = w & 31
         # ADD Xt, PP, #page, LSL #12; LDR Xd, [Xt, #slot].
-        if w & 0xffc003e0 == 0x91400360 and next_word & 0xffc003e0 == 0xf9400000 | reg << 5:
+        pointer_pair = next_word & 0xffc003e0 == 0xf9400000 | reg << 5
+        double_pair = next_word & 0xffc003e0 == 0xfd400000 | reg << 5
+        if w & 0xffc003e0 == 0x91400360 and (pointer_pair or double_pair):
             slot = ((w >> 10) & 4095)*4096 + ((next_word >> 10) & 4095)*8
             assert 256 <= slot <= 0x100000
             out[i] = w & ~0x003ffc00
@@ -177,33 +183,33 @@ class Fixture:
 def emit(fixtures):
     bodies, body_ids, patterns = [], {}, []
 
-    def add_body(f, address, size, depth):
+    def add_body(f, address, size, scope_size, root=False):
+        key = (f, address, size, scope_size, root)
+        if key in body_ids:
+            return body_ids[key]
+        assert size <= scope_size and scope_size % 4 == 0 and scope_size // 4 <= 65535
+        f.elf.read(address, scope_size)
+        result = len(bodies)
+        body_ids[key] = result
+        bodies.append(None)  # reserve before following cycles
+        assert sum(node[0] is f for node in body_ids) <= 1024, "dependency graph budget"
         words = f.words(address, size)
-        normalized = depth < 2
-        digest = hashlib.sha256(canonical(words, address) if normalized else struct.pack('<'+'I'*len(words), *words)).digest()
+        digest = hashlib.sha256(canonical(words, address, scope_size)).digest()
         edges = []
-        if normalized:
-            for i, w in enumerate(words):
-                b = branch(address+4*i, w)
-                if not b or address <= b[0] < address+size:
-                    continue
-                target = b[0]
-                if target in f.by_address:
-                    edges.append((i, f.by_address[target], 0))
-                else:
-                    # Preserve every original dependency interval: named
-                    # functions in full, otherwise the original 128-byte stub
-                    # contract. Terminal edges additionally authenticate 32
-                    # unmasked bytes; never erase a BL without a target check.
-                    length = f.sizes.get(target, 128) if depth == 0 else 32
-                    assert length <= 8192, (f.names.get(target), length)
-                    child = add_body(f, target, length, depth+1)
-                    edges.append((i, -1, child))
-        key = (len(words), digest, normalized, tuple(edges))
-        if key not in body_ids:
-            body_ids[key] = len(bodies)
-            bodies.append(key)
-        return body_ids[key]
+        for i, w in enumerate(words):
+            b = branch(address+4*i, w)
+            if not b or address <= b[0] < address+scope_size:
+                continue
+            target = b[0]
+            if target in f.by_address:
+                edges.append((i, f.by_address[target], 0))
+            else:
+                scope = f.sizes.get(target, 128 if root else 32)
+                length = scope if root else min(scope, 32)
+                child = add_body(f, target, length, scope)
+                edges.append((i, -1, child))
+        bodies[result] = (len(words), digest, scope_size // 4, tuple(edges))
+        return result
 
     evidence = []
     for f in fixtures:
@@ -212,7 +218,7 @@ def emit(fixtures):
             if role not in f.roles:
                 continue
             address, size = f.roles[role]
-            body = add_body(f, address, size, 0)
+            body = add_body(f, address, size, size, root=True)
             p = (ROLE_IDS[role], tuple(f.words(address, 16)), body)
             if p not in patterns:
                 patterns.append(p)
@@ -223,20 +229,49 @@ def emit(fixtures):
             expected = 3 if role == 'Should' and cached else 1 if role == 'Resource' and cached else 2
             assert len(ev['incoming'][role]) == expected and all(link for _, link in ev['incoming'][role]), role
         evidence.append(ev)
+
+    # Deduplicate closed graphs by partition refinement. Unlike recursive
+    # hashes, this also handles cycles and ignores fixture discovery addresses.
+    def partition(colors=None):
+        ids, result = {}, []
+        for count, digest, scope, edges in bodies:
+            shape = tuple((i, role, colors[child] if colors is not None and role < 0 else 0)
+                          for i, role, child in edges)
+            key = (count, digest, scope, shape)
+            result.append(ids.setdefault(key, len(ids)))
+        return result
+    colors = partition()
+    for _ in range(len(bodies) + 1):
+        refined = partition(colors)
+        if refined == colors:
+            break
+        colors = refined
+    else:
+        raise AssertionError("graph partition did not converge")
+    compact = [None] * (max(colors) + 1)
+    for i, (count, digest, scope, edges) in enumerate(bodies):
+        compact[colors[i]] = (count, digest, scope,
+            tuple((at, role, colors[child] if role < 0 else 0)
+                  for at, role, child in edges))
+    bodies = compact
+    patterns = list(dict.fromkeys((role, prefix, colors[body]) for role, prefix, body in patterns))
+    assert len(bodies) <= 65535
+
     out = ['// SPDX-License-Identifier: Apache-2.0',
            '// Generated by generate_contracts.py. No image RVAs or identity whitelist.',
-           '// Normalized bodies retain every non-relocation bit; terminal anchors are unmasked.',
+           '// Every external branch targets a role or an authenticated closed dependency graph.',
            'enum Role : size_t { ' + ', '.join('k'+n for n, _ in ROLES) + ', kPatternCount };']
     edge_data = []
     starts = []
-    for count, digest, normalized, edges in bodies:
+    for count, digest, scope, edges in bodies:
         starts.append(len(edge_data)); edge_data.extend(edges)
     out += ['constexpr Edge kEdges[] = {']
     out += [f'    {{{i}, {role}, {child}}},' for i, role, child in edge_data]
     out += ['};', 'constexpr Body kBodies[] = {']
-    for start, (count, digest, normalized, edges) in zip(starts, bodies):
+    assert len(edge_data) <= 65535
+    for start, (count, digest, scope, edges) in zip(starts, bodies):
         dg = ','.join(f'0x{x:02x}' for x in digest)
-        out.append(f'    {{{count}, {{{dg}}}, {start}, {len(edges)}, {str(normalized).lower()}}},')
+        out.append(f'    {{{count}, {scope}, {{{dg}}}, {start}, {len(edges)}}},')
     out += ['};', 'constexpr Pattern kPatterns[] = {']
     for role, prefix, body in patterns:
         words = ','.join(f'0x{x:08x}u' for x in prefix)

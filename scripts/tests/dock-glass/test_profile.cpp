@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <utility>
 
 int main(int argc, char** argv) {
     if (argc != 2 && !(argc==3&&(!strcmp(argv[2],"--resolve-only")||
@@ -30,6 +31,42 @@ int main(int argc, char** argv) {
     printf("curve_getter=%zx adaptive=%zx radius=%x border=%x super=%x rect=%x behavior_pp=%x ordinary_bits=%llx stacked_min_bits=%llx dispatch=%zx..%zx\n",p.curve_getter,p.recents_adaptive_clip,p.recents_radius_tag,p.recents_border_radius_tag,p.recents_superellipse_tag,p.recents_rrect_tag,p.recents_clip_pp,(unsigned long long)p.recents_default_radius_bits,(unsigned long long)p.recents_stacked_min_radius_bits,p.recents_dispatch_start,p.recents_dispatch_end);
     printf("glass=%zx scope=%zx/%08x child_scope=%zx/%08x clip_alloc=%zx/%08x roots=%d,%d key_tag=%08x key_alloc=%zx key_caller=%zx key_equals=%zx scope_map=%zx/%02x child_map=%zx/%02x\n",p.glass_build,p.glass_scope_store,p.glass_scope_expected,p.glass_child_scope_store,p.glass_child_scope_expected,p.glass_clip_alloc_call,p.glass_clip_alloc_expected,p.glass_scope_root_slot,p.glass_child_root_slot,p.value_key_tag,p.value_key_alloc,p.value_key_caller,p.value_key_equals,p.glass_scope_stackmap,bytes[p.glass_scope_stackmap],p.glass_child_stackmap,bytes[p.glass_child_stackmap]);
     printf("unlock_search=%zx unlock_create=%zx unlock_location=%zx unlock_center=%zx unlock_tag=%x unlock_zero_pp=%x unlock_debug_pp=%x\n",p.unlock_search,p.unlock_create,p.unlock_location,p.unlock_center,p.unlock_tag,p.unlock_zero_pp,p.unlock_debug_pp);
+    {
+        const auto original=bytes;
+        size_t first=0, moved=0;
+        for(size_t at=p.phone;at+16<=p.phone+0x4bc;at+=4) {
+            const uint32_t reg=u32(at)&31u;
+            if(reg==27u||reg==31u||
+               (u32(at)&0xffc003ffu)!=(0x91400360u|reg)||
+               (u32(at+4)&0xffc003ffu)!=(0x91000000u|(reg<<5u)|reg)||
+               u32(at+8)!=(0xa940141eu|(reg<<5u))||u32(at+12)!=0xd63f03c0u)continue;
+            const uint32_t slot=((u32(at)>>10u)&4095u)*4096u+
+                                ((u32(at+4)>>10u)&4095u)+0x1008u;
+            const uint32_t page=(u32(at)&~0x003ffc00u)|((slot/4096u)<<10u);
+            const uint32_t low=(u32(at+4)&~0x003ffc00u)|((slot%4096u)<<10u);
+            memcpy(bytes.data()+at,&page,4);memcpy(bytes.data()+at+4,&low,4);
+            if(!moved)first=at;
+            ++moved;
+        }
+        const auto accepts=[&]() {
+            DockGlassProfile candidate{};const char* reason=nullptr;
+            const IconHighlightImage changed{bytes.data(),bytes.size(),ranges.data(),ranges.size()};
+            return ResolveDockGlass(changed,&candidate,&reason);
+        };
+        if(!moved||!accepts()) {fprintf(stderr,"FAIL coherent closure PP relocation\n");return 1;}
+        const auto relocated=bytes;
+        for(const auto& mutation:std::vector<std::pair<size_t,uint32_t>>{
+                {first,u32(first)^(1u<<22u)}, // page shift must remain LSL #12
+                {first+4,u32(first+4)^(1u<<22u)}, // low offset must remain unshifted
+                {first+8,u32(first+8)^(1u<<10u)}, // closure context register
+                {first+12,0xd63f0200u}}) { // wrong indirect call register
+            bytes=relocated;
+            memcpy(bytes.data()+mutation.first,&mutation.second,4);
+            if(accepts()) {fprintf(stderr,"FAIL malformed closure call accepted\n");return 1;}
+        }
+        bytes=original;
+        printf("PASS %zu relocated closure calls; four malformed call contracts rejected\n",moved);
+    }
     if(argc==3&&!strcmp(argv[2],"--root-only")) {
         size_t phone_bytes=0x4c0;
         for(size_t offset=4;offset<phone_bytes;offset+=4)

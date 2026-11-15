@@ -20,8 +20,20 @@ ROLES = [('Clone', 'Image.clone'), ('Dispose', 'Image.dispose'),
          ('GuardedClone', 'UninstallAppHelper._buildShortCutDoBoomAnim')]
 
 
-def normalize(words, role):
+def normalize(words, role, tail_index=65535):
     out = trace.normalize(words, role)
+    for i in range(len(words) - 3):
+        reg = words[i] & 31
+        if (reg not in (27, 31) and
+            words[i] & 0xffc003ff == 0x91400360 | reg and
+            words[i+1] & 0xffc003ff == 0x91000000 | reg << 5 | reg and
+            words[i+2] == 0xa940141e | reg << 5 and
+            words[i+3] == 0xd63f03c0):
+            out[i] = words[i] & ~0x003ffc00
+            out[i+1] = words[i+1] & ~0x003ffc00
+    if tail_index != 65535:
+        assert role == 'GuardedClone' and words[tail_index] & 0xfc000000 == 0x14000000
+        out[tail_index] &= 0xfc000000
     if role == 'RawUpdate':
         assert words[15] & 0xffe0001f == 0xd2800011
         out[15] &= 0xffe0001f  # RenderImage CID independently tied to allocator
@@ -46,9 +58,29 @@ def main():
             if role == 'GuardedClone': size = 0x100
             assert 16 <= size <= 2048 and size % 4 == 0
             words = struct.unpack('<'+'I'*(size//4), f.read(pc, size))
-            normalized = normalize(words, role)
+            tail_index, tail_digest = 65535, bytes(32)
+            if role == 'GuardedClone':
+                for i, word in enumerate(words):
+                    if word & 0xfc000000 != 0x14000000:
+                        continue
+                    target = pc + i*4 + (((word & 0x3ffffff) ^ 0x2000000) - 0x2000000)*4
+                    if pc <= target < pc + size:
+                        continue
+                    assert tail_index == 65535, 'review multiple external clone-prefix tails'
+                    tail_index = i
+                    tail = f.read(target, 32)
+                    for op in struct.unpack('<8I', tail):
+                        assert not (
+                            op & 0x7c000000 == 0x14000000 or
+                            op & 0xff000010 == 0x54000000 or
+                            op & 0x7e000000 in (0x34000000, 0x36000000) or
+                            op & 0x1f000000 == 0x10000000 or
+                            op & 0x3b000000 == 0x18000000
+                        ), 'review position-dependent clone-return prefix'
+                    tail_digest = hashlib.sha256(tail).digest()
+            normalized = normalize(words, role, tail_index)
             digest = hashlib.sha256(struct.pack('<'+'I'*len(words), *normalized)).digest()
-            shape = (role, len(words), tuple(normalized[:4]), digest)
+            shape = (role, len(words), tuple(normalized[:4]), digest, tail_index, tail_digest)
             if shape not in patterns: patterns.append(shape)
             row['roles'][role] = {'rva': pc, 'size': size}
         evidence.append(row)
@@ -58,9 +90,10 @@ def main():
              '// Instruction families only; no launcher RVAs or whole-ELF allowlist.',
              'enum Role { '+', '.join('k'+r for r, _ in ROLES)+', kRoleCount };',
              'constexpr Pattern kPatterns[] = {']
-    for role, count, prefix, digest in sorted(patterns, key=lambda x: (order[x[0]], x[1], x[3])):
-        lines.append('    {k%s, %d, {%s},\n     {%s}},' % (role, count,
-            ', '.join(f'0x{w:08x}u' for w in prefix), ', '.join(f'0x{b:02x}' for b in digest)))
+    for role, count, prefix, digest, tail_index, tail_digest in sorted(patterns, key=lambda x: (order[x[0]], x[1], x[3], x[4], x[5])):
+        lines.append('    {k%s, %d, {%s},\n     {%s}, %d, {%s}},' % (role, count,
+            ', '.join(f'0x{w:08x}u' for w in prefix), ', '.join(f'0x{b:02x}' for b in digest),
+            tail_index, ', '.join(f'0x{b:02x}' for b in tail_digest)))
     lines.append('};\n')
     a.output.write_text('\n'.join(lines))
     a.evidence.write_text(json.dumps(evidence, indent=2)+'\n')

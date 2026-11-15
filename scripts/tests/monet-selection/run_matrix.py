@@ -24,16 +24,20 @@ def main():
                         choices=("selection", "tint", "image", "gate", "theme-night"),
                         help="Repeat to select suites; default preserves selection/tint/image/gate")
     parser.add_argument("--fixture-version", action="append",
-                        help="Repeat to test selected inventory fixtures; generators still use all fixtures")
+                        help="Repeat to test selected fixtures; generators use the separate reviewed contract inventory")
     args = parser.parse_args()
     if not __debug__:
         parser.error("assertions must be enabled")
     inventory = json.loads((HERE / "fixture_inventory.json").read_text())
+    contract_inventory = json.loads((HERE / "contract_inventory.json").read_text())
+    if not contract_inventory or not set(contract_inventory).issubset(inventory):
+        parser.error("contract_inventory.json must be a nonempty subset of fixture_inventory.json")
     if args.fixture_version and any(version not in inventory for version in args.fixture_version):
         parser.error("--fixture-version must name a fixture in fixture_inventory.json")
     versions = [version for version in inventory
                 if not args.fixture_version or version in args.fixture_version]
     fixtures = [(args.fixture_root / version).resolve() for version in inventory]
+    contract_fixtures = [(args.fixture_root / version).resolve() for version in contract_inventory]
     selected_fixtures = [(args.fixture_root / version).resolve() for version in versions]
     for fixture in fixtures:
         for name in ("libapp.so", "debug.elf"):
@@ -50,8 +54,11 @@ def main():
     theme_accepted = set(theme_inventory["accepted"])
     theme_rejected = set(theme_inventory["rejected"])
     if (theme_accepted & theme_rejected or
-            theme_accepted | theme_rejected != set(inventory)):
-        parser.error("theme-night acceptance/rejection inventory must partition the fixture inventory")
+            not (theme_accepted | theme_rejected).issubset(inventory)):
+        parser.error("theme-night acceptance/rejection inventory must be disjoint known fixtures")
+    if ("theme-night" in (args.suite or []) and
+            not set(versions).issubset(theme_accepted | theme_rejected)):
+        parser.error("selected theme-night fixtures require explicit acceptance/rejection classification")
     gate = [sys.executable, HERE.parent / "monet-gate/run_tests.py"]
     tint = []
     for fixture in selected_fixtures:
@@ -74,7 +81,7 @@ def main():
     theme_generator = [sys.executable, HERE.parent / "theme-night/generate_contracts.py",
                        "--output", output / "theme-patterns.h",
                        "--evidence", output / "theme-contracts.json"]
-    for fixture in fixtures:
+    for fixture in contract_fixtures:
         selection_generator += ["--fixture", fixture / "libapp.so", fixture / "debug.elf"]
         tint_generator += ["--library", fixture / "libapp.so"]
         image_generator += ["--library", fixture / "libapp.so"]
@@ -133,7 +140,8 @@ def main():
     report = {
         "passed": passed, "offline_only": True, "versions": versions, "results": results,
         "suites": list(commands),
-        "contract_fixture_versions": inventory,
+        "contract_fixture_versions": contract_inventory,
+        "held_out_versions": [version for version in versions if version not in contract_inventory],
         "source_sha256": {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in sorted(sources) if p.is_file()},
         "fixtures_sha256": {str(f / n): hashlib.sha256((f / n).read_bytes()).hexdigest()

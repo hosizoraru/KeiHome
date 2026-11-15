@@ -45,7 +45,9 @@ JSON outside the repository. The JSON intentionally includes observed RVAs as
 evidence; the production header does not.
 
 The shared offline inventory includes 7722, 8593, 8602, 8604, 8607, 9209, 9226,
-9239 and 9248. Run all four suites and verify all three generated contract headers with:
+9239, 9248 and 9258. `contract_inventory.json` retains the nine reviewed inputs
+through 9248; 9258 is a held-out runtime fixture, never an input to the production
+contract generators. Run all four suites and verify all three generated headers with:
 
 ```sh
 NDK_DIR=/opt/homebrew/share/android-ndk /path/to/python \
@@ -59,15 +61,18 @@ contains full commands, per-file source/fixture SHA256s and suite receipts.
 
 To limit admission checks to selection, tint, image recovery, and the isolated
 theme-night candidate, add `--suite selection --suite tint --suite image
---suite theme-night`. This also authenticates the candidate's checked-in contracts
+--suite theme-night` and select already classified fixtures with `--fixture-version`.
+9258 is not admitted to this separate, unshipped candidate by the production
+resolver work. This also authenticates the candidate's checked-in contracts
 and checks its profiles against the independent debug-symbol oracle. Theme-night
 remains disabled and outside the production native target. The 8607 fixture
 passes the existing contracts; admission adds no runtime version, RVA, or
 whole-image hash allowlist.
 
 Add `--fixture-version 9248 --fixture-version 9239` for bounded admission of the
-new mapped input and its previous regression fixture. All nine fixtures still
-participate in contract regeneration. Production
+new mapped input and its previous regression fixture. The nine contract fixtures
+still participate in contract regeneration; adding a runtime fixture does not
+silently teach the resolver its code. Production
 headers must match byte-for-byte; every checked-in theme-night candidate contract
 must be reproduced, while extra generated candidate shapes remain unadmitted.
 Resolver and bridge execution uses only the selected input.
@@ -130,18 +135,24 @@ initializer/factory relationships receive additional checks.
 Every masked external edge must exist in its contract, land in executable
 file-backed bytes, and reach the expected role or dependency body. Named direct
 dependencies are checked in full; unnamed stubs retain 128-byte contracts.
-Their external edges also authenticate a target role or an unmasked 32-byte
-terminal anchor. This is a bounded graph contract, not transitive validation of
-all launcher code. Terminal anchors deliberately remain conservative: a future
-compiler change can require another reviewed contract even when its ABI is
-ultimately compatible.
+Deeper dependencies use at most 32-byte prefixes, shortened for smaller known
+functions. Their external edges continue through a closed, bounded prefix graph,
+including cycles; no relative branch is erased without authenticating its target.
+Branches local to the complete function scope retain their exact displacement.
+The generator compacts equivalent cyclic graphs by partition refinement; runtime
+verification uses a visited worklist without recursive stack growth. This checks
+the declared prefixes and first-layer bodies, not every instruction reachable
+in the launcher. A changed implementation or bridge ABI can still require review.
+Scalar-double PP loads follow the same slot-identity rules as pointer loads,
+retaining load width, opcode, destination and PP-derived base.
 
 The reviewed images need distinct shapes for changed controller fields and
 added conditions in `shouldUseMonochrome`/`_updateMonochromeState`, as well as the
 changed folder-builder body. Those differences remain exact; they are not hidden
 by generic immediate masks. Candidate ambiguity fails closed. The implementation
 bounds readable ranges, LOADs, image span, body size, distinct candidate addresses
-(128 per role), candidate contracts (512 per role) and dependency depth. Multiple
+(128 per role), candidate contracts (512 per role) and dependency graph nodes
+(1024 per image during generation and per candidate verification). Multiple
 relocated contracts for one entry do not consume the address budget. Only primitive code addresses and offsets are
 returned.
 

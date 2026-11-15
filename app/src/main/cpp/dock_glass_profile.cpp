@@ -19,7 +19,22 @@ uint32_t Word(const IconHighlightImage& im, size_t p) {
 }
 bool Match(const IconHighlightImage& im,size_t p,const DockPattern& pat) {
     if (!Contains(im,p,pat.count*4)) return false;
-    for(size_t j=0;j<pat.count;++j) if((Word(im,p+4*j)&pat.words[j].mask)!=pat.words[j].word) return false;
+    for(size_t j=0;j<pat.count;++j) {
+        const auto& expected=pat.words[j];
+        const uint32_t word=Word(im,p+4*j);
+        if((word&expected.mask)!=expected.word)return false;
+        if(expected.mask==0xffc003ffu &&
+           (expected.word&0xffc00000u)==0x91000000u) {
+            // A movable low address must remain part of the authenticated
+            // PP page + ADD + closure entry/context pair + BLR sequence.
+            const uint32_t reg=word&31u;
+            if(j==0||j+2>=pat.count||reg==27u||reg==31u||
+               (Word(im,p+(j-1)*4)&0xffc003ffu)!=(0x91400360u|reg)||
+               (word&0xffc003ffu)!=(0x91000000u|(reg<<5u)|reg)||
+               Word(im,p+(j+1)*4)!=(0xa940141eu|(reg<<5u))||
+               Word(im,p+(j+2)*4)!=0xd63f03c0u)return false;
+        }
+    }
     return true;
 }
 template<size_t N> size_t Find(const IconHighlightImage& im,const DockPattern(&v)[N]) {

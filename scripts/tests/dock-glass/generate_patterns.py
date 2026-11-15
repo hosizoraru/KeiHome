@@ -18,6 +18,20 @@ def mask(w,role=''):
     if w&0xffc00000==0x91400000 and w>>5&31==27:return 0xffc003ff
     return 0xffffffff
 
+def body_masks(words, role):
+    result = [mask(w, role) for w in words]
+    for i in range(1, len(words) - 2):
+        reg = words[i] & 31
+        # Retain the complete PP-derived closure entry/context load and call.
+        # Only its address's low immediate can move independently of the page.
+        if (reg not in (27, 31) and
+            words[i-1] & 0xffc003ff == 0x91400360 | reg and
+            words[i] & 0xffc003ff == 0x91000000 | reg << 5 | reg and
+            words[i+1] == 0xa940141e | reg << 5 and
+            words[i+2] == 0xd63f03c0):
+            result[i] = 0xffc003ff
+    return result
+
 def branch(im,pc,link=True):
  w=struct.unpack('<I',im.read(pc,4))[0];assert w&0xfc000000==(0x94000000 if link else 0x14000000)
  return pc+(((w&0x3ffffff)^0x2000000)-0x2000000)*4
@@ -180,7 +194,7 @@ def main():
   if 'LauncherStateManager.isEffectiveNoWordModel' in im.syms:
    [(at,size)]=im.syms['LauncherStateManager.isEffectiveNoWordModel'];roles['NoWordEffective']=(at,size)
   for role,(at,size) in roles.items():
-   words=struct.unpack('<'+'I'*(size//4),im.read(at,size));pattern=tuple((w&mask(w,role),mask(w,role)) for w in words)
+   words=struct.unpack('<'+'I'*(size//4),im.read(at,size));pattern=tuple((w&m,m) for w,m in zip(words,body_masks(words,role)))
    bucket=groups.setdefault(role,[])
    if pattern not in bucket:bucket.append(pattern)
  lines=['// SPDX-License-Identifier: Apache-2.0','// Reviewed mapped-code contracts. Symbols and addresses are generator oracles only.']

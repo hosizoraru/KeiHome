@@ -99,6 +99,25 @@ int main(int argc, char** argv) {
     mutate(good.guarded_clone+0xb8, 0x20);
     mutate(good.guarded_clone+0xd4, 1);
     mutate(good.guarded_clone+0xf4, 1);
+    uintptr_t tail_pc=0,closure_pc=0;
+    for(uintptr_t pc=good.guarded_clone;pc<good.guarded_clone+0x100;pc+=4) {
+        const uint32_t op=word(pc),reg=op&31u;
+        if((op&0xfc000000u)==0x14000000u) {
+            const uintptr_t target=pc+(((int64_t(op&0x3ffffff)^0x2000000)-0x2000000)*4);
+            if(target<good.guarded_clone||target>=good.guarded_clone+0x100) {
+                assert(!tail_pc);tail_pc=pc;
+            }
+        }
+        if(pc+16<=good.guarded_clone+0x100&&
+           (op&0xffc003ffu)==(0x91400360u|reg)&&
+           (word(pc+4)&0xffc003ffu)==(0x91000000u|(reg<<5u)|reg)&&
+           word(pc+8)==(0xa940141eu|(reg<<5u))&&word(pc+12)==0xd63f03c0u)closure_pc=pc;
+    }
+    assert(tail_pc&&closure_pc);
+    mutate(tail_pc,1); // a different helper target is not a relocation
+    mutate(closure_pc,1u<<22); // PP page shift
+    mutate(closure_pc+4,1u<<22); // low offset shift
+    mutate(closure_pc+8,1u<<10); // closure context register
     mutate(good.raw_update+0x3c, 0x20);
     const uint32_t w = word(good.image_allocator+8);
     const uintptr_t generic = good.image_allocator+8+(((int64_t(w&0x3ffffff)^0x2000000)-0x2000000)*4);
@@ -138,6 +157,29 @@ int main(int argc, char** argv) {
         if (pair.first == good.image_allocator) word(good.guarded_clone+0xb8) -= 1u << 5;
     }
     mapped[9] ^= 1; positive(); mapped[9] ^= 1;
+
+    // The external return helper can move independently, but all authenticated
+    // bytes and its Thread/return contract must remain the same.
+    const uint32_t page=word(closure_pc),low=word(closure_pc+4);
+    const uint32_t slot=((page>>10)&4095u)*4096u+((low>>10)&4095u)+0x1008u;
+    word(closure_pc)=(page&~0x003ffc00u)|((slot/4096u)<<10);
+    word(closure_pc+4)=(low&~0x003ffc00u)|((slot%4096u)<<10);
+    positive();
+    word(closure_pc)=page;word(closure_pc+4)=low;
+    const uint32_t tail_branch=word(tail_pc);
+    assert((tail_branch&0xfc000000u)==0x14000000u);
+    const uintptr_t tail=tail_pc+(((int64_t(tail_branch&0x3ffffff)^0x2000000)-0x2000000)*4);
+    const uintptr_t tail_copy=base+size;
+    memcpy(reinterpret_cast<void*>(tail_copy),reinterpret_cast<const void*>(tail),32);
+    ranges.push_back({tail_copy,4096,true});
+    view.readable_ranges=ranges.data();view.readable_range_count=ranges.size();
+    word(tail_pc)=branch(tail_pc,tail_copy,0x14000000u);
+    positive();
+    word(tail_copy+24)^=0x400;reject(view);word(tail_copy+24)^=0x400;
+    word(tail_pc)=tail_branch;
+    ranges.pop_back();view.readable_ranges=ranges.data();view.readable_range_count=ranges.size();
+    memset(reinterpret_cast<void*>(tail_copy),0,32);
+    positive();
 
     // Duplicate then relocate clone and all direct incoming edges.
     const uintptr_t moved = base+size;

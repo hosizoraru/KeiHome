@@ -35,7 +35,35 @@ static void SetBranch(std::vector<uint8_t>& b, size_t pc, size_t target, bool li
     Write(b,pc,(link?0x94000000u:0x14000000u)|(uint32_t((int64_t(target)-int64_t(pc))/4)&0x3ffffffu));
 }
 struct Segment { size_t start, size; bool executable; };
+static int Probe(const char* path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        std::fprintf(stderr, "cannot open probe image: %s\n", path);
+        return 2;
+    }
+    const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
+    if (bytes.empty() || input.bad()) {
+        std::fprintf(stderr, "cannot read probe image: %s\n", path);
+        return 2;
+    }
+    const auto base = reinterpret_cast<uintptr_t>(bytes.data());
+    const MonetSelectionImageRange range{base, bytes.size(), true};
+    MonetSelectionProfile profile{};
+    const char* reason = nullptr;
+    // Resolve data only: no publication, code execution or mutation suite.
+    const bool accepted = ResolveMonetSelection({base, &range, 1}, &profile, &reason);
+    std::puts(accepted ? "accepted" : "rejected");
+    if (!accepted && reason != nullptr) std::fprintf(stderr, "%s\n", reason);
+    return accepted ? 0 : 1;
+}
 int main(int argc, char** argv) {
+    if (argc >= 2 && std::strcmp(argv[1], "--probe") == 0) {
+        if (argc != 3) {
+            std::fprintf(stderr, "usage: %s --probe LIBAPP\n", argv[0]);
+            return 2;
+        }
+        return Probe(argv[2]);
+    }
     if (argc != 2) return 2;
     std::ifstream f(argv[1],std::ios::binary);
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)),{});

@@ -6,7 +6,10 @@
 #include <string.h>
 
 namespace {
-struct Pattern { unsigned role, count; uint32_t prefix[4]; uint8_t digest[32]; };
+struct Pattern {
+    unsigned role, count; uint32_t prefix[4]; uint8_t digest[32];
+    uint16_t tail_index; uint8_t tail_digest[32];
+};
 #include "monet_image_recovery_patterns.h"
 constexpr size_t kMaxSpan = 128u * 1024u * 1024u;
 constexpr size_t kMaxWords = 512;
@@ -62,12 +65,30 @@ bool Matches(const MonetSelectionImageView& v, uintptr_t pc, const Pattern& p) {
                 normalized[i+1] = next & ~0x003ffc00u;
             }
         }
+        const uint32_t reg = w & 31u;
+        if (i+3 < p.count && reg != 27u && reg != 31u &&
+            (w & 0xffc003ffu) == (0x91400360u | reg) &&
+            (Word(pc+(i+1)*4) & 0xffc003ffu) == (0x91000000u | (reg<<5u) | reg) &&
+            Word(pc+(i+2)*4) == (0xa940141eu | (reg<<5u)) &&
+            Word(pc+(i+3)*4) == 0xd63f03c0u) {
+            normalized[i] = w & ~0x003ffc00u;
+            normalized[i+1] = Word(pc+(i+1)*4) & ~0x003ffc00u;
+        }
         if ((w & 0xffc003e0u) == 0xf9400360u && ((w >> 10) & 4095)*8 >= 256)
             normalized[i] = w & ~0x003ffc00u;
         if (p.role == kRawUpdate && i == 15) normalized[i] = w & 0xffe0001fu;
         if (p.role == kGuardedClone && i == 0xb8/4) normalized[i] = w & 0xffe0001fu;
     }
     uint8_t digest[32];
+    if (p.tail_index != 65535u) {
+        uintptr_t tail = 0;
+        if (p.role != kGuardedClone || p.tail_index >= p.count ||
+            !Direct(v, pc+p.tail_index*4u, 0x14000000u, &tail) ||
+            (tail >= pc && tail < pc+p.count*4u) || !Contains(v, tail, 32)) return false;
+        MonetSha256(reinterpret_cast<const void*>(tail), 32, digest);
+        if (memcmp(digest, p.tail_digest, 32)) return false;
+        normalized[p.tail_index] &= 0xfc000000u;
+    }
     MonetSha256(normalized, p.count*4, digest);
     return memcmp(digest, p.digest, 32) == 0;
 }

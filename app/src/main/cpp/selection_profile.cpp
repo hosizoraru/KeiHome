@@ -48,10 +48,9 @@ struct View {
 // independent; no launcher-version offsets or legacy fallback RVAs are used.
 struct Edge { uint16_t index; int16_t role; uint16_t body; };
 struct Body {
-    uint16_t count;
+    uint16_t count, scope_count;
     uint8_t digest[32];
     uint16_t edge_begin, edge_count;
-    bool normalized;
 };
 struct Pattern { size_t role; uint32_t prefix[4]; uint16_t body; };
 #include "monet_selection_patterns.h"
@@ -65,6 +64,7 @@ struct Candidate { uintptr_t address; const Pattern* pattern; };
 struct Choices { Candidate values[kMaxCandidates]; size_t count, addresses; };
 constexpr size_t kMaxWords = 2048;
 constexpr size_t kMaxSlots = 256;
+constexpr size_t kMaxGraphNodes = 1024;
 
 bool Fail(const char** rejection, const char* text) {
     if (rejection != nullptr) *rejection = text;
@@ -175,10 +175,12 @@ bool Branch(uintptr_t pc, uint32_t word, uintptr_t* target, bool* link) {
 }
 
 // Only PC-relative external edges, PP slot indices, and static-table indices
-// are normalized. Local branch destinations, all opcodes/registers, object and
-// Thread fields, CIDs, tagged length/data offsets, booleans and frame sizes are
-// exact. Repeated slots retain their identity within each body. Cross-function
-// selection slots are checked separately below and linked to live PP in ASM.
+// are normalized. Scalar-double PP loads use the same relocation rules as
+// pointer loads; their opcode, width, destination and PP-derived base stay exact.
+// Prefixes retain local branches within their complete function scope; every
+// external branch is checked through the closed dependency graph below.
+// Object/Thread fields and other instructions stay exact. Slots retain identity.
+// Cross-function selection slots are checked below and linked to live PP in ASM.
 bool SlotOrdinal(uintptr_t slots[kMaxSlots], size_t* count,
                  uintptr_t slot, uint32_t* ordinal) {
     for (size_t i = 0; i < *count; ++i) {
@@ -199,13 +201,9 @@ uint32_t BranchMask(uint32_t word) {
 }
 
 bool Match(const View& view, uintptr_t base, const Body& body) {
-    if (body.count == 0 || body.count > kMaxWords ||
-        !LoadContains(view, base, body.count * 4u)) return false;
+    if (body.count == 0 || body.count > kMaxWords || body.scope_count < body.count ||
+        !LoadContains(view, base, body.scope_count * 4u)) return false;
     uint8_t digest[32];
-    if (!body.normalized) {
-        MonetSha256(reinterpret_cast<const void*>(base), body.count * 4u, digest);
-        return memcmp(digest, body.digest, 32) == 0;
-    }
     uint32_t words[kMaxWords];
     memcpy(words, reinterpret_cast<const void*>(base), body.count * 4u);
     uintptr_t pools[kMaxSlots]{}, statics[kMaxSlots]{};
@@ -216,7 +214,7 @@ bool Match(const View& view, uintptr_t base, const Body& body) {
         uintptr_t target = 0; bool link = false;
         if (BranchMask(w) != 0) {
             if (!Branch(pc, w, &target, &link)) return false;
-            if (target < base || target >= base + body.count * 4u) {
+            if (target < base || target >= base + body.scope_count * 4u) {
                 if (!LoadContains(view, target, 4)) return false;
                 bool declared = false;
                 for (size_t j = 0; j < body.edge_count; ++j)
@@ -227,14 +225,17 @@ bool Match(const View& view, uintptr_t base, const Body& body) {
             }
         }
         uint32_t ordinal = 0;
-        if ((w & 0xffc003e0u) == 0xf9400360u && ((w >> 10u) & 4095u) * 8u >= 256u) {
+        const bool pointer_load = (w & 0xffc003e0u) == 0xf9400360u;
+        const bool double_load = (w & 0xffc003e0u) == 0xfd400360u;
+        if ((pointer_load || double_load) && ((w >> 10u) & 4095u) * 8u >= 256u) {
             if (!SlotOrdinal(pools, &pool_count, ((w >> 10u) & 4095u) * 8u, &ordinal)) return false;
             words[i] = (w & ~0x003ffc00u) | (ordinal << 10u);
         }
         if (i + 1 == body.count) continue;
         const uint32_t next = Word(pc + 4), reg = w & 31u;
-        if ((w & 0xffc003e0u) == 0x91400360u &&
-            (next & 0xffc003e0u) == (0xf9400000u | (reg << 5u))) {
+        const bool pointer_pair = (next & 0xffc003e0u) == (0xf9400000u | (reg << 5u));
+        const bool double_pair = (next & 0xffc003e0u) == (0xfd400000u | (reg << 5u));
+        if ((w & 0xffc003e0u) == 0x91400360u && (pointer_pair || double_pair)) {
             const uintptr_t slot = ((w >> 10u) & 4095u) * 4096u + ((next >> 10u) & 4095u) * 8u;
             if (slot < 256 || slot > 0x100000 ||
                 !SlotOrdinal(pools, &pool_count, slot, &ordinal)) return false;
@@ -259,19 +260,36 @@ bool Has(const Choices& choices, uintptr_t address) {
 }
 
 bool CallsMatch(const View& view, uintptr_t base, const Body& body,
-                const Choices choices[kPatternCount], size_t depth = 0) {
-    if (depth > 2) return false;
-    for (size_t i = 0; i < body.edge_count; ++i) {
-        const auto& edge = kEdges[body.edge_begin + i];
-        const uintptr_t pc = base + edge.index * 4u;
-        uintptr_t target = 0; bool link = false;
-        if (!Branch(pc, Word(pc), &target, &link) || !LoadContains(view, target, 4)) return false;
-        if (edge.role >= 0) {
-            if (!Has(choices[edge.role], target)) return false;
-        } else {
-            const auto& callee = kBodies[edge.body];
-            if (!Match(view, target, callee) ||
-                !CallsMatch(view, target, callee, choices, depth + 1)) return false;
+                const Choices choices[kPatternCount]) {
+    struct Node { uintptr_t address; const Body* body; };
+    Node pending[kMaxGraphNodes];
+    pending[0] = {base, &body};
+    size_t count = 1;
+    // Authenticate every prefix edge, including cycles, without making graph
+    // depth consume the native stack. Each visited address/body pair is proven.
+    for (size_t cursor = 0; cursor < count; ++cursor) {
+        const auto node = pending[cursor];
+        if (!Match(view, node.address, *node.body)) return false;
+        for (size_t i = 0; i < node.body->edge_count; ++i) {
+            const auto& edge = kEdges[node.body->edge_begin + i];
+            const uintptr_t pc = node.address + edge.index * 4u;
+            uintptr_t target = 0; bool link = false;
+            if (!Branch(pc, Word(pc), &target, &link) || !LoadContains(view, target, 4)) return false;
+            if (edge.role >= 0) {
+                if (!Has(choices[edge.role], target)) return false;
+            } else {
+                const auto* callee = &kBodies[edge.body];
+                bool visited = false;
+                for (size_t j = 0; j < count; ++j)
+                    if (pending[j].address == target && pending[j].body == callee) {
+                        visited = true;
+                        break;
+                    }
+                if (!visited) {
+                    if (count == kMaxGraphNodes) return false;
+                    pending[count++] = {target, callee};
+                }
+            }
         }
     }
     return true;

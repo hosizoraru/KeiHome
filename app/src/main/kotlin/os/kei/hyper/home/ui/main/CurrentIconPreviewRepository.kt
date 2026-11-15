@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.data.IconPreviewRepository
 import os.kei.hyper.home.data.InstalledIconCapability
+import os.kei.hyper.home.data.PackageRefreshTarget
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackPreviews
@@ -63,7 +64,8 @@ internal class CurrentIconPreviewRepository(
       val original = originals.load(app, colorMask = mask)
       val key = Key(source.revision, source.pack.id,
         "original:${app.packageName}:${app.userId}:${original.light?.generationId}:${original.dark?.generationId}",
-        file.absolutePath, file.length(), file.lastModified(), Configuration(application.resources.configuration))
+        file.absolutePath, file.length(), file.lastModified(), Configuration(application.resources.configuration),
+        app.packageName, app.userId)
       requests[(key.hashCode() and Int.MAX_VALUE) % requests.size].withLock {
         synchronized(lock) { cache.get(key) }?.let { return@withContext it }
         running.withPermit {
@@ -158,8 +160,16 @@ internal class CurrentIconPreviewRepository(
   fun sizeBytes(): Int = synchronized(lock) { cache.size() }
   fun clear() = synchronized(lock) { generation++; cache.evictAll() }
 
+  internal fun invalidatePackages(targets: Set<PackageRefreshTarget>) = synchronized(lock) {
+    generation++
+    cache.snapshot().keys.filter { key ->
+      key.packageName != null && targets.any { it.matches(key.packageName, key.userSerial) }
+    }.forEach(cache::remove)
+  }
+
   private data class Key(val revision: String, val pack: String, val entry: String,
-    val path: String, val bytes: Long, val modified: Long, val configuration: Configuration)
+    val path: String, val bytes: Long, val modified: Long, val configuration: Configuration,
+    val packageName: String? = null, val userSerial: Long = -1L)
   private data class MaskKey(val revision: String, val path: String, val bytes: Long, val modified: Long, val epoch: Long)
   private data class PublishedMask(val mask: NativeAdaptiveIconMask?)
 

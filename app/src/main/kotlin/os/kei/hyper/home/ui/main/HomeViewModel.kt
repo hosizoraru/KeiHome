@@ -11,6 +11,7 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -40,6 +41,9 @@ import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.data.IconPreviewRepository
 import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.data.InstalledIconScanner
+import os.kei.hyper.home.data.PackageRefreshTarget
+import os.kei.hyper.home.data.PendingPackageRefresh
+import os.kei.hyper.home.data.preserveUnchangedReference
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.MonetActionStatus
 import os.kei.hyper.home.data.MonetCustomization
@@ -157,6 +161,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   internal val importedPackRevision: StateFlow<Int>
     field = MutableStateFlow(0)
   val previews = IconPreviewRepository(application)
+  private val scanner = InstalledIconScanner(application)
+  private var previewCacheRevision = 0L
   val packPreviews = IconPackPreviewRepository(application)
   val currentPreviews = CurrentIconPreviewRepository(application,
     { pack, entry -> packPreviews.loadApplied(pack, entry) })
@@ -221,28 +227,41 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private var iconPacksDirty = true
   private val nativeIconAdaptations = os.kei.hyper.home.iconpack.NativeIconAdaptations(application)
   private var runtimeRead: Deferred<RuntimeStatusReport?>? = null
+  private var browserSourceRead: Deferred<IconBrowserSource?>? = null
+  private var browserBindingRevision = 0L
+  private var browserSourceRequest = 0L
   private val launcherApps = application.getSystemService(LauncherApps::class.java)
   private var visiblePage: Int? = null
   private var pageObservation = 0L
   private var locale = ""
   private var scannedLocale: String? = null
   private var appsDirty = true
+  private val pendingAppRefresh = PendingPackageRefresh().apply { add() }
+  private var pendingAppFullPreviewRevision: Long? = null
+  private var observedAppTheme: String? = null
   private var scanJob: Job? = null
   private var applyJob: Job? = null
   private var packageChangeJob: Job? = null
+  private val pendingPackageRefresh = PendingPackageRefresh()
   private val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(
     application, Handler(Looper.getMainLooper()),
-  ) { packagesChanged() }
+    onPackageChanged = { name, user -> packageChanged(name, user) },
+  ) {}
   private val overlayObserver = os.kei.hyper.home.data.IconOverlayObserver(
     application, Handler(Looper.getMainLooper()),
-  ) { packagesChanged() }
+  ) { target -> packagesChanged(if (target == "android") null else PackageRefreshTarget(target)) }
   private val packageCallback = object : LauncherApps.Callback() {
-    override fun onPackageAdded(packageName: String, user: UserHandle) = packagesChanged()
-    override fun onPackageRemoved(packageName: String, user: UserHandle) = packagesChanged()
+    override fun onPackageAdded(packageName: String, user: UserHandle) = packageChanged(packageName, user)
+    override fun onPackageRemoved(packageName: String, user: UserHandle) = packageChanged(packageName, user)
     // Real resource/component changes are observed through PackageManager broadcasts.
     override fun onPackageChanged(packageName: String, user: UserHandle) = Unit
-    override fun onPackagesAvailable(names: Array<out String>, user: UserHandle, replacing: Boolean) = packagesChanged()
-    override fun onPackagesUnavailable(names: Array<out String>, user: UserHandle, replacing: Boolean) = packagesChanged()
+    override fun onPackagesAvailable(names: Array<out String>, user: UserHandle, replacing: Boolean) {
+      // Availability can change a whole profile without changing the profile serial set.
+      if (!replacing) packagesChanged(null)
+    }
+    override fun onPackagesUnavailable(names: Array<out String>, user: UserHandle, replacing: Boolean) {
+      if (!replacing) packagesChanged(null)
+    }
   }
 
   private var nativeImportGeneration = 0L
@@ -353,6 +372,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             nativeReceiptVisibility.value == visibility && FrameworkConnection.service.value === service
           }
         }
+      }
+    }
+    viewModelScope.launch {
+      // Do not wait for collectLatest to join a slow, non-interruptible framework read.
+      FrameworkConnection.service.collect {
+        browserBindingRevision++
+        clearBrowserSource()
       }
     }
     viewModelScope.launch {
@@ -514,10 +540,13 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val wallpaperRefreshed = if (page == 2) refreshWallpaper() else true
         readPalette()
         if (page == 0 || page == 1) {
+          pendingAppRefresh.add()
+          scanner.invalidateAll()
           appsDirty = true
           clearPreviewCache()
+          pendingAppFullPreviewRevision = previewCacheRevision
           scanApps()
-          while (appsDirty || scanJob?.isActive == true) {
+          while ((appsDirty || scanJob?.isActive == true) && apps.value.error == null) {
             if (scanJob?.isActive != true) scanApps()
             scanJob?.join()
           }
@@ -534,6 +563,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun clearPreviewCache() {
+    previewCacheRevision++
     previews.clear()
     packPreviews.clear()
     currentPreviews.clear()
@@ -567,18 +597,45 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     } catch (_: Exception) { false }
   }
 
-  private fun packagesChanged() {
-    appsDirty = true
-    iconPacksDirty = true
-    packageChangeJob?.cancel()
+  private fun packageChanged(packageName: String, user: UserHandle) {
+    val serial = getApplication<Application>().getSystemService(android.os.UserManager::class.java)
+      ?.getSerialNumberForUser(user)?.takeIf { it >= 0 }
+    packagesChanged(PackageRefreshTarget(packageName, serial))
+  }
+
+  private fun packagesChanged(target: PackageRefreshTarget?) {
+    pendingPackageRefresh.add(target)
+    if (packageChangeJob?.isActive == true) return
     packageChangeJob = viewModelScope.launch {
-      delay(350)
-      clearPreviewCache()
-      packRepository.invalidateInstalled()
-      if (visiblePage in 0..1) scanApps()
-      if (visiblePage == 3 || iconPacks.value.scanned) readIconPacks()
-      else applePacks.refreshTargetsIfLoaded()
-      packageInventoryRevision.value++
+      while (pendingPackageRefresh.isPending) {
+        val revision = pendingPackageRefresh.revision
+        delay(350)
+        if (revision != pendingPackageRefresh.revision) continue
+        val batch = pendingPackageRefresh.drain()
+        pendingAppRefresh.restore(batch)
+        appsDirty = true
+        iconPacksDirty = true
+        val installedPackChanged = batch.global || iconPacks.value.packs.any { card ->
+          val installed = card.pack.source as? os.kei.hyper.home.iconpack.IconPackSource.Installed
+          installed != null && batch.targets.any { it.packageName == installed.packageName }
+        }
+        if (batch.global) {
+          scanner.invalidateAll()
+          clearPreviewCache()
+          pendingAppFullPreviewRevision = previewCacheRevision
+        } else {
+          scanner.invalidate(batch.targets)
+          previews.invalidatePackages(batch.targets)
+          currentPreviews.invalidatePackages(batch.targets)
+          if (installedPackChanged) packPreviews.clear()
+          apps.update { it.copy(previewGeneration = it.previewGeneration + 1) }
+        }
+        if (installedPackChanged) packRepository.invalidateInstalled()
+        if (visiblePage in 0..1) scanApps()
+        packageInventoryRevision.value++
+        // A previously visited catalogue is not a reason to rescan hidden families.
+        if (visiblePage in 2..3) readIconPacks()
+      }
     }
   }
 
@@ -814,24 +871,50 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   private fun scanApps() {
     if (scanJob?.isActive == true) return
+    if (scannedLocale != locale || appsDirty && !pendingAppRefresh.isPending) pendingAppRefresh.add()
+    if (!pendingAppRefresh.isPending) return
+    val request = pendingAppRefresh.drain()
+    val previewsAlreadyInvalidated = request.global && pendingAppFullPreviewRevision != null
+    pendingAppFullPreviewRevision = null
+    val previewRevisionAtStart = previewCacheRevision
     appsDirty = false
     val requestedLocale = locale
+    val previousCapabilities = apps.value.capabilities
     apps.update { it.copy(loading = true, error = null) }
     scanJob = viewModelScope.launch {
+      var continueQueuedWork = true
       try {
         val result = withContext(Dispatchers.Default) {
           val caller = kotlinx.coroutines.currentCoroutineContext()
-          InstalledIconScanner(getApplication()).scan { caller.ensureActive() }
+          scanner.refresh(request) { caller.ensureActive() }.let {
+            it.copy(capabilities = it.capabilities.preserveUnchangedReference(previousCapabilities))
+          }
+        }
+        if (result.fullRefresh) {
+          if (!previewsAlreadyInvalidated && previewCacheRevision == previewRevisionAtStart) clearPreviewCache()
+          packRepository.invalidateInstalled()
+          iconPacksDirty = true
+          if (visiblePage in 2..3) viewModelScope.launch { readIconPacks() }
         }
         scannedLocale = requestedLocale
-        apps.update { it.copy(capabilities = result, loading = false) }
+        apps.update { it.copy(capabilities = result.capabilities, loading = false) }
       } catch (cancellation: CancellationException) {
+        pendingAppRefresh.restore(request)
+        if (previewsAlreadyInvalidated && pendingAppFullPreviewRevision == null)
+          pendingAppFullPreviewRevision = previewCacheRevision
+        appsDirty = true
+        continueQueuedWork = false
+        apps.update { it.copy(loading = false) }
         throw cancellation
       } catch (failure: Exception) {
+        continueQueuedWork = pendingAppRefresh.isPending
+        pendingAppRefresh.add()
+        appsDirty = true
         apps.update { it.copy(loading = false, error = failure.message.orEmpty()) }
       } finally {
         scanJob = null
-        if ((appsDirty || requestedLocale != locale) && visiblePage in 0..1) scanApps()
+        appsDirty = appsDirty || pendingAppRefresh.isPending
+        if (continueQueuedWork && (appsDirty || requestedLocale != locale) && visiblePage in 0..1) scanApps()
       }
     }
   }
@@ -973,10 +1056,18 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
+  private fun clearBrowserSource() {
+    browserSourceRequest++
+    browserSourceRead?.cancel()
+    browserSourceRead = null
+    browserSource.value = null
+  }
+
   private suspend fun readRuntimeStatus(includeIconTheme: Boolean = true, force: Boolean = false) {
     val requestedAt = SystemClock.elapsedRealtime()
     runtimeMutex.withLock {
       val service = FrameworkConnection.service.value ?: return
+      val bindingRevision = browserBindingRevision
       // A home-screen preference receipt deliberately omits the icon inventory. Keep its
       // lifecycle/failures separate from the complete theme report and freshness.
       val status: MutableStateFlow<RuntimeStatusUiState> = if (includeIconTheme) runtime else homeScreenRuntime
@@ -992,7 +1083,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       if (runtimeRead?.isCompleted == false) {
         val fresh = status.value.report?.takeIf { it.isFresh(requestedAt) }
         status.value = RuntimeStatusUiState(report = fresh, checking = true)
-        if (includeIconTheme && fresh == null) browserSource.value = null
+        if (includeIconTheme && fresh == null) clearBrowserSource()
         return
       }
       status.update {
@@ -1004,26 +1095,61 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       runtimeRead = operation
       try {
         val report = kotlinx.coroutines.withTimeoutOrNull(6_000L) { operation.await() }
-        if (FrameworkConnection.service.value === service) {
+        if (FrameworkConnection.service.value === service && browserBindingRevision == bindingRevision) {
           status.value = RuntimeStatusUiState(report = report, timedOut = report == null)
           if (includeIconTheme) {
             val theme = report?.iconTheme
-            if (theme?.previewKey == null) browserSource.value = null
+            if (theme != null && theme.source != os.kei.hyper.home.status.SystemIconThemeReport.Source.UNAVAILABLE &&
+                (theme.source == os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT || theme.complete)) {
+              // previewKey also includes the installed-package selection, so it is not a theme identity.
+              val identity = listOf(theme.source.name, theme.localId, theme.nativeHash, theme.revision).joinToString("|")
+              val previous = observedAppTheme
+              observedAppTheme = identity
+              if (previous != null && previous != identity) {
+                pendingAppRefresh.add()
+                scanner.invalidateAll()
+                appsDirty = true
+                clearPreviewCache()
+                pendingAppFullPreviewRevision = previewCacheRevision
+                if (visiblePage in 0..1) scanApps()
+              }
+            }
+            if (theme?.previewKey == null) clearBrowserSource()
             else if (browserSource.value?.revision != theme.previewKey) {
-              browserSource.value = null
-              try { browserSource.value = readBrowserSource(getApplication(), theme) }
-              catch (cancelled: CancellationException) { throw cancelled }
-              catch (failure: Exception) { android.util.Log.w("KeiHomeBrowser", "Active icon resources unavailable", failure) }
+              clearBrowserSource()
+              val request = browserSourceRequest
+              val sourceJob = viewModelScope.async(start = CoroutineStart.LAZY) {
+                readBrowserSource(getApplication(), theme)
+              }
+              browserSourceRead = sourceJob
+              sourceJob.start()
+              try {
+                val loaded = sourceJob.await()
+                if (FrameworkConnection.service.value === service && browserBindingRevision == bindingRevision &&
+                    browserSourceRequest == request && browserSourceRead === sourceJob &&
+                    runtime.value.report?.iconTheme?.previewKey == theme.previewKey) browserSource.value = loaded
+              } catch (cancelled: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                if (FrameworkConnection.service.value !== service || browserBindingRevision != bindingRevision ||
+                    browserSourceRequest != request) return@withLock
+                throw cancelled
+              } catch (failure: Exception) {
+                android.util.Log.w("KeiHomeBrowser", "Active icon resources unavailable", failure)
+              } finally {
+                if (browserSourceRead === sourceJob) browserSourceRead = null
+                sourceJob.cancel()
+              }
             }
           }
         }
       } catch (cancellation: CancellationException) {
-        if (FrameworkConnection.service.value === service) status.update { it.copy(checking = false) }
+        if (FrameworkConnection.service.value === service && browserBindingRevision == bindingRevision)
+          status.update { it.copy(checking = false) }
         throw cancellation
       } catch (_: Exception) {
-        if (FrameworkConnection.service.value === service) {
+        if (FrameworkConnection.service.value === service && browserBindingRevision == bindingRevision) {
           status.value = RuntimeStatusUiState(readFailed = true)
-          if (includeIconTheme) browserSource.value = null
+          if (includeIconTheme) clearBrowserSource()
         }
       } finally {
         operation.cancel()

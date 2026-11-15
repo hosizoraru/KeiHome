@@ -131,6 +131,13 @@ internal class IconPreviewRepository(
     defaultPreview = null
   }
 
+  internal fun invalidatePackages(targets: Set<PackageRefreshTarget>) = synchronized(lock) {
+    generation++
+    cache.snapshot().keys.filter { key ->
+      targets.any { it.matches(key.component.packageName, key.userSerial) }
+    }.forEach(cache::remove)
+  }
+
   private fun resolve(app: InstalledIconCapability, sizePx: Int): Target? {
     // InstalledIconCapability.userId is a persistent SERIAL, not UserHandle.identifier.
     val user = application.getSystemService(UserManager::class.java)

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Developer deployment: whole APK, increasing versions, explicit AVD only.
 
-The default verifies Java hot reload without restarting any process.
+The default verifies critical Java receipts without restarting any process,
+and separately reports observed target outcomes and coverage uncertainty.
+Evidence includes service-reload.log and all-target-reloads.json. Strict mode
+requires complete successful observed pairs; it cannot prove unseen targets.
 --reload-native is an explicit development operation that replaces the exact
 root HYOS spawner after Java hot reload succeeds. It is not module runtime code.
 """
@@ -14,6 +17,7 @@ import shlex
 import subprocess
 import time
 from hyperos_avd_health import check_health
+from lsposed_reload_parser import parse_reloads, plan_log_reads
 
 ROOT = Path(__file__).resolve().parents[1]
 SERIAL = "emulator-5580"
@@ -49,6 +53,162 @@ def module_log_delta(before):
         if size > offset:
             chunks.append(root(f"tail -c +{offset + 1} {shlex.quote(path)}"))
     return "\n".join(chunks)
+
+
+def service_log_snapshot(timeout=3):
+    rows = root("stat -c '%n %i %s' /data/adb/lspd/log/*.log", timeout=timeout)
+    result = {}
+    for row in rows.splitlines():
+        path, inode, size = row.rsplit(" ", 2)
+        if re.fullmatch(r"/data/adb/lspd/log/(?:verbose|service)(?:_[^/]*)?\.log", path):
+            result[path] = (int(inode), int(size))
+    return result
+
+
+class ServiceReloadCapture:
+    """Append only checked inode byte ranges; retain rotation/read gaps."""
+
+    def __init__(self):
+        self.issues = []
+        self.segments = []
+        try:
+            self.cursor = service_log_snapshot()
+            if not self.cursor:
+                self.issues.append("no service/verbose log at pre-install snapshot")
+        except (subprocess.SubprocessError, ValueError) as error:
+            self.cursor = None
+            self.issues.append(f"pre-install service snapshot failed: {error}")
+
+    def poll(self, timeout=3):
+        deadline = time.monotonic() + timeout
+        try:
+            current = service_log_snapshot(timeout=max(0.01, deadline - time.monotonic()))
+            if self.cursor is None:
+                # A failed baseline must never replay pre-install history.
+                self.cursor = current
+                return
+            reads, issues = plan_log_reads(self.cursor, current)
+            self.issues.extend(issues)
+            next_cursor = dict(current)
+            for read in reads:
+                path, inode = read["path"], read["inode"]
+                offset, length = read["offset"], read["length"]
+                next_cursor[path] = (inode, offset)
+                try:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ValueError("service byte-read deadline expired")
+                    # Open first, so a pathname replacement cannot mix inodes.
+                    command = (
+                        f"exec 3< {shlex.quote(path)} || exit 1; "
+                        "stat -Lc '%i %s' /proc/self/fd/3; "
+                        f"tail -c +{offset + 1} <&3 | head -c {length}"
+                    )
+                    raw = subprocess.check_output(
+                        ["adb", "-s", SERIAL, "shell", "su", "-c", shlex.quote(command)],
+                        timeout=remaining,
+                    )
+                    metadata, data = raw.split(b"\n", 1)
+                    actual_inode, actual_size = map(int, metadata.split())
+                    if (actual_inode != inode or actual_size < offset + length
+                            or len(data) != length):
+                        raise ValueError("service inode/size changed during read")
+                    segment = next(
+                        (item for item in reversed(self.segments) if item["inode"] == inode),
+                        None,
+                    )
+                    if segment is None or read["reset"]:
+                        segment = {"path": path, "inode": inode, "offset": offset, "data": b""}
+                        self.segments.append(segment)
+                    segment["data"] += data
+                    next_cursor[path] = (inode, offset + length)
+                except (subprocess.SubprocessError, ValueError) as error:
+                    self.issues.append(f"service byte read failed for {path}: {error}")
+            self.cursor = next_cursor
+        except (subprocess.SubprocessError, ValueError) as error:
+            self.issues.append(f"service snapshot failed: {error}")
+        self.issues = list(dict.fromkeys(self.issues))
+
+    def text(self, *, complete_lines=False):
+        chunks = []
+        for segment in self.segments:
+            data = segment["data"]
+            if complete_lines:
+                data = data.rpartition(b"\n")[0]
+            chunks.append(
+                f"# {segment['path']} inode={segment['inode']} offset={segment['offset']}\n"
+                + data.decode("utf-8", errors="replace")
+            )
+        return "\n".join(chunks)
+
+    def report(self, system_log=""):
+        issues = list(self.issues)
+        if any(segment["data"] and not segment["data"].endswith(b"\n")
+               for segment in self.segments):
+            issues.append("incomplete trailing service log record")
+        return parse_reloads(
+            self.text(complete_lines=True), PACKAGE,
+            capture_issues=issues, system_log=system_log,
+        )
+
+    def save(self, out, system_log=""):
+        report = self.report(system_log)
+        (out / "service-reload.log").write_text(self.text())
+        (out / "all-target-reloads.json").write_text(json.dumps(report, indent=2) + "\n")
+        return report
+
+
+def settle_service_reloads(capture, out, timeout=6):
+    """Wait briefly for late asynchronous results, without changing native gates."""
+    deadline = time.monotonic() + timeout
+    last_signature = None
+    stable_since = time.monotonic()
+    while time.monotonic() < deadline:
+        capture.poll(timeout=min(2, max(0.01, deadline - time.monotonic())))
+        report = capture.save(out)
+        signature = json.dumps(report["targets"], sort_keys=True)
+        if signature != last_signature:
+            last_signature = signature
+            stable_since = time.monotonic()
+        if (report["observedCompleteness"] == "complete"
+                and time.monotonic() - stable_since >= 1):
+            break
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(0.25, remaining))
+    system_log = ""
+    if capture.report()["counts"]["failed"]:
+        try:
+            system_log = adb(
+                "logcat", "-b", "all", "-d", "-v", "threadtime", "-v", "year",
+                "-t", "12000", timeout=3,
+            )
+        except subprocess.SubprocessError as error:
+            capture.issues.append(f"system kill evidence unavailable: {error}")
+        (out / "reload-system.log").write_text(system_log)
+    return capture.save(out, system_log)
+
+
+def print_reload_results(report):
+    counts = report["counts"]
+    print(f"All-target logs: observed success={counts['success']}, "
+          f"failed={counts['failed']}, unknown={counts['unknown']}; "
+          f"observed completeness={report['observedCompleteness']}; "
+          "target population completeness=unknown.", flush=True)
+    for target in report["targets"]:
+        if target["status"] != "success":
+            print(f"  {target['process']}/{target['pid']}: {target['status']}; "
+                  f"detail={target['detail']!r}; reason={target['failureReason']}", flush=True)
+    for issue in report["issues"]:
+        print(f"  Evidence unknown: {issue}", flush=True)
+
+
+def require_observed_reloads(report):
+    if report["result"] != "observed_success" or report["observedCompleteness"] != "complete":
+        raise RuntimeError(
+            "Strict observed-target reload check failed or evidence unknown; "
+            "inspect all-target-reloads.json. Unobserved targets are never certified."
+        )
 
 
 def java_reconciliation_complete(delta):
@@ -139,6 +299,10 @@ def main():
     parser.add_argument("--apk", required=True, type=Path)
     parser.add_argument("--reload-native", action="store_true")
     parser.add_argument(
+        "--require-all-reloads", action="store_true",
+        help="Require complete successful observed start/outcome pairs, not proof of unseen targets.",
+    )
+    parser.add_argument(
         "--capture-backend", choices=("auto", "console"), default="console",
         help="Use console capture for readiness; auto tries guest screencap first.",
     )
@@ -173,6 +337,7 @@ def main():
         raise RuntimeError(f"versionCode must increase: installed={old_version}, APK={new_version}")
     before = {name: process(name) for name in ("com.miui.home", "system_server", "com.android.systemui")}
     logs = module_log_positions()
+    service_capture = ServiceReloadCapture()
     install_args = ["install", "-r"]
     if new_version < old_version:
         install_args.append("-d")
@@ -184,15 +349,22 @@ def main():
     while time.monotonic() < reconciliation_deadline:
         delta = module_log_delta(logs)
         (args.evidence / "java-reload.log").write_text(delta)
+        service_capture.poll()
+        service_capture.save(args.evidence)
         if java_reconciliation_complete(delta):
             break
         time.sleep(0.25)
     else:
         raise RuntimeError("Incomplete system-server/SystemUI API 102 handoff; native deployment stopped")
+    all_target_reloads = settle_service_reloads(service_capture, args.evidence)
+    print_reload_results(all_target_reloads)
     for name, identity in before.items():
         if process(name) != identity:
             raise RuntimeError(f"{name} changed during APK installation/hot reload")
-    print("API 102 Java reload verified; process identities unchanged", flush=True)
+    print("Critical API 102 receipts verified; critical process identities unchanged. "
+          "This does not certify every reload target.", flush=True)
+    if args.require_all_reloads:
+        require_observed_reloads(all_target_reloads)
     if args.reload_native:
         # Make the installed APK durable before the deliberate native process replacement.
         root("sync")
@@ -244,8 +416,11 @@ def main():
     (args.evidence / "deployment.json").write_text(json.dumps({
         "serial": SERIAL, "previousVersionCode": old_version, "versionCode": new_version, "before": before, "after": after,
         "nativeReloadRequested": args.reload_native,
+        "javaHotReloadVerificationScope": "critical_hosts_only",
+        "allTargetReloads": all_target_reloads,
     }, indent=2))
-    print("Deployment identity checks passed", flush=True)
+    print("Critical deployment identity checks passed; "
+          "see all-target-reloads.json for target outcomes and unknown coverage.", flush=True)
 
 
 if __name__ == "__main__":

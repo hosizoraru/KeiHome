@@ -1,0 +1,31 @@
+# Minimal verbatim loading/start/outcome lines from emulator-5580, 111000464 -> 111000466.
+[ 2026-11-15T12:47:50.802     1000: 11573: 13138 D/LSPosedFramework ] (com.miui.securitycenter.remote)[framework,LSPosedContext,2d35-1a1dc60438f-39-23,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.803     1000: 14696: 14939 D/LSPosedFramework ] (com.miui.securitycenter.power)[framework,LSPosedContext,3968-1a1dd14572b-28-20,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.803     1000: 14696: 14939 D/LSPosedFramework ] (com.miui.securitycenter.power)[framework,LSPosedContext,3968-1a1dd14572b-28-21,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.806     1000: 11573: 13138 D/LSPosedFramework ] (com.miui.securitycenter.remote)[framework,LSPosedContext,2d35-1a1dc60438f-39-24,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.808     6101: 25811: 28702 D/LSPosedFramework ] (com.android.thememanager)[framework,LSPosedContext,64d3-1a1dd1547e1-59-23,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.810     6101: 25811: 28702 D/LSPosedFramework ] (com.android.thememanager)[framework,LSPosedContext,64d3-1a1dd1547e1-59-24,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.810     1000: 14704: 14910 D/LSPosedFramework ] (com.miui.securitycenter:cache)[framework,LSPosedContext,3970-1a1dd145721-26-20,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.811     1000: 14704: 14910 D/LSPosedFramework ] (com.miui.securitycenter:cache)[framework,LSPosedContext,3970-1a1dd145721-26-21,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.811     1000: 14041: 14236 D/LSPosedFramework ] (com.miui.securitycenter:ui)[framework,LSPosedContext,36d9-1a1dd1442fe-48-23,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.813     1000: 15123: 16960 D/LSPosedFramework ] (com.android.settings)[framework,LSPosedContext,3b13-1a1dd1459c0-5d-26,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.813     1000:  8718:  9023 D/LSPosedFramework ] (system)[framework,LSPosedContext,220e-1a1dc600806-60-36f,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.813     1000:  8718:  9023 D/LSPosedFramework ] (system)[framework,LSPosedContext,220e-1a1dc600806-60-370,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.814     1000: 15123: 16960 D/LSPosedFramework ] (com.android.settings)[framework,LSPosedContext,3b13-1a1dd1459c0-5d-27,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.814     1000: 15566: 15705 D/LSPosedFramework ] (com.android.settings:provider)[framework,LSPosedContext,3cce-1a1dd146bf7-25-20,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.815     1000: 15566: 15705 D/LSPosedFramework ] (com.android.settings:provider)[framework,LSPosedContext,3cce-1a1dd146bf7-25-21,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.816    10216:  9684: 10769 D/LSPosedFramework ] (com.android.systemui)[framework,LSPosedContext,25d4-1a1dc602270-6f-6a3,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.816    10216:  9684: 10769 D/LSPosedFramework ] (com.android.systemui)[framework,LSPosedContext,25d4-1a1dc602270-6f-6a4,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.816     1000: 14041: 14236 D/LSPosedFramework ] (com.miui.securitycenter:ui)[framework,LSPosedContext,36d9-1a1dd1442fe-48-24,0,1]   Start hot reload
+[ 2026-11-15T12:47:50.820     1000: 14418: 14611 D/LSPosedFramework ] (com.miui.securitycenter)[framework,LSPosedContext,3852-1a1dd1451d3-54-23,0,1] Loading module os.kei.hyper.home from /data/app/~~glVPvZAwBDXJ74SvVtbyxw==/os.kei.hyper.home-qUw4wjdZBpEqa8Zxf1ocmw==/base.apk
+[ 2026-11-15T12:47:50.820     1000: 14418: 14611 D/LSPosedFramework ] (com.miui.securitycenter)[framework,LSPosedContext,3852-1a1dd1451d3-54-24,0,1]   Start hot reload
+[ 2026-11-15T12:47:51.484        0:  7963:  8016 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.miui.securitycenter.power/14696
+[ 2026-11-15T12:47:52.249        0:  7963:  8016 W/LSPosedService  ] Auto hot reload failed for os.kei.hyper.home in com.android.settings:provider/15566: status=4, message=null
+[ 2026-11-15T12:47:52.399        0:  7963:  8016 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.android.systemui/9684
+[ 2026-11-15T12:47:52.518        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.android.settings/15123
+[ 2026-11-15T12:47:52.678        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.miui.securitycenter/14418
+[ 2026-11-15T12:47:52.750        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.miui.securitycenter.remote/11573
+[ 2026-11-15T12:47:52.922        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.android.thememanager/25811
+[ 2026-11-15T12:47:52.956        0:  7963:  8016 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.miui.securitycenter:cache/14704
+[ 2026-11-15T12:47:53.087        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in com.miui.securitycenter:ui/14041
+[ 2026-11-15T12:47:53.099        0:  7963:  7990 D/LSPosedService  ] Auto hot reload succeeded for os.kei.hyper.home in system/8718

@@ -1,0 +1,2 @@
+# Same-transaction system evidence; year from LSPosed capture date.
+2026-11-15 12:47:52.055  8718 11215 I ActivityManager: Killing 15566:com.android.settings:provider/1000 (adj 945): umms_selfcheck

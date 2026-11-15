@@ -247,7 +247,7 @@ private fun MaskIconComparison(
   repository: IconPackPreviewRepository,
   custom: CustomIconMask?,
 ) {
-  val packs = remember(catalog.packs) { catalog.packs.filter { it.pack.entries.isNotEmpty() } }
+  val packs = remember(SnapshotIdentity(catalog.packs)) { catalog.packs.filter { it.pack.entries.isNotEmpty() } }
   val previewRevision by repository.revision.collectAsStateWithLifecycle()
   var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
   val selectedIndex = packs.indexOfFirst { it.pack.id == selectedId }.coerceAtLeast(0)
@@ -267,7 +267,7 @@ private fun MaskIconComparison(
         modifier = Modifier.padding(16.dp), style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
     } else {
-      val items = remember(packs) { packs.map { DropdownItem(text = it.pack.displayName) } }
+      val items = remember(SnapshotIdentity(packs)) { packs.map { DropdownItem(text = it.pack.displayName) } }
       OverlaySpinnerPreference(title = stringResource(R.string.icon_mask_compare_pack),
         items = items, selectedIndex = selectedIndex, enabled = packs.size > 1,
         modifier = Modifier.testTag("icon-mask.pack"),

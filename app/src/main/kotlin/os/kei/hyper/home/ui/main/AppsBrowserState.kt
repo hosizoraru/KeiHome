@@ -37,7 +37,7 @@ internal fun rememberAppsBrowserState(model: HomeViewModel, enabled: Boolean): A
   val capabilities = scan.capabilities
   val currentSource = source
   val currentQuery = query
-  val dataset = remember(capabilities, currentSource) { Any() }
+  val dataset = remember(SnapshotIdentity(capabilities), SnapshotIdentity(currentSource)) { Any() }
   // Build and sort once for all three views. Origin changes only select a partition.
   val projectionOptions = options.copy(origin = 0)
   val rowsRequest = remember(dataset, projectionOptions) { Any() }
@@ -51,7 +51,7 @@ internal fun rememberAppsBrowserState(model: HomeViewModel, enabled: Boolean): A
   }
   val readyRows = rows?.takeIf { it.first === rowsRequest }?.second
   val request = remember(rowsRequest, currentQuery) { Any() }
-  val result by produceState<AppsBrowserResult?>(null, request, readyRows) {
+  val result by produceState<AppsBrowserResult?>(null, request, SnapshotIdentity(readyRows)) {
     val input = readyRows ?: return@produceState
     val computed = withContext(Dispatchers.Default) {
       computeAppsBrowserMatches(request, input, currentQuery, rowsRequest, dataset)

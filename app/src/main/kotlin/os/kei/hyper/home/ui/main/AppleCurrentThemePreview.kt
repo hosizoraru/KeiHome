@@ -142,7 +142,7 @@ internal fun rememberAppleCurrentThemePreviewProvider(model: HomeViewModel): App
   val theme = runtime.report?.iconTheme
   val colors = remember(monet.snapshot) { previewColors(monet.snapshot) }
   val monochrome = monet.snapshot?.monochrome?.enabled == true
-  return remember(model, source, theme, colors, monochrome, scan.previewGeneration, configuration) {
+  return remember(model, SnapshotIdentity(source), theme, colors, monochrome, scan.previewGeneration, configuration) {
     AppleCurrentThemePreviewProvider(theme, source, colors, monochrome,
       componentFor = { packageName ->
         model.getApplication<android.app.Application>().getSystemService(LauncherApps::class.java)

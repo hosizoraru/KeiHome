@@ -94,10 +94,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   val activePackId = remember(activeId, state.nativeSources, state.nativeAssociations) {
     activeCatalogPackId(activeId, state)
   }
-  val cards = remember(state.packs, section, activePackId, query, sort, filter) {
-    catalogPackRows(state, section, activePackId, query, sort.first, sort.second, filter)
-  }
-  val total = remember(state.packs, section) { catalogPackCount(state, section) }
+  val projection = rememberIconPackCatalogProjection(state, section, activePackId, query, sort, filter)
+  val cards = projection.cards
+  val total = projection.total
   var removingPack by remember { mutableStateOf<IconPackDescriptor?>(null) }
   var confirmRemoval by remember { mutableStateOf(false) }
   val busy = state.importing || state.nativeImporting != null || state.removing != null

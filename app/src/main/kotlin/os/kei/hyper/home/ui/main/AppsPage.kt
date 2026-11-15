@@ -85,9 +85,8 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val source by model.browserSource.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
-  var focusedRow by remember { mutableStateOf<IconBrowserRow?>(null) }
-  var showInspection by remember { mutableStateOf(false) }
   val display = browser.display
+  val inspection = rememberAppsInspectionState(source?.revision, display)
   val visible = browser.visibleRows
   val rowAlpha by animateFloatAsState(if (display.loading) 0.72f else 1f, tween(160), label = "apps.filter")
   var previousOrigin by remember { mutableIntStateOf(browser.origin) }
@@ -131,19 +130,19 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     items(visible, key = { it.key }, contentType = { "application" }) { row ->
       AppCapabilityCard(row.app, model.previews, scan.previewGeneration, configuration, colors,
         preferences.showIconPreviews, row, source, model,
-        onInspect = { focusedRow = row; showInspection = true },
+        onInspect = { inspection.open(row) },
         modifier = Modifier.animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null)
           .graphicsLayer { alpha = rowAlpha })
     }
   }
-  focusedRow?.let { focused ->
+  inspection.row?.let { focused ->
     androidx.compose.runtime.key(focused.key) {
       val previews by androidx.compose.runtime.key(focused, scan.previewGeneration, configuration, source?.revision) {
         produceState<AppIconPreviews?>(null) { value = browserPreview(model, focused, source) }
       }
-      IconPreviewInspectionSheet(show = showInspection, onDismissRequest = { showInspection = false },
+      IconPreviewInspectionSheet(show = inspection.show, onDismissRequest = inspection.dismiss,
         title = focused.app.label, modifier = Modifier.testTag("apps.preview.details"),
-        onDismissFinished = { if (!showInspection) focusedRow = null },
+        onDismissFinished = inspection.dismissFinished,
         details = {
           Text(focused.app.packageName, style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -156,6 +155,38 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
       }
     }
   }
+}
+
+internal class AppsInspectionUi(
+  val row: IconBrowserRow?,
+  val show: Boolean,
+  val open: (IconBrowserRow) -> Unit,
+  val dismiss: () -> Unit,
+  val dismissFinished: () -> Unit,
+)
+
+@Composable
+internal fun rememberAppsInspectionState(sourceRevision: String?, display: AppsBrowserDisplay): AppsInspectionUi {
+  // Reset during composition, before a new source can be paired with the old selected entry.
+  var selectedKey by remember(sourceRevision) { mutableStateOf<String?>(null) }
+  var show by remember(sourceRevision) { mutableStateOf(false) }
+  val rows = display.rows
+  val focused = remember(selectedKey, SnapshotIdentity(rows)) {
+    selectedKey?.let { key -> rows.firstOrNull { it.key == key } }
+  }
+  if (selectedKey != null && focused == null && !display.loading) {
+    selectedKey = null
+    show = false
+  }
+  return AppsInspectionUi(focused, show && focused != null,
+    open = {
+      if (!display.loading) {
+        selectedKey = it.key
+        show = true
+      }
+    },
+    dismiss = { show = false },
+    dismissFinished = { if (!show) selectedKey = null })
 }
 
 internal data class AppsBrowserResult(val request: Any, val rows: List<IconBrowserRow>, val total: Int,

@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
+import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -121,8 +122,8 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   }
   val filters = listOf(R.string.perfect_icons_preview_all, R.string.perfect_icons_preview_static,
     R.string.perfect_icons_preview_dynamic_filter, R.string.perfect_icons_preview_dark)
-  val byKey = remember(pack) { pack?.entries.orEmpty().associateBy { it.key } }
-  val rows = remember(pack, labels) {
+  val byKey = remember(SnapshotIdentity(pack)) { pack?.entries.orEmpty().associateBy { it.key } }
+  val rows = remember(SnapshotIdentity(pack), labels) {
     val entries = pack?.entries.orEmpty()
     entries.map { entry ->
       val identity = entry.nativeName ?: entry.component?.packageName ?: entry.key
@@ -338,6 +339,9 @@ internal fun PerfectSubpage(
   onBack: () -> Unit,
   onRefresh: (() -> Unit)? = null,
   refreshEnabled: Boolean = true,
+  pullRefresh: Boolean = false,
+  refreshing: Boolean = false,
+  refreshLabel: String = stringResource(R.string.refresh),
   actions: @Composable RowScope.() -> Unit = {},
   bottomContent: @Composable () -> Unit = {},
   listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
@@ -358,18 +362,26 @@ internal fun PerfectSubpage(
         },
         actions = {
           actions()
-          if (onRefresh != null) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
+          if (onRefresh != null && !pullRefresh) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
             Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
           }
         }, bottomContent = bottomContent)
     }
   }, floatingActionButton = floatingActionButton, floatingToolbar = floatingToolbar) { padding ->
+    val listPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
+      bottom = padding.calculateBottomPadding() + bottomSpacing)
+    val list: @Composable () -> Unit = {
     LazyColumn(state = listState, overscrollEffect = null, modifier = Modifier.fillMaxSize()
       .padding(bottom = viewportBottomInset)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior),
-      contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
-        bottom = padding.calculateBottomPadding() + bottomSpacing),
+      contentPadding = listPadding,
       content = content)
+    }
+    if (pullRefresh && onRefresh != null) {
+      Os4PullToRefresh(refreshing = refreshing, enabled = refreshEnabled, onRefresh = onRefresh,
+        refreshLabel = refreshLabel, contentPadding = listPadding,
+        modifier = Modifier.testTag("perfect.resources.pull-to-refresh")) { list() }
+    } else list()
   }
 }

@@ -162,4 +162,45 @@ class ReleaseNotesPolicyTest {
     val skipped = observe(ReleaseNotesState("1.8.0", "1.8.0"), "1.10.0", notes = releases)
     assertEquals(listOf("1.10.0", "1.9.0"), skipped.pendingVersions)
   }
+
+  @Test fun release112FreshInstallOnlyMarksCurrentNotesUnread() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val fresh = observe(version = "1.12.0+g1234567.b0600", updated = false, notes = releases)
+    assertEquals("1.12.0", fresh.observedVersion)
+    assertEquals("1.12.0", fresh.readThrough)
+    assertTrue(fresh.pendingVersions.isEmpty())
+    assertEquals(listOf("1.12.0"), fresh.unreadVersions)
+    assertTrue(fresh.readVersions.containsAll(listOf("1.11.0", "1.10.0")))
+    assertEquals("", fresh.restartReminderVersion)
+  }
+
+  @Test fun release112UpgradeIsUnreadUntilAcknowledgedAcrossBuilds() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val upgrade = observe(ReleaseNotesState("1.11.0", "1.11.0"),
+      version = "1.12.0+gfirst.b0600", notes = releases)
+    assertEquals(listOf("1.12.0"), upgrade.pendingVersions)
+    assertEquals(listOf("1.12.0"), upgrade.unreadVersions)
+    val nextBuild = observe(upgrade, version = "1.12.0+gsecond.b0601", notes = releases)
+    assertEquals(upgrade, nextBuild)
+    val dismissed = ReleaseNotesPolicy.acknowledge(nextBuild)
+    assertEquals(listOf("1.12.0"), dismissed.unreadVersions)
+    val read = ReleaseNotesPolicy.markRead(dismissed, setOf("1.12.0"))
+    assertEquals("1.12.0", read.readThrough)
+    assertTrue(read.pendingVersions.isEmpty())
+    assertTrue(read.unreadVersions.isEmpty())
+    assertTrue(observe(read, version = "1.12.0", notes = releases).pendingVersions.isEmpty())
+    assertFalse(ReleaseNotesCatalog.releases.first { it.version == "1.12.0" }.recommendSystemRestart)
+  }
+
+  @Test fun release112SkippedUpgradeRetainsInterveningUnreadNotesAndNativeReminder() {
+    val releases = ReleaseNotesCatalog.releases.map { it.version }
+    val previous = ReleaseNotesState("1.9.0", "1.9.0")
+    val upgraded = ReleaseNotesPolicy.observe(previous, "1.12.0", true, releases,
+      ReleaseNotesCatalog.releases.filter { it.recommendSystemRestart }.map { it.version })
+    assertEquals(listOf("1.12.0", "1.11.0", "1.10.0"), upgraded.pendingVersions)
+    val acknowledged = ReleaseNotesPolicy.acknowledge(upgraded)
+    assertTrue(acknowledged.pendingVersions.isEmpty())
+    assertEquals(listOf("1.12.0", "1.11.0", "1.10.0"), acknowledged.unreadVersions)
+    assertEquals("1.11.0", acknowledged.restartReminderVersion)
+  }
 }

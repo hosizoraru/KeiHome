@@ -12,6 +12,7 @@ internal enum class PackGuidancePage(val storageKey: String) {
   APPLE_MATCHED("apple-matched"),
   APPLE_SEARCH("apple-search"),
   PERFECT("perfect"),
+  CUSTOM_ICONS("custom-icons"),
 }
 
 /** Guidance revisions change only when the guidance changes, never for a QA build. */

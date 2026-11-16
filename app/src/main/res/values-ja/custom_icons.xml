@@ -17,7 +17,7 @@
     <string name="custom_icons_search">検索</string>
     <string name="custom_icons_reapply">変更を反映するには、現在のアイコンパックを再適用してください。</string>
     <string name="custom_icons_remove">カスタマイズを削除</string>
-    <string name="custom_icons_empty">カスタマイズはありません。現在のアイコン設定を使用します。</string>
+    <string name="custom_icons_empty">カスタムアイコンはまだありません。「未設定」に切り替えてアプリを選んでください。</string>
     <string name="custom_icons_count">%1$d 個のアイコン</string>
     <string name="custom_icons_available">インストール済み、インポート済み、生成済みのパックから選択します。Apple と Perfect Icons のリソースは先にパックを生成してください。</string>
     <string name="custom_icons_more">アイコンパックを追加</string>
@@ -34,5 +34,10 @@
     <string name="custom_icons_conflict_title">アイコン設定の競合</string>
     <string name="custom_icons_conflict_custom">このアプリにはカスタムアイコンが設定されています。元のアイコンを保持するにはカスタマイズを削除してください。その後、現在のパックを再適用してください。</string>
     <string name="custom_icons_conflict_preserve_action">カスタマイズを削除して元のアイコンを保持</string>
-    <string name="custom_icons_show_all">すべてのアイコンを表示</string>
+    <string name="custom_icons_saved">設定済み (%1$d)</string>
+    <string name="custom_icons_unset">未設定 (%1$d)</string>
+    <string name="custom_icons_current">カスタムアイコン</string>
+    <string name="custom_icons_edit">アイコンを編集</string>
+    <string name="custom_icons_no_results">条件に合うアプリやアイコンはありません。分類や検索内容を変更してください。</string>
+    <string name="custom_icons_origin_help">アプリの分類はインストール済みアプリの情報に基づきます。未インストールまたは所属不明のアイコンは「すべて」にのみ表示されます。アイコンの選択では、対象アプリに対応するアイコンを先頭に表示します。</string>
 </resources>

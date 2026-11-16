@@ -29,6 +29,7 @@ import os.kei.hyper.home.data.IconPackAppearance
 internal data class CustomIconsState(
   val selections: List<CustomIconSelection> = emptyList(),
   val apps: List<PreservedIconApp> = emptyList(),
+  val origins: Map<String, Boolean> = emptyMap(),
   val loading: Boolean = false,
   val busy: Boolean = false,
   val failed: Boolean = false,
@@ -82,9 +83,23 @@ internal class CustomIconsController(
             IconInventoryVisibility(state.value.showHidden,
               PreservedIcons.snapshot(app) + state.value.selections.map { it.packageName }))
             .filter { os.kei.hyper.home.data.PreservedIcons.isValidPackageName(it.packageName) }.distinctBy { it.packageName }
-          apps
+          // Flags also classify hidden components without loading their labels or bitmaps.
+          val pm = app.packageManager
+          val origins = if (request.global) pm.getInstalledApplications(0).associate {
+            it.packageName to (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0)
+          } else state.value.origins.toMutableMap().apply {
+            request.targets.forEach { target ->
+              try {
+                val info = pm.getApplicationInfo(target.packageName, 0)
+                put(target.packageName, info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0)
+              } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                remove(target.packageName)
+              }
+            }
+          }
+          apps to origins
         }
-        mutableState.update { it.copy(apps = result, loading = false) }
+        mutableState.update { it.copy(apps = result.first, origins = result.second, loading = false) }
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) {
         android.util.Log.w("KeiHomeCustomIcons", "Cannot read custom icons", failure)

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="recommended_mappings_title">Recommended mappings</string>
-    <string name="recommended_mappings_entry">System app names, Telegram channels, phone companions, and ColorOS Theme Store</string>
+    <string name="recommended_mappings_entry">Suggested names, channel links and companion icons</string>
     <string name="recommended_mappings_preview">Preview and next import</string>
     <string name="recommended_mappings_update_note">Changes affect previews and the next import. For themes already generated or applied, update and reapply the theme.</string>
     <string name="recommended_mappings_importing">An import is in progress. These settings will be available when it finishes.</string>

@@ -17,7 +17,7 @@
     <string name="custom_icons_search">搜索</string>
     <string name="custom_icons_reapply">修改后，请重新应用当前图标包使设置生效。</string>
     <string name="custom_icons_remove">移除自定义</string>
-    <string name="custom_icons_empty">还没有自定义图标，应用会沿用当前图标方案。</string>
+    <string name="custom_icons_empty">还没有自定义图标，切换到“未自定义”即可选择应用。</string>
     <string name="custom_icons_count">%1$d 个图标</string>
     <string name="custom_icons_available">可选择已安装、已导入和已生成的图标包。Apple 和完美图标补全计划的资源请先生成图标包，再在这里选择。</string>
     <string name="custom_icons_more">获取更多图标包</string>
@@ -34,5 +34,10 @@
     <string name="custom_icons_conflict_title">图标设置冲突</string>
     <string name="custom_icons_conflict_custom">此应用已设置图标自定义。改为保留原始图标时，需要移除它的自定义选择。确认后，请重新应用当前图标包。</string>
     <string name="custom_icons_conflict_preserve_action">移除自定义并保留原始图标</string>
-    <string name="custom_icons_show_all">查看全部图标</string>
+    <string name="custom_icons_saved">已自定义 (%1$d)</string>
+    <string name="custom_icons_unset">未自定义 (%1$d)</string>
+    <string name="custom_icons_current">自定义图标</string>
+    <string name="custom_icons_edit">编辑图标</string>
+    <string name="custom_icons_no_results">没有符合条件的应用或图标，可以切换分类或修改搜索内容。</string>
+    <string name="custom_icons_origin_help">应用分类依据本机已安装的应用信息。未安装或无法判断归属的图标仅在“全部”中显示。选择图标时，当前应用的对应图标会优先排列。</string>
 </resources>

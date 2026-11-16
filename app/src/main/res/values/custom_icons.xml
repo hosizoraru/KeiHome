@@ -17,7 +17,7 @@
     <string name="custom_icons_search">Search</string>
     <string name="custom_icons_reapply">Changes take effect after applying your icon pack again.</string>
     <string name="custom_icons_remove">Remove custom icon</string>
-    <string name="custom_icons_empty">No custom icons yet. Your current pack stays in use.</string>
+    <string name="custom_icons_empty">No custom icons yet. Switch to Not customized to choose an app.</string>
     <string name="custom_icons_count">%1$d icons</string>
     <string name="custom_icons_available">Choose from installed, imported and generated packs. Generate Apple or Perfect Icons packs first to make their icons available here.</string>
     <string name="custom_icons_more">Get more icon packs</string>
@@ -34,5 +34,10 @@
     <string name="custom_icons_conflict_title">Icon settings conflict</string>
     <string name="custom_icons_conflict_custom">This app has a custom icon. To preserve its original icon, remove the custom choice. Apply your current pack again afterwards.</string>
     <string name="custom_icons_conflict_preserve_action">Remove custom icon and preserve original</string>
-    <string name="custom_icons_show_all">Show all icons</string>
+    <string name="custom_icons_saved">Customized (%1$d)</string>
+    <string name="custom_icons_unset">Not customized (%1$d)</string>
+    <string name="custom_icons_current">Custom icon</string>
+    <string name="custom_icons_edit">Edit icon</string>
+    <string name="custom_icons_no_results">No apps or icons match this filter. Try another category or search.</string>
+    <string name="custom_icons_origin_help">App categories use information from installed apps. Icons whose app is not installed or cannot be identified appear only in All. When choosing an icon, the matching icon for this app appears first.</string>
 </resources>

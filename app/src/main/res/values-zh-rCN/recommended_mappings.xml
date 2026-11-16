@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="recommended_mappings_title">推荐映射</string>
-    <string name="recommended_mappings_entry">系统应用名称、Telegram 官方渠道、电话配套图标与 ColorOS 主题商店</string>
+    <string name="recommended_mappings_entry">应用名称、渠道入口与配套图标</string>
     <string name="recommended_mappings_preview">预览与下次导入</string>
     <string name="recommended_mappings_update_note">修改会影响预览和下次导入。已生成或已应用的主题需要更新并重新应用。</string>
     <string name="recommended_mappings_importing">正在导入，完成后即可修改这些设置。</string>

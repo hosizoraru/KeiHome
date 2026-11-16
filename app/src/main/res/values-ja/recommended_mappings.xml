@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="recommended_mappings_title">推奨マッピング</string>
-    <string name="recommended_mappings_entry">システムアプリ名、Telegram 公式配信版、電話関連アイコン、ColorOS テーマストア</string>
+    <string name="recommended_mappings_entry">よく使うアプリ名・チャンネル・関連アイコンの推奨マッピング</string>
     <string name="recommended_mappings_preview">プレビューと次回のインポート</string>
     <string name="recommended_mappings_update_note">変更はプレビューと次回のインポートに反映されます。生成済み・適用済みのテーマは、更新して再適用してください。</string>
     <string name="recommended_mappings_importing">インポート中です。完了後にこれらの設定を変更できます。</string>

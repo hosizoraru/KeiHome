@@ -181,6 +181,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               onClick = { onNavigate("preserved-icons") })
             BasicComponent(title = stringResource(R.string.custom_icons_title),
               summary = stringResource(R.string.custom_icons_entry),
+              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), contentDescription = null) },
+              modifier = Modifier.testTag("icon-packs.open-custom-icons"),
               onClick = { onNavigate("custom-icons") })
             BasicComponent(title = stringResource(R.string.recommended_mappings_title),
               summary = stringResource(R.string.recommended_mappings_entry),

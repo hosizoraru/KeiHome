@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.icon.glass.Filter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.*
+import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.data.ColorOsStyle
 import os.kei.hyper.home.ui.components.*
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
@@ -40,7 +42,6 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.Help
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -61,37 +62,46 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   var targetPackage by rememberSaveable { mutableStateOf<String?>(null) }
   var packId by rememberSaveable { mutableStateOf<String?>(null) }
-  var choosingApp by rememberSaveable { mutableStateOf(false) }
-  var query by rememberSaveable(targetPackage, packId, choosingApp) {
-    mutableStateOf(if (packId != null) targetPackage.orEmpty() else "")
-  }
+  var uncustomized by rememberSaveable { mutableStateOf(false) }
+  var appOrigin by rememberSaveable { mutableIntStateOf(0) }
+  var iconOrigin by rememberSaveable(targetPackage, packId) { mutableIntStateOf(0) }
+  var rootQuery by rememberSaveable { mutableStateOf("") }
+  var sourceQuery by rememberSaveable(targetPackage) { mutableStateOf("") }
+  var iconQuery by rememberSaveable(targetPackage, packId) { mutableStateOf("") }
   var candidate by remember { mutableStateOf<IconPackEntry?>(null) }
   var removing by remember { mutableStateOf<CustomIconSelection?>(null) }
-  var help by remember { mutableStateOf(false) }
+  var inspecting by remember { mutableStateOf<CustomIconSelection?>(null) }
+  var inspectionVisible by remember { mutableStateOf(false) }
   val pack = catalog.packs.firstOrNull { it.pack.id == packId }?.pack
   val target = state.apps.firstOrNull { it.packageName == targetPackage }
-  val root = !choosingApp && targetPackage == null
+  val root = targetPackage == null
+  val query = when { root -> rootQuery; packId == null -> sourceQuery; else -> iconQuery }
   fun back() {
     candidate = null
     when {
       packId != null -> packId = null
-      targetPackage != null -> { targetPackage = null; choosingApp = true }
-      choosingApp -> choosingApp = false
+      targetPackage != null -> targetPackage = null
       else -> onBack()
     }
   }
   BackHandler(enabled = !root) { back() }
   LaunchedEffect(state.saved) {
-    if (state.saved > 0) { candidate = null; targetPackage = null; packId = null; choosingApp = false }
+    if (state.saved > 0) {
+      candidate = null; targetPackage = null; packId = null; uncustomized = false; rootQuery = ""
+    }
   }
   val title = stringResource(when {
     root -> R.string.custom_icons_title
-    choosingApp -> R.string.custom_icons_choose_app
     packId == null -> R.string.custom_icons_choose_pack
     else -> R.string.custom_icons_choose_icon
   })
-  val list = rememberLazyListState()
-  LaunchedEffect(choosingApp, targetPackage, packId, query) { list.scrollToItem(0) }
+  val rootList = rememberLazyListState()
+  val sourceList = rememberLazyListState()
+  val iconList = rememberLazyListState()
+  val list = when { root -> rootList; packId == null -> sourceList; else -> iconList }
+  LaunchedEffect(uncustomized, rootQuery, appOrigin) { rootList.scrollToItem(0) }
+  LaunchedEffect(targetPackage, sourceQuery) { sourceList.scrollToItem(0) }
+  LaunchedEffect(targetPackage, packId, iconQuery, iconOrigin) { iconList.scrollToItem(0) }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   val dark = LocalKeiHomeDarkTheme.current
@@ -117,26 +127,57 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
     value = previewScope to index
   }
   val choices = sourceChoices.second.takeIf { sourceChoices.first == previewScope }.orEmpty()
-  val apps = remember(SnapshotIdentity(state.apps), SnapshotIdentity(state.selections),
+  val availableApps = remember(SnapshotIdentity(state.apps), SnapshotIdentity(state.selections),
     SnapshotIdentity(preferences.preservedIconPackages), state.showHidden, query) {
     val retained = preferences.preservedIconPackages + state.selections.map { it.packageName }
     state.apps.filter { (state.showHidden || !it.hiddenByDefault || it.packageName in retained) &&
       (it.label.contains(query, true) || it.packageName.contains(query, true)) }
   }
+  val savedPackages = remember(SnapshotIdentity(state.selections)) { state.selections.mapTo(hashSetOf()) { it.packageName } }
+  val newApps = remember(SnapshotIdentity(availableApps), SnapshotIdentity(savedPackages)) {
+    availableApps.filter { it.packageName !in savedPackages }
+  }
+  val apps = remember(SnapshotIdentity(newApps), appOrigin) {
+    newApps.filter { customIconMatchesOrigin(it.systemApp, appOrigin) }
+  }
+  val searchedSaved = remember(SnapshotIdentity(state.selections), query) {
+    state.selections.filter { it.appLabel.contains(query, true) || it.packageName.contains(query, true) ||
+      it.sourceTitle.contains(query, true) }
+  }
+  val savedRows = remember(SnapshotIdentity(searchedSaved), SnapshotIdentity(state.origins), appOrigin) {
+    searchedSaved.filter { customIconMatchesOrigin(state.origins[it.packageName], appOrigin) }
+  }
   val labels = remember(SnapshotIdentity(state.apps)) { state.apps.associate { it.packageName to it.label } }
   val entryIdentity = SnapshotIdentity(pack?.entries.orEmpty())
-  val matches by produceState(Triple<SnapshotIdentity?, String, List<IconPackEntry>>(null, "", emptyList()),
-    entryIdentity, pack?.source, query, SnapshotIdentity(labels)) {
+  val gridScope = (pack?.id to pack?.source) to
+    Triple(entryIdentity, SnapshotIdentity(state.origins), SnapshotIdentity(state.apps))
+  val matches by produceState(Pair<Any?, List<List<IconPackEntry>>>(null, List(3) { emptyList() }),
+    gridScope, query, targetPackage, launcherClass) {
     val result = withContext(Dispatchers.Default) {
-      pack?.entries.orEmpty().filter {
+      val origins = CustomIconOrigins(state.origins, state.apps)
+      val filtered = pack?.entries.orEmpty().filter {
         val label = labels[it.component?.packageName ?: it.nativeName?.substringBefore('#')]
         it.key.contains(query, true) || it.component?.flattened?.contains(query, true) == true ||
           it.nativeName?.contains(query, true) == true || label?.contains(query, true) == true
       }
+      val direct = targetPackage?.let { pkg -> pack?.let {
+        customIconPreviewChoice(it, IconPackComponent(pkg, launcherClass)).match
+      } }
+      val ordered = if (direct != null && direct in filtered) listOf(direct) + filtered.filter { it !== direct } else filtered
+      val user = ArrayList<IconPackEntry>()
+      val system = ArrayList<IconPackEntry>()
+      ordered.forEach { entry -> when (origins.system(entry)) {
+        true -> system.add(entry)
+        false -> user.add(entry)
+        null -> Unit
+      } }
+      listOf(ordered, user, system)
     }
-    value = Triple(entryIdentity, query, result)
+    value = gridScope to result
   }
-  val entries = matches.third.takeIf { matches.first == entryIdentity && matches.second == query }.orEmpty()
+  // Retain search results while the worker computes; origin switching uses these cached buckets.
+  val grid = matches.second.takeIf { matches.first == gridScope } ?: List(3) { emptyList() }
+  val entries = grid[iconOrigin]
   val entryRows = remember(SnapshotIdentity(entries)) { entries.chunked(3) }
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
@@ -146,46 +187,63 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } },
         actions = {
-          if (choosingApp) OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
+          if (root) OverlayIconCascadingDropdownMenu(entries = listOf(DropdownEntry(items = listOf(
             DropdownItem(text = stringResource(R.string.icon_inventory_show_hidden),
               selected = state.showHidden, onClick = { controller.setShowHidden(!state.showHidden) }),
           )))) {
             Icon(MiuixIcons.Glass.Filter, stringResource(R.string.icon_inventory_show_hidden),
               tint = if (state.showHidden) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
           }
-          IconButton(onClick = { help = true }) {
-          Icon(MiuixIcons.Glass.Help, stringResource(R.string.custom_icons_title))
-        } })
+          PackHelpAction(listOf(stringResource(R.string.custom_icons_summary),
+            stringResource(R.string.custom_icons_help), stringResource(R.string.custom_icons_origin_help)),
+            PackGuidancePage.CUSTOM_ICONS, revision = 1)
+        }, bottomContent = {
+          if (root) Os4ViewTabs(
+            items = listOf(stringResource(R.string.custom_icons_saved, state.selections.size),
+              stringResource(R.string.custom_icons_unset,
+                state.apps.count { it.packageName !in savedPackages && (state.showHidden || !it.hiddenByDefault ||
+                  it.packageName in preferences.preservedIconPackages) })),
+            selectedIndex = if (uncustomized) 1 else 0, onSelect = { uncustomized = it == 1 },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("custom-icons.views"))
+          else if (packId != null) CustomIconOriginTabs(grid.map { it.size }, iconOrigin,
+            onSelect = { iconOrigin = it }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+        })
     }
   }) { padding ->
     LazyColumn(state = list, overscrollEffect = null,
       modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
-        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier).testTag("custom-icons.list"),
       contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      if (root) item("origins", contentType = "origins") {
+          val origins = if (uncustomized) newApps.map { it.systemApp }
+            else searchedSaved.map { state.origins[it.packageName] }
+          CustomIconOriginTabs(listOf(origins.size, origins.count { it == false }, origins.count { it == true }),
+            appOrigin, onSelect = { appOrigin = it })
+      }
+      item("search", contentType = "search") {
+        Os4SearchField(query = query, onQueryChange = {
+          when { root -> rootQuery = it; packId == null -> sourceQuery = it; else -> iconQuery = it }
+        },
+          modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("custom-icons.search"),
+          label = stringResource(if (root) R.string.preserved_icons_search else R.string.custom_icons_search))
+      }
       if (root) {
-        item("intro") {
-          Text(stringResource(R.string.custom_icons_summary), Modifier.padding(horizontal = 12.dp),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        item("add") {
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            BasicComponent(title = stringResource(R.string.custom_icons_add),
-              summary = stringResource(R.string.custom_icons_add_summary),
-              enabled = state.ready && !state.busy && !state.loading, onClick = { choosingApp = true })
+        if (uncustomized) items(apps, key = { it.packageName }, contentType = { "app" }) { app ->
+          Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
+            BasicComponent(title = app.label, summary = app.packageName, enabled = state.ready && !state.busy,
+              modifier = Modifier.testTag("custom-icons.app.${app.packageName}"),
+              startAction = { OriginalPreservedIcon(app, controller.inventory, configuration) },
+              onClick = { targetPackage = app.packageName })
           }
-        }
-        if (state.selections.isNotEmpty()) item("pending") {
-          Text(stringResource(R.string.custom_icons_reapply), Modifier.padding(horizontal = 12.dp),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        items(state.selections, key = { it.packageName }, contentType = { "custom" }) { item ->
+        } else items(savedRows, key = { it.packageName }, contentType = { "custom" }) { item ->
           val sourcePack = catalog.packs.firstOrNull { it.pack.id == item.sourceId }?.pack
           val sourceTitle = if (sourcePack?.source is IconPackSource.Builtin && sourcePack.colorOsProfile != null)
             "ColorOS · ${customIconSourceTitle(sourcePack)}" else item.sourceTitle
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            Row(Modifier.fillMaxWidth().clickable(enabled = !state.busy) { targetPackage = item.packageName }
+          Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
+            Row(Modifier.fillMaxWidth().testTag("custom-icons.saved.${item.packageName}")
+              .clickable(enabled = !state.busy) { inspecting = item; inspectionVisible = true }
               .padding(14.dp), verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(12.dp)) {
               SavedIconArtwork(controller, item, dark)
@@ -202,15 +260,12 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             }
           }
         }
-        if (state.selections.isEmpty() && !state.loading) item("empty") {
-          Text(stringResource(R.string.custom_icons_empty), Modifier.padding(12.dp),
+        if ((if (uncustomized) apps.isEmpty() else savedRows.isEmpty()) && !state.loading) item("empty") {
+          Text(stringResource(if (!uncustomized && state.selections.isEmpty()) R.string.custom_icons_empty
+            else R.string.custom_icons_no_results), Modifier.padding(12.dp),
             style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
       } else {
-        item("search") {
-          Os4SearchField(query = query, onQueryChange = { query = it }, modifier = Modifier.fillMaxWidth(),
-            label = stringResource(R.string.custom_icons_search))
-        }
         targetPackage?.let { name -> item("target") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
             BasicComponent(title = target?.label ?: name,
@@ -219,13 +274,6 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           }
         } }
         when {
-          choosingApp -> items(apps, key = { it.packageName }, contentType = { "app" }) { app ->
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = app.label, summary = app.packageName, enabled = !state.busy,
-                startAction = { OriginalPreservedIcon(app, controller.inventory, configuration) },
-                onClick = { targetPackage = app.packageName; choosingApp = false })
-            }
-          }
           packId == null -> {
             item("sources") {
               Text(stringResource(R.string.custom_icons_available), Modifier.padding(horizontal = 12.dp),
@@ -262,11 +310,6 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             }
           }
           pack != null -> {
-            item("count") {
-              Text(stringResource(R.string.custom_icons_count, entries.size), Modifier.padding(horizontal = 12.dp),
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              if (query.isNotEmpty()) TextButton(stringResource(R.string.custom_icons_show_all), onClick = { query = "" })
-            }
             items(entryRows, key = { it.first().key }, contentType = { "icons" }) { row ->
               Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { entry ->
@@ -296,8 +339,31 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         }
       }
     }
-    Os4DetailsSheet(help, { help = false }, title = stringResource(R.string.custom_icons_title),
-      summary = stringResource(R.string.custom_icons_help)) {}
+    inspecting?.let { item ->
+      Os4DetailsSheet(show = inspectionVisible, title = item.appLabel,
+        modifier = Modifier.testTag("custom-icons.details"), onDismissRequest = { inspectionVisible = false }) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OriginalPreservedIcon(state.apps.firstOrNull { it.packageName == item.packageName }, controller.inventory,
+              configuration, 64.dp)
+            Text(stringResource(R.string.custom_icons_original), style = MiuixTheme.textStyles.footnote1)
+          }
+          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SavedIconArtwork(controller, item, dark, 64.dp)
+            Text(stringResource(R.string.custom_icons_current), style = MiuixTheme.textStyles.footnote1)
+          }
+        }
+        Text(item.packageName, Modifier.padding(top = 16.dp), style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Text(stringResource(R.string.custom_icons_reapply), Modifier.padding(vertical = 12.dp),
+          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        Os4DialogButton(stringResource(R.string.custom_icons_edit), enabled = !state.busy,
+          role = top.yukonga.miuix.kmp.glass.GlassDialogButtonRole.Primary, modifier = Modifier.fillMaxWidth(),
+          onClick = { inspectionVisible = false; targetPackage = item.packageName })
+        Os4DialogButton(stringResource(R.string.custom_icons_remove), enabled = !state.busy,
+          modifier = Modifier.fillMaxWidth(), onClick = { inspectionVisible = false; removing = item })
+      }
+    }
     val selected = candidate
     Os4DetailsSheet(selected != null && pack != null, { if (!state.busy) candidate = null },
       title = stringResource(R.string.custom_icons_confirm),
@@ -350,6 +416,14 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
 }
 
 @Composable
+private fun CustomIconOriginTabs(counts: List<Int>, selected: Int, onSelect: (Int) -> Unit,
+  modifier: Modifier = Modifier) {
+  Os4ViewTabs(items = listOf(R.string.browser_all, R.string.browser_badge_user, R.string.browser_badge_system)
+    .mapIndexed { index, label -> "${stringResource(label)} (${counts[index]})" },
+    selectedIndex = selected, onSelect = onSelect, modifier = modifier.fillMaxWidth().testTag("custom-icons.origins"))
+}
+
+@Composable
 private fun SourceIconArtwork(controller: CustomIconsController, pack: IconPackDescriptor,
   entry: IconPackEntry, dark: Boolean, iconSize: androidx.compose.ui.unit.Dp = 60.dp) {
   val key = SourceIconPreviewKey(pack.id, pack.source, entry.key, dark)
@@ -365,7 +439,8 @@ private fun SourceIconArtwork(controller: CustomIconsController, pack: IconPackD
 private data class SourceIconPreviewKey(val pack: String, val source: IconPackSource, val entry: String, val dark: Boolean)
 
 @Composable
-private fun SavedIconArtwork(controller: CustomIconsController, item: CustomIconSelection, dark: Boolean) {
+private fun SavedIconArtwork(controller: CustomIconsController, item: CustomIconSelection, dark: Boolean,
+  iconSize: androidx.compose.ui.unit.Dp = 60.dp) {
   val key = item.token to dark
   val result by produceState<Pair<Pair<String, Boolean>, android.graphics.Bitmap?>?>(null, key) {
     val bitmap = try { controller.preview(item, dark) }
@@ -373,7 +448,7 @@ private fun SavedIconArtwork(controller: CustomIconsController, item: CustomIcon
       catch (_: Exception) { null }
     value = key to bitmap
   }
-  CustomIconArtwork(result?.takeIf { it.first == key }?.second)
+  CustomIconArtwork(result?.takeIf { it.first == key }?.second, iconSize)
 }
 
 @Composable

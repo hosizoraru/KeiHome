@@ -228,8 +228,15 @@ class Gate:
             "sha256sum", "/sdcard/Android/data/com.android.thememanager/files/MIUI/theme/"
             f".data/content/icons/{row['localId']}.mrc"]).split()[0]
         deadline = time.monotonic() + 30
+        actual = "temporarily unavailable"
         while time.monotonic() < deadline:
-            actual = self.shell(["sha256sum", "/data/system/theme/icons"]).split()[0]
+            try:
+                actual = self.shell(["sha256sum", "/data/system/theme/icons"]).split()[0]
+            except subprocess.CalledProcessError as error:
+                # Themes briefly removes the old archive while publishing its replacement.
+                if error.returncode != 1:
+                    raise
+                actual = "temporarily unavailable"
             if actual == expected:
                 break
             time.sleep(.5)

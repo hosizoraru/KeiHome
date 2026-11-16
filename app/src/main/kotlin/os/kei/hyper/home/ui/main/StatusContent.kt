@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -863,7 +863,6 @@ internal fun StatusOverviewCard(
   badges: List<String> = emptyList(),
   badgeContent: (@Composable ColumnScope.(Color) -> Unit)? = null,
   actionLabel: String? = null,
-  compactSymbol: Boolean = false,
   titleBadge: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
@@ -893,12 +892,8 @@ internal fun StatusOverviewCard(
     StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
     StatusTone.CHECKING -> colors.onSurface
   }
-  val icon = when (tone) {
-    StatusTone.READY -> MiuixIcons.Glass.Ok
-    StatusTone.WARNING -> MiuixIcons.Glass.Info
-    StatusTone.ERROR -> MiuixIcons.Glass.Report
-    StatusTone.CHECKING -> MiuixIcons.Glass.Info
-  }
+  val hasBadges = badges.isNotEmpty() || badgeContent != null
+  val hasLowerContent = environmentSummary != null || hasBadges || details.isNotEmpty()
 
   Card(
     modifier = modifier.fillMaxWidth(),
@@ -912,19 +907,14 @@ internal fun StatusOverviewCard(
     Box(Modifier.fillMaxWidth().clipToBounds().semantics {
       this.onClick(label = actionLabel ?: refreshLabel, action = null)
     }) {
-      // Keep the symbol square and clip it only at the full card boundary.
-      Box(Modifier.matchParentSize()) {
-        StatusOverviewSymbol(icon, tone, accentColor, Modifier.align(Alignment.CenterEnd)
-          .offset(x = if (compactSymbol) (-18).dp else 27.dp)
-          .requiredSize(if (compactSymbol) 80.dp else 130.dp)
-          .testTag("status.overview.symbol"), compactSymbol)
-      }
+      StatusOverviewCornerSymbol(tone, accentColor)
       Column {
         Box(Modifier.fillMaxWidth().clipToBounds()) {
           Column(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(start = 18.dp, end = 112.dp, top = 16.dp, bottom = 16.dp),
+              .padding(start = 18.dp, end = if (hasLowerContent) 18.dp else 76.dp,
+                top = 16.dp, bottom = 16.dp),
           ) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
               FlowRow(
@@ -959,12 +949,14 @@ internal fun StatusOverviewCard(
           }
         }
         if (environmentSummary != null) Text(environmentSummary,
-          modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 14.dp),
+          modifier = Modifier.fillMaxWidth().padding(start = 18.dp,
+            end = if (hasBadges || details.isNotEmpty()) 18.dp else 76.dp, bottom = 14.dp),
           style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
           maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (badges.isNotEmpty() || badgeContent != null) {
+        if (hasBadges) {
           Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 112.dp, bottom = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 18.dp,
+              end = if (details.isEmpty()) 76.dp else 18.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
           ) {
             if (badgeContent != null) badgeContent(accentColor)
@@ -972,27 +964,33 @@ internal fun StatusOverviewCard(
           }
         }
         if (details.isNotEmpty()) {
-          Column(
-            modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+          BoxWithConstraints(
+            modifier = Modifier.padding(start = 18.dp, end = 76.dp, bottom = 16.dp),
           ) {
-            details.forEach { detail ->
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-              ) {
-                Text(
-                  text = detail.label,
-                  modifier = Modifier.weight(1f),
-                  style = MiuixTheme.textStyles.body2,
-                  color = contentColor.copy(alpha = 0.7f),
-                )
-                Text(
-                  text = detail.value,
-                  modifier = Modifier.weight(1.2f),
-                  style = MiuixTheme.textStyles.body2,
-                  color = contentColor,
-                )
+            val stacked = maxWidth < 280.dp
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              details.forEach { detail ->
+                if (stacked) {
+                  Column(Modifier.fillMaxWidth()) {
+                    Text(detail.label, modifier = Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.body2,
+                      color = contentColor.copy(alpha = 0.7f))
+                    Text(detail.value, modifier = Modifier.fillMaxWidth(),
+                      style = MiuixTheme.textStyles.body2, color = contentColor)
+                  }
+                } else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                  Text(
+                    text = detail.label,
+                    modifier = Modifier.weight(1f),
+                    style = MiuixTheme.textStyles.body2,
+                    color = contentColor.copy(alpha = 0.7f),
+                  )
+                  Text(
+                    text = detail.value,
+                    modifier = Modifier.weight(1.2f),
+                    style = MiuixTheme.textStyles.body2,
+                    color = contentColor,
+                  )
+                }
               }
             }
           }
@@ -1003,17 +1001,23 @@ internal fun StatusOverviewCard(
 }
 
 @Composable
-internal fun StatusOverviewSymbol(
-  icon: ImageVector, tone: StatusTone, color: Color, modifier: Modifier, compact: Boolean = false,
-) {
-  Icon(
-    imageVector = icon,
-    modifier = modifier.then(
-      if (tone == StatusTone.READY) Modifier.border(if (compact) 3.dp else 5.dp, color, CircleShape)
-        .padding(if (compact) 16.dp else 26.dp)
-      else Modifier,
-    ),
-    tint = color,
-    contentDescription = null,
-  )
+internal fun BoxScope.StatusOverviewCornerSymbol(tone: StatusTone, color: Color) {
+  val icon = when (tone) {
+    StatusTone.READY -> MiuixIcons.Glass.Ok
+    StatusTone.WARNING, StatusTone.CHECKING -> MiuixIcons.Glass.Info
+    StatusTone.ERROR -> MiuixIcons.Glass.Report
+  }
+  // Only the card clips this square ornament; it never participates in content measurement.
+  Box(Modifier.matchParentSize()) {
+    Icon(
+      imageVector = icon,
+      modifier = Modifier.align(Alignment.BottomEnd).offset(x = 12.dp, y = 18.dp)
+        .requiredSize(72.dp).testTag("status.overview.symbol")
+        .then(if (tone == StatusTone.READY) Modifier.padding(8.dp)
+          .border(3.dp, color, CircleShape).padding(10.dp)
+          else Modifier),
+      tint = color,
+      contentDescription = null,
+    )
+  }
 }

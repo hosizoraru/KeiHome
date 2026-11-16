@@ -158,7 +158,7 @@ internal fun DesktopConnectionCard(model: HomeViewModel) {
     details = emptyList(),
     tone = state.tone,
     onRefresh = { model.refresh(5) },
-    modifier = Modifier.testTag("desktop.status"), compactSymbol = true,
+    modifier = Modifier.testTag("desktop.status"),
     badgeContent = {
       DesktopConnectionPill(R.string.navigation_desktop, state.primary, "status")
       MetadataPill(launcherVersion ?: stringResource(R.string.desktop_connection_version_unknown),

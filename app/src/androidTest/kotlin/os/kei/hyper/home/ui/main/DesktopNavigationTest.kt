@@ -73,7 +73,7 @@ class DesktopNavigationTest {
         hasTestTag("status.overview.symbol") and
           hasAnyAncestor(hasTestTag("desktop.status.$section")),
         useUnmergedTree = true,
-      ).assertWidthIsEqualTo(80.dp).assertHeightIsEqualTo(80.dp)
+      ).assertWidthIsEqualTo(72.dp).assertHeightIsEqualTo(72.dp)
       when (section) {
         "dock" -> {
           rule.onNodeWithTag("desktop.status.dock").assertExists()
@@ -105,11 +105,11 @@ class DesktopNavigationTest {
     rule.setContent { KeiHomeTheme { MainNavigation(store) } }
     rule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
     rule.onNodeWithText(context.getString(R.string.settings_hook_section)).performScrollTo().performClick()
-    waitForTag("framework.static-scope")
+    waitForTag("scope.page.summary")
     rule.onNodeWithTag("theme-effects.switch").assertDoesNotExist()
     rule.onNodeWithTag("splash-appearance.switch").assertDoesNotExist()
     rule.onNodeWithText(context.getString(R.string.scope_request)).assertDoesNotExist()
-    rule.onNodeWithText(context.getString(R.string.scope_check)).assertExists()
+    rule.onNodeWithTag("scope.page.refresh").assertExists()
     back()
     rule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).assertIsSelected()
   }

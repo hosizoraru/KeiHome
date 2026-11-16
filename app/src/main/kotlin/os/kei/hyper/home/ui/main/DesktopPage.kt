@@ -140,7 +140,7 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
     storedOnly -> R.string.desktop_stored_count
     else -> R.string.desktop_synced_count
   }, sync.accepted, sync.supported), details = emptyList(), tone = tone,
-    onRefresh = { model.refresh(5, section) }, modifier = Modifier.testTag("desktop.status.${section.route}"), compactSymbol = true,
+    onRefresh = { model.refresh(5, section) }, modifier = Modifier.testTag("desktop.status.${section.route}"),
     badgeContent = {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         entries.forEach { entry ->

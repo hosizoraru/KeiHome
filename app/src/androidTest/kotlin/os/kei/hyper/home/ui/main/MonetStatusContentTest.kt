@@ -475,7 +475,10 @@ class MonetStatusContentTest {
           assertTrue(node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts))
         }
         assertTrue("No text layout for $tag: $text", layouts.isNotEmpty())
-        assertFalse("Clipped text for $tag: $text", layouts.any { it.hasVisualOverflow })
+        assertFalse("Clipped text for $tag: $text; " + layouts.joinToString {
+          "size=${it.size}, constraints=${it.layoutInput.constraints}, lines=${it.lineCount}, " +
+            "widthOverflow=${it.didOverflowWidth}, heightOverflow=${it.didOverflowHeight}"
+        }, layouts.any { it.hasVisualOverflow })
       }
       composeTestRule.onNodeWithText(BuildConfig.VERSION_NAME.substringBefore('+'), useUnmergedTree = true)
         .assertExists()

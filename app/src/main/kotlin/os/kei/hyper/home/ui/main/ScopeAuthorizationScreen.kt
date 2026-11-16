@@ -30,6 +30,7 @@ import androidx.compose.ui.res.vectorResource
 import com.composables.icons.lucide.R as LucideR
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -191,12 +192,14 @@ private fun ScopeAuthorizationSummary(
   val (title, tone) = scopeStatusPresentation(state)
   val color = desktopStatusColor(tone)
   Card(Modifier.fillMaxWidth().testTag("scope.page.summary")) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Box(Modifier.fillMaxWidth().clipToBounds()) {
+      StatusOverviewCornerSymbol(tone, color)
+      Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           Text(stringResource(title), style = MiuixTheme.textStyles.title4,
             modifier = Modifier.semantics { heading() })
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          FlowRow(Modifier.padding(end = 60.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (trusted && plan != null) {
               MetadataPill(stringResource(R.string.scope_page_granted_count,
                 plan.granted.size, plan.eligible.size), color)
@@ -209,12 +212,12 @@ private fun ScopeAuthorizationSummary(
             } else MetadataPill(stringResource(R.string.scope_page_unknown_count, declared.size), color)
           }
         }
-        StatusOverviewSymbol(if (tone == StatusTone.READY) actionIcon(PageActionIcon.APPLY) else ImageVector.vectorResource(LucideR.drawable.lucide_ic_shield),
-          tone, color, Modifier.size(80.dp))
+        if (metadataFailed) Text(stringResource(R.string.scope_page_metadata_failed),
+          modifier = Modifier.padding(end = 60.dp),
+          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
+        if (reading || state.requesting || tone == StatusTone.CHECKING)
+          LinearProgressIndicator(Modifier.fillMaxWidth().padding(end = 60.dp))
       }
-      if (metadataFailed) Text(stringResource(R.string.scope_page_metadata_failed),
-        style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
-      if (reading || state.requesting || tone == StatusTone.CHECKING) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
   }
 }

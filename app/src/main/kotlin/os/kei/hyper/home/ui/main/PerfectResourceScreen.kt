@@ -423,7 +423,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         else -> R.string.perfect_icons_catalog_missing
       }), summary = stringResource(if (downloaded.isNotEmpty()) R.string.perfect_resource_ready_summary
         else R.string.perfect_resource_empty_summary), tone = tone, details = emptyList(), onRefresh = { if (!busy && !cooling) onCheck() }, onOpen = { showInfo = true }, actionLabel = stringResource(R.string.perfect_resource_info),
-        compactSymbol = true, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("perfect.resources.status"), badgeContent = { color ->
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("perfect.resources.status"), badgeContent = { color ->
           FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             MetadataPill(stringResource(R.string.perfect_resource_style_count, downloaded.size, available.size), color)
           MetadataPill(stringResource(R.string.perfect_resource_occupied_bytes, Formatter.formatFileSize(context, state.resourceBytes)), color)

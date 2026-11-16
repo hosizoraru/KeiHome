@@ -14,6 +14,7 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.data.MonetAction
+import os.kei.hyper.home.data.MonetActionRequest
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.ThemeEffectsPreferences
@@ -279,12 +280,15 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
       }
     }
     actionInterruption()?.let { return it }
-    if (action?.enabled == false) {
+    if (action?.enabled == false && !action.preserveEnabled) {
       val disabled = MonetAction.applyDisabled(action, initial, actionStore, actionCurrent)
       if (disabled != MonetAction.ApplyResult.APPLIED) return SynchronizationResult.SelectionChanged
-      withdraw(context, excludingObserver, stillCurrent)
+      val expected = initial.updated(MonetAction.Setting.HANDLED, action.revision.toString())
+        .updated(MonetAction.Setting.ENABLED, "0")
+      val disabledCurrent = { actionCurrent() && actionStore.read() == expected }
+      withdraw(context, excludingObserver, disabledCurrent)
       if (!acknowledgedReset) return SynchronizationResult.NativeUnavailable
-      if (!stillCurrent()) return SynchronizationResult.SelectionChanged
+      if (!disabledCurrent()) return SynchronizationResult.SelectionChanged
       if (!actionStore.write(MonetAction.Setting.APPLIED, action.revision.toString())) {
         return SynchronizationResult.WriteFailed(0)
       }
@@ -316,6 +320,49 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     )
       ?: return SynchronizationResult.NoColor
     val selected = colors.background
+    fun preserveSelection(denied: Set<String>): SynchronizationResult {
+      val request = checkNotNull(action)
+      var policy: Publication? = null
+      val result = applyPreservedMonetSelection(request, selected, initial, actionStore,
+        publishNative = {
+          native.publish(context, colors.foreground, selected, denied).also { acknowledged ->
+            if (acknowledged) {
+              acknowledgedReset = false
+              policy = Publication(colors, denied, native.acknowledgedProcess, resources.themeSignature, userId)
+            }
+          }
+        },
+        withdrawNative = {
+          withdraw(context, excludingObserver) { actionCurrent() && actionStore.read() == initial }
+          acknowledgedReset
+        },
+        publishPalette = { expected ->
+          when (publishMamlPalette(context, colors, excludingObserver) {
+            actionCurrent() && actionStore.read() == expected
+          }) {
+            GeneratedPalettePublication.Result.CHANGED, GeneratedPalettePublication.Result.UNCHANGED ->
+              MonetAction.ApplyResult.APPLIED
+            GeneratedPalettePublication.Result.SELECTION_CHANGED -> MonetAction.ApplyResult.SELECTION_CHANGED
+            GeneratedPalettePublication.Result.NATIVE_UNAVAILABLE -> MonetAction.ApplyResult.NATIVE_UNAVAILABLE
+            GeneratedPalettePublication.Result.WRITE_FAILED -> MonetAction.ApplyResult.WRITE_FAILED
+          }
+        }, isCurrent = actionCurrent)
+      return when (result) {
+        MonetAction.ApplyResult.APPLIED -> {
+          if (initial.enabled == "1") previousPolicy = policy
+          SynchronizationResult.Applied(selected, refreshPackages = true)
+        }
+        MonetAction.ApplyResult.WRITE_FAILED -> {
+          withdraw(context, excludingObserver) {
+            actionCurrent() && actionStore.read().enabled == initial.enabled
+          }
+          SynchronizationResult.WriteFailed(selected)
+        }
+        MonetAction.ApplyResult.SELECTION_CHANGED -> SynchronizationResult.SelectionChanged
+        MonetAction.ApplyResult.NATIVE_UNAVAILABLE -> SynchronizationResult.NativeUnavailable
+      }
+    }
+    if (action?.preserveEnabled == true && initial.enabled != "1") return preserveSelection(emptySet())
     val currentRaw = Settings.System.getString(resolver, KEY_MONOCHROME_COLOR)
     val current = parseInt32(currentRaw)
     val marker = parseInt32(Settings.Secure.getString(resolver, KEY_AUTO_COLOR))
@@ -339,6 +386,7 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     ) {
       return SynchronizationResult.SelectionChanged
     }
+    if (action?.preserveEnabled == true) return preserveSelection(denied)
     // A new Java generation must not darken the background while an older
     // native payload still renders a fixed black foreground.
     if (!native.publish(context, colors.foreground, colors.background, denied)) {
@@ -430,11 +478,15 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
   private fun withdraw(
     context: Context, excludingObserver: ContentObserver?, isCurrent: () -> Boolean,
   ): Boolean {
+    // This call needs its own reset ACK; a previous successful disable cannot acknowledge a failure.
+    val hadReset = acknowledgedReset
+    acknowledgedReset = false
     if (!isCurrent() || !native.disable(context)) return false
     val palette = publishMamlPalette(context, null, excludingObserver, isCurrent)
-    if (palette == GeneratedPalettePublication.Result.SELECTION_CHANGED) return false
+    if (palette == GeneratedPalettePublication.Result.SELECTION_CHANGED ||
+      palette == GeneratedPalettePublication.Result.NATIVE_UNAVAILABLE || !isCurrent()) return false
     if (palette == GeneratedPalettePublication.Result.WRITE_FAILED) throw IOException("Could not disable generated icon palette")
-    val changed = previousPolicy != null || !acknowledgedReset ||
+    val changed = previousPolicy != null || !hadReset ||
       palette == GeneratedPalettePublication.Result.CHANGED
     if (changed) context.contentResolver.notifyChange(
       Settings.System.getUriFor(KEY_MONOCHROME_COLOR), excludingObserver,
@@ -585,6 +637,24 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     const val KEY_MONOCHROME_COLOR = "key_monochrome_color"
     const val KEY_AUTO_COLOR = "keihome_monet_auto_color"
   }
+}
+
+/** Actual explicit-color transaction, shared by on/off paths without ever writing the toggle. */
+internal fun applyPreservedMonetSelection(
+  request: MonetActionRequest, color: Int, initial: MonetAction.Selection, store: MonetAction.Store,
+  publishNative: () -> Boolean, withdrawNative: () -> Boolean,
+  publishPalette: (MonetAction.Selection) -> MonetAction.ApplyResult,
+  isCurrent: () -> Boolean,
+): MonetAction.ApplyResult {
+  require(request.preserveEnabled)
+  if (!MonetAction.isUnconsumed(request, initial)) return MonetAction.ApplyResult.SELECTION_CHANGED
+  MonetAction.checkSelection(request, initial, store, isCurrent)?.let { return it }
+  val enabled = initial.enabled == "1"
+  val acknowledged = if (enabled) publishNative() else withdrawNative()
+  MonetAction.checkSelection(request, initial, store, isCurrent)?.let { return it }
+  return MonetAction.applyPreservingEnabled(request, color, initial, store, acknowledged,
+    publish = { expected -> if (enabled) publishPalette(expected) else MonetAction.ApplyResult.APPLIED },
+    isCurrent = isCurrent)
 }
 
 /** Confirmed changes and recovery from uncertain writes reconcile icons; normal renewals do not. */

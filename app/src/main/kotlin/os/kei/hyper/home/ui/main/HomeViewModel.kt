@@ -104,6 +104,7 @@ internal data class MonetUiState(
   val snapshot: MonetPaletteSnapshot? = null,
   val readFailed: Boolean = false,
   val action: MonetActionStatus = MonetActionStatus.IDLE,
+  val submittedChoice: MonetCustomization? = null,
 )
 
 internal data class ThemeEffectsUiState(
@@ -1177,7 +1178,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun applyMonet(choice: MonetCustomization) {
     preferences.setMonetInspiration(choice.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION)
-    submitMonet(choice)
+    submitMonet(choice, preserveEnabled = true)
   }
 
   fun setMonetEnabled(enabled: Boolean) {
@@ -1216,15 +1217,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     if (style.usesMonet) getApplication<Application>().getString(os.kei.hyper.home.R.string.pack_style_inspiration)
     else "ColorOS · ${getApplication<Application>().getString(colorOsStyleLabel(style))} · ART${if (art) "+" else "-"}"
 
-  private fun submitMonet(choice: MonetCustomization, enabled: Boolean = true) {
+  private fun submitMonet(choice: MonetCustomization, enabled: Boolean = true, preserveEnabled: Boolean = false) {
     if (enabled && colorOsPaletteUnavailable()) return
     val service = FrameworkConnection.service.value ?: return
     applyJob?.cancel()
-    monet.update { it.copy(action = MonetActionStatus.APPLYING) }
+    val submitted = choice.copy(iconAppearance = preferences.state.value.iconPackAppearance)
+    monet.update { it.copy(action = MonetActionStatus.APPLYING, submittedChoice = submitted) }
     applyJob = viewModelScope.launch {
       try {
         val request = withContext(Dispatchers.IO) {
-          MonetAction.submit(service, choice.copy(iconAppearance = preferences.state.value.iconPackAppearance), enabled)
+          MonetAction.submit(service, submitted, enabled,
+            preserveEnabled = preserveEnabled)
         }
         // Continue waiting across navigation/configuration changes, including a late native ACK.
         val started = android.os.SystemClock.elapsedRealtime()

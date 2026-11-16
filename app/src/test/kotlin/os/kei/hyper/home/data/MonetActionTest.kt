@@ -16,6 +16,60 @@ class MonetActionTest {
   private val initial = MonetAction.Selection("-1", null, "0", null, null)
   private val color = 0xff332d41.toInt()
 
+  @Test fun preservingWireIsInertToLegacyDecodersAndExplicitToggleStillWins() {
+    val remote = Preferences()
+    val choice = MonetCustomization(MonetSeedSource.BASIC_COLOR, color = color)
+    val preserve = MonetAction.submit(remote.preferences, 1_210_141, request.revision, choice,
+      preserveEnabled = true)
+    assertEquals(preserve, MonetAction.decode(remote.values))
+    assertEquals(true, preserve.preserveEnabled)
+    assertEquals(-preserve.revision, remote.values[MonetAction.REQUEST_REVISION])
+    assertEquals(preserve.revision, remote.values[MonetAction.REQUEST_PRESERVE_REVISION])
+    assertEquals(preserve, MonetAction.pending(MonetAction.read(remote.preferences), 12, initial, 100_100L))
+    val explicit = MonetAction.submit(remote.preferences, 1_210_141, request.revision, enabled = false)
+    assertEquals(preserve.revision + 1, explicit.revision)
+    assertFalse(explicit.enabled)
+    assertFalse(explicit.preserveEnabled)
+    assertEquals(explicit, MonetAction.decode(remote.values))
+    // Older apps leave our shadow revision in place; their positive legacy revision wins.
+    remote.values[MonetAction.REQUEST_REVISION] = explicit.revision + 1
+    remote.values[MonetAction.REQUEST_ENABLED] = true
+    val legacy = MonetAction.decode(remote.values)!!
+    assertFalse(legacy.preserveEnabled)
+    assertEquals(explicit.revision + 1, legacy.revision)
+    assertEquals(true, legacy.enabled)
+  }
+
+  @Test fun preservingWireRequiresValidRevisionAndRespectsUserAndReceiptGates() {
+    val snapshot = linkedMapOf<String, Any>(
+      MonetAction.REQUEST_REVISION to -request.revision, MonetAction.REQUEST_USER to 12)
+    assertNull(MonetAction.decode(snapshot))
+    for (invalid in listOf(-1L, 0L, "100000")) {
+      snapshot[MonetAction.REQUEST_PRESERVE_REVISION] = invalid
+      assertNull(MonetAction.decode(snapshot))
+    }
+    snapshot[MonetAction.REQUEST_PRESERVE_REVISION] = request.revision
+    val preserve = MonetAction.decode(snapshot)!!
+    assertEquals(preserve, MonetAction.pending(preserve, 12, initial, 100_100L))
+    assertNull(MonetAction.pending(preserve, 0, initial, 100_100L))
+    assertNull(MonetAction.pending(preserve, 12, initial.copy(handled = request.revision.toString()), 100_100L))
+    assertNull(MonetAction.pending(preserve, 12, initial.copy(applied = request.revision.toString()), 100_100L))
+    snapshot[MonetAction.REQUEST_REVISION] = -request.revision - 1L
+    assertNull(MonetAction.decode(snapshot))
+  }
+
+  @Test fun consecutivePreservingRequestsChangeTheExistingWatchedRevision() {
+    val remote = Preferences()
+    val first = MonetAction.submit(remote.preferences, 1_210_141, request.revision, preserveEnabled = true)
+    val firstWire = remote.values[MonetAction.REQUEST_REVISION] as Long
+    val second = MonetAction.submit(remote.preferences, 1_210_141, request.revision, preserveEnabled = true)
+    val secondWire = remote.values[MonetAction.REQUEST_REVISION] as Long
+    assertEquals(first.revision + 1, second.revision)
+    assertEquals(-first.revision, firstWire)
+    assertEquals(-second.revision, secondWire)
+    assertEquals(second, MonetAction.read(remote.preferences))
+  }
+
   @Test
   fun paletteRefreshDoesNotSubmitOrOverwriteAnApplyRequest() {
     val remote = Preferences()

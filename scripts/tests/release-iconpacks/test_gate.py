@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from types import SimpleNamespace
+from tempfile import TemporaryDirectory
+from unittest.mock import Mock
 
 MODULE = Path(__file__).resolve().parents[2] / "release_iconpack_gate.py"
 spec = importlib.util.spec_from_file_location("release_gate", MODULE)
@@ -23,6 +26,28 @@ def monet_report():
 
 
 class ReleaseGateTest(unittest.TestCase):
+    def test_failed_import_retry_invalidates_old_success_markers(self):
+        with TemporaryDirectory() as directory:
+            folder = Path(directory)
+            for name in ("imports-pass.json", "monet-pass.json", "application.json"):
+                (folder / name).write_text('{"passed":true}')
+            instance = gate.Gate(SimpleNamespace(evidence=folder, serial="emulator-5580"))
+            instance.instrument = Mock(side_effect=RuntimeError("failed import"))
+            with self.assertRaises(RuntimeError):
+                instance.imports()
+            self.assertFalse((folder / "imports-pass.json").exists())
+            self.assertFalse((folder / "monet-pass.json").exists())
+            self.assertFalse(gate.json.loads((folder / "application.json").read_text())["passed"])
+
+    def test_rejected_release_cannot_leave_old_application_success(self):
+        with TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / "application.json").write_text('{"passed":true}')
+            instance = gate.Gate(SimpleNamespace(evidence=folder, serial="emulator-5580", apk=None))
+            with self.assertRaises(RuntimeError):
+                instance.apply()
+            self.assertFalse(gate.json.loads((folder / "application.json").read_text())["passed"])
+
     def test_approved_complete_inventory_passes(self):
         self.assertEqual(1, len(gate.validate_matrix(report())))
 

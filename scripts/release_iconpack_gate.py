@@ -176,6 +176,9 @@ class Gate:
         return count
 
     def imports(self):
+        for marker in ("imports-pass.json", "monet-pass.json"):
+            (self.folder / marker).unlink(missing_ok=True)
+        self.save("application.json", {"passed": False, "state": "imports-in-progress"})
         self.instrument("imports", [f"{PACKAGE}.iconpack.NativeIconPackImportMatrixDeviceTest"],
                         {"realImportMatrix": "1"})
         data = self.read(f"{BASE}/cache/large-pack-matrix.json")
@@ -280,6 +283,7 @@ class Gate:
 
     def monet(self):
         (self.folder / "monet-pass.json").unlink(missing_ok=True)
+        self.save("application.json", {"passed": False, "state": "monet-in-progress"})
         require(self.args.monet_mtz, "Supply the existing real Monet MTZ fixture with --monet-mtz")
         packs = validate_matrix(json.loads((self.folder / "matrix.json").read_text()),
                                 self.args.minimum_packs)
@@ -341,6 +345,7 @@ class Gate:
                   "runtimeSources": [p["sourceId"] for p in monet_packs]})
 
     def apply(self):
+        self.save("application.json", {"passed": False, "state": "validating-release"})
         require(self.args.apk and self.args.apk.is_file(), "Supply the signed R8 release APK")
         manifest = json.loads((self.args.apk.parent / "release.json").read_text())
         require(manifest["apkSha256"] == hashlib.sha256(self.args.apk.read_bytes()).hexdigest() and
@@ -349,6 +354,10 @@ class Gate:
                 .decode().strip(), "R8 release source differs from the current checkout")
         packs = validate_matrix(json.loads((self.folder / "matrix.json").read_text()),
                                 self.args.minimum_packs)
+        require((self.folder / "imports-pass.json").is_file(), "Import gate has not passed")
+        imports = json.loads((self.folder / "imports-pass.json").read_text())
+        require(imports.get("passed") is True and imports.get("count") == len(packs),
+                "Import gate does not cover the entire matrix")
         require((self.folder / "monet-pass.json").is_file(), "Monet gate has not passed")
         validate_monet(json.loads((self.folder / "monet-pass.json").read_text()), source_fingerprint(),
                        hashlib.sha256((self.folder / "matrix.json").read_bytes()).hexdigest())

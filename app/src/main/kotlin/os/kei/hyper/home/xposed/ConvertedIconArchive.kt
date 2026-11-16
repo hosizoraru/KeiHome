@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -72,7 +73,7 @@ internal object ConvertedIconArchive {
               } }
               require(digest(nested) == hashes)
               if (origin == LOCAL_NATIVE) LocalNativeIconValidator.validate(nested) else validateIcons(nested)
-            } finally { check(nested.delete()) { "Could not remove converted validation copy" } }
+            } finally { removeValidationCopy(nested) }
             icons = hashes
           }
           "description.xml" -> zip.getInputStream(entry).use { validateDescription(readLimited(it, limit)) }
@@ -83,6 +84,11 @@ internal object ConvertedIconArchive {
     }
     require(digest(file) == archive) { "Converted archive changed during inspection" }
     return Proof(origin, archive, requireNotNull(icons))
+  }
+
+  internal fun removeValidationCopy(file: File) {
+    // Another cleanup may already have removed it; genuine I/O failures still reject approval.
+    Files.deleteIfExists(file.toPath())
   }
 
   fun digest(file: File): Digests {

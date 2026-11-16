@@ -25,6 +25,28 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 
 class ConvertedIconArchiveTest {
+  @Test fun validationCopyCleanupIsIdempotent() {
+    val directory = Files.createTempDirectory("converted-cleanup").toFile()
+    try {
+      val file = File(directory, "proof.icons").apply { writeText("temporary") }
+      ConvertedIconArchive.removeValidationCopy(file)
+      ConvertedIconArchive.removeValidationCopy(file)
+      assertFalse(file.exists())
+    } finally { directory.deleteRecursively() }
+  }
+
+  @Test fun validationCopyCleanupDoesNotHideActualDeletionFailures() {
+    val directory = Files.createTempDirectory("converted-cleanup").toFile()
+    try {
+      val blocked = File(directory, "proof.icons").apply { mkdir() }
+      val child = File(blocked, "keep").apply { writeText("present") }
+      assertThrows(java.nio.file.DirectoryNotEmptyException::class.java) {
+        ConvertedIconArchive.removeValidationCopy(blocked)
+      }
+      assertTrue(child.exists())
+    } finally { directory.deleteRecursively() }
+  }
+
   @Test fun acceptsBoundedBuildProvenanceAlongsideValidatedArtwork() {
     val content = zip(generatedPair() + ("keihome-build-source.txt" to
       "apk:com.example.icons:system-fallback-v1:DEFAULT\ncom.example.icons:1:100".toByteArray()))

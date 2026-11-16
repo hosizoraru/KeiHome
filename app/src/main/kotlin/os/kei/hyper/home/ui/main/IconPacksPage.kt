@@ -355,19 +355,21 @@ internal fun ThemeEffectsCard(
         onCheckedChange = onCheckedChange,
         modifier = Modifier.testTag("theme-effects.switch"),
       )
-      Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2,
-          color = if (framework.readFailed || state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
-            else MiuixTheme.colorScheme.onSurfaceSecondary)
-        if (state.readFailed || state.saveFailed) {
-          TextButton(stringResource(R.string.theme_effects_resave_off),
-            onClick = { onCheckedChange(false) },
-            enabled = available && state.canSaveThemeEffects(false),
-            modifier = Modifier.testTag("theme-effects.resave-off"))
+      if (showStatus || state.readFailed || state.saveFailed || scopeGuidance != null) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2,
+            color = if (framework.readFailed || state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
+              else MiuixTheme.colorScheme.onSurfaceSecondary)
+          if (state.readFailed || state.saveFailed) {
+            TextButton(stringResource(R.string.theme_effects_resave_off),
+              onClick = { onCheckedChange(false) },
+              enabled = available && state.canSaveThemeEffects(false),
+              modifier = Modifier.testTag("theme-effects.resave-off"))
+          }
+          if (scopeGuidance != null) Text(stringResource(scopeGuidance),
+            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        if (scopeGuidance != null) Text(stringResource(scopeGuidance),
-          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
       DesktopSettingProgress(if (state.saving) DesktopFeatureStatus.SAVING else DesktopFeatureStatus.ACCEPTED,
         Modifier.testTag("desktop.feature.icon-effects.progress"))

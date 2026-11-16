@@ -73,6 +73,8 @@ class InstalledMonetPackDeviceTest {
         override fun getCacheDir(): File = File(root, "cache").apply { mkdirs() }
         override fun getFilesDir(): File = File(root, "files").apply { mkdirs() }
         override fun getNoBackupFilesDir(): File = File(root, "no-backup").apply { mkdirs() }
+        override fun getSharedPreferences(name: String, mode: Int): android.content.SharedPreferences =
+          base.getSharedPreferences(if (name == "custom_icons_v1") "${root.name}-$name" else name, mode)
       }
       val previews = IconPackPreviewRepository(context)
       try {
@@ -136,9 +138,11 @@ class InstalledMonetPackDeviceTest {
           }
           if (samples.isEmpty()) continue
           val selected = samples.map { it.target }
-          val light = repository.exportNativeIcons(pack, selected, darkMode = false, sizePx = SIZE, installedOnly = true)
+          val light = repository.exportNativeIcons(pack, selected, darkMode = false, sizePx = SIZE, installedOnly = true,
+            preservedPackages = PhoneCompanionIcons.TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
           try {
-            val dark = repository.exportNativeIcons(pack, selected, darkMode = true, sizePx = SIZE, installedOnly = true)
+            val dark = repository.exportNativeIcons(pack, selected, darkMode = true, sizePx = SIZE, installedOnly = true,
+              preservedPackages = PhoneCompanionIcons.TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
             try {
               assertExport(light, samples, false)
               assertExport(dark, samples, true)
@@ -170,7 +174,11 @@ class InstalledMonetPackDeviceTest {
           targets.toSet(), dayNightTargets)
         assertTrue("Need an installed colored/vector negative control; coverage must not silently disappear",
           withoutPalette > 0)
-      } finally { previews.clear(); root.deleteRecursively() }
+      } finally {
+        previews.clear()
+        base.deleteSharedPreferences("${root.name}-custom_icons_v1")
+        root.deleteRecursively()
+      }
     }
   }
 

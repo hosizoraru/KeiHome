@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import java.io.File
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.Font

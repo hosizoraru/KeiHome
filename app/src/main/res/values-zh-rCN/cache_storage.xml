@@ -10,7 +10,7 @@
     <string name="storage_memory">预览内存</string>
     <string name="storage_budget_title">清理提醒</string>
     <string name="storage_budget_help">默认为 520 MB，仅用于提醒，不限制下载，也不会自动删除文件。</string>
-    <string name="storage_clear_help">清理按钮释放预览内存，不计入图中。Apple 和完美图标资源可点分类管理；日志请进入日志页单独清理。可用源文件与已生成图标包会保留。</string>
+    <string name="storage_clear_help">顶部清理按钮释放预览内存。大文件请通过管理入口清理；日志请在日志页清理。</string>
     <string name="storage_icons">图标快照</string>
     <string name="storage_builtin">内置副本</string>
     <string name="storage_transfer">导入导出</string>
@@ -37,4 +37,12 @@
     <string name="storage_builtin_info">从 App 内置资源中复制出的图标包缓存，例如 ColorOS 图标资源。不包含 KeiHome 安装包本体。</string>
     <string name="storage_transfer_info">生成的图标包，以及导入、导出和交给系统主题时使用的本地中转副本。</string>
     <string name="storage_temporary_info">缓存目录中的其他临时文件，例如图标包索引和处理中间文件。Apple 资源、完美图标和日志单独统计；预览内存不计入图中。</string>
+    <string name="storage_manage_title">图标包存储管理</string>
+    <string name="storage_manage_imported">MTZ/ZIP 导入副本</string>
+    <string name="storage_manage_imported_summary">查看每个导入副本的大小，删除不再使用的图标包。</string>
+    <string name="storage_manage_perfect">完美图标存储</string>
+    <string name="storage_manage_perfect_summary">清理可重建缓存，管理下载资源和生成 ZIP。</string>
+    <string name="storage_manage_apple">Apple 图标存储</string>
+    <string name="storage_manage_apple_summary">清理下载缓存，管理生成的图标包。</string>
+    <string name="storage_generated_cleanup_help">“仅保留最新生成包”会在下次生成成功后清理旧生成包，手动导入的副本独立保留。</string>
 </resources>

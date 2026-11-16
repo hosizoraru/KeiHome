@@ -10,7 +10,7 @@
     <string name="storage_memory">プレビューのメモリ</string>
     <string name="storage_budget_title">キャッシュ整理の通知</string>
     <string name="storage_budget_help">既定は 520 MB です。通知の目安であり、ダウンロードの制限や自動削除は行いません。</string>
-    <string name="storage_clear_help">削除ボタンは、グラフに含まれないプレビュー用メモリを解放します。Apple と Perfect Icons のリソースは各項目から、ログはログ画面から個別に管理できます。ソースと生成済みパックは削除しません。</string>
+    <string name="storage_clear_help">上部のクリア操作はプレビュー用メモリを解放します。大きなファイルは管理項目から、ログはログ画面から削除できます。</string>
     <string name="storage_icons">アイコン画像</string>
     <string name="storage_builtin">内蔵リソースのコピー</string>
     <string name="storage_transfer">入出力</string>
@@ -37,4 +37,12 @@
     <string name="storage_builtin_info">ColorOS など、内蔵アイコンパックからコピーしたリソースのキャッシュです。インストール済みの KeiHome APK 本体は含みません。</string>
     <string name="storage_transfer_info">生成したアイコンパックと、インポート・書き出し・システムのテーマアプリへの受け渡しに使う一時的なコピーです。</string>
     <string name="storage_temporary_info">アイコンパックの索引や処理中の中間ファイルなど、キャッシュ内のその他の一時ファイルです。Apple リソース、Perfect Icons、ログは別の項目で集計し、プレビュー用メモリはグラフに含めません。</string>
+    <string name="storage_manage_title">アイコンパックのストレージ管理</string>
+    <string name="storage_manage_imported">MTZ/ZIP のインポートコピー</string>
+    <string name="storage_manage_imported_summary">各コピーの使用量を確認し、不要なパックを削除できます。</string>
+    <string name="storage_manage_perfect">Perfect Icons のストレージ</string>
+    <string name="storage_manage_perfect_summary">再生成できるキャッシュ、ダウンロード素材、生成 ZIP を管理します。</string>
+    <string name="storage_manage_apple">Apple Icons のストレージ</string>
+    <string name="storage_manage_apple_summary">ダウンロードキャッシュと生成済みパックを管理します。</string>
+    <string name="storage_generated_cleanup_help">「最新の生成パックのみ保持」は、次の生成が成功した後に古い生成ファイルを削除します。手動インポートのコピーは別に保持されます。</string>
 </resources>

@@ -10,7 +10,7 @@
     <string name="storage_memory">Preview memory</string>
     <string name="storage_budget_title">Cleanup reminder</string>
     <string name="storage_budget_help">Default: 520 MB. This reminder threshold does not limit downloads or delete files.</string>
-    <string name="storage_clear_help">Clear frees preview memory, which is not included in the chart. Manage Apple and Perfect Icons resources from their categories. Open Logs to manage log files separately; source files and generated packs are kept.</string>
+    <string name="storage_clear_help">The toolbar clear action releases preview memory. Manage large files below; clear logs from the Logs page.</string>
     <string name="storage_icons">Icon snapshots</string>
     <string name="storage_builtin">Built-in copies</string>
     <string name="storage_transfer">Transfers</string>
@@ -37,4 +37,12 @@
     <string name="storage_builtin_info">Cached copies of bundled icon packs, such as ColorOS resources. The installed KeiHome APK itself is not included.</string>
     <string name="storage_transfer_info">Generated icon archives and staging copies used to import, export or hand icons to the system Themes app.</string>
     <string name="storage_temporary_info">Other temporary files in the cache directory, such as icon-pack indexes and intermediate files. Apple resources, Perfect Icons and logs have their own categories; preview memory is not included in the chart.</string>
+    <string name="storage_manage_title">Manage icon pack storage</string>
+    <string name="storage_manage_imported">MTZ/ZIP imported copies</string>
+    <string name="storage_manage_imported_summary">Check each imported copy’s size and remove packs you no longer use.</string>
+    <string name="storage_manage_perfect">Perfect Icons storage</string>
+    <string name="storage_manage_perfect_summary">Clear rebuildable caches and manage downloaded resources and generated ZIPs.</string>
+    <string name="storage_manage_apple">Apple Icons storage</string>
+    <string name="storage_manage_apple_summary">Clear download caches and manage generated icon packs.</string>
+    <string name="storage_generated_cleanup_help">Keep latest generated package removes older generated files after the next successful generation. Manual imports remain separate.</string>
 </resources>

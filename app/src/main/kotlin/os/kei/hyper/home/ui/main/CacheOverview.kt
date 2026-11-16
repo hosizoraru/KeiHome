@@ -42,6 +42,7 @@ import os.kei.hyper.home.data.measureDiskCache
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class CacheSample(
@@ -148,6 +149,25 @@ internal fun CacheStorageContent(
       }
     }
     CacheStorageChart(sample?.categories ?: List(8) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
+    Card(Modifier.fillMaxWidth().testTag("cache.storage.manage")) {
+      Text(stringResource(R.string.storage_manage_title),
+        style = MiuixTheme.textStyles.subtitle, modifier = Modifier.padding(16.dp))
+      BasicComponent(title = stringResource(R.string.storage_manage_imported),
+        summary = stringResource(R.string.storage_manage_imported_summary),
+        onClick = { onOpenPack("imported") },
+        modifier = Modifier.testTag("cache.storage.manage.imported"))
+      BasicComponent(title = stringResource(R.string.storage_manage_perfect),
+        summary = stringResource(R.string.storage_manage_perfect_summary),
+        onClick = { onOpenPack("perfect") },
+        modifier = Modifier.testTag("cache.storage.manage.perfect"))
+      BasicComponent(title = stringResource(R.string.storage_manage_apple),
+        summary = stringResource(R.string.storage_manage_apple_summary),
+        onClick = { onOpenPack("apple") },
+        modifier = Modifier.testTag("cache.storage.manage.apple"))
+      Text(stringResource(R.string.storage_generated_cleanup_help),
+        style = MiuixTheme.textStyles.footnote2, color = scheme.onSurfaceVariantSummary,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+    }
     Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences")) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

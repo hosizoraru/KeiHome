@@ -141,6 +141,12 @@ class CacheStorageUiTest {
     rule.onNodeWithTag("cache.category.6").performScrollTo().performClick()
     rule.onNodeWithTag("cache.category.7").performScrollTo().performClick()
     rule.runOnIdle { assertEquals(listOf("apple", "perfect", "log", "library"), destinations) }
+    rule.onNodeWithTag("cache.storage.manage.imported").performScrollTo().performClick()
+    rule.onNodeWithTag("cache.storage.manage.perfect").performScrollTo().performClick()
+    rule.onNodeWithTag("cache.storage.manage.apple").performScrollTo().performClick()
+    rule.runOnIdle {
+      assertEquals(listOf("apple", "perfect", "log", "library", "imported", "perfect", "apple"), destinations)
+    }
     rule.onNodeWithTag("cache.storage.preferences").performScrollTo().assertIsDisplayed()
   }
 

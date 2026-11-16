@@ -1,5 +1,7 @@
 package os.kei.hyper.home.iconpack
 
+import os.kei.hyper.home.withForegroundDeviceCheck
+
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -115,7 +117,7 @@ class NativeMamlMonetDeviceTest {
   }
 
   /** Explicit diagnostic only: source is copied into private target cache by the developer. */
-  @Test fun providedLargeMtzImportsPreviewsAndExportsRealMonetWithoutChangingActiveTheme() {
+  @Test fun providedLargeMtzImportsPreviewsAndExportsRealMonetWithoutChangingActiveTheme() = withForegroundDeviceCheck {
     val path = InstrumentationRegistry.getArguments().getString("monetMtzPath")
     assumeTrue(path != null)
     val source = File(requireNotNull(path)).canonicalFile

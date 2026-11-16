@@ -3,10 +3,9 @@ package os.kei.hyper.home.iconpack
 import android.os.Process
 import android.os.SystemClock
 import android.util.AtomicFile
-import androidx.activity.ComponentActivity
-import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import os.kei.hyper.home.withForegroundDeviceCheck
 import io.github.libxposed.service.HookedTarget
 import io.github.libxposed.service.XposedServiceHelper
 import java.io.File
@@ -51,7 +50,7 @@ class NativeIconPackImportMatrixDeviceTest {
   @Test fun importsAllAvailablePacksWithoutApplying() {
     assumeTrue("Real native imports require explicit opt-in",
       InstrumentationRegistry.getArguments().getString("realImportMatrix") == "1")
-    ActivityScenario.launch(ComponentActivity::class.java).use {
+    withForegroundDeviceCheck {
     runBlocking(Dispatchers.IO) {
       val context = InstrumentationRegistry.getInstrumentation().targetContext
       val started = SystemClock.elapsedRealtime()

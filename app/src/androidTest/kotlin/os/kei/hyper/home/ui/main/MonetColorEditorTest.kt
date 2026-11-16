@@ -135,6 +135,9 @@ class MonetColorEditorTest {
 
   private fun openMonet() {
     val context = compose.activity
+    compose.waitForIdle()
+    val releaseContinue = compose.onAllNodesWithTag("release-notes.continue")
+    if (releaseContinue.fetchSemanticsNodes().isNotEmpty()) releaseContinue[0].performClick()
     compose.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable()).performClick()
     compose.onNodeWithText(context.getString(R.string.navigation_monet)).performScrollTo().performClick()
     compose.waitUntil(10_000) {

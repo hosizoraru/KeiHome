@@ -5,8 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
 import android.os.ParcelFileDescriptor
-import androidx.activity.ComponentActivity
-import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.libxposed.service.XposedServiceHelper
@@ -24,6 +22,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.status.FrameworkConnection
+import os.kei.hyper.home.withForegroundDeviceCheck
 import org.junit.runner.RunWith
 
 /** Explicit release gate. The host must first apply a genuinely Monet-capable theme. */
@@ -138,7 +137,7 @@ class MonetRuntimeReleaseGateTest {
     val modes = mapOf("yes" to "yes", "no" to "no", "auto" to "auto")
     check(originalNight in modes) { "Unsupported night mode restoration: $originalNight" }
     val oldChoice = MonetCustomization.decode(original["secure" to "keihome_monet_customization"])
-    ActivityScenario.launch(ComponentActivity::class.java).use {
+    withForegroundDeviceCheck {
       XposedServiceHelper.registerListener(FrameworkConnection)
       val bound = runBlocking {
         withTimeout(30_000) { FrameworkConnection.service.filterNotNull().first() }

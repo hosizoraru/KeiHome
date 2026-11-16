@@ -38,6 +38,7 @@ import org.xmlpull.v1.XmlPullParser
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.status.IconPackHandoffs
 import os.kei.hyper.home.xposed.ConvertedIconArchive
+import os.kei.hyper.home.withForegroundDeviceCheck
 
 /** Explicit device regression: -e installedMonet true. Never applies the generated MTZ. */
 class InstalledMonetPackDeviceTest {
@@ -63,7 +64,7 @@ class InstalledMonetPackDeviceTest {
     })
   }
 
-  @Test fun installedResourceMonochromeSurvivesRenderingExportAndPaletteHandoff() {
+  @Test fun installedResourceMonochromeSurvivesRenderingExportAndPaletteHandoff() = withForegroundDeviceCheck {
     optIn()
     runBlocking {
       val base = InstrumentationRegistry.getInstrumentation().targetContext

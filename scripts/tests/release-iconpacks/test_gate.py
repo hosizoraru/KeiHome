@@ -16,7 +16,8 @@ def report():
 
 
 def monet_report():
-    return {"passed": True, "restored": True, "tests": 22, "sourceFingerprint": "source",
+    return {"passed": True, "restored": True, "tests": 24, "sourceFingerprint": "source",
+            "runtimeSources": ["installed:arcticons", "installed:lawnicons", "mtz"],
             "matrixSha256": "matrix", "runtime": {key: "a" * 64 for key in
             ("apkSha256", "testApkSha256", "nativeSha256")}}
 
@@ -78,7 +79,8 @@ class ReleaseGateTest(unittest.TestCase):
         gate.validate_monet(monet_report(), "source", "matrix")
         for key, value in [("passed", False), ("restored", False), ("tests", 0),
                            ("sourceFingerprint", "old"), ("matrixSha256", "old"),
-                           ("runtime", {}), ("runtime", {"apkSha256": "invalid"})]:
+                           ("runtime", {}), ("runtime", {"apkSha256": "invalid"}),
+                           ("runtimeSources", []), ("runtimeSources", ["a", "a", "b"])]:
             with self.subTest(key=key):
                 evidence = monet_report()
                 evidence[key] = value

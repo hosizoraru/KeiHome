@@ -2,15 +2,15 @@ package os.kei.hyper.home.data
 
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Canvas
+import android.graphics.Rect
 import android.os.SystemClock
+import android.os.ParcelFileDescriptor
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.libxposed.service.XposedServiceHelper
 import java.io.File
-import java.io.FileInputStream
 import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,18 +31,24 @@ import org.junit.runner.RunWith
 class MonetRuntimeReleaseGateTest {
   private data class IconSample(val pixels: IntArray, val hash: String)
 
-  @Test fun nativeAcknowledgementAndFrameworkIconsFollowBothSeedsAndNightModes() {
+  @Test fun nativeAcknowledgementAndLauncherIconsFollowBothSeedsAndNightModes() {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     assumeTrue(InstrumentationRegistry.getArguments().getString("realMonetRelease") == "1")
     val context = instrumentation.targetContext
+    val arguments = InstrumentationRegistry.getArguments()
+    val screenSize = requireNotNull(arguments.getString("monetScreenSize")).split(",").map(String::toInt)
+    val coordinates = requireNotNull(arguments.getString("monetIconBounds")).split(",").map(String::toInt)
+    require(screenSize.size == 2 && coordinates.size == 4)
+    val iconBounds = Rect(coordinates[0], coordinates[1], coordinates[2], coordinates[3])
     val folder = File(context.cacheDir, "monet-release-runtime").apply { mkdirs() }
     fun root(command: String): String {
       val marker = "\n__KEIHOME_MONET_EXIT__"
       val checked = "$command\nkeihome_gate_exit=\$?\nprintf '\\n__KEIHOME_MONET_EXIT__%s\\n' \"\$keihome_gate_exit\""
-      val quoted = "'" + checked.replace("'", "'\\''") + "'"
-      val output = instrumentation.uiAutomation.executeShellCommand("su -c $quoted").use { fd ->
-        FileInputStream(fd.fileDescriptor).bufferedReader().use { it.readText() }
+      val pipes = instrumentation.uiAutomation.executeShellCommandRw("su 0 sh")
+      ParcelFileDescriptor.AutoCloseOutputStream(pipes[1]).bufferedWriter().use {
+        it.write("$checked\nexit\n")
       }
+      val output = ParcelFileDescriptor.AutoCloseInputStream(pipes[0]).bufferedReader().use { it.readText() }
       val index = output.lastIndexOf(marker)
       check(index >= 0 && output.substring(index + marker.length).trim() == "0") {
         "Root command failed: $command\n$output"
@@ -56,15 +62,23 @@ class MonetRuntimeReleaseGateTest {
       assertEquals("Packed MAML must remain disabled", "0", setting("system", NativePaletteIcon.STATE_KEY))
     }
     fun captureIcon(): IconSample {
-      val image = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+      check(root("dumpsys activity activities").lineSequence().any {
+        "topResumedActivity=" in it && "com.miui.home/" in it
+      }) { "The icon witness requires the actual foreground launcher" }
+      val screen = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+      check(screen.width == screenSize[0] && screen.height == screenSize[1] &&
+        Rect(0, 0, screen.width, screen.height).contains(iconBounds) && !iconBounds.isEmpty) {
+        "Launcher fixture geometry changed; revalidate the pinned Settings icon bounds"
+      }
+      val crop = Bitmap.createBitmap(screen, iconBounds.left, iconBounds.top, iconBounds.width(), iconBounds.height())
+      val image = Bitmap.createScaledBitmap(crop, 192, 192, false)
+      screen.recycle()
+      if (crop !== image) crop.recycle()
       try {
-        val drawable = context.packageManager.getApplicationIcon("com.android.settings")
-        drawable.setBounds(0, 0, image.width, image.height)
-        drawable.draw(Canvas(image))
         val pixels = IntArray(image.width * image.height).also {
           image.getPixels(it, 0, image.width, 0, 0, image.width, image.height)
         }
-        check(pixels.any { it ushr 24 != 0 }) { "Framework returned an empty Settings icon" }
+        check(pixels.any { it ushr 24 != 0 }) { "Launcher returned an empty Settings icon" }
         val digest = MessageDigest.getInstance("SHA-256")
         pixels.forEach { digest.update(byteArrayOf((it ushr 24).toByte(), (it ushr 16).toByte(),
           (it ushr 8).toByte(), it.toByte())) }
@@ -113,7 +127,7 @@ class MonetRuntimeReleaseGateTest {
         "background=${expected?.background?.let { "%08X".format(it) }}, " +
         "foregroundPixels=${expected?.let { colorPixels(sample, it.foreground) }}, " +
         "backgroundPixels=${expected?.let { colorPixels(sample, it.background) }}. " +
-        "The applied theme must expose this real framework icon; unthemed/cached icons cannot pass.")
+        "The pinned launcher icon must expose both expected colors; unthemed/cached icons cannot pass.")
     }
     val keys = listOf("system" to "key_monochrome", "system" to "key_monochrome_color",
       "secure" to "keihome_monet_auto_color", "secure" to "keihome_monet_customization") +
@@ -209,6 +223,8 @@ class MonetRuntimeReleaseGateTest {
                 .put("backgroundPixels", colorPixels(sample, expected.background))
                 .put("uiMode", context.resources.configuration.uiMode))
               File(folder, "result.json").writeText(JSONObject().put("samples", results).put("preservedDisabled", true)
+                .put("iconSource", "foreground-launcher-settings-dock")
+                .put("screenSize", JSONArray(screenSize)).put("iconBounds", JSONArray(coordinates))
                 .put("disabled", disabledEvidence)
                 .put("preservedEnabledSamples", results.length()).toString(2))
             }

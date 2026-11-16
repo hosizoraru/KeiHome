@@ -83,6 +83,9 @@ def validate_monet(report, fingerprint, matrix_digest):
     require(all(re.fullmatch(r"[0-9a-f]{64}", report.get("runtime", {}).get(key, ""))
                 for key in ("apkSha256", "testApkSha256", "nativeSha256")),
             "Monet evidence has no verified installed runtime identity")
+    sources = report.get("runtimeSources", [])
+    require(len(sources) == 3 and len(set(sources)) == 3 and all(sources),
+            "Monet evidence must cover both APKs and the real MTZ")
 
 
 class Gate:
@@ -289,12 +292,15 @@ class Gate:
             monet_packs = [p for p in packs if p["displayName"] in
                            ("Arcticons Material You", "Lawnicons")]
             require(len(monet_packs) == 2, "Required real Monet APK fixtures are missing")
+            fixture_digest = self.shell(["sha256sum", self.args.monet_mtz]).split()[0]
+            fixture_packs = [p for p in packs if p["sourceId"] == fixture_digest]
+            require(len(fixture_packs) == 1, "The real Monet MTZ must belong to the imported matrix")
+            monet_packs += fixture_packs
             self.apply_one(monet_packs[0], "monet-initial")
             self.shell(["cp", "-p", self.args.monet_mtz, fixture])
             count = self.instrument("monet-device", MONET_CLASSES,
                 {"installedMonet": "true", "monetMtzPath": fixture})
-            for pack in [p for p in packs if p["displayName"] in
-                         ("Arcticons Material You", "Lawnicons")]:
+            for pack in monet_packs:
                 self.apply_one(pack, "monet-" + pack["sourceId"][:12])
                 destination = self.folder / ("monet-runtime-" + pack["sourceId"][:12])
                 destination.mkdir(exist_ok=True)
@@ -303,7 +309,9 @@ class Gate:
                 names += ["disabled-before-icon.png", "disabled-after-icon.png", "result.json"]
                 try:
                     count += self.instrument("monet-runtime-" + pack["sourceId"][:12],
-                        [f"{PACKAGE}.data.MonetRuntimeReleaseGateTest"], {"realMonetRelease": "1"})
+                        [f"{PACKAGE}.data.MonetRuntimeReleaseGateTest"],
+                        {"realMonetRelease": "1", "monetScreenSize": self.args.monet_screen_size,
+                         "monetIconBounds": self.args.monet_icon_bounds})
                 except Exception:
                     try:
                         remote = f"{BASE}/cache/monet-release-runtime"
@@ -327,7 +335,10 @@ class Gate:
         require(fingerprint == source_fingerprint() and runtime == self.runtime_identity(),
                 "Monet source or installed runtime changed during acceptance")
         self.save("monet-pass.json", {"tests": count, "passed": True, "restored": True,
-                  "sourceFingerprint": fingerprint, "runtime": runtime, "matrixSha256": matrix_digest})
+                  "sourceFingerprint": fingerprint, "runtime": runtime, "matrixSha256": matrix_digest,
+                  "iconWitness": {"screenSize": self.args.monet_screen_size,
+                                  "bounds": self.args.monet_icon_bounds, "target": "Settings dock icon"},
+                  "runtimeSources": [p["sourceId"] for p in monet_packs]})
 
     def apply(self):
         require(self.args.apk and self.args.apk.is_file(), "Supply the signed R8 release APK")
@@ -368,6 +379,10 @@ def main():
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--minimum-packs", type=int, default=21)
     parser.add_argument("--monet-mtz", help="Existing on-device real Monet MTZ source")
+    parser.add_argument("--monet-screen-size", default="1120,2436",
+                        help="Validated Phone AVD screenshot width,height")
+    parser.add_argument("--monet-icon-bounds", default="375,2160,480,2265",
+                        help="Validated inner Settings dock icon rectangle: left,top,right,bottom")
     parser.add_argument("--apk", type=Path, help="Signed R8 release APK, for the apply phase")
     args = parser.parse_args()
     gate = Gate(args)

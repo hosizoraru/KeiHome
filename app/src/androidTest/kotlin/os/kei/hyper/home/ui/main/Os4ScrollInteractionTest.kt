@@ -39,7 +39,7 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBarState
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 class Os4ScrollInteractionTest {
@@ -215,7 +215,7 @@ class Os4ScrollInteractionTest {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
           Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             KeiHomeGlassNavigationBar(
-              items = remember { List(5) { NavigationItem("Tab $it", MiuixIcons.Info) } },
+              items = remember { List(5) { NavigationItem("Tab $it", MiuixIcons.Glass.Info) } },
               selectedIndex = selected.intValue,
               onSelect = { index ->
                 selections += index

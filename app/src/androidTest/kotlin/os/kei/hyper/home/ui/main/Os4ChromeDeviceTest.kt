@@ -56,8 +56,8 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
-import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -88,14 +88,14 @@ class Os4ChromeDeviceTest {
           KeiHomeScaffold(backdrop = backdrop, topBar = {
             KeiHomeBarSurface(backdrop, backdrop != null, mode) {
               KeiHomeTopAppBar(title = "OS4", actions = {
-                KeiHomeIconButton(onClick = { refreshes++ }) { Icon(MiuixIcons.Refresh, "Refresh") }
+                KeiHomeIconButton(onClick = { refreshes++ }) { Icon(MiuixIcons.Glass.Refresh, "Refresh") }
                 KeiHomeIconButton(onClick = { error("Disabled control clicked") }, enabled = false) {
-                  Icon(MiuixIcons.Info, "Unavailable")
+                  Icon(MiuixIcons.Glass.Info, "Unavailable")
                 }
               })
             }
           }, bottomBar = {
-            KeiHomeNavigationBar(style, List(5) { NavigationItem("Tab $it", MiuixIcons.Info) },
+            KeiHomeNavigationBar(style, List(5) { NavigationItem("Tab $it", MiuixIcons.Glass.Info) },
               selected, { selected = it }, Modifier.testTag("os4.navigation"), backdrop,
               badge = { index -> if (index == 2) ({
                 Badge(Modifier.semantics { contentDescription = "Update" })

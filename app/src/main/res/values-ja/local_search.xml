@@ -1,0 +1,5 @@
+<resources>
+  <string name="local_search_filtering">検索結果を絞り込み中</string>
+  <string name="local_search_failed">リストの絞り込みに失敗しました。再試行してください。</string>
+  <string name="local_search_retry">再試行</string>
+</resources>

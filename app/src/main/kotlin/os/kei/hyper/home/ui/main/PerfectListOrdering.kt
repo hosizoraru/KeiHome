@@ -20,9 +20,11 @@ internal data class PerfectPreviewListItem(
 internal fun perfectPreviewRows(
   rows: List<PerfectPreviewListItem>, query: String, category: Int, installedOnly: Boolean,
   sort: PerfectPreviewSort, reverse: Boolean, locale: Locale,
+  check: () -> Unit = {},
 ): List<PerfectPreviewListItem> {
   val needle = query.trim()
   val filtered = rows.filter {
+    check()
     (!installedOnly || it.installed) && when (category) {
       1 -> !it.dynamic
       2 -> it.dynamic
@@ -35,6 +37,7 @@ internal fun perfectPreviewRows(
   if (sort == PerfectPreviewSort.ORIGINAL) return if (reverse) filtered.reversed() else filtered
   val collator = Collator.getInstance(locale)
   return filtered.sortedWith { a, b ->
+    check()
     val first = if (sort == PerfectPreviewSort.NAME) a.label ?: a.identity else a.identity
     val second = if (sort == PerfectPreviewSort.NAME) b.label ?: b.identity else b.identity
     val compared = collator.compare(first, second).takeUnless { it == 0 }
@@ -46,9 +49,10 @@ internal fun perfectPreviewRows(
 internal fun perfectPreviewViews(
   rows: List<PerfectPreviewListItem>, query: String, nightOnly: Boolean, installedOnly: Boolean,
   sort: PerfectPreviewSort, reverse: Boolean, locale: Locale,
+  check: () -> Unit = {},
 ): List<List<PerfectPreviewListItem>> {
-  val all = perfectPreviewRows(rows, query, if (nightOnly) 3 else 0, installedOnly, sort, reverse, locale)
-  return listOf(all, all.filter { !it.dynamic }, all.filter { it.dynamic })
+  val all = perfectPreviewRows(rows, query, if (nightOnly) 3 else 0, installedOnly, sort, reverse, locale, check)
+  return listOf(all, all.filter { check(); !it.dynamic }, all.filter { check(); it.dynamic })
 }
 
 internal fun perfectResourceRows(

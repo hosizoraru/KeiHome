@@ -67,6 +67,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -230,22 +232,20 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val mappingFilter = savedFilter.takeUnless { it == AppleMappingFilter.MAPPED || it == AppleMappingFilter.UNMAPPED }
     ?: AppleMappingFilter.ALL
   val mappingSort = AppleMappingSort.entries.firstOrNull { it.name == sortName } ?: AppleMappingSort.NAME
-  val browserRequest = remember(rowsIdentity, filter, mappingFilter, mappingSort, state.options.country,
+  val browserScope = remember(rowsIdentity) { Any() }
+  val browserOptions = remember(mappingFilter, mappingSort, state.options.country,
     regionFilter, matchedOnly, locales, batchClock) { Any() }
-  // Retain the previous rows until this exact filtering request finishes.
   val browserResult = if (!main && !search) {
-    val result by produceState<Pair<Any, List<List<AppleMappingRow>>>?>(null, browserRequest) {
-      val rows = withContext(Dispatchers.Default) {
-        appleMappingRows(state.rows, filter, mappingFilter, mappingSort, state.options.country,
-          regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now).let(::appleMappingViewRows)
-      }
-      value = browserRequest to rows
+    rememberLocalSearch(browserScope, filter, browserOptions) { request ->
+      val context = currentCoroutineContext()
+      appleMappingRows(state.rows, request.query, mappingFilter, mappingSort, state.options.country,
+        regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now,
+        check = { context.ensureActive() }).let(::appleMappingViewRows)
     }
-    result
   } else null
-  val browserRows = browserResult?.second?.getOrNull(if (batchBrowser) mappingView.coerceIn(0, 2) else 0).orEmpty()
+  val browserRows = browserResult?.value?.getOrNull(if (batchBrowser) mappingView.coerceIn(0, 2) else 0).orEmpty()
   val browserRowsIdentity = SnapshotIdentity(browserRows)
-  val browserLoading = !main && !search && browserResult?.first !== browserRequest
+  val browserLoading = browserResult?.status?.let { it.pending || it.error != null } == true
   val regions = remember(main, search, rowsIdentity, state.options.country) {
     if (main || search) emptyList() else state.rows.mapNotNull {
       it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
@@ -397,7 +397,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           if (batchBrowser) os.kei.hyper.home.ui.components.Os4ViewTabs(
             items = appleMappingViews.mapIndexed { index, view ->
               val title = stringResource(view.label)
-              browserResult?.second?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
+              browserResult?.value?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
             },
             selectedIndex = mappingView.coerceIn(0, 2),
             onSelect = { mappingView = it; browserChanged(resetSelection = true) },
@@ -472,12 +472,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           PackInfoCard(stringResource(R.string.apple_cooldown_summary,
             android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
         }
-        if (localLoading || (!main && !search && browserLoading)) item("local-loading") {
+        if (localLoading || (browserLoading && browserResult?.value == null &&
+            browserResult?.status?.error == null)) item("local-loading") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
             BasicComponent(title = stringResource(when {
               localLoading && (state.rows.isNotEmpty() || state.pack != null) -> R.string.pack_apple_local_refreshing
               localLoading -> R.string.pack_apple_local_loading
-              browserRows.isNotEmpty() -> R.string.pack_apple_list_refreshing
               else -> R.string.pack_apple_list_loading
             }))
             LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
@@ -594,8 +594,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           } }
           item("filter") {
-            Os4SearchField(query = filter, onQueryChange = { filter = it },
-              modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search))
+            Column {
+              Os4SearchField(query = filter, onQueryChange = { filter = it },
+                modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search),
+                searching = browserResult?.status?.showProgress == true)
+              browserResult?.status?.let { LocalSearchError(it) }
+            }
           }
           item("count") {
             Text(stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
@@ -603,7 +607,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
           if (browserRows.isNotEmpty() || (!localLoading && !browserLoading)) {
-            appleMappingCards(browserRows, state, controller, enabled && !browserLoading,
+            appleMappingCards(browserRows, state, controller, enabled && (!selecting || !browserLoading),
               maskPolicy = maskPolicy,
               currentPreviewProvider = currentPreviewProvider,
               selectionMode = selecting, selectedPackages = selectedVisible,

@@ -14,14 +14,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassIconDropdownMenu
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassMotion
 import top.yukonga.miuix.kmp.glass.GlassPopupDefaults
 import top.yukonga.miuix.kmp.glass.glassPopupAnchor
@@ -49,6 +51,7 @@ internal fun OverlayIconCascadingDropdownMenu(
   var expanded by remember { mutableStateOf(false) }
   val mounted = remember { mutableStateOf(false) }
   val hasItems = entries.any { it.items.isNotEmpty() }
+  val buttonSize = keiHomeIconButtonSize()
   val haptics = LocalHapticFeedback.current
   val style = GlassDefaults.style(LocalKeiHomeDarkTheme.current)
   val visuals = if (backdrop == null) {
@@ -70,22 +73,14 @@ internal fun OverlayIconCascadingDropdownMenu(
     }
   }
 
-  if (backdrop == null) {
-    KeiHomeIconButton(
-      onClick = onClick,
-      enabled = hasItems,
-      modifier = modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
-    ) {
+  val anchorModifier = modifier.glassPopupAnchor(anchor, cornerRadius = buttonSize / 2)
+  if (backdrop != null && hasItems) {
+    GlassIconButton(onClick = onClick, modifier = anchorModifier.semantics { role = Role.Button },
+      backdrop = backdrop, style = style, size = buttonSize) {
       Box(Modifier.glassPopupAnchorContent(anchor)) { content() }
     }
   } else {
-    GlassIconButton(
-      onClick = onClick,
-      backdrop = backdrop,
-      style = style,
-      size = 40.dp,
-      modifier = modifier.glassPopupAnchor(anchor, cornerRadius = 20.dp),
-    ) {
+    KeiHomeIconButton(onClick = onClick, enabled = hasItems, modifier = anchorModifier) {
       Box(Modifier.glassPopupAnchorContent(anchor)) { content() }
     }
   }

@@ -7,9 +7,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +29,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -34,6 +38,8 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.SearchBarDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -49,6 +55,7 @@ internal fun Os4SearchField(
   label: String = "",
   onSearch: (String) -> Unit = {},
   enabled: Boolean = true,
+  searching: Boolean = false,
 ) {
   var expanded by remember { mutableStateOf(false) }
   val focus = LocalFocusManager.current
@@ -79,6 +86,16 @@ internal fun Os4SearchField(
       },
       label = label,
       enabled = enabled,
+      leadingIcon = if (searching) {
+        {
+          val description = stringResource(R.string.local_search_filtering)
+          Box(Modifier.padding(start = SearchBarDefaults.LeadingIconStartPadding,
+            end = SearchBarDefaults.LeadingIconEndPadding).size(24.dp)
+            .semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+          }
+        }
+      } else null,
     )
     AnimatedVisibility(
       visible = expanded,

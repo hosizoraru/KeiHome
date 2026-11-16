@@ -397,7 +397,7 @@ internal fun rememberAppsRefreshContent(browser: AppsBrowserUi, busy: Boolean): 
     if (!browser.display.loading) retained.display = browser.display
     retained.pending = busy || (retained.pending && browser.display.loading)
   }
-  return AppsBrowserUi(browser.query, browser.onQueryChange, browser.origin, display)
+  return AppsBrowserUi(browser.query, browser.onQueryChange, browser.origin, display, browser.search)
 }
 
 @Composable

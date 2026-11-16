@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.systemBars
@@ -14,6 +13,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -94,16 +94,19 @@ internal fun KeiHomeTopAppBar(
     progressiveBlur = progressive && backdrop != null,
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },
-    actions = {
-      CompositionLocalProvider(LocalGlassToolbar provides true) {
-        Row(modifier = Modifier.padding(start = 12.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
-      }
-    },
+    actions = { KeiHomeTopBarActions(actions) },
     scrollBehavior = scrollBehavior,
     bottomContent = bottomContent,
     bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)
       else SolidColor(Color.Transparent))
+}
+
+@Composable
+internal fun KeiHomeTopBarActions(content: @Composable RowScope.() -> Unit) {
+  CompositionLocalProvider(LocalGlassToolbar provides true) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically, content = content)
+  }
 }
 
 @Composable
@@ -118,18 +121,21 @@ internal fun KeiHomeIconButton(
   content: @Composable () -> Unit,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
+  // Explicit legacy 48dp requests must not enlarge toolbar paint or popup anchors.
+  val height = if (LocalGlassToolbar.current) 40.dp else minHeight
+  val width = if (LocalGlassToolbar.current) 40.dp else minWidth
   if (LocalGlassToolbar.current && enabled && !holdDownState &&
     backgroundColor == Color.Unspecified) {
-    GlassIconButton(onClick = onClick, modifier = modifier, backdrop = backdrop,
+    GlassIconButton(onClick = onClick, modifier = modifier.semantics { role = Role.Button }, backdrop = backdrop,
       style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
-      size = maxOf(minHeight, minWidth), content = content)
+      size = maxOf(height, width), content = content)
   } else {
     top.yukonga.miuix.kmp.basic.IconButton(onClick = onClick,
       modifier = modifier.semantics(mergeDescendants = true) {
         role = Role.Button
         if (!enabled) disabled()
       },
-      enabled = enabled, holdDownState = holdDownState, minHeight = minHeight, minWidth = minWidth,
+      enabled = enabled, holdDownState = holdDownState, minHeight = height, minWidth = width,
       backgroundColor = if (backgroundColor == Color.Unspecified) Color.Transparent else backgroundColor,
       content = content)
   }

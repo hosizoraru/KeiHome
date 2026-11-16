@@ -48,14 +48,11 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.Sort
-import top.yukonga.miuix.kmp.icon.glass.Filter
-import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
-  onBack: () -> Unit, onNavigate: (String) -> Unit) {
+  onBack: () -> Unit, onNavigate: (String) -> Unit, onMonetNestedChanged: (Boolean) -> Unit = {}) {
   if (section == "custom-icons") {
     CustomIconsScreen(model, onBack, onNavigate)
     return
@@ -95,7 +92,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   if (section == "monet") {
-    MonetDestinationScreen(model, onBack)
+    MonetDestinationScreen(model, onBack, onMonetNestedChanged)
     return
   }
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
@@ -152,8 +149,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack), PackGuidancePage.COLOROS)
             }
             if (section == "installed" || section == "imported") {
-              PackFilterMenu(filter, updateFilter)
-              PackSortMenu(model) {
+              PackCatalogMenu(model, filter, updateFilter) {
                 scope.launch { list.scrollToItem(0) }
               }
             }
@@ -206,26 +202,40 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
 }
 
 @Composable
-private fun PackFilterMenu(filter: IconPackCatalogFilter, onChange: (IconPackCatalogFilter) -> Unit) {
+private fun PackCatalogMenu(model: HomeViewModel, filter: IconPackCatalogFilter,
+  onChange: (IconPackCatalogFilter) -> Unit, onOrderChange: () -> Unit) {
+  val sort by model.packSort.collectAsStateWithLifecycle()
   val status = DropdownItem(text = stringResource(R.string.pack_list_filter_status),
+    summary = stringResource(packListStatusLabel(filter.status)),
     children = IconPackCatalogStatus.entries.map { value ->
       DropdownItem(text = stringResource(packListStatusLabel(value)), selected = filter.status == value,
         onClick = { onChange(filter.copy(status = value)) })
     })
   val matches = DropdownItem(text = stringResource(R.string.pack_list_filter_matches),
+    summary = stringResource(packListMatchesLabel(filter.matches)),
     children = IconPackCatalogMatches.entries.map { value ->
       DropdownItem(text = stringResource(packListMatchesLabel(value)), selected = filter.matches == value,
         onClick = { onChange(filter.copy(matches = value)) })
     })
-  OverlayIconCascadingDropdownMenu(entries = listOf(
-    DropdownEntry(items = listOf(status, matches)),
-    DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.pack_list_filter_reset),
-      onClick = { onChange(IconPackCatalogFilter()) }))),
-  ), modifier = Modifier.testTag("icon-packs.filter")) {
-    Icon(MiuixIcons.Glass.Filter,
-      stringResource(R.string.pack_list_filter_description, packListFilterSummary(filter)),
-      tint = if (filter.isActive) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
-  }
+  PerfectListSortMenu(
+    labels = listOf(R.string.icon_pack_sort_name, R.string.icon_pack_sort_identity,
+      R.string.icon_pack_sort_updated, R.string.icon_pack_sort_matched),
+    selected = sort.first, reverse = sort.second,
+    onSort = { index ->
+      model.updatePackSort(index, model.packSort.value.second)
+      onOrderChange()
+    },
+    onReverse = {
+      model.updatePackSort(model.packSort.value.first, !model.packSort.value.second)
+      onOrderChange()
+    },
+    modifier = Modifier.testTag("icon-packs.sort"), filtersActive = filter.isActive,
+    filterEntries = listOf(
+      DropdownEntry(items = listOf(status, matches)),
+      DropdownEntry(items = listOf(DropdownItem(text = stringResource(R.string.pack_list_filter_reset),
+        enabled = filter.isActive, onClick = { onChange(IconPackCatalogFilter()) }))),
+    ),
+  )
 }
 
 internal fun packListStatusLabel(status: IconPackCatalogStatus): Int = when (status) {
@@ -246,27 +256,3 @@ internal fun packListFilterSummary(filter: IconPackCatalogFilter): String =
     filter.status.takeIf { it != IconPackCatalogStatus.ALL }?.let { stringResource(packListStatusLabel(it)) },
     filter.matches.takeIf { it != IconPackCatalogMatches.ALL }?.let { stringResource(packListMatchesLabel(it)) },
   ).joinToString(" · ").ifEmpty { stringResource(R.string.pack_list_filter_all) }
-
-@Composable
-private fun PackSortMenu(model: HomeViewModel, onOrderChange: () -> Unit) {
-  val sort by model.packSort.collectAsStateWithLifecycle()
-  val labels = listOf(R.string.icon_pack_sort_name, R.string.icon_pack_sort_identity,
-    R.string.icon_pack_sort_updated, R.string.icon_pack_sort_matched)
-  val choices = DropdownEntry(items = labels.mapIndexed { index, label ->
-    DropdownItem(text = stringResource(label), selected = sort.first == index, onClick = {
-      model.updatePackSort(index, model.packSort.value.second)
-      onOrderChange()
-    })
-  })
-  val direction = DropdownEntry(items = listOf(
-    DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = sort.second, onClick = {
-      model.updatePackSort(model.packSort.value.first, !model.packSort.value.second)
-      onOrderChange()
-    }),
-  ))
-  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction),
-    modifier = Modifier.testTag("icon-packs.sort")) {
-    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
-      tint = if (sort.first != 0 || sort.second) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
-  }
-}

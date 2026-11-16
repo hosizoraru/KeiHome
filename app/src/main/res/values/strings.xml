@@ -116,6 +116,9 @@
     <string name="monet_follow_wallpaper_description">Enable themed icons with wallpaper colors. Later color choices in the launcher are preserved.</string>
     <string name="monet_action_applying">Applying…</string>
     <string name="monet_action_applied">Selected palette applied</string>
+    <string name="monet_action_saved_off">Palette saved. Monet remains off.</string>
+    <string name="monet_action_previous_failed">The previous palette request failed. Your current draft has not been applied.</string>
+    <string name="monet_action_previous_unconfirmed">The previous palette request is still unconfirmed. Your current draft has not been applied.</string>
     <string name="monet_action_unconfirmed">Request sent; application has not been confirmed. Check launcher status.</string>
     <string name="monet_action_unavailable">Connect to a compatible framework to apply colors.</string>
     <string name="monet_action_failed">Could not send the request. Try again.</string>
@@ -179,7 +182,7 @@
     <string name="monet_preview_dark">Dark</string>
     <string name="monet_preview_light">Light</string>
     <string name="monet_accent_and_neutral">Foreground / background</string>
-    <string name="monet_apply_scheme">Apply colors and enable Monet</string>
+    <string name="monet_apply_scheme">Apply colors</string>
     <string name="monet_scope_hint">Supported app icons in the launcher and other system surfaces reuse the applied theme and palette. Each host needs its scope. Wallpaper colors update automatically; fixed colors stay fixed.</string>
     <string name="monet_show_details">View palette details</string>
     <string name="monet_hide_details">Hide palette details</string>

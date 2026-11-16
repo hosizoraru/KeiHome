@@ -88,7 +88,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val display = browser.display
   val inspection = rememberAppsInspectionState(source?.revision, display)
   val visible = browser.visibleRows
-  val rowAlpha by animateFloatAsState(if (display.loading) 0.72f else 1f, tween(160), label = "apps.filter")
+  val rowAlpha by animateFloatAsState(if (display.rebuilding) 0.72f else 1f, tween(160), label = "apps.filter")
   var previousOrigin by remember { mutableIntStateOf(browser.origin) }
   LaunchedEffect(browser.origin) {
     if (previousOrigin != browser.origin) {
@@ -104,11 +104,14 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     item(key = "search", contentType = "search") {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Os4SearchField(query = browser.query, onQueryChange = browser.onQueryChange,
-          modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps))
+          modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.search_apps),
+          searching = browser.search.showProgress)
+        LocalSearchError(browser.search)
         RefreshFeedback(model, 1)
       }
     }
-    if ((display.loading || scan.loading) && visible.isEmpty()) item(key = "loading", contentType = "message") {
+    if (((display.loading && !display.hasSnapshot && browser.search.error == null) || scan.loading) &&
+      visible.isEmpty()) item(key = "loading", contentType = "message") {
       Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
@@ -209,8 +212,10 @@ internal suspend fun computeAppsBrowserMatches(request: Any, rows: List<IconBrow
 internal class AppsBrowserDisplay(request: Any, result: AppsBrowserResult?, rowsRequest: Any = request,
   dataset: Any = rowsRequest) {
   private val current = result?.takeIf { it.request === request && it.rowsRequest === rowsRequest && it.dataset === dataset }
-  private val usable = current ?: result?.takeIf { it.dataset === dataset && it.rows.isNotEmpty() }
+  private val usable = current ?: result?.takeIf { it.dataset === dataset }
   val loading get() = current == null
+  val hasSnapshot get() = usable != null
+  val rebuilding = current == null && result?.rowsRequest !== rowsRequest
   val rows get() = usable?.rows.orEmpty()
   val total get() = usable?.total ?: 0
   val showEmpty get() = current != null && current.rows.isEmpty()

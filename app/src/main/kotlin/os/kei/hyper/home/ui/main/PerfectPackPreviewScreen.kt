@@ -41,8 +41,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackArtwork
@@ -75,7 +75,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Refresh
-import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -133,14 +132,16 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
         label != null, entry.quietSnapshot, entry.dark != null && entry.dark != entry.light)
     }
   }
-  val projection by produceState<Pair<IconPackDescriptor?, List<List<IconPackEntry>>>?>(null,
-    pack, rows, query, nightOnly, installedOnly, sort, reverse, locales) {
-    value = withContext(Dispatchers.Default) {
-      pack to perfectPreviewViews(rows, query, nightOnly, installedOnly, sort, reverse,
-        Locale.forLanguageTag(locales.substringBefore(','))).map { group -> group.map { byKey.getValue(it.key) } }
+  val projectionScope = remember(SnapshotIdentity(pack), SnapshotIdentity(rows)) { Any() }
+  val projectionOptions = remember(nightOnly, installedOnly, sort, reverse, locales) { Any() }
+  val projection = rememberLocalSearch(projectionScope, query, projectionOptions) { request ->
+    val context = currentCoroutineContext()
+    perfectPreviewViews(rows, request.query, nightOnly, installedOnly, sort, reverse,
+      Locale.forLanguageTag(locales.substringBefore(',')), check = { context.ensureActive() }).map { group ->
+      group.map { context.ensureActive(); byKey.getValue(it.key) }
     }
   }
-  val groups = projection?.takeIf { it.first === pack }?.second
+  val groups = projection.value
   val view = filter.takeIf { it in 0..2 } ?: 0
   val visible = groups?.get(view).orEmpty()
   val listState = rememberLazyListState()
@@ -165,23 +166,27 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     },
     actions = {
       if (pack != null) {
-        OverlayIconCascadingDropdownMenu(entries = listOf(
-          DropdownEntry(items = listOf(
-            DropdownItem(text = stringResource(R.string.perfect_icons_preview_dark), selected = nightOnly,
-              onClick = { nightOnly = !nightOnly }),
-            DropdownItem(text = stringResource(R.string.perfect_list_installed_only), selected = installedOnly,
-              onClick = { installedOnly = !installedOnly }),
-            DropdownItem(text = stringResource(R.string.browser_reset),
-              onClick = { nightOnly = false; installedOnly = false }),
-          )),
-        ), modifier = Modifier.testTag("perfect.preview.filter")) {
-          Icon(MiuixIcons.Glass.Filter, stringResource(R.string.perfect_icons_preview_filter),
-            tint = if (!nightOnly && !installedOnly) MiuixTheme.colorScheme.onBackground else MiuixTheme.colorScheme.primary)
-        }
+        val filterSummary = listOfNotNull(
+          stringResource(R.string.perfect_icons_preview_dark).takeIf { nightOnly },
+          stringResource(R.string.perfect_list_installed_only).takeIf { installedOnly },
+        ).joinToString(" · ").ifEmpty { stringResource(R.string.pack_list_filter_all) }
         PerfectListSortMenu(listOf(R.string.perfect_list_original, R.string.perfect_list_name,
           R.string.perfect_list_identity), sort.ordinal, reverse,
           onSort = { sortName = PerfectPreviewSort.entries[it].name },
-          onReverse = { reverse = !reverse }, modifier = Modifier.testTag("perfect.preview.sort"))
+          onReverse = { reverse = !reverse }, modifier = Modifier.testTag("perfect.preview.sort"),
+          filtersActive = nightOnly || installedOnly, filterEntries = listOf(
+            DropdownEntry(items = listOf(DropdownItem(
+              text = stringResource(R.string.perfect_icons_preview_filter), summary = filterSummary,
+              children = listOf(
+                DropdownItem(text = stringResource(R.string.perfect_icons_preview_dark), selected = nightOnly,
+                  onClick = { nightOnly = !nightOnly }),
+                DropdownItem(text = stringResource(R.string.perfect_list_installed_only), selected = installedOnly,
+                  onClick = { installedOnly = !installedOnly }),
+                DropdownItem(text = stringResource(R.string.browser_reset), enabled = nightOnly || installedOnly,
+                  onClick = { nightOnly = false; installedOnly = false }),
+              ),
+            ))),
+          ))
       }
     }, floatingActionButton = {
       // Overlay sheets need this Scaffold host, outside its recorded list layer.
@@ -274,9 +279,12 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
     }
     if (pack != null) item("search") {
-      Os4SearchField(query = query, onQueryChange = { query = it },
-        label = stringResource(R.string.perfect_icons_preview_search),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp))
+      Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Os4SearchField(query = query, onQueryChange = { query = it },
+          label = stringResource(R.string.perfect_icons_preview_search),
+          modifier = Modifier.fillMaxWidth(), searching = projection.status.showProgress)
+        LocalSearchError(projection.status)
+      }
     }
     if (pack != null) {
       items(visible, key = { it.key }, contentType = { "icon" }) { entry ->
@@ -319,16 +327,19 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
 
 @Composable
 internal fun PerfectListSortMenu(labels: List<Int>, selected: Int, reverse: Boolean,
-  onSort: (Int) -> Unit, onReverse: () -> Unit, modifier: Modifier = Modifier) {
+  onSort: (Int) -> Unit, onReverse: () -> Unit, modifier: Modifier = Modifier,
+  filterEntries: List<DropdownEntry> = emptyList(), filtersActive: Boolean = false) {
   val choices = DropdownEntry(items = labels.mapIndexed { index, label ->
     DropdownItem(text = stringResource(label), selected = selected == index, onClick = { onSort(index) })
   })
   val direction = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.browser_sort_reverse), selected = reverse, onClick = onReverse),
   ))
-  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction), modifier = modifier) {
-    Icon(MiuixIcons.Glass.Sort, stringResource(R.string.browser_sort),
-      tint = if (selected != 0 || reverse) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
+  val selectedLabel = labels.getOrNull(selected)?.let { stringResource(it) }.orEmpty()
+  OverlayIconCascadingDropdownMenu(entries = listOf(choices, direction) + filterEntries, modifier = modifier) {
+    Icon(MiuixIcons.Glass.Sort, "${stringResource(R.string.browser_sort)}: $selectedLabel",
+      tint = if (selected != 0 || reverse || filtersActive)
+        MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onBackground)
   }
 }
 

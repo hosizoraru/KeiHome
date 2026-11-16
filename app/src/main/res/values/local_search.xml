@@ -1,0 +1,5 @@
+<resources>
+  <string name="local_search_filtering">Filtering results</string>
+  <string name="local_search_failed">Could not filter the list. Please retry.</string>
+  <string name="local_search_retry">Retry</string>
+</resources>

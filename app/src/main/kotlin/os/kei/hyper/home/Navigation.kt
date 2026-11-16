@@ -3,6 +3,8 @@ package os.kei.hyper.home
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -86,6 +88,7 @@ internal fun MainNavigation(
     if (progress == OnboardingPreferences.COMPLETE && pendingVersion.isNotEmpty() &&
       backStack.size == 1 && current == Main) backStack.add(ReleaseNotesUpgradeRoute)
   }
+  var monetNested by remember { mutableStateOf(false) }
   val swipe = if (LocalLayoutDirection.current == LayoutDirection.Rtl)
     NavSwipeDirection.RightToLeft else NavSwipeDirection.LeftToRight
   fun open(section: String) {
@@ -159,10 +162,11 @@ internal fun MainNavigation(
     entry<OnboardingDesktop>(swipeDismiss = swipe) {
       OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
     }
-    entry<PackRoute>(swipeDismiss = swipe) { route ->
+    entry<PackRoute>(swipeDismiss = if (monetNested && current == PackRoute("monet")) NavSwipeDirection.None else swipe) { route ->
       PackDestinationScreen(model, route.section,
         onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
-        onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) })
+        onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) },
+        onMonetNestedChanged = { monetNested = it })
     }
     entry<SettingsRoute>(swipeDismiss = swipe) { route ->
       SettingsDestinationScreen(model, route.section,

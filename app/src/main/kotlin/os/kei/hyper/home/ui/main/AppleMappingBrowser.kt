@@ -148,7 +148,8 @@ internal val AppleMappingSort.label: Int get() = when (this) {
 
 internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter: AppleMappingFilter,
   sort: AppleMappingSort, country: String, region: String = "", matchedOnly: Boolean = false,
-  locale: Locale = Locale.getDefault(), now: Long = System.currentTimeMillis()): List<AppleMappingRow> {
+  locale: Locale = Locale.getDefault(), now: Long = System.currentTimeMillis(),
+  check: () -> Unit = {}): List<AppleMappingRow> {
   val needle = query.trim().lowercase(Locale.ROOT)
   val comparator = Collator.getInstance(locale)
   fun regionOf(row: AppleMappingRow): String? =
@@ -160,6 +161,7 @@ internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter
     else -> row.target.label
   }
   return rows.filter { row ->
+    check()
     (!matchedOnly || row.app != null) &&
       (region.isEmpty() || regionOf(row) == region) &&
       when (filter) {
@@ -184,6 +186,7 @@ internal fun appleMappingRows(rows: List<AppleMappingRow>, query: String, filter
         row.app?.publisher, row.app?.bundleId, row.app?.id, regionOf(row))
         .any { needle in it.lowercase(Locale.ROOT) })
   }.sortedWith { a, b ->
+    check()
     val priority = when (sort) {
       AppleMappingSort.CUSTOM_FIRST -> b.custom.compareTo(a.custom)
       AppleMappingSort.APPLE_NAME, AppleMappingSort.REGION -> (a.app == null).compareTo(b.app == null)

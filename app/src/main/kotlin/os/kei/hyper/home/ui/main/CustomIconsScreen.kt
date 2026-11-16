@@ -28,6 +28,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.*
@@ -103,9 +105,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   val sourceList = rememberLazyListState()
   val iconList = rememberLazyListState()
   val list = when { root -> rootList; packId == null -> sourceList; else -> iconList }
-  LaunchedEffect(uncustomized, rootQuery, appOrigin) { rootList.scrollToItem(0) }
-  LaunchedEffect(targetPackage, sourceQuery) { sourceList.scrollToItem(0) }
-  LaunchedEffect(targetPackage, packId, iconQuery, iconOrigin) { iconList.scrollToItem(0) }
+  LaunchedEffect(uncustomized, appOrigin) { rootList.scrollToItem(0) }
+  LaunchedEffect(targetPackage) { sourceList.scrollToItem(0) }
+  LaunchedEffect(targetPackage, packId, iconOrigin) { iconList.scrollToItem(0) }
   val behavior = MiuixScrollBehavior()
   val backdrop = rememberKeiHomeBlurBackdrop()
   val dark = LocalKeiHomeDarkTheme.current
@@ -153,34 +155,33 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   }
   val labels = remember(SnapshotIdentity(state.apps)) { state.apps.associate { it.packageName to it.label } }
   val entryIdentity = SnapshotIdentity(pack?.entries.orEmpty())
-  val gridScope = (pack?.id to pack?.source) to
-    Triple(entryIdentity, SnapshotIdentity(state.origins), SnapshotIdentity(state.apps))
-  val matches by produceState(Pair<Any?, List<List<IconPackEntry>>>(null, List(3) { emptyList() }),
-    gridScope, query, targetPackage, launcherClass) {
-    val result = withContext(Dispatchers.Default) {
+  val gridScope = remember(pack?.id, pack?.source, entryIdentity,
+    SnapshotIdentity(state.origins), SnapshotIdentity(state.apps), targetPackage, launcherClass) { Any() }
+  val matches = rememberLocalSearch(gridScope, query, enabled = !root && packId != null) { request ->
+      val context = currentCoroutineContext()
       val origins = CustomIconOrigins(state.origins, state.apps)
       val filtered = pack?.entries.orEmpty().filter {
+        context.ensureActive()
         val label = labels[it.component?.packageName ?: it.nativeName?.substringBefore('#')]
-        it.key.contains(query, true) || it.component?.flattened?.contains(query, true) == true ||
-          it.nativeName?.contains(query, true) == true || label?.contains(query, true) == true
+        it.key.contains(request.query, true) || it.component?.flattened?.contains(request.query, true) == true ||
+          it.nativeName?.contains(request.query, true) == true || label?.contains(request.query, true) == true
       }
       val direct = targetPackage?.let { pkg -> pack?.let {
         customIconPreviewChoice(it, IconPackComponent(pkg, launcherClass)).match
       } }
-      val ordered = if (direct != null && direct in filtered) listOf(direct) + filtered.filter { it !== direct } else filtered
+      val ordered = if (direct != null && direct in filtered)
+        listOf(direct) + filtered.filter { context.ensureActive(); it !== direct } else filtered
       val user = ArrayList<IconPackEntry>()
       val system = ArrayList<IconPackEntry>()
-      ordered.forEach { entry -> when (origins.system(entry)) {
+      ordered.forEach { entry -> context.ensureActive(); when (origins.system(entry)) {
         true -> system.add(entry)
         false -> user.add(entry)
         null -> Unit
       } }
       listOf(ordered, user, system)
-    }
-    value = gridScope to result
   }
   // Retain search results while the worker computes; origin switching uses these cached buckets.
-  val grid = matches.second.takeIf { matches.first == gridScope } ?: List(3) { emptyList() }
+  val grid = matches.value ?: List(3) { emptyList() }
   val entries = grid[iconOrigin]
   val entryRows = remember(SnapshotIdentity(entries)) { entries.chunked(3) }
   Scaffold(backdrop = backdrop, topBar = {
@@ -227,11 +228,15 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             appOrigin, onSelect = { appOrigin = it })
       }
       item("search", contentType = "search") {
-        Os4SearchField(query = query, onQueryChange = {
-          when { root -> rootQuery = it; packId == null -> sourceQuery = it; else -> iconQuery = it }
-        },
-          modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("custom-icons.search"),
-          label = stringResource(if (root) R.string.preserved_icons_search else R.string.custom_icons_search))
+        Column {
+          Os4SearchField(query = query, onQueryChange = {
+            when { root -> rootQuery = it; packId == null -> sourceQuery = it; else -> iconQuery = it }
+          },
+            modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("custom-icons.search"),
+            label = stringResource(if (root) R.string.preserved_icons_search else R.string.custom_icons_search),
+            searching = matches.status.showProgress)
+          if (!root && packId != null) LocalSearchError(matches.status)
+        }
       }
       if (root) {
         if (uncustomized) items(apps, key = { it.packageName }, contentType = { "app" }) { app ->

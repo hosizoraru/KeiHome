@@ -1,0 +1,5 @@
+<resources>
+  <string name="local_search_filtering">正在筛选结果</string>
+  <string name="local_search_failed">筛选列表失败，请重试。</string>
+  <string name="local_search_retry">重试</string>
+</resources>

@@ -44,6 +44,9 @@
     <string name="monet_follow_wallpaper_description">テーマアイコンを有効にして壁紙の配色を使います。その後ランチャーで選んだ色は維持されます。</string>
     <string name="monet_action_applying">適用中…</string>
     <string name="monet_action_applied">選択した配色を適用しました</string>
+    <string name="monet_action_saved_off">配色を保存しました。Monet はオフのままです。</string>
+    <string name="monet_action_previous_failed">前の配色リクエストを送信できませんでした。現在の下書きは未適用です。</string>
+    <string name="monet_action_previous_unconfirmed">前の配色リクエストは未確認です。現在の下書きは未適用です。</string>
     <string name="monet_action_unconfirmed">リクエストを送信しました。適用は未確認です。ランチャーの状態をご確認ください。</string>
     <string name="monet_action_unavailable">配色を適用するには、対応するフレームワークに接続してください。</string>
     <string name="monet_action_failed">リクエストを送信できませんでした。もう一度お試しください。</string>
@@ -176,7 +179,7 @@
     <string name="monet_preview_dark">ダーク</string>
     <string name="monet_preview_light">ライト</string>
     <string name="monet_accent_and_neutral">前景 / 背景</string>
-    <string name="monet_apply_scheme">配色を適用して Monet をオン</string>
+    <string name="monet_apply_scheme">配色を適用</string>
     <string name="monet_scope_hint">ランチャーや他のシステム画面の対応アプリアイコンは適用済みテーマと配色を使用します。各ホストのスコープが必要です。壁紙の色は自動更新され、固定色は維持されます。</string>
     <string name="monet_show_details">パレットの詳細</string>
     <string name="monet_hide_details">詳細を閉じる</string>

@@ -246,8 +246,8 @@ internal fun PreservedIconsPage(
   }
   val list = rememberLazyListState()
   LaunchedEffect(list) {
-    // Preserve restored child-return position; reset only for a new search/filter.
-    snapshotFlow { Triple(query, allApps to origin, sort to reverse) }.drop(1)
+    // Typing keeps the current viewport; explicit scope/order changes reset it.
+    snapshotFlow { (allApps to origin) to (sort to reverse) }.drop(1)
       .collect { list.scrollToItem(0) }
   }
   val behavior = MiuixScrollBehavior()

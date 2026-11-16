@@ -1,10 +1,30 @@
 package os.kei.hyper.home.ui.main
 
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.*
 import org.junit.Test
 
 class PerfectListOrderingTest {
+  @Test fun cancelledPreviewFilteringStopsBeforeTraversingTheRemainingCatalog() {
+    var reads = 0
+    val large = object : AbstractList<PerfectPreviewListItem>() {
+      override val size = 40_000
+      override fun get(index: Int): PerfectPreviewListItem {
+        reads++
+        return preview[index % preview.size]
+      }
+    }
+    val cancelled = CancellationException("superseded query")
+    val failure = assertThrows(CancellationException::class.java) {
+      perfectPreviewViews(large, "org", false, false, PerfectPreviewSort.NAME, false, Locale.US) {
+        if (reads == 3) throw cancelled
+      }
+    }
+    assertSame(cancelled, failure)
+    assertEquals(3, reads)
+  }
+
   private val recommended = listOf("HyperOS4", "HyperOSClassic", "HyperOS3", "Hyper", "default")
   private val downloaded = setOf("HyperOSClassic", "default", "Hyper")
   private fun resources(

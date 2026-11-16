@@ -44,6 +44,9 @@
     <string name="monet_follow_wallpaper_description">启用主题图标并使用壁纸配色。之后在桌面选择其他颜色时，将保留你的选择。</string>
     <string name="monet_action_applying">正在应用…</string>
     <string name="monet_action_applied">已应用所选配色</string>
+    <string name="monet_action_saved_off">配色已保存，Monet 仍保持关闭。</string>
+    <string name="monet_action_previous_failed">上次配色请求未能提交，当前草稿尚未应用。</string>
+    <string name="monet_action_previous_unconfirmed">上次配色请求仍未确认，当前草稿尚未应用。</string>
     <string name="monet_action_unconfirmed">请求已发送，尚未确认应用。请检查桌面状态。</string>
     <string name="monet_action_unavailable">连接兼容框架后可应用配色。</string>
     <string name="monet_action_failed">请求发送失败，请重试。</string>
@@ -176,7 +179,7 @@
     <string name="monet_preview_dark">深色</string>
     <string name="monet_preview_light">浅色</string>
     <string name="monet_accent_and_neutral">前景 / 背景</string>
-    <string name="monet_apply_scheme">应用配色并开启 Monet</string>
+    <string name="monet_apply_scheme">应用配色</string>
     <string name="monet_scope_hint">桌面及其他系统界面中受支持的应用图标会复用已应用的主题与取色，各宿主需对应作用域。壁纸取色自动更新，固定颜色保持不变。</string>
     <string name="monet_show_details">查看色阶详情</string>
     <string name="monet_hide_details">收起色阶详情</string>

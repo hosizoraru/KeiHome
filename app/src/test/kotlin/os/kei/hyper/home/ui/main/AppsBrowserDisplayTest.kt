@@ -14,6 +14,23 @@ import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.data.InstalledIconCapability
 
 class AppsBrowserDisplayTest {
+  @Test fun queryOnlyWorkKeepsEvenAnEmptySnapshotWithoutDimmingOrInitialLoading() {
+    val dataset = Any()
+    val projection = Any()
+    val old = AppsBrowserResult(Any(), emptyList(), 42, projection, dataset)
+    val pending = AppsBrowserDisplay(Any(), old, projection, dataset)
+
+    assertTrue(pending.loading)
+    assertTrue(pending.hasSnapshot)
+    assertFalse(pending.rebuilding)
+    assertFalse(pending.showEmpty)
+    assertEquals(42, pending.total)
+
+    val replacement = AppsBrowserDisplay(Any(), old, Any(), Any())
+    assertFalse(replacement.hasSnapshot)
+    assertTrue(replacement.rebuilding)
+  }
+
   @Test fun pendingFilterRetainsRowsAndCountsWithinTheSameDatasetOnly() {
     val dataset = Any()
     val oldRows = listOf(row("com.example.one"), row("com.example.two"))

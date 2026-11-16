@@ -19,6 +19,7 @@ internal class AppsBrowserUi(
   val onQueryChange: (String) -> Unit,
   val origin: Int,
   val display: AppsBrowserDisplay,
+  val search: LocalSearchStatus = LocalSearchStatus(),
 ) {
   val visibleRows get() = display.originRows[origin.coerceIn(0, 2)]
 }
@@ -50,15 +51,9 @@ internal fun rememberAppsBrowserState(model: HomeViewModel, enabled: Boolean): A
     value = rowsRequest to projected
   }
   val readyRows = rows?.takeIf { it.first === rowsRequest }?.second
-  val request = remember(rowsRequest, currentQuery) { Any() }
-  val result by produceState<AppsBrowserResult?>(null, request, SnapshotIdentity(readyRows)) {
-    val input = readyRows ?: return@produceState
-    val computed = withContext(Dispatchers.Default) {
-      computeAppsBrowserMatches(request, input, currentQuery, rowsRequest, dataset)
-    }
-    currentCoroutineContext().ensureActive()
-    value = computed
+  val result = rememberLocalSearch(dataset, currentQuery, rowsRequest, readyRows != null) { request ->
+    computeAppsBrowserMatches(request, checkNotNull(readyRows), request.query, rowsRequest, dataset)
   }
   return AppsBrowserUi(query, { query = it }, options.origin,
-    AppsBrowserDisplay(request, result, rowsRequest, dataset))
+    AppsBrowserDisplay(result.request, result.value, rowsRequest, dataset), result.status)
 }

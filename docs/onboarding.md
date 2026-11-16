@@ -64,11 +64,22 @@ copied, and the configured device's setup wizard was not rerun or reset.
    are not part of that default borrowing. See
    [preserved app icons](preserved-app-icons.md) for publication and matching rules.
    Recommended mappings independently control eligible app-name matching, official
-   Telegram channel sharing and built-in ColorOS theme-store aliases; the original-
-   icon preservation list wins. Its link returns to the same guide step.
+   Telegram channel sharing and built-in ColorOS theme-store aliases; per-app
+   custom icons and kept originals take priority over these mappings. Its link
+   returns to the same guide step.
+   Per-app custom icons are managed under Icon packs > Icon completion and
+   fallback > Custom icons. They are the final override across pack switches.
+   Switching between a custom icon and keeping an original requires confirmation.
+   Saved custom entries first open an original/custom comparison, then offer
+   editing or removal. Reapply the pack after changing these choices.
    Supported native light/dark adaptation remains separate from selecting or
-   applying an optional icon pack. Monet is optional, but explicitly choosing
-   ColorOS Inspiration enables Monet as a related feature. A short note
+   applying an optional icon pack. Monet has an OS4 overview with quick selectors.
+   Source, scheme and preview open sheets; custom colors and palette details open
+   subpages. A ColorOS design can enter the same editor through its preset choice.
+   Moving between these surfaces keeps the draft. The single **Apply colors**
+   floating action submits the draft and preserves the current Monet on/off
+   state; use the dedicated switch to enable or disable Monet. Refresh rereads
+   system state without submitting the draft. A short note
    distinguishes generated packs from applied themes: after changing artwork,
    completion, recommended mappings, masks, kept originals or generation scope, update or regenerate,
    then apply. Downloads and previews do not apply a theme. Local-resource details
@@ -76,6 +87,10 @@ copied, and the configured device's setup wizard was not rerun or reset.
    latest-generated archive retention policy. Apple and Perfect each retain their
    newest successful generation; manual imports are preserved. The default direct
    navigation option and floating import workflow are introduced in this step.
+   Storage shows imported archive sizes and has separate MTZ/ZIP, Apple and
+   Perfect management destinations. Cleaning preview memory, downloaded resources
+   and generated archives are distinct actions; the top preview-memory action
+   does not remove saved packs.
 4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
    plus the category overview. Each destination returns to the originating step.
    The short status note explains that search-bar material can follow Dock or be
@@ -128,6 +143,11 @@ acknowledging advice does not establish that a system restart occurred.
 The guide and advice do not trigger an automatic restart or require clearing
 app data. See [release-note behavior](release-notes.md) and the
 [1.11.0 notes](releases/1.11.0.md).
+
+The [1.12.0 preparation](releases/1.12.0.md) introduces no native-library restart
+requirement. Version advice and per-version reading remain separate: All/Unread
+views let users revisit notes without treating a read confirmation as a completed
+system restart. Existing historical release text is retained.
 
 ## Entry, persistence and lifecycle
 

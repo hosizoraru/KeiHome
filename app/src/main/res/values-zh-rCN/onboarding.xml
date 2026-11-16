@@ -15,7 +15,7 @@
     <string name="setup_feature_desktop">桌面个性化</string>
     <string name="setup_feature_desktop_body">按分类调整 Dock、桌面外观与文字，以及图标与启动设置。</string>
     <string name="setup_feature_control">由你决定何时启用</string>
-    <string name="setup_feature_control_body">向导入口用于打开设置，由你选择启用哪些功能；部分选项会联动启用相关功能，如灵感风格会启用 Monet。</string>
+    <string name="setup_feature_control_body">向导链接会打开设置，由你选择资源与功能。预览或编辑草稿不会直接应用，Monet 通过独立开关控制启用。</string>
     <string name="setup_framework_title">确认模块运行环境</string>
     <string name="setup_framework_body">KeiHome 通过 LSPosed API 102 工作。请在管理器中启用模块，并按需授权作用域；尚未配置好也可以继续浏览。</string>
     <string name="setup_service_connected">框架服务已连接</string>
@@ -25,11 +25,11 @@
     <string name="setup_icons_body">可选择系统图标、完美图标、Apple 或导入的图标包。受支持的系统界面可沿用已应用的图标，覆盖情况取决于宿主与应用。</string>
     <string name="setup_native_icons_title">受支持的系统图标自动跟随深浅色</string>
     <string name="setup_library_body">浏览内置方案，或用悬浮导入按钮选择 APK、MTZ / ZIP，按 sheet 指引导入系统主题；是否自动应用遵循你的设置。</string>
-    <string name="setup_monet_body">按需为支持的图标启用动态配色。选择 ColorOS 灵感风格也会启用 Monet。</string>
+    <string name="setup_monet_body">选择取色来源与配色方案，预览深浅色后点击「应用配色」。自定义色彩和配色详情有独立子页。应用配色保留当前开关，启用或关闭请单独操作开关。</string>
     <string name="setup_fallback_body">ColorOS 与完美图标可补齐未覆盖的应用。完美补全需先下载任一样式，推荐 HyperOS4；启用时暂停系统回退，关闭后恢复原选择。保留原始图标的应用不参与补齐。</string>
     <string name="setup_mask_body">用同一组图标对比原始、HyperOS4 与自定义遮罩。启用适配后依次优先使用自定义遮罩、图标包自带遮罩，再用 HyperOS4 补缺。</string>
     <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
-    <string name="setup_icon_tip_body">修改资源、补全、推荐映射、遮罩、保留原图标清单或生成范围后，请更新或重新生成图标包，再应用。仅预览不会更新已应用主题。</string>
+    <string name="setup_icon_tip_body">修改图标资源或规则后，按页面提示更新或重新生成图标包，再应用。修改自定义图标或保留原图标选择后也需重新应用。仅预览不会更新已应用主题。</string>
     <string name="setup_desktop_title">按需调整桌面效果</string>
     <string name="setup_desktop_body">按分类浏览桌面设置。受支持的更改会自动同步，可在对应子页查看功能状态。实际可用情况取决于系统桌面与作用域；仅打开页面不会改变配置。</string>
     <string name="setup_open_desktop">打开桌面个性化</string>
@@ -40,7 +40,7 @@
     <string name="setup_logs_title">模块功能异常，请提供 LSPosed 日志</string>
     <string name="setup_logs_body">图标、Dock、通知、侧边栏等模块功能异常或桌面卡顿，请导出 LSPosed 日志。App 日志仅用于 KeiHome 自身的界面、设置与崩溃问题，导出前需确认并等待 20 秒。反馈时请附上异常截图与关于页的完整版本、环境信息。</string>
     <string name="setup_open_logs_body">功能异常先打开 LSPosed；App 自身异常用悬浮按钮导出日志</string>
-    <string name="setup_open_cache_body">查看占用、日志与提醒阈值；清理预览内存会保留已下载资源和已应用主题</string>
+    <string name="setup_open_cache_body">查看导入副本大小，分别管理 MTZ／ZIP、Apple 和完美图标；顶部清理仅释放预览内存</string>
     <string name="setup_search_keywords">首次 初次 引导 向导</string>
     <string name="setup_perfect_body">选择风格、预览并调整深浅色等选项，再生成或更新并应用图标包。已下载风格可离线使用；设置变化后，请留意页面顶部的待生成提示。</string>
     <string name="setup_apple_body">选择 iOS、iPadOS 或 macOS 图标，检查逐应用映射后生成并应用。搜索与下载会复用已有缓存；修改配置后，请留意页面顶部的待生成提示。</string>
@@ -49,8 +49,8 @@
     <string name="setup_verify_title">确认常用界面的效果</string>
     <string name="setup_open_scope_body">检查已安装目标的授权；授权与实际加载分别确认</string>
     <string name="setup_perfect_resources_body">按需下载所选风格及必需共享资源；移除时保留其他风格仍需的资源。顶部菜单可筛选、排序。</string>
-    <string name="setup_preserved_body">按应用名或包名搜索，配合筛选与排序选择应用。重新生成并应用后，所选应用保留自身图标。</string>
+    <string name="setup_preserved_body">按应用名或包名搜索，配合范围筛选与排序选择应用。与自定义图标切换时需确认，按页面提示重新生成并应用后生效。</string>
     <string name="setup_cache_body">清理提醒默认 520 MB，不随 Perfect 下载变化。应用日志计入缓存，可从缓存中的日志入口跳转查看或导出。提醒不会自动删除资源。</string>
-    <string name="setup_recommended_mappings_body">按需选择系统名称匹配、Telegram 官方渠道共享和 ColorOS 主题商店映射；保留原图标名单优先。</string>
+    <string name="setup_recommended_mappings_body">按需选择系统名称匹配、Telegram 官方渠道共享和 ColorOS 主题商店映射；逐应用自定义和保留原图的选择优先于这些映射。</string>
     <string name="setup_local_icons_summary">了解联网、缓存复用与生成包保留策略</string>
 </resources>

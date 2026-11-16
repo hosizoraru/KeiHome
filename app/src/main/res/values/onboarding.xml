@@ -15,7 +15,7 @@
     <string name="setup_feature_desktop">A more personal launcher</string>
     <string name="setup_feature_desktop_body">Customize Dock, appearance and labels, icons and launch screens.</string>
     <string name="setup_feature_control">Changes you control</string>
-    <string name="setup_feature_control_body">Guide links open settings. You choose which features to use; some choices also enable related features, such as Inspiration enabling Monet.</string>
+    <string name="setup_feature_control_body">Guide links open settings so you can choose resources and features. Previewing or editing a draft does not apply it; Monet has a separate on/off switch.</string>
     <string name="setup_framework_title">Check the module environment</string>
     <string name="setup_framework_body">KeiHome uses LSPosed API 102. Enable the module in your manager and grant the scopes needed by the features you use. You can continue even if setup is incomplete.</string>
     <string name="setup_service_connected">Framework service connected</string>
@@ -25,11 +25,11 @@
     <string name="setup_icons_body">Choose system icons, Perfect, Apple or an imported pack. Supported system surfaces can reuse the applied artwork; coverage depends on the host and app.</string>
     <string name="setup_native_icons_title">Supported system icons follow light/dark mode</string>
     <string name="setup_library_body">Browse built-in styles, or use the floating import button for APK, MTZ or ZIP files. Follow the sheet to import into system Themes; automatic application follows your setting.</string>
-    <string name="setup_monet_body">Optional dynamic colors for supported icons. Choosing ColorOS Inspiration also enables Monet.</string>
+    <string name="setup_monet_body">Choose a color source and scheme, preview both appearances, then tap Apply colors. Custom colors and palette details have their own pages. Applying keeps the current on/off state; use the switch separately.</string>
     <string name="setup_fallback_body">ColorOS and Perfect can fill gaps in app coverage. Download any Perfect style first; HyperOS4 is recommended. Perfect completion pauses system fallback and restores your choice when turned off. Apps set to keep their original icons are excluded.</string>
     <string name="setup_mask_body">Compare original, HyperOS4 and custom masks on the same icons. With adaptation on, custom masks take priority; pack masks come next, then HyperOS4.</string>
     <string name="setup_icon_tip_title">Preview, apply, then check</string>
-    <string name="setup_icon_tip_body">After changing artwork, completion, recommended mappings, masks, kept originals or generation scope, update or regenerate the pack and apply it. Previews alone do not update the applied theme.</string>
+    <string name="setup_icon_tip_body">After changing icon resources or rules, update or regenerate as prompted, then apply the pack. Reapply after changing custom icons or kept originals. Previews alone do not update the applied theme.</string>
     <string name="setup_desktop_title">Make optional adjustments</string>
     <string name="setup_desktop_body">Browse desktop settings by category. Supported changes sync automatically; check their status on the corresponding page. Availability depends on your launcher and scope access. Opening a page keeps your settings unchanged.</string>
     <string name="setup_open_desktop">Open desktop settings</string>
@@ -40,7 +40,7 @@
     <string name="setup_logs_title">Module feature issues need LSPosed logs</string>
     <string name="setup_logs_body">For module issues affecting icons, Dock, notifications, sidebar or launcher performance, export LSPosed logs. App logs are only for KeiHome UI, settings or crashes, and require confirmation with a 20-second wait. Include screenshots and the full version and environment from About.</string>
     <string name="setup_open_logs_body">Open LSPosed for feature issues; use the floating export button for App issues</string>
-    <string name="setup_open_cache_body">Review storage, logs and the reminder threshold; clearing preview memory preserves downloaded artwork and the applied theme</string>
+    <string name="setup_open_cache_body">Review imported archive sizes and separate MTZ/ZIP, Apple and Perfect controls; the top cleanup action only frees preview memory</string>
     <string name="setup_search_keywords">onboarding welcome first use setup guide</string>
     <string name="setup_perfect_body">Choose a style, preview and adjust options such as light and dark appearance, then generate or update and apply the pack. Downloaded styles work offline. Check the notice at the top when changes need regeneration.</string>
     <string name="setup_apple_body">Choose iOS, iPadOS or macOS icons, check per-app mappings, then generate and apply. Searches and downloads reuse cached assets. Check the notice at the top when changes need regeneration.</string>
@@ -49,8 +49,8 @@
     <string name="setup_verify_title">Check the surfaces you use</string>
     <string name="setup_open_scope_body">Review access for installed targets; grants and actual loading are separate</string>
     <string name="setup_perfect_resources_body">Download selected styles and required shared resources; removal keeps resources other styles still need. Find styles with the top filter and sort menus.</string>
-    <string name="setup_preserved_body">Search apps by name or package, then filter and sort the list. Selected apps keep their own icons after you regenerate and apply.</string>
+    <string name="setup_preserved_body">Search by app or package name, then filter by scope and sort. Switching between a custom icon and a kept original requires confirmation. Regenerate and apply as prompted to use the changes.</string>
     <string name="setup_cache_body">The cleanup reminder defaults to 520 MB, regardless of Perfect downloads. App logs count toward cache usage; open their entry in Cache to view or export them. The reminder does not delete resources.</string>
-    <string name="setup_recommended_mappings_body">Choose system name matching, sharing between official Telegram channels and ColorOS Theme Store mappings as needed. Apps set to keep their original icons take priority.</string>
+    <string name="setup_recommended_mappings_body">Choose system name matching, sharing between official Telegram channels and ColorOS Theme Store mappings as needed. Per-app custom icons and kept originals take priority over these mappings.</string>
     <string name="setup_local_icons_summary">Learn about networking, cache reuse and generated archive retention</string>
 </resources>

@@ -15,7 +15,7 @@
     <string name="setup_feature_desktop">ホーム画面のカスタマイズ</string>
     <string name="setup_feature_desktop_body">Dock、外観とラベル、アイコンと起動画面をカテゴリ別に調整できます。</string>
     <string name="setup_feature_control">有効化は自分のペースで</string>
-    <string name="setup_feature_control_body">ガイドのリンクから設定を開き、使う機能を選べます。選択によっては関連機能も有効になります。たとえば、インスピレーションでは Monet も有効になります。</string>
+    <string name="setup_feature_control_body">ガイドのリンクから設定を開き、使う画像や機能を選べます。プレビューや下書きの編集だけでは適用されません。Monet のオン・オフは専用スイッチで切り替えます。</string>
     <string name="setup_framework_title">モジュールの動作環境を確認</string>
     <string name="setup_framework_body">KeiHome は LSPosed API 102 を使用します。管理アプリでモジュールを有効にし、必要なスコープを許可してください。未完了でも先に進めます。</string>
     <string name="setup_service_connected">フレームワークに接続済み</string>
@@ -25,11 +25,11 @@
     <string name="setup_icons_body">標準アイコン、Perfect、Apple、インポートしたパックから選べます。対応するシステム画面でも適用済み画像を使用できますが、対応範囲はホストとアプリによって異なります。</string>
     <string name="setup_native_icons_title">対応する標準アイコンは明暗へ自動追従</string>
     <string name="setup_library_body">内蔵スタイルを選ぶか、フローティングインポートボタンで APK、MTZ / ZIP を選びます。シートの案内に沿ってシステムのテーマへ取り込み、自動適用は設定に従います。</string>
-    <string name="setup_monet_body">対応アイコンの動的配色を任意で有効にできます。ColorOS のインスピレーションを選ぶと Monet も有効になります。</string>
+    <string name="setup_monet_body">色の取得元と配色スタイルを選び、明暗をプレビューして「配色を適用」を押します。色のカスタマイズとパレット詳細は個別の画面で確認できます。適用してもオン・オフは変わらず、専用スイッチで切り替えます。</string>
     <string name="setup_fallback_body">ColorOS と Perfect で未対応アプリのアイコンを補完できます。Perfect のスタイルを先にダウンロードしてください。HyperOS4 がおすすめです。Perfect 補完中はシステムの代替アイコンを使わず、オフにすると元の選択に戻ります。元のアイコンを使う指定のアプリは対象外です。</string>
     <string name="setup_mask_body">同じアイコンで元の形状、HyperOS4、カスタムマスクを比較。適応がオンの場合、カスタム、パック付属、HyperOS4 の順に優先します。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
-    <string name="setup_icon_tip_body">画像、補完、推奨マッピング、マスク、元のアイコンを使うアプリ、生成対象を変更したら、パックを更新または再生成して適用してください。プレビューだけでは適用済みテーマは変わりません。</string>
+    <string name="setup_icon_tip_body">画像やルールを変更したら、画面の案内に沿ってパックを更新・再生成して適用します。カスタムアイコンや元のアイコン保持を変更した場合も再適用してください。プレビューだけでは適用中のテーマは変わりません。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
     <string name="setup_desktop_body">カテゴリ別にホーム設定を開きます。対応する変更は自動で同期され、状態は各ページで確認できます。利用可否はホームアプリとスコープ許可によって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
@@ -40,7 +40,7 @@
     <string name="setup_logs_title">モジュール機能の問題には LSPosed ログを</string>
     <string name="setup_logs_body">アイコン、Dock、通知、サイドバーなどのモジュール機能やホームの動作に問題がある場合は、LSPosed ログを出力してください。App ログは KeiHome 自体の画面、設定、クラッシュ専用で、出力には確認と 20 秒の待機が必要です。スクリーンショットと「このアプリについて」の完全なバージョン・環境情報も添えてください。</string>
     <string name="setup_open_logs_body">機能の問題は LSPosed へ。App 自体の問題はフローティングボタンでログを書き出し</string>
-    <string name="setup_open_cache_body">使用量・ログ・通知のしきい値を確認。プレビューのメモリ消去では取得済み画像と適用済みテーマを保持</string>
+    <string name="setup_open_cache_body">インポート容量と MTZ／ZIP・Apple・Perfect の個別管理を確認。上部の整理操作はプレビューメモリのみを解放</string>
     <string name="setup_search_keywords">初回 初期設定 はじめに ガイド</string>
     <string name="setup_perfect_body">スタイルを選び、プレビューで明暗などを調整してから、パックを生成・更新して適用します。ダウンロード済みのスタイルはオフラインでも使えます。再生成が必要な場合はページ上部の案内を確認してください。</string>
     <string name="setup_apple_body">iOS、iPadOS、macOS のアイコンを選び、アプリ別の対応を確認して生成・適用します。検索やダウンロードにはキャッシュを再利用します。変更後はページ上部の再生成案内を確認してください。</string>
@@ -49,8 +49,8 @@
     <string name="setup_verify_title">普段使う画面で確認</string>
     <string name="setup_open_scope_body">インストール済みの対象への許可を確認。実際の読み込みとは別の状態です</string>
     <string name="setup_perfect_resources_body">選んだスタイルと必要な共有リソースだけを取得。削除時も他のスタイルが使うリソースは保持します。上部メニューで絞り込み・並べ替えができます。</string>
-    <string name="setup_preserved_body">アプリ名やパッケージ名で検索し、絞り込み・並べ替えで選択。再生成して適用すると、選んだアプリは元のアイコンを使います。</string>
+    <string name="setup_preserved_body">アプリ名・パッケージ名で検索し、対象別の絞り込みや並べ替えで選びます。カスタムアイコンと元のアイコン保持の切り替えには確認が必要です。案内に沿って再生成・適用すると反映されます。</string>
     <string name="setup_cache_body">整理の通知は既定で 520 MB。Perfect のダウンロード量には左右されません。アプリログもキャッシュに含まれ、キャッシュ画面のログ項目から確認・書き出しできます。通知による自動削除はありません。</string>
-    <string name="setup_recommended_mappings_body">必要に応じて、システムアプリ名の照合、Telegram 公式配信版間の共有、ColorOS テーマストアのマッピングを選べます。元のアイコンを保持するアプリの指定が優先されます。</string>
+    <string name="setup_recommended_mappings_body">必要に応じてシステム名の照合、Telegram 公式配信版間の共有、ColorOS テーマストアの対応を選べます。アプリ別カスタムアイコンと元のアイコン保持は、これらの対応より優先されます。</string>
     <string name="setup_local_icons_summary">通信、キャッシュ再利用、生成パックの保持について</string>
 </resources>

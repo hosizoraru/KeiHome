@@ -64,8 +64,10 @@ class CustomIconsNavigationTest {
   @Test fun editingStartsAtSourceAndBackReturnsDirectlyToRoot() {
     val item = model.customIcons.state.value.selections.firstOrNull()
     assumeTrue("Requires one existing saved choice", item != null)
+    rule.onNodeWithTag("custom-icons.search").performTextInput(item!!.packageName)
     rule.onNodeWithTag("custom-icons.list").performScrollToNode(hasTestTag("custom-icons.saved.${item!!.packageName}"))
     rule.onNodeWithTag("custom-icons.saved.${item.packageName}").performClick()
+    rule.onNodeWithTag("custom-icons.search").assertIsNotFocused()
     rule.onNodeWithText(text(R.string.custom_icons_edit)).performClick()
     assertTrue(rule.onAllNodesWithText(text(R.string.custom_icons_choose_pack))
       .fetchSemanticsNodes().indices.any {
@@ -73,6 +75,7 @@ class CustomIconsNavigationTest {
       })
     rule.onNodeWithContentDescription(text(R.string.pack_back)).performClick()
     rule.onNodeWithTag("custom-icons.views").assertIsDisplayed()
+    rule.onNodeWithTag("custom-icons.search").assertTextContains(item.packageName).assertIsNotFocused()
     rule.onNodeWithText(text(R.string.custom_icons_choose_app)).assertDoesNotExist()
     assertTrue(model.customIcons.state.value.selections.any { it.token == item.token })
   }

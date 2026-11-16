@@ -60,6 +60,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   val state by controller.state.collectAsStateWithLifecycle()
   val catalog by model.iconPacks.collectAsStateWithLifecycle()
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val focus = androidx.compose.ui.platform.LocalFocusManager.current
+  val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+  fun dismissSearch() { focus.clearFocus(); keyboard?.hide() }
   var targetPackage by rememberSaveable { mutableStateOf<String?>(null) }
   var packId by rememberSaveable { mutableStateOf<String?>(null) }
   var uncustomized by rememberSaveable { mutableStateOf(false) }
@@ -77,6 +80,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   val root = targetPackage == null
   val query = when { root -> rootQuery; packId == null -> sourceQuery; else -> iconQuery }
   fun back() {
+    dismissSearch()
     candidate = null
     when {
       packId != null -> packId = null
@@ -196,7 +200,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           }
           PackHelpAction(listOf(stringResource(R.string.custom_icons_summary),
             stringResource(R.string.custom_icons_help), stringResource(R.string.custom_icons_origin_help)),
-            PackGuidancePage.CUSTOM_ICONS, revision = 1)
+            PackGuidancePage.CUSTOM_ICONS, revision = 1, onOpen = ::dismissSearch)
         }, bottomContent = {
           if (root) Os4ViewTabs(
             items = listOf(stringResource(R.string.custom_icons_saved, state.selections.size),
@@ -235,7 +239,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             BasicComponent(title = app.label, summary = app.packageName, enabled = state.ready && !state.busy,
               modifier = Modifier.testTag("custom-icons.app.${app.packageName}"),
               startAction = { OriginalPreservedIcon(app, controller.inventory, configuration) },
-              onClick = { targetPackage = app.packageName })
+              onClick = { dismissSearch(); targetPackage = app.packageName })
           }
         } else items(savedRows, key = { it.packageName }, contentType = { "custom" }) { item ->
           val sourcePack = catalog.packs.firstOrNull { it.pack.id == item.sourceId }?.pack
@@ -243,7 +247,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             "ColorOS · ${customIconSourceTitle(sourcePack)}" else item.sourceTitle
           Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
             Row(Modifier.fillMaxWidth().testTag("custom-icons.saved.${item.packageName}")
-              .clickable(enabled = !state.busy) { inspecting = item; inspectionVisible = true }
+              .clickable(enabled = !state.busy) { dismissSearch(); inspecting = item; inspectionVisible = true }
               .padding(14.dp), verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(12.dp)) {
               SavedIconArtwork(controller, item, dark)
@@ -254,7 +258,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
                 Text(item.packageName, style = MiuixTheme.textStyles.footnote2,
                   color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
               }
-              IconButton(onClick = { removing = item }, enabled = !state.busy && !state.loading) {
+              IconButton(onClick = { dismissSearch(); removing = item }, enabled = !state.busy && !state.loading) {
                 Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.custom_icons_remove))
               }
             }
@@ -299,13 +303,13 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
                       } else Box(Modifier.size(36.dp))
                     }
                   },
-                  enabled = !state.busy, onClick = { packId = source.id })
+                  enabled = !state.busy, onClick = { dismissSearch(); packId = source.id })
               }
             }
             item("get-packs") {
               Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 BasicComponent(title = stringResource(R.string.custom_icons_more),
-                  onClick = { onNavigate("library") })
+                  onClick = { dismissSearch(); onNavigate("library") })
               }
             }
           }
@@ -314,7 +318,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
               Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { entry ->
                   Column(Modifier.weight(1f).background(MiuixTheme.colorScheme.surface, RoundedCornerShape(20.dp))
-                    .clickable(enabled = !state.busy) { candidate = entry }.padding(12.dp),
+                    .clickable(enabled = !state.busy) { dismissSearch(); candidate = entry }.padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SourceIconArtwork(controller, pack, entry, dark)
                     Text(labels[entry.component?.packageName ?: entry.nativeName?.substringBefore('#')]

@@ -45,6 +45,7 @@ internal fun PackHelpAction(
   active: Boolean = true,
   preferences: PackGuidancePreferences? = null,
   revision: Int = PackGuidancePreferences.CURRENT_REVISION,
+  onOpen: () -> Unit = {},
 ) {
   val guidance = remember(notes) { notes.filter { it.isNotBlank() }.distinct() }
   if (guidance.isEmpty()) return
@@ -89,7 +90,7 @@ internal fun PackHelpAction(
     }
   }
   val title = stringResource(R.string.pack_guidance_title)
-  IconButton(onClick = { showing = true }, modifier = Modifier.testTag("pack-guidance.help.${page.storageKey}")) {
+  IconButton(onClick = { onOpen(); showing = true }, modifier = Modifier.testTag("pack-guidance.help.${page.storageKey}")) {
     Icon(MiuixIcons.Glass.UsageHelp, title)
   }
   // Keep the native sheet composed through its drag/back exit animation.

@@ -215,4 +215,5 @@
     <string name="system_fallback_applied">Current fallback: %1$s · %2$d items</string>
     <string name="system_fallback_source_needed">Choose the original source in the icon library, then regenerate and apply.</string>
     <string name="system_fallback_badge">System fallback · %1$s</string>
+    <string name="icon_pack_local_storage_size">Local storage: %1$s</string>
 </resources>

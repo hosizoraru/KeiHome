@@ -38,7 +38,7 @@
     <string name="setup_finish_body">向导已结束，未完成的配置可以稍后继续。需要回顾时，随时到设置里重新打开使用向导。</string>
     <string name="setup_finish_note_body">状态页显示已上报的目标与桌面连接情况。作用域授权不代表每个宿主均已加载；请打开常用的分享面板、设置或侧边栏确认图标，实际可用情况取决于系统版本与应用。</string>
     <string name="setup_logs_title">模块功能异常，请提供 LSPosed 日志</string>
-    <string name="setup_logs_body">图标、Dock、通知、侧边栏等模块功能异常或桌面卡顿，请导出 LSPosed 日志。App 日志仅用于 KeiHome 自身的界面、设置与崩溃问题，导出前需确认并等待 5 秒。反馈时请附上异常截图与关于页的完整版本、环境信息。</string>
+    <string name="setup_logs_body">图标、Dock、通知、侧边栏等模块功能异常或桌面卡顿，请导出 LSPosed 日志。App 日志仅用于 KeiHome 自身的界面、设置与崩溃问题，导出前需确认并等待 20 秒。反馈时请附上异常截图与关于页的完整版本、环境信息。</string>
     <string name="setup_open_logs_body">功能异常先打开 LSPosed；App 自身异常用悬浮按钮导出日志</string>
     <string name="setup_open_cache_body">查看占用、日志与提醒阈值；清理预览内存会保留已下载资源和已应用主题</string>
     <string name="setup_search_keywords">首次 初次 引导 向导</string>

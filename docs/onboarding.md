@@ -82,7 +82,7 @@ copied, and the configured device's setup wizard was not rerun or reset.
    configured independently.
 5. **Finish:** current framework/scope states, shortcuts to scope authorization,
    App logs and cache management, and the distinction between App and LSPosed logs.
-   App export requires confirmation with a five-second wait; runtime diagnostics
+   App export requires confirmation with a twenty-second wait; runtime diagnostics
    and complete About environment information help identify the right log.
    Finishing the guide does not claim that every host hook has loaded. Check the
    launcher and the share sheet, Settings or Sidebar actually used.

@@ -38,7 +38,7 @@
     <string name="setup_finish_body">You have reached the end of the guide. Optional setup can be completed later, and this guide is always available in Settings.</string>
     <string name="setup_finish_note_body">Status shows the targets and launcher connection that were reported. Scope grants do not confirm that every host is loaded. Open the share sheet, Settings or Sidebar to check the icons you use; availability depends on the system version and app.</string>
     <string name="setup_logs_title">Module feature issues need LSPosed logs</string>
-    <string name="setup_logs_body">For module issues affecting icons, Dock, notifications, sidebar or launcher performance, export LSPosed logs. App logs are only for KeiHome UI, settings or crashes, and require confirmation with a 5-second wait. Include screenshots and the full version and environment from About.</string>
+    <string name="setup_logs_body">For module issues affecting icons, Dock, notifications, sidebar or launcher performance, export LSPosed logs. App logs are only for KeiHome UI, settings or crashes, and require confirmation with a 20-second wait. Include screenshots and the full version and environment from About.</string>
     <string name="setup_open_logs_body">Open LSPosed for feature issues; use the floating export button for App issues</string>
     <string name="setup_open_cache_body">Review storage, logs and the reminder threshold; clearing preview memory preserves downloaded artwork and the applied theme</string>
     <string name="setup_search_keywords">onboarding welcome first use setup guide</string>

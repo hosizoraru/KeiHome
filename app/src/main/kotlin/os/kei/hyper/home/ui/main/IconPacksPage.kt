@@ -1,5 +1,6 @@
 package os.kei.hyper.home.ui.main
 
+import android.text.format.Formatter
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -416,6 +417,11 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         MetadataPill(if (version == null) source else "$source · $version", MiuixTheme.colorScheme.onSurfaceSecondary)
         if (version == null && pack.source is IconPackSource.Imported && pack.format != IconPackFormat.APK) {
           MetadataPill(stringResource(R.string.icon_pack_version_unspecified), MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+        (pack.source as? IconPackSource.Imported)?.record?.takeIf { pack.format != IconPackFormat.APK }?.let {
+          MetadataPill(stringResource(R.string.icon_pack_local_storage_size,
+            Formatter.formatFileSize(LocalContext.current, it.storedBytes)),
+            MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         pack.description.author?.trim()?.takeIf { it.isNotEmpty() }?.let {
           MetadataPill(stringResource(R.string.pack_guidance_author, it), MiuixTheme.colorScheme.onSurfaceSecondary)

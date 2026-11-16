@@ -212,4 +212,5 @@
     <string name="system_fallback_applied">現在の代替：%1$s · %2$d 項目</string>
     <string name="system_fallback_source_needed">ライブラリで元のパックを選び、再生成して適用してください。</string>
     <string name="system_fallback_badge">システム代替 · %1$s</string>
+    <string name="icon_pack_local_storage_size">ローカル使用量：%1$s</string>
 </resources>

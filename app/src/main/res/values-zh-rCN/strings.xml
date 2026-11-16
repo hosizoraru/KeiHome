@@ -212,4 +212,5 @@
     <string name="system_fallback_applied">当前回退：%1$s · 补齐 %2$d 项</string>
     <string name="system_fallback_source_needed">请从图标库选择原始方案，重新生成并应用。</string>
     <string name="system_fallback_badge">系统回退 · %1$s</string>
+    <string name="icon_pack_local_storage_size">本地占用：%1$s</string>
 </resources>

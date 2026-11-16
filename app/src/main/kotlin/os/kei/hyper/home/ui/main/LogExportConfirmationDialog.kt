@@ -18,8 +18,8 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 /** Keep composed until dismissal finishes; a new presentation always starts a fresh wait. */
 @Composable
 internal fun LogExportConfirmationDialog(onDismissed: () -> Unit, onExport: () -> Unit) {
-  val deadline = remember { SystemClock.elapsedRealtime() + 5_000L }
-  var seconds by remember { mutableIntStateOf(5) }
+  val deadline = remember { SystemClock.elapsedRealtime() + 20_000L }
+  var seconds by remember { mutableIntStateOf(20) }
   var visible by remember { mutableStateOf(true) }
   var accepted by remember { mutableStateOf(false) }
   var delivered by remember { mutableStateOf(false) }

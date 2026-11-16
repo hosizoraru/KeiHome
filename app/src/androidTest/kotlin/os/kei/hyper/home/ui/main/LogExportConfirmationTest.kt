@@ -22,7 +22,7 @@ class LogExportConfirmationTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createComposeRule()
 
-  @Test fun exportWaitsFiveSecondsAndDeliversOnlyOnceAfterDismissal() {
+  @Test fun exportWaitsTwentySecondsAndDeliversOnlyOnceAfterDismissal() {
     var open by mutableStateOf(true)
     var exports = 0
     var exportedAt = 0L
@@ -43,7 +43,7 @@ class LogExportConfirmationTest {
     confirm.assertIsNotEnabled()
     val click = confirm.fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
     rule.runOnIdle { click(); assertEquals(0, exports) }
-    rule.waitUntil(timeoutMillis = 8_000) {
+    rule.waitUntil(timeoutMillis = 25_000) {
       runCatching { confirm.assertIsEnabled(); true }.getOrDefault(false)
     }
     rule.runOnIdle {
@@ -55,7 +55,7 @@ class LogExportConfirmationTest {
     rule.waitUntil(timeoutMillis = 5_000) { !open }
     rule.runOnIdle {
       assertEquals(1, exports)
-      assertTrue(exportedAt - startedAt >= 5_000L)
+      assertTrue(exportedAt - startedAt >= 20_000L)
     }
   }
 
@@ -77,7 +77,7 @@ class LogExportConfirmationTest {
     rule.onNodeWithTag("logs.export.cancel").performClick()
     rule.waitUntil(timeoutMillis = 5_000) { !open }
     // Let the old deadline expire; a fresh presentation must still be disabled.
-    SystemClock.sleep(5_100)
+    SystemClock.sleep(20_100)
     rule.runOnIdle { open = true }
     rule.onNodeWithTag("logs.export.confirm").assertIsNotEnabled()
     rule.runOnIdle { backHost.completeBack() }

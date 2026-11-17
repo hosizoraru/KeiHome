@@ -225,8 +225,7 @@ internal fun MonetContent(
     }
     if (visibleSection == MonetSection.OVERVIEW) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        val sections = (if (preferredStyle != null) listOf(MonetSection.DESIGN) else emptyList()) +
-          listOf(MonetSection.SOURCE) +
+        val sections = listOf(MonetSection.SOURCE) +
           (if (preferredStyle == null) listOf(MonetSection.STYLE) else emptyList()) +
           listOf(MonetSection.COLORS, MonetSection.PREVIEW, MonetSection.DETAILS)
         for (destination in sections) BasicComponent(

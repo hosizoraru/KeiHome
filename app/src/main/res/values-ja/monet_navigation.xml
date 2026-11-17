@@ -14,5 +14,5 @@
     <string name="monet_page_help">カテゴリごとに下書きを編集します。概要に戻っても変更は保持されます。明暗のプレビューを確認してから適用してください。更新はシステムの状態を読み取るだけで、下書きは適用しません。</string>
     <string name="monet_help_title">Monet の使い方</string>
     <string name="monet_help_apply_note">「配色を適用」は配色を保存し、Monet スイッチの状態を維持します。オフの間はアイコンの表示を変えず、Monet を有効にすると保存した配色を使います。画面全体で一つの適用フローティングボタンを使用します。</string>
-    <string name="monet_help_inspiration_note">アイコンの明暗や ColorOS インスピレーションの外観は、アイコンパックの再生成が必要な場合があります。「ColorOS アイコンの詳細」からインスピレーションアイコンをインストールできます。配色の適用とは別の操作です。</string>
+    <string name="monet_help_inspiration_note">アイコンの明暗や未対応アイコンの配色補完にはパックの再生成が必要です。Monet 画面で直接インスピレーションアイコンをインストールできます。配色の適用と Monet の有効化は別の操作です。</string>
 </resources>

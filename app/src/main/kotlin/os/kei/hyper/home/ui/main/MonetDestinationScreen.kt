@@ -67,6 +67,9 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(2, locales) }
   }
   var pages by rememberSaveable { mutableStateOf(listOf(MonetSection.OVERVIEW.name)) }
+  LaunchedEffect(pages) {
+    if (pages.lastOrNull() == MonetSection.DESIGN.name) pages = listOf(MonetSection.OVERVIEW.name)
+  }
   val section = MonetSection.valueOf(pages.last())
   SideEffect { onNestedChanged(pages.size > 1) }
   DisposableEffect(Unit) { onDispose { onNestedChanged(false) } }
@@ -134,6 +137,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
     ) {
       for (text in listOf(stringResource(R.string.monet_page_help), stringResource(R.string.monet_help_apply_note),
         stringResource(R.string.monet_help_inspiration_note), stringResource(R.string.monet_scope_hint),
+        stringResource(R.string.monet_unadapted_help),
         stringResource(R.string.monet_details_contrast_note))) {
         Text(text, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
@@ -180,15 +184,29 @@ private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (
       onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
       if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
         model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
+      top.yukonga.miuix.kmp.preference.SwitchPreference(
+        title = stringResource(R.string.monet_unadapted_title),
+        summary = stringResource(R.string.monet_unadapted_summary),
+        modifier = Modifier.testTag("monet.unadapted"),
+        checked = preferences.monetUnadaptedIcons,
+        enabled = packs.nativeImporting == null,
+        onCheckedChange = model.preferences::setMonetUnadaptedIcons)
     }
   }
-  if (section == MonetSection.DESIGN && inspiration) {
+  if (section.page == MonetSection.OVERVIEW && inspiration) {
+    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.pack_style_inspiration), style = MiuixTheme.textStyles.body1)
+        Text(stringResource(R.string.monet_inspiration_install_summary),
+          style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        top.yukonga.miuix.kmp.basic.TextButton(
+          text = stringResource(R.string.pack_action_inspiration),
+          modifier = Modifier.fillMaxWidth().testTag("monet.inspiration.install"),
+          enabled = ready && !packs.preparing && packs.nativeImporting == null && framework.snapshot?.themesInScope == true,
+          onClick = { model.applyColorOs(inspiration = true) })
+      }
+    }
     ColorOsSettings(model, ready, inspiration = true)
-    top.yukonga.miuix.kmp.basic.TextButton(
-      text = stringResource(R.string.pack_action_inspiration),
-      modifier = Modifier.fillMaxWidth().testTag("monet.inspiration.install"),
-      enabled = ready && packs.nativeImporting == null && framework.snapshot?.themesInScope == true,
-      onClick = { model.applyColorOs(inspiration = true) })
   }
   MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
     preferredStyle = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION else null,

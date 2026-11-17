@@ -115,6 +115,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
+  val splashIcons by model.splashIcons.state.collectAsStateWithLifecycle()
   val themeEffects by model.themeEffects.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -131,6 +132,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     searchGlassContent = { SearchGlassSettingsCard(model) },
+    splashIconsContent = { SplashIconSettingsCard(splashIcons, framework.splashAppearanceInScope(),
+      model.splashIcons::save, scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed) },
     staticScopeContent = {
       Card(Modifier.fillMaxWidth()) {
         BasicComponent(title = stringResource(R.string.settings_hook_section),
@@ -151,6 +154,6 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     LaunchedEffect(model, lifecycle) {
       lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeFallbackResources() }
     }
-    SystemIconFallbackCard(model, onOpenPerfectIcons)
+    onOpenPerfectIcons?.let { IconFallbackSettingsEntry(it) }
   }
 }

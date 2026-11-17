@@ -154,8 +154,6 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           stringResource(R.string.pack_imported_summary), { onNavigate("imported") }) }
       }
       "builtin" -> {
-        item("coloros") { PackNavigationCard("ColorOS", stringResource(R.string.pack_coloros_summary),
-          { onNavigate("coloros") }) }
         item("hyperos") { HyperOsPackCard() }
         item("system-appearance") {
           PackInfoCard(stringResource(R.string.pack_system_appearance_note),
@@ -394,7 +392,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   val context = LocalContext.current
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
-  val generated = pack.source is IconPackSource.Generated
+  val generated = pack.source is IconPackSource.Generated || result?.convertedReady == false
   val native = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS
   val previewAppearance = if (native) IconPackAppearance.SYSTEM else appearance
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {

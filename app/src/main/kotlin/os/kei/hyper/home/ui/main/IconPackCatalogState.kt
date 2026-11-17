@@ -15,7 +15,22 @@ internal data class IconPackCardData(
   val previewEntries: List<IconPackEntry>,
   val originalApps: Int = 0,
   val dynamicApps: Int = 0,
-)
+) {
+  // A descriptor is an immutable catalog snapshot, potentially with thousands
+  // of mappings. Publishing UI progress must not walk that entire snapshot.
+  override fun equals(other: Any?): Boolean =
+    this === other || other is IconPackCardData && pack === other.pack &&
+      matchedApps == other.matchedApps && previewEntries == other.previewEntries &&
+      originalApps == other.originalApps && dynamicApps == other.dynamicApps
+
+  override fun hashCode(): Int {
+    var result = System.identityHashCode(pack)
+    result = 31 * result + matchedApps
+    result = 31 * result + previewEntries.hashCode()
+    result = 31 * result + originalApps
+    return 31 * result + dynamicApps
+  }
+}
 
 internal data class IconPacksUiState(
   val packs: List<IconPackCardData> = emptyList(),
@@ -60,7 +75,7 @@ internal data class IconPackCatalogFilter(
 internal fun pendingNativeApplication(state: IconPacksUiState, activeId: String?,
   fallback: SystemIconFallback? = null) =
   state.nativeResult?.takeIf {
-    activeId != null && it.imported && it.localId != activeId &&
+    activeId != null && it.imported && it.convertedReady != false && it.localId != activeId &&
       (fallback == null || it.sourceId == fallback.sourceId(it.sourceId) ||
         (fallback == SystemIconFallback.DEFAULT && it.sourceId == SystemIconFallback.baseSourceId(it.sourceId)))
   }

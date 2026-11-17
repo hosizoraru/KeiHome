@@ -17,8 +17,8 @@ internal enum class DesktopSection(
     OVERVIEW -> emptyList()
     DOCK -> listOf(DesktopFeature.DOCK_MATERIAL, DesktopFeature.DOCK_STYLE)
     APPEARANCE -> listOf(DesktopFeature.SEARCH_MATERIAL, DesktopFeature.LABELS)
-    ICONS -> listOf(DesktopFeature.ICON_EFFECTS, DesktopFeature.SPLASH)
+    ICONS -> listOf(DesktopFeature.ICON_EFFECTS, DesktopFeature.SPLASH_ICONS, DesktopFeature.SPLASH)
   }
 }
 
-internal enum class DesktopFeature { DOCK_MATERIAL, DOCK_STYLE, SEARCH_MATERIAL, LABELS, ICON_EFFECTS, SPLASH }
+internal enum class DesktopFeature { DOCK_MATERIAL, DOCK_STYLE, SEARCH_MATERIAL, LABELS, ICON_EFFECTS, SPLASH, SPLASH_ICONS }

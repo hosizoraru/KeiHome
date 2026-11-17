@@ -213,6 +213,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun readLauncherLabelSettings() { viewModelScope.launch { launcherLabels.read() } }
   suspend fun refreshHomeScreenStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
+  val splashIcons = SplashIconSettings(viewModelScope) { framework.value.splashAppearanceInScope() }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
@@ -309,6 +310,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(preferences.state.map { it.preservedIconPackages to it.recommendedIconMappings }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(preferences.state.map { it.monetUnadaptedIcons }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(os.kei.hyper.home.iconpack.CustomIconStore.revision) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
@@ -346,7 +348,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             completeSystemIconConfig = selected.completeSystemIconConfig,
             iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
             preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings,
-            customizedPackages = custom.packages, customIconIdentity = custom.identity) {
+            customizedPackages = custom.packages, customIconIdentity = custom.identity,
+            monetUnadaptedIcons = selected.monetUnadaptedIcons) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
@@ -404,6 +407,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         dockGlass.reset()
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
+        splashIcons.reset()
         if (service == null && !binding.waiting) initialActivation.observe(null)
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4)
@@ -528,7 +532,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           readDesktopSettings(desktopSection)
           if (desktopSection != DesktopSection.ICONS) refreshHomeScreenStatus()
           val failed = framework.value.readFailed || when (desktopSection) {
-            DesktopSection.ICONS -> themeEffects.value.readFailed || splashAppearance.value.readFailed
+            DesktopSection.ICONS -> themeEffects.value.readFailed || splashAppearance.value.readFailed || splashIcons.state.value.readFailed
             else -> homeScreenRuntime.value.readFailed || homeScreenRuntime.value.timedOut ||
               when (desktopSection) {
                 DesktopSection.DOCK -> dockGlass.state.value.failed || launcherGlass.state.value.failed
@@ -730,7 +734,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
           selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly,
-          selected.completeSystemIconConfig, selected.recommendedIconMappings, onProgress = progress::update)
+          selected.completeSystemIconConfig, selected.recommendedIconMappings,
+          monetUnadaptedIcons = selected.monetUnadaptedIcons, onProgress = progress::update)
         caller.ensureActive()
         if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
@@ -1014,7 +1019,12 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  private suspend fun readSplashAppearance() = splashAppearanceMutex.withLock {
+  private suspend fun readSplashAppearance() {
+    splashIcons.read()
+    readSplashBackgroundAppearance()
+  }
+
+  private suspend fun readSplashBackgroundAppearance() = splashAppearanceMutex.withLock {
     val service = FrameworkConnection.service.value ?: return@withLock
     if (!framework.value.splashAppearanceInScope() || splashAppearance.value.saving ||
       splashAppearance.value.saveFailed) return@withLock
@@ -1199,18 +1209,45 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun applyColorOs(inspiration: Boolean = false) {
+    if (iconPacks.value.let { it.preparing || it.nativeImporting != null || it.removing != null }) return
     val selected = preferences.state.value
     val style = if (inspiration) ColorOsStyle.INSPIRATION else selected.colorOsStyle
       .takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
     preferences.setColorOsStyle(style)
     if (style.usesMonet) preferences.setMonetInspiration(true)
     val key = "coloros-${style.artworkKey}-art-${if (style.usesMonet || selected.colorOsArtPlus) "on" else "off"}"
-    val pack = iconPacks.value.packs.firstOrNull { it.pack.builtinKey == key }?.pack ?: return
-    // An ordinary ColorOS component has no palette template, even if another source enables Monet.
-    if (!style.usesMonet) submitMonet(monet.value.snapshot?.customization ?: MonetCustomization(), false)
-    val title = colorOsDisplayName(style, selected.colorOsArtPlus)
-    importNativeIconPack(pack.copy(id = style.importSourceId(pack.id, selected.iconPackAppearance),
-      displayName = title), includePalette = style.usesMonet)
+    fun publish(pack: IconPackDescriptor) {
+      // An ordinary ColorOS component has no palette template.
+      if (!style.usesMonet) submitMonet(monet.value.snapshot?.customization ?: MonetCustomization(), false)
+      importNativeIconPack(pack.copy(id = style.importSourceId(pack.id, selected.iconPackAppearance),
+        displayName = colorOsDisplayName(style, selected.colorOsArtPlus)), includePalette = style.usesMonet)
+    }
+    val loaded = iconPacks.value.packs.map { it.pack }
+    loaded.firstOrNull { it.builtinKey == key }?.let { publish(it); return }
+    iconPacks.update { it.copy(preparing = true, error = null,
+      colorOsProgress = os.kei.hyper.home.iconpack.ColorOsGenerationProgress(
+        os.kei.hyper.home.iconpack.ColorOsGenerationStage.APPLICATIONS)) }
+    val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+      try {
+        val pack = os.kei.hyper.home.iconpack.resolveBuiltinIconPack(key, loaded, packRepository::listBuiltins)
+          ?: throw os.kei.hyper.home.iconpack.IconPackException(
+            getApplication<Application>().getString(R.string.pack_local_unavailable))
+        ensureActive()
+        iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
+        publish(pack)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (failure: Exception) {
+        iconPacks.update { it.copy(error = failure.message.orEmpty()) }
+      } finally {
+        if (iconPackPreparationJob === currentCoroutineContext()[Job]) {
+          iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
+          iconPackPreparationJob = null
+        }
+      }
+    }
+    iconPackPreparationJob = job
+    job.start()
   }
 
   private fun colorOsDisplayName(style: ColorOsStyle, art: Boolean): String =

@@ -12,6 +12,8 @@ import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
 import os.kei.hyper.home.ui.components.CenteredLinkAction
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true) {
@@ -20,6 +22,11 @@ internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean,
 
 @Composable
 internal fun NativeThemeButton(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true) {
+  if (report.convertedReady == false) {
+    Text(stringResource(R.string.pack_local_apply_unavailable),
+      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    return
+  }
   val context = LocalContext.current
   val label = stringResource(if (autoApply) R.string.pack_action_view else R.string.pack_apply_native)
   val open = {

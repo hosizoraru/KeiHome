@@ -11,6 +11,25 @@ import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.StoredIconPack
 
 class IconPackCatalogSortTest {
+  @Test fun progressUpdatesNeverTraversePackMappingsAndReplacementSnapshotsRemainVisible() {
+    val mappings = object : AbstractList<os.kei.hyper.home.iconpack.IconPackEntry>() {
+      override val size: Int get() = 100_000
+      override fun get(index: Int): os.kei.hyper.home.iconpack.IconPackEntry =
+        error("UI state comparison must not inspect catalog mappings")
+    }
+    val descriptor = IconPackDescriptor("large", "Large", IconPackFormat.INSTALLED_APK,
+      IconPackSource.Installed("org.example.large", 1, 1), mappings)
+    val first = IconPackCardData(descriptor, 10, emptyList())
+    assertEquals(first, first.copy())
+    assertEquals(first.hashCode(), first.copy().hashCode())
+    org.junit.Assert.assertNotEquals(first, first.copy(matchedApps = 11))
+    org.junit.Assert.assertNotEquals(first, first.copy(pack = descriptor.copy()))
+    val old = IconPacksUiState(packs = listOf(first))
+    org.junit.Assert.assertNotEquals(old, old.copy(preparing = true))
+    org.junit.Assert.assertNotEquals(old,
+      old.copy(packs = listOf(first.copy(pack = descriptor.copy()))))
+  }
+
   private fun installed(id: String, label: String, updated: Long, matches: Int) = IconPackCardData(
     IconPackDescriptor(id, label, IconPackFormat.INSTALLED_APK,
       IconPackSource.Installed("org.example.$id", 1, updated), emptyList()), matches, emptyList())
@@ -53,6 +72,9 @@ class IconPackCatalogSortTest {
     assertEquals(receipt, pendingNativeApplication(ready, "old"))
     assertEquals(null, pendingNativeApplication(ready, "new"))
     assertEquals(null, pendingNativeApplication(ready, null))
+    assertNull(pendingNativeApplication(ready.copy(nativeResult = receipt.copy(convertedReady = false)), "old"))
+    assertEquals(receipt.copy(convertedReady = true),
+      pendingNativeApplication(ready.copy(nativeResult = receipt.copy(convertedReady = true)), "old"))
     listOf("FAILED", "UNSUPPORTED", "UNCERTAIN", "IMPORTING").forEach {
       assertEquals(null, pendingNativeApplication(ready.copy(nativeResult = receipt.copy(status = it)), "old"))
     }

@@ -22,7 +22,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   val inspiration = preferences.monetInspiration ?:
     (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
       runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
-  val update = page == 3 && (section == "home" || section == "fallback")
+  val update = page == 3 && (section == "home" || section == "fallback" || section == "fallback-settings")
   val generate = page == 3 && section == "coloros"
   val busy = state.nativeImporting != null
   // Read the observed report before the early return so a later source discovery shows the FAB.

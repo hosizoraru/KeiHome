@@ -82,8 +82,12 @@ private fun DesktopIconSettings(model: HomeViewModel, feature: DesktopFeature) {
   val framework by model.framework.collectAsStateWithLifecycle()
   val effects by model.themeEffects.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
+  val splashIcons by model.splashIcons.state.collectAsStateWithLifecycle()
   when (feature) {
     DesktopFeature.ICON_EFFECTS -> ThemeEffectsCard(effects, framework, model::setPreserveSystemMaterials, showStatus = false)
+    DesktopFeature.SPLASH_ICONS -> SplashIconSettingsCard(splashIcons, framework.splashAppearanceInScope(),
+      model.splashIcons::save, showStatus = false,
+      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     DesktopFeature.SPLASH -> SplashAppearanceSettingsCard(splash, framework.splashAppearanceInScope(),
       model::setSplashAppearance, showStatus = false,
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)

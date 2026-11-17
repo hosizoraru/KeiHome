@@ -14,5 +14,5 @@
     <string name="monet_page_help">按分类调整草稿，返回概览时会保留修改。先预览深浅色效果，再点击应用。刷新只读取当前系统状态，不会应用草稿。</string>
     <string name="monet_help_title">Monet 使用说明</string>
     <string name="monet_help_apply_note">“应用配色”会保存当前配色，不会改变 Monet 开关。关闭时图标保持原来的显示，开启后使用已保存的配色。整个界面共用一个“应用配色”悬浮按钮。</string>
-    <string name="monet_help_inspiration_note">图标明暗与 ColorOS 灵感外观等设置可能需要重新生成图标包。可在“ColorOS 图标细节”中安装灵感图标，这与应用配色是独立操作。</string>
+    <string name="monet_help_inspiration_note">图标明暗与未适配图标取色补全等设置需要重新生成图标包。可直接在 Monet 主页面安装灵感图标；安装图标包、应用配色和开启 Monet 是独立操作。</string>
 </resources>

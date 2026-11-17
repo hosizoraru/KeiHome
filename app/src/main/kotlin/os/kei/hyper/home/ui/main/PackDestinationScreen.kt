@@ -35,6 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -96,6 +97,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   val prefs by model.preferences.state.collectAsStateWithLifecycle()
+  val builtin = section == "builtin" || section == "coloros"
+  var builtinTab by rememberSaveable(section) { mutableIntStateOf(if (section == "coloros") 1 else 0) }
+  val contentSection = if (builtin) {
+    if (builtinTab == 1) "coloros" else "builtin"
+  } else section
   var filterStatus by rememberSaveable(section) { mutableIntStateOf(0) }
   var filterMatches by rememberSaveable(section) { mutableIntStateOf(0) }
   val filter = IconPackCatalogFilter(
@@ -103,6 +109,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     IconPackCatalogMatches.entries.getOrElse(filterMatches) { IconPackCatalogMatches.ALL },
   )
   val fallback = section == "fallback"
+  val fallbackSettings = section == "fallback-settings"
   val fileImport = section == "installed" || section == "imported"
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -112,12 +119,14 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       coroutineScope {
         launch { model.observePage(3, locales) }
-        if (fallback) model.observeFallbackResources(pageObserved = true)
+        if (fallback || fallbackSettings) model.observeFallbackResources(pageObserved = true)
       }
     }
   }
   val behavior = MiuixScrollBehavior()
   val list = rememberLazyListState()
+  val hyperOsList = rememberLazyListState()
+  val colorOsList = rememberLazyListState()
   val scope = rememberCoroutineScope()
   val updateFilter: (IconPackCatalogFilter) -> Unit = {
     filterStatus = it.status.ordinal
@@ -131,17 +140,18 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(title = stringResource(when (section) {
           "library" -> R.string.icon_pack_library
-          "builtin" -> R.string.pack_builtin
+          "builtin", "coloros" -> R.string.pack_builtin
           "installed" -> R.string.pack_installed
           "imported" -> R.string.pack_imported
           "fallback" -> R.string.pack_completion_title
+          "fallback-settings" -> R.string.icon_fallback_title
           else -> R.string.pack_coloros_title
         }), scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           } }, actions = {
-            when (section) {
+            when (contentSection) {
               "installed", "imported" -> PackHelpAction(
                 notes = packListGuidance(prefs.iconPackAppearance) +
                   if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList(),
@@ -158,15 +168,31 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
       }
     }, floatingActionButton = {
       if (fileImport) PackFileImportAction(model, section, onHeightChanged = { actionHeight = it })
-      else PackActionFab(model, 3, section, onHeightChanged = { actionHeight = it })
+      else PackActionFab(model, 3, contentSection, onHeightChanged = { actionHeight = it })
     },
   ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() +
-          if (section == "coloros" || fallback || fileImport) actionBottomPadding else 24.dp)
+          if (contentSection == "coloros" || fallback || fallbackSettings || fileImport) actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
-      if (fallback) {
+      if (builtin) {
+        Column(contentModifier.padding(top = insets.calculateTopPadding() + 4.dp)) {
+          Os4ViewTabs(listOf("HyperOS", "ColorOS"), builtinTab, { builtinTab = it },
+            Modifier.padding(horizontal = 16.dp).testTag("icon-packs.builtin.tabs"))
+          IconPacksPage(model, if (builtinTab == 1) colorOsList else hyperOsList,
+            PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp,
+              bottom = padding.calculateBottomPadding()),
+            Modifier.fillMaxWidth().weight(1f), contentSection, onNavigate)
+        }
+      } else if (fallbackSettings) {
+        Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
+          verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          IconFallbackOrderCard(model)
+          SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
+          IconPackRefreshFeedback(model)
+        }
+      } else if (fallback) {
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
@@ -186,7 +212,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               modifier = Modifier.testTag("icon-packs.open-recommended-mappings"),
               onClick = { onNavigate("recommended-mappings") })
           }
-          SystemIconFallbackCard(model, onOpenPerfectIcons = onNavigate)
+          IconFallbackSettingsEntry(onNavigate)
           IconPackRefreshFeedback(model)
         }
       } else if (fileImport) {

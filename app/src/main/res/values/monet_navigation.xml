@@ -14,5 +14,5 @@
     <string name="monet_page_help">Choose a category to edit your draft. Returning to the overview keeps your changes. Preview both appearances, then tap Apply. Refresh reads the current system state without applying your draft.</string>
     <string name="monet_help_title">Monet help</string>
     <string name="monet_help_apply_note">Apply colors saves the palette without changing the Monet switch. If Monet is off, icons keep their current appearance; enabling Monet uses the saved palette. The floating Apply colors button is shared by the whole page.</string>
-    <string name="monet_help_inspiration_note">Icon appearance and ColorOS inspiration options may require a new icon pack. Install inspiration icons from ColorOS icon details; this is separate from applying colors.</string>
+    <string name="monet_help_inspiration_note">Icon appearance and coloring unthemed icons require regenerating the icon pack. Install inspiration icons directly on the Monet page; applying colors and enabling Monet are separate operations.</string>
 </resources>

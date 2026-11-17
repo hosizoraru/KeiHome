@@ -65,6 +65,7 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
   val glass by model.launcherGlass.state.collectAsStateWithLifecycle()
   val effects by model.themeEffects.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
+  val splashIcons by model.splashIcons.state.collectAsStateWithLifecycle()
   val refreshes by model.refreshResults.collectAsStateWithLifecycle()
   val now = SystemClock.elapsedRealtime()
   val version = BuildConfig.VERSION_CODE.toLong()
@@ -105,6 +106,9 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
       DesktopFeature.ICON_EFFECTS -> DesktopStatusEntry(feature, R.string.theme_effects_title,
         stringResource(if (effects.savedChoice == true) R.string.dashboard_on else R.string.dashboard_off),
         desktopStoredStatus(effects, framework.themeEffectsInScope(), scopeChecking), true)
+      DesktopFeature.SPLASH_ICONS -> DesktopStatusEntry(feature, R.string.splash_icons_title,
+        stringResource(if (splashIcons.savedChoice == true) R.string.dashboard_on else R.string.dashboard_off),
+        desktopStoredStatus(splashIcons, framework.splashAppearanceInScope(), scopeChecking), true)
       DesktopFeature.SPLASH -> DesktopStatusEntry(feature, R.string.splash_adapt,
         stringResource(if (splash.savedChoice == true) R.string.dashboard_on else R.string.dashboard_off),
         desktopStoredStatus(splash, framework.splashAppearanceInScope(), scopeChecking), true)

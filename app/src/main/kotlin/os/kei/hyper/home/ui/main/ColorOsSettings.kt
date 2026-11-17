@@ -99,15 +99,16 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
       Text(message, modifier = Modifier.testTag("coloros.generation.error")
         .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1)
     }
-    val result = state.nativeResult?.takeIf {
-      it.sourceId == card?.pack?.id?.let { id ->
+    val result = state.nativeResult?.takeIf { !busy }?.takeIf {
+      if (card == null) {
+        it.sourceId.startsWith(style.importSourceId("", preferences.iconPackAppearance))
+      } else it.sourceId == card.pack.id.let { id ->
         preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
       }
     }
-    if (card == null || result != null) Card(Modifier.fillMaxWidth(),
+    if (result != null) Card(Modifier.fillMaxWidth(),
       insideMargin = PaddingValues(if (result?.imported == true) 0.dp else 16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (card == null) Text(stringResource(R.string.pack_local_unavailable))
         if (result?.imported == true) {
           NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
         } else if (result != null) {

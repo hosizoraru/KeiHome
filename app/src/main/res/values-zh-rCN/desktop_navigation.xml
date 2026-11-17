@@ -7,5 +7,5 @@
     <string name="desktop_display_title">搜索与文字</string>
     <string name="desktop_display_summary">搜索栏质感与应用名称</string>
     <string name="desktop_icons_title">图标与启动</string>
-    <string name="desktop_icons_summary">图标遮罩特效与启动背景</string>
+    <string name="desktop_icons_summary">图标材质、启动图标与背景</string>
 </resources>

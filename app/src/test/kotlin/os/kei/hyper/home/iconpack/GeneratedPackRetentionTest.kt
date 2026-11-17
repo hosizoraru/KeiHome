@@ -138,7 +138,7 @@ class GeneratedPackRetentionTest {
 
   private fun archive(name: String): ByteArray = ByteArrayOutputStream().also { buffer ->
     ZipOutputStream(buffer).use { zip ->
-      zip.putNextEntry(ZipEntry("res/drawable-xxhdpi/org.example.$name.png"))
+      zip.putNextEntry(ZipEntry("res/drawable-xxhdpi/org.example.$name.png").apply { time = 0L })
       zip.write(Base64.getDecoder().decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aH2kAAAAASUVORK5CYII="))
       zip.closeEntry()

@@ -60,6 +60,7 @@ internal fun SettingsContent(
   launcherLabelsContent: @Composable () -> Unit,
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
+  splashIconsContent: @Composable () -> Unit = {},
   searchGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
@@ -123,6 +124,7 @@ internal fun SettingsContent(
     R.string.dock_glass_offset_title, R.string.dock_glass_offset_summary,
     R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
+  val splashIconsVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_icons_title, R.string.splash_icons_summary, R.string.splash_icons_help)
   val splashVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
@@ -146,7 +148,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -226,6 +228,7 @@ internal fun SettingsContent(
       if (labels) launcherLabelsContent()
       if (dockGlass) dockGlassContent()
     }
+    if (splashIconsVisible) splashIconsContent()
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     if (autoApply || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {

@@ -91,6 +91,8 @@ class DesktopNavigationTest {
         else -> {
           rule.onNodeWithTag("theme-effects.switch").assertExists()
           rule.onNodeWithTag("splash-appearance.switch").assertExists()
+          rule.onNodeWithTag("splash-icons.switch").assertExists()
+          rule.onNodeWithTag("splash-icons.help.open").assertExists()
           rule.onNodeWithTag("dock-glass.switch").assertDoesNotExist()
         }
       }

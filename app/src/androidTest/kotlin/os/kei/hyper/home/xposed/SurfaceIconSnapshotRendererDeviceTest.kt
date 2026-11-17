@@ -5,7 +5,11 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
@@ -19,6 +23,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.iconpack.IconMaskPolicy
+import os.kei.hyper.home.iconpack.LayerGeometryAssertions
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeColorOsDynamicIcon
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
@@ -215,6 +220,54 @@ class SurfaceIconSnapshotRendererDeviceTest {
         val icon = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, false, Locale.US, 0))
         try { assertDiamond(icon, Color.CYAN) } finally { icon.recycle() }
       }
+    }
+  }
+
+  @Test fun nativePairsOutrankFlatAliasesAndMatchFrameworkChildGeometry() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    for (dark in listOf(false, true)) {
+      val prefix = if (dark) "nightmode/" else ""
+      val mark = marker(Color.RED, 80, 80, 112, 112, size = 192)
+      val entries = mapOf(
+        "${prefix}res/drawable-xxhdpi/$name.png" to png(Color.BLUE, size = 192),
+        "${prefix}res/drawable-xxhdpi/$name/0.png" to png(Color.YELLOW, size = 192),
+        "${prefix}res/drawable-xxhdpi/$name/1.png" to mark)
+      val foreground = requireNotNull(BitmapFactory.decodeByteArray(mark, 0, mark.size))
+      val expected = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+      try {
+        val native = AdaptiveIconDrawable(ColorDrawable(Color.YELLOW),
+          BitmapDrawable(context.resources, foreground).apply { isFilterBitmap = true })
+        native.bounds = Rect(0, 0, 192, 192)
+        Canvas(expected).also { native.background.draw(it); native.foreground.draw(it) }
+        archive(configured(entries, square)) { zip ->
+          val actual = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, dark, Locale.US, 0))
+          try { LayerGeometryAssertions.assertNative(expected, actual, "surface-native-$dark") }
+          finally { actual.recycle() }
+        }
+      } finally { foreground.recycle(); expected.recycle() }
+    }
+  }
+
+  @Test fun completedPaletteMasksAndQuietLayersKeepTheirAuthoredPixelPositions() {
+    val mark = marker(Color.BLACK, 80, 80, 112, 112, size = 192)
+    val root = "layer_animating_icons/$name/"
+    val quiet = mapOf(
+      root + "config.xml" to """<Config><Variables><Variable name="layer0" value="bg"/><Variable name="layer1" value="fg"/></Variables></Config>""".toByteArray(),
+      root + "bg/quiet/quietImage.png" to png(Color.YELLOW, size = 192),
+      root + "fg/quiet/quietImage.png" to mark,
+      "res/drawable-xxhdpi/$name/0.png" to png(Color.BLUE, size = 192),
+      "res/drawable-xxhdpi/$name/1.png" to png(Color.TRANSPARENT, size = 192),
+      "res/drawable-xxhdpi/$name.png" to png(Color.CYAN, size = 192))
+    val palette = NativePaletteIcon.entries(name, png(Color.RED, size = 192),
+      png(Color.BLUE, size = 192), mark, mark)
+    for (entries in listOf(quiet, palette)) archive(configured(entries, square)) { zip ->
+      val actual = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, false, Locale.US, 0,
+        NativePaletteIcon.packedState(Color.GREEN, Color.YELLOW)))
+      try {
+        val ink = if (entries === quiet) Color.BLACK else Color.GREEN
+        val row = (0 until 192).filter { actual.getPixel(it, 96) == ink }
+        assertEquals((80 until 112).toList(), row)
+      } finally { actual.recycle() }
     }
   }
 

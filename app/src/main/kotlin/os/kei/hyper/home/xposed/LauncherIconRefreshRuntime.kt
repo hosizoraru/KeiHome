@@ -94,6 +94,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     },
     requestPreferences = { xposed.getRemotePreferences(MonetAction.GROUP) },
     statusPreferences = { xposed.getRemotePreferences(RuntimeStatusProtocol.GROUP) },
+    onStatusDiagnostic = { message -> xposed.log(Log.INFO, TAG, "Runtime status: $message") },
     refreshReceipt = { lastRefreshReceipt },
     themePreferences = { xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP) },
     onThemeMaterialsChanged = {

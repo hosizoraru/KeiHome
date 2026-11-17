@@ -84,6 +84,24 @@ class ConvertedIconArchiveTest {
     }
   }
 
+  @Test fun fallbackPaletteRequiresExplicitGenericColoringAndCompleteNightResources() {
+    val fallback = os.kei.hyper.home.iconpack.SystemIconFallbackManifest(
+      os.kei.hyper.home.data.SystemIconFallback.DEFAULT, setOf("com.example")).encode()
+    val generationPath = os.kei.hyper.home.iconpack.IconGenerationManifest.PATH
+    val palette = generatedPalette()
+    val complete = palette + (night to palette.getValue("fancy_icons/com.example/night.png")) +
+      (os.kei.hyper.home.iconpack.SystemIconFallbackManifest.PATH to fallback)
+    for (enabled in listOf(false, true)) {
+      val contents = complete + (generationPath to os.kei.hyper.home.iconpack.IconGenerationManifest(
+        schemaVersion = 11, monetUnadaptedIcons = enabled).encode())
+      if (enabled) withArchive(zip(contents)) { ConvertedIconArchive.inspect(it, "CONVERTED_CLASSIC_ZIP") }
+      else rejects(zip(contents))
+    }
+    rejects(zip(complete))
+    rejects(zip((complete - night) + (generationPath to os.kei.hyper.home.iconpack.IconGenerationManifest(
+      schemaVersion = 11, monetUnadaptedIcons = true).encode())))
+  }
+
   @Test fun acceptsUnicodeDottedComponents() {
     withArchive(icons("com.示例.活动")) { ConvertedIconArchive.inspect(it, "CONVERTED_APK") }
   }

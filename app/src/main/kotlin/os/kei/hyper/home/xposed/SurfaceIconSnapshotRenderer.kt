@@ -26,6 +26,7 @@ import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeLayerConfig
+import os.kei.hyper.home.iconpack.NativeLayerViewport
 import os.kei.hyper.home.iconpack.validNativeIconName
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 
@@ -126,7 +127,7 @@ internal object SurfaceIconSnapshotRenderer {
         input.readNBytes(limit + 1).also { require(it.size <= limit) }
       }
     }
-    fun image(path: String): Bitmap? = bytes(path)?.let(::decode)
+    fun image(path: String): Bitmap? = bytes(path)?.let { decode(it) }
     var root = "fancy_icons/$name/"
     var manifest = bytes(root + "manifest.xml", 64 * 1024)
     if (manifest == null && packageName != null && packageName != name) {
@@ -188,47 +189,54 @@ internal object SurfaceIconSnapshotRenderer {
         }
       }
     }
-    fun composite(paths: List<String>): Bitmap? {
+    fun composite(paths: List<String>, nativeLayers: Boolean = false): Bitmap? {
       if (paths.isEmpty() || paths.size > NativeLayerConfig.MAX_LAYERS) return null
       if (paths.any { zip.getEntry(it) == null }) return null
       val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
       try {
         val canvas = Canvas(result)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val output = Rect(0, 0, SIZE, SIZE)
+        val bounds = if (nativeLayers) NativeLayerViewport.bounds(output) else output
         for (path in paths) {
-          val bitmap = image(path) ?: run { result.recycle(); return null }
-          try { canvas.drawBitmap(bitmap, 0f, 0f, paint) } finally { bitmap.recycle() }
+          val bitmap = (if (nativeLayers) bytes(path)?.let {
+            decode(it, bounds.width(), keepTexture = true)
+          } else image(path)) ?: run { result.recycle(); return null }
+          try { canvas.drawBitmap(bitmap, null, bounds, paint) } finally { bitmap.recycle() }
         }
         return result
       } catch (failure: Throwable) { result.recycle(); throw failure }
     }
     // A layer set must be complete in one appearance; never mix day and night layers.
     for (prefix in if (dark) listOf("nightmode/", "") else listOf("")) {
-      image("${prefix}res/drawable-xxhdpi/$name.png")?.let { return it }
-      composite(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" })
-        ?.let { return it }
       val base = "${prefix}layer_animating_icons/$name/"
-      val config = bytes(base + "config.xml", 64 * 1024) ?: continue
-      val layers = try {
-        NativeLayerConfig.parse(config, IconPackLimits(maxXmlBytes = 64 * 1024), check).layers
-      } catch (_: Exception) { continue }
-      // Quiet assets are declared snapshots. Do not execute source layer animations.
-      image(base + "quiet/quietImage.png")?.let { return it }
-      composite(layers.map { base + it + "/quiet/quietImage.png" })?.let { return it }
+      bytes(base + "config.xml", 64 * 1024)?.let { config ->
+        val layers = try {
+          NativeLayerConfig.parse(config, IconPackLimits(maxXmlBytes = 64 * 1024), check).layers
+        } catch (_: Exception) { null }
+        if (layers != null) {
+          // Quiet assets are completed snapshots, independent of native texture bounds.
+          image(base + "quiet/quietImage.png")?.let { return it }
+          composite(layers.map { base + it + "/quiet/quietImage.png" })?.let { return it }
+        }
+      }
+      composite(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" }, nativeLayers = true)
+        ?.let { return it }
+      image("${prefix}res/drawable-xxhdpi/$name.png")?.let { return it }
     }
     return null
   }
 
-  private fun decode(bytes: ByteArray): Bitmap? {
+  private fun decode(bytes: ByteArray, size: Int = SIZE, keepTexture: Boolean = false): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     if (bounds.outWidth !in 1..4096 || bounds.outHeight !in 1..4096) return null
     var sample = 1
-    while (bounds.outWidth / sample > SIZE * 2 || bounds.outHeight / sample > SIZE * 2) sample *= 2
+    while (bounds.outWidth / sample > size * 2 || bounds.outHeight / sample > size * 2) sample *= 2
     val source = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
       BitmapFactory.Options().apply { inSampleSize = sample; inScaled = false }) ?: return null
-    return if (source.width == SIZE && source.height == SIZE) source else {
-      try { Bitmap.createScaledBitmap(source, SIZE, SIZE, true) } finally { source.recycle() }
+    return if (keepTexture || source.width == size && source.height == size) source else {
+      try { Bitmap.createScaledBitmap(source, size, size, true) } finally { source.recycle() }
     }
   }
 

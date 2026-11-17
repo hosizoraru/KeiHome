@@ -3,6 +3,8 @@ package os.kei.hyper.home.xposed
 import android.content.pm.ApplicationInfo
 import android.graphics.drawable.Icon
 import android.graphics.drawable.Drawable
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.widget.ImageView
 import java.lang.ref.WeakReference
 import os.kei.hyper.home.iconpack.validDottedName
@@ -31,7 +33,7 @@ internal class SystemUiAppIconBindings {
   private val views = ArrayList<Binding>()
 
   @Synchronized fun remember(icon: Any, name: String) {
-    require(icon is Icon || icon is Drawable)
+    require(icon is Icon || icon is Drawable || icon is Bitmap)
     tokens.removeAll { it.icon.get() == null || it.icon.get() === icon }
     if (tokens.size >= 96) tokens.removeAt(0)
     tokens += Token(icon, name)
@@ -40,6 +42,11 @@ internal class SystemUiAppIconBindings {
   @Synchronized fun rememberLoaded(icon: Icon, drawable: Drawable) {
     val name = tokens.firstOrNull { it.icon.get() === icon }?.name ?: return
     remember(drawable, name)
+  }
+
+  @Synchronized fun rememberCreated(bitmap: Bitmap, icon: Icon) {
+    val name = tokens.firstOrNull { it.icon.get() === bitmap }?.name ?: return
+    remember(icon, name)
   }
 
   @Synchronized fun bindNative(view: ImageView, cached: Drawable, name: String): Binding? {
@@ -56,7 +63,11 @@ internal class SystemUiAppIconBindings {
 
   @Synchronized fun bind(view: ImageView, icon: Any?): Binding? {
     views.removeAll { it.view.get() == null || it.view.get() === view }
-    val name = tokens.firstOrNull { it.icon.get() === icon && icon != null }?.name ?: return null
+    val bitmap = (icon as? BitmapDrawable)?.bitmap
+    val name = tokens.firstOrNull {
+      val known = it.icon.get()
+      known != null && (known === icon || bitmap != null && known === bitmap)
+    }?.name ?: return null
     if (views.size >= 64) views.removeAt(0)
     return Binding(view, name).also { views += it }
   }

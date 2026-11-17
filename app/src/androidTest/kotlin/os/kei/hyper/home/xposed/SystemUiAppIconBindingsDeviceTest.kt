@@ -18,6 +18,32 @@ class SystemUiAppIconBindingsDeviceTest {
   private fun onMain(block: () -> Unit) =
     InstrumentationRegistry.getInstrumentation().runOnMainSync(block)
 
+  @Test fun authenticatedBitmapSurvivesWrappersButUnrelatedCopiesClearTheBinding() = onMain {
+    val bitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
+    val copy = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+    try {
+      val context = InstrumentationRegistry.getInstrumentation().targetContext
+      val bindings = SystemUiAppIconBindings()
+      val view = ImageView(context)
+      bindings.remember(bitmap, "os.kei")
+      assertEquals("os.kei", requireNotNull(bindings.bind(view, bitmap)).name)
+      assertEquals("os.kei", requireNotNull(bindings.bind(view,
+        android.graphics.drawable.BitmapDrawable(context.resources, bitmap))).name)
+      val icon = Icon.createWithBitmap(bitmap)
+      bindings.rememberCreated(bitmap, icon)
+      val drawable = requireNotNull(icon.loadDrawable(context))
+      bindings.rememberLoaded(icon, drawable)
+      val bound = requireNotNull(bindings.bind(view, drawable))
+      assertEquals("os.kei", bound.name)
+      assertNull(bindings.bind(view, copy))
+      assertNull(bindings.current(bound))
+      assertNull(bindings.bind(view, android.graphics.drawable.BitmapDrawable(context.resources, copy)))
+      val unrelated = Icon.createWithBitmap(copy)
+      bindings.rememberCreated(copy, unrelated)
+      assertNull(bindings.bind(view, unrelated))
+    } finally { bitmap.recycle(); copy.recycle() }
+  }
+
   @Test fun frameworkApplicationInfoFallbackRequiresMatchingUserUidAndCustomOwner() {
     fun info(name: String = "os.kei", uid: Int = 10123) = ApplicationInfo().apply {
       packageName = name

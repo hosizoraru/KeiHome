@@ -63,3 +63,30 @@ observations cover the owned template fixture, not every media/custom template.
 The task artifact directory `super-island-audit` contains exact APK provenance,
 DEX queries/disassembly and targeted decompilations. `island-qa-runtime`
 retains the fixture attempts and outcomes, including failed attempts.
+
+## November 16: Monet replay and Market identity pictures
+
+The shared SystemUI bindings retain authenticated Bitmap provenance as well as
+Icon and Drawable provenance. Bitmap-to-Icon and Icon-to-Drawable wrappers keep
+that identity; a BitmapDrawable is accepted only when it wraps the exact
+authenticated bitmap. An unrelated copy or a view rebound to content artwork
+clears the old association.
+
+Cross-surface caches observe the committed packed palette setting and secure
+night-mode setting on their existing workers. Duplicate palette commits are
+coalesced. The same invalidation and retained-view replay serve notification
+rows, folded thumbnails and authenticated island application icons.
+
+The installed Market producer's `MarketIslandManager.getPicBundle` demonstrates
+an additional application-identity role: `pic_app_icon_small_island` and
+`pic_app_icon_big_island` are scaled copies of its own PackageManager application
+icon. These two slots from the current user's `com.xiaomi.market` island enter
+the shared bindings through the installed plugin's
+`BaseIslandModuleViewHolder.getBitmapBundle` accessor. No notification bundle is
+modified. This is a bounded producer-specific interpretation, not permission to
+recolor every template picture or every key containing "icon".
+
+Market's plain `pic_app_icon` is artwork for the app being downloaded and stays
+untouched. Installation-success marks, monochrome AOD images, other issuers and
+other users stay outside this rule. The plugin adapter is optional and the
+native accessor executes even when compatibility lookup is unavailable.

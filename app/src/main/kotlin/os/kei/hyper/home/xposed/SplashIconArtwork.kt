@@ -1,0 +1,239 @@
+package os.kei.hyper.home.xposed
+
+import android.app.UiModeManager
+import android.content.Context
+import android.content.ComponentCallbacks
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.graphics.Bitmap
+import android.database.ContentObserver
+import android.graphics.Color
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.InsetDrawable
+import android.os.SystemClock
+import android.os.Trace
+import android.os.Looper
+import android.os.Handler
+import android.provider.Settings
+import android.util.Log
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
+import java.util.Locale
+import java.util.TimeZone
+import java.util.zip.ZipFile
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.NativePaletteIcon
+import os.kei.hyper.home.iconpack.OriginalAppIcons
+import os.kei.hyper.home.iconpack.nativeLauncherActivityName
+
+/** Uses the same published icon archive and renderer as other SystemUI icon surfaces. */
+internal class SplashIconArtwork(private val maintenance: () -> Unit) {
+  data class Result(val bitmap: Bitmap?, val cache: String)
+  private data class Source(val fileKey: Any?, val size: Long, val modified: FileTime)
+  private data class Key(
+    val component: IconPackComponent, val uid: Int, val apk: String?,
+    val icon: Int, val dark: Boolean, val locale: Locale, val palette: Long, val timeZone: String,
+  )
+  private val file = File("/data/system/theme/icons")
+  private val lock = Any()
+  private val snapshots = SplashSnapshotCache<Key, Bitmap>()
+  private var source: Source? = null
+  private var archive: ZipFile? = null
+  private var retryAt = 0L
+  private var warned = false
+  private var closed = false
+  private val configurationRevision = AtomicLong()
+  private var cachedNightMode: Pair<Long, Int?>? = null
+  private var callbackContext: Context? = null
+  private val trimRequested = AtomicBoolean()
+  private val callbacks = object : ComponentCallbacks {
+    override fun onConfigurationChanged(newConfig: Configuration) {
+      configurationRevision.incrementAndGet()
+      maintenance()
+    }
+    override fun onLowMemory() {
+      trimRequested.set(true)
+      maintenance()
+    }
+  }
+  private val nightModeObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+    override fun onChange(selfChange: Boolean) {
+      configurationRevision.incrementAndGet()
+      maintenance()
+    }
+  }
+
+  private fun source(): Source? {
+    val attrs = try {
+      Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+    } catch (_: java.nio.file.NoSuchFileException) { return null }
+    return if (attrs.isRegularFile && attrs.size() in 1..(1024L * 1024 * 1024))
+      Source(attrs.fileKey(), attrs.size(), attrs.lastModifiedTime()) else null
+  }
+
+  private fun archive(now: Long): ZipFile? {
+    val stamp = source()
+    if (stamp != source) {
+      clearLocked()
+      source = stamp
+    }
+    if (stamp == null || now < retryAt) return null
+    return archive ?: traced("KeiHomeSplash/archive") {
+      ZipFile(file).also { archive = it }
+    }
+  }
+
+  /** Called by existing owned initialization work, never by the SystemUI main thread. */
+  fun prepare(context: Context?) = synchronized(lock) {
+    if (!closed) safely {
+      if (trimRequested.getAndSet(false)) {
+        clearLocked()
+        return@safely
+      }
+      if (callbackContext == null && context != null) {
+        val application = context.applicationContext ?: context
+        application.registerComponentCallbacks(callbacks)
+        try {
+          // HyperOS can keep SystemUI's own configuration pinned across a global toggle.
+          application.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor("ui_night_mode"), false, nightModeObserver)
+        } catch (failure: Exception) {
+          application.unregisterComponentCallbacks(callbacks)
+          throw failure
+        }
+        callbackContext = application
+      }
+      archive(SystemClock.uptimeMillis())
+      if (context != null) nightMode(context)
+      Unit
+    }
+  }
+
+  private fun nightMode(context: Context): Int? {
+    val revision = configurationRevision.get()
+    cachedNightMode?.takeIf { it.first == revision }?.let { return it.second }
+    return traced("KeiHomeSplash/night-mode") {
+      (context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.nightMode
+    }.also { cachedNightMode = revision to it }
+  }
+
+  private fun unregister() {
+    callbackContext?.let {
+      it.contentResolver.unregisterContentObserver(nightModeObserver)
+      it.unregisterComponentCallbacks(callbacks)
+    }
+    callbackContext = null
+  }
+
+  fun clear() = synchronized(lock) {
+    unregister()
+    clearLocked()
+  }
+
+  fun close() = synchronized(lock) {
+    closed = true
+    unregister()
+    clearLocked()
+  }
+
+  private fun clearLocked() {
+    snapshots.clear()
+    try { archive?.close() } catch (failure: java.io.IOException) {
+      Log.w("KeiHomeSplashIcon", "Closing the retired icon archive failed", failure)
+    } finally {
+      archive = null
+      source = null
+      retryAt = 0L
+      warned = false
+      cachedNightMode = null
+    }
+  }
+
+  fun load(context: Context, activity: ActivityInfo, paletteOverride: Long? = null): Result = traced("KeiHomeSplash/lookup") {
+    if (Looper.myLooper() == Looper.getMainLooper()) return@traced Result(null, "main-thread")
+    synchronized(lock) {
+      if (closed) return@synchronized Result(null, "closed")
+      safely {
+        val now = SystemClock.uptimeMillis()
+        val zip = archive(now) ?: return@safely Result(null, "unavailable")
+        val config = context.resources.configuration
+        val mode = nightMode(context)
+        val dark = when (mode) {
+          UiModeManager.MODE_NIGHT_YES -> true
+          UiModeManager.MODE_NIGHT_NO -> false
+          else -> {
+            val global = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            (if (global == Configuration.UI_MODE_NIGHT_UNDEFINED)
+              config.uiMode and Configuration.UI_MODE_NIGHT_MASK else global) == Configuration.UI_MODE_NIGHT_YES
+          }
+        }
+        val component = IconPackComponent(activity.packageName, activity.name)
+        val palette = paletteOverride ?:
+          Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
+        val locale = config.locales[0] ?: Locale.getDefault()
+        val key = Key(component, activity.applicationInfo.uid, activity.applicationInfo.sourceDir,
+          activity.icon, dark, locale, palette, TimeZone.getDefault().id)
+        val wallTime = System.currentTimeMillis()
+        val minute = wallTime / 60_000
+        snapshots.get(key, now, minute)?.let { return@safely Result(it.value, "hit") }
+        var dynamic = false
+        val bitmap = traced("KeiHomeSplash/render") {
+          SurfaceIconSnapshotRenderer.render(zip,
+            nativeLauncherActivityName(component) ?: activity.packageName,
+            dark, locale, wallTime, palette, packageName = activity.packageName,
+            onDynamic = { dynamic = true }, originalIcon = {
+              OriginalAppIcons.render(context, component, SurfaceIconSnapshotRenderer.SIZE, dark)
+            })
+        }
+        // An atomic theme replacement can race the decode. Never publish its old artwork.
+        if (source() != source) {
+          bitmap?.recycle()
+          clearLocked()
+          Result(null, "theme-changed")
+        } else {
+          snapshots.put(key, bitmap, bitmap?.allocationByteCount ?: 0,
+            if (bitmap == null) now + 30_000 else Long.MAX_VALUE,
+            if (dynamic) minute else null)
+          Result(bitmap, "render")
+        }
+      } ?: Result(null, "unavailable")
+    }
+  }
+
+  private inline fun <T> safely(block: () -> T): T? = try {
+    block()
+  } catch (failure: Exception) {
+    // A malformed archive must not be parsed, or logged, on every application launch.
+    retryAt = SystemClock.uptimeMillis() + 1_000
+    if (!warned) {
+      warned = true
+      Log.w("KeiHomeSplashIcon", "Applied icon unavailable; native app icon retained", failure)
+    }
+    null
+  }
+
+  companion object {
+    fun drawable(context: Context, bitmap: Bitmap): Drawable {
+      val extra = AdaptiveIconDrawable.getExtraInsetFraction()
+      // The archive contains a complete icon, not an adaptive foreground layer.
+      // Cancel AdaptiveIconDrawable's expanded layer bounds to preserve its full artwork.
+      val inset = extra / (1f + 2f * extra)
+      return AdaptiveIconDrawable(ColorDrawable(Color.TRANSPARENT),
+        InsetDrawable(BitmapDrawable(context.resources, bitmap), inset))
+    }
+
+    private inline fun <T> traced(name: String, block: () -> T): T {
+      val enabled = Trace.isEnabled()
+      if (enabled) Trace.beginSection(name)
+      return try { block() } finally { if (enabled) Trace.endSection() }
+    }
+  }
+}

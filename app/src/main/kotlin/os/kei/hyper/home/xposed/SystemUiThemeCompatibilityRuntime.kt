@@ -45,6 +45,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val plugins = IdentityHashMap<ClassLoader, PluginInitialization>()
   private val hostInitialization = SystemUiInitialization(::reportInitializationFailure)
   private val bootstrapKey = Any()
+  private val splashArtworkKey = Any()
   private val initializationWork = CoalescingInitializationWork(
     launch = { action -> launchOwned(action = action) },
     reportFailure = { failure ->
@@ -56,6 +57,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val pendingNeutralization = linkedMapOf<Pair<Method, String>, String>()
   private val enabled = AtomicBoolean()
   private val splashEnabled = AtomicBoolean(SplashAppearancePreferences.DEFAULT)
+  private val splashIconsEnabled = AtomicBoolean(SplashAppearancePreferences.ICON_DEFAULT)
   private val materialRevision = AtomicLong(1L)
   private val volumeRevisions = WeakHashMap<Any, Long>()
   private val controlCenterRevisions = WeakHashMap<Any, Long>()
@@ -70,7 +72,16 @@ internal class SystemUiThemeCompatibilityRuntime(
   @Volatile private var splashPreferences: SharedPreferences? = null
   @Volatile private var hostContext: Context? = null
   private var appIconRuntime: SystemUiAppIconRuntime? = null
+  @Volatile private var splashIconRuntime: SplashIconFallbackRuntime? = null
   private val splashPreferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+    if (key == null || key == SplashAppearancePreferences.ICON_KEY) {
+      if (lifecycle.enter()) try {
+        splashIconsEnabled.set(splashPreferenceGuard.run(false) {
+          prefs.getBoolean(SplashAppearancePreferences.ICON_KEY, SplashAppearancePreferences.ICON_DEFAULT)
+        })
+        scheduleSplashArtwork()
+      } finally { lifecycle.leave() }
+    }
     if (key == null || key == SplashAppearancePreferences.KEY) {
       if (lifecycle.enter()) try {
         splashEnabled.set(splashPreferenceGuard.run(false) {
@@ -139,6 +150,7 @@ internal class SystemUiThemeCompatibilityRuntime(
           .also { splashPreferences = it }
         prefs.registerOnSharedPreferenceChangeListener(splashPreferenceListener)
         splashEnabled.set(prefs.getBoolean(SplashAppearancePreferences.KEY, SplashAppearancePreferences.DEFAULT))
+        splashIconsEnabled.set(prefs.getBoolean(SplashAppearancePreferences.ICON_KEY, SplashAppearancePreferences.ICON_DEFAULT))
         true
       }
       if (splashReady) hostInitialization.run("splash hooks") {
@@ -146,6 +158,16 @@ internal class SystemUiThemeCompatibilityRuntime(
           ::reportOptionalFailure).install()
         true
       }
+      if (splashReady) hostInitialization.run("splash icon hooks") {
+        splashIconRuntime?.close()
+        SplashIconFallbackRuntime(xposed, classLoader, lifecycle, splashIconsEnabled, ::replace,
+          ::reportOptionalFailure, ::scheduleSplashArtwork).also {
+            splashIconRuntime = it
+            it.install()
+          }
+        true
+      }
+      if (splashReady) scheduleSplashArtwork()
       // On hot reload the plugin already exists. Read the host's live loader,
       // never create a second loader for the same plugin.
       hostInitialization.run("live plugin discovery") {
@@ -199,6 +221,7 @@ internal class SystemUiThemeCompatibilityRuntime(
         hostContext = context
         context != null
       }
+      scheduleSplashArtwork()
       // Notification icons do not depend on material profiles or their preferences.
       hostInitialization.run("notification icons") {
         val context = hostContext
@@ -447,6 +470,13 @@ internal class SystemUiThemeCompatibilityRuntime(
     }
   }
 
+  private fun scheduleSplashArtwork() {
+    val runtime = splashIconRuntime ?: return
+    initializationWork.submit(splashArtworkKey) {
+      if (splashIconsEnabled.get()) runtime.prepareArtwork(hostContext) else runtime.clearArtwork()
+    }
+  }
+
   /** No parsing, provider access or waiting on a configuration/UI callback. */
   private fun launchOwned(diagnostic: Boolean = false, action: () -> Unit): Boolean {
     if (!lifecycle.enter()) return false
@@ -498,6 +528,8 @@ internal class SystemUiThemeCompatibilityRuntime(
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
         saveState()
+        splashIconRuntime?.close()
+        splashIconRuntime = null
       } catch (failure: Throwable) {
         preferences?.registerOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.registerOnSharedPreferenceChangeListener(splashPreferenceListener)

@@ -11,12 +11,14 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Handler
 import android.os.HandlerThread
+import android.provider.Settings
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.Assert.*
@@ -24,6 +26,34 @@ import org.junit.Test
 
 /** Real worker/ZIP/Bitmap work; no privileged hooks, remote services or user theme changes. */
 class CrossSurfaceIconCacheWorkloadTest {
+  @Test fun committedPaletteObserverRefreshesRetainedIconsWithoutABroadcast() = fixture { file ->
+    val context = RecordingContext()
+    val palette = AtomicLong(0L)
+    val ready = java.util.concurrent.LinkedBlockingQueue<Unit>()
+    val cache = CrossSurfaceIconCache(context, themeFile = file,
+      paletteState = { palette.get() }, onReady = { ready.offer(Unit) })
+    try {
+      cache.start()
+      cache.get(name(0))
+      awaitSettled(cache)
+      val original = requireNotNull(cache.get(name(0)))
+      ready.clear()
+      palette.set(os.kei.hyper.home.iconpack.NativePaletteIcon.packedState(Color.WHITE, Color.RED))
+      context.contentResolver.notifyChange(
+        Settings.System.getUriFor(os.kei.hyper.home.iconpack.NativePaletteIcon.STATE_KEY), null)
+      assertNotNull("Committed settings must notify cache owners without a broadcast",
+        ready.poll(5, TimeUnit.SECONDS))
+      awaitSettled(cache)
+      val refreshed = requireNotNull(cache.get(name(0)))
+      assertNotSame(original, refreshed)
+      ready.clear()
+      context.contentResolver.notifyChange(
+        Settings.System.getUriFor(os.kei.hyper.home.iconpack.NativePaletteIcon.STATE_KEY), null)
+      assertNull("Duplicate commits must not replay unchanged icons", ready.poll(250, TimeUnit.MILLISECONDS))
+      assertSame(refreshed, cache.get(name(0)))
+    } finally { assertTrue(cache.stop()) }
+  }
+
   @Test fun firstSuccessfulInsertionIsUsableAndNeverBecomesANegativeResult() = fixture { file ->
     val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
       paletteState = { 0L }, eagerReload = false)

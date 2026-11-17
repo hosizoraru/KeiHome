@@ -119,6 +119,7 @@ internal object ConvertedIconArchive {
     val fancyNames = HashSet<String>()
     var total = 0L
     var fallback: SystemIconFallbackManifest? = null
+    var genericMonet = false
     ZipFile(file).use { zip ->
       require(zip.size() in 2..20000) { "Converted icon count limit" }
       zip.entries().asSequence().forEach { entry ->
@@ -140,7 +141,8 @@ internal object ConvertedIconArchive {
         total += bytes.size
         if (buildSource) os.kei.hyper.home.iconpack.IconBuildInventory.decodeSource(bytes)
         else if (shape) os.kei.hyper.home.iconpack.NativeIconShapeConfig.validateGenerated(bytes)
-        else if (generation) os.kei.hyper.home.iconpack.IconGenerationManifest.decode(bytes)
+        else if (generation) genericMonet =
+          os.kei.hyper.home.iconpack.IconGenerationManifest.decode(bytes).monetUnadaptedIcons
         else if (metadata) requireNotNull(os.kei.hyper.home.iconpack.IconThemeMetadata.decode(bytes))
         else if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)
         else if (!manifest) validatePng(bytes, 512)
@@ -155,8 +157,8 @@ internal object ConvertedIconArchive {
       }
       require(fallback?.names.orEmpty().all { name ->
         "res/drawable-xxhdpi/$name.png" in names && "nightmode/res/drawable-xxhdpi/$name.png" in names &&
-          "fancy_icons/$name/mask.png" !in names
-      }) { "Fallback provenance must reference existing ordinary icon pairs" }
+          ("fancy_icons/$name/mask.png" !in names || genericMonet)
+      }) { "Fallback provenance must reference complete icon pairs; palette layers require explicit generic coloring" }
     }
     require(names.any { it.startsWith("res/drawable-xxhdpi/") } &&
       names.any { it.startsWith("nightmode/res/drawable-xxhdpi/") }) {

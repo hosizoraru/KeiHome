@@ -9,6 +9,8 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Bitmap
+import android.database.ContentObserver
+import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -57,6 +59,8 @@ internal class CrossSurfaceIconCache(
   private var componentRegistered = false
   private var receiverRegistered = false
   private var paletteReceiverRegistered = false
+  private var settingsObserver: ContentObserver? = null
+  private var observedPalette: Long? = null
   private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)
   private val pending = linkedSetOf<Key>()
   private val misses = hashSetOf<Key>()
@@ -84,13 +88,15 @@ internal class CrossSurfaceIconCache(
         }
         return
       }
-      if (active) invalidate()
+      if (active) {
+        if (intent.action == CrossSurfaceIconEvents.PALETTE_CHANGED) paletteChanged() else invalidate()
+      }
     }
   }
   private val paletteReceiver = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
       if (active && intent.action == CrossSurfaceIconEvents.PALETTE_CHANGED &&
-        sentFromUid == Process.SYSTEM_UID) invalidate()
+        sentFromUid == Process.SYSTEM_UID) paletteChanged()
     }
   }
   private val configuration = object : ComponentCallbacks {
@@ -138,6 +144,22 @@ internal class CrossSurfaceIconCache(
       componentRegistered = true
     }
     register {
+      val paletteUri = Settings.System.getUriFor(NativePaletteIcon.STATE_KEY)
+      val nightUri = Settings.Secure.getUriFor("ui_night_mode")
+      val observer = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+          if (!active) return
+          if (uri == nightUri) invalidate() else paletteChanged()
+        }
+        override fun onChange(selfChange: Boolean) {
+          if (active) paletteChanged()
+        }
+      }
+      context.contentResolver.registerContentObserver(paletteUri, false, observer)
+      settingsObserver = observer
+      context.contentResolver.registerContentObserver(nightUri, false, observer)
+    }
+    register {
       context.registerReceiver(receiver, IntentFilter().apply {
         addAction(Intent.ACTION_CONFIGURATION_CHANGED)
         addAction(Intent.ACTION_DATE_CHANGED)
@@ -153,6 +175,22 @@ internal class CrossSurfaceIconCache(
         context.registerReceiver(paletteReceiver, IntentFilter(CrossSurfaceIconEvents.PALETTE_CHANGED),
           "android.permission.INTERACT_ACROSS_USERS_FULL", handler, Context.RECEIVER_EXPORTED)
         paletteReceiverRegistered = true
+      }
+    }
+  }
+
+  /** Runs on the existing worker; one packed commit invalidates every retained identity. */
+  private fun paletteChanged() {
+    if (!active) return
+    try {
+      val palette = paletteState()
+      if (observedPalette == palette) return
+      observedPalette = palette
+      invalidate()
+    } catch (failure: Exception) {
+      if (!warned) {
+        warned = true
+        Log.w(TAG, "Could not read committed icon palette", failure)
       }
     }
   }
@@ -317,7 +355,7 @@ internal class CrossSurfaceIconCache(
         }
         Appearance(dark,
           config.locales[0] ?: Locale.getDefault(),
-          paletteState())
+          paletteState().also { observedPalette = it })
           .also { appearance = it }
       }
       val name = nativeLauncherActivityName(IconPackComponent(key.name, key.activity)) ?: key.name
@@ -456,6 +494,11 @@ internal class CrossSurfaceIconCache(
         context.unregisterReceiver(paletteReceiver)
         paletteReceiverRegistered = false
       }
+      settingsObserver?.let { observer -> unregister {
+        cleanupStage = "unregister appearance settings observer"
+        context.contentResolver.unregisterContentObserver(observer)
+        settingsObserver = null
+      } }
       synchronized(lock) {
         clearSnapshotsLocked()
         wanted.clear()

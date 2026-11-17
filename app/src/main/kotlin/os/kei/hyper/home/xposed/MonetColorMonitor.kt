@@ -37,6 +37,7 @@ internal class MonetColorMonitor(
   private val onPackageResourcesChanged: (String) -> Unit = {},
   private val onOverlayResourcesChanged: (String) -> Unit = {},
   private val onTimeResourcesChanged: (Boolean) -> Unit = {},
+  private val onStatusDiagnostic: (String) -> Unit = {},
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -87,7 +88,14 @@ internal class MonetColorMonitor(
       if (key == null || key == MonetAction.REQUEST_REVISION || key == MonetAction.REQUEST_USER ||
         key == MonetAction.REFRESH_REVISION || key == MonetAction.REFRESH_USER) request()
     }
-    private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestStatus() }
+    private val statusDiagnostics = java.util.concurrent.atomic.AtomicInteger()
+    private fun statusDiagnostic(message: String) {
+      if (statusDiagnostics.getAndIncrement() < 16) onStatusDiagnostic(message)
+    }
+    private val statusListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+      statusDiagnostic("request notification")
+      requestStatus()
+    }
     private val materialListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
       if (key == null || key == ThemeEffectsPreferences.KEY ||
         key == os.kei.hyper.home.data.LauncherLabelPreferences.KEY ||
@@ -124,6 +132,7 @@ internal class MonetColorMonitor(
       try {
         statusPreferences()?.let { preferences ->
           preferences.registerOnSharedPreferenceChangeListener(statusListener)
+          statusDiagnostic("listener connected fields=" + preferences.all.mapValues { it.value?.javaClass?.simpleName })
           runtimePreferences = preferences
           registrations.own {
             preferences.unregisterOnSharedPreferenceChangeListener(statusListener)
@@ -204,19 +213,26 @@ internal class MonetColorMonitor(
     private val checkStatus = Runnable {
       if (closed) return@Runnable
       try {
-        val request = RuntimeStatusProtocol.readRequest(runtimePreferences) ?: return@Runnable
-        if (request.id == lastStatusRequest || !request.isPending(SystemClock.elapsedRealtime())) return@Runnable
-        val canRun = synchronized(this@Watch) { !closed && synchronizer.start() }
-        if (!canRun) {
-          requestStatus()
+        val request = RuntimeStatusProtocol.readRequest(runtimePreferences) ?: run {
+          statusDiagnostic("request missing fields=" + runtimePreferences?.all?.mapValues { it.value?.javaClass?.simpleName })
           return@Runnable
         }
+        statusDiagnostic("check id=${request.id.take(8)} age=${SystemClock.elapsedRealtime() - request.startedAtElapsed}")
+        if (request.id == lastStatusRequest || !request.isPending(SystemClock.elapsedRealtime())) return@Runnable
+        synchronized(this@Watch) {
+          if (closed) return@Runnable
+          synchronizer.start()
+        }
+        // Report unavailable/draining native workers instead of withholding the status receipt.
         val isCurrent = {
           !closed && !Thread.currentThread().isInterrupted &&
             request.isPending(SystemClock.elapsedRealtime()) &&
             RuntimeStatusProtocol.readRequest(runtimePreferences) == request
         }
-        if (synchronizer.reportRuntimeStatus(context, request, refreshReceipt(), isCurrent)) {
+        val started = SystemClock.elapsedRealtime()
+        val reported = synchronizer.reportRuntimeStatus(context, request, refreshReceipt(), isCurrent)
+        statusDiagnostic("report id=${request.id.take(8)} sent=$reported elapsed=${SystemClock.elapsedRealtime() - started}")
+        if (reported) {
           lastStatusRequest = request.id
         }
       } catch (failure: Exception) {
@@ -225,6 +241,12 @@ internal class MonetColorMonitor(
     }
 
     private val synchronize = Runnable {
+      if (closed) return@Runnable
+      try {
+        connectStatusPreferences()
+      } catch (failure: Exception) {
+        onFailure(failure)
+      }
       val canRun = synchronized(this@Watch) {
         if (closed) return@Runnable
         synchronizer.start()
@@ -233,6 +255,7 @@ internal class MonetColorMonitor(
         // A refused hot reload can leave cancelled native I/O unwinding.
         // Reopen only once that worker is gone, without blocking system hooks.
         if (!canRun) {
+          statusDiagnostic("native worker draining; status listener remains available")
           request()
           return@Runnable
         }

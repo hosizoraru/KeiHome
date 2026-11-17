@@ -43,6 +43,11 @@ internal class SystemUiAppIconRuntime(
 ) {
   @Volatile private var cache: CrossSurfaceIconCache? = null
   @Volatile private var statusBar: SystemUiStatusBarIconRuntime? = null
+  @Volatile private var folded: SystemUiFoldedIconReplay? = null
+  private val foldGuard = SystemUiHookGuard { reportFailure("native folded icon payload", it) }
+  private val foldedRequest = ThreadLocal<Boolean>()
+  private val foldedSources = LinkedHashMap<String, java.lang.ref.WeakReference<Bitmap>>()
+  private var foldedInitialized = false
   @Volatile private var notificationRows: SystemUiNotificationRowReplay? = null
   @Volatile private var island: SystemUiIslandAppIconAdapter? = null
   private val islandLock = Any()
@@ -68,6 +73,7 @@ internal class SystemUiAppIconRuntime(
     try {
       bindings.snapshot().forEach { bound -> guard.run(Unit) { apply(bound) } }
       statusBar?.replay()
+      folded?.request()
       rowGuard.run(Unit) {
         val refreshed = notificationRows?.replay() ?: 0
         if (refreshed > 0) report(Log.INFO, TAG, "Native notification handoff rows refreshed=$refreshed")
@@ -86,6 +92,55 @@ internal class SystemUiAppIconRuntime(
       refreshOnMinute = true, onReady = ::queueReplay)
     cache = iconCache
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
+    foldGuard.run(Unit) {
+      val native = SystemUiFoldedIconProfile.resolve(context, profile.bitmap.declaringClass)
+      report(Log.INFO, TAG, "Native folded icon graph verified; existing-owner lookup=${native.discoversExisting}")
+      folded = SystemUiFoldedIconReplay(main) {
+        if (!stopped && lifecycle.enter()) try {
+          foldGuard.run(Unit) {
+            val dependencies = synchronized(foldedSources) { foldedSources.toMap() }
+            if (foldedInitialized && dependencies.none { (name, previous) ->
+              cache?.get(name)?.let { !it.isRecycled && it !== previous.get() } == true
+            }) return@run
+            val count = native.rebuild()
+            if (count > 0) {
+              foldedInitialized = true
+              report(Log.INFO, TAG, "Native folded icon payload refresh requested=$count")
+            }
+          }
+        } finally { lifecycle.leave() }
+      }
+      replace(native.send, "$HOOK_ID.folded-native-owner.v1") { chain ->
+        if (!stopped) foldGuard.run(Unit) { native.remember(chain.thisObject) }
+        val previous = foldedRequest.get()
+        foldedRequest.set(true)
+        try { chain.proceed() } finally {
+          if (previous == null) foldedRequest.remove() else foldedRequest.set(previous)
+        }
+      }
+      replace(native.producer, "$HOOK_ID.drawable-producer.v1") { chain ->
+        val original = chain.proceed()
+        if (stopped || !lifecycle.enter()) original else try {
+          guard.run(original) {
+            val name = chain.getArg(0) as? String ?: return@run original
+            val user = chain.getArg(1) as? Int ?: return@run original
+            val info = chain.getArg(2) as? android.content.pm.ApplicationInfo ?: return@run original
+            if (user != currentUser || info.packageName != name ||
+              SystemUiAppIconIdentity.name(info, currentUser, name) == null) return@run original
+            val snapshot = cache?.get(name)?.takeUnless { it.isRecycled }
+            val result = snapshot?.let { android.graphics.drawable.BitmapDrawable(context.resources, it) } ?: original
+            if (result != null) bindings.remember(result, name)
+            if (snapshot != null) bindings.remember(snapshot, name)
+            if (foldedRequest.get() == true) synchronized(foldedSources) {
+              foldedSources.remove(name)
+              foldedSources[name] = java.lang.ref.WeakReference(snapshot)
+              while (foldedSources.size > 64) foldedSources.remove(foldedSources.keys.first())
+            }
+            result
+          }
+        } finally { lifecycle.leave() }
+      }
+    }
     replace(profile.consumer, "$HOOK_ID.consumer", ::consume)
     val cachedProfile = guard.run<SystemUiNotificationAppIconProfile?>(null) {
       SystemUiNotificationAppIconProfile.resolve(context, loader)
@@ -140,19 +195,6 @@ internal class SystemUiAppIconRuntime(
         val descriptor = chain.getArg(0) ?: return@replace chain.proceed()
         runtime.drawable(view, descriptor) { chain.proceed() }
       }
-      val create = Icon::class.java.getDeclaredMethod("createWithBitmap", Bitmap::class.java)
-      replace(create, "$HOOK_ID.statusbar-bitmap-icon.v1") { chain ->
-        val result = chain.proceed()
-        runtime.created(chain.getArg(0) as? Bitmap, result as? Icon)
-        result
-      }
-      val load = Icon::class.java.getDeclaredMethod("loadDrawableAsUser", Context::class.java,
-        Int::class.javaPrimitiveType)
-      replace(load, "$HOOK_ID.statusbar-user-drawable.v1") { chain ->
-        val result = chain.proceed()
-        val icon = chain.thisObject as? Icon ?: return@replace result
-        runtime.loaded(icon, result)
-      }
       logOnce(statusBarLogged, "Status-bar app-icon descriptor and native refresh boundaries enabled")
     } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)
@@ -160,6 +202,33 @@ internal class SystemUiAppIconRuntime(
       statusBar = null
       reportFailure("status-bar app icon profile", failure)
     }
+    replace(Icon::class.java.getDeclaredMethod("createWithBitmap", Bitmap::class.java),
+      "$HOOK_ID.bitmap-provenance.v1") { chain ->
+      val result = chain.proceed()
+      val bitmap = chain.getArg(0) as? Bitmap
+      val icon = result as? Icon
+      if (!stopped && bitmap != null && icon != null && lifecycle.enter()) {
+        try { guard.run(Unit) {
+          bindings.rememberCreated(bitmap, icon)
+          statusBar?.created(bitmap, icon)
+        } } finally { lifecycle.leave() }
+      }
+      result
+    }
+    replace(Icon::class.java.getDeclaredMethod("loadDrawableAsUser", Context::class.java,
+      Int::class.javaPrimitiveType), "$HOOK_ID.user-drawable-provenance.v1") { chain ->
+      val result = chain.proceed()
+      val icon = chain.thisObject as? Icon
+      if (!stopped && icon != null && result is Drawable && lifecycle.enter()) {
+        try { guard.run(Unit) {
+          bindings.rememberLoaded(icon, result)
+          statusBar?.loaded(icon, result)
+        } } finally { lifecycle.leave() }
+      }
+      result
+    }
+    replace(ImageView::class.java.getDeclaredMethod("setImageBitmap", Bitmap::class.java),
+      "$HOOK_ID.setImageBitmap-provenance.v1") { chain -> bind(chain, async = false) }
     for (name in listOf("setImageIcon", "setImageIconAsync")) {
       val method = ImageView::class.java.getDeclaredMethod(name, Icon::class.java)
       replace(method, "$HOOK_ID.$name") { chain -> bind(chain, name.endsWith("Async")) }
@@ -179,7 +248,6 @@ internal class SystemUiAppIconRuntime(
       result
     }
     for ((name, type) in listOf(
-      "setImageBitmap" to Bitmap::class.java,
       "setImageResource" to Int::class.javaPrimitiveType!!,
       "setImageURI" to android.net.Uri::class.java,
       "setImageResourceAsync" to Int::class.javaPrimitiveType!!,
@@ -210,6 +278,29 @@ internal class SystemUiAppIconRuntime(
         adapter.intercept(chain.getArg(0) as? String, chain.getArg(1) as? Int,
           chain.getArg(2) as? ApplicationInfo, chain.getArg(4) as? Context) { chain.proceed() }
       }
+      guard.run(Unit) {
+        val base = Class.forName("miui.systemui.dynamicisland.module.BaseIslandModuleViewHolder", false, loader)
+        check(base.classLoader === loader)
+        val pictures = base.getDeclaredMethod("getBitmapBundle").apply { isAccessible = true }
+        val data = base.getDeclaredMethod("getDynamicIslandData").apply { isAccessible = true }
+        val extras = data.returnType.getDeclaredMethod("getExtras").apply { isAccessible = true }
+        check(pictures.returnType == android.os.Bundle::class.java &&
+          extras.returnType == android.os.Bundle::class.java)
+        replace(pictures, "$HOOK_ID.island-identity-pictures.v1") { chain ->
+          val result = chain.proceed()
+          if (!stopped && result is android.os.Bundle && lifecycle.enter()) try {
+            guard.run(Unit) {
+              val source = data.invoke(chain.thisObject) ?: return@run
+              val values = extras.invoke(source) as? android.os.Bundle ?: return@run
+              SystemUiIslandPictureBindings.remember(result, values, currentUser) { icon, name ->
+                bindings.remember(icon, name)
+                cache?.get(name)
+              }
+            }
+          } finally { lifecycle.leave() }
+          result
+        }
+      }
       report(Log.INFO, TAG, "Super Island native app-identity factory enabled; future binds only")
     } catch (failure: Throwable) {
       // Also fence a hook if registration succeeded before an optional reporter failed.
@@ -222,6 +313,7 @@ internal class SystemUiAppIconRuntime(
     }
     // Cold requests are retained without starting worker registration during bridge installation.
     iconCache.start()
+    folded?.request()
     statusBar?.bootstrap()
     queueReplay()
     try {
@@ -343,9 +435,13 @@ internal class SystemUiAppIconRuntime(
       }
       // The declared return type is Bitmap. Native failures must escape unchanged.
       val result = bitmap ?: chain.proceed()
+      val user = chain.getArg(0) as? Int
+      val name = chain.getArg(1) as? String
+      if (result is Bitmap && user == currentUser && name != null &&
+        name.length <= 240 && validDottedName(name)) {
+        guard.run(Unit) { bindings.remember(result, name) }
+      }
       if (status != null) {
-        val user = chain.getArg(0) as? Int
-        val name = chain.getArg(1) as? String
         if (user != null && name != null) status.produced(user, name, result)
       }
       return result
@@ -477,6 +573,9 @@ internal class SystemUiAppIconRuntime(
     "cache=${cache?.retirementStatus() ?: "released"}, statusbar=${statusBar?.retirementStatus() ?: "released"}"
 
   fun stop(deadline: Long = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)): Boolean {
+    folded?.stop()
+    folded = null
+    synchronized(foldedSources) { foldedSources.clear() }
     synchronized(islandLock) {
       stopped = true
       island?.stop()

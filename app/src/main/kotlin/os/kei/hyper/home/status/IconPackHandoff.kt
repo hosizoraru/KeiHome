@@ -69,6 +69,7 @@ internal object IconPackHandoffs {
     recommendedMappings: RecommendedIconMappings? = null,
     applyCustomIcons: Boolean = true,
     monetUnadaptedIcons: Boolean = false,
+    monetFullBleedIconPadding: Boolean = false,
     onProgress: (ColorOsGenerationProgress) -> Unit = {}): IconPackHandoff {
     val sources = if (pack.colorOsProfile != null) ColorOsFallbackRenderer.Sources(context) else null
     fun progress(stage: ColorOsGenerationStage): (Int, Int, String) -> Unit = { done, total, name ->
@@ -211,6 +212,7 @@ internal object IconPackHandoffs {
           schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
           customIconIdentity = custom.identity,
           monetUnadaptedIcons = monetUnadaptedIcons,
+          monetFullBleedIconPadding = monetFullBleedIconPadding,
         )
         currentCoroutineContext().ensureActive()
         onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
@@ -258,10 +260,19 @@ internal object IconPackHandoffs {
           val shapedSource = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
               enabled = completeSystemIconConfig, check = { caller.ensureActive() },
               onProgress = { done, total -> maskingProgress(done, total, "") })) maskedIcons else stampedIcons
-          val maskedSource = if (monetUnadaptedIcons && PublishedGenericMonet.write(shapedSource, genericMonet,
-              true, PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
+          val maskedSource = if ((monetUnadaptedIcons || monetFullBleedIconPadding) &&
+            PublishedGenericMonet.write(shapedSource, genericMonet,
+              monetUnadaptedIcons, PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
                 caller.ensureActive()
-              }) { caller.ensureActive() }) genericMonet else shapedSource
+              }, insetFullBleed = monetFullBleedIconPadding,
+              generatedPaletteNames = if (monetFullBleedIconPadding) buildSet {
+                for (export in listOfNotNull(light, darkResult)) {
+                  addAll(export.monochrome.keys)
+                  addAll(export.fallbackPaletteNames)
+                  addAll(export.colorOsPackages)
+                }
+              } else emptySet()
+            ) { caller.ensureActive() }) genericMonet else shapedSource
           val publishedIcons = if (custom.selections.isNotEmpty()) {
             val exclusions = PreservedIconResources.fromInstalled(context, custom.packages, targets) { caller.ensureActive() }
             val replacements = linkedMapOf<String, ByteArray>()

@@ -17,6 +17,7 @@ internal data class IconGenerationManifest(
     if (schemaVersion < 9) RecommendedIconMappings.LEGACY else RecommendedIconMappings(),
   val customIconIdentity: String? = null,
   val monetUnadaptedIcons: Boolean = false,
+  val monetFullBleedIconPadding: Boolean = false,
 ) {
   fun encode(): ByteArray {
     require(schemaVersion in 1..CURRENT_SCHEMA && (schemaVersion != 1 || !installedOnly) &&
@@ -32,9 +33,11 @@ internal data class IconGenerationManifest(
     require(schemaVersion >= 9 || !recommendedMappings.phoneCompanions)
     require(customIconIdentity == null || schemaVersion >= 10 && customIconIdentity.matches(Regex("[0-9a-f]{64}")))
     require(schemaVersion >= 11 || !monetUnadaptedIcons)
+    require(!monetFullBleedIconPadding || schemaVersion >= 15)
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     listOfNotNull(customIconIdentity?.let { "custom\t$it" }) +
     (if (schemaVersion >= 11) listOf("monet-fallback\t${if (monetUnadaptedIcons) "on" else "off"}") else emptyList()) +
+    (if (schemaVersion >= 15) listOf("monet-inset\t${if (monetFullBleedIconPadding) "on" else "off"}") else emptyList()) +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
     (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
     (if (schemaVersion >= 4) listOf("mask\t$iconMaskIdentity") else emptyList()) +
@@ -49,7 +52,7 @@ internal data class IconGenerationManifest(
   }
 
   companion object {
-    const val CURRENT_SCHEMA = 14
+    const val CURRENT_SCHEMA = 15
     const val PATH = "keihome-icon-generation.txt"
     const val MAX_BYTES = 2 * 1024 * 1024
     fun decode(bytes: ByteArray): IconGenerationManifest {
@@ -70,6 +73,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration12" -> 12
         "KeiHomeIconGeneration13" -> 13
         "KeiHomeIconGeneration14" -> 14
+        "KeiHomeIconGeneration15" -> 15
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
@@ -82,10 +86,15 @@ internal data class IconGenerationManifest(
       var mappings: RecommendedIconMappings? = null
       var custom: String? = null
       var monetFallback: Boolean? = null
+      var monetInset: Boolean? = null
       fun target(value: String) = IconPackComponent.parse(value)?.flattened == value
       lines.drop(1).dropLast(1).forEach { line ->
         val row = line.split('\t')
         when (row.first()) {
+          "monet-inset" -> {
+            require(schema >= 15 && row.size == 2 && monetInset == null && row[1] in setOf("on", "off"))
+            monetInset = row[1] == "on"
+          }
           "monet-fallback" -> {
             require(schema >= 11 && row.size == 2 && monetFallback == null && row[1] in setOf("on", "off"))
             monetFallback = row[1] == "on"
@@ -127,14 +136,15 @@ internal data class IconGenerationManifest(
       require(schema < 4 || mask != null)
       require(schema < 8 || mappings != null)
       require(schema < 11 || monetFallback != null)
+      require(schema < 15 || monetInset != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
         mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved,
-        mappings ?: RecommendedIconMappings.LEGACY, custom, monetFallback == true).also {
+        mappings ?: RecommendedIconMappings.LEGACY, custom, monetFallback == true, monetInset == true).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }
     // Active components can add one row per previously considered target.
-    private fun maxLines(schema: Int) = if (schema >= 10) 60012 else if (schema >= 6) 60005 else 30005
+    private fun maxLines(schema: Int) = if (schema >= 15) 60013 else if (schema >= 10) 60012 else if (schema >= 6) 60005 else 30005
     private fun validActiveTarget(value: String): Boolean {
       val component = IconPackComponent.parse(value) ?: return false
       return component.className != null && component.flattened == value

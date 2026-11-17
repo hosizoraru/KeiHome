@@ -2,11 +2,63 @@ package os.kei.hyper.home.iconpack
 
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** Generation-time contrast extraction. Alpha-only tinting would erase opaque logos. */
 internal object GenericMonetMask {
+  /** Input is a completed mask. Adaptive child expansion has already happened upstream. */
+  fun insetFullBleed(mask: IntArray, size: Int, clipAlpha: IntArray? = null,
+    check: () -> Unit = {}): IntArray {
+    require(size in 1..512 && mask.size == size * size && (clipAlpha == null || clipAlpha.size == mask.size))
+    if (size < 16) return mask
+    // Move the visible, completed silhouette inward, including its final outer shape.
+    // Minimum coverage keeps already clipped antialiased edges from being multiplied twice.
+    fun alpha(index: Int): Int = min(mask[index] ushr 24, clipAlpha?.get(index) ?: 255)
+    val band = max(1, size / 10)
+    val middle = size / 5 until size - size / 5
+    var left = 0; var right = 0; var top = 0; var bottom = 0
+    var visible = 0
+    for (y in 0 until size) {
+      check()
+      for (x in 0 until size) {
+        if (alpha(y * size + x) < 64) continue
+        visible++
+        if (y in middle) {
+          if (x < band) left++
+          if (x >= size - band) right++
+        }
+        if (x in middle) {
+          if (y < band) top++
+          if (y >= size - band) bottom++
+        }
+      }
+    }
+    val threshold = max(1, band * middle.count() / 6)
+    // Opposite occupied edge bands distinguish full artwork from a small protruding detail.
+    if (visible < mask.size / 8 ||
+      !((left >= threshold && right >= threshold) || (top >= threshold && bottom >= threshold))) return mask
+    val inset = (size * .20f).roundToInt()
+    val inner = size - 2 * inset
+    val result = IntArray(mask.size) { 0x00ffffff }
+    for (y in 0 until inner) {
+      check()
+      val sy = ((y + .5f) * size / inner - .5f).coerceIn(0f, size - 1f)
+      val y0 = sy.toInt(); val y1 = (y0 + 1).coerceAtMost(size - 1)
+      val fy = sy - y0
+      for (x in 0 until inner) {
+        val sx = ((x + .5f) * size / inner - .5f).coerceIn(0f, size - 1f)
+        val x0 = sx.toInt(); val x1 = (x0 + 1).coerceAtMost(size - 1)
+        val fx = sx - x0
+        val a = alpha(y0 * size + x0) * (1 - fx) + alpha(y0 * size + x1) * fx
+        val b = alpha(y1 * size + x0) * (1 - fx) + alpha(y1 * size + x1) * fx
+        result[(y + inset) * size + x + inset] = ((a * (1 - fy) + b * fy).roundToInt() shl 24) or 0x00ffffff
+      }
+    }
+    return result
+  }
+
   fun background(pixels: IntArray, size: Int, check: () -> Unit = {}): IntArray {
     require(size in 1..512 && pixels.size == size * size)
     val radius = size * 0.22f

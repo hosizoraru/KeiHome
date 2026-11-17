@@ -16,9 +16,10 @@ internal object PublishedGenericMonet {
   private val flat = Regex("res/drawable(?:-[A-Za-z0-9]+)*/([^/]+)\\.png")
 
   fun write(source: File, output: File, enabled: Boolean,
-    excluded: PreservedIconResources, check: () -> Unit = {}): Boolean {
+    excluded: PreservedIconResources, insetFullBleed: Boolean = false,
+    generatedPaletteNames: Set<String> = emptySet(), check: () -> Unit = {}): Boolean {
     check()
-    if (!enabled) return false
+    if (!enabled && !insetFullBleed) return false
     require(source.canonicalFile != output.canonicalFile && !output.exists())
     val replacements = linkedMapOf<String, ByteArray>()
     var bytes = 0L
@@ -48,6 +49,20 @@ internal object PublishedGenericMonet {
       }
       val shape by lazy {
         IconMaskPolicy.fromConfig(read(NativeIconShapeConfig.PATH, NativeIconShapeConfig.MAX_BYTES))
+      }
+      var insetCoverage: Pair<Int, IntArray>? = null
+      fun paddingCoverage(size: Int): IntArray? {
+        val mask = shape ?: return null
+        insetCoverage?.takeIf { it.first == size }?.let { return it.second }
+        check()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val pixels = try {
+          Canvas(bitmap).drawPath(mask.pathForBounds(Rect(0, 0, size, size)),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE })
+          IntArray(size * size).also { bitmap.getPixels(it, 0, size, 0, 0, size, size) }
+        } finally { bitmap.recycle() }
+        for (index in pixels.indices) pixels[index] = pixels[index] ushr 24
+        return pixels.also { insetCoverage = size to it }
       }
       fun nativePair(name: String, prefix: String): ByteArray? {
         val layers = mutableListOf<Bitmap>()
@@ -88,6 +103,21 @@ internal object PublishedGenericMonet {
         if (name in protectedNames) continue
         val manifest = read(root + "manifest.xml", 64 * 1024)
         if (manifest == null && name in fancyGroups) continue
+        // Only export-owned, verified palette trees enter this path. A matching
+        // template alone must not opt imported authored programs into resizing.
+        if (insetFullBleed && name in generatedPaletteNames && manifest != null &&
+          fancyGroups[name].orEmpty().all { it in setOf(
+            root + "manifest.xml", root + "day.png", root + "night.png", root + "mask.png", root + "bg.png") }) {
+          val padded = insetGeneratedPalette(name, manifest, ::read, ::paddingCoverage, check)
+          if (padded != null) {
+            bytes += padded.size
+            if (bytes > 64L * 1024 * 1024)
+              throw IconPackException("Generic Monet artwork exceeds the generation memory budget")
+            replacements[root + "mask.png"] = padded
+            continue
+          }
+        }
+        if (!enabled) continue
         val pair = if (manifest != null) {
           try { NativeMamlPair.parse(manifest, check) } catch (_: IconPackException) { null } ?: continue
         } else null
@@ -123,7 +153,9 @@ internal object PublishedGenericMonet {
           val size = bitmap.width
           val pixels = IntArray(size * size)
           bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-          val foreground = GenericMonetMask.foreground(pixels, size, check) ?: continue
+          val extracted = GenericMonetMask.foreground(pixels, size, check) ?: continue
+          val foreground = if (insetFullBleed)
+            GenericMonetMask.insetFullBleed(extracted, size, paddingCoverage(size), check) else extracted
           fun png(colors: IntArray): ByteArray {
             check()
             val mask = Bitmap.createBitmap(colors, size, size, Bitmap.Config.ARGB_8888)
@@ -157,5 +189,31 @@ internal object PublishedGenericMonet {
     RawIconArchive.write(source, output, replacements = replacements, check = check,
       maxOutputBytes = IconPackLimits().maxInputBytes)
     return true
+  }
+
+  private fun insetGeneratedPalette(name: String, manifest: ByteArray,
+    read: (String, Int) -> ByteArray?, coverage: (Int) -> IntArray?, check: () -> Unit): ByteArray? {
+    val root = "fancy_icons/$name/"
+    val day = read(root + "day.png", MAX_IMAGE) ?: return null
+    val night = read(root + "night.png", MAX_IMAGE) ?: day
+    val mask = read(root + "mask.png", MAX_IMAGE) ?: return null
+    val background = read(root + "bg.png", MAX_IMAGE) ?: return null
+    if (!NativePaletteIcon.recognizes(name, manifest, day, night, mask, background)) return null
+    val size = GeneratedIconPng.squareSize(mask)
+    check()
+    val bitmap = BitmapFactory.decodeByteArray(mask, 0, mask.size) ?: return null
+    try {
+      val pixels = IntArray(size * size)
+      bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
+      val padded = GenericMonetMask.insetFullBleed(pixels, size, coverage(size), check)
+      if (padded === pixels) return null
+      val output = Bitmap.createBitmap(padded, size, size, Bitmap.Config.ARGB_8888)
+      return try {
+        check()
+        ByteArrayOutputStream().also {
+          require(output.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }.toByteArray().also { check() }
+      } finally { output.recycle() }
+    } finally { bitmap.recycle() }
   }
 }

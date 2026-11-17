@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -41,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
@@ -50,9 +52,12 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.components.Os4FloatingToolbar
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -180,6 +185,51 @@ class AdaptiveChromeDeviceTest {
     }
     rule.onNodeWithText("Compact").assertIsDisplayed()
     rule.onNodeWithTag("adaptive.rail").assertDoesNotExist()
+  }
+
+  @Test fun rootOverlayInheritsBackdropAndBlocksRailAndContentInBothLayouts() {
+    var width by mutableStateOf(900.dp)
+    var overlayShown by mutableStateOf(true)
+    var sampling by mutableStateOf(true)
+    var seen: Backdrop? = null
+    var expected: Backdrop? = null
+    var selected by mutableStateOf(0)
+    var overlayClicks = 0
+    var contentClicks = 0
+    rule.setContent {
+      Fixture {
+        val source = rememberLayerBackdrop()
+        expected = source.takeIf { sampling }
+        Box(Modifier.size(width, 700.dp)) {
+          KeiHomeAdaptiveNavigation(destinations(), selected, { selected = it }, expected,
+            overlay = {
+              seen = LocalKeiHomeBackdrop.current
+              if (overlayShown) Box(Modifier.fillMaxSize()
+                .clickable { overlayClicks++ }.testTag("root.overlay"))
+            }) {
+            Box(Modifier.fillMaxSize().clickable { contentClicks++ })
+          }
+        }
+      }
+    }
+    for (window in listOf(900.dp, 500.dp)) for (enabled in listOf(true, false)) {
+      rule.runOnIdle { width = window; sampling = enabled }
+      assertEquals(window.value,
+        rule.onNodeWithTag("root.overlay").fetchSemanticsNode().boundsInRoot.width, 1f)
+      rule.onNodeWithTag("root.overlay").performTouchInput { click(Offset(80f, 90f)) }
+      rule.runOnIdle {
+        assertSame(expected, seen)
+        assertEquals(0, selected)
+        assertEquals(0, contentClicks)
+      }
+    }
+    rule.runOnIdle {
+      assertEquals(4, overlayClicks)
+      width = 900.dp
+      overlayShown = false
+    }
+    rule.onNodeWithText("Apps").performTouchInput { click() }
+    rule.runOnIdle { assertEquals(1, selected) }
   }
 
   @Test fun scrollbarDragsSharedListWithoutStealingTrailingActions() {

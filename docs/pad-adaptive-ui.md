@@ -26,8 +26,9 @@ the same logic for the rail and bottom bar. Badge subscriptions stay in
 their own composition rather than making runtime reports invalidate the
 entire root.
 
-The rail sits outside backdrop recording. The root overlay host stays above
-both the rail and content, so popups/sheets do not render behind navigation.
+The rail sits outside backdrop recording. The adaptive container owns the
+root overlay slot above both rail and content and explicitly provides the
+page backdrop to it, so popups/sheets retain their material and input ownership.
 Toggle descriptions are localized in English, Simplified Chinese and Japanese.
 
 `KeiHomeScaffold` centers its complete chrome/content at a maximum 1040dp.
@@ -79,6 +80,8 @@ Evidence is retained in
 5. Dragging the shared list scrollbar while retaining trailing actions.
 6. Absence of an inactive scrollbar for short lists.
 7. Compact title height and scaffold/toolbar maximum widths.
+8. Full-window overlay coverage and shared backdrop inheritance, blocking
+   rail/content clicks in wide/compact windows with sampling on/off.
 
 The component fixtures control density and bounds, so breakpoint and state
 tests run on both the Phone and Pad. Actual application screenshots check
@@ -86,10 +89,11 @@ the real Pad window in portrait/landscape and expanded/collapsed navigation.
 Phone component, navigation, popup, refresh and toolbar regression coverage
 is retained alongside these tests.
 
-The final debug verification on 2026-11-18 passed 45 device cases on Phone
-and the seven adaptive cases on Pad, with no failures or skips. JVM results
-were 2069 passed and eight conditional skips out of 2077 cases. The seven
-adaptive cases are included in the Phone total, not additional unique cases.
+The initial debug verification on 2026-11-18 passed 45 device cases on Phone
+and the first seven adaptive cases on Pad, with no failures or skips. JVM
+results were 2069 passed and eight conditional skips out of 2077 cases.
+The additional overlay regression and final source/build results are retained
+in the acceptance receipts; repeated device runs are not additional unique cases.
 
 This is a UI change. It does not update MIUIX again, modify native source,
 enable desktop features, import/apply icon packs or alter theme/Monet choices.

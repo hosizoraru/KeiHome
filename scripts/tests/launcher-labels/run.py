@@ -37,6 +37,13 @@ def main():
     images = args.images or [ROOT / ".artifacts/inputs/launchers" / v / "libapp.so"
                             for v in json.loads(args.inventory.read_text())["launchers"]]
     args.output.mkdir(parents=True, exist_ok=True)
+    entry_test = args.output / "entry-index-test"
+    subprocess.run([args.cxx, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-O2",
+                    "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+                    "-I" + str(ROOT / "app/src/main/cpp"),
+                    str(ROOT / "app/src/test/cpp/arm64_dart_entry_index_test.cpp"),
+                    "-o", str(entry_test)], check=True)
+    subprocess.run([str(entry_test)], check=True)
     _, authentication = authenticate(args.payload, args.ndk, args.output, "labels")
     (args.output / "payload.json").write_text(json.dumps(authentication, indent=2) + "\n")
     print(json.dumps({"payload": authentication}), flush=True)

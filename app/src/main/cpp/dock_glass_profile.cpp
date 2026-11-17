@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "dock_glass_profile.h"
+#include "arm64_dart_entry_index.h"
 #include <string.h>
 #include <vector>
 #ifdef KH_DOCK_PROFILE_DIAGNOSTIC
@@ -37,14 +38,15 @@ bool Match(const IconHighlightImage& im,size_t p,const DockPattern& pat) {
     }
     return true;
 }
-template<size_t N> size_t Find(const IconHighlightImage& im,const DockPattern(&v)[N]) {
-    size_t found=0;
-    for(size_t i=0;i<im.range_count;++i) {const auto& r=im.ranges[i];if(!r.executable)continue;
-        for(size_t at=r.begin;at+4<=r.end;at+=4) {
-            bool ok=false;for(const auto& p:v) if((Word(im,at)&p.words[0].mask)==p.words[0].word&&Match(im,at,p)){ok=true;break;}
-            if(ok){if(found&&found!=at)return 0;found=at;}
-        }
-    }return found;
+template<size_t N> size_t Find(const IndexedArm64Image& im,const DockPattern(&v)[N]) {
+    size_t found=0;bool indexed=true,ambiguous=false;
+    for(const auto& p:v)indexed&=im.Covers(p.words,p.count);
+    im.VisitCandidates(indexed,[&](size_t at,uint32_t first) {
+        bool ok=false;for(const auto& p:v) if((first&p.words[0].mask)==p.words[0].word&&Match(im,at,p)){ok=true;break;}
+        if(ok){if(found&&found!=at){ambiguous=true;return false;}found=at;}
+        return true;
+    });
+    return ambiguous?0:found;
 }
 size_t Branch(const IconHighlightImage& im,size_t pc,bool link=true) {
     uint32_t w=Word(im,pc);if((w&0xfc000000u)!=(link?0x94000000u:0x14000000u))return 0;
@@ -312,7 +314,7 @@ bool GlassFutureSlotUntouched(const IconHighlightImage& im,const DockGlassProfil
     }
     return true;
 }
-bool ResolveUnlockAnimation(const IconHighlightImage& im,DockGlassProfile& p,
+bool ResolveUnlockAnimation(const IndexedArm64Image& im,DockGlassProfile& p,
                             const std::vector<size_t>& dispatch,const char** why) {
     p.unlock_search=Find(im,kDockUnlockSearch);
     p.unlock_location=Find(im,kDockUnlockLocation);
@@ -353,7 +355,7 @@ bool ResolveUnlockAnimation(const IconHighlightImage& im,DockGlassProfile& p,
     if(!p.unlock_zero_pp)return Fail(why,"native unlock Offset seed");
     return true;
 }
-bool ResolveOwnedGlassSources(const IconHighlightImage& im,DockGlassProfile& p,const char** why) {
+bool ResolveOwnedGlassSources(const IndexedArm64Image& im,DockGlassProfile& p,const char** why) {
     p.glass_build=Find(im,kDockGlassBuild);
     p.value_key_caller=Find(im,kDockValueKeyCaller);
     p.value_key_equals=Find(im,kDockValueKeyEquals);
@@ -397,7 +399,7 @@ bool ResolveOwnedGlassSources(const IconHighlightImage& im,DockGlassProfile& p,c
         return Fail(why,"native generic ValueKey allocation/equality graph");
     return true;
 }
-bool ResolveRecentsCorners(const IconHighlightImage& im,DockGlassProfile& p,const char** why) {
+bool ResolveRecentsCorners(const IndexedArm64Image& im,DockGlassProfile& p,const char** why) {
     p.recents_adaptive_clip=Find(im,kDockRecentsClip);
     p.curve_getter=Find(im,kDockRecentsEnabled);
     p.recents_enabled_for=Find(im,kDockRecentsFor);
@@ -560,7 +562,7 @@ bool ResolveRecentsCorners(const IconHighlightImage& im,DockGlassProfile& p,cons
         return Fail(why,"owned Glass child CID/createState identity");
     return true;
 }
-bool ResolveClipNone(const IconHighlightImage& im,DockGlassProfile& p,
+bool ResolveClipNone(const IndexedArm64Image& im,DockGlassProfile& p,
                      uint32_t original_clip_pp,const char** why) {
     // These full mapped roles authenticate both alternatives: equality to the
     // pool operand paints directly, while non-none plus layout overflow calls
@@ -635,8 +637,10 @@ bool dock_glass_profile_detail::ResolveRootListSave(const IconHighlightImage& im
     *save=found;
     return true;
 }
-bool ResolveDockGlass(const IconHighlightImage& im,DockGlassProfile* out,const char** why) {
+bool ResolveDockGlass(const IconHighlightImage& source,DockGlassProfile* out,const char** why) {
     if(why)*why=nullptr;if(!out)return Fail(why,"missing Dock output");*out={};
+    if(!ValidateArm64DartImage(source))return Fail(why,"invalid Dock image");
+    const IndexedArm64Image im(source);
     DockGlassProfile p{};
     const size_t bottom_margin=Find(im,kDockBottomMargin);
     if(!bottom_margin)return Fail(why,"native Dock bottom margin missing/ambiguous");

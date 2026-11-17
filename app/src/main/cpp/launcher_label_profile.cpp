@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "launcher_label_profile.h"
+#include "arm64_dart_entry_index.h"
 #include <string.h>
 
 namespace {
@@ -32,22 +33,19 @@ bool Matches(const IconHighlightImage& im, size_t pc, const LabelWord (&p)[N]) {
     return true;
 }
 template<size_t N, typename Predicate>
-size_t FindWhere(const IconHighlightImage& im, const LabelWord (&p)[N], Predicate accepts) {
-    size_t found = 0;
-    for (size_t i = 0; i < im.range_count; ++i) {
-        const auto& r = im.ranges[i];
-        if (!r.executable || r.end - r.begin < 4*N) continue;
-        for (size_t pc = r.begin; pc <= r.end - 4*N; pc += 4) {
-            if ((Word(im, pc) & p[0].mask) != p[0].word || !Matches(im, pc, p)) continue;
-            if (!accepts(pc)) continue;
-            if (found) return 0;
+size_t FindWhere(const IndexedArm64Image& im, const LabelWord (&p)[N], Predicate accepts) {
+    size_t found = 0; bool ambiguous = false;
+    im.VisitCandidates(im.Covers(p, N), [&](size_t pc, uint32_t first) {
+        if ((first & p[0].mask) == p[0].word && Matches(im, pc, p) && accepts(pc)) {
+            if (found) { ambiguous = true; return false; }
             found = pc;
         }
-    }
-    return found;
+        return true;
+    });
+    return ambiguous ? 0 : found;
 }
 template<size_t N>
-size_t Find(const IconHighlightImage& im, const LabelWord (&p)[N], size_t call = 0, size_t target = 0) {
+size_t Find(const IndexedArm64Image& im, const LabelWord (&p)[N], size_t call = 0, size_t target = 0) {
     return FindWhere(im, p, [&](size_t pc) { return !target || Call(im, pc + call) == target; });
 }
 uint32_t AllocationTag(const IconHighlightImage& im, size_t pc) {
@@ -78,11 +76,12 @@ bool NoInteriorBranch(const IconHighlightImage& im, size_t at) {
 }
 } // namespace
 
-bool ResolveLauncherLabels(const IconHighlightImage& im, LauncherLabelProfile* out, const char** why) {
+bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfile* out, const char** why) {
     if (why) *why = nullptr;
     if (!out) return Reject(why, "missing label output");
     *out = {};
-    if (!ValidateArm64DartImage(im)) return Reject(why, "invalid label image");
+    if (!ValidateArm64DartImage(source)) return Reject(why, "invalid label image");
+    const IndexedArm64Image im(source);
     LauncherLabelProfile p{};
     const auto either = [](size_t a, size_t b) { return a && b && a != b ? size_t{0} : a ? a : b; };
     p.builder = Find(im, kLabelBuilder);

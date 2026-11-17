@@ -103,6 +103,7 @@ internal object RawIconArchive {
       }
       outputPaths.finish(check)
       if (selected.size.toLong() + additions.size > limits.maxEntries) fail("Raw archive output entry limit exceeded")
+      val selectedCount = selected.size
       val map = ZipMap.from(input.toPath())
       if (map.entries.keys != sourceEntries.keys) fail("Raw ZIP directory mismatch")
       for ((name, expected) in sourceEntries) {
@@ -168,13 +169,17 @@ internal object RawIconArchive {
             archive.add(encoded(name, bytes, method))
             checkpoint()
           }
+          // Payloads have been written. Release validation indexes before Zipflinger
+          // allocates the output central directory, especially for large native packs.
+          selected.clear()
+          sourceEntries.clear()
         }
       }
       checkpoint()
       if (input.length() != originalSize || input.lastModified() != originalModified) {
         fail("Raw archive source changed during transfer")
       }
-      return Result(selected.size + additions.size, selected.size - transformed, additions.size,
+      return Result(selectedCount + additions.size, selectedCount - transformed, additions.size,
         expanded, target.length(), transformed)
     } catch (failure: Throwable) {
       if (owned && target.exists() && !target.delete()) {
@@ -230,13 +235,18 @@ internal object RawIconArchive {
     }
 
     fun finish(check: () -> Unit) {
-      for (name in names) {
-        check()
-        var slash = name.indexOf('/')
-        while (slash >= 0) {
-          if (name.substring(0, slash) in files) fail("Raw archive file/directory collision")
-          slash = name.indexOf('/', slash + 1)
+      try {
+        for (name in names) {
+          check()
+          var slash = name.indexOf('/')
+          while (slash >= 0) {
+            if (name.substring(0, slash) in files) fail("Raw archive file/directory collision")
+            slash = name.indexOf('/', slash + 1)
+          }
         }
+      } finally {
+        names.clear()
+        files.clear()
       }
     }
   }

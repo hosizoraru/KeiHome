@@ -1,9 +1,15 @@
 # Native launcher compatibility matrix
 
-Current HyperOS Phone AVD acceptance baseline (2026-11-15): **9258**,
-`RELEASE-8.01.02.9258-261013-11132207-R`. Keep this installed update after
+Current HyperOS Phone AVD acceptance baseline (2026-11-16): **9259**,
+`RELEASE-8.01.02.9259-261013-11161138-R`. Keep this installed update after
 acceptance; older restoration records below are historical evidence, not
-instructions to restore 8593 or 9248. Do not launch ColorOS for this work.
+instructions to restore 8593, 9248 or 9258. Do not launch ColorOS for this work.
+
+The [9259 acceptance](launcher-9259-compatibility.md) adds an eleventh runtime
+fixture without changing the nine input contract-generation set. Both 9258 and
+9259 remain held-out inputs. The existing production resolver passed the targeted
+Monet, Dock, material, label and highlight regressions, followed by an in-place
+9259 AVD update and live palette, folder, recents and application-return checks.
 
 The [9258 follow-up](launcher-9258-compatibility.md) extends the runtime fixture
 inventory to ten versions. Production contracts remain generated from the nine

@@ -186,6 +186,16 @@ def settle_service_reloads(capture, out, timeout=6):
             )
         except subprocess.SubprocessError as error:
             capture.issues.append(f"system kill evidence unavailable: {error}")
+        # Graphics spam can evict the relevant kill from the mixed-buffer tail.
+        try:
+            events = adb(
+                "logcat", "-b", "events", "-d", "-v", "threadtime", "-v", "year",
+                "-t", "2000", timeout=3,
+            )
+            (out / "reload-events.log").write_text(events)
+            system_log += "\n" + events
+        except subprocess.SubprocessError as error:
+            capture.issues.append(f"process exit events unavailable: {error}")
         (out / "reload-system.log").write_text(system_log)
     return capture.save(out, system_log)
 

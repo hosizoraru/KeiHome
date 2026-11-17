@@ -156,6 +156,7 @@ class AsyncWaitTest(unittest.TestCase):
                 patch.object(deploy.time, "sleep", side_effect=clock.sleep), \
                 patch.object(deploy, "adb", return_value=KILL):
             report = deploy.settle_service_reloads(capture, Path(directory), timeout=6)
+            self.assertTrue((Path(directory) / "reload-events.log").is_file())
         self.assertEqual(1, report["counts"]["failed"])
         self.assertEqual(9, report["counts"]["success"])
         self.assertLessEqual(clock.now, 6)

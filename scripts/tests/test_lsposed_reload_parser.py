@@ -113,6 +113,23 @@ class ReloadParserTest(unittest.TestCase):
                 self.assertEqual("unknown", row["failureReason"])
                 self.assertNotIn("systemReclaimEvidence", row)
 
+    def test_events_buffer_retains_policy_reclaim_when_mixed_buffer_is_noisy(self):
+        event = ("2026-11-15 12:47:52.055  8718 11215 I am_kill : "
+                 "[0,15566,com.android.settings:provider,945,umms_selfcheck,290184]")
+        row = self.provider(self.parse(system_log=event))
+        self.assertEqual("failed", row["status"])
+        self.assertEqual("system_reclaimed", row["failureReason"])
+        self.assertEqual(event, row["systemReclaimEvidence"]["line"])
+        for unrelated in (
+            event.replace("15566", "15567"),
+            event.replace(PROVIDER, "com.android.settings"),
+            event.replace("12:47:52", "12:46:52"),
+            event.replace("umms_selfcheck", "user_request"),
+        ):
+            with self.subTest(event=unrelated):
+                row = self.provider(self.parse(system_log=unrelated))
+                self.assertEqual("unknown", row["failureReason"])
+
     def test_capture_gap_cannot_be_hidden_by_observed_successes(self):
         text = "\n".join(line for line in REAL.splitlines() if PROVIDER not in line)
         report = self.parse(text, capture_issues=["lost inode"])

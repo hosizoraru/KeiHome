@@ -302,6 +302,12 @@ class Gate:
             monet_packs += fixture_packs
             self.apply_one(monet_packs[0], "monet-initial")
             self.shell(["cp", "-p", self.args.monet_mtz, fixture])
+            # Shared-storage permissions are not valid inside the app's private cache.
+            owner = self.shell(["stat", "-c", "%u:%g", f"{BASE}/cache"])
+            require(re.fullmatch(r"\d+:\d+", owner), "Cannot resolve private cache owner")
+            self.shell(["chown", owner, fixture])
+            self.shell(["chmod", "600", fixture])
+            self.shell(["restorecon", "-F", fixture])
             count = self.instrument("monet-device", MONET_CLASSES,
                 {"installedMonet": "true", "monetMtzPath": fixture})
             for pack in monet_packs:

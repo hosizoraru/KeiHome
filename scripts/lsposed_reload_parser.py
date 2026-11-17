@@ -19,6 +19,11 @@ KILL = re.compile(
     r"\d+\s+\d+\s+I ActivityManager:\s+Killing (?P<pid>\d+):"
     r"(?P<process>[^/\s]+)/\S+ \(adj -?\d+\): (?P<reason>umms_selfcheck|umms_pressure)\b"
 )
+EVENT_KILL = re.compile(
+    r"^(?P<time>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\s+"
+    r"\d+\s+\d+\s+I\s+am_kill\s*:\s*\[\d+,(?P<pid>\d+),"
+    r"(?P<process>[^,]+),-?\d+,(?P<reason>umms_selfcheck|umms_pressure),[^\]]+\]"
+)
 
 
 def plan_log_reads(previous, current):
@@ -106,7 +111,7 @@ def parse_reloads(text, module, *, capture_issues=(), system_log=""):
 
     kills = []
     for line in system_log.splitlines():
-        match = KILL.match(line)
+        match = KILL.match(line) or EVENT_KILL.match(line)
         if match:
             kills.append((match, line))
     for row in targets.values():

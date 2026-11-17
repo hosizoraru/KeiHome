@@ -60,7 +60,7 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
   LaunchedEffect(model) { model.readDesktopAppearance() }
   Scaffold(modifier = Modifier.testTag("desktop.page.tools"), topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = stringResource(R.string.desktop_tools_title), scrollBehavior = behavior,
+      TopAppBar(title = stringResource(R.string.desktop_tools_title), scrollBehavior = behavior, expandable = false,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))

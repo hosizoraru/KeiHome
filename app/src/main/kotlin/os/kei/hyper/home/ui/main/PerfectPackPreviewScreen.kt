@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -382,7 +382,7 @@ internal fun PerfectSubpage(
     val listPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
       bottom = padding.calculateBottomPadding() + bottomSpacing)
     val list: @Composable () -> Unit = {
-    LazyColumn(state = listState, overscrollEffect = null, modifier = Modifier.fillMaxSize()
+    Os4LazyColumn(state = listState, modifier = Modifier.fillMaxSize()
       .padding(bottom = viewportBottomInset)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior, overScrollEnabled = !pullRefresh || refreshEnabled && !refreshing),

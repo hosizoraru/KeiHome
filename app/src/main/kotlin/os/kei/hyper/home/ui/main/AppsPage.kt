@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
-import androidx.compose.foundation.lazy.LazyColumn
+import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -99,7 +99,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
   val colors = remember(monet.snapshot?.activePalette, monet.snapshot?.customization,
     monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
-  LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
+  Os4LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item(key = "search", contentType = "search") {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

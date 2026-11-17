@@ -94,6 +94,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = stringResource(section.title), scrollBehavior = behavior,
+        expandable = section != SettingsSection.HOOK && section != SettingsSection.CACHE,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         actions = {
           if (route == SettingsSection.CACHE.route) {

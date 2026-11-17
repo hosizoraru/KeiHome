@@ -102,7 +102,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   val behavior = MiuixScrollBehavior()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = stringResource(R.string.settings_log_section),
+      TopAppBar(title = stringResource(R.string.settings_log_section), expandable = false,
         scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {

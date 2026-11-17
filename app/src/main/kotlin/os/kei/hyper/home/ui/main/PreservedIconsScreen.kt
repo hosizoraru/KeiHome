@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -280,7 +280,7 @@ internal fun PreservedIconsPage(
       top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp)
     Os4PullToRefresh(refreshing = refreshing, enabled = !loading, onRefresh = onRetry, contentPadding = listPadding,
       modifier = Modifier.testTag("preserved-icons.pull-to-refresh")) {
-    LazyColumn(overscrollEffect = null, state = list, modifier = Modifier.fillMaxSize()
+    Os4LazyColumn(state = list, modifier = Modifier.fillMaxSize()
       .keiHomeTopBarScroll(behavior, overScrollEnabled = !loading && !refreshing)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .testTag("preserved-icons.list"),

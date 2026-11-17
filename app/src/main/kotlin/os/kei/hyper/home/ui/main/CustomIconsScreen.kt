@@ -6,7 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -215,7 +215,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         })
     }
   }) { padding ->
-    LazyColumn(state = list, overscrollEffect = null,
+    Os4LazyColumn(state = list,
       modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
         .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier).testTag("custom-icons.list"),
       contentPadding = PaddingValues(start = 18.dp, end = 18.dp,

@@ -26,6 +26,9 @@ the same logic for the rail and bottom bar. Badge subscriptions stay in
 their own composition rather than making runtime reports invalidate the
 entire root.
 
+Non-status root titles also use the selected navigation label. This removes
+the legacy desktop-title override on the icon-pack destination.
+
 The rail sits outside backdrop recording. The adaptive container owns the
 root overlay slot above both rail and content and explicitly provides the
 page backdrop to it, so popups/sheets retain their material and input ownership.

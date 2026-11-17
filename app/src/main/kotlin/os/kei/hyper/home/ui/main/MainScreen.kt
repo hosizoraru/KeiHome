@@ -131,11 +131,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
       topBar = {
         BlurredBar(backdrop, backdrop != null) {
           TopAppBar(
-            title = when (page) {
-              0 -> stringResource(R.string.app_name)
-              3 -> stringResource(R.string.desktop_home_title)
-              else -> labels[selectedTab]
-            },
+            title = if (page == 0) stringResource(R.string.app_name) else labels[selectedTab],
             color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
             scrollBehavior = behaviors[selectedTab],
             actions = {

@@ -152,4 +152,5 @@ class ColorOsNativePriorityTest {
     try { ConvertedIconArchive.inspect(handoff.file, "CONVERTED_CLASSIC_ZIP", context.cacheDir) }
     finally { handoff.file.delete() }
   }
+
 }

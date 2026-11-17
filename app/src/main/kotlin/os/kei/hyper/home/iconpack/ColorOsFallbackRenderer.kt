@@ -167,6 +167,22 @@ internal class ColorOsFallbackRenderer(
     return activities.single()
   }
 
+  private var suppliedMaskWarnings = 0
+
+  /** Optional supplied alpha layers obey the same viewport and quality rules as APK monochrome. */
+  internal fun monochromeLayer(
+    target: IconPackComponent, layer: Drawable, sizePx: Int, check: () -> Unit,
+  ): Bitmap? = try {
+    rasterize(AdaptiveIconDrawable(null, null, layer), false, sizePx,
+      monochrome = true, check = check)
+  } catch (unavailable: Unavailable) {
+    onSkip(target, unavailable.reason)
+    if (suppliedMaskWarnings++ < 8)
+      android.util.Log.w("KeiHomeMonochrome",
+        "Ignoring optional supplied mask: $target, ${unavailable.reason}")
+    null
+  }
+
   /** Platform drawables only; exposed within the module for focused raster regression tests. */
   internal fun rasterize(
     drawable: Drawable, dark: Boolean, sizePx: Int, mask: Bitmap? = null,
@@ -188,7 +204,8 @@ internal class ColorOsFallbackRenderer(
       val adaptive = drawable as? AdaptiveIconDrawable
       if (monochrome) {
         val mono = adaptive?.monochrome ?: throw Unavailable(SkipReason.MISSING_MONOCHROME)
-        drawLayer(canvas, mono, adaptiveBounds(sizePx), false, check)
+        // APK monochrome layers use Android's viewport, independently of the ColorOS style.
+        drawLayer(canvas, mono, NativeLayerViewport.bounds(Rect(0, 0, sizePx, sizePx)), false, check)
         val pixels = IntArray(sizePx * sizePx)
         output.getPixels(pixels, 0, sizePx, 0, 0, sizePx, sizePx)
         var bitmapLayer = false

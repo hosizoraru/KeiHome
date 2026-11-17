@@ -12,6 +12,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.util.LruCache
@@ -364,7 +365,14 @@ internal class IconPackRenderer(
       fun supplied(): Bitmap? = source?.monochromePath?.let { path ->
         val bytes = profile.read(path, check)
         GeneratedIconPng.squareSize(bytes)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        val layer = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+          ?: throw IconPackException("Invalid ColorOS monochrome layer")
+        try {
+          // The supplied PNG is an adaptive child, just like APK monochrome, not a finished mask.
+          requireNotNull(originals).monochromeLayer(target,
+            BitmapDrawable(context.resources, layer).apply { isFilterBitmap = true },
+            sizePx, check)
+        } finally { layer.recycle() }
       }
       if (source?.monochromePath != null && !source.runtimeMonochrome) return supplied()
       nativeConsulted += target

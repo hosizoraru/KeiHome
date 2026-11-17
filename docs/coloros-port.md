@@ -29,6 +29,10 @@ resource-only profiles as described in [the source settings](icon-source-setting
 - A real `monochrome.png` supplies an alpha mask, independently of normal
   artwork. Existing Android monochrome layers supply masks for uncovered apps;
   unusable or absent masks retain normal artwork.
+  Both sources are raw adaptive children and use the same framework child
+  viewport before publication. Completed exported masks use final coordinates;
+  see [Monet geometry boundaries](monet-layer-geometry.md). Schema 13 requests
+  regeneration of older ColorOS masks that skipped this conversion.
 
 The developer converter independently implements the inspected composition
 rules and emits classic appfilter ZIPs. `coloros-source-manifest.json` records

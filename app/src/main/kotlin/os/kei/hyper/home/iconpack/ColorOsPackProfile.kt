@@ -74,6 +74,7 @@ internal data class ColorOsPackProfile(
 }
 
 internal data class ColorOsIconSource(
+  /** Original adaptive child texture; convert once before publishing a completed palette mask. */
   val monochromePath: String?,
   val dynamicName: String?,
   val requiresLiveIcon: Boolean,

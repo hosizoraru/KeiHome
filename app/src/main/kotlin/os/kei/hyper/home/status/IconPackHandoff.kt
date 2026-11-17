@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -67,6 +68,7 @@ internal object IconPackHandoffs {
     installedOnly: Boolean = false, completeSystemIconConfig: Boolean = true,
     recommendedMappings: RecommendedIconMappings? = null,
     applyCustomIcons: Boolean = true,
+    monetUnadaptedIcons: Boolean = false,
     onProgress: (ColorOsGenerationProgress) -> Unit = {}): IconPackHandoff {
     val sources = if (pack.colorOsProfile != null) ColorOsFallbackRenderer.Sources(context) else null
     fun progress(stage: ColorOsGenerationStage): (Int, Int, String) -> Unit = { done, total, name ->
@@ -204,8 +206,9 @@ internal object IconPackHandoffs {
           activeLauncherTargets = targets.filter { it.className != null }.mapTo(linkedSetOf()) { it.flattened },
           preservedIconPackages = preserved,
           recommendedMappings = mappings,
-          schemaVersion = if (custom.identity == null) 9 else 10,
+          schemaVersion = 13,
           customIconIdentity = custom.identity,
+          monetUnadaptedIcons = monetUnadaptedIcons,
         )
         currentCoroutineContext().ensureActive()
         onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
@@ -213,6 +216,7 @@ internal object IconPackHandoffs {
         val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
         val maskedIcons = File(context.cacheDir, "masked-icons-${UUID.randomUUID()}.zip")
         val customIcons = File(context.cacheDir, "custom-icons-${UUID.randomUUID()}.zip")
+        val genericMonet = File(context.cacheDir, "generic-monet-${UUID.randomUUID()}.zip")
         try {
           fun metadata(value: String?, length: Int) =
             value?.map { if (it.isISOControl()) ' ' else it }?.joinToString("")?.trim()?.take(length)?.takeIf { it.isNotEmpty() }
@@ -249,9 +253,13 @@ internal object IconPackHandoffs {
             check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
           onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.MASKING))
           val maskingProgress = progress(ColorOsGenerationStage.MASKING)
-          val maskedSource = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
+          val shapedSource = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
               enabled = completeSystemIconConfig, check = { caller.ensureActive() },
               onProgress = { done, total -> maskingProgress(done, total, "") })) maskedIcons else stampedIcons
+          val maskedSource = if (monetUnadaptedIcons && PublishedGenericMonet.write(shapedSource, genericMonet,
+              true, PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
+                caller.ensureActive()
+              }) { caller.ensureActive() }) genericMonet else shapedSource
           val publishedIcons = if (custom.selections.isNotEmpty()) {
             val exclusions = PreservedIconResources.fromInstalled(context, custom.packages, targets) { caller.ensureActive() }
             val replacements = linkedMapOf<String, ByteArray>()
@@ -304,8 +312,8 @@ internal object IconPackHandoffs {
               ImageArchiveZip.writeBytes(output, "preview/preview_icons_0.png", png) { caller.ensureActive() }
             } finally { cover.recycle() }
           }
-        } finally { stampedIcons.delete(); maskedIcons.delete(); customIcons.delete() }
-        IconPackHandoff(token, target, pack.id, pack.displayName, when (pack.format) {
+        } finally { stampedIcons.delete(); maskedIcons.delete(); customIcons.delete(); genericMonet.delete() }
+        val convertedOrigin = when (pack.format) {
           os.kei.hyper.home.iconpack.IconPackFormat.INSTALLED_APK,
           os.kei.hyper.home.iconpack.IconPackFormat.APK -> "CONVERTED_APK"
           os.kei.hyper.home.iconpack.IconPackFormat.CLASSIC_ZIP -> "CONVERTED_CLASSIC_ZIP"
@@ -313,7 +321,20 @@ internal object IconPackHandoffs {
           os.kei.hyper.home.iconpack.IconPackFormat.MIUI_MTZ ->
             os.kei.hyper.home.xposed.ConvertedIconArchive.LOCAL_NATIVE
           else -> null
-        })
+        }
+        // Fail before creating a native-library entry if local application cannot
+        // be admitted. Publishing an unusable import invites an online DRM retry.
+        if (convertedOrigin != null) try {
+          runInterruptible { os.kei.hyper.home.xposed.ConvertedIconArchive.inspect(target, convertedOrigin) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+          throw cancelled
+        } catch (failure: Exception) {
+          android.util.Log.e("KeiHomePackImport", "Local publication validation failed before native import", failure)
+          throw os.kei.hyper.home.iconpack.IconPackException(
+            context.getString(os.kei.hyper.home.R.string.pack_local_apply_unavailable) + "\n" + failure.message,
+            failure)
+        }
+        IconPackHandoff(token, target, pack.id, pack.displayName, convertedOrigin)
       }
     } catch (failure: Throwable) {
       target.delete()

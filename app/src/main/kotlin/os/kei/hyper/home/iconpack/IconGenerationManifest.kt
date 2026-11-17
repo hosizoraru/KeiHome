@@ -16,9 +16,10 @@ internal data class IconGenerationManifest(
   val recommendedMappings: RecommendedIconMappings =
     if (schemaVersion < 9) RecommendedIconMappings.LEGACY else RecommendedIconMappings(),
   val customIconIdentity: String? = null,
+  val monetUnadaptedIcons: Boolean = false,
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..10 && (schemaVersion != 1 || !installedOnly) &&
+    require(schemaVersion in 1..13 && (schemaVersion != 1 || !installedOnly) &&
       (schemaVersion >= 3 || !completeSystemIconConfig))
     require(validMaskIdentity(iconMaskIdentity) &&
       (completeSystemIconConfig == (iconMaskIdentity != "original")))
@@ -30,8 +31,10 @@ internal data class IconGenerationManifest(
     require(schemaVersion >= 8 || recommendedMappings == RecommendedIconMappings.LEGACY)
     require(schemaVersion >= 9 || !recommendedMappings.phoneCompanions)
     require(customIconIdentity == null || schemaVersion >= 10 && customIconIdentity.matches(Regex("[0-9a-f]{64}")))
+    require(schemaVersion >= 11 || !monetUnadaptedIcons)
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     listOfNotNull(customIconIdentity?.let { "custom\t$it" }) +
+    (if (schemaVersion >= 11) listOf("monet-fallback\t${if (monetUnadaptedIcons) "on" else "off"}") else emptyList()) +
     (if (schemaVersion >= 2) listOf("scope\t${if (installedOnly) "installed" else "all"}") else emptyList()) +
     (if (schemaVersion >= 3) listOf("shape\t${if (completeSystemIconConfig) "complete" else "original"}") else emptyList()) +
     (if (schemaVersion >= 4) listOf("mask\t$iconMaskIdentity") else emptyList()) +
@@ -62,6 +65,9 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration8" -> 8
         "KeiHomeIconGeneration9" -> 9
         "KeiHomeIconGeneration10" -> 10
+        "KeiHomeIconGeneration11" -> 11
+        "KeiHomeIconGeneration12" -> 12
+        "KeiHomeIconGeneration13" -> 13
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
@@ -73,10 +79,15 @@ internal data class IconGenerationManifest(
       var mask: String? = null
       var mappings: RecommendedIconMappings? = null
       var custom: String? = null
+      var monetFallback: Boolean? = null
       fun target(value: String) = IconPackComponent.parse(value)?.flattened == value
       lines.drop(1).dropLast(1).forEach { line ->
         val row = line.split('\t')
         when (row.first()) {
+          "monet-fallback" -> {
+            require(schema >= 11 && row.size == 2 && monetFallback == null && row[1] in setOf("on", "off"))
+            monetFallback = row[1] == "on"
+          }
           "custom" -> {
             require(schema >= 10 && row.size == 2 && custom == null && row[1].matches(Regex("[0-9a-f]{64}")))
             custom = row[1]
@@ -113,9 +124,10 @@ internal data class IconGenerationManifest(
       require(schema < 3 || shape != null)
       require(schema < 4 || mask != null)
       require(schema < 8 || mappings != null)
+      require(schema < 11 || monetFallback != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
         mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved,
-        mappings ?: RecommendedIconMappings.LEGACY, custom).also {
+        mappings ?: RecommendedIconMappings.LEGACY, custom, monetFallback == true).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }

@@ -7,6 +7,37 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
+  @Test fun colorOsMonochromeGeometryUpgradeRequiresReapplyWithoutGenericColoring() {
+    for (schema in listOf(12, 13)) {
+      val current = source.copy(generation = IconGenerationManifest(schemaVersion = schema,
+        colorOsPackages = setOf(target.packageName), considered = setOf(target.flattened)))
+      assertEquals(schema < 13, iconPackNeedsUpdate(pack, current, listOf(target),
+        SystemIconFallback.DEFAULT, emptySet(), monetUnadaptedIcons = false))
+    }
+    assertFalse(iconPackNeedsUpdate(pack, source.copy(generation = IconGenerationManifest(
+      schemaVersion = 12, considered = setOf(target.flattened))), listOf(target),
+      SystemIconFallback.DEFAULT, emptySet(), monetUnadaptedIcons = false))
+  }
+
+  @Test fun genericMonetLayerGeometryUpgradeRequiresReapplyOnce() {
+    for (schema in listOf(11, 12)) {
+      val current = source.copy(generation =
+        IconGenerationManifest(schemaVersion = schema, monetUnadaptedIcons = true,
+          considered = setOf(target.flattened)))
+      assertEquals("Only old generic Monet output needs regeneration", schema < 12,
+        iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT,
+          emptySet(), monetUnadaptedIcons = true))
+    }
+  }
+
+  @Test fun genericMonetSettingChangesRequireRegenerationInBothDirections() {
+    val enabled = source.copy(generation =
+      IconGenerationManifest(schemaVersion = 11, monetUnadaptedIcons = true))
+    assertTrue(iconPackNeedsUpdate(pack, source, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = true))
+    assertTrue(iconPackNeedsUpdate(pack, enabled, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = false))
+  }
   private val target = IconPackComponent("os.test.app", "os.test.app.Main")
   private val entry = IconPackEntry("mapped", component = target)
   private val pack = IconPackDescriptor("apk:os.test.icons", "Icons", IconPackFormat.INSTALLED_APK,

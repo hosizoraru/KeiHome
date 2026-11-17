@@ -274,7 +274,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                   val bitmap = renderer.renderTarget(entry, target, sizePx, check)
                     ?: if (missingMode && systemRenderer?.requiresLiveSource(target) == true) null
                     else if (missingMode && (systemFallback?.isPerfect == true || systemRenderer?.isSystem(target) == true)) {
-                      systemRenderer?.render(target, sizePx, check)?.also { usedSystemFallback = true }
+                      systemRenderer?.render(target, sizePx, darkMode, check)?.also { usedSystemFallback = true }
                         ?: fallback?.render(target, darkMode, sizePx, mask = null, check = check)
                     } else if (missingMode) fallback?.render(target, darkMode, sizePx, mask = null, check = check) else null
                   bitmap?.let { encodePng(renderer.maskOutput(it)) }
@@ -627,9 +627,9 @@ internal class IconPackExporter(private val context: Context, private val limits
             val second = dark.getInputStream(other).use { it.readBytes() }
             val mask = day.monochrome[name]
             val background = day.monochromeBackgrounds[name] ?: day.paletteBackground
-            val pair = if (mask != null && background != null)
+            val pair = (if (mask != null && background != null)
               NativePaletteIcon.entries(name, first, second, mask, background)
-            else NativeDayNightIcon.entries(name, first, second) +
+            else NativeDayNightIcon.entries(name, first, second)) +
               ("nightmode/res/drawable-xxhdpi/$name.png" to second)
             additions.putAll(pair)
           }
@@ -687,21 +687,29 @@ internal class IconPackExporter(private val context: Context, private val limits
       val protected = java.util.zip.ZipFile(archive).use { zip ->
         covered + nativeFallbackProtectedNames(zip.entries().asSequence().map { it.name })
       }
-      val additions = linkedMapOf<String, ByteArray>()
+      val additions = linkedMapOf<String, Pair<ByteArray, ByteArray>>()
       for ((pkg, group) in targets.groupBy { it.packageName }) {
         for (target in group) {
           check()
           if (nativeLauncherIconNames(target).any { it in protected }) continue
-          val raw = renderer.render(target, size, check) ?: continue
-          val bitmap = try { IconMaskPolicy.clip(raw, shape) } finally {
-            // clip returns its input only when no shape was selected.
-            if (shape != null) raw.recycle()
+          fun render(dark: Boolean): ByteArray? {
+            val raw = renderer.render(target, size, dark, check) ?: return null
+            val bitmap = try { IconMaskPolicy.clip(raw, shape) } finally {
+              // clip returns its input only when no shape was selected.
+              if (shape != null) raw.recycle()
+            }
+            return try { ByteArrayOutputStream().also {
+              check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }.toByteArray() } finally { bitmap.recycle() }
           }
-          val bytes = try { ByteArrayOutputStream().also {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-          }.toByteArray() } finally { bitmap.recycle() }
+          val day = render(false) ?: continue
+          val night = if (style.isPerfect) render(true) ?: day else day
+          val bytes = day to night
           nativeLauncherActivityName(target)?.let { name ->
-            require(additions[name]?.contentEquals(bytes) != false) { "Native fallback filename collision: $name" }
+            val previous = additions[name]
+            require(previous == null || previous.first.contentEquals(day) && previous.second.contentEquals(night)) {
+              "Native fallback filename collision: $name"
+            }
             additions[name] = bytes
           }
           if (group.size == 1 || target.className == null) additions[pkg] = bytes
@@ -715,12 +723,12 @@ internal class IconPackExporter(private val context: Context, private val limits
         java.util.zip.ZipFile(archive).use { source ->
           for ((name, bytes) in additions) {
             check()
-            for (prefix in listOf("", "nightmode/")) {
+            for ((prefix, image) in listOf("" to bytes.first, "nightmode/" to bytes.second)) {
               val path = "${prefix}res/drawable-xxhdpi/$name.png"
               require(source.getEntry(path) == null)
-              resources[path] = bytes
+              resources[path] = image
             }
-            for ((path, data) in NativeDayNightIcon.entries(name, bytes, bytes)) {
+            for ((path, data) in NativeDayNightIcon.entries(name, bytes.first, bytes.second)) {
               if (!path.startsWith("fancy_icons/")) continue
               require(source.getEntry(path) == null)
               resources[path] = data

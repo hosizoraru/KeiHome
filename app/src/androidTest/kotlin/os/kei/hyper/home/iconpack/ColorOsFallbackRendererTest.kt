@@ -140,6 +140,28 @@ class ColorOsFallbackRendererTest {
   }
 
   @Test
+  fun apkMonochromeGeometryMatchesAndroidAtEvenAndOddOutputSizes() {
+    val source = Bitmap.createBitmap(108, 108, Bitmap.Config.ARGB_8888)
+    Canvas(source).drawRect(36f, 36f, 72f, 72f, Paint().apply { color = Color.WHITE })
+    try {
+      for (size in listOf(60, 64, 95, 96, 129, 192)) {
+        val expected = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val native = AdaptiveIconDrawable(null, BitmapDrawable(context.resources, source).apply { isFilterBitmap = true })
+        native.setBounds(0, 0, size, size)
+        native.foreground.draw(Canvas(expected))
+        val actual = renderer.rasterize(AdaptiveIconDrawable(null, null,
+          BitmapDrawable(context.resources, source)), false, size, monochrome = true)
+        try {
+          for (y in 0 until size) for (x in 0 until size) {
+            assertEquals("APK monochrome alpha at size=$size ($x,$y)",
+              Color.alpha(expected.getPixel(x, y)), Color.alpha(actual.getPixel(x, y)))
+          }
+        } finally { expected.recycle(); actual.recycle() }
+      }
+    } finally { source.recycle() }
+  }
+
+  @Test
   fun nestedAnimationsAreSkippedBeforeDrawOrStop() {
     val animation = object : AnimationDrawable() {
       var draws = 0

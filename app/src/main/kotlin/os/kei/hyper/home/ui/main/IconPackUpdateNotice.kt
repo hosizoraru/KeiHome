@@ -25,10 +25,15 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   recommendedMappings: RecommendedIconMappings = RecommendedIconMappings(),
   customizedPackages: Set<String> = emptySet(),
   customIconIdentity: String? = null,
+  monetUnadaptedIcons: Boolean = false,
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
   if ((source.generation?.recommendedMappings ?: RecommendedIconMappings()) != recommendedMappings) return true
   if (source.generation?.customIconIdentity != customIconIdentity) return true
+  if ((source.generation?.monetUnadaptedIcons ?: false) != monetUnadaptedIcons) return true
+  if (monetUnadaptedIcons && source.generation?.schemaVersion?.let { it < 12 } == true) return true
+  if ((pack.colorOsProfile != null || source.generation?.colorOsPackages?.isNotEmpty() == true) &&
+    source.generation?.schemaVersion?.let { it < 13 } == true) return true
   val effectivePreserved = preservedPackages - customizedPackages
   if (source.generation?.preservedIconPackages.orEmpty() != effectivePreserved) return true
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||

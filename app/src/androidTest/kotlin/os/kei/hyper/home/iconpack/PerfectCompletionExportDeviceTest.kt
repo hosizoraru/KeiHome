@@ -21,16 +21,48 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.data.AppLocalStorage
+import os.kei.hyper.home.data.RecommendedIconMappings
+import os.kei.hyper.home.iconpack.apple.AppleAppMatch
+import os.kei.hyper.home.iconpack.apple.AppleAppTarget
+import os.kei.hyper.home.iconpack.apple.AppleIconClient
+import os.kei.hyper.home.iconpack.apple.AppleIconOptions
+import os.kei.hyper.home.iconpack.apple.AppleIconRepository
+import os.kei.hyper.home.iconpack.apple.AppleIconTransport
 import os.kei.hyper.home.iconpack.perfect.PerfectIconHttpResponse
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconSettings
 import os.kei.hyper.home.iconpack.perfect.PerfectIconSourceZip
 import os.kei.hyper.home.iconpack.perfect.PerfectIconTransport
 import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
+import os.kei.hyper.home.iconpack.perfect.PerfectStaticNightRenderer
 
 /** Real Android PNG/ZIP/export paths, with only private synthetic Perfect resources. */
 class PerfectCompletionExportDeviceTest {
   private val application = ApplicationProvider.getApplicationContext<Context>()
+
+  @Test fun applePackFallbackRetainsDistinctDayAndNightIconsOffline() = fixture { f ->
+    val namespace = "apple_fallback_${System.nanoTime()}"
+    val apple = AppleIconRepository(f.context, AppleIconClient(object : AppleIconTransport {
+      override suspend fun get(url: String): ByteArray = error("Bundled Apple fixture must remain offline")
+    }), File(f.root, "apple"), namespace)
+    try {
+      val options = AppleIconOptions(resolution = 256)
+      val target = AppleAppTarget(PRIMARY.packageName, "Primary", false)
+      apple.setMatch(target, options, AppleAppMatch("system_appstore", "App Store", "Apple"))
+      val pack = runBlocking { apple.generate(listOf(target), options) {}.pack }
+      val appleDay = f.export(pack, listOf(PRIMARY, COMPLETE), dark = false)
+      val appleNight = f.export(pack, listOf(PRIMARY, COMPLETE), dark = true)
+      f.assertPerfect(appleDay, COMPLETE, Color.MAGENTA)
+      f.assertPerfect(appleNight, COMPLETE, Color.MAGENTA)
+      assertFalse("Apple fallback must not reuse its day artwork in dark mode",
+        f.bytes(appleDay, flatPath(COMPLETE)).contentEquals(f.bytes(appleNight, flatPath(COMPLETE))))
+      f.assertPerfect(f.export(f.primary, listOf(COMPLETE), dark = false), COMPLETE, Color.MAGENTA)
+      f.assertPerfect(f.export(f.primary, listOf(COMPLETE), dark = true), COMPLETE, Color.MAGENTA)
+    } finally {
+      AppLocalStorage.open(f.context, namespace).clearAll()
+    }
+  }
 
   @Test fun uninstalledThirdPartyCompletionWorksAcrossAllThreeSourceCombinations() = fixture { f ->
     assertThrows(PackageManager.NameNotFoundException::class.java) {
@@ -163,8 +195,9 @@ class PerfectCompletionExportDeviceTest {
           OFFLINE.packageName, separatePackage.packageName))
         f.assertSolid(result, PRIMARY, Color.GREEN)
         f.assertPerfect(result, COMPLETE, Color.MAGENTA)
-        f.assertSolid(result, IconPackComponent(included.className!!), Color.CYAN)
-        f.assertSolid(result, separatePackage, Color.CYAN)
+        val fallbackPlate = if (dark) Color.rgb(32, 32, 32) else Color.CYAN
+        f.assertSolid(result, IconPackComponent(included.className!!), fallbackPlate)
+        f.assertSolid(result, separatePackage, fallbackPlate)
         ZipFile(result.archive).use { zip ->
           for (name in listOf(EXCLUDED.packageName, excluded.className!!, external.className!!)) {
             assertNull("Preserved package/alias must not be reintroduced: $name",
@@ -204,7 +237,7 @@ class PerfectCompletionExportDeviceTest {
       for (target in listOf(COMPLETE, OFFLINE)) {
         val bitmap = decode(output.getInputStream(requireNotNull(
           output.getEntry("nightmode/${flatPath(target)}"))).use { it.readBytes() })
-        try { assertPerfectPixels(bitmap, if (target == COMPLETE) Color.MAGENTA else Color.CYAN) }
+        try { assertPerfectPixels(bitmap, if (target == COMPLETE) Color.MAGENTA else Color.CYAN, dark = true) }
         finally { bitmap.recycle() }
       }
     }
@@ -302,7 +335,7 @@ class PerfectCompletionExportDeviceTest {
           assertEquals(if (dark) Color.YELLOW else Color.GREEN, primaryBitmap.getPixel(SIZE / 2, SIZE / 2))
         } finally { primaryBitmap.recycle() }
         val perfectBitmap = requireNotNull(preview.render(completed, SIZE))
-        try { assertPerfectPixels(perfectBitmap, Color.MAGENTA) } finally { perfectBitmap.recycle() }
+        try { assertPerfectPixels(perfectBitmap, Color.MAGENTA, dark) } finally { perfectBitmap.recycle() }
       }
     }
     assertEquals(1, f.downloads)
@@ -361,7 +394,11 @@ class PerfectCompletionExportDeviceTest {
         check(archive.size.toLong() <= limit)
         destination.writeBytes(archive)
         PerfectIconHttpResponse(200)
-      }, settings)
+      }, settings,
+      staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check = check) },
+      staticEquivalentRenderer = { flat, layers, mask, check ->
+        PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
+      })
     private val exporter = IconPackExporter(context, IconPackLimits(), perfectSources = ::openSource)
     private val stores = IconPackStore(File(root, "imports"))
     private val builtinCatalog by lazy { BuiltinIconPackStore(context.assets).list() }
@@ -420,7 +457,9 @@ class PerfectCompletionExportDeviceTest {
     ): IconPackExportResult {
       val result = exporter.export(pack, targets, darkMode = dark, sizePx = SIZE,
         systemFallback = fallback, colorOsFallback = colorOs, installedOnly = installedOnly,
-        maskPolicy = NO_MASK, preservedPackages = preserved) {}
+        maskPolicy = NO_MASK, preservedPackages = preserved,
+        recommendedMappings = RecommendedIconMappings.NONE,
+        phoneCompanionExclusions = PhoneCompanionIcons.TARGETS.toSet()) {}
       assertTrue("Export staging must stay under this test's private root",
         result.archive.canonicalPath.startsWith(root.canonicalPath + File.separator))
       return result
@@ -451,7 +490,7 @@ class PerfectCompletionExportDeviceTest {
 
     fun assertPerfect(result: IconPackExportResult, target: IconPackComponent, color: Int) {
       val bitmap = decode(bytes(result, flatPath(target)))
-      try { assertPerfectPixels(bitmap, color) } finally { bitmap.recycle() }
+      try { assertPerfectPixels(bitmap, color, result.darkMode) } finally { bitmap.recycle() }
     }
 
     fun assertSolid(result: IconPackExportResult, target: IconPackComponent, color: Int) {
@@ -484,11 +523,21 @@ class PerfectCompletionExportDeviceTest {
 
     fun flatPath(target: IconPackComponent) = "res/drawable-xxhdpi/${target.packageName}.png"
 
-    fun assertPerfectPixels(bitmap: Bitmap, color: Int) {
+    fun assertPerfectPixels(bitmap: Bitmap, color: Int, dark: Boolean = false) {
       assertEquals(SIZE, bitmap.width)
       assertEquals(SIZE, bitmap.height)
-      assertEquals("Selected OriginOS foreground must override HyperOS4", color, bitmap.getPixel(SIZE / 2, SIZE / 2))
-      assertEquals("The base layer must remain behind the style foreground", Color.BLUE, bitmap.getPixel(8, SIZE / 2))
+      val foreground = bitmap.getPixel(SIZE / 2, SIZE / 2)
+      val background = bitmap.getPixel(8, SIZE / 2)
+      if (dark) {
+        fun dim(channel: Int) = (channel * 214 + 127) / 255
+        assertEquals(Color.rgb(dim(Color.red(color)), dim(Color.green(color)), dim(Color.blue(color))), foreground)
+        assertEquals(Color.red(background), Color.green(background))
+        assertEquals(Color.green(background), Color.blue(background))
+        assertTrue("Night plate must be dark", Color.red(background) in 10..60)
+      } else {
+        assertEquals("Selected OriginOS foreground must override HyperOS4", color, foreground)
+        assertEquals("The base layer must remain behind the style foreground", Color.BLUE, background)
+      }
     }
 
     fun solid(color: Int): ByteArray {

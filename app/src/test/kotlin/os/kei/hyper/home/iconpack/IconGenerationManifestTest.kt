@@ -5,6 +5,12 @@ import org.junit.Test
 import os.kei.hyper.home.data.RecommendedIconMappings
 
 class IconGenerationManifestTest {
+  @Test fun schemaThirteenPreservesColorOsGeometryProvenance() {
+    val value = IconGenerationManifest(schemaVersion = 13,
+      colorOsPackages = setOf("com.android.settings"))
+    assertEquals(value, IconGenerationManifest.decode(value.encode()))
+  }
+
   @Test fun schemasEightAndNineRecordSupportedMappingsInCanonicalMetadataBeforeDecisions() {
     for (schema in listOf(8, 9)) for (bits in 0..(if (schema == 8) 3 else 7)) {
       val value = IconGenerationManifest(

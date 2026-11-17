@@ -15,11 +15,8 @@ internal object NativeRecommendedIconCompletion {
     if (!recommendedMappings.telegramChannels && !recommendedMappings.phoneCompanions) return emptyMap()
     val family = TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
     val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
-    val byComponent = pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
-    val byName = pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
-    fun existing(target: IconPackComponent) = byComponent[target]
-      ?: byComponent[IconPackComponent(target.packageName)]
-      ?: nativeLauncherIconNames(target).firstNotNullOfOrNull { byName[it] }
+    val sourceEntries = IconPackEntryIndex(pack.entries)
+    fun existing(target: IconPackComponent) = sourceEntries.find(target)
     val wanted = targets.filter { target ->
       target.packageName !in preserved && ((target.packageName !in phoneCompanionExclusions &&
         phone.donor(target, existing(target)) != null) ||
@@ -55,8 +52,6 @@ internal object NativeRecommendedIconCompletion {
           val dark = png(night, target) ?: continue
           for (name in listOfNotNull(nativeLauncherActivityName(target), target.packageName).distinct()) {
             if (!written.add(name)) continue
-            output["res/drawable-xxhdpi/$name.png"] = light
-            output["nightmode/res/drawable-xxhdpi/$name.png"] = dark
             output.putAll(NativeDayNightIcon.entries(name, light, dark))
           }
         }

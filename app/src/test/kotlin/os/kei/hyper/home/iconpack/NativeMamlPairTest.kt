@@ -24,7 +24,12 @@ class NativeMamlPairTest {
     val resources = NativeDayNightIcon.entries("com.example.app", day, night)
     val manifest = resources.getValue("fancy_icons/com.example.app/manifest.xml")
     assertEquals(NativeMamlPair("day.png", "night.png"), NativeMamlPair.parse(manifest))
-    val parsed = inspect(archive(resources.toList())).entries.single()
+    val full = inspect(archive(resources.toList())).entries.single()
+    val explicitNight = full.dark as IconPackArtwork.Archive
+    assertFalse(explicitNight.palettePair)
+    assertTrue(explicitNight.variants.any { it.path == "nightmode/res/drawable-xxhdpi/com.example.app.png" })
+    // Exercise the MAML fallback independently of the complete native night fallback.
+    val parsed = inspect(archive(resources.filterKeys { !it.startsWith("nightmode/") }.toList())).entries.single()
     assertPairPath(parsed.light, "fancy_icons/com.example.app/day.png")
     assertPairPath(parsed.dark, "fancy_icons/com.example.app/night.png")
     assertFalse((parsed.light as IconPackArtwork.Archive).snapshot)

@@ -1386,7 +1386,6 @@ class PerfectIconRepository internal constructor(
             coroutine.ensureActive()
             val pair = staticPair(inputs, mask, { coroutine.ensureActive() }, read)
             NativeDayNightIcon.entries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
-            entry("nightmode/res/drawable-xxhdpi/$name.png", pair.night)
             renderProgress(index + 1, nightInputs.size)
             if (index % 32 == 31) trimRendered()
           }

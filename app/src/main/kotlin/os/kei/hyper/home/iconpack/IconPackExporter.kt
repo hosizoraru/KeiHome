@@ -185,15 +185,11 @@ internal class IconPackExporter(private val context: Context, private val limits
           throw failure
         }
       }
-      val componentEntries = pack.entries.mapNotNull { it.component?.let { component -> component to it } }.toMap()
-      val nativeEntries = pack.entries.mapNotNull { it.nativeName?.let { name -> name to it } }.toMap()
+      val sourceEntries = IconPackEntryIndex(pack.entries)
       val requiresLive = livePolicy(pack)
       val nameMatcher = SystemAppNameMatcher(context, pack.entries, systemAppNameMatching,
         BuiltinColorOsMappings.excludedNameMatches(pack, recommendedMappings.colorOsThemeStores))
-      fun match(target: IconPackComponent) = componentEntries[target]
-        ?: componentEntries[IconPackComponent(target.packageName)]
-        ?: nativeLauncherIconNames(target).firstNotNullOfOrNull(nativeEntries::get)
-        ?: nameMatcher.match(target)
+      fun match(target: IconPackComponent) = sourceEntries.find(target) ?: nameMatcher.match(target)
       val directory = File(context.cacheDir, "icon-pack-exports")
       if (!directory.isDirectory && !directory.mkdirs()) throw IconPackException("Cannot create export staging directory")
       val archive = File.createTempFile("icons-", ".zip", directory)
@@ -627,10 +623,9 @@ internal class IconPackExporter(private val context: Context, private val limits
             val second = dark.getInputStream(other).use { it.readBytes() }
             val mask = day.monochrome[name]
             val background = day.monochromeBackgrounds[name] ?: day.paletteBackground
-            val pair = (if (mask != null && background != null)
+            val pair = if (mask != null && background != null)
               NativePaletteIcon.entries(name, first, second, mask, background)
-            else NativeDayNightIcon.entries(name, first, second)) +
-              ("nightmode/res/drawable-xxhdpi/$name.png" to second)
+            else NativeDayNightIcon.entries(name, first, second)
             additions.putAll(pair)
           }
         }

@@ -8,6 +8,9 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import java.io.ByteArrayOutputStream
@@ -395,7 +398,9 @@ class PerfectCompletionExportDeviceTest {
         destination.writeBytes(archive)
         PerfectIconHttpResponse(200)
       }, settings,
-      staticRenderer = { layers, mask, check -> PerfectStaticNightRenderer.render(layers, mask, check = check) },
+      staticRenderer = { layers, mask, check ->
+        PerfectStaticNightRenderer.render(layers, mask, check = check, nativeViewport = layers.size > 1)
+      },
       staticEquivalentRenderer = { flat, layers, mask, check ->
         PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
       })
@@ -526,17 +531,31 @@ class PerfectCompletionExportDeviceTest {
     fun assertPerfectPixels(bitmap: Bitmap, color: Int, dark: Boolean = false) {
       assertEquals(SIZE, bitmap.width)
       assertEquals(SIZE, bitmap.height)
-      val foreground = bitmap.getPixel(SIZE / 2, SIZE / 2)
+      val foregroundColor = bitmap.getPixel(SIZE / 2, SIZE / 2)
       val background = bitmap.getPixel(8, SIZE / 2)
       if (dark) {
         fun dim(channel: Int) = (channel * 214 + 127) / 255
-        assertEquals(Color.rgb(dim(Color.red(color)), dim(Color.green(color)), dim(Color.blue(color))), foreground)
+        assertEquals(Color.rgb(dim(Color.red(color)), dim(Color.green(color)), dim(Color.blue(color))), foregroundColor)
         assertEquals(Color.red(background), Color.green(background))
         assertEquals(Color.green(background), Color.blue(background))
         assertTrue("Night plate must be dark", Color.red(background) in 10..60)
       } else {
-        assertEquals("Selected OriginOS foreground must override HyperOS4", color, foreground)
+        assertEquals("Selected OriginOS foreground must override HyperOS4", color, foregroundColor)
         assertEquals("The base layer must remain behind the style foreground", Color.BLUE, background)
+        val rawPng = foreground(color)
+        val raw = BitmapFactory.decodeByteArray(rawPng, 0, rawPng.size)
+        val expected = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        try {
+          val native = AdaptiveIconDrawable(ColorDrawable(Color.BLUE),
+            BitmapDrawable(ApplicationProvider.getApplicationContext<Context>().resources, raw).apply {
+              isFilterBitmap = true
+            })
+          native.setBounds(0, 0, SIZE, SIZE)
+          native.draw(Canvas(expected))
+          // Compare the independently drawn native child, including framework rounding/filtering.
+          assertEquals((0 until SIZE).filter { expected.getPixel(it, SIZE / 2) == color },
+            (0 until SIZE).filter { bitmap.getPixel(it, SIZE / 2) == color })
+        } finally { raw.recycle(); expected.recycle() }
       }
     }
 
@@ -552,7 +571,8 @@ class PerfectCompletionExportDeviceTest {
       val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
       try {
         bitmap.eraseColor(Color.TRANSPARENT)
-        Canvas(bitmap).drawRect(16f, 16f, 80f, 80f, Paint().apply { this.color = color })
+        // Native textures include overscan; keep visible artwork inside that child viewport.
+        Canvas(bitmap).drawRect(32f, 32f, 64f, 64f, Paint().apply { this.color = color })
         return png(bitmap)
       } finally { bitmap.recycle() }
     }

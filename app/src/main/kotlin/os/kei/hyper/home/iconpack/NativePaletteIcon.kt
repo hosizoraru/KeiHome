@@ -2,6 +2,17 @@ package os.kei.hyper.home.iconpack
 
 /** Event-driven palette template; exact legacy variants remain available for import validation. */
 internal object NativePaletteIcon {
+  fun recognizes(
+    nativeName: String, manifest: ByteArray, day: ByteArray, night: ByteArray,
+    mask: ByteArray, background: ByteArray,
+  ): Boolean = listOf(false, true).any { expanded -> listOf(false, true).any { scalar ->
+    try {
+      entries(nativeName, day, night, mask, background,
+        legacyExpanded = expanded, legacyScalarBinders = scalar)
+        .getValue("fancy_icons/$nativeName/manifest.xml").contentEquals(manifest)
+    } catch (_: IllegalArgumentException) { false }
+  } }
+
   const val FOREGROUND_KEY = "keihome_maml_fg_hex"
   const val BACKGROUND_KEY = "keihome_maml_bg_hex"
   const val ENABLED_KEY = "keihome_maml_enabled"
@@ -63,7 +74,6 @@ ${binders.prependIndent("          ")}
       </Icon>
     """.trimIndent() + "\n"
     return pair + linkedMapOf(
-      "nightmode/res/drawable-xxhdpi/$nativeName.png" to darkPng.copyOf(),
       "$root/manifest.xml" to manifest.toByteArray(Charsets.UTF_8),
       "$root/mask.png" to monochromePng.copyOf(),
       "$root/bg.png" to backgroundMaskPng.copyOf(),

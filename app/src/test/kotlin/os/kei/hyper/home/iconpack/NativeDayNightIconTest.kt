@@ -16,9 +16,10 @@ class NativeDayNightIconTest {
 
   @Test fun preservesBothPngsAndNormalFallbackAtExactNativePaths() {
     val entries = NativeDayNightIcon.entries(name, day, night)
-    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "$root/manifest.xml",
+    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "nightmode/res/drawable-xxhdpi/$name.png", "$root/manifest.xml",
       "$root/day.png", "$root/night.png"), entries.keys)
     assertArrayEquals(day, entries.getValue("res/drawable-xxhdpi/$name.png"))
+    assertArrayEquals(night, entries.getValue("nightmode/res/drawable-xxhdpi/$name.png"))
     assertArrayEquals(day, entries.getValue("$root/day.png"))
     assertArrayEquals(night, entries.getValue("$root/night.png"))
   }
@@ -48,7 +49,8 @@ class NativeDayNightIconTest {
 
   @Test fun identicalBytesKeepFallbackAndDescriptorWithOneAlwaysVisibleImage() {
     val entries = NativeDayNightIcon.entries(name, day, day.copyOf())
-    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "$root/manifest.xml", "$root/day.png"), entries.keys)
+    assertEquals(setOf("res/drawable-xxhdpi/$name.png", "nightmode/res/drawable-xxhdpi/$name.png",
+      "$root/manifest.xml", "$root/day.png"), entries.keys)
     assertArrayEquals(day, entries.getValue("res/drawable-xxhdpi/$name.png"))
     assertArrayEquals(day, entries.getValue("$root/day.png"))
     val icon = DocumentBuilderFactory.newInstance().newDocumentBuilder()

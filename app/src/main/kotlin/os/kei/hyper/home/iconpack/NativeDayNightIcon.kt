@@ -37,6 +37,7 @@ internal object NativeDayNightIcon {
     val light = lightPng.copyOf()
     val result = linkedMapOf(
       "res/drawable-xxhdpi/$nativeName.png" to light,
+      "nightmode/res/drawable-xxhdpi/$nativeName.png" to darkPng.copyOf(),
       "$root/manifest.xml" to manifest.toByteArray(Charsets.UTF_8),
       "$root/day.png" to light,
     )

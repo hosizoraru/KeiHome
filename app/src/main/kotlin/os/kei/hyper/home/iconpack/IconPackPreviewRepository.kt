@@ -240,12 +240,7 @@ internal class IconPackRenderer(
         phoneCompanionExclusions = phoneCompanionExclusions + phone.authoredTargets) }
     }
     private val supplement by supplementState
-    private val componentEntries by lazy(LazyThreadSafetyMode.NONE) {
-      pack.entries.mapNotNull { entry -> entry.component?.let { it to entry } }.toMap()
-    }
-    private val nativeEntries by lazy(LazyThreadSafetyMode.NONE) {
-      pack.entries.mapNotNull { entry -> entry.nativeName?.let { it to entry } }.toMap()
-    }
+    private val sourceEntries by lazy(LazyThreadSafetyMode.NONE) { IconPackEntryIndex(pack.entries) }
     private val telegram by lazy(LazyThreadSafetyMode.NONE) { TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels) }
     private val phone by lazy(LazyThreadSafetyMode.NONE) { PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions) }
     private val nightProofs = mutableMapOf<String, Boolean>()
@@ -270,9 +265,7 @@ internal class IconPackRenderer(
     fun usedRuntimeMonochrome(target: IconPackComponent): Boolean = target in runtimeMonochrome ||
       supplementState.isInitialized() && supplement?.usedRuntimeMonochrome(target) == true
 
-    private fun matching(target: IconPackComponent): IconPackEntry? =
-      componentEntries[target] ?: componentEntries[IconPackComponent(target.packageName)]
-        ?: nativeLauncherIconNames(target).firstNotNullOfOrNull { nativeEntries[it] }
+    private fun matching(target: IconPackComponent): IconPackEntry? = sourceEntries.find(target)
 
     private fun hasNight(entry: IconPackEntry): Boolean = nightProofs.getOrPut(entry.key) {
       TelegramChannelIcons.declaredNight(entry) || run {
@@ -317,9 +310,16 @@ internal class IconPackRenderer(
 
     fun completedEntry(target: IconPackComponent, existing: IconPackEntry?): IconPackEntry? {
       val entry = allowedEntry(existing)
-      phoneDonor(target)?.let { return it.copy(component = target) }
-      return telegram.donor(target, dark, entry, ::hasNight) ?: entry
+      val donor = completionDonor(target, entry) ?: return entry
+      return if (target.packageName in PhoneCompanionIcons.TARGETS) donor.copy(component = target) else donor
     }
+
+    private fun completionDonor(target: IconPackComponent, entry: IconPackEntry?): IconPackEntry? =
+      phoneDonor(target) ?: if ((pack.format == IconPackFormat.MIUI_ICONS || pack.format == IconPackFormat.MIUI_MTZ) &&
+        entry != null) null else telegram.donor(target, dark, entry, ::hasNight)
+
+    private fun monochromeTarget(target: IconPackComponent): IconPackComponent =
+      completionDonor(target, allowedEntry(matching(target)))?.component ?: target
 
     private fun phoneDonor(target: IconPackComponent): IconPackEntry? =
       if (target.packageName in phoneCompanionExclusions) null else phone.donor(target, matching(target))
@@ -334,10 +334,7 @@ internal class IconPackRenderer(
 
     private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
       check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
-      val authoredNative = pack.format in setOf(IconPackFormat.MIUI_ICONS, IconPackFormat.MIUI_MTZ)
-      if (target != null) phoneDonor(target)?.let { return renderArtwork(it, sizePx, check, adaptiveMask) }
-      if (target != null && (!authoredNative || entry == null))
-        telegram.donor(target, dark, entry, ::hasNight)?.let { donor ->
+      if (target != null) completionDonor(target, entry)?.let { donor ->
         val selected = if (dark && donor.dark == null) donor.copy(dark = donor.light) else donor
         return renderArtwork(selected, sizePx, check, adaptiveMask)
       }
@@ -354,14 +351,16 @@ internal class IconPackRenderer(
     /** Monochrome is an independent capability; never infer it from colored night artwork. */
     fun colorOsMonochromeIsFallback(target: IconPackComponent): Boolean {
       val profile = pack.colorOsProfile ?: return supplement?.colorOsMonochromeIsFallback(target) == true
-      val source = profile.source(target)
+      val source = profile.source(monochromeTarget(target))
       return source?.monochromePath == null || source.runtimeMonochrome
     }
 
     fun colorOsMonochrome(target: IconPackComponent, sizePx: Int, check: () -> Unit): Bitmap? {
+      if (target.packageName in preservedPackages) return null
       val profile = pack.colorOsProfile
         ?: return supplement?.colorOsMonochrome(target, sizePx, check)
-      val source = profile.source(target)
+      val sourceTarget = monochromeTarget(target)
+      val source = profile.source(sourceTarget)
       fun supplied(): Bitmap? = source?.monochromePath?.let { path ->
         val bytes = profile.read(path, check)
         GeneratedIconPng.squareSize(bytes)
@@ -369,14 +368,14 @@ internal class IconPackRenderer(
           ?: throw IconPackException("Invalid ColorOS monochrome layer")
         try {
           // The supplied PNG is an adaptive child, just like APK monochrome, not a finished mask.
-          requireNotNull(originals).monochromeLayer(target,
+          requireNotNull(originals).monochromeLayer(sourceTarget,
             BitmapDrawable(context.resources, layer).apply { isFilterBitmap = true },
             sizePx, check)
         } finally { layer.recycle() }
       }
       if (source?.monochromePath != null && !source.runtimeMonochrome) return supplied()
       nativeConsulted += target
-      return originals?.monochrome(target, false, sizePx, mask = null, check = check) ?: supplied()?.also {
+      return originals?.monochrome(sourceTarget, false, sizePx, mask = null, check = check) ?: supplied()?.also {
         if (source?.runtimeMonochrome == true) runtimeMonochrome += target
       }
     }

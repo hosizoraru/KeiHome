@@ -20,10 +20,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.onClick as onSemanticClick
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.ui.components.Os4FloatingToolbar
+import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
@@ -37,12 +41,17 @@ internal fun PageActionFab(label: String, icon: ImageVector, onClick: () -> Unit
   trailingIcon: Boolean = false, onHeightChanged: (Int) -> Unit = {}) {
   val foreground = if (enabled || busy) MiuixTheme.colorScheme.onPrimary
     else MiuixTheme.colorScheme.onSurfaceSecondary
+  val processing = if (busy) stringResource(R.string.action_label_processing) else null
   Os4FloatingToolbar(modifier = modifier.wrapContentWidth().heightIn(min = 56.dp)
     .onSizeChanged { onHeightChanged(it.height) }
-    .semantics(mergeDescendants = true) {
+    .clearAndSetSemantics {
       role = Role.Button
       contentDescription = description
       if (!enabled || busy) disabled()
+      if (processing != null) stateDescription = processing
+      onSemanticClick {
+        if (enabled && !busy) { onClick(); true } else false
+      }
     },
     primary = enabled || busy) {
     Row(Modifier.heightIn(min = 56.dp)

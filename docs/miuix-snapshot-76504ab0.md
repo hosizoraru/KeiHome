@@ -66,8 +66,11 @@ zero extra outside padding. The container stays outside the page recording.
 
 `PageActionFab` retains visible text, its accessibility description, Button
 role, disabled/busy behavior, progress indicator, click cancellation and
-height reporting. The content owns the click action because the native
-toolbar is a container that consumes background taps. A native circular FAB
+height reporting. The content owns physical clicks because the native
+toolbar is a container that consumes background taps. The outer surface
+publishes one accessibility node containing its description, Button role,
+guarded click action and busy-state description; native descendants do not
+split the action from its label. A native circular FAB
 is not stretched into an undocumented extended-button shape.
 
 Apple batch selection and Perfect resource selection share the same native
@@ -96,8 +99,9 @@ its own backdrop.
   destinations, dynamic removal and RTL; primary-action touch cancellation,
   enabled/busy/disabled states, Button semantics, both themes, glass/opaque
   surfaces and 160% fonts; and one selection commit on drag release.
-- After adding the explicit Button role, the floating-action/navigation
-  cases are rerun against the final source. Release build, lint, installed
+- After unifying the Button role, label and accessibility action, the
+  floating-action/navigation cases are rerun against the final source,
+  including semantic activation and rejection while disabled/busy. Release build, lint, installed
   identity, native-library equality and final device preservation receipts
   are recorded in the acceptance evidence.
 

@@ -22,8 +22,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -35,6 +37,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -100,14 +103,20 @@ class MiuixSnapshotDeviceTest {
       rule.runOnIdle { dark = night; blur = glass; enlarged = large; enabled = true; busy = false }
       val action = rule.onNodeWithTag("snapshot.action")
       action.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+      action.assertHasClickAction()
       action.assertIsDisplayed().performTouchInput { down(center); cancel() }
       val previous = taps
+      action.performSemanticsAction(SemanticsActions.OnClick) { assertTrue(it()) }
+      rule.runOnIdle { assertEquals(previous + 1, taps) }
       action.performTouchInput { click(center) }
-      rule.runOnIdle { assertEquals(previous + 1, taps); enabled = false }
+      rule.runOnIdle { assertEquals(previous + 2, taps); enabled = false }
       action.assertIsNotEnabled().performTouchInput { click(center) }
-      rule.runOnIdle { assertEquals(previous + 1, taps); enabled = true; busy = true }
+      action.performSemanticsAction(SemanticsActions.OnClick) { assertTrue(!it()) }
+      rule.runOnIdle { assertEquals(previous + 2, taps); enabled = true; busy = true }
       action.assertIsNotEnabled().performTouchInput { click(center) }
-      rule.runOnIdle { assertEquals(previous + 1, taps); busy = false }
+      action.performSemanticsAction(SemanticsActions.OnClick) { assertTrue(!it()) }
+      action.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.StateDescription))
+      rule.runOnIdle { assertEquals(previous + 2, taps); busy = false }
       val bounds = action.fetchSemanticsNode().boundsInRoot
       val viewport = rule.onRoot().fetchSemanticsNode().boundsInRoot
       assertTrue("Action must remain inside the viewport", viewport.contains(bounds.topLeft) &&
@@ -118,7 +127,7 @@ class MiuixSnapshotDeviceTest {
         }
       }
     }
-    rule.runOnIdle { assertEquals(8, taps) }
+    rule.runOnIdle { assertEquals(16, taps) }
   }
 
   @Test fun nativeNavigationBadgesFollowTheirOwnDestinationsAndUpdateWithoutSelectionEvents() {

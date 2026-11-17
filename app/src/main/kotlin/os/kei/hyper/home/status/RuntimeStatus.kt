@@ -29,6 +29,7 @@ internal object NativeRuntimeDiagnostic {
 
 internal data class RuntimeStatusRequest(
   val id: String, val userId: Int, val startedAtElapsed: Long, val includeIconTheme: Boolean = false,
+  val desktopAction: DesktopAppearanceAction? = null,
 ) {
   fun isPending(now: Long): Boolean = id.isNotBlank() && userId >= 0 && startedAtElapsed >= 0 &&
     now >= startedAtElapsed && now - startedAtElapsed <= REQUEST_LIFETIME_MS

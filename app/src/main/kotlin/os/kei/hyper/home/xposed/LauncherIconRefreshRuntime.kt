@@ -46,7 +46,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var nativeBrokerInstallFailure: String? = null
   private var convertedIconRuntime: ConvertedIconRuntime? = null
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
-  private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme)
+  private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme) { recentTaskLoader }
   private val iconPackImportMonitor = IconPackImportMonitor(
     { xposed.getRemotePreferences(IconPackImportProtocol.GROUP) },
     { failure -> logFailure("native icon import failed", failure) },

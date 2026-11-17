@@ -37,7 +37,10 @@ import os.kei.hyper.home.status.ThemeMaterialAutoEnable
  * secure marker lets a later wallpaper/theme change distinguish a value
  * written by this module from one selected by the user.
  */
-internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
+internal class MonetColorSynchronizer(
+  private val iconTheme: ActiveIconTheme,
+  private val systemClassLoader: () -> ClassLoader? = { null },
+) {
   private val native = NativeMonetClient()
   private val resources = MonetResourcePolicy(iconTheme)
   private val actionBaseline = MonetAction.Baseline()
@@ -160,9 +163,12 @@ internal class MonetColorSynchronizer(private val iconTheme: ActiveIconTheme) {
     request: RuntimeStatusRequest,
     refresh: IconRefreshReceipt?,
     isCurrent: () -> Boolean,
+    diagnostic: (String) -> Unit = {},
   ): Boolean {
     if (!isCurrent()) return false
     val context = contextForUser(baseContext, request.userId) ?: return false
+    if (request.desktopAction != null)
+      return DesktopAppearanceTools.handle(context, request, isCurrent, systemClassLoader(), diagnostic)
     val activeUser = currentUserId()
     val identities = NativeRuntimeIdentitySelection()
     if (activeUser == request.userId) {

@@ -1,0 +1,10 @@
+SERVICE com.miui.miwallpaper/.server.MiuiWallPaperControllerService fixture pid=100 user=0
+    miuiWallpaperData = MiuiWallpaperData{which=1, partIsDeep ={status_bar_rect=1, clock_style_rect=1}}
+    mWallpaperChangeListeners.size=7
+      listener: WallpaperRemoteCallback{which=3, packageName=other.listener, callback=fixture}, binderAlive=true
+      listener: WallpaperRemoteCallback{which=3, packageName=other.listener, callback=fixture}, binderAlive=true
+      listener: WallpaperRemoteCallback{which=2, packageName=other.listener, callback=fixture}, binderAlive=true
+      listener: WallpaperRemoteCallback{which=3, packageName=other.listener, callback=fixture}, binderAlive=true
+      listener: WallpaperRemoteCallback{which=2, packageName=other.listener, callback=fixture}, binderAlive=true
+      listener: WallpaperRemoteCallback{which=1, packageName=other.listener, callback=fixture}, binderAlive=false
+      listener: WallpaperRemoteCallback{which=3, packageName=other.listener, callback=fixture}, binderAlive=true

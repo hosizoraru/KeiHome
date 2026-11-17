@@ -26,12 +26,19 @@ internal object RuntimeStatusInbox {
 
 /** System UID may reach an unexported provider; other apps cannot publish a health receipt. */
 class RuntimeStatusProvider : ContentProvider() {
-  override fun onCreate() = true
+  override fun onCreate(): Boolean {
+    context?.let(DesktopAppearanceInbox::load)
+    return true
+  }
 
   override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
     check(Binder.getCallingUid() == Process.SYSTEM_UID) { "Runtime status requires the system owner" }
     return Bundle().apply {
       putBoolean("accepted", when (method) {
+        DesktopAppearanceInbox.CLAIM -> DesktopAppearanceInbox.claim(requireNotNull(context),
+          extras?.getString("id"), extras?.getInt("user", -1) ?: -1)
+        DesktopAppearanceInbox.REPORT -> DesktopAppearanceReport.decode(extras?.getString("report"))
+          ?.let { DesktopAppearanceInbox.accept(requireNotNull(context), it) } ?: false
         ThemeMaterialAutoEnable.METHOD -> ThemeMaterialAutoEnable.request()
         "preview_exists" -> CurrentIconSnapshot.cache(requireNotNull(context)).exists(requireNotNull(arg))
         "preview_ready" -> CurrentIconSnapshot.cache(requireNotNull(context)).ready(requireNotNull(arg))

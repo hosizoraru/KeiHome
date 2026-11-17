@@ -230,7 +230,7 @@ internal class MonetColorMonitor(
             RuntimeStatusProtocol.readRequest(runtimePreferences) == request
         }
         val started = SystemClock.elapsedRealtime()
-        val reported = synchronizer.reportRuntimeStatus(context, request, refreshReceipt(), isCurrent)
+        val reported = synchronizer.reportRuntimeStatus(context, request, refreshReceipt(), isCurrent, onStatusDiagnostic)
         statusDiagnostic("report id=${request.id.take(8)} sent=$reported elapsed=${SystemClock.elapsedRealtime() - started}")
         if (reported) {
           lastStatusRequest = request.id

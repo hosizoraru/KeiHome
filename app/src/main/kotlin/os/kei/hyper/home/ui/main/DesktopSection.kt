@@ -11,10 +11,11 @@ internal enum class DesktopSection(
   OVERVIEW("overview", R.string.desktop_home_title, R.string.desktop_overview_summary),
   DOCK("dock", R.string.desktop_dock_title, R.string.desktop_dock_summary),
   APPEARANCE("appearance", R.string.desktop_display_title, R.string.desktop_display_summary),
-  ICONS("icons", R.string.desktop_icons_title, R.string.desktop_icons_summary);
+  ICONS("icons", R.string.desktop_icons_title, R.string.desktop_icons_summary),
+  TOOLS("tools", R.string.desktop_tools_title, R.string.desktop_tools_summary);
 
   val features: List<DesktopFeature> get() = when (this) {
-    OVERVIEW -> emptyList()
+    OVERVIEW, TOOLS -> emptyList()
     DOCK -> listOf(DesktopFeature.DOCK_MATERIAL, DesktopFeature.DOCK_STYLE)
     APPEARANCE -> listOf(DesktopFeature.SEARCH_MATERIAL, DesktopFeature.LABELS)
     ICONS -> listOf(DesktopFeature.ICON_EFFECTS, DesktopFeature.SPLASH_ICONS, DesktopFeature.SPLASH)

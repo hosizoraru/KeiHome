@@ -37,6 +37,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSection, onBack: () -> Unit) {
+  if (section == DesktopSection.TOOLS) {
+    DesktopToolsScreen(model, onBack)
+    return
+  }
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   LaunchedEffect(model, section, lifecycle) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus(section) }

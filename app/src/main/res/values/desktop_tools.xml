@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="desktop_tools_title">Tools</string>
+    <string name="desktop_tools_summary">Status bar appearance diagnostics and manual refresh</string>
+    <string name="desktop_tools_read">Read status</string>
+    <string name="desktop_tools_status">Status bar contrast</string>
+    <string name="desktop_tools_reading">Reading system and launcher information…</string>
+    <string name="desktop_tools_unavailable">Unable to read. Check that the module is active in the system framework scope.</string>
+    <string name="desktop_tools_mismatch">The launcher requested dark icons over a dark wallpaper region. Return Home to verify.</string>
+    <string name="desktop_tools_subscription_missing">No live launcher wallpaper subscription was found. This may affect wallpaper updates.</string>
+    <string name="desktop_tools_snapshot">Configuration snapshot captured. Return Home to check the actual appearance.</string>
+    <string name="desktop_tools_mode">Selected mode</string>
+    <string name="desktop_tools_current">Current appearance</string>
+    <string name="desktop_tools_wallpaper">Wallpaper status bar region</string>
+    <string name="desktop_tools_subscription">Launcher wallpaper subscription</string>
+    <string name="desktop_tools_foreground">Last launcher icon request</string>
+    <string name="desktop_tools_launcher">Launcher version</string>
+    <string name="desktop_tools_auto">Automatic</string>
+    <string name="desktop_tools_light">Light</string>
+    <string name="desktop_tools_dark">Dark</string>
+    <string name="desktop_tools_scheduled">Scheduled / bedtime</string>
+    <string name="desktop_tools_unknown">Unknown</string>
+    <string name="desktop_tools_found">Connected</string>
+    <string name="desktop_tools_not_found">Not found</string>
+    <string name="desktop_tools_dark_ink">Dark icons</string>
+    <string name="desktop_tools_light_ink">Light icons</string>
+    <string name="desktop_tools_provenance">Wallpaper regions come from the wallpaper service. The launcher request is its last window state, not the foreground of this page or a screen measurement. Read again after returning Home if needed.</string>
+    <string name="desktop_tools_refresh_title">Refresh status bar appearance</string>
+    <string name="desktop_tools_refresh_summary">Briefly refreshes system appearance, then restores the mode service’s current configuration. Your selected mode, automatic schedule and theme are preserved. Return Home afterward to check readability.</string>
+    <string name="desktop_tools_last_result">%1$s · %2$s</string>
+    <string name="desktop_tools_working">Please wait…</string>
+    <string name="desktop_tools_refresh_action">Refresh appearance</string>
+    <string name="desktop_tools_sent">Configuration refreshed and restored; please verify on Home.</string>
+    <string name="desktop_tools_unsupported">This system does not expose a safely restorable refresh interface.</string>
+    <string name="desktop_tools_failed">Refresh did not complete; configuration restoration was attempted.</string>
+    <string name="desktop_tools_restore_failed">Configuration restoration could not be confirmed. Check system appearance settings.</string>
+    <string name="desktop_tools_unconfirmed">Last refresh was not confirmed complete. Read the status again.</string>
+    <string name="desktop_tools_checked">Snapshot read at %1$s</string>
+</resources>

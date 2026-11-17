@@ -200,6 +200,31 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     field = MutableStateFlow(RuntimeStatusUiState(checking = true))
   val homeScreenRuntime: StateFlow<RuntimeStatusUiState>
     field = MutableStateFlow(RuntimeStatusUiState(checking = true))
+  val desktopAppearance: StateFlow<DesktopAppearanceUiState>
+    field = MutableStateFlow(DesktopAppearanceUiState())
+
+  fun readDesktopAppearance(refresh: Boolean = false) {
+    if (desktopAppearance.value.checking) return
+    desktopAppearance.update { it.copy(checking = true, failed = false) }
+    viewModelScope.launch {
+      try {
+        val report = runtimeMutex.withLock {
+          FrameworkConnection.service.value?.let {
+            RuntimeStatusProtocol.queryDesktopAppearance(it,
+              if (refresh) os.kei.hyper.home.status.DesktopAppearanceAction.REFRESH
+              else os.kei.hyper.home.status.DesktopAppearanceAction.INSPECT)
+          }
+        }
+        desktopAppearance.update { DesktopAppearanceUiState(report, failed = report == null) }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        desktopAppearance.update { it.copy(failed = true) }
+      } finally {
+        desktopAppearance.update { it.copy(checking = false) }
+      }
+    }
+  }
   val monet: StateFlow<MonetUiState>
     field = MutableStateFlow(MonetUiState())
   val themeEffects: StateFlow<ThemeEffectsUiState>

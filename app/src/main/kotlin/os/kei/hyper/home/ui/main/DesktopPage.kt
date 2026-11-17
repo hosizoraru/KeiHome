@@ -38,7 +38,7 @@ internal fun DesktopPage(model: HomeViewModel, onOpenSection: (String) -> Unit) 
         val pressSource = rememberOs4PressSource()
         val icon = actionIcon(when (section) {
           DesktopSection.DOCK -> PageActionIcon.DESKTOP
-          DesktopSection.APPEARANCE -> PageActionIcon.SETTINGS
+          DesktopSection.APPEARANCE, DesktopSection.TOOLS -> PageActionIcon.SETTINGS
           else -> PageActionIcon.PACKS
         })
         BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),

@@ -216,4 +216,26 @@
     <string name="system_fallback_source_needed">ライブラリで元のパックを選び、再生成して適用してください。</string>
     <string name="system_fallback_badge">システム代替 · %1$s</string>
     <string name="icon_pack_local_storage_size">ローカル使用量：%1$s</string>
+  <string name="icon_fallback_title">アイコンのフォールバック</string>
+  <string name="icon_fallback_entry_summary">適用順序と補完元をまとめて管理</string>
+  <string name="icon_fallback_order_title">フォールバックの順序</string>
+  <string name="icon_fallback_priority_rules">アプリごとの設定を優先します。カスタマイズ済みは指定アイコン、保持対象は元のアイコンを使い、以下の処理をスキップします。</string>
+  <string name="icon_fallback_order_summary">上から順に探し、利用できるアイコンが見つかると終了します</string>
+  <string name="icon_fallback_primary">現在のアイコンパック</string>
+  <string name="icon_fallback_primary_summary">パック内のアイコンと推奨マッピングを含みます</string>
+  <string name="icon_fallback_coloros_artwork">ColorOS の補足アイコン</string>
+  <string name="icon_fallback_coloros_artwork_summary">内蔵の ColorOS 補足リソースからアプリ専用のアイコンを探します</string>
+  <string name="icon_fallback_completion_summary">前の補完元にない場合、選択した補完元を使います。Perfect Icons はライト／ダークに対応します</string>
+  <string name="icon_fallback_coloros_generic">ColorOS の汎用補完</string>
+  <string name="icon_fallback_coloros_generic_summary">元のアイコンに ColorOS の補完スタイルを適用します</string>
+  <string name="icon_fallback_original">アプリの元のアイコン</string>
+  <string name="icon_fallback_original_summary">どの補完元も利用できない場合は元のアイコンを使います</string>
+  <string name="icon_fallback_pending_note">現在の設定に基づく順序です。デスクトップに反映するには再生成して適用してください。プレビューには未適用の変更も表示されます。</string>
+  <string name="icon_fallback_system_source">システムアイコンの補完 · %1$s</string>
+  <string name="icon_fallback_system_summary">未対応のシステムアプリを選択したスタイルで補完します。その他のアプリは次の補完元へ進みます</string>
+    <string name="monet_unadapted_title">未対応アイコンの配色補完</string>
+    <string name="monet_unadapted_summary">未対応の静止アイコンに2色のレイヤーを追加します。変更後はパックの再生成と適用が必要です。</string>
+    <string name="monet_unadapted_help">配色補完は初期状態では無効です。既存の Monet 対応、動的アイコン、カスタムアイコン、元のアイコンの保持を優先します。汎用配色は輪郭を近似し、元のベクター線画は再構成できません。Monet は別途有効にしてください。</string>
+    <string name="monet_inspiration_install_summary">2色のアイコンパックを生成・更新します。配色の適用と Monet の有効化は別途操作できます。</string>
+    <string name="pack_local_apply_unavailable">ローカル検証が完了していません。アイコンパックを再生成・インポートして再試行してください。オンライン認証では修復できないローカルリソースの問題です。</string>
 </resources>

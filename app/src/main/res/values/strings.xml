@@ -219,4 +219,26 @@
     <string name="system_fallback_source_needed">Choose the original source in the icon library, then regenerate and apply.</string>
     <string name="system_fallback_badge">System fallback · %1$s</string>
     <string name="icon_pack_local_storage_size">Local storage: %1$s</string>
+  <string name="icon_fallback_title">Icon fallback</string>
+  <string name="icon_fallback_entry_summary">See the fallback order and choose completion sources</string>
+  <string name="icon_fallback_order_title">Fallback order</string>
+  <string name="icon_fallback_priority_rules">Per-app rules come first: customized apps use their chosen icon; preserved apps keep their original icon. Both skip the chain below.</string>
+  <string name="icon_fallback_order_summary">Search from top to bottom; stop at the first available icon</string>
+  <string name="icon_fallback_primary">Current icon pack</string>
+  <string name="icon_fallback_primary_summary">Includes authored icons and recommended mappings</string>
+  <string name="icon_fallback_coloros_artwork">ColorOS supplemental artwork</string>
+  <string name="icon_fallback_coloros_artwork_summary">Use matching app artwork from the built-in ColorOS supplemental resources first</string>
+  <string name="icon_fallback_completion_summary">Use the selected completion source when the previous sources have no icon; Perfect Icons follow light/dark appearance</string>
+  <string name="icon_fallback_coloros_generic">ColorOS generic completion</string>
+  <string name="icon_fallback_coloros_generic_summary">Style the original app icon using ColorOS completion</string>
+  <string name="icon_fallback_original">Original app icon</string>
+  <string name="icon_fallback_original_summary">Keep the original icon when no earlier source can provide one</string>
+  <string name="icon_fallback_pending_note">This order reflects your current settings. Regenerate and apply to update the desktop; previews may show pending changes.</string>
+  <string name="icon_fallback_system_source">System icon fallback · %1$s</string>
+  <string name="icon_fallback_system_summary">Look up the selected system style for uncovered system apps; other apps continue down the chain</string>
+    <string name="monet_unadapted_title">Color unthemed icons</string>
+    <string name="monet_unadapted_summary">Add two-tone layers to unthemed static icons. Regenerate and apply the icon pack after changing this option.</string>
+    <string name="monet_unadapted_help">Coloring unthemed icons is optional and off by default. Existing Monet artwork, dynamic icons, custom icons and preserved originals take priority. Generic coloring approximates the original shape; it cannot reconstruct hand-drawn vector outlines. Monet is enabled separately.</string>
+    <string name="monet_inspiration_install_summary">Generate or update the two-tone icon pack. Applying colors and enabling Monet remain separate controls.</string>
+    <string name="pack_local_apply_unavailable">Local validation did not complete. Regenerate and import the icon pack to retry; online authorization will not repair this local resource.</string>
 </resources>

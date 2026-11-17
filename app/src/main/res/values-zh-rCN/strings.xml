@@ -216,4 +216,26 @@
     <string name="system_fallback_source_needed">请从图标库选择原始方案，重新生成并应用。</string>
     <string name="system_fallback_badge">系统回退 · %1$s</string>
     <string name="icon_pack_local_storage_size">本地占用：%1$s</string>
+  <string name="icon_fallback_title">图标回退</string>
+  <string name="icon_fallback_entry_summary">查看回退顺序，统一管理图标补全来源</string>
+  <string name="icon_fallback_order_title">回退顺序</string>
+  <string name="icon_fallback_priority_rules">逐应用规则优先：已自定义的应用使用指定图标，已保留的应用使用原图，均跳过下方回退链。</string>
+  <string name="icon_fallback_order_summary">从上往下查找，找到可用图标后停止回退</string>
+  <string name="icon_fallback_primary">当前图标包</string>
+  <string name="icon_fallback_primary_summary">包含图标包自带图标与推荐映射</string>
+  <string name="icon_fallback_coloros_artwork">ColorOS 补充图标</string>
+  <string name="icon_fallback_coloros_artwork_summary">先查找内置 ColorOS 补充资源中对应应用的专属图标</string>
+  <string name="icon_fallback_completion_summary">前面的来源未命中时，使用所选补全来源；完美图标跟随深浅色</string>
+  <string name="icon_fallback_coloros_generic">ColorOS 通用补全</string>
+  <string name="icon_fallback_coloros_generic_summary">将应用原图按 ColorOS 风格进行补全处理</string>
+  <string name="icon_fallback_original">应用原始图标</string>
+  <string name="icon_fallback_original_summary">前面的来源均不可用时，保留应用原图</string>
+  <string name="icon_fallback_pending_note">顺序按当前设置展示。更改后需重新生成并应用，桌面才会更新；预览可能包含尚未应用的更改。</string>
+  <string name="icon_fallback_system_source">系统图标回退 · %1$s</string>
+  <string name="icon_fallback_system_summary">为未覆盖的系统应用查找所选系统样式，其他应用继续向下回退</string>
+    <string name="monet_unadapted_title">未适配图标取色补全</string>
+    <string name="monet_unadapted_summary">为未适配的静态图标生成双色图层。修改后需重新生成并应用图标包。</string>
+    <string name="monet_unadapted_help">未适配图标取色补全默认关闭。已有 Monet 适配、动态图标、自定义图标及保留原图规则优先。通用取色会近似保留原图轮廓，无法重建设计师绘制的矢量线稿。Monet 仍需单独开启。</string>
+    <string name="monet_inspiration_install_summary">生成或更新双色图标包。应用配色、开启 Monet 仍由你单独操作。</string>
+    <string name="pack_local_apply_unavailable">本地校验未完成，请重新生成并导入图标包后重试。此类本地资源问题无需在线授权。</string>
 </resources>

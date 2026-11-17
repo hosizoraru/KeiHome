@@ -4,4 +4,9 @@
     <string name="splash_adapt">Adapt splash backgrounds</string>
     <string name="splash_adapt_summary">Use ColorOS lightness handling for plain light backgrounds in the app’s night mode. Keeps brand colors, custom icons and snapshots. Takes effect on the next cold launch.</string>
     <string name="splash_scope">Connect the framework and add System UI to the module scope.</string>
+    <string name="splash_icons_title">Fill missing launch icons</string>
+    <string name="splash_icons_summary">Add the currently applied icon to plain launch screens without an icon. Takes effect on the next cold launch.</string>
+    <string name="splash_icons_help_title">How it works</string>
+    <string name="splash_icons_help_summary">Icon sources, colors and supported launch screens</string>
+    <string name="splash_icons_help">Uses the icon theme already applied to the system, including custom and original-icon rules, light/dark variants and Monet. Apply the icon theme again after changing packs or rules.\n\nOnly fills plain system launch screens without an icon. Preserves authored icons, branding, custom backgrounds and real task snapshots. Cloned apps and work profiles keep native behavior for now.\n\nTurning this off restores native behavior on the next cold launch. This cannot change blank content drawn by the application after its own first frame.</string>
 </resources>

@@ -13,6 +13,8 @@ internal object SplashAppearancePreferences {
   const val GROUP = "splash_appearance"
   const val KEY = "adapt_neutral_background"
   const val DEFAULT = true
+  const val ICON_KEY = "fill_missing_icon"
+  const val ICON_DEFAULT = false
   private val mutex = Mutex()
   private val unconfirmed = Collections.newSetFromMap(WeakHashMap<SharedPreferences, Boolean>())
 
@@ -31,6 +33,23 @@ internal object SplashAppearancePreferences {
       check(prefs.edit().putBoolean(KEY, enabled).commit()) { "Remote save is unconfirmed" }
       unconfirmed.remove(prefs)
       Unit
+    }
+  }
+
+  suspend fun readIcons(service: XposedService): Boolean = withContext(Dispatchers.IO) {
+    mutex.withLock {
+      val prefs = remote(service)
+      check(prefs !in unconfirmed) { "Remote save is unconfirmed" }
+      prefs.getBoolean(ICON_KEY, ICON_DEFAULT)
+    }
+  }
+
+  suspend fun saveIcons(service: XposedService, enabled: Boolean) = withContext(Dispatchers.IO) {
+    mutex.withLock {
+      val prefs = remote(service)
+      unconfirmed.add(prefs)
+      check(prefs.edit().putBoolean(ICON_KEY, enabled).commit()) { "Remote save is unconfirmed" }
+      unconfirmed.remove(prefs)
     }
   }
 

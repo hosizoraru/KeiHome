@@ -58,6 +58,7 @@ internal data class AppPreferencesState(
   val nativeSystemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
   val perfectIconCompletionStyle: String = SystemIconFallback.DEFAULT_PERFECT_STYLE,
   val completeSystemIconConfig: Boolean = true,
+  val monetUnadaptedIcons: Boolean = false,
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
   val telegramChannelMapping: Boolean = true,
@@ -129,6 +130,7 @@ internal class AppPreferences internal constructor(
       })?.takeIf { runCatching { SystemIconFallback.perfect(it) }.isSuccess }
       ?: SystemIconFallback.DEFAULT_PERFECT_STYLE,
     completeSystemIconConfig = preferences.getBoolean("complete_system_icon_config", true),
+    monetUnadaptedIcons = preferences.getBoolean("monet_unadapted_icons", false),
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     telegramChannelMapping = preferences.getBoolean(RecommendedIconMappings.TELEGRAM_KEY, true),
@@ -282,6 +284,11 @@ internal class AppPreferences internal constructor(
   fun setCompleteSystemIconConfig(value: Boolean) {
     preferences.edit().putBoolean("complete_system_icon_config", value).apply()
     state.update { it.copy(completeSystemIconConfig = value) }
+  }
+
+  fun setMonetUnadaptedIcons(value: Boolean) {
+    preferences.edit().putBoolean("monet_unadapted_icons", value).apply()
+    state.update { it.copy(monetUnadaptedIcons = value) }
   }
 
   fun setPerfectFallbackExpanded(value: Boolean) {

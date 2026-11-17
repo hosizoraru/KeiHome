@@ -3,6 +3,7 @@
 // runtime_profile_resolver.cpp (Apache-2.0). The recovery contract is restricted to RawImage update ownership.
 #include "monet_image_recovery.h"
 #include "monet_image_identity.h"
+#include "arm64_entry_filter.h"
 #include <string.h>
 
 namespace {
@@ -14,6 +15,8 @@ struct Pattern {
 constexpr size_t kMaxSpan = 128u * 1024u * 1024u;
 constexpr size_t kMaxWords = 512;
 struct Match { uintptr_t pc; size_t words; };
+
+constexpr auto kEntryFilter = MakeArm64EntryFilter(kPatterns);
 
 bool Reject(const char** reason, const char* text) {
     if (reason) *reason = text;
@@ -92,23 +95,37 @@ bool Matches(const MonetSelectionImageView& v, uintptr_t pc, const Pattern& p) {
     MonetSha256(normalized, p.count*4, digest);
     return memcmp(digest, p.digest, 32) == 0;
 }
-bool Find(const MonetSelectionImageView& v, unsigned role, Match* out) {
-    unsigned candidates = 0;
+bool FindRoles(const MonetSelectionImageView& v, Match* out, unsigned* failed_role) {
+    unsigned candidates[kRoleCount]{};
     for (size_t i = 0; i < v.readable_range_count; ++i) {
         const auto& r = v.readable_ranges[i];
         if (!r.executable || r.size < 16) continue;
+        // Library-load callbacks block launcher startup. Scan each segment once;
+        // only a candidate entry prefix needs the full pattern table.
         for (uintptr_t pc = r.begin; pc <= r.begin+r.size-16; pc += 4) {
+            if (!kEntryFilter.MayMatch(pc)) continue;
             for (const auto& p : kPatterns) {
-                if (p.role != role || Word(pc) != p.prefix[0] || Word(pc+4) != p.prefix[1] ||
-                    Word(pc+8) != p.prefix[2] || Word(pc+12) != p.prefix[3]) continue;
-                if (++candidates > 4096) return false;
+                if (memcmp(reinterpret_cast<const void*>(pc), p.prefix, sizeof(p.prefix))) continue;
+                if (++candidates[p.role] > 4096) {
+                    *failed_role = p.role;
+                    return false;
+                }
                 if (!Matches(v, pc, p)) continue;
-                if (out->pc && out->pc != pc) return false;
-                *out = {pc, p.count};
+                if (out[p.role].pc && out[p.role].pc != pc) {
+                    *failed_role = p.role;
+                    return false;
+                }
+                out[p.role] = {pc, p.count};
             }
         }
     }
-    return out->pc != 0;
+    // Keep scanning after every role was found: later duplicates must reject.
+    for (unsigned role = 0; role < kRoleCount; ++role)
+        if (!out[role].pc) {
+            *failed_role = role;
+            return false;
+        }
+    return true;
 }
 unsigned CallsTo(const MonetSelectionImageView& v, const Match& m, uintptr_t target) {
     unsigned count = 0;
@@ -185,8 +202,8 @@ bool ResolveMonetImageRecovery(const MonetSelectionImageView& v, MonetImageRecov
         "missing/ambiguous RawImage update", "missing/ambiguous RawImage create",
         "missing/ambiguous RenderImage setter", "missing/ambiguous RenderImage dispose",
         "missing/ambiguous guarded Image clone"};
-    for (unsigned role = 0; role < kRoleCount; ++role)
-        if (!Find(v, role, &roles[role])) return Reject(reason, failures[role]);
+    unsigned failed_role = 0;
+    if (!FindRoles(v, roles, &failed_role)) return Reject(reason, failures[failed_role]);
     const uintptr_t clone = roles[kClone].pc, dispose = roles[kDispose].pc;
     const uintptr_t update = roles[kRawUpdate].pc, create = roles[kRawCreate].pc;
     const uintptr_t setter = roles[kRenderSet].pc, teardown = roles[kRenderDispose].pc;

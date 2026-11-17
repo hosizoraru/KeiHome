@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 struct Header {
@@ -179,6 +180,29 @@ int main(int argc, char** argv) {
     word(tail_pc)=tail_branch;
     ranges.pop_back();view.readable_ranges=ranges.data();view.readable_range_count=ranges.size();
     memset(reinterpret_cast<void*>(tail_copy),0,32);
+    positive();
+
+    // The single scan must still reject duplicates in the last executable range,
+    // even after all seven original roles have already been found.
+    for (auto duplicate : {std::pair{good.dispose, size_t{27}},
+                          std::pair{good.raw_create, size_t{101}},
+                          std::pair{good.render_set, size_t{146}},
+                          std::pair{good.render_dispose, size_t{19}}}) {
+        memcpy(reinterpret_cast<void*>(tail_copy),
+               reinterpret_cast<const void*>(duplicate.first), duplicate.second*4);
+        for (size_t i = 0; i < duplicate.second*4; i += 4) {
+            const uint32_t op = word(duplicate.first+i);
+            if ((op & 0xfc000000u) != 0x94000000u) continue;
+            const int64_t delta = (int64_t(op&0x3ffffffu)^0x2000000)-0x2000000;
+            word(tail_copy+i) = branch(tail_copy+i, duplicate.first+i+delta*4, 0x94000000u);
+        }
+        ranges.push_back({tail_copy,4096,true});
+        view.readable_ranges=ranges.data();view.readable_range_count=ranges.size();
+        reject(view);
+        assert(strstr(reason, "missing/ambiguous"));
+        ranges.pop_back();view.readable_ranges=ranges.data();view.readable_range_count=ranges.size();
+        memset(reinterpret_cast<void*>(tail_copy),0,4096);
+    }
     positive();
 
     // Duplicate then relocate clone and all direct incoming edges.

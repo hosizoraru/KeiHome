@@ -4,6 +4,7 @@
 // are compiled from the adjacent monet_selection_patterns.h.
 #include "selection_profile.h"
 #include "monet_image_identity.h"
+#include "arm64_entry_filter.h"
 
 #include <string.h>
 
@@ -54,6 +55,7 @@ struct Body {
 };
 struct Pattern { size_t role; uint32_t prefix[4]; uint16_t body; };
 #include "monet_selection_patterns.h"
+constexpr auto kEntryFilter = MakeArm64EntryFilter(kPatterns);
 bool OptionalRole(size_t role) {
     return role == kIconQueryCallback || role == kCacheQuery || role == kPreviewUpdate;
 }
@@ -298,15 +300,17 @@ bool CallsMatch(const View& view, uintptr_t base, const Body& body,
 bool Resolve(const View& view, uintptr_t resolved[kPatternCount],
              const Pattern* selected[kPatternCount]) {
     Choices choices[kPatternCount]{};
-    for (const auto& pattern : kPatterns) {
-        const auto& body = kBodies[pattern.body];
-        for (size_t s = 0; s < view.count; ++s) {
-            const auto& load = view.loads[s];
-            const size_t bytes = body.count * 4u;
-            if ((load.flags & 5u) != 5u || load.size < bytes) continue;
-            for (size_t off = 0; off <= load.size - bytes; off += 4) {
-                const uintptr_t candidate = load.begin + off;
-                if (Word(candidate) != pattern.prefix[0] ||
+    // Collect every role in one segment walk; full validation and graph pruning
+    // still decide acceptance, including candidates after the first full match.
+    for (size_t s = 0; s < view.count; ++s) {
+        const auto& load = view.loads[s];
+        if ((load.flags & 5u) != 5u || load.size < 16) continue;
+        for (size_t off = 0; off <= load.size - 16; off += 4) {
+            const uintptr_t candidate = load.begin + off;
+            if (!kEntryFilter.MayMatch(candidate)) continue;
+            for (const auto& pattern : kPatterns) {
+                const auto& body = kBodies[pattern.body];
+                if (body.count * 4u > load.size - off ||
                     memcmp(reinterpret_cast<const void*>(candidate), pattern.prefix, sizeof(pattern.prefix)) != 0 ||
                     !Match(view, candidate, body)) continue;
                 auto& list = choices[pattern.role];

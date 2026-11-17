@@ -8,16 +8,15 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.graphics.drawable.BitmapDrawable
 import java.io.ByteArrayOutputStream
 import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
+import os.kei.hyper.home.iconpack.NativeLayerViewport
 
 internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-13"
+  const val REVISION = "perfect-static-night-14"
   const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-4"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
@@ -44,6 +43,8 @@ internal object PerfectStaticNightRenderer {
     require(layers.size in 1..2) { "Expected one flat image or background + foreground" }
     require(layers.all { it.size in 1..MAX_BYTES }) { "Static layer exceeds byte bounds" }
     val bounds = Rect(0, 0, SIZE, SIZE)
+    val layerBounds = if (nativeViewport && layers.size == 2)
+      NativeLayerViewport.bounds(bounds) else bounds
     val mask = maskPath?.let {
       NativeAdaptiveIconMask.fromPathData("perfect-static-night", it).pathForBounds(bounds)
     }
@@ -60,7 +61,7 @@ internal object PerfectStaticNightRenderer {
           check()
           val layer = decode(bytes, check)
           try {
-            dayCanvas.drawBitmap(layer, null, bounds, paint)
+            dayCanvas.drawBitmap(layer, null, layerBounds, paint)
             if (index == 0 && layers.size == 2) {
               day.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
               PerfectNightPixels.backgroundPlate(pixels, SIZE, SIZE, check)?.let {
@@ -70,7 +71,7 @@ internal object PerfectStaticNightRenderer {
             } else if (index == 1) {
               val foreground = newBitmap()
               try {
-                Canvas(foreground).drawBitmap(layer, null, bounds, paint)
+                Canvas(foreground).drawBitmap(layer, null, layerBounds, paint)
                 foreground.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
                 val underlay = IntArray(SIZE * SIZE)
                 night.getPixels(underlay, 0, SIZE, 0, 0, SIZE, SIZE)
@@ -86,7 +87,7 @@ internal object PerfectStaticNightRenderer {
                 foreground.recycle()
               }
             } else {
-              nightCanvas.drawBitmap(layer, null, bounds, paint)
+              nightCanvas.drawBitmap(layer, null, layerBounds, paint)
             }
           } finally {
             layer.recycle()
@@ -127,7 +128,7 @@ internal object PerfectStaticNightRenderer {
             nativeNightComposition = nativeNightComposition)
         }
         night.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
-        if (nativeViewport) {
+        if (nativeViewport && layers.size == 1) {
           check()
           applyNativeViewport(day)
           check()
@@ -254,12 +255,9 @@ internal object PerfectStaticNightRenderer {
   private fun applyNativeViewport(bitmap: Bitmap) {
     val viewport = newBitmap()
     try {
-      val child = BitmapDrawable(null, bitmap).apply { isFilterBitmap = true }
-      val adaptive = AdaptiveIconDrawable(child, null)
-      adaptive.setBounds(0, 0, SIZE, SIZE)
-      // Native scenes include adaptive overscan. Use the framework's child
-      // bounds; the final compositor still owns the icon mask.
-      child.draw(Canvas(viewport))
+      Canvas(viewport).drawBitmap(bitmap, null,
+        NativeLayerViewport.bounds(Rect(0, 0, SIZE, SIZE)),
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
       bitmap.eraseColor(0)
       Canvas(bitmap).drawBitmap(viewport, 0f, 0f, null)
     } finally {

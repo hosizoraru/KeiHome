@@ -341,7 +341,9 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     if (animated.isNotEmpty()) notices += IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED
     fun artwork(name: String, night: Boolean): IconPackArtwork.Archive? {
       snapshots[name to night]?.let { return it }
-      staticLayers[name to night]?.let { return IconPackArtwork.Archive(it.flatten(), part, layers = it) }
+      staticLayers[name to night]?.let {
+        return IconPackArtwork.Archive(it.flatten(), part, layers = it, nativeLayers = true)
+      }
       val candidates = variants[name]?.filter { night || it.qualifiers.night != IconNightMode.DARK }.orEmpty()
       if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return pairedDarkFallbacks[name]
       return candidates.takeIf { it.isNotEmpty() }?.let { IconPackArtwork.Archive(it, part) }
@@ -366,7 +368,8 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     var value = StringBuilder()
     BoundedPackXml.read(bytes, limits, check,
       start = { name, _, depth ->
-        if (depth == 1 && name != "MIUI-Theme") throw IconPackException("Invalid MIUI description root")
+        if (depth == 1 && name != "MIUI-Theme" && name != "theme")
+          throw IconPackException("Invalid MIUI description root")
         if (depth == 2) { tag = name; value = StringBuilder() }
       }, text = { text, depth -> if (depth == 2 && value.length < 4096) value.append(text.take(4096 - value.length)) },
       end = { _, depth -> if (depth == 2) tag?.let { values.putIfAbsent(it, value.toString().trim()) } })

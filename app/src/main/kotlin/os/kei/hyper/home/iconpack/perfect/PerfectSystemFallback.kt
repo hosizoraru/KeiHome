@@ -15,7 +15,8 @@ internal object PerfectSystemFallback {
   internal class Source internal constructor(private val session: PerfectIconRepository.FallbackLookupSession) : Closeable {
     val sourceHash: String get() = session.sourceHash
     val nativeNames: Set<String> get() = session.nativeNames
-    fun icon(names: List<String>): PerfectIconRepository.FallbackIcon? = runBlocking { session.icon(names) }
+    fun icon(names: List<String>, darkMode: Boolean = false): PerfectIconRepository.FallbackIcon? =
+      runBlocking { session.icon(names, darkMode) }
     fun validate() = runBlocking { session.validate() }
     override fun close() = runBlocking { session.close() }
   }

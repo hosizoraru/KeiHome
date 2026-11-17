@@ -1,6 +1,7 @@
 # Perfect Icons: source and implementation boundary
 
-Checkpoint: 2026-11-11 (transport); native-writer evidence remains 2026-11-09.
+Checkpoint: 2026-11-17 (MTZ interoperability); transport evidence remains
+2026-11-11 and independent native-writer evidence remains 2026-11-09.
 
 ## Current inputs
 
@@ -71,7 +72,8 @@ earlier implementation was derivative.
 
 The current build/runtime has no dependency on that packer, ships none of its
 executable components, and neither invokes nor downloads it. Its documents and
-assembler are no longer implementation/test oracles. This checkpoint replaces
+assembler were not implementation/test oracles for the November 9 writer.
+That checkpoint replaces
 the old destination-config writer and its embedded research-device mask with
 the independently specified native writer.
 
@@ -112,3 +114,23 @@ Git-based; this statement does not recast historical integration as a formal
 clean-room process. Git transport licensing does not grant artwork rights.
 
 See [Git synchronization](perfect-git-sync.md) for behavior and acceptance.
+
+## November 17 interoperability review
+
+At the user's request, this review read PerfectIconsPacker's README,
+`docs/THEME_FORMAT.md`, `docs/ARCHITECTURE.md`, `MtzBuilder.kt`, and
+`ThemeAssembler.kt` at revision
+`54412bbf3ceb75fe3663de5327d0da1132bbba76`. This is a new source/document
+review, not a continuation of the isolated November 9 evidence worker.
+The [pinned format documentation](https://github.com/YifePlayte/PerfectIconsPacker/blob/54412bbf3ceb75fe3663de5327d0da1132bbba76/docs/THEME_FORMAT.md)
+was compared with the reporter's actual exported MTZ.
+
+The review established compatibility inputs: the `theme` description root,
+numbered static layer paths, original PNG metadata, and native dynamic-resource
+precedence. No packer implementation was copied, executed, or added as a
+dependency. Static rendering geometry is obtained from Android's own
+`AdaptiveIconDrawable` child bounds. Original artwork retains its existing
+rights; the packer's GPL-3.0 license does not grant rights to that artwork.
+
+See [the interoperability record](perfect-layered-mtz.md) for the fixes and
+their validation boundary.

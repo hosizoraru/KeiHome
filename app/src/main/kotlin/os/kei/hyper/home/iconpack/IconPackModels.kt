@@ -138,6 +138,8 @@ internal sealed interface IconPackArtwork {
     val snapshot: Boolean = false,
     /** Closed image-only MAML pair; pixel validation is required before deriving Monet. */
     val palettePair: Boolean = false,
+    /** Native numbered textures include the adaptive drawable's overscan. */
+    val nativeLayers: Boolean = false,
   ) : IconPackArtwork
 }
 

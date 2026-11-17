@@ -22,7 +22,9 @@ class PerfectFallbackSessionTest {
     override fun write(key: String, value: String) { values[key] = value }
   }
 
-  private class Fixture(val root: File) {
+  private class Fixture(val root: File,
+    equivalentRenderer: ((ByteArray, List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null,
+    renderer: ((List<ByteArray>, String?, () -> Unit) -> PerfectStaticPair)? = null) {
     val settings = Settings()
     val files = linkedMapOf(
       "icons/dev.thirdparty.client/0.png" to png(10),
@@ -37,7 +39,7 @@ class PerfectFallbackSessionTest {
       check(downloads == 1) { "Local completion must not download" }
       destination.writeBytes(PerfectIconRepositoryTest.zip(files))
       PerfectIconHttpResponse(200, emptyMap())
-    }, settings)
+    }, settings, staticRenderer = renderer, staticEquivalentRenderer = equivalentRenderer)
     suspend fun acquire() { repo.catalog(refresh = true) }
     val archive get() = File(root, "source").listFiles()!!.single()
     val catalog get() = File(root, "catalog.json")
@@ -107,6 +109,76 @@ class PerfectFallbackSessionTest {
     rejected { repo.openFallbackSession("missing") }
     assertEquals(0, backend.opens)
     assertEquals(1, backend.fetches)
+    assertEquals(1, f.downloads)
+  }
+
+  @Test fun nightFallbackUsesSharedDerivedCacheWithoutChangingDayLayersOrDownloading() = runBlocking {
+    var renders = 0
+    val f = Fixture(temporary.newFolder()) { layers, mask, check ->
+      check()
+      assertNull(mask)
+      assertArrayEquals(png(10), layers[0])
+      assertArrayEquals(png(20), layers[1])
+      renders++
+      PerfectStaticPair(png(60), png(70))
+    }
+    f.acquire()
+    val source = f.repo.openFallbackSession("default")
+    assertArrayEquals(png(10), requireNotNull(source.icon(listOf("dev.thirdparty.client"))).layers[0])
+    repeat(2) {
+      assertArrayEquals(png(70),
+        requireNotNull(source.icon(listOf("dev.thirdparty.client"), darkMode = true)).layers.single())
+    }
+    source.close()
+    f.repo.openFallbackSession("default").let { reopened ->
+      assertArrayEquals(png(70),
+        requireNotNull(reopened.icon(listOf("dev.thirdparty.client"), darkMode = true)).layers.single())
+      assertArrayEquals(png(20),
+        requireNotNull(reopened.icon(listOf("dev.thirdparty.client"))).layers[1])
+      reopened.close()
+    }
+    assertEquals(1, renders)
+    assertEquals(1, f.downloads)
+    assertFalse(File(f.root, "generated").exists())
+  }
+
+  @Test fun cancellingNightFallbackDoesNotPublishPartialArtwork() = runBlocking {
+    val f = Fixture(temporary.newFolder()) { _, _, _ -> throw CancellationException("night cancelled") }
+    f.acquire()
+    f.repo.openFallbackSession("default").let { source ->
+      try {
+        source.icon(listOf("dev.thirdparty.client"), darkMode = true)
+        fail("Expected cancellation")
+      } catch (_: CancellationException) { }
+      assertArrayEquals(png(10), requireNotNull(source.icon(listOf("dev.thirdparty.client"))).layers[0])
+      source.close()
+    }
+    assertTrue(File(f.root, "rendered").listFiles().isNullOrEmpty())
+  }
+
+  @Test fun flatDayArtworkKeepsItsEquivalentLayersForNightFallback() = runBlocking {
+    var renders = 0
+    val f = Fixture(temporary.newFolder(), equivalentRenderer = { flat, layers, mask, check ->
+      check()
+      assertNull(mask)
+      assertArrayEquals(png(30), flat)
+      assertArrayEquals(png(10), layers[0])
+      assertArrayEquals(png(20), layers[1])
+      renders++
+      PerfectStaticPair(flat, png(70))
+    })
+    f.files["themes/default/icons/dev.thirdparty.client.png"] = png(30)
+    f.files["themes/default/icons/dev.thirdparty.client/0.png"] = png(10)
+    f.files["themes/default/icons/dev.thirdparty.client/1.png"] = png(20)
+    f.acquire()
+    val source = f.repo.openFallbackSession("default")
+    try {
+      assertArrayEquals(png(30),
+        requireNotNull(source.icon(listOf("dev.thirdparty.client"))).layers.single())
+      assertArrayEquals(png(70),
+        requireNotNull(source.icon(listOf("dev.thirdparty.client"), darkMode = true)).layers.single())
+      assertEquals(1, renders)
+    } finally { source.close() }
     assertEquals(1, f.downloads)
   }
 

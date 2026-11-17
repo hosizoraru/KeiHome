@@ -1,5 +1,25 @@
 # Icon completion and system fallback
 
+Open **Icon packs > Completion and fallback > Icon fallback** to configure
+completion sources. Original-icon preservation, custom icons, and recommended
+mappings retain their own entries in the parent page. Settings search also leads
+to the independent fallback page.
+
+The top order card follows current source/settings changes. Explicit per-app
+customizations or original-icon preservation bypass the normal chain. Remaining
+icons use the primary pack, optional explicit ColorOS supplemental artwork,
+Perfect or native system completion, optional generic ColorOS composition, and
+finally the original app icon. ColorOS steps appear only when applicable.
+This describes configured settings; desktop output changes after regeneration
+and application.
+
+Perfect completion passes the requested appearance through both converted and
+native export paths. It reuses the same static night renderer and bounded
+derived-resource cache as generated Perfect/custom artwork, including equivalent
+layers for flat icons. Native archives write distinct day/night completion
+resources. The v5 fallback source identity invalidates previously generated
+outputs; existing fallback preferences and v1-v4 source associations still parse.
+
 The optional sharing/name rules are configured in [Recommended mappings](recommended-icon-mappings.md). Existing choices are preserved; generated themes require updating and reapplying after a change.
 
 Custom icon packs now have an independent HyperOS system-app fallback choice:
@@ -18,9 +38,9 @@ recreation. The remembered Perfect style is independent of the style currently
 selected in Perfect resource management. Existing saved `PERFECT:<style>` choices
 migrate without a download or a change to the active theme.
 
-The page order is ColorOS supplementation, Perfect completion and style/resources,
+The settings order is ColorOS supplementation, Perfect completion and style/resources,
 native system fallback, then name matching. The original-icon preservation entry
-remains before these settings. Perfect artwork is labeled completion in the app
+remains in the parent page. Perfect artwork is labeled completion in the app
 list and applied-pack information; built-in HyperOS artwork retains fallback wording.
 
 Enabling or selecting Perfect completion rechecks the local catalog and validates

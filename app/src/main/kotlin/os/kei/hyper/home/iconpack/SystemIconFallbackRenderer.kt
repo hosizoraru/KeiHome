@@ -116,11 +116,14 @@ internal class SystemIconFallbackRenderer(
         .also { apps[packageName] = it }
     }
 
-  fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? {
+  fun render(target: IconPackComponent, size: Int, check: () -> Unit): Bitmap? =
+    render(target, size, false, check)
+
+  fun render(target: IconPackComponent, size: Int, darkMode: Boolean, check: () -> Unit): Bitmap? {
     check()
     if (live(target)) return null
     val names = nativeLauncherIconNames(target)
-    perfectSource?.icon(names)?.let { artwork ->
+    perfectSource?.icon(names, darkMode)?.let { artwork ->
       return renderPerfect(artwork.layers, size, check)
     }
     // Perfect completion and native fallback are mutually exclusive user choices.
@@ -161,6 +164,7 @@ internal class SystemIconFallbackRenderer(
     val result = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     try {
       val bounds = Rect(0, 0, size, size)
+      val layerBounds = if (layers.size == 2) NativeLayerViewport.bounds(bounds) else bounds
       val canvas = Canvas(result)
       defaultShape?.let { canvas.clipPath(it.pathForBounds(bounds)) }
       val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -175,7 +179,7 @@ internal class SystemIconFallbackRenderer(
         while (options.outWidth / options.inSampleSize > decodedSize) options.inSampleSize *= 2
         options.inPreferredConfig = Bitmap.Config.ARGB_8888
         val source = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options))
-        try { canvas.drawBitmap(source, null, bounds, paint) } finally { source.recycle() }
+        try { canvas.drawBitmap(source, null, layerBounds, paint) } finally { source.recycle() }
       }
       return result
     } catch (failure: Throwable) { result.recycle(); throw failure }

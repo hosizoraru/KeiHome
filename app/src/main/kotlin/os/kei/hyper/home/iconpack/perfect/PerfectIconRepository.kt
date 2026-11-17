@@ -89,7 +89,7 @@ class PerfectIconRepository internal constructor(
       if (it.enabled) it.defaultPath else null
     } },
     staticRenderer = { layers, mask, check ->
-      PerfectStaticNightRenderer.render(layers, mask, check = check)
+      PerfectStaticNightRenderer.render(layers, mask, check = check, nativeViewport = layers.size == 2)
     },
     staticEquivalentRenderer = { flat, layers, mask, check ->
       PerfectStaticNightRenderer.render(listOf(flat), mask, equivalentLayers = layers, check = check)
@@ -126,15 +126,17 @@ class PerfectIconRepository internal constructor(
     val stamp: LocalFileStamp,
     val snapshot: Snapshot,
     val entries: Map<String, PerfectIconSourceEntry>,
-    val plans: LinkedHashMap<String, Map<String, List<PerfectIconBlob>>> = linkedMapOf(),
+    val plans: LinkedHashMap<String, Map<String, FallbackArtwork>> = linkedMapOf(),
   )
+
+  private data class FallbackArtwork(val day: List<PerfectIconBlob>, val night: List<PerfectIconBlob>)
 
   internal data class FallbackIcon(val layers: List<ByteArray>)
 
   internal interface FallbackLookupSession {
     val sourceHash: String
     val nativeNames: Set<String>
-    suspend fun icon(names: List<String>): FallbackIcon?
+    suspend fun icon(names: List<String>, darkMode: Boolean = false): FallbackIcon?
     /** Recheck the published hash before accepting the completed preview/export. */
     suspend fun validate()
     suspend fun close()
@@ -183,11 +185,13 @@ class PerfectIconRepository internal constructor(
         }
         val plan = PerfectIconFormat.plan(branch("icons"), branch("themes/$style/icons"), emptyList(), emptyList(),
           PerfectIconOptions(style, installedOnly = false, dynamic = false), emptySet())
+        val night = staticNightInputs(plan)
         Collections.unmodifiableMap(plan.staticIds.associateWith { name ->
           coroutine.ensureActive()
           val prefix = "res/drawable-xxhdpi/$name"
-          Collections.unmodifiableList(plan.files["$prefix.png"]?.let(::listOf)
+          val day = Collections.unmodifiableList(plan.files["$prefix.png"]?.let(::listOf)
             ?: listOf(plan.files.getValue("$prefix/0.png"), plan.files.getValue("$prefix/1.png")))
+          FallbackArtwork(day, night.getValue(name))
         })
       }
       while (index.plans.size > 2) index.plans.remove(index.plans.keys.first())
@@ -198,7 +202,7 @@ class PerfectIconRepository internal constructor(
   private inner class LocalFallbackSession(
     private val style: String,
     private val index: FallbackIndex,
-    private val icons: Map<String, List<PerfectIconBlob>>,
+    private val icons: Map<String, FallbackArtwork>,
     private val sourceStamp: FallbackSourceStamp,
     private val gitStamp: String?,
   ) : FallbackLookupSession {
@@ -206,6 +210,7 @@ class PerfectIconRepository internal constructor(
     override val nativeNames: Set<String> = Collections.unmodifiableSet(icons.keys)
     private var invalidated = false
     private var extracted = false
+    private var renderedNight = false
     private var closed = false
     private var reader: PerfectGitReader? = null
 
@@ -224,18 +229,18 @@ class PerfectIconRepository internal constructor(
       }
     }
 
-    override suspend fun icon(names: List<String>): FallbackIcon? = withContext(ioDispatcher) {
+    override suspend fun icon(names: List<String>, darkMode: Boolean): FallbackIcon? = withContext(ioDispatcher) {
       mutex.withLock {
         try {
           val coroutine = currentCoroutineContext()
           coroutine.ensureActive()
           // Check even misses and cache hits: removed resources must never be revived by a pinned index.
           checkAvailable()
-          val blobs = names.asSequence().mapNotNull { name ->
+          val artwork = names.asSequence().mapNotNull { name ->
             coroutine.ensureActive()
             icons[name]
           }.firstOrNull() ?: return@withLock null
-          FallbackIcon(blobs.map { blob ->
+          suspend fun read(blob: PerfectIconBlob): ByteArray {
             coroutine.ensureActive()
             val file = blobFile(blob.sha)
             val bytes = fallbackCachedBlob(blob) ?: run {
@@ -247,8 +252,17 @@ class PerfectIconRepository internal constructor(
             }
             coroutine.ensureActive()
             PerfectIconFormat.png(bytes, square = true)
-            bytes
-          }).also {
+            return bytes
+          }
+          // Use the same proven night conversion and bounded derived cache as generated/custom icons.
+          val layers = if (darkMode) {
+            val inputs = artwork.night.associate { it.sha to read(it) }
+            val pair = staticPair(artwork.night, null, { coroutine.ensureActive() },
+              read = { inputs.getValue(it.sha) })
+            renderedNight = true
+            listOf(pair.night)
+          } else artwork.day.map { read(it) }
+          FallbackIcon(layers).also {
             checkAvailable()
           }
         } catch (failure: Throwable) {
@@ -275,8 +289,12 @@ class PerfectIconRepository internal constructor(
           checkAvailable()
           // Do directory maintenance once at batch completion, rather than scanning an expanding cache per icon.
           if (extracted) {
-            trimBlobs(icons.values.flatten().mapTo(hashSetOf()) { it.sha })
+            trimBlobs(icons.values.flatMap { it.night }.mapTo(hashSetOf()) { it.sha })
             extracted = false
+          }
+          if (renderedNight) {
+            trimRendered()
+            renderedNight = false
           }
         } catch (cancelled: CancellationException) {
           try { closeReader() } catch (closing: Exception) { cancelled.addSuppressed(closing) }
@@ -1577,7 +1595,7 @@ class PerfectIconRepository internal constructor(
   }
 
   companion object {
-    const val LAYER_CONTRACT = "keihome-perfect-layers-2"
+    const val LAYER_CONTRACT = "keihome-perfect-layers-3"
     private const val MAX_PREVIEW_BYTES = 32L * 1024 * 1024
     private const val MAX_PREVIEW_FILE = MAX_PREVIEW_BYTES + 1024 * 1024
     private const val MAX_META = 32 * 1024 * 1024

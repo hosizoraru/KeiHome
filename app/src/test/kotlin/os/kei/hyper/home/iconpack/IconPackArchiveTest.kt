@@ -281,6 +281,38 @@ class IconPackArchiveTest {
     }
   }
 
+  @Test fun packerThemeRootKeepsLayeredNativePayloadAndMetadata() {
+    val native = zip("res/drawable-xxhdpi/org.example/0.png" to png,
+      "res/drawable-xxhdpi/org.example/1.png" to png,
+      "transform_config.xml" to "<Config><SupportLayerIcon>true</SupportLayerIcon></Config>".toByteArray())
+    val description = """<?xml version="1.0" encoding="UTF-8"?>
+      <theme><version>1.0</version><uiVersion>10</uiVersion>
+      <author><![CDATA[Packer author]]></author><title><![CDATA[Layered & local]]></title>
+      <authors><author name="Nested contributor"/></authors></theme>"""
+    val store = IconPackStore(temporary.newFolder())
+    val result = store.import(zip("icons" to native,
+      "description.xml" to description.toByteArray()).inputStream(), "reporter.mtz")
+    assertEquals(IconPackFormat.MIUI_MTZ, result.record.format)
+    val index = IconPackArchive().inspect(result.record.originalFile, temporary.newFile())
+    assertEquals("Layered & local", index.description.title)
+    assertEquals("Packer author", index.description.author)
+    val artwork = index.entries.single().light as IconPackArtwork.Archive
+    assertTrue(artwork.nativeLayers)
+    assertFalse(artwork.snapshot)
+    assertEquals(2, artwork.layers.size)
+    val output = temporary.newFile()
+    IconPackArchive().copyNativeModule(result.record, output, temporary.newFile())
+    assertArrayEquals(native, output.readBytes())
+  }
+
+  @Test fun unrelatedDescriptionRootsRemainRejected() {
+    val native = zip("res/drawable-xxhdpi/org.example.png" to png)
+    assertThrows(IOException::class.java) {
+      inspect(file(zip("icons" to native,
+        "description.xml" to "<unrelated><title>Not a theme</title></unrelated>".toByteArray())))
+    }
+  }
+
   @Test fun compiledApkShapeDefersMappingToAndroidInsteadOfGuessingObfuscatedNames() {
     val index = inspect(file(zip("AndroidManifest.xml" to byteArrayOf(3, 0, 8, 0),
       "resources.arsc" to byteArrayOf(2, 0), "res/hAN.xml" to byteArrayOf(3, 0, 8, 0))))

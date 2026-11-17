@@ -7,15 +7,15 @@ class SystemIconFallbackTest {
   @Test fun existingNamesAndSourceIdsRemainCompatible() {
     SystemIconFallback.entries.forEach {
       assertEquals(it, SystemIconFallback.valueOf(it.name))
-      assertEquals("pack:system-fallback-v4:${it.name}", it.sourceId("pack"))
+      assertEquals("pack:system-fallback-v6:${it.name}", it.sourceId("pack"))
     }
   }
 
   @Test fun oldPublicationsKeepTheirSourceAssociationButRequireTheNewRenderingContract() {
-    for (version in listOf(1, 2, 3)) {
+    for (version in listOf(1, 2, 3, 4, 5)) {
       val old = "pack:system-fallback-v$version:DEFAULT"
       assertEquals("pack", SystemIconFallback.baseSourceId(old))
-      assertEquals("pack:system-fallback-v4:DEFAULT", SystemIconFallback.DEFAULT.sourceId(old))
+      assertEquals("pack:system-fallback-v6:DEFAULT", SystemIconFallback.DEFAULT.sourceId(old))
       assertNotEquals(old, SystemIconFallback.DEFAULT.sourceId(old))
       assertEquals(SystemIconFallback.DEFAULT.sourceId(old),
         SystemIconFallback.DEFAULT.sourceId(SystemIconFallback.DEFAULT.sourceId(old)))

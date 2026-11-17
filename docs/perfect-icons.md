@@ -109,6 +109,11 @@ snapshot size and derived-cache cleanup are on the Source and storage page.
 
 ## Native resources and previews
 
+The [November 17 layered-MTZ interoperability record](perfect-layered-mtz.md)
+describes metadata compatibility, original PNG metadata handling, and native
+adaptive viewport preservation. These fixes apply to imported packer MTZs as
+well as the shared static rendering paths.
+
 - `res/drawable-*/<id>/0.png` and `1.png` are background and foreground.
   They are composed in that order for previews. They are not day/night images.
 - `layer_animating_icons/<id>/config.xml` declares native dynamic layers.

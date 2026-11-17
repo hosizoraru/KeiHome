@@ -77,7 +77,7 @@ class CustomIconsDeviceTest {
           assertArrayEquals(red, resources.getValue("fancy_icons/${target.className}/day.png"))
           assertFalse(resources.keys.any { CustomIconResources.owner(it) == source.packageName })
           val manifest = IconGenerationManifest.decode(resources.getValue(IconGenerationManifest.PATH))
-          assertEquals(10, manifest.schemaVersion)
+          assertEquals(IconGenerationManifest.CURRENT_SCHEMA, manifest.schemaVersion)
           assertEquals(snapshot.identity, manifest.customIconIdentity)
         } finally { handoff.file.delete() }
       }
@@ -128,7 +128,8 @@ class CustomIconsDeviceTest {
         assertEquals(target.packageName, CustomIconStore.selections(f.context).single().packageName)
         controller.remove(target.packageName, preserveOriginal = true)
         withTimeout(10_000) { controller.state.first { !it.busy } }
-        assertTrue(CustomIconStore.selections(f.context).isEmpty())
+        assertTrue("Removing a saved choice must not be blocked by an inventory refresh",
+          CustomIconStore.selections(f.context).isEmpty())
         assertEquals(setOf(target.packageName, "com.keihome.untouched"), preserved)
       } finally { scope.cancel() }
     }

@@ -57,7 +57,11 @@ internal class CustomIconsController(
     scope.launch {
       CustomIconStore.revision.combine(metadataRetry) { _, _ -> Unit }.collectLatest {
         try {
-          val rows = withContext(Dispatchers.IO) { CustomIconStore.selections(app) }
+          val rows = withContext(Dispatchers.IO) {
+            val caller = currentCoroutineContext()
+            os.kei.hyper.home.iconpack.CustomIconGeometry.refresh(app, repository) { caller.ensureActive() }
+            CustomIconStore.selections(app)
+          }
           currentCoroutineContext().ensureActive()
           val old = state.value.selections.mapTo(hashSetOf()) { it.packageName }
           val next = rows.mapTo(hashSetOf()) { it.packageName }
@@ -185,7 +189,7 @@ internal class CustomIconsController(
   }
 
   fun remove(packageName: String, preserveOriginal: Boolean = false) {
-    if (!state.value.ready || state.value.busy || state.value.loading) return
+    if (!state.value.ready || state.value.busy) return
     mutableState.update { it.copy(busy = true, failed = false) }
     scope.launch {
       try {

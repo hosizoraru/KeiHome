@@ -17,6 +17,7 @@ internal data class CustomIconSelection(
   val packageName: String, val appLabel: String, val sourceId: String, val sourceTitle: String,
   val sourceEntry: String, val token: String, val digest: String,
   val bytes: Long,
+  val captureRevision: Int = 0,
 )
 
 internal data class CustomIconSnapshot(
@@ -29,6 +30,7 @@ internal data class CustomIconSnapshot(
 
 /** Durable user choices, separate from disposable pack caches. Publication and reads share one lock. */
 internal object CustomIconStore {
+  const val CAPTURE_REVISION = 1
   private val lock = Any()
   private val tokenPattern = Regex("[0-9a-f-]{36}")
   private val digestPattern = Regex("[0-9a-f]{64}")
@@ -44,10 +46,11 @@ internal object CustomIconStore {
       val item = array.getJSONObject(index)
       CustomIconSelection(item.getString("package"), item.getString("label"), item.getString("source"),
         item.getString("title"), item.getString("entry"), item.getString("token"), item.getString("digest"),
-        item.getLong("bytes")).also {
+        item.getLong("bytes"), item.optInt("captureRevision", 0)).also {
         require(PreservedIcons.isValidPackageName(it.packageName))
         require(it.token.matches(tokenPattern) && it.digest.matches(digestPattern))
         require(it.bytes in 1..CustomIconResources.MAX_BYTES.toLong())
+        require(it.captureRevision >= 0)
       }
     }.also {
       require(it.map { row -> row.packageName }.distinct().size == it.size)
@@ -60,18 +63,42 @@ internal object CustomIconStore {
 
   fun read(context: Context, check: () -> Unit = {}): CustomIconSnapshot = synchronized(lock) {
     val selections = selections(context)
-    val resources = selections.associate { item ->
-      check()
-      val file = File(root(context), "${item.token}.zip")
-      require(file.isFile && file.length() <= CustomIconResources.MAX_BYTES + 8 * 1024 * 1024 &&
-        sha256(file, check) == item.digest) { "A saved custom icon is unavailable" }
-      item.packageName to readResources(file, check)
-    }
+    val resources = selections.associate { item -> item.packageName to verifiedResources(context, item, check) }
     CustomIconSnapshot(selections, resources)
+  }
+
+  fun readSelection(context: Context, expected: CustomIconSelection,
+    check: () -> Unit = {}): Map<String, ByteArray>? = synchronized(lock) {
+    if (selections(context).firstOrNull { it.packageName == expected.packageName } != expected) return null
+    verifiedResources(context, expected, check)
+  }
+
+  private fun verifiedResources(context: Context, item: CustomIconSelection,
+    check: () -> Unit): Map<String, ByteArray> {
+    check()
+    val file = File(root(context), "${item.token}.zip")
+    require(file.isFile && file.length() <= CustomIconResources.MAX_BYTES + 8 * 1024 * 1024 &&
+      sha256(file, check) == item.digest) { "A saved custom icon is unavailable" }
+    return readResources(file, check)
   }
 
   fun save(context: Context, packageName: String, appLabel: String, pack: IconPackDescriptor,
     entry: IconPackEntry, resources: Map<String, ByteArray>, check: () -> Unit = {}): CustomIconSelection =
+    write(context, packageName, appLabel, pack.id, pack.displayName, entry.key, resources, check)
+
+  /** Compare under the publication lock so migration never overwrites a concurrent user edit. */
+  fun refresh(context: Context, expected: CustomIconSelection, resources: Map<String, ByteArray>,
+    check: () -> Unit = {}): Boolean = synchronized(lock) {
+    if (selections(context).singleOrNull { it.packageName == expected.packageName } != expected)
+      return@synchronized false
+    write(context, expected.packageName, expected.appLabel, expected.sourceId, expected.sourceTitle,
+      expected.sourceEntry, resources, check)
+    true
+  }
+
+  private fun write(context: Context, packageName: String, appLabel: String, sourceId: String,
+    sourceTitle: String, sourceEntry: String, resources: Map<String, ByteArray>,
+    check: () -> Unit): CustomIconSelection =
     synchronized(lock) {
       require(PreservedIcons.isValidPackageName(packageName))
       require(resources.isNotEmpty() && resources.keys.all { CustomIconResources.owner(it) == "custom.icon" })
@@ -94,8 +121,8 @@ internal object CustomIconStore {
             zip.write(bytes); zip.closeEntry()
           }
         }
-        val item = CustomIconSelection(packageName, appLabel, pack.id, pack.displayName, entry.key, token,
-          sha256(file, check), bytes)
+        val item = CustomIconSelection(packageName, appLabel, sourceId, sourceTitle, sourceEntry, token,
+          sha256(file, check), bytes, CAPTURE_REVISION)
         check()
         publish(context, previous.filterNot { it.packageName == packageName } + item)
         committed = true
@@ -118,6 +145,7 @@ internal object CustomIconStore {
       put("package", item.packageName); put("label", item.appLabel); put("source", item.sourceId)
       put("title", item.sourceTitle); put("entry", item.sourceEntry); put("token", item.token); put("digest", item.digest)
       put("bytes", item.bytes)
+      put("captureRevision", item.captureRevision)
     }) }
     val preferences = prefs(context)
     val previous = preferences.getString("selections", "[]")
@@ -149,12 +177,22 @@ internal object CustomIconStore {
     val file = File(root(context), "${item.token}.zip")
     if (!file.isFile) return@synchronized null
     ZipFile(file).use { zip ->
+      // Saved pairs and dynamic snapshots need the same completed geometry as applied surfaces.
+      val bitmap = os.kei.hyper.home.xposed.SurfaceIconSnapshotRenderer.render(
+        zip, "custom.icon", dark, java.util.Locale.getDefault(), System.currentTimeMillis())
+      if (bitmap != null) {
+        try {
+          return@synchronized java.io.ByteArrayOutputStream().also {
+            require(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+          }.toByteArray()
+        } finally { bitmap.recycle() }
+      }
       val entries = zip.entries().asSequence().filter { !it.isDirectory }.toList()
       val preferred = if (dark) listOf("fancy_icons/custom.icon/night.png", "fancy_icons/custom.icon/day.png")
         else listOf("fancy_icons/custom.icon/day.png")
       val entry = preferred.firstNotNullOfOrNull(zip::getEntry)
-        ?: entries.firstOrNull { it.name.startsWith(if (dark) "nightmode/res/" else "res/") && it.name.endsWith(".png") }
-        ?: entries.firstOrNull { it.name.startsWith("res/") && it.name.endsWith(".png") }
+        ?: entries.firstOrNull { it.name.startsWith(if (dark) "nightmode/res/" else "res/") && it.name.endsWith("/custom.icon.png") }
+        ?: entries.firstOrNull { it.name.startsWith("res/") && it.name.endsWith("/custom.icon.png") }
         ?: return@synchronized null
       zip.getInputStream(entry).use { it.readNBytes(4 * 1024 * 1024 + 1) }.takeIf { it.size <= 4 * 1024 * 1024 }
     }

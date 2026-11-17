@@ -19,7 +19,7 @@ internal data class IconGenerationManifest(
   val monetUnadaptedIcons: Boolean = false,
 ) {
   fun encode(): ByteArray {
-    require(schemaVersion in 1..13 && (schemaVersion != 1 || !installedOnly) &&
+    require(schemaVersion in 1..CURRENT_SCHEMA && (schemaVersion != 1 || !installedOnly) &&
       (schemaVersion >= 3 || !completeSystemIconConfig))
     require(validMaskIdentity(iconMaskIdentity) &&
       (completeSystemIconConfig == (iconMaskIdentity != "original")))
@@ -49,6 +49,7 @@ internal data class IconGenerationManifest(
   }
 
   companion object {
+    const val CURRENT_SCHEMA = 14
     const val PATH = "keihome-icon-generation.txt"
     const val MAX_BYTES = 2 * 1024 * 1024
     fun decode(bytes: ByteArray): IconGenerationManifest {
@@ -68,6 +69,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration11" -> 11
         "KeiHomeIconGeneration12" -> 12
         "KeiHomeIconGeneration13" -> 13
+        "KeiHomeIconGeneration14" -> 14
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))

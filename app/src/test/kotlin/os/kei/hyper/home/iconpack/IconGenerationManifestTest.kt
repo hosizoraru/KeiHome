@@ -6,7 +6,7 @@ import os.kei.hyper.home.data.RecommendedIconMappings
 
 class IconGenerationManifestTest {
   @Test fun schemaThirteenPreservesColorOsGeometryProvenance() {
-    val value = IconGenerationManifest(schemaVersion = 13,
+    val value = IconGenerationManifest(schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
       colorOsPackages = setOf("com.android.settings"))
     assertEquals(value, IconGenerationManifest.decode(value.encode()))
   }

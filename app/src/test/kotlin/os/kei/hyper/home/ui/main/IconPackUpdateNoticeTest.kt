@@ -8,10 +8,10 @@ import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
   @Test fun colorOsMonochromeGeometryUpgradeRequiresReapplyWithoutGenericColoring() {
-    for (schema in listOf(12, 13)) {
+    for (schema in listOf(12, 13, 14)) {
       val current = source.copy(generation = IconGenerationManifest(schemaVersion = schema,
         colorOsPackages = setOf(target.packageName), considered = setOf(target.flattened)))
-      assertEquals(schema < 13, iconPackNeedsUpdate(pack, current, listOf(target),
+      assertEquals(schema < 14, iconPackNeedsUpdate(pack, current, listOf(target),
         SystemIconFallback.DEFAULT, emptySet(), monetUnadaptedIcons = false))
     }
     assertFalse(iconPackNeedsUpdate(pack, source.copy(generation = IconGenerationManifest(

@@ -263,7 +263,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
                 Text(item.packageName, style = MiuixTheme.textStyles.footnote2,
                   color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
               }
-              IconButton(onClick = { dismissSearch(); removing = item }, enabled = !state.busy && !state.loading) {
+              IconButton(onClick = { dismissSearch(); removing = item }, enabled = !state.busy) {
                 Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.custom_icons_remove))
               }
             }

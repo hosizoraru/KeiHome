@@ -148,7 +148,7 @@ class RecommendedMappingPipelineDeviceTest {
           val manifest = IconGenerationManifest.decode(zip.getInputStream(zip.getEntry(IconGenerationManifest.PATH))
             .use { it.readBytes() })
           assertEquals(disabled, manifest.recommendedMappings)
-          assertEquals(9, manifest.schemaVersion)
+          assertEquals(IconGenerationManifest.CURRENT_SCHEMA, manifest.schemaVersion)
           for (target in targets.drop(1)) {
             assertNull(zip.getEntry("res/drawable-xxhdpi/${nativeLauncherActivityName(target) ?: target.packageName}.png"))
             assertNull(zip.getEntry("nightmode/res/drawable-xxhdpi/${nativeLauncherActivityName(target) ?: target.packageName}.png"))

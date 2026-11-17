@@ -81,8 +81,10 @@ internal object IconPackHandoffs {
     }
     val custom = withContext(Dispatchers.IO) {
       val caller = currentCoroutineContext()
-      if (applyCustomIcons) os.kei.hyper.home.iconpack.CustomIconStore.read(context) { caller.ensureActive() }
-      else os.kei.hyper.home.iconpack.CustomIconSnapshot(emptyList(), emptyMap())
+      if (applyCustomIcons) {
+        os.kei.hyper.home.iconpack.CustomIconGeometry.refresh(context, repository) { caller.ensureActive() }
+        os.kei.hyper.home.iconpack.CustomIconStore.read(context) { caller.ensureActive() }
+      } else os.kei.hyper.home.iconpack.CustomIconSnapshot(emptyList(), emptyMap())
     }
     val preserved = withContext(Dispatchers.IO) {
       if (applyCustomIcons) os.kei.hyper.home.data.PreservedIcons.snapshot(context) - custom.packages else emptySet()
@@ -206,7 +208,7 @@ internal object IconPackHandoffs {
           activeLauncherTargets = targets.filter { it.className != null }.mapTo(linkedSetOf()) { it.flattened },
           preservedIconPackages = preserved,
           recommendedMappings = mappings,
-          schemaVersion = 13,
+          schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
           customIconIdentity = custom.identity,
           monetUnadaptedIcons = monetUnadaptedIcons,
         )

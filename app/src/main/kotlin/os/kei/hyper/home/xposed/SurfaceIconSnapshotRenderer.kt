@@ -159,13 +159,8 @@ internal object SurfaceIconSnapshotRenderer {
       val mask = bytes(root + "mask.png")
       val background = bytes(root + "bg.png")
       if (day != null && night != null && mask != null && background != null) {
-        val verified = listOf(false, true).any { expanded -> listOf(false, true).any { scalar ->
-          try {
-            NativePaletteIcon.entries(root.removePrefix("fancy_icons/").removeSuffix("/"), day, night, mask, background,
-              legacyExpanded = expanded, legacyScalarBinders = scalar)
-              .getValue(root + "manifest.xml").contentEquals(manifest)
-          } catch (_: IllegalArgumentException) { false }
-        } }
+        val verified = NativePaletteIcon.recognizes(
+          root.removePrefix("fancy_icons/").removeSuffix("/"), manifest, day, night, mask, background)
         if (verified) {
           if (palette ushr 48 == 1L) {
             val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)

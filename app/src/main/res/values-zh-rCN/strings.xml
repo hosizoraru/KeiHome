@@ -234,6 +234,8 @@
   <string name="icon_fallback_system_source">系统图标回退 · %1$s</string>
   <string name="icon_fallback_system_summary">为未覆盖的系统应用查找所选系统样式，其他应用继续向下回退</string>
     <string name="monet_unadapted_title">未适配图标取色补全</string>
+    <string name="monet_full_bleed_padding_title">满幅图标留白</string>
+    <string name="monet_full_bleed_padding_summary">为铺满或大面积贴边的取色图案增加留白，露出背景。修改后需重新生成并应用图标包。</string>
     <string name="monet_unadapted_summary">为未适配的静态图标生成双色图层。修改后需重新生成并应用图标包。</string>
     <string name="monet_unadapted_help">未适配图标取色补全默认关闭。已有 Monet 适配、动态图标、自定义图标及保留原图规则优先。通用取色会近似保留原图轮廓，无法重建设计师绘制的矢量线稿。Monet 仍需单独开启。</string>
     <string name="monet_inspiration_install_summary">生成或更新双色图标包。应用配色、开启 Monet 仍由你单独操作。</string>

@@ -310,7 +310,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         .combine(perfectPacks.state.map { it.catalog }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(preferences.state.map { it.preservedIconPackages to it.recommendedIconMappings }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }
-        .combine(preferences.state.map { it.monetUnadaptedIcons }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(preferences.state.map { it.monetUnadaptedIcons to
+          it.monetFullBleedIconPadding }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(os.kei.hyper.home.iconpack.CustomIconStore.revision) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
@@ -349,7 +350,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             iconMaskIdentity = os.kei.hyper.home.iconpack.IconMaskPolicy.snapshot(application).identity,
             preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings,
             customizedPackages = custom.packages, customIconIdentity = custom.identity,
-            monetUnadaptedIcons = selected.monetUnadaptedIcons) {
+            monetUnadaptedIcons = selected.monetUnadaptedIcons,
+            monetFullBleedIconPadding = selected.monetFullBleedIconPadding) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
@@ -735,7 +737,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           launcherIconTargets(), appearance, includePalette, selected.systemIconFallback,
           selected.systemAppNameMatching, selected.colorOsForOtherPacks, selected.installedIconsOnly,
           selected.completeSystemIconConfig, selected.recommendedIconMappings,
-          monetUnadaptedIcons = selected.monetUnadaptedIcons, onProgress = progress::update)
+          monetUnadaptedIcons = selected.monetUnadaptedIcons,
+          monetFullBleedIconPadding = selected.monetFullBleedIconPadding, onProgress = progress::update)
         caller.ensureActive()
         if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,

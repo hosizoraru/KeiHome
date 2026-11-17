@@ -7,6 +7,22 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
+  @Test fun fullBleedPaddingRequiresRegenerationIndependentlyOfGenericColoring() {
+    fun applied(generic: Boolean, inset: Boolean) = source.copy(generation =
+      IconGenerationManifest(schemaVersion = 15, considered = setOf(target.flattened),
+        monetUnadaptedIcons = generic, monetFullBleedIconPadding = inset))
+    assertTrue(iconPackNeedsUpdate(pack, applied(true, false), listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = true, monetFullBleedIconPadding = true))
+    assertTrue(iconPackNeedsUpdate(pack, applied(true, true), listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = true, monetFullBleedIconPadding = false))
+    assertFalse(iconPackNeedsUpdate(pack, applied(true, true), listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = true, monetFullBleedIconPadding = true))
+    assertTrue(iconPackNeedsUpdate(pack, applied(false, false), listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = false, monetFullBleedIconPadding = true))
+    assertTrue(iconPackNeedsUpdate(pack, applied(false, true), listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), monetUnadaptedIcons = false, monetFullBleedIconPadding = false))
+  }
+
   @Test fun colorOsMonochromeGeometryUpgradeRequiresReapplyWithoutGenericColoring() {
     for (schema in listOf(12, 13, 14)) {
       val current = source.copy(generation = IconGenerationManifest(schemaVersion = schema,

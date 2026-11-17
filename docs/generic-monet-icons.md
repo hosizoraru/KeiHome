@@ -1,5 +1,33 @@
 # Generic Monet coloring
 
+## Optional space around full-bleed artwork
+
+The **Inset full-bleed icons** preference independently defaults to off. It
+works without generic coloring. The two switches separately control deriving
+new palette artwork and insetting large foregrounds in app-assembled palette
+artwork, including APK/inspiration monochrome masks. Either change requires
+regenerating and applying the pack.
+
+Both publication paths use the same completed-mask classifier and resampler.
+Substantial occupation of opposite edge bands, including broad bottom-heavy
+artwork, triggers scaling into a centered canvas about 60% of its original
+width/height. The published outer silhouette is intersected by minimum alpha
+coverage before insetting, preserving rounded corners without multiplying
+already clipped antialiased edges. Centered glyphs and isolated protrusions keep their dimensions.
+Original day/night artwork and the outer background keep their original bytes.
+This is an optical heuristic, not adaptive child expansion or a package-name
+rule; `NativeLayerViewport` is not applied again.
+
+Export provenance and canonical template verification admit existing
+app-assembled palette masks. Unknown trees, imported authored programs, custom
+and preserved icons remain protected. Processing runs only during generation;
+the native palette and snapshot renderers consume the result without added
+per-frame work. Schema 15 records the independent `monet-inset` choice; schemas
+1-14 default to off. Changing either direction requests regeneration even
+when generic coloring is off.
+
+## Default completion
+
 The Monet overview offers **Color unthemed icons**, off by default. Change the
 setting, regenerate the chosen icon pack and apply it. Enabling coloring does
 not enable Monet or apply a palette. Disabling the setting also requires

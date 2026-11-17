@@ -184,13 +184,12 @@ private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (
       onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
       if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
         model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
-      top.yukonga.miuix.kmp.preference.SwitchPreference(
-        title = stringResource(R.string.monet_unadapted_title),
-        summary = stringResource(R.string.monet_unadapted_summary),
-        modifier = Modifier.testTag("monet.unadapted"),
-        checked = preferences.monetUnadaptedIcons,
-        enabled = packs.nativeImporting == null,
-        onCheckedChange = model.preferences::setMonetUnadaptedIcons)
+      MonetArtworkPreferences(
+        enabled = preferences.monetUnadaptedIcons,
+        padding = preferences.monetFullBleedIconPadding,
+        editable = packs.nativeImporting == null,
+        onEnabledChange = model.preferences::setMonetUnadaptedIcons,
+        onPaddingChange = model.preferences::setMonetFullBleedIconPadding)
     }
   }
   if (section.page == MonetSection.OVERVIEW && inspiration) {

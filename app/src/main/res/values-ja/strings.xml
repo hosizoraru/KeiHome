@@ -234,6 +234,8 @@
   <string name="icon_fallback_system_source">システムアイコンの補完 · %1$s</string>
   <string name="icon_fallback_system_summary">未対応のシステムアプリを選択したスタイルで補完します。その他のアプリは次の補完元へ進みます</string>
     <string name="monet_unadapted_title">未対応アイコンの配色補完</string>
+    <string name="monet_full_bleed_padding_title">全面アイコンに余白を追加</string>
+    <string name="monet_full_bleed_padding_summary">画面端まで広がる大きな配色図柄に余白を設けます。変更後はアイコンパックの再生成と適用が必要です。</string>
     <string name="monet_unadapted_summary">未対応の静止アイコンに2色のレイヤーを追加します。変更後はパックの再生成と適用が必要です。</string>
     <string name="monet_unadapted_help">配色補完は初期状態では無効です。既存の Monet 対応、動的アイコン、カスタムアイコン、元のアイコンの保持を優先します。汎用配色は輪郭を近似し、元のベクター線画は再構成できません。Monet は別途有効にしてください。</string>
     <string name="monet_inspiration_install_summary">2色のアイコンパックを生成・更新します。配色の適用と Monet の有効化は別途操作できます。</string>

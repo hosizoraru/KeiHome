@@ -237,6 +237,8 @@
   <string name="icon_fallback_system_source">System icon fallback · %1$s</string>
   <string name="icon_fallback_system_summary">Look up the selected system style for uncovered system apps; other apps continue down the chain</string>
     <string name="monet_unadapted_title">Color unthemed icons</string>
+    <string name="monet_full_bleed_padding_title">Inset full-bleed icons</string>
+    <string name="monet_full_bleed_padding_summary">Inset large, edge-filling themed artwork to reveal its background. Regenerate and apply the icon pack after changing this option.</string>
     <string name="monet_unadapted_summary">Add two-tone layers to unthemed static icons. Regenerate and apply the icon pack after changing this option.</string>
     <string name="monet_unadapted_help">Coloring unthemed icons is optional and off by default. Existing Monet artwork, dynamic icons, custom icons and preserved originals take priority. Generic coloring approximates the original shape; it cannot reconstruct hand-drawn vector outlines. Monet is enabled separately.</string>
     <string name="monet_inspiration_install_summary">Generate or update the two-tone icon pack. Applying colors and enabling Monet remain separate controls.</string>

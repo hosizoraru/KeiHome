@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
@@ -70,7 +71,7 @@ internal fun KeiHomeScaffold(
   content: @Composable (PaddingValues) -> Unit,
 ) {
   // Pages record their content below the overlay host, never the glass or its own scrim.
-  Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+  Box(modifier.fillMaxSize().background(containerColor), contentAlignment = Alignment.TopCenter) {
     CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
       top.yukonga.miuix.kmp.basic.Scaffold(
         modifier = Modifier.widthIn(max = 1040.dp).fillMaxSize(), topBar = topBar, bottomBar = bottomBar,

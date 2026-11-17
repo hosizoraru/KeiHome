@@ -37,7 +37,8 @@ Toggle descriptions are localized in English, Simplified Chinese and Japanese.
 `KeiHomeScaffold` centers its complete chrome/content at a maximum 1040dp.
 This also gives secondary screens and floating-action placement a shared
 readable frame on landscape Pad windows. It leaves narrower phone windows
-at their existing width.
+at their existing width. The container background still covers the complete
+window, preventing the previous navigation entry from showing in side gutters.
 
 ## Long lists
 

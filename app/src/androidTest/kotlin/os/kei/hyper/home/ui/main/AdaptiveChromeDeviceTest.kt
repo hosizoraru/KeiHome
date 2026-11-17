@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,11 +22,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -275,8 +280,8 @@ class AdaptiveChromeDeviceTest {
     var compact by mutableStateOf(true)
     rule.setContent {
       Fixture {
-        Box(Modifier.size(1100.dp, 700.dp)) {
-          KeiHomeScaffold(topBar = {
+        Box(Modifier.size(1100.dp, 700.dp).background(Color.Blue).testTag("bounded.frame")) {
+          KeiHomeScaffold(containerColor = Color.Red, topBar = {
             KeiHomeTopAppBar("Tools", expandable = !compact, modifier = Modifier.testTag("bar"))
           }) {
             Box(Modifier.fillMaxSize().testTag("bounded.body")) {
@@ -289,6 +294,9 @@ class AdaptiveChromeDeviceTest {
     val short = rule.onNodeWithTag("bar").fetchSemanticsNode().boundsInRoot.height
     assertEquals(1040f, rule.onNodeWithTag("bounded.body").fetchSemanticsNode().boundsInRoot.width, 1f)
     assertTrue(rule.onNodeWithTag("toolbar").fetchSemanticsNode().boundsInRoot.width <= 641f)
+    val pixels = rule.onNodeWithTag("bounded.frame").captureToImage().toPixelMap()
+    assertEquals(Color.Red.toArgb(), pixels[10, 350].toArgb())
+    assertEquals(Color.Red.toArgb(), pixels[1090, 350].toArgb())
     rule.runOnIdle { compact = false }
     assertTrue(rule.onNodeWithTag("bar").fetchSemanticsNode().boundsInRoot.height > short + 30f)
   }

@@ -5,7 +5,6 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import android.text.format.DateFormat
 import android.text.format.Formatter
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -34,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
@@ -58,6 +56,7 @@ import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
+import os.kei.hyper.home.ui.components.Os4FloatingToolbar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
@@ -76,14 +75,11 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassIconButton
-import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
-import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.material.GlassDefaults
-import top.yukonga.miuix.kmp.material.GlassShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Date
 import java.util.Locale
@@ -376,33 +372,29 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     floatingActionButton = { dialogs() },
     floatingToolbar = {
       if (selecting) {
-        val shape = GlassShape(32.dp)
-        Row(Modifier.widthIn(max = 320.dp).fillMaxWidth()
+        Os4FloatingToolbar(Modifier.widthIn(max = 320.dp).fillMaxWidth()
           .onGloballyPositioned { coordinates ->
             actionObstruction = (view.height - coordinates.boundsInWindow().top.toInt()).coerceAtLeast(0)
           }
-          .testTag("perfect.resources.toolbar")
-          .glassPanel(backdrop = LocalKeiHomeBackdrop.current, shape = shape,
-            style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
-            material = GlassTopAppBarDefaults.buttonMaterial(), shading = false,
-            fallback = Modifier.clip(shape).background(MiuixTheme.colorScheme.surfaceContainer))
-          .padding(horizontal = 8.dp, vertical = 6.dp),
-          horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-          ResourceToolbarButton("all", stringResource(R.string.perfect_git_select_all),
-            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_checks),
-            enabled = !busy && selected.size < visible.size, onClick = { selection = visible })
-          ResourceToolbarButton("none", stringResource(R.string.perfect_resource_select_none),
-            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square),
-            enabled = !busy && selected.isNotEmpty(), onClick = { selection = emptyList() })
-          ResourceToolbarButton("download", stringResource(R.string.action_label_download),
-            actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
-            onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
-          ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
-            actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
-            tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
-          ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
-            actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
-            tint = MiuixTheme.colorScheme.primary)
+          .testTag("perfect.resources.toolbar")) {
+          Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            ResourceToolbarButton("all", stringResource(R.string.perfect_git_select_all),
+              ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_checks),
+              enabled = !busy && selected.size < visible.size, onClick = { selection = visible })
+            ResourceToolbarButton("none", stringResource(R.string.perfect_resource_select_none),
+              ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square),
+              enabled = !busy && selected.isNotEmpty(), onClick = { selection = emptyList() })
+            ResourceToolbarButton("download", stringResource(R.string.action_label_download),
+              actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
+              onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
+            ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
+              actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
+              tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
+            ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
+              actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
+              tint = MiuixTheme.colorScheme.primary)
+          }
         }
       }
     },

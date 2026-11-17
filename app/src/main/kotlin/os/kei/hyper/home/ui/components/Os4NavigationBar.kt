@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -32,8 +31,10 @@ internal fun KeiHomeGlassNavigationBar(
   backdrop: Backdrop? = null,
   badge: @Composable (Int) -> Unit = {},
 ) {
-  val glassItems = remember(items) {
-    items.map { GlassNavigationItem(icon = it.icon, label = it.label) }
+  val glassItems = remember(items, badge) {
+    items.mapIndexed { index, item ->
+      GlassNavigationItem(icon = item.icon, label = item.label, badge = { badge(index) })
+    }
   }
   val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
   Box(modifier.fillMaxWidth()
@@ -44,8 +45,6 @@ internal fun KeiHomeGlassNavigationBar(
       GlassNavigationBar(items = glassItems, selectedIndex = selectedIndex, onSelect = onSelect,
         backdrop = backdrop, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
         defaultWindowInsetsPadding = false)
-      // Icon packs is the middle of the five destinations, including in RTL.
-      Box(Modifier.align(Alignment.TopCenter).offset(x = 13.dp, y = 9.dp)) { badge(2) }
     }
   }
 }

@@ -165,6 +165,33 @@ class Os4SegmentedTabsDeviceTest {
     rule.runOnIdle { assertEquals(listOf(0), selections) }
   }
 
+  @Test fun draggingAcrossSegmentsCommitsOnceOnReleaseAndCancellingKeepsSelection() {
+    var selected by mutableIntStateOf(0)
+    var rtl by mutableStateOf(false)
+    val events = mutableListOf<Int>()
+    rule.setContent {
+      CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+        MiuixTheme {
+          Os4ViewTabs(listOf("One", "Two", "Three"), selected,
+            { selected = it; events += it }, Modifier.testTag("segmented.drag"))
+        }
+      }
+    }
+    for (direction in listOf(false, true)) {
+      rule.runOnIdle { rtl = direction; selected = 0; events.clear() }
+      val row = rule.onNodeWithTag("segmented.drag")
+      val origin = row.fetchSemanticsNode().boundsInRoot.topLeft
+      val from = rule.onNodeWithText("One").fetchSemanticsNode().boundsInRoot.center - origin
+      val to = rule.onNodeWithText("Three").fetchSemanticsNode().boundsInRoot.center - origin
+      row.performTouchInput { down(from); moveTo(to); cancel() }
+      rule.runOnIdle { assertEquals(0, selected); assertTrue(events.isEmpty()) }
+      row.performTouchInput { down(from); moveTo(to) }
+      rule.runOnIdle { assertEquals(0, selected); assertTrue(events.isEmpty()) }
+      row.performTouchInput { up() }
+      rule.runOnIdle { assertEquals(2, selected); assertEquals(listOf(2), events) }
+    }
+  }
+
   @Test fun nativeShadowSurvivesClippedParentsAndHorizontalOverflowLight() =
     assertNativeShadowProfile(dark = false, direction = LayoutDirection.Ltr)
 

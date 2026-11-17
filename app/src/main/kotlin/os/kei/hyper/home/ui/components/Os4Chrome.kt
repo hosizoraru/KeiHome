@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.systemBars
@@ -67,14 +70,16 @@ internal fun KeiHomeScaffold(
   content: @Composable (PaddingValues) -> Unit,
 ) {
   // Pages record their content below the overlay host, never the glass or its own scrim.
-  CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
-    top.yukonga.miuix.kmp.basic.Scaffold(
-      modifier = modifier, topBar = topBar, bottomBar = bottomBar,
-      floatingActionButton = floatingActionButton,
-      floatingActionButtonPosition = floatingActionButtonPosition,
-      floatingToolbar = floatingToolbar, floatingToolbarPosition = floatingToolbarPosition,
-      containerColor = containerColor, contentWindowInsets = contentWindowInsets, content = content,
-    )
+  Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
+      top.yukonga.miuix.kmp.basic.Scaffold(
+        modifier = Modifier.widthIn(max = 1040.dp).fillMaxSize(), topBar = topBar, bottomBar = bottomBar,
+        floatingActionButton = floatingActionButton,
+        floatingActionButtonPosition = floatingActionButtonPosition,
+        floatingToolbar = floatingToolbar, floatingToolbarPosition = floatingToolbarPosition,
+        containerColor = containerColor, contentWindowInsets = contentWindowInsets, content = content,
+      )
+    }
   }
 }
 
@@ -87,10 +92,12 @@ internal fun KeiHomeTopAppBar(
   actions: @Composable RowScope.() -> Unit = {},
   scrollBehavior: ScrollBehavior? = null,
   bottomContent: @Composable () -> Unit = {},
+  expandable: Boolean = true,
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
   val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
   GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
+    expandable = expandable,
     progressiveBlur = progressive && backdrop != null,
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },

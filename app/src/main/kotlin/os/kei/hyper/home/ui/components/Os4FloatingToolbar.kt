@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.components
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -19,7 +20,7 @@ internal fun Os4FloatingToolbar(
 ) {
   GlassFloatingToolbar(
     backdrop = LocalKeiHomeBackdrop.current,
-    modifier = modifier,
+    modifier = Modifier.widthIn(max = 640.dp).then(modifier),
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
     fill = if (primary) GlassFloatingActionButtonDefaults.fill()
       else GlassFloatingToolbarDefaults.fill(),

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="navigation_expand">Expand navigation</string>
+  <string name="navigation_collapse">Collapse navigation</string>
+</resources>

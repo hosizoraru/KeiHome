@@ -98,3 +98,72 @@ launcher. This change applies when a subsequent launcher process loads the new
 module library. Validation must distinguish an in-place install, independent
 native parser tests and an actual subsequent launcher startup. Do not kill or
 restart a user's launcher solely to activate or benchmark this change.
+
+## Consolidated native audit
+
+The follow-up audit includes the library-load dispatcher, highlight, labels,
+Dock, glass materials, image recovery, MAML ZIP cleanup, policy leases and
+reader retirement. The Monet observer and splash artwork cache were also
+reviewed for recurring work.
+
+The additional measured startup hotspots were label and Dock profile lookup.
+Their masked patterns previously searched every instruction repeatedly.
+`IndexedArm64Image` now collects canonical Dart entry candidates once per
+resolver invocation. Labels and Dock share it. Fully masked canonical entry
+prefixes may use the index; all other patterns retain the complete scan.
+Visitors receive a first instruction already read within a proved executable
+extent, avoiding another range search for each rejected word.
+
+The index has a 256 KiB allocation cap per invocation. Allocation failure,
+saturation and unsupported prefixes use the original complete scan. It is
+destroyed when the resolver returns; no index survives code patching. Nested
+Dock/label resolution may temporarily hold two indexes (512 KiB total).
+Publication revalidation creates a fresh index. Full patterns, caller
+relationships, duplicate rejection and feature dependencies remain required.
+Dock also validates its image before constructing the index.
+
+Physical-device medians from three independent ARM64 trials:
+
+| Stage | Before | After |
+| --- | ---: | ---: |
+| Labels | 549.730 ms | 240.517 ms |
+| Dock, including its label dependency | 1975.603 ms | 396.410 ms |
+| Highlight, unchanged control | 39.962 ms | 38.432 ms |
+| Glass after labels, unchanged control | 96.602 ms | 97.280 ms |
+
+These are separate stage measurements, not an end-to-end sum. Dependencies
+overlap, and actual installation intentionally resolves some profiles again
+before publication. The unmodified controls show why this batch concentrates
+on labels and Dock instead of rewriting every scanner.
+
+Other reviewed paths retain their existing behavior:
+
+- Full backing-library SHA-256 and ABI/graph checks remain; source identity is
+  not replaced by a weaker cache key.
+- Policy waiting remains driven by socket readiness, deadlines and expiry;
+  short retirement waits apply while readers still own retired snapshots.
+- The 15-second renewal, lease expiry and acknowledgement checks remain.
+- MAML ZIP metadata ownership and its bounded release worker remain.
+- Event coalescing, theme/configuration invalidation and the bounded splash
+  bitmap cache remain. No new frame callback, Binder polling, permanent worker
+  or disk cache was introduced.
+
+The index has ASan/UBSan checks for executable ranges, partial masks, overflow
+fallback, early termination, oversized views and fresh-phase insertion.
+Label and Dock positive/mutation tests pass on all 11 retained launcher images.
+Independent label symbols and source/linked ARM64 bridge cases are checked
+separately. The glass material suite runs 15,022 checks, including 862 rejection
+cases; its missing historical derived oracles were regenerated from retained
+original libraries, without weakening assertions. MAML ownership/release,
+policy lifetime and frozen Dock-oracle regressions also pass.
+
+Keep the two scan helpers separate in purpose: the exact-pattern prefilter is
+allocation-free and scans once; the short-lived Dart index amortizes repeated
+masked queries. Making all parsing use a permanent cache would add invalidation
+and ownership risks.
+
+Future palette, preference, UI and icon-generation changes should continue to
+use the existing runtime protocol and hot-reload paths when their native ABI
+and behavior are unchanged. Reserve native updates for actual native fixes or
+ABI changes, and batch related measured work with this same matrix rather
+than changing the SO speculatively for each feature.

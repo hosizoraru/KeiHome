@@ -56,9 +56,27 @@ def main():
                     return pc + (w - (0x4000000 if w & 0x2000000 else 0))*4
                 address = branch(branch(address)+8)
             words = struct.unpack('<'+'I'*count, image.read(address, count*4))
+            if role == 'ChangeEventExpanded':
+                root = words[4] >> 5 & 0xffff
+                frame = words[2] >> 10 & 0xfff
+                assert (root + 1) % 8 == 0 and root + 32 < frame <= 0x800
+                assert words[10] & 0xffe0001f == 0xd2800001
+                assert 3 <= (words[10] >> 5 & 0xffff) <= 32
+                words = tuple(
+                    0xd2800121 if i == 10 else
+                    0x92800011 | (((w >> 5 & 0xffff) - root + 0x147) << 5)
+                    if w & 0xffe0001f == 0x92800011 else w
+                    for i, w in enumerate(words)
+                )
             pattern = []
             for index, word in enumerate(words):
-                bits = 0xffe00fff if role == 'EditingState' and index == 19 else mask(word)
+                bits = mask(word)
+                if role == 'EditingState' and index == 19:
+                    bits = 0xffe00fff
+                if role == 'CellGridBodyExpanded' and index == 11:
+                    field = word >> 5 & 0xffff
+                    assert 0xff <= field <= 0x1ff and field & 3 == 3
+                    bits = 0xffe0001f
                 pattern.append((word & bits, bits))
             assert role not in contracts or contracts[role] == pattern, (role, library)
             contracts[role] = pattern

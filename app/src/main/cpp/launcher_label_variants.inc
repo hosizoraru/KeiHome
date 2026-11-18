@@ -118,7 +118,7 @@ static constexpr LabelWord kLabelCellGridBodyExpanded[] = {
     {0x8b1c8000u, 0xffffffffu},
     {0xb840b001u, 0xffffffffu},
     {0x8b1c8021u, 0xffffffffu},
-    {0xd28020f1u, 0xffffffffu},
+    {0xd2800011u, 0xffe0001fu},
     {0xb8716820u, 0xffffffffu},
     {0x8b1c8000u, 0xffffffffu},
     {0xaa0003e1u, 0xffffffffu},

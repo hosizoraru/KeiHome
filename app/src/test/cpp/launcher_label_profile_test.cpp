@@ -54,6 +54,10 @@ int main(int argc, char** argv) {
             !rejects(p.editing, 0xaa0003e0) ||
             !rejects(p.editing + 0x14, 0x94000000) || !rejects(p.cache_post + 4, 0xaa0003e0) || !rejects(p.factory_post[0], 0xaa0003e0) ||
             !rejects(p.factory_post[1], 0xaa0003e0)) return 1;
+    const bool inlineConfig = (u32(p.lines + 0x10) & 0xffc003ffu) == 0xf9400000u;
+    if ((inlineConfig && !rejects(p.config + 0x10, u32(p.config + 0x10) ^ (1u << 10))) ||
+            !rejects(p.change_event + 24, u32(p.change_event + 24) ^ (8u << 5)))
+        return 1;
     if (p.marquee_wrapper_build) {
         const auto call = [](size_t from, size_t to) {
             return 0x94000000u | (uint32_t((int64_t(to) - int64_t(from)) / 4) & 0x3ffffffu);

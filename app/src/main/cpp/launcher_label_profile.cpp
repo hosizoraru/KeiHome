@@ -79,6 +79,43 @@ size_t Either(size_t a, size_t b) {
     return a && b && a != b ? 0 : a ? a : b;
 }
 
+bool MatchesExpandedChangeEvent(const IndexedArm64Image& im, size_t at) {
+    if (!Contains(im, at, sizeof(kLabelChangeEventExpanded) / sizeof(LabelWord) * 4)) return false;
+    const uint32_t root = Word(im, at + 16);
+    if ((root & 0xffe0001fu) != 0x92800011u) return false;
+    const int slot_delta = int((root >> 5) & 65535) - int(0x28f1u >> 5);
+    const uint32_t frame = ((Word(im, at + 8) >> 10) & 4095);
+    if ((frame & 7) || frame > 0x800 || ((root >> 5) & 65535) + 32 >= frame ||
+            (((root >> 5) & 65535) + 1) % 8)
+        return false;
+    for (size_t i = 0; i < sizeof(kLabelChangeEventExpanded) / sizeof(LabelWord); ++i) {
+        const auto& expected = kLabelChangeEventExpanded[i];
+        const uint32_t word = Word(im, at + 4*i);
+        if ((expected.word & 0xffe0001fu) == 0x92800011u) {
+            if ((word & 0xffe0001fu) != 0x92800011u ||
+                    int((word >> 5) & 65535) != int((expected.word >> 5) & 65535) + slot_delta)
+                return false;
+        } else if (i == 10) {
+            const uint32_t count = (word >> 5) & 65535;
+            if ((word & 0xffe0001fu) != 0xd2800001u || count < 3 || count > 32)
+                return false;
+        } else if ((word & expected.mask) != expected.word) return false;
+    }
+    return true;
+}
+
+size_t FindExpandedChangeEvent(const IndexedArm64Image& im) {
+    size_t found = 0;
+    bool ambiguous = false;
+    im.VisitCandidates(im.Covers(kLabelChangeEventExpanded, 3), [&](size_t at, uint32_t first) {
+        if (first != kLabelChangeEventExpanded[0].word || !MatchesExpandedChangeEvent(im, at)) return true;
+        if (found) { ambiguous = true; return false; }
+        found = at;
+        return true;
+    });
+    return ambiguous ? 0 : found;
+}
+
 bool ResolveMarqueeWrapper(const IndexedArm64Image& im, LauncherLabelProfile& p) {
     const size_t build = FindWhere(im, kLabelWrapperBuild, [&](size_t at) {
         const size_t closure = Call(im, at + 0xc8);
@@ -110,10 +147,21 @@ bool ResolveMarqueeWrapper(const IndexedArm64Image& im, LauncherLabelProfile& p)
 }
 
 bool ResolveLabelState(const IndexedArm64Image& im, LauncherLabelProfile& p, const char** why) {
-    p.config = Either(Find(im, kLabelConfig), Find(im, kLabelConfigExpanded));
     p.value = Find(im, kLabelValue);
-    p.change_event = Either(Find(im, kLabelChangeEvent), Find(im, kLabelChangeEventExpanded));
-    if (!p.config || !p.value || !p.change_event || Call(im, p.config + 0x54) != p.value)
+    if (!p.value) return Reject(why, "label configuration value graph changed");
+    const size_t lines = Find(im, kLabelLines);
+    const size_t inline_lines = Find(im, kLabelLinesInline, 0x54, p.value);
+    const auto owns_grid_config = [&](size_t pc) {
+        if (Call(im, pc + 0x54) != p.value) return false;
+        if (lines && Call(im, lines + 12) == pc) return true;
+        // Inlined title access shares both the controller slot and Rx field.
+        return inline_lines && Word(im, pc + 0x10) == Word(im, inline_lines + 0x10) &&
+            Word(im, pc + 0x4c) == Word(im, inline_lines + 0x4c);
+    };
+    p.config = Either(FindWhere(im, kLabelConfig, owns_grid_config),
+                      FindWhere(im, kLabelConfigExpanded, owns_grid_config));
+    p.change_event = Either(Find(im, kLabelChangeEvent), FindExpandedChangeEvent(im));
+    if (!p.config || !p.change_event)
         return Reject(why, "label configuration graph changed");
     p.grid_slot = Slot(Word(im, p.config + 16));
     p.config_rx_field = uint32_t(Field(Word(im, p.config + 0x4c)));
@@ -167,7 +215,14 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
     if (!p.marquee_constructor && !ResolveMarqueeWrapper(im, p))
         return Reject(why, "unsupported native scrolling title graph");
     const size_t cell = Find(im, kLabelCellContent);
-    const size_t grid_body = Either(Find(im, kLabelCellGridBody), Find(im, kLabelCellGridBodyExpanded));
+    const size_t grid_factory = cell ? Call(im, cell + 0x34) : 0;
+    const size_t grid_body = grid_factory ? grid_factory + 0x64 : 0;
+    const bool direct_grid = grid_body && Matches(im, grid_body, kLabelCellGridBody) &&
+        Call(im, grid_body + 0x38) == p.value;
+    const uint32_t grid_field = (Word(im, grid_body + 0x2c) >> 5) & 65535;
+    const bool indexed_grid = grid_body && Matches(im, grid_body, kLabelCellGridBodyExpanded) &&
+        grid_field >= 0xff && grid_field <= 0x1ff && (grid_field & 3) == 3 &&
+        Call(im, grid_body + 0x3c) == p.value;
     const size_t ticker_effective = Find(im, kLabelTickerEffective);
     const size_t ticker_type = Find(im, kLabelTickerType, 0x98, ticker_effective);
     p.cell_visibility = Find(im, kLabelGridVisibility);
@@ -179,10 +234,10 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
             visibility_tail = at;
         }
     }
-    if (!cell || !grid_body || !ticker_effective || !ticker_type || !p.cell_visibility || !visibility_tail ||
+    if (!cell || (!direct_grid && !indexed_grid) || !ticker_effective || !ticker_type ||
+            !p.cell_visibility || !visibility_tail ||
             !Matches(im, cell + 0xbc, kLabelCellListInit) ||
-            !Matches(im, Call(im, cell + 0x34), kLabelCellGridFactory) ||
-            grid_body != Call(im, cell + 0x34) + 0x64)
+            !Matches(im, grid_factory, kLabelCellGridFactory))
         return Reject(why, "ambiguous page visibility graph");
     // Wrap the complete page Stack, including the icon-list Obx. The earlier
     // grid/background Obx alone does not contain app labels.
@@ -339,7 +394,8 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
         const bool pool_add = (w & 0xffc003ffu) == 0x91400361u;
         const bool pool_load = (w & 0xffc003ffu) == 0xf9400361u || (w & 0xffc003ffu) == 0xf9400021u;
         const bool field_store = (w & 0xffe00fffu) == 0xb8000001u &&
-                (Field(w) == 0x1b || Field(w) == 0x2b || Field(w) == 0x33 || Field(w) == 0x47);
+                (Field(w) == 0x17 || Field(w) == 0x1b || Field(w) == 0x2b ||
+                 Field(w) == 0x33 || Field(w) == 0x47);
         if (!stack_load && !pool_add && !pool_load && !field_store && w != 0xb8013003u &&
                 w != 0xd37ff824u && w != 0xb8037004u) return Reject(why, "unknown Text initialization effect");
     }

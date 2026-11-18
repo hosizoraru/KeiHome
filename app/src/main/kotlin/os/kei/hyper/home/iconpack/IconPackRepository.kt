@@ -304,10 +304,15 @@ internal class IconPackRepository(
 
   companion object {
     /** MTZ providers commonly report application/octet-stream, so do not filter only ZIP MIME. */
-    fun createImportIntent(): Intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+    fun createImportIntent(context: Context): Intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
       addCategory(Intent.CATEGORY_OPENABLE)
       type = "*/*"
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      // An implicit request can be rerouted to HyperOS Safe Access, which can drop the result.
+      // Resolve the installed platform picker by its standard action.
+      context.packageManager.queryIntentActivities(this,
+        PackageManager.MATCH_DEFAULT_ONLY or PackageManager.MATCH_SYSTEM_ONLY)
+        .firstOrNull()?.activityInfo?.let { setClassName(it.packageName, it.name) }
     }
   }
 }

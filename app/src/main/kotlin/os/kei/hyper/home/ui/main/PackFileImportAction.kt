@@ -1,5 +1,6 @@
 package os.kei.hyper.home.ui.main
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -14,11 +15,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -29,13 +32,14 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun PackFileImportAction(model: HomeViewModel, section: String, onHeightChanged: (Int) -> Unit) {
   val state by model.iconPacks.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
-  val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-    if (uri != null) model.importIconPack(uri)
+  val context = LocalContext.current
+  val picker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    if (result.resultCode == Activity.RESULT_OK) result.data?.data?.let(model::importIconPack)
   }
   PackFileImportButton(section, busy = state.importing || state.nativeImporting != null || state.removing != null,
     hasThemeScope = framework.snapshot?.themesInScope == true, onHeightChanged = onHeightChanged,
     // Keep broad MIME support: document providers may label APK/MTZ/ZIP inconsistently.
-    onChooseFile = { picker.launch(arrayOf("*/*")) })
+    onChooseFile = { picker.launch(IconPackRepository.createImportIntent(context)) })
 }
 
 @Composable

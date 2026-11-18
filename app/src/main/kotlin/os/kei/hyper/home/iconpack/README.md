@@ -15,7 +15,7 @@ val previews = IconPackPreviewRepository(context)
 val installed: IconPackScanResult = repository.listInstalled()
 val imported: IconPackScanResult = repository.listImported()
 
-// Launch createImportIntent(), or use OpenDocument with arrayOf("*/*").
+// Launch IconPackRepository.createImportIntent(context) and read the returned data URI.
 // Call while the document read grant is valid. No persistent grant is needed.
 when (val result = repository.import(uri)) {
   is IconPackImportResult.Success -> {

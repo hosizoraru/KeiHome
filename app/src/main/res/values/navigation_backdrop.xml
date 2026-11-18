@@ -38,5 +38,10 @@
   <string name="nav_backdrop_step_enable">2. Enable background matching</string>
   <string name="nav_backdrop_limits">Known limitations</string>
   <string name="nav_backdrop_limits_summary">This experiment uses native system color sampling; it cannot extend patterned skins. Apps that draw their own bottom bar or force edge-to-edge, and some video screens, may be unaffected. If a screen looks wrong, turn this feature off and fully reopen the app.</string>
+  <string name="nav_backdrop_bilibili">Bilibili theme artwork</string>
+  <string name="nav_backdrop_bilibili_summary">Extend the current home tab artwork behind the gesture bar. Includes Bilibili in Affected apps. Fully close and reopen Bilibili after changing this setting.</string>
+  <string name="nav_backdrop_bilibili_scope">Enable the optional Bilibili scope in LSPosed, then return here.</string>
+  <string name="nav_backdrop_bilibili_limit">Free an Affected apps slot before enabling this option.</string>
+  <string name="nav_backdrop_bilibili_bound">Included by Bilibili theme artwork</string>
   <string name="nav_backdrop_refresh_apps">Refresh app list</string>
 </resources>

@@ -241,7 +241,8 @@ private fun SetupConnectionPanel(model: HomeViewModel) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MetadataPill(stringResource(if (state.connected) R.string.setup_os4_module_ready else R.string.setup_os4_module_pending), connectionColor)
-        val label = if (trusted && plan != null) stringResource(R.string.setup_os4_scopes_granted, plan.granted.size, plan.eligible.size)
+        val label = if (trusted && plan != null) stringResource(R.string.setup_os4_scopes_granted,
+          plan.requiredGranted, plan.requiredEligible.size)
           else stringResource(R.string.setup_os4_scopes_unknown)
         MetadataPill(label, desktopStatusColor(if (trusted && plan?.complete == true) StatusTone.READY else StatusTone.WARNING))
       }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 import os.kei.hyper.home.status.FrameworkConnection
@@ -34,6 +35,7 @@ internal data class NavigationBackdropUiState(
   val saving: Boolean = false,
   val unavailable: Boolean = false,
   val failed: Boolean = false,
+  val bilibiliInScope: Boolean? = null,
 )
 
 internal class NavigationBackdropSettings(
@@ -57,6 +59,9 @@ internal class NavigationBackdropSettings(
     mutable.update { it.copy(loading = true) }
     try {
       val choice = NavigationBackdropPreferences.read(service)
+      val bilibiliInScope = withContext(Dispatchers.IO) {
+        runCatching { BILIBILI_PACKAGE in service.scope }.getOrNull()
+      }
       val apps = withContext(Dispatchers.IO) {
         NavigationBackdropInbox.read(context)
         val locale = context.resources.configuration.locales.toLanguageTags()
@@ -64,7 +69,8 @@ internal class NavigationBackdropSettings(
         loadedApps ?: loadApps().also { loadedApps = it; loadedLocale = locale }
       }
       if (FrameworkConnection.service.value === service)
-        mutable.value = NavigationBackdropUiState(choice = choice, apps = apps, loading = false)
+        mutable.value = NavigationBackdropUiState(choice = choice, apps = apps, loading = false,
+          bilibiliInScope = bilibiliInScope)
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) {
       if (FrameworkConnection.service.value === service)
@@ -73,8 +79,11 @@ internal class NavigationBackdropSettings(
   }
 
   fun enabled(value: Boolean) = save { it.copy(enabled = value) }
+  fun bilibiliArtwork(value: Boolean) = save { it.copy(bilibiliArtwork = value) }
+
   fun toggle(packageName: String) = save {
-    it.copy(packages = if (packageName in it.packages) it.packages - packageName else it.packages + packageName)
+    if (packageName == BILIBILI_PACKAGE && it.bilibiliArtwork) it
+    else it.copy(packages = if (packageName in it.packages) it.packages - packageName else it.packages + packageName)
   }
 
   private fun save(change: (NavigationBackdropChoice) -> NavigationBackdropChoice) {
@@ -82,9 +91,13 @@ internal class NavigationBackdropSettings(
     val current = mutable.value
     if (!inScope() || current.loading || current.saving || current.choice == null) return
     val choice = change(current.choice).copy(userId = Process.myUid() / 100_000)
-    if (choice.packages.size > NavigationBackdropPreferences.MAX_PACKAGES) return
+    if (choice == current.choice || choice.selectedPackages.size > NavigationBackdropPreferences.MAX_PACKAGES) return
+    val enablingArtwork = choice.bilibiliArtwork && !current.choice.bilibiliArtwork
+    if (enablingArtwork && current.bilibiliInScope != true) return
     val backend = NavigationBackdropInbox.status.value
-    if (choice.enabled && (backend?.available != true || backend.version != BuildConfig.VERSION_CODE.toLong())) return
+    val disablingArtwork = !choice.bilibiliArtwork && current.choice.bilibiliArtwork
+    if (!disablingArtwork && (choice.enabled || enablingArtwork) &&
+      (backend?.available != true || backend.version != BuildConfig.VERSION_CODE.toLong())) return
     mutable.update { it.copy(saving = true) }
     scope.launch {
       mutex.withLock {
@@ -94,6 +107,11 @@ internal class NavigationBackdropSettings(
           return@withLock
         }
         try {
+          if (enablingArtwork && !withContext(Dispatchers.IO) { BILIBILI_PACKAGE in service.scope }) {
+            if (FrameworkConnection.service.value === service)
+              mutable.update { it.copy(saving = false, bilibiliInScope = false) }
+            return@withLock
+          }
           NavigationBackdropPreferences.save(service, choice)
           val confirmed = NavigationBackdropPreferences.read(service)
           check(confirmed == choice)

@@ -38,5 +38,10 @@
   <string name="nav_backdrop_step_enable">2. 开启背景取色兼容</string>
   <string name="nav_backdrop_limits">已知限制</string>
   <string name="nav_backdrop_limits_summary">本功能利用系统原生取色，暂不支持延展皮肤图案。应用自绘底栏、强制边到边或部分视频页面可能无效；异常时请关闭本功能，并彻底重开对应应用。</string>
+  <string name="nav_backdrop_bilibili">哔哩哔哩专属适配</string>
+  <string name="nav_backdrop_bilibili_summary">将当前首页底栏主题原图延伸至手势区，并自动将哔哩哔哩加入适用应用。修改后请完全退出并重新打开哔哩哔哩。</string>
+  <string name="nav_backdrop_bilibili_scope">请在 LSPosed 中勾选可选的哔哩哔哩作用域，再返回此页。</string>
+  <string name="nav_backdrop_bilibili_limit">请先在适用应用中腾出一个名额。</string>
+  <string name="nav_backdrop_bilibili_bound">由哔哩哔哩专属适配自动加入</string>
   <string name="nav_backdrop_refresh_apps">刷新应用列表</string>
 </resources>

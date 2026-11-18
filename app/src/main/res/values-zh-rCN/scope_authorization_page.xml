@@ -28,5 +28,6 @@
   <string name="scope_page_purpose_share">HyperOS 分享面板中的应用图标</string>
   <string name="scope_page_purpose_security">侧边栏等手机管家场景的应用图标</string>
   <string name="scope_page_purpose_settings">应用管理与应用详情中的图标</string>
+  <string name="scope_page_purpose_bilibili">可选。将哔哩哔哩首页底栏主题原图延伸至手势区。</string>
   <string name="scope_page_purpose_other">模块声明的其他作用域</string>
 </resources>

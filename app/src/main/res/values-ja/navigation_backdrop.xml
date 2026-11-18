@@ -38,5 +38,10 @@
   <string name="nav_backdrop_step_enable">2. 背景色の互換処理をオンにする</string>
   <string name="nav_backdrop_limits">既知の制限</string>
   <string name="nav_backdrop_limits_summary">システム標準の色取得を使うため、模様の延長には対応しません。独自の下部バー、エッジツーエッジを強制するアプリ、一部の動画画面では効果がない場合があります。表示に問題があればオフにして、対象アプリを完全に開き直してください。</string>
+  <string name="nav_backdrop_bilibili">Bilibili のテーマ画像</string>
+  <string name="nav_backdrop_bilibili_summary">ホームのテーマ画像をジェスチャーバーの領域まで延長します。Bilibili は対象アプリに自動で追加されます。変更後は Bilibili を完全に終了してから開き直してください。</string>
+  <string name="nav_backdrop_bilibili_scope">LSPosed でオプションの Bilibili スコープを有効にしてから、この画面に戻ってください。</string>
+  <string name="nav_backdrop_bilibili_limit">対象アプリの選択を一つ解除してから有効にしてください。</string>
+  <string name="nav_backdrop_bilibili_bound">Bilibili のテーマ画像設定により自動で追加</string>
   <string name="nav_backdrop_refresh_apps">アプリ一覧を更新</string>
 </resources>

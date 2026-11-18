@@ -28,5 +28,6 @@
   <string name="scope_page_purpose_share">App icons in the HyperOS share panel</string>
   <string name="scope_page_purpose_security">App icons in Sidebar and the Security app</string>
   <string name="scope_page_purpose_settings">Icons in app management and app details</string>
+  <string name="scope_page_purpose_bilibili">Optional. Extend Bilibili home theme artwork into the gesture area.</string>
   <string name="scope_page_purpose_other">Additional scope declared by this module</string>
 </resources>

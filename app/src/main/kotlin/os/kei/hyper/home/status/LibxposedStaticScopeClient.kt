@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import io.github.libxposed.service.XposedService
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 
 internal class LibxposedStaticScopeClient(
   private val context: Context,
@@ -13,7 +14,8 @@ internal class LibxposedStaticScopeClient(
   private val declared by lazy { readStaticScopeDeclaration(context) }
 
   fun plan(granted: Set<String>, properties: Long): StaticScopePlan =
-    planStaticScope(declared, granted, properties and XposedService.PROP_CAP_SYSTEM.toLong() != 0L) { name ->
+    planStaticScope(declared, granted, properties and XposedService.PROP_CAP_SYSTEM.toLong() != 0L,
+      optional = setOf(BILIBILI_PACKAGE)) { name ->
       try {
         context.packageManager.getApplicationInfo(name, PackageManager.ApplicationInfoFlags.of(0))
           .flags and ApplicationInfo.FLAG_INSTALLED != 0

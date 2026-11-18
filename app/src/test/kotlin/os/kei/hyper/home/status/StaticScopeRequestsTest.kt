@@ -11,6 +11,20 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StaticScopeRequestsTest {
+  @Test fun optionalScopeNeverBlocksCoreActivation() {
+    val optional = "tv.danmaku.bili"
+    val required = listOf("system", "com.miui.home")
+    val plan = planStaticScope(required + optional, required.toSet(), true, setOf(optional)) { true }
+    assertTrue(plan.complete)
+    assertTrue(plan.missing.isEmpty())
+    assertEquals(2, plan.requiredGranted)
+    assertEquals(required + optional, plan.eligible)
+    val unknown = planStaticScope(required + optional, required.toSet(), true, setOf(optional)) {
+      if (it == optional) null else true
+    }
+    assertTrue(unknown.complete)
+    assertEquals(listOf(optional), unknown.unconfirmed)
+  }
   private val declared = listOf("system", "com.miui.home", "com.android.thememanager")
   private inner class Client : StaticScopeClient {
     override val identity: Any get() = this

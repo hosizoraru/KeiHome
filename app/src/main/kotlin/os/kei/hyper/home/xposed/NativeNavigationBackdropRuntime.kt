@@ -39,7 +39,7 @@ internal class NativeNavigationBackdropRuntime(
           val original = chain.proceed()
           val selected = choice
           val packageName = chain.getArg(0) as? String
-          if (!active || !selected.enabled || packageName == null || packageName !in selected.packages ||
+          if (!active || packageName == null || !selected.selects(packageName) ||
             packageName == BuildConfig.APPLICATION_ID || packageName == "com.android.systemui") original
           else try {
             val uid = Binder.getCallingUid()
@@ -49,7 +49,7 @@ internal class NativeNavigationBackdropRuntime(
             val home = pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
               ?.activityInfo?.packageName
             if (packageName == home || pm.getPackagesForUid(uid)?.contains(packageName) != true) original
-            else NavigationRuleOverlay.apply(original as? Bundle).also {
+            else NavigationRuleOverlay.apply(original as? Bundle, packageName).also {
               if (it !== original && reported.add(packageName))
                 xposed.log(Log.INFO, TAG, "Native rule delivery enabled for $packageName; OEM table unchanged")
             }

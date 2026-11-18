@@ -5,6 +5,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -12,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
@@ -20,8 +24,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
-import os.kei.hyper.home.BuildConfig
+import androidx.core.content.pm.PackageInfoCompat
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.status.NavigationBackdropStatus
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
@@ -31,6 +36,8 @@ class NavigationBackdropScreenTest {
   @get:Rule(order = 0) val foreground = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createComposeRule()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
+  private val installedVersion get() = PackageInfoCompat.getLongVersionCode(
+    context.packageManager.getPackageInfo(context.packageName, 0))
   private val apps = listOf(NavigationBackdropApp("test.first", "First"),
     NavigationBackdropApp("test.second", "Second", systemApp = true))
 
@@ -39,14 +46,17 @@ class NavigationBackdropScreenTest {
     choice: NavigationBackdropChoice = NavigationBackdropChoice(),
     state: NavigationBackdropUiState = NavigationBackdropUiState(choice, apps, loading = false),
     backend: NavigationBackdropStatus? =
-      NavigationBackdropStatus(BuildConfig.VERSION_CODE.toLong(), true, choice.fingerprint()),
+      NavigationBackdropStatus(installedVersion, true, choice.fingerprint()),
     onToggle: (String) -> Unit = {},
     onEnabled: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
+    onBilibiliArtwork: (Boolean) -> Unit = {},
+    onOpenManager: () -> Unit = {},
   ) {
     rule.setContent {
       KeiHomeTheme {
-        NavigationBackdropContent(page, state, backend, {}, {}, onEnabled, onToggle, onRefresh)
+        NavigationBackdropContent(page, state, backend, {}, {}, onEnabled, onToggle, onRefresh,
+          onBilibiliArtwork, onOpenManager)
       }
     }
   }
@@ -59,6 +69,44 @@ class NavigationBackdropScreenTest {
     rule.onNodeWithTag("nav-backdrop.search").assertDoesNotExist()
     rule.onNodeWithText(context.getString(R.string.nav_backdrop_restart)).assertDoesNotExist()
     rule.onNodeWithTag("nav-backdrop.app:test.first").assertDoesNotExist()
+  }
+
+  @Test fun bilibiliWithoutScopeLinksToManagerAndCannotEnableArtwork() {
+    val choice = NavigationBackdropChoice()
+    val state = NavigationBackdropUiState(choice, apps + NavigationBackdropApp(BILIBILI_PACKAGE, "Bilibili"),
+      loading = false, bilibiliInScope = false)
+    var opened = false
+    show(choice = choice, state = state, onOpenManager = { opened = true })
+    scrollToArtwork()
+    rule.onNodeWithTag("nav-backdrop.bilibili").assertIsNotEnabled()
+    rule.onNodeWithTag("nav-backdrop.bilibili.scope").performScrollTo().performClick()
+    rule.runOnIdle { assertEquals(true, opened) }
+  }
+
+  @Test fun grantedBilibiliScopeAllowsArtworkWithGeneralCompatibilityOff() {
+    val choice = NavigationBackdropChoice()
+    val state = NavigationBackdropUiState(choice, apps + NavigationBackdropApp(BILIBILI_PACKAGE, "Bilibili"),
+      loading = false, bilibiliInScope = true)
+    var enabled = false
+    show(choice = choice, state = state, onBilibiliArtwork = { enabled = it })
+    scrollToArtwork()
+    rule.onNodeWithTag("nav-backdrop.bilibili").assertIsEnabled().performScrollTo().performClick()
+    rule.runOnIdle { assertEquals(true, enabled) }
+  }
+
+  @Test fun artworkSelectionAppearsInSelectedAppsAndCannotBeManuallyRemoved() {
+    val choice = NavigationBackdropChoice(bilibiliArtwork = true)
+    val state = NavigationBackdropUiState(choice, apps + NavigationBackdropApp(BILIBILI_PACKAGE, "Bilibili"),
+      loading = false, bilibiliInScope = true)
+    show(NavigationBackdropPage.APPS, choice = choice, state = state)
+    rule.onNodeWithText(context.getString(R.string.nav_backdrop_saved, 1)).performClick()
+    rule.onNodeWithTag("nav-backdrop.app:$BILIBILI_PACKAGE").assertIsOn().assertIsNotEnabled()
+    rule.onNodeWithTag("nav-backdrop.app:test.first").assertDoesNotExist()
+  }
+
+  private fun scrollToArtwork() {
+    rule.onNode(hasScrollToIndexAction() and hasAnyAncestor(hasTestTag("nav-backdrop.list")))
+      .performScrollToNode(hasTestTag("nav-backdrop.bilibili"))
   }
 
   @Test fun statusCardRefreshesAndHelpOpensAsADismissibleSheet() {
@@ -141,13 +189,13 @@ class NavigationBackdropScreenTest {
   @Test fun oldVersionReceiptDoesNotAppearAsCurrentSystemConfirmation() {
     val choice = NavigationBackdropChoice()
     show(choice = choice,
-      backend = NavigationBackdropStatus(BuildConfig.VERSION_CODE.toLong() - 1, true, choice.fingerprint()))
+      backend = NavigationBackdropStatus(installedVersion - 1, true, choice.fingerprint()))
     rule.onNodeWithText(context.getString(R.string.nav_backdrop_pending_short)).assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.nav_backdrop_ready_short)).assertDoesNotExist()
   }
 
   @Test fun differentChoiceReceiptShowsWaitingInsteadOfReady() {
-    show(backend = NavigationBackdropStatus(BuildConfig.VERSION_CODE.toLong(), true, "old-choice"))
+    show(backend = NavigationBackdropStatus(installedVersion, true, "old-choice"))
     rule.onNodeWithText(context.getString(R.string.nav_backdrop_waiting_short)).assertIsDisplayed()
   }
 }

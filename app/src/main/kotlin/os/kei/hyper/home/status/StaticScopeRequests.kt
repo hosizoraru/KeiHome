@@ -19,13 +19,18 @@ internal data class StaticScopePlan(
   val absent: List<String>,
   val unconfirmed: List<String>,
   val unsupported: List<String>,
+  val optional: Set<String> = emptySet(),
 ) {
-  val missing: List<String> get() = eligible.filterNot { it in granted }
-  val complete: Boolean get() = missing.isEmpty() && unconfirmed.isEmpty() && unsupported.isEmpty()
+  val requiredEligible: List<String> get() = eligible.filterNot { it in optional }
+  val requiredGranted: Int get() = requiredEligible.count { it in granted }
+  val missing: List<String> get() = requiredEligible.filterNot { it in granted }
+  val requiredUnconfirmed: List<String> get() = unconfirmed.filterNot { it in optional }
+  val complete: Boolean get() = missing.isEmpty() && requiredUnconfirmed.isEmpty() && unsupported.isEmpty()
 }
 
 internal fun planStaticScope(
   declared: List<String>, granted: Set<String>, systemSupported: Boolean,
+  optional: Set<String> = emptySet(),
   installed: (String) -> Boolean?,
 ): StaticScopePlan {
   require(declared.isNotEmpty())
@@ -43,7 +48,7 @@ internal fun planStaticScope(
     }
   }
   return StaticScopePlan(declared.distinct(), eligible, granted.intersect(eligible.toSet()),
-    absent, unconfirmed, unsupported)
+    absent, unconfirmed, unsupported, optional)
 }
 
 internal enum class ScopeRequestFeedback { NONE, APPROVED, FAILED, RETURNED, TIMEOUT }

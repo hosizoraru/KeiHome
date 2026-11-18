@@ -28,5 +28,6 @@
   <string name="scope_page_purpose_share">HyperOS の共有パネルのアプリアイコン</string>
   <string name="scope_page_purpose_security">サイドバーとセキュリティアプリのアイコン</string>
   <string name="scope_page_purpose_settings">アプリ管理とアプリ情報のアイコン</string>
+  <string name="scope_page_purpose_bilibili">オプション。Bilibili のホームのテーマ画像をジェスチャー領域まで延長します。</string>
   <string name="scope_page_purpose_other">モジュールで宣言されたその他の対象</string>
 </resources>

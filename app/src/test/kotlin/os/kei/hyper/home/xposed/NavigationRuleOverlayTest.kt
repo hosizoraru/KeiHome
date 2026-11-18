@@ -3,6 +3,7 @@ package os.kei.hyper.home.xposed
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 
@@ -20,6 +21,35 @@ class NavigationRuleOverlayTest {
     assertFalse(choice.includes("sample.app", 10001))
     assertFalse(choice.includes("sample.app", 1001000))
     assertFalse(choice.includes("sample.app", -1))
+  }
+
+  @Test fun artworkBindsOnlyBilibiliAndPreservesManualSelection() {
+    val ordinary = NavigationBackdropChoice(packages = setOf("sample.app"))
+    val artwork = ordinary.copy(bilibiliArtwork = true)
+    assertEquals(setOf("sample.app", BILIBILI_PACKAGE), artwork.selectedPackages)
+    assertTrue(artwork.includesBilibiliArtwork(10001))
+    assertFalse(artwork.includesBilibiliArtwork(1010001))
+    assertFalse(artwork.includes("sample.app", 10001))
+    assertNotEquals(ordinary.fingerprint(), artwork.fingerprint())
+    assertEquals(ordinary, artwork.copy(bilibiliArtwork = false))
+    val manuallySelected = ordinary.copy(enabled = true, packages = setOf(BILIBILI_PACKAGE))
+    assertTrue(manuallySelected.includes(BILIBILI_PACKAGE, 10001))
+    assertFalse(manuallySelected.includesBilibiliArtwork(10001))
+    assertEquals(manuallySelected.packages,
+      manuallySelected.copy(bilibiliArtwork = true).selectedPackages)
+  }
+
+  @Test fun footerPlacementSupportsEitherShiftDirectionAndRejectsMissingCoverage() {
+    val avdHeight = 249f * 1120 / 1242
+    val physicalHeight = 249f * 1220 / 1242
+    val avdTop = bottomAlignedFooterTop(2436, 2376, 2203, avdHeight)!!
+    val physicalTop = bottomAlignedFooterTop(2656, 2591, 2375, physicalHeight)!!
+    assertEquals(-8.54f, avdTop - 2220, 0.02f)
+    assertEquals(64.41f, physicalTop - 2347, 0.02f)
+    assertNull(bottomAlignedFooterTop(2436, 2376, 2203, 60f))
+    assertNull(bottomAlignedFooterTop(2436, 2376, 2203, 234f))
+    assertNull(bottomAlignedFooterTop(2436, 2376, 2203, Float.NaN))
+    assertNull(bottomAlignedFooterTop(2436, 2436, 2203, avdHeight))
   }
 
   @Test fun onlyDisabledActivitiesChangeAndAllOemFieldsSurvive() {
@@ -42,6 +72,24 @@ class NavigationRuleOverlayTest {
     val result = JSONObject(NavigationRuleOverlay.rewriteActivityRules("""{"Unknown":{"future":true}}""")!!)
     assertFalse(result.getJSONObject("Unknown").has("mode"))
     assertEquals("", NavigationRuleOverlay.rewriteActivityRules(""))
+  }
+
+  @Test fun disabledBilibiliHomeUsesOemPixelSamplingWithoutChangingOtherPolicies() {
+    val home = "tv.danmaku.bili.MainActivityV2"
+    val raw = """{"$home":{"mode":0,"sf_sampling_mode":0},"Settings":{"mode":2,"sf_sampling_mode":0},"Other":{"mode":0,"sf_sampling_mode":0}}"""
+    val rewritten = NavigationRuleOverlay.rewriteActivityRules(raw, "tv.danmaku.bili")!!
+    val result = JSONObject(rewritten)
+    assertEquals(1, result.getJSONObject(home).getInt("sf_sampling_mode"))
+    assertEquals(2, result.getJSONObject("Settings").getInt("mode"))
+    assertEquals(0, result.getJSONObject("Other").getInt("sf_sampling_mode"))
+    assertEquals(rewritten, NavigationRuleOverlay.rewriteActivityRules(rewritten, "tv.danmaku.bili"))
+    val unrelated = JSONObject(NavigationRuleOverlay.rewriteActivityRules(raw, "other.app")!!)
+    assertEquals(0, unrelated.getJSONObject(home).getInt("sf_sampling_mode"))
+    for ((mode, sampling) in listOf(2 to 0, -1 to 0, 0 to -1, 0 to 1)) {
+      val input = """{"$home":{"mode":$mode,"sf_sampling_mode":$sampling}}"""
+      val preserved = JSONObject(NavigationRuleOverlay.rewriteActivityRules(input, "tv.danmaku.bili")!!)
+      assertEquals(sampling, preserved.getJSONObject(home).getInt("sf_sampling_mode"))
+    }
   }
 
   @Test fun malformedOrUnexpectedActivityTreesStayUnchanged() {

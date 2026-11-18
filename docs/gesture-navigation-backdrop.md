@@ -38,9 +38,8 @@ November 18, 2026: HyperOS Phone AVD and ColorOS Phone AVD comparison, followed
 by read-only inspection of the authorized physical Xiaomi device.
 
 The earlier capture/overlay experiments below remain disposable AVD prototypes.
-The app now includes a separate, default-off **experimental** native-rule feature
-under **Desktop > Gesture navigation fill**. The physical device was not modified.
-This feature does not use the prototypes' screenshot loop or overlay.
+The app includes default-off native color compatibility and Bilibili theme
+artwork under **Desktop > Gesture navigation fill**.
 
 Run evidence: `.artifacts/research/navigation-bar-20261118/`.
 Reproducible research fixtures: [nav-backdrop README](../scripts/research/nav-backdrop/README.md).
@@ -58,20 +57,62 @@ rules during process initialization. KeiHome does not stop user apps automatical
 `NativeNavigationBackdropRuntime` hooks only the existing system_server
 `MiuiNBIManagerService$Inner.getSystemNBIRules(String)` delivery method. It calls
 the original method first. For a selected package, `NavigationRuleOverlay` copies
-the returned Bundle and changes only disabled `mode=0` activity policies to native
-automatic `mode=-1`, enabling delivery. Packages without OEM rules receive an
-enabled empty activity map and use native defaults. Explicit colors, popup/dialog
-choices, sampling settings, version gates and unknown fields are preserved.
+the returned Bundle and enables native automatic `mode=-1` for disabled
+`mode=0` activity policies. Packages without OEM rules receive an enabled
+empty activity map and use native defaults. The Bilibili home policy can
+also prefer OEM pixel sampling as described below. Explicit colors,
+popup/dialog choices, version gates and unknown fields are preserved.
 Malformed, oversized, deeply nested or unsupported rule shapes retain the
 original result.
 
 The caller must be an app UID in the selected user, and PackageManager must
 confirm that the UID owns the requested package. Own app, SystemUI and Home are
 excluded. Unselected calls return before package lookup or JSON parsing.
-Preferences use the existing API 102 listener; acknowledgement shares the
-existing refresh worker. No new module scope, native payload, thread, periodic
-capture or overlay permission is introduced. The OEM controller map and cloud
-rules are never rewritten.
+Preferences use the existing API 102 listener. Acknowledgement shares the
+existing refresh worker. Native color compatibility runs in the existing
+system scope and leaves the OEM controller map and cloud rules intact.
+
+### Bilibili theme artwork
+
+Debug and Release declare `tv.danmaku.bili` as an optional LSPosed scope.
+The seven core targets still determine activation and the request-all action.
+The artwork switch requires a confirmed grant and a current system backend.
+It adds Bilibili to the effective selection even when general color
+compatibility is off. While bound, the app row explains its automatic selection.
+Turning the artwork switch off restores the independent manual selection.
+Changes to the rules take effect after a complete app restart.
+
+The bridge runs in the Bilibili main process. It uses the app's own loaded
+static artwork, measured width and placement, and current gesture inset.
+Compose resolution requires a unique footer image call shape. The View path
+uses the active `tab_background` drawable, its scale matrix and ancestor
+opacity. Both align the original image bottom with the window bottom and
+require that the projected image fit within the allowed background region.
+They change drawing only, leaving labels, touch targets and the SystemUI
+gesture handle to their original owners.
+
+The bridge clears detached, replaced or ineligible artwork and releases its
+window state on destruction or reload. Without a usable image, the native
+color policy supplies the fallback. IME, tappable navigation, side insets,
+secure windows and multi-window surfaces retain their original rendering.
+Cold startup can show the native background before the theme image loads.
+
+#### Optional scope verification
+
+On KeiHome Debug `112000731` with Bilibili `9190400`, the Phone AVD used the
+Compose path at `1120 × 2436` with a 60 px inset. The physical Xiaomi phone used
+the View path at `1220 × 2656` with a 65 px inset. The 秋星曜野 and 孤独摇滚
+artwork needed −8.54 px and +64.41 px of vertical movement respectively. Mean
+absolute error against the projected artwork in sampled opaque inset pixels was
+0.248 and 0.308 RGB levels. Both devices also exercised the fallback with the
+artwork switch off.
+
+Motion captures on the same renderer covered tab changes, settings return and
+task return. The gesture region matched in all 438 AVD and 449 physical samples
+where the theme background was already visible above the inset. These tests
+cover two portrait window sizes. See
+`.artifacts/research/bilibili-artwork-scope-20261118/` for captures, authorization
+checks and deployment receipts.
 
 ### API 102 collection transport
 
@@ -286,8 +327,358 @@ tests, not automatic classification of arbitrary third-party windows.
 
 An attempted AVD Bilibili footer-only configuration was rejected by Bilibili.
 The original configuration was restored byte for byte and the owned copied
-asset removed. Therefore, the textured renderer has **not** passed acceptance
-inside an actually skinned third-party Bilibili window.
+asset removed. That run validated the cooperative fixture. The follow-up
+below uses Bilibili's active themes in its real home window.
+
+## Bilibili theme artwork continuity
+
+Bilibili 9.19.0 (9190400) used the same APK on the physical Xiaomi phone
+and HyperOS Phone AVD. Its `TabHost` loads `Garb.tailBgPath` into a
+width-scaled `ImageView` in the 52 dp footer layout. The home window handles
+the navigation inset separately through an integer color and a handle
+appearance flag. HyperOS NBI's automatic fill also produces a color. On the
+physical phone's active themed homepage, row 2590 contained 309 colors.
+At row 2591, the top edge of the 65 px navigation inset, it changed to a
+solid `#E7E7CF` strip.
+
+The original 1242 x 249 artwork has enough height after width scaling.
+On the 1120 px wide AVD it covers about 225 px, while the 52 dp footer plus
+60 px inset needs 216 px. The cooperative fixture extended the image clip
+to the bottom of the window on both devices. It kept the artwork transform
+and tab hit bounds in place and the gesture handle visible. Tab selection
+and dialog suspension passed on both devices. Keyboard suspension and
+restoration passed on the AVD. The old and extended artwork above the
+navigation area differed by at most one RGB level per channel.
+
+The AVD's Bilibili instance continued to use its default dark footer when
+given the temporary theme fixture. The APK's garb initialization switches
+to a plain garb in its night theme. The original garb files and metadata
+were restored. The physical device supplied the actual themed-app evidence.
+After the separate fixture ran, the original Bilibili activity, process,
+theme file hashes, and native rules matched their starting values. The
+fixture was removed from both devices. Evidence is under
+`.artifacts/research/bilibili-footer-continuity-20261118/`.
+
+An app integration would need to resolve the active footer drawable and
+its transform inside the home window, draw the remaining artwork through
+the bottom inset, and leave the tab layout and gesture hit area intact.
+It would also need to re-evaluate eligibility when the active scene,
+theme or insets change. A scene without sufficient authored artwork can
+keep its existing color fill. The current NBI rule delivery cannot carry
+that drawable. The fixture proves the rendering geometry on HyperOS.
+An earlier research build integrated this approach in the live Bilibili
+home window. Build it with `:app:assembleDebug` and
+`-Pkeihome.research.bilibiliFooter=true`. This explicitly adds Bilibili to
+that APK's static scope. The default Debug and Release scopes keep the
+original seven targets. The existing navigation-fill switch and app selection
+gate the prototype after the framework grant.
+
+The same APK uses different footer renderers in practice. The AVD renders a
+Compose image. The resolver finds the home footer's image call from its
+Compose trace anchor and validates the call shape. The prototype observes
+the image loader's successful static bitmap and reads its measured placement.
+The physical device uses a legacy `ImageView`. The prototype reads its
+drawable, image matrix, visible bounds, and parent opacity. Both paths
+extend just the drawing below the existing tab strip. They leave the original
+tab views, layout, touch targets, and SystemUI handle in place. A missing,
+short, or ineligible image leaves the regular navigation fill in control.
+
+### Live home window acceptance
+
+Debug research b0716 ran on the HyperOS Phone AVD with Home 9261 and on
+the physical Xiaomi with Home 9259. The AVD's blue 秋星曜野 theme filled
+the 60 px navigation inset. The physical phone's 镜音铃·连 theme filled
+the 65 px inset. A parent of the legacy footer draws at 0.98 opacity.
+Applying the same accumulated opacity to the continuation preserved
+the image across the boundary. Rejecting all non-opaque parents had
+left this theme on the color fallback.
+
+Both devices preserved their active themes and exercised the Home,
+Following, Shopping and Profile tabs. A 560 x 1218 AVD recording sampled
+529 frames across the tab transitions at up to 24 fps. Both ends of the
+navigation inset retained the blue artwork throughout the captured frames.
+A separate AVD run with b0708 exercised the ordinary dark tab background,
+which continued to use the native `#17181A` fill, and restored the original
+theme before the final b0716 run. The critical system and Home processes
+kept their PIDs. AVD deployment observed seven successful Java reloads
+and one system-reclaimed Security Center process.
+
+The default Debug and Release APKs were inspected and both retained
+the original seven scope entries. The research APK adds only Bilibili.
+Those builds preceded the optional scope and dedicated switch described above.
+Run evidence is under
+`.artifacts/research/bilibili-footer-integration-20261118/`.
+
+### Scope-free continuation
+
+A reusable renderer needs an eligible owning window, the active background
+artwork with its transform and opacity, and the current navigation inset.
+The two live renderers verify that these inputs can drive the same
+continuation even when their source views differ. Bilibili's hooks are
+research adapters for obtaining those inputs. The intended production
+path keeps the original scope list and needs app cooperation or a verified
+OEM window-side source for the artwork. NBI delivers a color, and screen
+sampling sees only already displayed pixels. Until the source is available
+for an eligible window, retain the existing native fill. Timed handle
+hiding remains separate.
+
+#### Existing-scope data on HyperOS
+
+DexSQL inspection used the framework, services, MIUI framework, MIUI
+services, and SystemUI files matching the installed Phone AVD
+`OS4.0.24.0.XFRCNXM` by SHA-256. The inspected paths expose different inputs:
+
+- WindowManager's `DisplayPolicy` selects an owning window and forwards bar
+  appearance and inset information. Window and SurfaceFlinger dumps show a
+  composed app surface for the home activity and a separate one for settings.
+  There is no independently composed footer image layer in these windows.
+- MIUI's NBI service registers a pixel sampling listener. The app-side
+  `NavigationBarImmersiveController` turns the returned color samples into
+  a navigation bar color. The SystemUI bar attributes carry appearance flags
+  and regions. None of these paths carries the footer image or its
+  image-local crop and scale.
+
+The available surface transform applies to the entire rendered window.
+It can place the app buffer during a task animation. The scale and crop
+used to draw the source image inside that buffer are app-side data.
+This investigation found no source for exact continuation in the existing
+scopes on this build. Default builds keep the seven existing scope entries
+and use the existing color path. The experimental adapter remains available
+to validate exact artwork and window ownership.
+
+#### OEM sampling without Bilibili scope
+
+The physical Xiaomi on `OS4.0.6.0.XBLCNXM` and the Phone AVD framework
+both have a native path for `sf_sampling_mode=1`.
+`NavigationBarImmersiveController.handleSfCloudRule` selects that path and
+`doUpdateNavigationBarTarget` registers OEM sampling instead of picking the
+detected tab view as the color source.
+
+The minimal compatibility policy runs through the existing NBI rule delivery.
+It applies only to the selected Bilibili package's exact home activity
+when its OEM rule explicitly disables both immersion and pixel sampling.
+It opts that home into automatic color with pixel sampling. Other activities
+retain their sampling rule, including Settings. No Bilibili process hook
+or independent sampler is required. The final output is an OEM color fill.
+
+On the physical phone with Bilibili 9.19.0 and the user's replacement theme,
+seven-scope Debug b0720 served as the ordinary automatic-color control.
+Seven-scope b0721 was retested after the user removed the old Bilibili grant
+and Bilibili started in a fresh process. Its OEM log reported
+`sf_sampling_mode ... MainActivityV2 is 1`; the OEM table retained its
+original values. At the 65 px inset boundary, the difference between the
+dominant colors of adjacent rows dropped from 2.67 to 0.00 RGB levels
+per channel. The Home, Following, Shopping and Profile captures all had
+matching dominant colors at that seam. During settings and Home task
+transitions, none of the 398 captured frames with warm footer pixels
+above the sampled seam had a dark strip below it. This sample covers
+the new warm theme on the physical phone. Exact artwork continuation
+for themes with distinct edge patterns still requires the artwork source.
+Evidence is under `.artifacts/research/navigation-scope-free-20261118/`.
+
+#### Complete artwork and window geometry
+
+The same `秋星曜野` theme on Bilibili 9.19.0 provided a byte-identical
+1242-by-249 footer PNG on both devices. A root-assisted, read-only
+inspection identified the file selected by the app's theme descriptor.
+This was diagnostic access. Ordinary KeiHome builds do not use it to
+read the app's private theme cache.
+
+| Renderer | Image top | Image bottom at observed scale | Gesture inset |
+| --- | ---: | ---: | ---: |
+| Physical Xiaomi, legacy `ImageView` | 2347 | 2591.59 | 2591–2656 |
+| Phone AVD, Compose | 2220 | 2444.54 | 2376–2436 |
+
+On the physical phone the source already ends at the tab strip boundary,
+within one display pixel. The artwork would have to be repositioned to
+include the gesture area. On the AVD the previous continuation exposes
+60 px of genuine artwork at the original crop and scale. The source
+still extends about 8.5 px past the bottom of the display. The recorded AVD
+research frame matches the projected original in the inset to 0.29 RGB
+levels per channel in the sampled regions outside the handle.
+
+`NavLabActivity` now also tests a bottom-anchored background. It uses the
+full width-scaled image and places its last row at the bottom of its own
+window. The interactive tab strip keeps its independent inset and bounds.
+On the physical phone all three tab bounds matched the color and
+fixed-origin controls, and a real tap selected Feed. In the fixture,
+fixed-origin continuation reaches about 238 of the 249 source rows by
+the screen edge. Bottom anchoring reaches all 249, keeping the original
+aspect ratio. This test demonstrates the geometry with the real asset in
+a cooperative window.
+
+The inspected OEM view rule contains a view name and ID, for color
+selection. It provides no way to substitute the background, position the
+image, or re-render behind the tab controls. The app's footer and controls
+are already composited when system scopes receive the window buffer.
+Full-art rendering needs an app or OEM-provided background source and a
+way to draw it behind those controls. Until that contract is available,
+the production path retains OEM color fill. This run kept Bilibili's
+scope disabled on the physical phone. Its fixture and geometry reports
+are under `.artifacts/research/bilibili-source-geometry-20261118/`.
+
+#### Theme package metadata and bottom-aligned artwork
+
+The three supplied theme descriptions point to public Garb ZIP packages via
+`package_url`. Each package contains one static `tail_bg.png` at 1242 x 249,
+separate tab icons, and a personal-page video. The descriptions carry tab
+colors and asset playback settings. They contain no platform-specific footer
+path, image alignment, or navigation inset geometry. The Android 9.19.0
+APK resolves the package's `tail_bg` to `Garb.tailBgPath`, which feeds both
+the legacy and Compose renderers. The Autumn Stars PNG from the package is
+byte-identical to both previously verified installed copies. This confirms
+the source asset on Android. It does not establish how the iOS client lays
+out or selects that asset.
+
+At the measured physical phone width, the PNG scales to 244.59 px high.
+Bottom alignment moves the image down by 64.41 px and leaves the same
+amount of space above it within the measured footer area. Draw that space
+with the owning surface behind the image, accounting for partial PNG alpha
+on the Blue Archive and Mountains and Seas themes. Stretching the image
+to cover the entire 309 px footer would enlarge it vertically by 26%.
+On the measured Phone AVD the same alignment moves the image up by 8.54 px.
+Resolve this placement from the live width and bottom edge on each device.
+
+The offline comparison shows original-color fill, edge-row repetition,
+and the width-fit, bottom-aligned image. Repeating the row elongates
+artwork details on all three themes. Use bottom alignment when the
+current app window can supply and draw a background independently of its
+tab controls. An explicit asset import can supply PNG bytes but cannot
+establish current app theme identity or move pixels already drawn with
+the controls. Keep native color fill for unavailable or ineligible
+backgrounds. The comparison is under
+`.artifacts/research/bilibili-theme-json-20261118/`.
+
+The next physical theme, Bocchi the Rock (`1756725692001`, asset revision
+`1756802826`), uses a partially transparent 1242 x 249 PNG. Its package
+and active device asset have the same SHA-256. On the Xiaomi phone the
+original image starts at y=2347, the gesture area starts at y=2591, and
+the display ends at y=2656. At the installed width the image ends at
+y=2591.59, leaving less than one pixel of artwork for simple continuation.
+The live screenshot shows a solid pink band below the original artwork.
+
+The cooperative fixture now permits bottom alignment when the image covers
+the gesture inset and only part of the tab area. Tests with the Bocchi
+PNG used a 244 px initial crop on the phone and 156 px on the Phone AVD,
+with 65 px and 60 px gesture insets respectively. The full image moves
+down 64.41 px on the phone and up 8.54 px relative to the AVD fixture crop.
+Compared with a width-fit projection, the mean RGB channel error in the
+gesture area outside the handle was 2.86 on the phone and 0.11 on the AVD.
+The test controls kept their bounds, responded to a tab tap, and suspended
+and resumed artwork across a dialog. The fixture uses its own underlay for
+transparent pixels. Its result verifies geometry and input behavior in a
+cooperative window.
+
+On the physical HyperOS build `OS4.0.6.0.XBLCNXM`, the SHA-verified native
+NBI service exposes activity rules and pixel-color listener registration.
+DexSQL traced the registration to `CompositionSamplingListener` and the
+client result to an integer color. The inspected rule and sampling paths
+provide no independent footer bitmap or transform. The live Bilibili
+home footer and tab controls share a composited app surface. A new system
+layer confined to the gesture area cannot move the artwork above it, and
+the tested AVD geometry cannot be reused for that phone layout. Both
+devices returned to the prior activity after the fixture was removed.
+Screenshots, numerical checks, and process and settings receipts are under
+`.artifacts/research/bilibili-bocchi-20261118/`.
+
+#### Independent background drawing in the live home window
+
+The scoped Debug research build uses the same bottom edge on both sides
+of the gesture inset. Compose resolves the active footer image call,
+observes its loaded bitmap and layout coordinates, and replaces only the
+image's draw operation. A draw-phase state retains the original draw
+operation whenever the replacement is unavailable. The legacy path keeps
+the `ImageView` scale and applies a translation to a copy of its matrix.
+It restores the matrix only while the view still has the applied value,
+so an app update to the matrix remains authoritative. The gesture region
+draws the same source with the matching transform. The app still owns the
+labels, icons, layout, hit testing, and underlying color for transparent
+pixels.
+
+Debug `112000726` was used on Phone AVD `OS4.0.24.0.XFRCNXM` with Autumn
+Stars and on Xiaomi `OS4.0.6.0.XBLCNXM` with Bocchi the Rock. Both ran
+Bilibili `9.19.0`. The Compose fixture geometry moved the art up 8.54 px.
+The live legacy view moved it down 64.41 px, retaining its original scale.
+Home, Following, Profile, Settings, return from Settings, and task
+leave/return were exercised. Tab bounds stayed fixed during the test.
+Settled gesture-region pixels outside the handle and over opaque source
+pixels matched the projected artwork to a mean RGB channel error of
+0.25 on the AVD and 0.31 to 0.55 on Xiaomi. The Settings activity used
+its own background. At 12 samples per second, all 428 AVD and 455 phone
+warm-transition samples that matched the theme above the seam also matched
+it in the gesture region. A separate AVD cold launch still showed a
+dark gesture region before the artwork was available.
+
+This live result requires the temporary app-side research scope. The
+original scopes were restored, including removing Bilibili on Xiaomi
+and cold-launching it back into native color fill. The AVD retained its
+pre-existing research scope. The default build continues to omit the
+Bilibili scope. The independent background source is still unavailable
+through the inspected system-only NBI interface. Evidence is under
+`.artifacts/research/bilibili-isolated-background-20261118/`.
+
+#### Window-owned layer versus an opaque app buffer
+
+DexSQL traced the ColorOS `PMX110_17.0.0.114(CN01)` pick-and-fill path
+from `enableSfPickFill` to `createOrUpdateDecorNavBarBgLayer`. The latter
+uses `createDecorNavLayerEmptyBuffer` and configures a child layer, crop,
+position, visibility and effect metadata. The inspected calls do not
+pass a footer `Drawable` or a layout transform from the app. HyperOS
+`OS4.0.24.0.XFRCNXM` framework/service JARs were independently matched to
+the running AVD by SHA-256. The NBI paths inspected there register a
+pixel-color listener. `DecorView`'s legacy navigation background path
+operates on its own view. Neither inspected path publishes the
+independent footer artwork or the bounds needed to lay it out.
+
+The NavLab fixture now compares the previously tested in-window
+composition, an independent `SurfaceView` under the tab controls, and an
+opaque-window control. Both independent-layer modes retain the same
+SurfaceFlinger layer IDs and draw the same bottom-aligned source buffer.
+The exposed mode lets the window reveal the surface beneath its controls.
+The opaque control retains the normal cropped footer and fill and covers
+the separate surface. The source uses a fixture-owned underlay and
+RGBA8888 buffers. `SurfaceView` owns the parent-window compositing
+relationship. An earlier generic `AttachedSurfaceControl` child with
+local Z=-1 did not preserve that relationship against the opaque control.
+
+Phone AVD (1120 x 2436, 60 px gesture inset) and Xiaomi (1220 x 2656,
+65 px gesture inset) both passed. The separate-layer and in-window
+renderings differed by 0.20 RGB levels per channel on average in the
+gesture region on each device. In the opaque control the sampled outer
+edge exactly matched the original color fill on both devices. Tab bounds
+and clicks passed, the layer suspended for the dialog and IME, and it
+recomputed on rotation and returned to the original portrait layout.
+Both fixtures and their surfaces were removed after verification.
+
+The positive result establishes a supported independent drawing path
+when the owner supplies the artwork and exposes the background. The
+negative control establishes why hanging a texture beneath an opaque
+third-party window does not replace the pixels that the app has already
+drawn. An above-window layer would also cover foreground pixels in the
+same area. A general renderer can use an app-provided background surface
+or a corresponding OEM contract when available. The system-only policy
+can keep using native fill for opaque windows with no such contract.
+Neither the third-party package nor the production NBI hook was changed
+for this probe. Evidence is under
+`.artifacts/research/bilibili-window-layer-20261118/`.
+
+#### Window transition lifetime
+
+Research Debug b0719 keeps a validated continuation in the home decor over
+focus loss and pause. It stops the pre-draw observer at activity stop and
+revalidates on the first draw after start. The retained drawing belongs to
+that decor, so it moves with the home surface through the animation.
+Settings draws its own color. Disabling the option, destroying the decor,
+or retiring the hook removes the continuation.
+
+On the Phone AVD, the left-side sample found 19 frames with blue theme
+artwork over a dark gap during settings entry on b0716, and zero on b0719.
+Video inspection also covered the return from settings, the home gesture,
+and warm launches from the actual desktop icon. The cold-start recording
+still includes the OEM black starting window and Bilibili's splash before
+the home footer is available. The home continuation appears after the
+bitmap and placement become valid, with normal fallback before that point.
+Evidence is under `.artifacts/research/navigation-window-source-20261118/`.
 
 ## Bounded native edge capture
 
@@ -377,7 +768,7 @@ The current evidence separates the possible backends:
 | Backend | Demonstrated | Remaining boundary |
 | --- | --- | --- |
 | HyperOS native NBI | Default Bilibili dynamic color selection | OEM exceptions, E2E gates, and patterned backgrounds |
-| Cooperative app-window renderer | Texture continuity and local scene guards | Does not control arbitrary third-party app windows |
+| Cooperative app-window renderer | Texture continuity and a separate surface beneath app controls | Requires the window to expose its own background region |
 | Bounded WMS capture | Actual four-row samples, several stop conditions, secure rejection | Global window ownership, scene classification, timing and power |
 | Timed external overlay | Real Health color fill beneath the existing handle | No automatic lifecycle or production security/scene policy |
 | ColorOS decor-parented layer | Inspected in the exact OEM framework | No verified equivalent compositor API or port on HyperOS |

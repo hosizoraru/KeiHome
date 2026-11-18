@@ -1,5 +1,7 @@
 package os.kei.hyper.home.xposed
 
+import android.app.Activity
+import android.app.Application
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
@@ -17,6 +19,7 @@ class KeiHomeModule : XposedModule() {
   private var systemUiTheme: SystemUiThemeCompatibilityRuntime? = null
   private var shareIcons: HyperOsShareIcons? = null
   private var hostAppIcons: HostAppIconRuntime? = null
+  private var bilibiliFooter: BilibiliHomeFooterRuntime? = null
   private var processName: String = ""
   private val reloadState = ModuleReloadState(
     requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
@@ -46,6 +49,9 @@ class KeiHomeModule : XposedModule() {
 
   override fun onPackageReady(param: PackageReadyParam) {
     when (param.packageName) {
+      BilibiliHomeFooterRuntime.PACKAGE ->
+        if (processName == param.packageName && bilibiliFooter == null)
+          installBilibiliFooter(param.classLoader, param.applicationInfo.sourceDir)
       HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE ->
         if (HostAppIconRuntime.supports(processName) && hostAppIcons == null)
           installHostAppIcons(param.classLoader)
@@ -72,7 +78,9 @@ class KeiHomeModule : XposedModule() {
       val server = launcherRefresh
       val share = shareIcons
       val sidebar = hostAppIcons
+      val footer = bilibiliFooter
       when {
+        footer != null -> footer.retire { publish(it) }
         sidebar != null -> sidebar.retire { publish(sidebar.classLoader) }
         share != null -> share.retire { publish(share.classLoader) }
         ui != null -> ui.retire { publish(ui.classLoader) }
@@ -93,6 +101,18 @@ class KeiHomeModule : XposedModule() {
     if (processName.substringBefore(':') == "com.miui.home") return
     val savedState = reloadState.restore(param.savedInstanceState)
     if (!param.isSystemServer) {
+      if (processName == BilibiliHomeFooterRuntime.PACKAGE) {
+        val app = runCatching {
+          Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+            .invoke(null) as? Application
+        }.getOrNull()
+        if (app != null) installBilibiliFooter(
+          savedState as? ClassLoader ?: app.classLoader, app.applicationInfo.sourceDir,
+          param.oldHookHandles, app.codeCacheDir,
+        )
+        reloadState.startMaintenance()
+        return
+      }
       if (HostAppIconRuntime.supports(param.processName)) {
         val application = runCatching {
           Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
@@ -170,6 +190,25 @@ class KeiHomeModule : XposedModule() {
       launcherRefresh = LauncherIconRefreshRuntime(this)
     }
     reloadState.startMaintenance()
+  }
+
+  private fun installBilibiliFooter(
+    loader: ClassLoader,
+    apk: String,
+    oldHooks: List<XposedInterface.HookHandle> = emptyList(),
+    cacheDir: java.io.File? = null,
+  ) {
+    try {
+      val home = Class.forName(BilibiliHomeFooterRuntime.HOME, false, loader)
+        .asSubclass(Activity::class.java)
+      val runtime = BilibiliHomeFooterRuntime(this, home)
+      runtime.install(apk, cacheDir, oldHooks)
+      bilibiliFooter = runtime
+    } catch (failure: Exception) {
+      log(Log.WARN, "KeiHomeBiliFooter", "Home footer unavailable", failure)
+    } catch (failure: LinkageError) {
+      log(Log.WARN, "KeiHomeBiliFooter", "Home footer linkage unavailable", failure)
+    }
   }
 
   private fun installHostAppIcons(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {

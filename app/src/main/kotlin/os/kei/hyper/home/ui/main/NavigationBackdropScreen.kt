@@ -25,10 +25,13 @@ internal fun NavigationBackdropScreen(
   val backend by NavigationBackdropInbox.status.collectAsStateWithLifecycle()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val scope = rememberCoroutineScope()
+  val openManager = rememberFrameworkManagerAction()
   LaunchedEffect(model, lifecycle, service, framework.connected, framework.readFailed, framework.snapshot?.systemInScope) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.navigationBackdrop.read() }
+    // The framework can open over this activity without stopping it.
+    lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { model.navigationBackdrop.read() }
   }
   NavigationBackdropContent(page, state, backend, onBack, onOpen,
     onEnabled = model.navigationBackdrop::enabled, onToggle = model.navigationBackdrop::toggle,
-    onRefresh = { scope.launch { model.navigationBackdrop.read(refreshApps = page == NavigationBackdropPage.APPS) } })
+    onRefresh = { scope.launch { model.navigationBackdrop.read(refreshApps = page == NavigationBackdropPage.APPS) } },
+    onBilibiliArtwork = model.navigationBackdrop::bilibiliArtwork, onOpenManager = openManager)
 }

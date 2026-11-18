@@ -34,7 +34,8 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
       FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.scope_title), style = MiuixTheme.textStyles.body1)
-        if (plan != null) MetadataPill(stringResource(R.string.scope_count, plan.granted.size, plan.eligible.size), color)
+        if (plan != null) MetadataPill(stringResource(R.string.scope_count,
+          plan.requiredGranted, plan.requiredEligible.size), color)
       }
       val summary = when {
         state.checking -> R.string.scope_loading
@@ -43,7 +44,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
         state.requesting -> R.string.scope_requesting
         plan == null -> R.string.scope_loading
         plan.unsupported.isNotEmpty() -> R.string.scope_unsupported
-        plan.unconfirmed.isNotEmpty() -> R.string.scope_unconfirmed
+        plan.requiredUnconfirmed.isNotEmpty() -> R.string.scope_unconfirmed
         plan.complete -> R.string.scope_complete
         else -> R.string.scope_missing
       }

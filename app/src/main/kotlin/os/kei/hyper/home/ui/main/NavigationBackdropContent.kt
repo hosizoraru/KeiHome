@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import java.text.Collator
 import java.util.Locale
 import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 import os.kei.hyper.home.status.NavigationBackdropStatus
@@ -86,9 +87,11 @@ internal fun NavigationBackdropContent(
   onEnabled: (Boolean) -> Unit,
   onToggle: (String) -> Unit,
   onRefresh: () -> Unit,
+  onBilibiliArtwork: (Boolean) -> Unit = {},
+  onOpenManager: () -> Unit = {},
 ) {
   val choice = state.choice
-  val selected = choice?.packages.orEmpty()
+  val selected = choice?.selectedPackages.orEmpty()
   val currentBackend = backend?.takeIf { it.version == BuildConfig.VERSION_CODE.toLong() }
   val supported = currentBackend?.available == true
   val acknowledged = choice != null && currentBackend?.choice == choice.fingerprint()
@@ -121,6 +124,7 @@ internal fun NavigationBackdropContent(
   val localeTag = androidx.compose.ui.text.intl.Locale.current.toLanguageTag()
   val collator = remember(localeTag) { Collator.getInstance(Locale.forLanguageTag(localeTag)) }
   val installed = remember(state.apps) { state.apps.mapTo(HashSet()) { it.packageName } }
+  val artworkOn = choice?.bilibiliArtwork == true
   val apps = remember(state.apps, selected, installed) {
     state.apps + (selected - installed).map { NavigationBackdropApp(it, it) }
   }
@@ -258,6 +262,28 @@ internal fun NavigationBackdropContent(
                 "nav-backdrop.open.apps") { onOpen(NavigationBackdropPage.APPS) }
             }
           }
+          if (BILIBILI_PACKAGE in installed || artworkOn) {
+            item("bilibili", contentType = "setting") {
+              val hasRoom = BILIBILI_PACKAGE in selected || selected.size < NavigationBackdropPreferences.MAX_PACKAGES
+              val enabled = editable && (artworkOn ||
+                (supported && state.bilibiliInScope == true && hasRoom && BILIBILI_PACKAGE in installed))
+              val summary = when {
+                state.bilibiliInScope == false -> R.string.nav_backdrop_bilibili_scope
+                !hasRoom -> R.string.nav_backdrop_bilibili_limit
+                else -> R.string.nav_backdrop_bilibili_summary
+              }
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                SwitchPreference(title = stringResource(R.string.nav_backdrop_bilibili),
+                  summary = stringResource(summary), checked = artworkOn, enabled = enabled,
+                  onCheckedChange = onBilibiliArtwork, modifier = Modifier.testTag("nav-backdrop.bilibili")
+                    .semantics { if (!enabled) disabled() })
+                if (state.bilibiliInScope == false && BILIBILI_PACKAGE in installed) {
+                  NavigationBackdropLink(R.string.scope_open_manager, null, "nav-backdrop.bilibili.scope",
+                    onOpenManager)
+                }
+              }
+            }
+          }
         }
         NavigationBackdropPage.APPS -> {
           if (searchVisible) item("search", contentType = "search") {
@@ -273,10 +299,12 @@ internal fun NavigationBackdropContent(
           })
           items(filtered, key = { it.packageName }, contentType = { "app" }) { app ->
             val checked = app.packageName in selected
-            val enabled = editable && (!choice.enabled || supported) &&
+            val bound = artworkOn && app.packageName == BILIBILI_PACKAGE
+            val enabled = editable && !bound && (!choice.enabled || supported) &&
               (checked || selected.size < NavigationBackdropPreferences.MAX_PACKAGES)
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = app.label, summary = app.packageName,
+              BasicComponent(title = app.label,
+                summary = if (bound) stringResource(R.string.nav_backdrop_bilibili_bound) else app.packageName,
                 modifier = Modifier.testTag("nav-backdrop.app:${app.packageName}")
                   .os4Toggleable(checked, enabled = enabled, role = Role.Checkbox,
                     onValueChange = { onToggle(app.packageName) }),

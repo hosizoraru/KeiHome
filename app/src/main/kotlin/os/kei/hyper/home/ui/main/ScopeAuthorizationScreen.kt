@@ -202,13 +202,13 @@ private fun ScopeAuthorizationSummary(
             horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (trusted && plan != null) {
               MetadataPill(stringResource(R.string.scope_page_granted_count,
-                plan.granted.size, plan.eligible.size), color)
+                plan.requiredGranted, plan.requiredEligible.size), color)
               if (plan.missing.isNotEmpty()) MetadataPill(stringResource(R.string.scope_page_missing_count,
                 plan.missing.size), desktopStatusColor(StatusTone.WARNING))
               if (plan.absent.isNotEmpty()) MetadataPill(stringResource(R.string.scope_page_absent_count,
                 plan.absent.size), MiuixTheme.colorScheme.onSurfaceSecondary)
-              if (plan.unconfirmed.isNotEmpty()) MetadataPill(stringResource(R.string.scope_page_unknown_count,
-                plan.unconfirmed.size), desktopStatusColor(StatusTone.WARNING))
+              if (plan.requiredUnconfirmed.isNotEmpty()) MetadataPill(stringResource(R.string.scope_page_unknown_count,
+                plan.requiredUnconfirmed.size), desktopStatusColor(StatusTone.WARNING))
             } else MetadataPill(stringResource(R.string.scope_page_unknown_count, declared.size), color)
           }
         }
@@ -285,5 +285,6 @@ private fun scopeTargetPurpose(name: String): Int = when (name) {
   "com.android.intentresolver" -> R.string.scope_page_purpose_share
   "com.miui.securitycenter" -> R.string.scope_page_purpose_security
   "com.android.settings" -> R.string.scope_page_purpose_settings
+  "tv.danmaku.bili" -> R.string.scope_page_purpose_bilibili
   else -> R.string.scope_page_purpose_other
 }

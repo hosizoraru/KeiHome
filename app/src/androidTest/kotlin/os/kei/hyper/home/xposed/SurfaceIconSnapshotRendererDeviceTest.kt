@@ -162,6 +162,27 @@ class SurfaceIconSnapshotRendererDeviceTest {
     }
   }
 
+  @Test fun packageOnlyArtworkCanSupplyTheSelectedAppearanceForAnActivity() {
+    val exact = "$name.Launcher"
+    val packageAssets = mapOf(
+      "res/drawable-xxhdpi/$name.png" to png(Color.WHITE),
+      "nightmode/res/drawable-xxhdpi/$name.png" to png(Color.BLACK),
+    )
+    archive(packageAssets) { zip ->
+      for (dark in listOf(false, true)) {
+        val icon = requireNotNull(SurfaceIconSnapshotRenderer.render(
+          zip, exact, dark, Locale.US, 0, packageName = name))
+        try { assertEquals(if (dark) Color.BLACK else Color.WHITE, icon.getPixel(96, 96)) }
+        finally { icon.recycle() }
+      }
+    }
+    archive(packageAssets + ("res/drawable-xxhdpi/$exact.png" to png(Color.RED))) { zip ->
+      val icon = requireNotNull(SurfaceIconSnapshotRenderer.render(
+        zip, exact, true, Locale.US, 0, packageName = name))
+      try { assertEquals(Color.RED, icon.getPixel(96, 96)) } finally { icon.recycle() }
+    }
+  }
+
   @Test fun alreadyClippedArtworkKeepsItsAlphaWithoutASecondIntersection() {
     val source = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888).apply {
       eraseColor(Color.argb(128, 18, 25, 31))

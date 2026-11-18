@@ -27,9 +27,35 @@ existing tasks, so previously cached offscreen icons can be invalidated without
 reopening their apps. No periodic task query is added. Retention is bounded to
 64 tasks, whose 192px ARGB snapshots fit within the 9 MiB pixel cache budget and avoid
 cache-ready eviction/reload churn; tasks outside the bound retain native behavior.
-Inactive tasks may have no live `baseActivity`; their retained real/original
-root identities are accepted when nonempty and all belong to the launcher
-intent's package. Conflicting identities still fail closed.
+Inactive tasks may have no live `baseActivity`. Retained roots must belong to
+the same package. A direct launch of a declared launcher component can have
+neither a `MAIN` action nor `LAUNCHER` category. The cache worker confirms the
+component against the package's launcher entries before rendering either kind
+of task. Document intents, routes with data, and unrelated activities retain
+their native task icons.
+
+Package-only artwork can supply the icon when the activity has no usable
+theme resource. When the installed theme has no KeiHome icon, the recent-task
+bridge uses KeiHome's appearance-qualified APK drawable. Other apps without
+artwork retain the system icon.
+
+Returning a copy from a query and notifying task listeners are separate
+operations. Only the latter records a delivered snapshot. The bridge keeps at
+most one pending replay per task, reads the current cache entry on delivery,
+and replays the saved native description when a replacement no longer exists.
+Delivery tracking uses weak bitmap references so older pixels can be released
+after cache invalidation. The worker yields after eight render requests, and
+minute ticks target only dynamic artwork.
+
+November 19, 2026 verification used Debug `112000736`. Phone AVD Home 9261
+and physical Home 9259 both updated the existing Bilibili task with its
+original task ID and app process. The physical recent-task query returned 21
+entries and tracked 15 eligible candidates for resolution. KeiHome and
+Bilibili both showed the active theme's dark artwork on the physical phone.
+On the AVD, both cards also followed a light-to-dark round trip without
+reopening either app. Both devices retained their original theme hash, palette,
+night setting, and critical process IDs. Captures and deployment receipts are
+under `.artifacts/research/recents-retained-20261119/`.
 
 The SystemUI bridge is deliberately narrower. It resolves
 `AppIconsManager.getAppIconBitmap(int, String): Bitmap` and replaces only a cache hit

@@ -8,6 +8,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecentTaskIconProfileTest {
+  @Test fun explicitRootLaunchCanBeVerifiedWithoutLauncherActionOrCategory() {
+    fun allowed(action: String?, categories: Set<String>? = null, hasData: Boolean = false,
+                flags: Int = Intent.FLAG_ACTIVITY_NEW_TASK) = RecentTaskIconEligibility.allows(
+      0, 0, action, categories, flags, hasData, false, false,
+      "os.kei.fixture", "os.kei.fixture", setOf("os.kei.fixture"),
+    )
+    assertTrue(allowed(null))
+    assertTrue(allowed(RecentTaskIconEligibility.MAIN))
+    assertFalse(allowed(Intent.ACTION_VIEW))
+    assertFalse(allowed(Intent.ACTION_DIAL))
+    assertFalse(allowed(null, setOf(Intent.CATEGORY_DEFAULT)))
+    assertFalse(allowed(null, hasData = true))
+    assertFalse(allowed(null, flags = Intent.FLAG_ACTIVITY_NEW_DOCUMENT))
+  }
+
   @Test fun inactiveLauncherTaskCanUseRetainedRootIdentityWithoutLiveBaseActivity() {
     fun allowed(roots: Set<String>, base: String? = null) = RecentTaskIconEligibility.allows(
       0, 0, RecentTaskIconEligibility.MAIN, setOf(RecentTaskIconEligibility.LAUNCHER),

@@ -2,17 +2,21 @@ package os.kei.hyper.home.xposed
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.app.ActivityManager
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
-import android.os.UserHandle
+import android.os.Process
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
+import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.iconpack.IconPackComponent
 
 /**
  * Repairs outgoing task descriptions before the native launcher caches their pixels.
@@ -29,8 +33,12 @@ internal class RecentTaskAppIconRuntime(
     val component: ComponentName,
     val info: Any,
     val controller: WeakReference<Any>,
-    var delivered: Bitmap? = null,
-  )
+    var delivered: WeakReference<Bitmap>? = null,
+    var replayQueued: Boolean = false,
+  ) {
+    fun alreadyDelivered(snapshot: Bitmap?): Boolean =
+      if (snapshot == null) delivered == null else delivered?.get() === snapshot
+  }
 
   private val lock = java.lang.Object()
   private val token = Any()
@@ -51,7 +59,7 @@ internal class RecentTaskAppIconRuntime(
   fun start() {
     synchronized(lock) {
       check(worker == null && !stopped)
-      val thread = HandlerThread("KeiHomeRecentIcons")
+      val thread = HandlerThread("KeiHomeRecentIcons", Process.THREAD_PRIORITY_BACKGROUND)
       thread.start()
       worker = thread
       workerHandler = Handler(thread.looper).also { handler ->
@@ -62,7 +70,9 @@ internal class RecentTaskAppIconRuntime(
               Context::class.java.getDeclaredMethod("getUserId")
                 .apply { isAccessible = true }.invoke(context) as Int
             }.getOrDefault(0)
-            val candidate = CrossSurfaceIconCache(context) { ready(profile) }
+            val candidate = CrossSurfaceIconCache(context, refreshOnMinute = true, notifyOnMiss = true,
+              acceptsComponent = ::isLauncherEntry,
+              originalOnMiss = setOf(BuildConfig.APPLICATION_ID)) { ready(profile) }
             synchronized(lock) {
               if (stopped) {
                 closingCaches += candidate
@@ -96,6 +106,18 @@ internal class RecentTaskAppIconRuntime(
           }
         }
       }
+    }
+  }
+
+  private fun isLauncherEntry(component: IconPackComponent): Boolean {
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+      .setPackage(component.packageName)
+    // A retained task may still refer to a launcher alias disabled after an icon change.
+    return context.packageManager.queryIntentActivities(intent,
+      PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DISABLED_COMPONENTS.toLong())).any {
+      it.activityInfo?.let { activity ->
+        activity.packageName == component.packageName && activity.name == component.className
+      } == true
     }
   }
 
@@ -217,11 +239,12 @@ internal class RecentTaskAppIconRuntime(
         if (previous != null) {
           val merged = profile.withDescription(previous.info, update)
           val entry = remember(profile, merged, controller)
-          if (entry != null) bitmap(entry)?.let { bitmap ->
+          if (entry != null) {
+            val snapshot = bitmap(entry)
             // Keep the native notification's concrete type and all its metadata.
-            profile.withIcon(update, Icon.createWithBitmap(bitmap))?.let {
-              notification = it
-              synchronized(lock) { entry.delivered = bitmap }
+            if (snapshot != null) notification = profile.withIcon(update, Icon.createWithBitmap(snapshot))
+            synchronized(lock) {
+              entry.delivered = snapshot?.takeIf { notification != null }?.let(::WeakReference)
             }
           }
         }
@@ -248,7 +271,11 @@ internal class RecentTaskAppIconRuntime(
     val entry = Entry(key, component, profile.copy(info), WeakReference(controller))
     synchronized(lock) {
       if (stopped) return null
-      entries.remove(key)
+      val previous = entries.remove(key)
+      // Query results can go to system_server or another client. Only a native
+      // description notification establishes what was sent to task listeners.
+      if (previous?.component == component && previous.controller.get() === controller)
+        entry.delivered = previous.delivered
       entries[key] = entry
       entries.entries.removeAll { it.value.controller.get() == null }
       while (entries.size > MAX_TASKS) entries.remove(entries.keys.first())
@@ -267,10 +294,9 @@ internal class RecentTaskAppIconRuntime(
     val copy = profile.withIcon(entry.info, Icon.createWithBitmap(bitmap)) ?: return null
     synchronized(lock) {
       if (stopped || entries[entry.key] !== entry) return null
-      entry.delivered = bitmap
       if (firstDelivery) {
         firstDelivery = false
-        xposed.log(Log.INFO, TAG, "First themed task icon delivered: ${entry.component.packageName}")
+        xposed.log(Log.INFO, TAG, "First themed task icon in recent-task query: ${entry.component.packageName}")
       }
     }
     return copy
@@ -283,19 +309,19 @@ internal class RecentTaskAppIconRuntime(
     }
     observed.forEach { entry ->
       try {
-        val bitmap = bitmap(entry) ?: return@forEach
+        val bitmap = bitmap(entry)
+        if (bitmap == null && !isMissing(entry)) return@forEach
         val controller = entry.controller.get() ?: return@forEach
         val handler = profile.handler(controller)
         synchronized(lock) {
-          if (stopped || entries[entry.key] !== entry || entry.delivered === bitmap) return@forEach
-          // Claim before posting. Reentrant cache callbacks cannot enqueue a second replay.
-          entry.delivered = bitmap
+          if (stopped || entries[entry.key] !== entry || entry.alreadyDelivered(bitmap) || entry.replayQueued)
+            return@forEach
+          entry.replayQueued = true
           replayHandlers.removeAll { it.get() == null }
           if (replayHandlers.none { it.get() === handler }) replayHandlers += WeakReference(handler)
           // Queue ownership and shutdown's token removal must be serialized.
-          if (!handler.postAtTime({ replay(profile, entry, bitmap) }, token, SystemClock.uptimeMillis())) {
-            if (entry.delivered === bitmap) entry.delivered = null
-          }
+          if (!handler.postAtTime({ replay(profile, entry) }, token, SystemClock.uptimeMillis()))
+            entry.replayQueued = false
         }
       } catch (failure: Throwable) {
         recoverableSystemUiFailure(failure)
@@ -303,24 +329,37 @@ internal class RecentTaskAppIconRuntime(
     }
   }
 
-  private fun replay(profile: RecentTaskIconProfile, entry: Entry, expected: Bitmap) {
+  private fun isMissing(entry: Entry): Boolean {
+    val current = synchronized(lock) { if (stopped) null else cache }
+    return current?.isMissing(entry.component.packageName, entry.component.className) == true
+  }
+
+  private fun replay(profile: RecentTaskIconProfile, entry: Entry) {
     synchronized(lock) {
-      if (stopped || entries[entry.key] !== entry || entry.delivered !== expected) return
+      if (stopped || entries[entry.key] !== entry) return
       activeReplays += 1
     }
     try {
-      // Drop an obsolete configuration's queued pixels, rather than replaying them after invalidation.
-      if (bitmap(entry) !== expected) return
+      // Read the current generation on delivery, including a confirmed theme miss.
+      val snapshot = bitmap(entry)
+      if (snapshot == null && !isMissing(entry)) return
       val controller = entry.controller.get() ?: return
-      val copy = profile.withIcon(entry.info, Icon.createWithBitmap(expected)) ?: return
-      if (stopped) return
+      val copy = if (snapshot == null) entry.info
+        else profile.withIcon(entry.info, Icon.createWithBitmap(snapshot)) ?: return
+      synchronized(lock) {
+        if (stopped || entries[entry.key] !== entry || entry.alreadyDelivered(snapshot)) return
+      }
       replaying.set(true)
       try { profile.notify.invoke(controller, profile.notification(copy)) } finally { replaying.remove() }
+      synchronized(lock) { entry.delivered = snapshot?.let(::WeakReference) }
     } catch (failure: Throwable) {
       recoverableSystemUiFailure(failure)
-      synchronized(lock) { if (entry.delivered === expected) entry.delivered = null }
       xposed.log(Log.WARN, TAG, "Native task-description replay failed", failure)
-    } finally { synchronized(lock) { activeReplays -= 1; lock.notifyAll() } }
+    } finally { synchronized(lock) {
+      entry.replayQueued = false
+      activeReplays -= 1
+      lock.notifyAll()
+    } }
   }
 
   private companion object {

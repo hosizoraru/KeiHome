@@ -36,11 +36,15 @@ internal object RecentTaskIconEligibility {
     userId: Int, contextUserId: Int, action: String?, categories: Set<String>?,
     flags: Int, hasData: Boolean, hasType: Boolean, hasSelector: Boolean,
     componentPackage: String?, basePackage: String?, rootPackages: Set<String>,
-  ): Boolean = userId >= 0 && userId == contextUserId && action == MAIN &&
-    categories == setOf(LAUNCHER) && flags and DOCUMENT_FLAGS == 0 &&
+  ): Boolean = userId >= 0 && userId == contextUserId && ordinaryLaunch(action, categories) &&
+    flags and DOCUMENT_FLAGS == 0 &&
     !hasData && !hasType && !hasSelector && !componentPackage.isNullOrEmpty() &&
     (basePackage == null || componentPackage == basePackage) &&
     rootPackages.isNotEmpty() && rootPackages.all { it == componentPackage }
+
+  private fun ordinaryLaunch(action: String?, categories: Set<String>?): Boolean =
+    (action == MAIN && categories == setOf(LAUNCHER)) ||
+      ((action == null || action == MAIN) && categories.isNullOrEmpty())
 }
 
 /** Names are discovery seeds; the live call/field graph must also authenticate the boundary. */
@@ -129,8 +133,10 @@ internal class RecentTaskIconProfile private constructor(
   fun component(info: Any, contextUserId: Int): ComponentName? {
     val intent = baseIntent.get(info) as? Intent ?: return null
     val component = intent.component ?: return null
+    if (intent.identifier != null || intent.`package`?.let { it != component.packageName } == true)
+      return null
     val roots = components.mapNotNull { (it.get(info) as? ComponentName)?.packageName }.toSet()
-    val basePackage = (components.lastOrNull()?.get(info) as? ComponentName)?.packageName
+    val basePackage = (components.last().get(info) as? ComponentName)?.packageName
     return component.takeIf { RecentTaskIconEligibility.allows(
       userId(info), contextUserId, intent.action, intent.categories, intent.flags,
       intent.data != null || intent.clipData != null, intent.type != null, intent.selector != null,

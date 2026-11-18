@@ -40,6 +40,9 @@ internal class CrossSurfaceIconCache(
   private val systemPaletteEvents: Boolean = false,
   private val eagerReload: Boolean = true,
   private val refreshOnMinute: Boolean = false,
+  private val notifyOnMiss: Boolean = !eagerReload,
+  private val acceptsComponent: ((IconPackComponent) -> Boolean)? = null,
+  private val originalOnMiss: Set<String> = emptySet(),
   private val onReady: (() -> Unit)? = null,
 ) {
   init { require(maxEntries in 1..64) }
@@ -320,6 +323,9 @@ internal class CrossSurfaceIconCache(
     var dynamic = false
     val now = System.currentTimeMillis()
     try {
+      val component = IconPackComponent(key.name, key.activity)
+      if (acceptsComponent?.invoke(component) == false)
+        return publish(key, generation, null, false, now)
       val file = themeFile
       val currentStamp = "${file.length()}:${file.lastModified()}"
       if (stamp.isNotEmpty() && currentStamp != stamp) {
@@ -329,13 +335,14 @@ internal class CrossSurfaceIconCache(
         return false
       }
       stamp = currentStamp
-      check(file.length() in 1..(1024L * 1024 * 1024))
+      val hasArchive = file.length() in 1..(1024L * 1024 * 1024)
+      val canUseOriginal = key.name in originalOnMiss
+      if (!hasArchive && !canUseOriginal) return publish(key, generation, null, false, now)
       fun checkCurrent() { check(active && generation == revision.get()) }
       if (archiveGeneration != generation) {
         check(closeArchive())
         archiveGeneration = generation
       }
-      val zip = archive ?: ZipFile(file).also { archive = it }
       val current = appearance ?: run {
         val config = synchronized(lock) { Configuration(appearanceConfiguration) }
         // A host can retain a context pinned to its old UI mode. Read the global
@@ -358,20 +365,28 @@ internal class CrossSurfaceIconCache(
           paletteState().also { observedPalette = it })
           .also { appearance = it }
       }
-      val name = nativeLauncherActivityName(IconPackComponent(key.name, key.activity)) ?: key.name
-      bitmap = SurfaceIconSnapshotRenderer.render(zip, name, current.dark, current.locale,
-        now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = {
-          os.kei.hyper.home.iconpack.OriginalAppIcons.render(context,
-            IconPackComponent(key.name, key.activity), SurfaceIconSnapshotRenderer.SIZE,
-            current.dark, ::checkCurrent)
-        }) { dynamic = true }
+      fun original() = os.kei.hyper.home.iconpack.OriginalAppIcons.render(
+        context, component, SurfaceIconSnapshotRenderer.SIZE, current.dark, ::checkCurrent)
+      if (hasArchive) {
+        val zip = archive ?: ZipFile(file).also { archive = it }
+        val name = nativeLauncherActivityName(component) ?: key.name
+        bitmap = SurfaceIconSnapshotRenderer.render(zip, name, current.dark, current.locale,
+          now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = ::original) {
+          dynamic = true
+        }
+      }
+      if (bitmap == null && canUseOriginal) bitmap = original()
     } catch (failure: Exception) {
       if (active && generation == revision.get() && !warned) {
         warned = true
         Log.w(TAG, "Themed snapshot unavailable; retaining native app icon", failure)
       }
     }
-    return synchronized(lock) {
+    return publish(key, generation, bitmap, dynamic, now)
+  }
+
+  private fun publish(key: Key, generation: Long, bitmap: Bitmap?, dynamic: Boolean, now: Long): Boolean =
+    synchronized(lock) {
       if (!active || generation != revision.get() || key !in wanted) {
         bitmap?.recycle()
         return@synchronized false
@@ -384,9 +399,8 @@ internal class CrossSurfaceIconCache(
         misses += key
       }
       if (dynamic && bitmap != null) dynamicMinutes[key] = now / 60_000L else dynamicMinutes.remove(key)
-      bitmap != null || !eagerReload
+      bitmap != null || notifyOnMiss
     }
-  }
 
   private fun closeArchive(): Boolean {
     return try {

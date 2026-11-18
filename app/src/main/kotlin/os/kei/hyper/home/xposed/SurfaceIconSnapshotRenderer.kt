@@ -28,6 +28,7 @@ import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeLayerConfig
 import os.kei.hyper.home.iconpack.NativeLayerViewport
 import os.kei.hyper.home.iconpack.validNativeIconName
+import os.kei.hyper.home.iconpack.validDottedName
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 
 /** Worker-only static snapshots. Foreign MAML is never interpreted or started. */
@@ -61,7 +62,9 @@ internal object SurfaceIconSnapshotRenderer {
       }
     }
     if ((packageName ?: name.substringBefore('#')) in skipped) return originalIcon?.invoke()
-    val bitmap = renderArtwork(zip, name, dark, locale, now, palette, check, packageName, onDynamic)
+    val fallback = packageName?.takeIf { it != name && it.length <= 240 && validDottedName(it) }
+    val bitmap = renderArtwork(zip, name, dark, locale, now, palette, check, onDynamic)
+      ?: fallback?.let { renderArtwork(zip, it, dark, locale, now, palette, check, onDynamic) }
       ?: return null
     return try {
       check()
@@ -117,7 +120,7 @@ internal object SurfaceIconSnapshotRenderer {
 
   private fun renderArtwork(
     zip: ZipFile, name: String, dark: Boolean, locale: Locale, now: Long,
-    palette: Long, check: () -> Unit, packageName: String?, onDynamic: () -> Unit,
+    palette: Long, check: () -> Unit, onDynamic: () -> Unit,
   ): Bitmap? {
     fun bytes(path: String, limit: Int = IMAGE_LIMIT): ByteArray? {
       check()
@@ -128,12 +131,8 @@ internal object SurfaceIconSnapshotRenderer {
       }
     }
     fun image(path: String): Bitmap? = bytes(path)?.let { decode(it) }
-    var root = "fancy_icons/$name/"
-    var manifest = bytes(root + "manifest.xml", 64 * 1024)
-    if (manifest == null && packageName != null && packageName != name) {
-      root = "fancy_icons/$packageName/"
-      manifest = bytes(root + "manifest.xml", 64 * 1024)
-    }
+    val root = "fancy_icons/$name/"
+    val manifest = bytes(root + "manifest.xml", 64 * 1024)
     if (manifest != null) {
       // Older KeiHome calendars used this fixed accent/text pair. Authenticate the
       // entire template after that finite substitution, without interpreting foreign MAML.

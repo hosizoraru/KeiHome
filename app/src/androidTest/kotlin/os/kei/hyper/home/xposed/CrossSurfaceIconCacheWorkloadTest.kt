@@ -93,6 +93,29 @@ class CrossSurfaceIconCacheWorkloadTest {
     } finally { assertTrue(cache.stop()) }
   }
 
+  @Test fun retainedTaskCacheChecksLauncherIdentityAndPublishesFinalMisses() = fixture { file ->
+    val checks = AtomicInteger()
+    val notifications = AtomicInteger()
+    val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
+      paletteState = { 0L }, notifyOnMiss = true, acceptsComponent = {
+        checks.incrementAndGet()
+        it.className == null
+      }, onReady = { notifications.incrementAndGet() })
+    try {
+      cache.start()
+      assertNull(cache.get(name(0), "fixture.Other"))
+      awaitSettled(cache)
+      assertTrue(cache.isMissing(name(0), "fixture.Other"))
+      assertEquals(1, notifications.get())
+      repeat(100) { assertNull(cache.get(name(0), "fixture.Other")) }
+      assertEquals(1, checks.get())
+      cache.get(name(0))
+      awaitSettled(cache)
+      assertNotNull(cache.get(name(0)))
+      assertEquals(2, checks.get())
+    } finally { assertTrue(cache.stop()) }
+  }
+
   @Test fun repeatedInvalidationsCoalesceAndReadPaletteOnceForTheRetainedBatch() = fixture { file ->
     val reads = AtomicInteger()
     val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,

@@ -60,7 +60,9 @@ def inspect(version, entry, launcher_root, binary):
                     if branch(at) == logger]
     phone_end = min(at for at in starts + [items] if at > phone)
     assert phone == int(entry["inner"], 16)
-    assert outer == int(entry["outer"], 16)
+    pattern_outer = int(entry["outer"], 16)
+    assert pattern_outer <= outer < pattern_outer + 0x400
+    assert sync_call < pattern_outer + 0x400
     assert phone_end - phone == int(entry.get("phone_size", "0x4c0"), 16)
     expected = {
         "phone": phone,

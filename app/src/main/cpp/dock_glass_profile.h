@@ -9,7 +9,7 @@ struct DockGlassProfile {
     size_t phone, gate, skip, background_call, background, outer_call, outer_logger;
     size_t bottom_margin_return;
     size_t mode, mode_returns[4];
-    size_t mode_post;
+    size_t mode_post, mode_stackmap;
     // Mapped source proof sites; not part of the assembly/config ABI.
     size_t stack_paint, push_clip_rect, stack_create, stack_constructor, stack_clip_load;
     size_t parent_clip_store; // STUR w1,[x0,#1b]; next LDUR x1 kills scratch x1

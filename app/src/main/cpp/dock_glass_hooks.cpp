@@ -82,6 +82,9 @@ bool InstallPreparedDockGlass() {
     const long page=sysconf(_SC_PAGESIZE);
     if(page<4096||page>65536||(page&(page-1))||bytes>8192)return Reject("Dock template ABI");
     const size_t mapping_bytes=(bytes+size_t(page)-1u)&~(size_t(page)-1u);
+    // Extended ClipRRect initialization writes past the smaller
+    // ClipRSuperellipse layout. Keep its stock allocator and radius path.
+    const bool replaceClipAllocator = (p.recents_rrect_tag & 0xfffu) == 0x21cu;
     const Patch patches[]={
         {p.bottom_margin_return,0xd65f03c0u,kh_dock_bottom_margin,false},
         {p.recents_flight_radius,p.recents_flight_radius_expected,kh_dock_recents_flight_radius,false},
@@ -105,6 +108,7 @@ bool InstallPreparedDockGlass() {
             void* memory=mmap(reinterpret_cast<void*>(hint),mapping_bytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
             if(memory==MAP_FAILED)continue;
             bool near=true;for(const auto& patch:patches) {
+                if(!replaceClipAllocator && patch.entry==kh_dock_glass_clip) continue;
                 const uintptr_t to=reinterpret_cast<uintptr_t>(memory)+size_t(patch.entry-kh_dock_template);
                 if(!Jump(loaded.base+patch.at,to,patch.link)){near=false;break;}
             }
@@ -173,6 +177,7 @@ bool InstallPreparedDockGlass() {
     // Original image was authenticated before label publication. Only our own
     // atomic 4-byte sites are touched here; the label-owned first event stays.
     for(const auto& patch:patches) {
+        if(!replaceClipAllocator && patch.entry==kh_dock_glass_clip) continue;
         const uintptr_t to=reinterpret_cast<uintptr_t>(bridge)+size_t(patch.entry-kh_dock_template);
         if(PatchArm64Instruction(reinterpret_cast<void*>(loaded.base+patch.at),patch.expected,
                 Jump(loaded.base+patch.at,to,patch.link))!=0) {

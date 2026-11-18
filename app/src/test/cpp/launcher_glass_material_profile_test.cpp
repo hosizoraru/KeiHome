@@ -79,30 +79,36 @@ void Extras(const std::vector<uint8_t>& b, const IconHighlightImage& view,
     std::string key;
     size_t number;
     while (input >> key >> std::hex >> number) expected[key] = number;
-    Check(expected.size() == 3 * 21, "three complete optional source/polarity oracles loaded");
-    LauncherGlassMaterialChooseSites sites{};
+    const bool extendedSearch = Read<uint32_t>(b, expected.at("searchCapsule.source") + 0x188)
+            == 0xf801f01fu;
+    Check(expected.size() >= 16,
+            "complete optional source/polarity oracles loaded");
     const char* reason = nullptr;
-    Check(ResolveLauncherGlassMaterialChooseSites(view, material, &sites, &reason),
-            "optional source resolver accepts admitted pristine Dock");
-    Check(sites.count == 3 && sites.admittedMask == 7 && !sites.ambiguousMask,
-            "press/search and shared finite native default constructor admitted");
     LauncherGlassMaterialChooseSites shipping{};
     Check(ResolveLauncherGlassSearchCapsule(view, material, &shipping, &reason),
             "shipping search resolver accepts pristine source");
     Check(shipping.count == 1 && shipping.admittedMask == 2 &&
             !shipping.ambiguousMask && shipping.sites[0].kind == kLauncherGlassMaterialSearchCapsule,
             "shipping optional scope excludes every folder experiment");
-    Check(shipping.sites[0].branch == sites.sites[1].branch &&
-            shipping.sites[0].lightSchemeTarget == sites.sites[1].lightSchemeTarget &&
-            shipping.sites[0].darkSchemeTarget == sites.sites[1].darkSchemeTarget,
+    const auto& search = shipping.sites[0];
+    Check(search.branch == expected.at("searchCapsule.branch") &&
+            search.lightSchemeTarget == expected.at("searchCapsule.lightSchemeTarget") &&
+            search.darkSchemeTarget == expected.at("searchCapsule.darkSchemeTarget"),
             "shipping search matches independent native source and polarity");
     auto damagedSearch = b;
-    const uint32_t damagedWord = Read<uint32_t>(b, sites.sites[1].source) ^ 0x20u;
-    std::memcpy(damagedSearch.data() + sites.sites[1].source, &damagedWord, 4);
+    const size_t mutated = search.source + (extendedSearch ? 0x188 : 0);
+    const uint32_t damagedWord = Read<uint32_t>(b, mutated) ^ 0x20u;
+    std::memcpy(damagedSearch.data() + mutated, &damagedWord, 4);
     IconHighlightImage damagedView{damagedSearch.data(), damagedSearch.size(), view.ranges, view.range_count};
     Check(ResolveLauncherGlassSearchCapsule(damagedView, material, &shipping, &reason) &&
             !shipping.count && !shipping.admittedMask,
             "missing search proof keeps the optional scope inactive");
+    if (std::getenv("KEIHOME_MATERIAL_SHIPPING_ONLY") || !expected.count("folder.source")) return;
+    LauncherGlassMaterialChooseSites sites{};
+    Check(ResolveLauncherGlassMaterialChooseSites(view, material, &sites, &reason),
+            "optional source resolver accepts admitted pristine Dock");
+    Check(sites.count == 3 && sites.admittedMask == 7 && !sites.ambiguousMask,
+            "press/search and shared finite native default constructor admitted");
     std::ofstream exported;
     if (const char* directory = std::getenv("KEIHOME_MATERIAL_EXPORT_DIR")) {
         std::string leaf = metadata.substr(metadata.find_last_of('/') + 1);

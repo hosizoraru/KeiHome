@@ -140,6 +140,19 @@ def main():
             row["darkSchemeTarget"] = row["lightTarget"]
             row["darkConfigFactory"] = row["lightConfigFactory"] = 0
             choose_polarity(im, row, True)
+        search = candidates[0]
+        search_source = search["source"]
+        if word(im, search_source + 0x188) == 0xf801f01f:
+            # The shipping search capsule has a larger ClipRRect. Audit
+            # that path independently of the retired folder experiments.
+            clip = base.branch(im, search_source + 0x168)
+            assert word(im, clip) >> 5 & 0xfff == 0x31c
+            assert word(im, search_source + 0x19c) == 0xd65f03c0
+            evidence[version] = [search]
+            (base.OUT / f"material-extra-{version}.tsv").write_text("".join(
+                f"searchCapsule.{key}\t0x{value:x}\n" for key, value in search.items()))
+            print(version, hex(search_source), "shipping search with extended ClipRRect")
+            continue
         colors, colors_size = im.syms["FolderBlurUtils.getFolderIconColorConfig"][0]
         dark_config, dark_size = im.syms["FolderIconGetxController.getBlurBlendDarkColorConfig"][0]
         light_config, light_size = im.syms["FolderIconGetxController.getBlurBlendLightColorConfig"][0]

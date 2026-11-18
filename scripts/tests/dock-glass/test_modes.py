@@ -118,7 +118,12 @@ def fixture(number):
             spills,q=unsigned(glob,go,True); other,q=unsigned(glob,q,True)
             bitmap=glob[q:q+(spills+other+7)//8]
             stackmap={'spills':spills,'other':other,'bitmap':bitmap.hex(),'object_bits':[k for k in range(spills+other) if bitmap[k//8]>>(k%8)&1]}
-    assert stackmap=={'spills':12,'other':0,'bitmap':'0500','object_bits':[0,2]}
+    frame = oi[2]
+    assert frame.mnemonic == 'sub' and frame.op_str.startswith('x15, x15, #')
+    frame_bytes = int(frame.op_str.rsplit('#', 1)[1], 0)
+    assert frame_bytes % 8 == 0
+    assert stackmap['spills'] == frame_bytes // 8
+    assert stackmap['other'] == 0 and stackmap['object_bits'] == [0, 2]
     rxa,_,_=named('RxObjectMixin.value'); blur,_,_=named('BlurUtilities.isBlurSupported'); basic,_,_=named('BlurCapabilityCheckerImpl._isBasicBlurSupported')
     logs={a for n in ('_LoggerImpl.logWithTag',) for a,z in im.syms[n]}
     enum_pools=[]
@@ -132,6 +137,7 @@ def fixture(number):
     return dict(curve=curve,curve_size=curve_size,curve_slot=curve_slot,number=number,im=im,md=md,post=post,replay=replay,outer=outer,logger=logger,compute=compute,cz=cz,ci=ci,style=style,device=device,version_field=version_field,rxa=rxa,blur=blur,basic=basic,logs=logs,enum_pools=enum_pools,stackmap=stackmap,sync_rets=rets)
 
 def run(f,blob,off,mode=0,guard='ready',bypass='flag',gc=False,bad_index=None,phase_smi=False,curve_enabled=True,corner_style=1):
+    DSP = FP - f['stackmap']['spills'] * 8
     u=Uc(UC_ARCH_ARM64,UC_MODE_ARM)
     for a,z in ((LIB,0x2000000),(BRIDGE,0x10000),(HEAP,0x40000),(THREAD,0x20000),(POOL,0x100000),(STACK,0x20000),(CTRL,0x1000)): u.mem_map(a,z)
     def put(a,v,n=8): u.mem_write(a,int(v&((1<<(8*n))-1)).to_bytes(n,'little'))

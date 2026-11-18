@@ -34,7 +34,10 @@ int main(int argc, char** argv) {
     {
         const auto original=bytes;
         size_t first=0, moved=0;
-        for(size_t at=p.phone;at+16<=p.phone+0x4bc;at+=4) {
+        size_t end=p.phone+4;
+        while(end<p.phone+0x4bc&&
+              !(u32(end)==0xa9bf79fdu&&u32(end+4)==0xaa0f03fdu))end+=4;
+        for(size_t at=p.phone;at+16<=end;at+=4) {
             const uint32_t reg=u32(at)&31u;
             if(reg==27u||reg==31u||
                (u32(at)&0xffc003ffu)!=(0x91400360u|reg)||
@@ -53,9 +56,11 @@ int main(int argc, char** argv) {
             const IconHighlightImage changed{bytes.data(),bytes.size(),ranges.data(),ranges.size()};
             return ResolveDockGlass(changed,&candidate,&reason);
         };
-        if(!moved||!accepts()) {fprintf(stderr,"FAIL coherent closure PP relocation\n");return 1;}
+        // Newer native bodies can use only direct calls in this closure.
+        // Retain the indirect-call mutation checks when that form is present.
+        if(moved&&!accepts()) {fprintf(stderr,"FAIL coherent closure PP relocation\n");return 1;}
         const auto relocated=bytes;
-        for(const auto& mutation:std::vector<std::pair<size_t,uint32_t>>{
+        if(moved) for(const auto& mutation:std::vector<std::pair<size_t,uint32_t>>{
                 {first,u32(first)^(1u<<22u)}, // page shift must remain LSL #12
                 {first+4,u32(first+4)^(1u<<22u)}, // low offset must remain unshifted
                 {first+8,u32(first+8)^(1u<<10u)}, // closure context register
@@ -65,7 +70,8 @@ int main(int argc, char** argv) {
             if(accepts()) {fprintf(stderr,"FAIL malformed closure call accepted\n");return 1;}
         }
         bytes=original;
-        printf("PASS %zu relocated closure calls; four malformed call contracts rejected\n",moved);
+        if(moved)
+            printf("PASS %zu relocated closure calls; four malformed call contracts rejected\n",moved);
     }
     if(argc==3&&!strcmp(argv[2],"--root-only")) {
         size_t phone_bytes=0x4c0;
@@ -270,7 +276,8 @@ int main(int argc, char** argv) {
     };
     if(!p.curve_getter||!p.recents_adaptive_clip||
        (p.recents_radius_tag&0xfffu)!=0x21cu||(p.recents_border_radius_tag&0xfffu)!=0x21cu||
-       (p.recents_superellipse_tag&0xfffu)!=0x21cu||(p.recents_rrect_tag&0xfffu)!=0x21cu||
+       (p.recents_superellipse_tag&0xfffu)!=0x21cu||
+       ((p.recents_rrect_tag&0xfffu)!=0x21cu&&(p.recents_rrect_tag&0xfffu)!=0x31cu)||
        p.recents_default_radius_bits!=0x4034000000000000ull||
        p.recents_stacked_min_radius_bits!=0x403e000000000000ull||
        !p.recents_dispatch_start||p.recents_dispatch_end<=p.recents_dispatch_start)return 1;
@@ -349,16 +356,17 @@ int main(int argc, char** argv) {
     const uint32_t shifted_none=p.clip_pp+8;
     const uint32_t paint_pool[2]={u32(p.stack_paint+0x28),u32(p.stack_paint+0x2c)};
     const uint32_t push_pool[2]={u32(p.push_clip_rect+0x108),u32(p.push_clip_rect+0x10c)};
-    const uint32_t glass_pool[2]={u32(p.glass_build+0x190),u32(p.glass_build+0x194)};
+    const size_t glass_none=p.glass_build+((p.recents_rrect_tag&0xfffu)==0x31cu?0x194:0x190);
+    const uint32_t glass_pool[2]={u32(glass_none),u32(glass_none+4)};
     set_pool(p.stack_paint+0x28,shifted_none);set_pool(p.push_clip_rect+0x108,shifted_none);
-    set_pool(p.glass_build+0x190,shifted_none);
+    set_pool(glass_none,shifted_none);
     if(!accepts(image,shifted_none))return 1;
     set_pool(p.stack_paint+0x28,original_clip);set_pool(p.push_clip_rect+0x108,original_clip);
     DockGlassProfile alias{};const char* alias_reason=nullptr;++checks;
     if(ResolveDockGlass(image,&alias,&alias_reason)||!alias_reason||alias.clip_pp||alias.phone)return 1;
     write32(p.stack_paint+0x28,paint_pool[0]);write32(p.stack_paint+0x2c,paint_pool[1]);
     write32(p.push_clip_rect+0x108,push_pool[0]);write32(p.push_clip_rect+0x10c,push_pool[1]);
-    write32(p.glass_build+0x190,glass_pool[0]);write32(p.glass_build+0x194,glass_pool[1]);
+    write32(glass_none,glass_pool[0]);write32(glass_none+4,glass_pool[1]);
 
     const uint32_t native_pool[2]={u32(p.stack_clip_load),u32(p.stack_clip_load+4)};
     const uint32_t default_pool[2]={u32(default_load),u32(default_load+4)};
@@ -374,10 +382,12 @@ int main(int argc, char** argv) {
     for(size_t i=0;i<u16(56);++i){const size_t ph=size_t(u64(32))+i*56;
         if(u32(ph)==0x6474e551u)spare_ph=ph;}
     if(!spare_ph)return 1;
+    if(!p.mode_stackmap||!rejects(p.mode_stackmap,u32(p.mode_stackmap)^1u))return 1;
     for(const auto& role:std::vector<std::pair<size_t,size_t>>{
             {p.phone,0x4c0},{p.stack_paint,0x248},{p.push_clip_rect,0x22c},
             {p.stack_create,0x94},{p.stack_constructor,0x124},
-            {p.glass_build,0x1e4},{p.value_key_caller,0xac},{p.value_key_equals,0x108}}) {
+            {p.glass_build,0x1e4+(glass_none-p.glass_build-0x190)},
+            {p.value_key_caller,0xac},{p.value_key_equals,0x108}}) {
         std::vector<uint8_t> duplicate=bytes;
         const size_t at=(duplicate.size()+4095u)&~size_t(4095u);
         duplicate.resize(at+role.second);

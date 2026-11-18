@@ -41,5 +41,10 @@
     "inner": "0x1276a9c",
     "outer": "0x12760bc",
     "phone_size": "0x4c0"
+  },
+  "0308": {
+    "inner": "0x120f10c",
+    "outer": "0x120e8c4",
+    "phone_size": "0x3a0"
   }
 }

@@ -159,6 +159,51 @@ bool GlassStackMaps(const IconHighlightImage& im,DockGlassProfile& p,
     }
     return seen==1023u&&p.glass_scope_stackmap&&p.glass_child_stackmap;
 }
+
+bool ModeStackMap(const IconHighlightImage& im, DockGlassProfile& p,
+                  size_t table, size_t total, size_t codeBase) {
+    size_t entry = p.mode_post - 4;
+    const size_t lower = entry > 0x400 ? entry - 0x400 : 0;
+    for (; entry > lower; entry -= 4) {
+        if (Word(im, entry) == 0xa9bf79fdu && Word(im, entry + 4) == 0xaa0f03fdu) break;
+    }
+    const uint32_t frame = Word(im, entry + 8);
+    const size_t frameBytes = frame >> 10 & 0xfffu;
+    if (entry == lower || entry < codeBase || (frame & 0xffc003ffu) != 0xd10001efu ||
+            frameBytes < 24 || (frameBytes & 7u)) return false;
+    size_t local = 0, localEnd = 0;
+    for (size_t i = 0; i < total; ++i) {
+        const size_t row = table + 16 + i * 8;
+        if (Data(im, row, 4) != entry - codeBase) continue;
+        const size_t offset = size_t(Data(im, row + 4, 4));
+        if (local || offset > im.size - table ||
+                !StackPayload(im, table + offset, 2, local, localEnd)) return false;
+    }
+    size_t global = 0, globalEnd = 0;
+    const size_t globalOffset = size_t(Data(im, table, 4));
+    if (!local || globalOffset > im.size - table ||
+            !StackPayload(im, table + globalOffset, 1, global, globalEnd)) return false;
+    size_t pc = entry;
+    size_t matched = 0;
+    while (local < localEnd) {
+        size_t delta = 0, offset = 0;
+        if (!Leb(im, local, localEnd, delta) || !Leb(im, local, localEnd, offset))
+            return false;
+        if (delta > p.mode_post - pc) break;
+        pc += delta;
+        if (pc != p.mode_post) continue;
+        if (matched || offset >= globalEnd - global) return false;
+        size_t bitmap = global + offset, spills = 0, other = 0;
+        if (!Leb(im, bitmap, globalEnd, spills) || !Leb(im, bitmap, globalEnd, other) ||
+                spills != frameBytes / 8 || other || (spills + 7) / 8 > globalEnd - bitmap ||
+                im.base[bitmap] != 5) return false;
+        for (size_t i = 1; i < (spills + 7) / 8; ++i)
+            if (im.base[bitmap + i]) return false;
+        matched = bitmap;
+    }
+    p.mode_stackmap = matched;
+    return matched != 0;
+}
 // Decode only the bounded dispatch root and InstructionsTable. No debug data,
 // exported symbols, snapshot version hashes or fixture offsets are consulted.
 // All accesses stay in readable PT_LOAD ranges. Image headers locate the VM
@@ -194,7 +239,8 @@ bool RecentsDispatch(const IconHighlightImage& im,DockGlassProfile& p,std::vecto
         if(code_base)return false;code_base=isolate;
     }
     if(!code_base)return false;
-    if(!GlassStackMaps(im,p,table_header,total,code_base))return false;
+    if(!GlassStackMaps(im,p,table_header,total,code_base)||
+       !ModeStackMap(im,p,table_header,total,code_base))return false;
     std::vector<size_t> pcs;pcs.reserve(total);
     for(size_t i=0;i<total;++i) {
         const size_t offset=size_t(Data(im,table_header+16+i*8,4));
@@ -391,6 +437,8 @@ bool ResolveOwnedGlassSources(const IndexedArm64Image& im,DockGlassProfile& p,co
     p.glass_scope_root_slot=FrameSlot(Word(im,p.glass_build+0x54));
     p.glass_radius_slot=FrameSlot(p.glass_scope_expected);
     p.glass_child_root_slot=FrameSlot(p.glass_child_scope_expected);
+    const bool extendedRect = (p.recents_rrect_tag & 0xfffu) == 0x31cu;
+    const size_t noClipLoad = p.glass_build + (extendedRect ? 0x194 : 0x190);
     // Capture only a Smi while the original receiver has just been reloaded.
     // Native code never touches that future child root before its first store.
     if(!Role(im,Branch(im,p.glass_build+0xc0),kDockGlassDockScope)||
@@ -400,7 +448,8 @@ bool ResolveOwnedGlassSources(const IndexedArm64Image& im,DockGlassProfile& p,co
        p.glass_child_scope_expected!=0xf81d83a0u||p.glass_child_root_slot!=-40||
        Branch(im,p.glass_clip_alloc_call)!=p.recents_rrect_alloc||
        Pool(im,p.glass_build+0x168)!=p.recents_clip_pp||
-       Pool(im,p.glass_build+0x190)!=p.clip_pp||!GlassFutureSlotUntouched(im,p))
+       Pool(im,noClipLoad)!=p.clip_pp||!GlassFutureSlotUntouched(im,p)||
+       (extendedRect && Word(im,p.glass_build+0x17c)!=0xf801f03fu))
         return Fail(why,"owned Glass scope replay/root graph");
     p.value_key_alloc=Branch(im,p.value_key_caller+0x88);
     p.value_key_tag=Tag(im,p.value_key_alloc);
@@ -452,8 +501,14 @@ bool ResolveRecentsCorners(const IndexedArm64Image& im,DockGlassProfile& p,const
         return Fail(why,"native Recents adaptive allocation graph");
     p.recents_superellipse_tag=Tag(im,p.recents_superellipse_alloc);
     p.recents_rrect_tag=Tag(im,p.recents_rrect_alloc);
+    const size_t rectReturn = p.recents_adaptive_clip + clip->count * 4;
+    // ClipRRect can carry an extra unboxed radius input. Accept the larger
+    // object only when the native allocation path initializes that field.
+    const uint32_t rectLayout = p.recents_rrect_tag & 0xfffu;
+    const bool extendedRect = rectLayout == 0x31cu &&
+            Word(im, rectReturn - 24) == 0xf801f01fu;
     if((p.recents_superellipse_tag&0xfffu)!=0x21cu||
-       (p.recents_rrect_tag&0xfffu)!=0x21cu||p.recents_superellipse_tag==p.recents_rrect_tag)
+       (rectLayout!=0x21cu&&!extendedRect)||p.recents_superellipse_tag==p.recents_rrect_tag)
         return Fail(why,"native Recents clip allocation headers");
     if(!ResolveOwnedGlassSources(im,p,why))return false;
 
@@ -740,17 +795,61 @@ bool ResolveDockGlass(const IconHighlightImage& source,DockGlassProfile* out,con
         if(p.material_tags[2])return Fail(why,"multiple Basic blur constructors");p.material_tags[2]=Tag(im,Branch(im,at));
     }
     p.material_config_pp=Pool(im,material+0xc0);
-    const uint32_t dl=Word(im,p.phone+0x78),dh=Word(im,p.phone+0x7c);
-    if((dl&0xffe0001fu)!=0xd2800005u||(dh&0xffe0001fu)!=0xf2a00005u)return Fail(why,"boxed Double header");
-    p.double_tag=(dl>>5&65535u)|(dh>>5&65535u)<<16;
-    p.device_slot=Slot(Word(im,width+0x14));p.corner_field=(Word(im,corner+0x3c)>>12)&511;
-    p.device_layout_field=(Word(im,width+0x4c)>>12)&511;
+    // The native width may stay unboxed in the phone closure. Its enclosing
+    // hotseat builder still boxes a double with the same Dart heap layout.
+    const auto resolve_double = [&](size_t begin, size_t end) {
+        for (size_t at = begin + 20; at + 20 <= end; at += 4) {
+            const uint32_t sub = Word(im, at);
+            const uint32_t dl = Word(im, at + 4), dh = Word(im, at + 8);
+            const uint32_t bounds = Word(im, at - 20);
+            const uint32_t object = sub & 31u, header = dl & 31u, limit = bounds >> 10 & 31u;
+            if (sub != (0xd1003c00u | object << 5 | object) ||
+                    (dl & 0xffe00000u) != 0xd2800000u ||
+                    (dh & 0xffe0001fu) != (0xf2a00000u | header) ||
+                    Word(im, at + 12) != (0xf81ff000u | object << 5 | header) ||
+                    (Word(im, at + 16) & 0xffffffe0u) != (0xfc007000u | object << 5) ||
+                    bounds != (0xa9460340u | limit << 10 | object) ||
+                    Word(im, at - 16) != (0x91004000u | object << 5 | object) ||
+                    Word(im, at - 12) != (0xeb00001fu | object << 16 | limit << 5) ||
+                    (Word(im, at - 8) & 0xff00001fu) != 0x54000009u ||
+                    Word(im, at - 4) != (0xf9003340u | object)) continue;
+            const uint32_t tag = (dl >> 5 & 65535u) | (dh >> 5 & 65535u) << 16;
+            if ((tag & 0xfff) != 0x15c) continue;
+            if (p.double_tag && p.double_tag != tag) return false;
+            p.double_tag = tag;
+        }
+        return true;
+    };
+    if (!resolve_double(p.phone, phone_end) || !resolve_double(outer, outer + 0x400))
+        return Fail(why, "conflicting boxed Double header");
+    if (!p.double_tag) return Fail(why, "boxed Double header missing");
+    const bool inlineGridWidth = Word(im, width + 0x0c) == 0xf9403f40u;
+    const size_t deviceLoad = width + (inlineGridWidth ? 0x10 : 0x14);
+    const size_t layoutLoad = width + (inlineGridWidth ? 0x48 : 0x4c);
+    const size_t wideLoad = width + (inlineGridWidth ? 0xa0 : 0x60);
+    const size_t normalLoad = width + (inlineGridWidth ? 0x100 : 0x7c);
+    if (inlineGridWidth) {
+        const size_t loads[] = {wideLoad, normalLoad};
+        for (const size_t load : loads) {
+            if (Slot(Word(im, load - 0x48)) != p.labels.grid_slot ||
+                    Word(im, load - 12) != (0xb8400001u | p.labels.config_rx_field << 12) ||
+                    Branch(im, load - 4) != p.labels.value)
+                return Fail(why, "inlined width config graph");
+        }
+    } else if (Branch(im, wideLoad - 4) != p.labels.config ||
+               Branch(im, normalLoad - 4) != p.labels.config) {
+        return Fail(why, "width config graph");
+    }
+    p.device_slot=Slot(Word(im,deviceLoad));p.corner_field=(Word(im,corner+0x3c)>>12)&511;
+    p.device_layout_field=(Word(im,layoutLoad)>>12)&511;
     p.launcher_mode_slot=Slot(Word(im,elderly+0xc));
     p.launcher_mode_rx=(Word(im,elderly+0x24)>>12)&511;
     p.elderly_pp=Slot(Word(im,elderly+0x30));
     if(Branch(im,max+8)!=elderly||Branch(im,elderly+0x2c)!=p.labels.value)return Fail(why,"elderly mode graph");
-    if(p.device_slot!=Slot(Word(im,p.mode+0x44))||Word(im,width+0x60)!=0xfc477000u||
-       Word(im,width+0x7c)!=0xfc42b001u||(Word(im,width+0x4c)&0xffe00fffu)!=0xb8400001u||
+    if(p.device_slot!=Slot(Word(im,p.mode+0x44))||
+       Word(im,wideLoad)!=0xfc477000u||
+       Word(im,normalLoad)!=0xfc42b001u||
+       (Word(im,layoutLoad)&0xffe00fffu)!=0xb8400001u||
        !p.corner_field || !p.device_layout_field || !p.elderly_pp)
         return Fail(why,"native grid/device geometry fields");
     // The native highlight layout centers the painted icon inside each cell.

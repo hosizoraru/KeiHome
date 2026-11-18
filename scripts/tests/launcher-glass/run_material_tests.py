@@ -38,6 +38,8 @@ def main():
     parser.add_argument("--negative-image", type=Path,
                         default=ROOT / ".artifacts/inputs/launchers/9209/libapp_launcher.so",
                         help="retained native base ELF that must reject every material role")
+    parser.add_argument("--shipping-only", action="store_true",
+                        help="verify shipping Dock/Search and skip retired material experiments")
     args = parser.parse_args()
     args.export_dir.mkdir(parents=True, exist_ok=True)
     if not args.negative_image.is_file():
@@ -71,6 +73,8 @@ def main():
             fixtures += [str(ROOT / ".artifacts/inputs/launchers" / version / "libapp.so"),
                          str(ORACLES / f"material-{version}.tsv")]
         environment = dict(os.environ, KEIHOME_MATERIAL_EXPORT_DIR=str(args.export_dir.resolve()))
+        if args.shipping_only:
+            environment["KEIHOME_MATERIAL_SHIPPING_ONLY"] = "1"
         result = subprocess.run([binary, *fixtures, "--negative",
                                  str(args.negative_image.resolve())],
                                 text=True, capture_output=True, env=environment)
@@ -96,7 +100,15 @@ def main():
         for version in args.versions:
             extra_path = args.export_dir / f"material-extra-resolved-{version}.tsv"
             folder_path = args.export_dir / f"material-folder-refresh-resolved-{version}.tsv"
-            extra, folder = fields(extra_path), fields(folder_path)
+            folder = fields(folder_path)
+            if args.shipping_only or "folder.source" not in fields(ORACLES / f"material-extra-{version}.tsv"):
+                assert len(folder) == 48 and not folder["refreshSubjectLiveAcrossAdd"]
+                report["fixtures"].append(dict(
+                    version=version, **cases[version], shipping_search_count=1,
+                    folder_refresh_fields=len(folder),
+                    folder_refresh_report=str(folder_path.resolve())))
+                continue
+            extra = fields(extra_path)
             assert len(extra) == 61 and len(folder) == 48, (version, len(extra), len(folder))
             assert (extra["count"], extra["admittedMask"], extra["ambiguousMask"]) == (3, 7, 0)
             assert [extra[f"sites[{i}].kind"] for i in range(3)] == [1, 2, 3]

@@ -475,6 +475,7 @@ constexpr WordMask kExtraSearchCapsule[] = {
     {0xd65f03c0u, 0xffffffffu},
     {0xa9bf79fdu, 0xffffffffu},
 };
+
 #ifndef __ANDROID__
 // Saved-source research only; never admitted or scanned by the Android runtime.
 constexpr WordMask kExtraPressLight[] = {
@@ -1779,10 +1780,31 @@ bool StackMaps(const Reader& r, LauncherGlassMaterialProfile* p) {
         if (code) return false;
         code = isolate;
     }
-    if (!code || p->eventFrameBytes / 8 < 44 || p->eventFrameBytes / 8 >= 105) return false;
+    if (!code || !p->eventFrameBytes || (p->eventFrameBytes & 7)) return false;
     const unsigned spills = p->eventFrameBytes / 8;
-    const uint64_t eventBits = 1u | (uint64_t(1) << (spills - 44)) |
-            (uint64_t(1) << (spills - 43)) | (uint64_t(1) << (spills - 41));
+    // At the original logger return PC, the map retains the null spill,
+    // the receiver, the reused second-argument slot and the change list.
+    // Dart numbers these bits from FP-8. Frame growth and root movement
+    // are independent, so replay the compiler's actual FP displacements.
+    const uint32_t nullStore = r.W(p->event + 12);
+    if ((nullStore & 0xffe00fffu) != 0xf80003b6u ||
+            r.W(p->event + 20) != 0xf8316ba1u ||
+            r.W(p->event + 28) != 0xf8316ba2u ||
+            r.W(p->event + 64) != 0xf8316ba1u ||
+            p->replayWord != r.W(p->event + 60) ||
+            r.W(p->firstLoggerCall - 16) != r.W(p->event + 24) ||
+            r.W(p->firstLoggerCall - 12) != 0xf8716ba1u)
+        return false;
+    uint64_t eventBits = 0;
+    const int roots[] = {Field(nullStore), MovnOffset(r.W(p->event + 16)),
+                         MovnOffset(r.W(p->event + 24)), MovnOffset(p->replayWord)};
+    for (const int offset : roots) {
+        if (offset >= 0 || (offset & 7)) return false;
+        const unsigned slot = unsigned(-offset) / 8 - 1;
+        if (slot >= spills || slot >= 64 || (eventBits & (uint64_t{1} << slot)))
+            return false;
+        eventBits |= uint64_t{1} << slot;
+    }
     p->instructionsTable = table;
     return StackPoint(r, table, total, code, p->closure, p->branch, 3, 1, &p->branchMap) &&
             StackPoint(r, table, total, code, p->event, p->returnPc,
@@ -1847,6 +1869,25 @@ bool ResolveLauncherGlassMaterial(const IconHighlightImage& image,
 }
 
 namespace {
+bool SearchCapsuleMatches(const Reader& r, size_t at) {
+    constexpr size_t tail = 0x188;
+    const bool extended = r.W(at + tail) == 0xf801f01fu;
+    const size_t count = sizeof(kExtraSearchCapsule) / sizeof(kExtraSearchCapsule[0]);
+    for (size_t i = 0; i < count; ++i) {
+        const size_t off = i * 4;
+        const auto& expected = kExtraSearchCapsule[i];
+        const size_t pc = at + off + (extended && off >= tail ? 4 : 0);
+        if (!r.Has(pc, 4, true) || (r.W(pc) & expected.mask) != expected.word)
+            return false;
+    }
+    if (!extended) return true;
+    // The shifted tail belongs to the larger native ClipRRect allocator.
+    const size_t clip = r.Call(at + 0x168);
+    return clip && (r.W(clip) & 0xffe1ffffu) == 0xd2806382u &&
+            (r.W(clip + 4) & 0xffe0001fu) == 0xf2a00002u &&
+            (r.W(clip + 8) & 0xfc000000u) == 0x14000000u;
+}
+
 bool ExtraWallpaperSource(const Reader& r, const LauncherGlassMaterialProfile& material,
         size_t at) {
     const size_t dock = material.closure + 0x1c;
@@ -2009,7 +2050,7 @@ bool ResolveLauncherGlassSearchCapsule(const IconHighlightImage& image,
         if (!range.executable || range.end - range.begin < 4) continue;
         for (size_t at = range.begin; at <= range.end - 4; at += 4) {
             if ((r.W(at) & kExtraSearchCapsule[0].mask) != kExtraSearchCapsule[0].word ||
-                    !r.Match(at, kExtraSearchCapsule)) continue;
+                    !SearchCapsuleMatches(r, at)) continue;
             LauncherGlassMaterialChooseSite site{};
             if (!ExtraChoose(r, material, at, kLauncherGlassMaterialSearchCapsule,
                     false, &site)) continue;

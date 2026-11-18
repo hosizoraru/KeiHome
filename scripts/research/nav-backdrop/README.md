@@ -5,10 +5,15 @@ They do not implement a shipping compatibility feature. See
 [the investigation](../../../docs/gesture-navigation-backdrop.md) for evidence
 and limitations.
 
-Use only the authorized API-37 HyperOS Phone AVD (`emulator-5580` in the
-recorded run). Do not run capture or installation commands against the physical
-device. Preserve theme, palette, app data, native rules, and critical processes.
-No emulator or system-process restart is needed.
+In the fixture, `Full artwork` anchors the full width-scaled footer to the
+window bottom. Compare it with `Continue artwork`, which retains the source
+origin and can still clip the final rows at the window edge. Both controls
+use the same inset and independent bounds for the interactive tabs.
+
+Use the API-37 HyperOS Phone AVD (`emulator-5580` in the recorded run) for
+the capture probe. The standalone Activity can also run on an authorized
+physical HyperOS device. Preserve theme, palette, app data, native rules,
+and critical processes. No emulator or system-process restart is needed.
 
 ## Edge capture
 
@@ -57,6 +62,28 @@ program is not suitable for unattended background sampling.
 `NavLabActivity` owns its test window and requires no manifest permission.
 Its modes compare an empty dark strip, a mean color, final-row continuation,
 and final-row continuation with a gradual 16-column texture approximation.
+**Crop + color**, **Continue artwork**, and **Full artwork** compare treatments of a
+width-scaled footer. The first clips at a 52 dp artwork height and fills the
+gesture inset with a solid color. The second keeps the image origin, scale and
+tab controls in place and moves the artwork clip to the window edge. It uses
+this treatment when the original image covers the additional inset. The third
+aligns the whole image with the window bottom. It also works when the image
+covers the gesture inset and only part of the tab area. The window background
+shows through above the image and through transparent pixels. All three keep
+the same tab bounds. Pass `--ei artworkHeightPx N` when launching the fixture
+to reproduce a measured artwork clip height independently of those bounds.
+Try the modes with the same tab selected, then open and dismiss the keyboard and dialog.
+
+**Separate layer** paints the same bottom-aligned artwork into a
+`SurfaceView` under the fixture's tab controls. Android exposes the surface
+in the area reserved by the view. **Opaque control** keeps that same surface
+attached and covers it with an opaque view. The original cropped image and
+gesture fill remain visible in this control. Compare the gesture-area
+pixels and tab bounds in these two modes, and confirm the surface exists in
+both with `dumpsys SurfaceFlinger --list`. The layer is enabled only in
+eligible gesture navigation layouts. The fixture owns the surface and its
+input-free background. It needs neither a module scope nor access to another
+app's window.
 It also exposes IME, dialog, activity-only rotation, fullscreen, and
 `FLAG_SECURE` controls. It requests native handle appearance independently.
 

@@ -16,11 +16,10 @@ import re
 import shlex
 import subprocess
 import time
-from hyperos_avd_health import check_health
+from hyperos_avd_health import AVDS, SERIAL, check_health
 from lsposed_reload_parser import parse_reloads, plan_log_reads
 
 ROOT = Path(__file__).resolve().parents[1]
-SERIAL = "emulator-5580"
 PACKAGE = "os.kei.hyper.home"
 
 
@@ -308,7 +307,9 @@ def spawner(parent):
 
 
 def main():
+    global SERIAL
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--serial", choices=AVDS, default=SERIAL)
     parser.add_argument("--apk", required=True, type=Path)
     parser.add_argument("--reload-native", action="store_true")
     parser.add_argument(
@@ -323,10 +324,11 @@ def main():
                         help="Allow a lower code on the core-patched HyperOS test AVD")
     parser.add_argument("--evidence", required=True, type=Path)
     args = parser.parse_args()
+    if args.reload_native and AVDS[args.serial][0] != "KeiOS_HyperOS4_Phone":
+        parser.error("--reload-native requires the Phone launcher with a supported native profile")
+    SERIAL = args.serial
     args.evidence.mkdir(parents=True, exist_ok=True)
-    if "KeiOS_HyperOS4_Phone" not in adb("emu", "avd", "name").splitlines():
-        raise RuntimeError("The selected serial is not the authorized HyperOS AVD")
-    check_health(args.evidence, capture_backend=args.capture_backend)
+    check_health(args.evidence, capture_backend=args.capture_backend, serial=SERIAL)
     sdk = next(line.split("=", 1)[1] for line in (ROOT / "local.properties").read_text().splitlines()
                if line.startswith("sdk.dir="))
     aapt = Path(sdk) / "build-tools/37.0.0/aapt2"

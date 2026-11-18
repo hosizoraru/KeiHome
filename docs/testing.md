@@ -1,6 +1,6 @@
 # Select checks by the change
 
-## Phone AVD readiness
+## HyperOS AVD readiness
 
 After a managed recovery, unlock the device, enter the primary system desktop,
 and wait for the relevant module runtimes to initialize before measuring startup,
@@ -18,13 +18,21 @@ unlock a credential-protected device.
 
 The deployment and standalone health CLIs use emulator-console capture by
 default. The console writes into a fresh directory without spaces; admission
-requires one complete 1120x2436 PNG with valid chunk checksums and visible
-nonblank content. This avoids repeatedly invoking a guest screenshot interface
-that has timed out on this AVD. `--capture-backend auto` explicitly tries guest
+requires a complete PNG with valid chunk checksums, visible nonblank content,
+and the expected Phone (1120x2436) or Pad (2272x3408) dimensions in either
+orientation. This avoids repeatedly invoking a guest screenshot interface
+that has timed out on the Phone AVD. `--capture-backend auto` explicitly tries guest
 capture first and uses the same validated console path on capture failure.
 The receipt records the requested and actual backend, including any failed
 guest attempt. User, keyguard, process and SystemUI responsiveness checks remain
 mandatory with either backend.
+
+Both scripts default to Phone `emulator-5580`. For a Pad update, pass
+`--serial emulator-5582` to `scripts/deploy-hyperos-avd.py`. The script verifies
+the named AVD and records API 102 receipts for both devices. Native reload is
+available on the supported Phone path. A matching OEM process reclaim is
+shown alongside the failed reload receipt, including `umms_launch` when a
+process exits before its reload start can be logged.
 
 Focused regression:
 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests -p test_avd_health.py -v`.

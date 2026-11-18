@@ -194,7 +194,8 @@ class AvdHealthTest(unittest.TestCase):
             with self.subTest(extra=extra), patch("hyperos_avd_health.check_health",
                     return_value={"healthy": True}) as health, patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 health_main(["--evidence", "/tmp/health cli evidence", *extra])
-                health.assert_called_once_with(Path("/tmp/health cli evidence"), capture_backend=expected)
+                health.assert_called_once_with(Path("/tmp/health cli evidence"),
+                                               capture_backend=expected, serial="emulator-5580")
                 self.assertTrue(json.loads(stdout.getvalue())["healthy"])
 
     def test_cli_unknown_capture_backend_never_reaches_health_check(self):
@@ -266,7 +267,7 @@ class AvdHealthTest(unittest.TestCase):
     def test_console_png_must_be_complete_checksummed_and_expected_size(self):
         header_only = PNG[:33] + png_chunk(b"IEND", b"")
         for image in [b"not a PNG", PNG[:-1], PNG[:40] + b"\x01" + PNG[41:],
-                      header_only, SMALL_PNG, screenshot_png(2436, 1120)]:
+                      header_only, SMALL_PNG, screenshot_png(2436, 1119)]:
             calls, captures = [], []
             with self.subTest(image=str(image)[:80]), tempfile.TemporaryDirectory() as directory:
                 with self.assertRaisesRegex(RuntimeError, "preflight rejected"):
@@ -426,6 +427,22 @@ class AvdHealthTest(unittest.TestCase):
             self.assertEqual(7, report["currentUser"])
         self.assertTrue(any(call[-1] == "am get-started-user-state 7" for call in calls))
         self.assertFalse(any(call[-1] == "am get-started-user-state 0" for call in calls))
+
+    def test_pad_requires_its_avd_identity_and_accepts_landscape_capture(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            report = check_health(directory, serial="emulator-5582", runner=fake_runner({
+                "name": b"KeiOS_HyperOS4_Pad\nOK\n",
+                "-p": screenshot_png(3408, 2272),
+            }, calls))
+            self.assertEqual((3408, 2272), report["displaySize"])
+            self.assertTrue(report["healthy"])
+        self.assertTrue(all(call[:3] == ["adb", "-s", "emulator-5582"] for call in calls))
+        calls.clear()
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, "not the authorized Pad AVD"):
+                check_health(directory, serial="emulator-5582", runner=fake_runner(calls=calls))
+        self.assertEqual(1, len(calls))
 
     def test_same_port_with_another_avd_is_rejected_before_android_probes(self):
         calls = []

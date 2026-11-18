@@ -1,4 +1,4 @@
-"""Read-only checks before mutating the shared Phone AVD."""
+"""Read-only checks before deploying to the HyperOS AVDs."""
 import json
 import re
 import struct
@@ -11,6 +11,10 @@ from pathlib import Path
 SERIAL = "emulator-5580"
 DISPLAY = "4619827259835644672"
 DISPLAY_SIZE = (1120, 2436)
+AVDS = {
+    SERIAL: ("KeiOS_HyperOS4_Phone", DISPLAY_SIZE),
+    "emulator-5582": ("KeiOS_HyperOS4_Pad", (2272, 3408)),
+}
 MAX_CAPTURE_BYTES = 32 * 1024 * 1024
 CAPTURE_BACKENDS = ("auto", "console")
 
@@ -93,12 +97,12 @@ def png_size(data):
     raise ValueError("Incomplete screenshot")
 
 
-def display_png_size(data):
+def display_png_size(data, expected=DISPLAY_SIZE):
     if len(data) > MAX_CAPTURE_BYTES:
         raise ValueError("Screenshot exceeds capture size limit")
     dimensions = png_size(data)
-    if dimensions != DISPLAY_SIZE:
-        raise ValueError(f"Unexpected screenshot size {dimensions}; expected {DISPLAY_SIZE}")
+    if sorted(dimensions) != sorted(expected):
+        raise ValueError(f"Unexpected screenshot size {dimensions}; expected {expected} in either orientation")
     return dimensions
 
 
@@ -119,7 +123,7 @@ def recent_failures(log, now, uptime):
     return failures[-12:]
 
 
-def console_capture(probe):
+def console_capture(probe, expected=DISPLAY_SIZE):
     # Emulator console paths containing spaces may ACK OK without writing.
     # A fresh directory also prevents accepting an earlier screenshot.
     with tempfile.TemporaryDirectory(prefix="keihome-avd-capture-", dir="/tmp") as capture:
@@ -138,18 +142,18 @@ def console_capture(probe):
             raise ValueError("Console screenshot exceeds capture size limit")
         with files[0].open("rb") as source:
             image = source.read(MAX_CAPTURE_BYTES + 1)
-        return image, display_png_size(image)
+        return image, display_png_size(image, expected)
 
 
-def check_health(evidence, runner=subprocess.run, capture_backend="auto"):
+def check_health(evidence, runner=subprocess.run, capture_backend="auto", serial=SERIAL):
     evidence = Path(evidence)
     evidence.mkdir(parents=True, exist_ok=True)
-    report = {"serial": SERIAL, "healthy": False, "captureBackendRequested": capture_backend, "checks": []}
+    report = {"serial": serial, "healthy": False, "captureBackendRequested": capture_backend, "checks": []}
 
     def probe(name, args, timeout):
         started = time.monotonic()
         try:
-            result = runner(["adb", "-s", SERIAL, *args], capture_output=True, timeout=timeout)
+            result = runner(["adb", "-s", serial, *args], capture_output=True, timeout=timeout)
         except (subprocess.TimeoutExpired, OSError) as error:
             failed = {
                 "name": name, "seconds": round(time.monotonic() - started, 3),
@@ -172,12 +176,16 @@ def check_health(evidence, runner=subprocess.run, capture_backend="auto"):
     try:
         if capture_backend not in CAPTURE_BACKENDS:
             raise ValueError(f"Unknown capture backend: {capture_backend!r}")
+        if serial not in AVDS:
+            raise ValueError(f"Unknown HyperOS AVD serial: {serial!r}")
+        name, expected = AVDS[serial]
         avd = probe("authorized-AVD", ["emu", "avd", "name"], 3).decode(errors="replace")
-        if "KeiOS_HyperOS4_Phone" not in avd.splitlines():
-            raise RuntimeError("The selected serial is not the authorized Phone AVD")
+        if name not in avd.splitlines():
+            device = "Phone" if serial == SERIAL else "Pad"
+            raise RuntimeError(f"The selected serial is not the authorized {device} AVD ({name})")
         boot = probe("boot", ["shell", "getprop sys.boot_completed"], 3).strip()
         if boot != b"1":
-            raise RuntimeError("Phone AVD has not finished booting")
+            raise RuntimeError("AVD has not finished booting")
         user = probe("AMS", ["shell", "am get-current-user"], 5).strip()
         if not user.isdigit():
             raise RuntimeError("ActivityManager did not return a user ID")
@@ -224,18 +232,18 @@ def check_health(evidence, runner=subprocess.run, capture_backend="auto"):
         # Capture only after every independent readiness gate has passed. A guest
         # screencap failure can be transport/encoding trouble rather than GUI failure.
         if capture_backend == "console":
-            image, dimensions = console_capture(probe)
+            image, dimensions = console_capture(probe, expected)
             backend = "emulator-console"
         else:
             try:
                 image = probe("display", ["exec-out", "screencap", "-d", DISPLAY, "-p"], 15)
-                dimensions = display_png_size(image)
+                dimensions = display_png_size(image, expected)
                 backend = "guest-screencap"
             except (subprocess.TimeoutExpired, RuntimeError, ValueError, OSError) as error:
                 report["captureFallbackReason"] = f"{type(error).__name__}: {error}"
                 if report["checks"][-1]["name"] == "display":
                     report["checks"][-1]["error"] = report["captureFallbackReason"]
-                image, dimensions = console_capture(probe)
+                image, dimensions = console_capture(probe, expected)
                 backend = "emulator-console"
         report["displaySize"] = dimensions
         report["captureBackend"] = backend
@@ -253,10 +261,11 @@ def check_health(evidence, runner=subprocess.run, capture_backend="auto"):
 def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--serial", choices=AVDS, default=SERIAL)
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--capture-backend", choices=CAPTURE_BACKENDS, default="console")
     args = parser.parse_args(argv)
-    print(json.dumps(check_health(args.evidence, capture_backend=args.capture_backend), indent=2))
+    print(json.dumps(check_health(args.evidence, capture_backend=args.capture_backend, serial=args.serial), indent=2))
 
 
 if __name__ == "__main__":

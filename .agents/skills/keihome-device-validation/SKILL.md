@@ -16,7 +16,7 @@ live identities against historical evidence before reusing a fixture or receipt.
   selection, scroll position, overlay coverage, and touch ownership when they
   are affected. Capture real UI at the reported state and use the relevant
   interaction fixtures from the [Pad guide](../../../docs/pad-adaptive-ui.md).
-- **APK deployment and API 102.** For the managed HyperOS Phone AVD, consult
+- **APK deployment and API 102.** For the managed HyperOS Phone and Pad AVDs, consult
   [the deployment script](../../../scripts/deploy-hyperos-avd.py) and its
   `--help`. Use the readiness checks in [testing.md](../../../docs/testing.md).
   Record the installed APK identity and per-target reload receipts, including

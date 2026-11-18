@@ -14,15 +14,16 @@ OUTCOME = re.compile(
     r"^Auto hot reload (?P<result>succeeded|failed) for (?P<module>\S+) in "
     r"(?P<process>[^/\s]+)/(?P<pid>\d+)(?::\s*(?P<detail>.*))?$"
 )
+RECLAIM_REASON = r"umms_(?:selfcheck|pressure|launch)"
 KILL = re.compile(
     r"^(?P<time>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\s+"
     r"\d+\s+\d+\s+I ActivityManager:\s+Killing (?P<pid>\d+):"
-    r"(?P<process>[^/\s]+)/\S+ \(adj -?\d+\): (?P<reason>umms_selfcheck|umms_pressure)\b"
+    rf"(?P<process>[^/\s]+)/\S+ \(adj -?\d+\): (?P<reason>{RECLAIM_REASON})\b"
 )
 EVENT_KILL = re.compile(
     r"^(?P<time>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\s+"
     r"\d+\s+\d+\s+I\s+am_kill\s*:\s*\[\d+,(?P<pid>\d+),"
-    r"(?P<process>[^,]+),-?\d+,(?P<reason>umms_selfcheck|umms_pressure),[^\]]+\]"
+    rf"(?P<process>[^,]+),-?\d+,(?P<reason>{RECLAIM_REASON}),[^\]]+\]"
 )
 
 
@@ -122,22 +123,22 @@ def parse_reloads(text, module, *, capture_issues=(), system_log=""):
             # A policy reclaim is not proof of a kernel OOM or memory exhaustion.
             for failure in failures:
                 end = datetime.fromisoformat(failure["time"])
-                for start in row["starts"]:
-                    begin = datetime.fromisoformat(start["time"])
-                    if begin > end:
+                begin = end - timedelta(seconds=5)
+                starts = [datetime.fromisoformat(event["time"]) for event in row["starts"]
+                          if event["time"] <= failure["time"]]
+                if starts:
+                    begin = max(begin, max(starts))
+                for kill, line in kills:
+                    when = datetime.fromisoformat(kill["time"])
+                    if (int(kill["pid"]) != row["pid"] or kill["process"] != row["process"]
+                            or not begin <= when <= end):
                         continue
-                    for kill, line in kills:
-                        when = datetime.fromisoformat(kill["time"])
-                        if (int(kill["pid"]) == row["pid"]
-                                and kill["process"] == row["process"]
-                                and max(begin, end - timedelta(seconds=5))
-                                <= when <= end):
-                            row["failureReason"] = "system_reclaimed"
-                            row["systemReclaimEvidence"] = {
-                                "time": kill["time"], "pid": int(kill["pid"]),
-                                "process": kill["process"], "reason": kill["reason"],
-                                "line": line,
-                            }
+                    row["failureReason"] = "system_reclaimed"
+                    row["systemReclaimEvidence"] = {
+                        "time": kill["time"], "pid": int(kill["pid"]),
+                        "process": kill["process"], "reason": kill["reason"],
+                        "line": line,
+                    }
         elif len(row["outcomes"]) == len(row["starts"]) == 1:
             if row["starts"][0]["time"] <= row["outcomes"][0]["time"]:
                 row["status"] = "success"

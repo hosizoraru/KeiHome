@@ -137,6 +137,18 @@ class ReloadParserTest(unittest.TestCase):
         self.assertEqual("unknown", report["result"])
         self.assertEqual("unknown", report["observedCompleteness"])
 
+    def test_launch_reclaim_can_precede_the_target_start_without_completing_receipts(self):
+        text = "\n".join(line for line in REAL.splitlines()
+                         if f"({PROVIDER})" not in line or "Start hot reload" not in line)
+        event = ("2026-11-15 12:47:52.055  8718 11215 I am_kill : "
+                 "[0,15566,com.android.settings:provider,945,umms_launch,290184]")
+        report = self.parse(text, system_log=event)
+        provider = self.provider(report)
+        self.assertEqual("failed", provider["status"])
+        self.assertEqual("system_reclaimed", provider["failureReason"])
+        self.assertEqual("umms_launch", provider["systemReclaimEvidence"]["reason"])
+        self.assertEqual("unknown", report["observedCompleteness"])
+
     def test_all_observed_success_is_explicitly_scoped(self):
         text = "\n".join(line for line in REAL.splitlines() if PROVIDER not in line)
         report = self.parse(text)

@@ -19,8 +19,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassDialogButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
-import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
-import top.yukonga.miuix.kmp.material.GlassMaterials
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -50,8 +48,6 @@ internal fun Os4Dialog(
   }
   // A null backdrop uses the component's opaque fallback and keeps the same return dispatcher.
   GlassDialog(show = show, backdrop = backdrop, modifier = dialogModifier, title = title,
-    material = GlassMaterials.dialogGlass(dark),
-    stroke = GlassEdgeStrokes.forTheme(dark, GlassEdgeStrokes.SmallLight, GlassEdgeStrokes.SmallDark),
     largeScreen = centered, summary = summary, onDismissRequest = { if (dismissible) onDismissRequest() },
     onDismissFinished = onDismissFinished, content = dialogContent)
 }

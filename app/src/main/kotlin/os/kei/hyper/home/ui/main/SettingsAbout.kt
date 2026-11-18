@@ -108,7 +108,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(containerColor = Color.Transparent, backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = "", color = Color.Transparent,
+      TopAppBar(title = "", expandable = false, color = Color.Transparent,
         navigationIcon = { IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } }, actions = {

@@ -19,10 +19,7 @@ import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.glass.GlassBottomSheet
-import top.yukonga.miuix.kmp.material.GlassEdgeStrokes
-import top.yukonga.miuix.kmp.material.GlassMaterials
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -38,7 +35,6 @@ internal fun Os4DetailsSheet(
   onDismissFinished: (() -> Unit)? = null,
   content: @Composable ColumnScope.() -> Unit,
 ) {
-  val dark = LocalKeiHomeDarkTheme.current
   val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.8f).dp
   val backdrop = LocalKeiHomeBackdrop.current
   val locals = currentCompositionLocalContext
@@ -47,8 +43,7 @@ internal fun Os4DetailsSheet(
       dialog()
       title?.let { paneTitle = it }
       dismiss { onDismissRequest(); true }
-    }, material = GlassMaterials.dialogGlass(dark),
-    stroke = GlassEdgeStrokes.forTheme(dark, GlassEdgeStrokes.MiddleLight, GlassEdgeStrokes.MiddleDark),
+    },
     onDismissFinished = onDismissFinished) {
     CompositionLocalProvider(locals) {
       Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)

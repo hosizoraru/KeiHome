@@ -21,6 +21,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.icon.glass.Filter
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -42,6 +43,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -77,6 +79,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   var removing by remember { mutableStateOf<CustomIconSelection?>(null) }
   var inspecting by remember { mutableStateOf<CustomIconSelection?>(null) }
   var inspectionVisible by remember { mutableStateOf(false) }
+  var afterInspection by remember { mutableStateOf<(() -> Unit)?>(null) }
   val pack = catalog.packs.firstOrNull { it.pack.id == packId }?.pack
   val target = state.apps.firstOrNull { it.packageName == targetPackage }
   val root = targetPackage == null
@@ -349,28 +352,47 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
       }
     }
     inspecting?.let { item ->
-      Os4DetailsSheet(show = inspectionVisible, title = item.appLabel,
-        modifier = Modifier.testTag("custom-icons.details"), onDismissRequest = { inspectionVisible = false }) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OriginalPreservedIcon(state.apps.firstOrNull { it.packageName == item.packageName }, controller.inventory,
-              configuration, 64.dp)
-            Text(stringResource(R.string.custom_icons_original), style = MiuixTheme.textStyles.footnote1)
+      Os4ActionDialog(show = inspectionVisible, title = item.appLabel,
+        summary = stringResource(R.string.custom_icons_reapply),
+        modifier = Modifier.testTag("custom-icons.details"),
+        onDismissRequest = { inspectionVisible = false },
+        onDismissFinished = {
+          if (!inspectionVisible) {
+            inspecting = null
+            val next = afterInspection
+            afterInspection = null
+            next?.invoke()
           }
-          Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SavedIconArtwork(controller, item, dark, 64.dp)
-            Text(stringResource(R.string.custom_icons_current), style = MiuixTheme.textStyles.footnote1)
+        }, actions = listOf(
+          Os4DialogAction(stringResource(R.string.custom_icons_remove), enabled = inspectionVisible && !state.busy,
+            onClick = {
+              afterInspection = { removing = item }
+              inspectionVisible = false
+            }),
+          Os4DialogAction(stringResource(R.string.custom_icons_edit), enabled = inspectionVisible && !state.busy,
+            role = GlassDialogButtonRole.Primary, onClick = {
+              afterInspection = { targetPackage = item.packageName }
+              inspectionVisible = false
+            }),
+        ), artwork = {
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              OriginalPreservedIcon(state.apps.firstOrNull { it.packageName == item.packageName },
+                controller.inventory, configuration, 64.dp)
+              Text(stringResource(R.string.custom_icons_original), style = MiuixTheme.textStyles.footnote1,
+                textAlign = TextAlign.Center)
+            }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+              verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              SavedIconArtwork(controller, item, dark, 64.dp)
+              Text(stringResource(R.string.custom_icons_current), style = MiuixTheme.textStyles.footnote1,
+                textAlign = TextAlign.Center)
+            }
           }
-        }
-        Text(item.packageName, Modifier.padding(top = 16.dp), style = MiuixTheme.textStyles.footnote1,
+        }) {
+        Text(item.packageName, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.footnote1,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        Text(stringResource(R.string.custom_icons_reapply), Modifier.padding(vertical = 12.dp),
-          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        Os4DialogButton(stringResource(R.string.custom_icons_edit), enabled = !state.busy,
-          role = top.yukonga.miuix.kmp.glass.GlassDialogButtonRole.Primary, modifier = Modifier.fillMaxWidth(),
-          onClick = { inspectionVisible = false; targetPackage = item.packageName })
-        Os4DialogButton(stringResource(R.string.custom_icons_remove), enabled = !state.busy,
-          modifier = Modifier.fillMaxWidth(), onClick = { inspectionVisible = false; removing = item })
       }
     }
     val selected = candidate

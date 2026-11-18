@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -63,6 +62,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Back
@@ -197,19 +197,12 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
           items = labels.map { DropdownItem(text = stringResource(it)) }, selectedIndex = rangeIndex,
           onSelectedIndexChange = { rangeIndex = it })
       }
-      if (rangeIndex == 4) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(8.dp)) {
-        BasicTextField(value = customHours, onValueChange = { input ->
+      if (rangeIndex == 4) {
+        GlassTextField(value = customHours, onValueChange = { input ->
           if (input.length <= 3 && input.all(Char::isDigit)) customHours = input
-        }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-          textStyle = MiuixTheme.textStyles.body1.copy(color = MiuixTheme.colorScheme.onSurface),
-          modifier = Modifier.fillMaxWidth().padding(12.dp),
-          decorationBox = { inner ->
-            Column {
-              Text(stringResource(R.string.logs_hours_custom), style = MiuixTheme.textStyles.footnote2,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              inner()
-            }
-          })
+        }, label = stringResource(R.string.logs_hours_custom), singleLine = true,
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+          modifier = Modifier.fillMaxWidth())
       }
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.logs_size),

@@ -14,7 +14,8 @@ import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 /** Read-only device checks use existing saved choices without replacing or applying them. */
 class CustomIconsNavigationTest {
-  @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+  @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
+  @get:Rule(order = 1) val rule = createAndroidComposeRule<ComponentActivity>()
   private lateinit var model: HomeViewModel
   private val popupNavigation = Os4NavigationTestHost()
   private fun text(id: Int) = rule.activity.getString(id)

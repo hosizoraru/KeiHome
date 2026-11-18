@@ -81,7 +81,7 @@ internal fun IconPackProgressDialog(
           Text(stringResource(R.string.pack_progress_percentage, progress.percent),
             modifier = Modifier.testTag("icon-pack.progress.percent"), style = MiuixTheme.textStyles.subtitle)
         }
-        val fraction = progress.percent / 100f
+        val fraction = progress.measuredPercent / 100f
         LinearProgressIndicator(Modifier.fillMaxWidth().semantics {
           progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
         }, progress = fraction)
@@ -122,6 +122,7 @@ private fun IconPackStep.label(): Int = when (this) {
   IconPackStep.STAMPING -> R.string.pack_progress_resources
   IconPackStep.MASKING -> R.string.coloros_generation_masking
   IconPackStep.MONET -> R.string.pack_progress_monet
+  IconPackStep.MONET_WRITING -> R.string.pack_progress_monet_writing
   IconPackStep.CUSTOM_ICONS -> R.string.pack_progress_custom
   IconPackStep.SYSTEM_IMPORT -> R.string.pack_progress_system_import
   IconPackStep.WAITING_FOR_SYSTEM -> R.string.pack_progress_system_wait

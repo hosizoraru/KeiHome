@@ -9,7 +9,7 @@ internal enum class IconPackOperation { LOCAL_IMPORT, GENERATE, SYSTEM_IMPORT, A
 
 internal enum class IconPackStep {
   READING_FILE, VALIDATING_FILE, APPLICATIONS, METADATA, ARTWORK, APPLE_PACKAGING, LIGHT, DARK, PAIRING,
-  ADAPTATIONS, STAMPING, MASKING, MONET, CUSTOM_ICONS, PACKAGING, SYSTEM_IMPORT, APPLYING,
+  ADAPTATIONS, STAMPING, MASKING, MONET, MONET_WRITING, CUSTOM_ICONS, PACKAGING, SYSTEM_IMPORT, APPLYING,
   WAITING_FOR_SYSTEM, FINISHING, CANCELLING, GENERATED, COMPLETE,
 }
 
@@ -45,31 +45,57 @@ internal data class IconPackOperationProgress(
   val item: String? = null,
   val cancellable: Boolean = false,
   val inKiB: Boolean = false,
+  val measuredPercent: Float = percent.toFloat(),
 ) {
   fun advance(step: IconPackStep, percent: Int, cancellable: Boolean = false) =
-    IconPackOperationProgress(operation, step, maxOf(this.percent, percent), cancellable = cancellable)
+    IconPackOperationProgress(operation, step, maxOf(this.percent, percent), cancellable = cancellable,
+      measuredPercent = maxOf(measuredPercent, percent.toFloat()))
+}
+
+internal class IconPackGenerationProgressPlan(
+  nativeArchive: Boolean = false,
+  monet: Boolean = false,
+) {
+  private val weights = listOf(
+    2, if (nativeArchive) 16 else 30, if (nativeArchive) 0 else 26,
+    if (nativeArchive) 0 else 12, 3, 5, 7,
+    if (monet) 48 else 0, if (monet) 10 else 0, 3, 9,
+  )
+  private val offsets = weights.runningFold(0, Int::plus)
+
+  fun percent(progress: ColorOsGenerationProgress, afterApple: Boolean): Float {
+    val index = progress.stage.ordinal
+    val fraction = if (progress.total > 0) {
+      progress.done.coerceIn(0, progress.total).toDouble() / progress.total
+    } else 0.0
+    val completed = offsets[index] + weights[index] * fraction
+    val start = if (afterApple) 40 else 0
+    return (start + completed * (91 - start) / offsets.last()).toFloat()
+  }
 }
 
 internal fun ColorOsGenerationProgress.operationProgress(
   previous: IconPackOperationProgress,
   afterAppleGeneration: Boolean,
+  plan: IconPackGenerationProgressPlan = IconPackGenerationProgressPlan(),
 ): IconPackOperationProgress {
-  val (step, window) = when (stage) {
-    ColorOsGenerationStage.APPLICATIONS -> IconPackStep.APPLICATIONS to 0..4
-    ColorOsGenerationStage.LIGHT -> IconPackStep.LIGHT to 5..32
-    ColorOsGenerationStage.DARK -> IconPackStep.DARK to 33..55
-    ColorOsGenerationStage.PAIRING -> IconPackStep.PAIRING to 56..63
-    ColorOsGenerationStage.ADAPTATIONS -> IconPackStep.ADAPTATIONS to 64..69
-    ColorOsGenerationStage.STAMPING -> IconPackStep.STAMPING to 70..74
-    ColorOsGenerationStage.MASKING -> IconPackStep.MASKING to 75..79
-    ColorOsGenerationStage.MONET -> IconPackStep.MONET to 80..84
-    ColorOsGenerationStage.CUSTOM_ICONS -> IconPackStep.CUSTOM_ICONS to 85..88
-    ColorOsGenerationStage.PACKAGING -> IconPackStep.PACKAGING to 89..91
+  val step = when (stage) {
+    ColorOsGenerationStage.APPLICATIONS -> IconPackStep.APPLICATIONS
+    ColorOsGenerationStage.LIGHT -> IconPackStep.LIGHT
+    ColorOsGenerationStage.DARK -> IconPackStep.DARK
+    ColorOsGenerationStage.PAIRING -> IconPackStep.PAIRING
+    ColorOsGenerationStage.ADAPTATIONS -> IconPackStep.ADAPTATIONS
+    ColorOsGenerationStage.STAMPING -> IconPackStep.STAMPING
+    ColorOsGenerationStage.MASKING -> IconPackStep.MASKING
+    ColorOsGenerationStage.MONET -> IconPackStep.MONET
+    ColorOsGenerationStage.MONET_WRITING -> IconPackStep.MONET_WRITING
+    ColorOsGenerationStage.CUSTOM_ICONS -> IconPackStep.CUSTOM_ICONS
+    ColorOsGenerationStage.PACKAGING -> IconPackStep.PACKAGING
   }
-  val nativePercent = window.progress(done, total)
-  val percent = if (afterAppleGeneration) 40 + nativePercent * 51 / 91 else nativePercent
-  return previous.advance(step, percent, cancellable = true)
-    .copy(done = done.coerceIn(0, total.coerceAtLeast(0)), total = total, item = packageName, inKiB = inKiB)
+  val measured = maxOf(previous.measuredPercent, plan.percent(this, afterAppleGeneration))
+  return IconPackOperationProgress(previous.operation, step, measured.toInt(),
+    done.coerceIn(0, total.coerceAtLeast(0)), total, packageName, cancellable = true, inKiB = inKiB,
+    measuredPercent = measured)
 }
 
 internal fun AppleGenerationProgress.operationProgress(operation: IconPackOperation): IconPackOperationProgress {

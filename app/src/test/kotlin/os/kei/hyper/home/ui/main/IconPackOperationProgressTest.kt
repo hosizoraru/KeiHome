@@ -43,6 +43,28 @@ class IconPackOperationProgressTest {
     assertEquals(91, packaged.percent)
   }
 
+  @Test fun largeNativePalettePacksAdvanceLinearlyThroughDerivationAndWriting() {
+    val plan = IconPackGenerationProgressPlan(nativeArchive = true, monet = true)
+    val start = IconPackOperationProgress(IconPackOperation.SYSTEM_IMPORT, IconPackStep.APPLICATIONS, 0)
+    fun render(stage: ColorOsGenerationStage, done: Int, total: Int,
+      previous: IconPackOperationProgress = start) =
+      ColorOsGenerationProgress(stage, done, total).operationProgress(previous, false, plan)
+
+    val beginning = render(ColorOsGenerationStage.MONET, 0, 13452)
+    val first = render(ColorOsGenerationStage.MONET, 33, 13452)
+    val halfway = render(ColorOsGenerationStage.MONET, 6726, 13452)
+    val end = render(ColorOsGenerationStage.MONET, 13452, 13452)
+    assertTrue(first.measuredPercent > beginning.measuredPercent)
+    assertTrue(end.percent - beginning.percent > 30)
+    assertEquals((beginning.measuredPercent + end.measuredPercent) / 2f, halfway.measuredPercent, 0.001f)
+    val writing = render(ColorOsGenerationStage.MONET_WRITING, 10000, 67600, end)
+    assertTrue(writing.measuredPercent > end.measuredPercent)
+    assertEquals(10000, writing.done)
+    assertEquals(67600, writing.total)
+    val packaging = render(ColorOsGenerationStage.PACKAGING, 1, 1, writing)
+    assertEquals(91, packaging.percent)
+  }
+
   @Test fun systemReceiptControlsWaitingAndCompletion() {
     val original = IconPacksUiState(nativeImporting = "source")
     val stale = original.copy(nativeResult = NativeIconImportReport("token", 0, "other", "UNCERTAIN"))

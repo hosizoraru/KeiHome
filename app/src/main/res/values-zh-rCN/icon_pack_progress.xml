@@ -9,6 +9,7 @@
   <string name="pack_progress_artwork">正在准备应用图标资源</string>
   <string name="pack_progress_resources">正在整理主题资源</string>
   <string name="pack_progress_monet">正在生成壁纸取色图标</string>
+  <string name="pack_progress_monet_writing">正在写入壁纸取色图标</string>
   <string name="pack_progress_custom">正在合并自定义图标</string>
   <string name="pack_progress_system_import">正在导入系统主题</string>
   <string name="pack_progress_system_wait">等待系统主题确认导入</string>

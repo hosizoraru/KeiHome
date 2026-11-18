@@ -1,7 +1,7 @@
 package os.kei.hyper.home.iconpack
 
 internal enum class ColorOsGenerationStage {
-  APPLICATIONS, LIGHT, DARK, PAIRING, ADAPTATIONS, STAMPING, MASKING, MONET, CUSTOM_ICONS, PACKAGING
+  APPLICATIONS, LIGHT, DARK, PAIRING, ADAPTATIONS, STAMPING, MASKING, MONET, MONET_WRITING, CUSTOM_ICONS, PACKAGING
 }
 
 internal data class ColorOsGenerationProgress(

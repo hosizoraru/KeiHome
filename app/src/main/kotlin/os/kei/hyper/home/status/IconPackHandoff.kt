@@ -274,6 +274,7 @@ internal object IconPackHandoffs {
               enabled = completeSystemIconConfig, check = { caller.ensureActive() },
               onProgress = { done, total -> maskingProgress(done, total, "") })) maskedIcons else stampedIcons
           val monetProgress = progress(ColorOsGenerationStage.MONET)
+          val monetWriteProgress = progress(ColorOsGenerationStage.MONET_WRITING)
           val maskedSource = if ((monetUnadaptedIcons || monetFullBleedIconPadding) &&
             PublishedGenericMonet.write(shapedSource, genericMonet,
               monetUnadaptedIcons, PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
@@ -286,7 +287,8 @@ internal object IconPackHandoffs {
                   addAll(export.colorOsPackages)
                 }
               } else emptySet(),
-              onProgress = { done, total -> monetProgress(done, total, "") }
+              onProgress = { done, total -> monetProgress(done, total, "") },
+              onWriteProgress = { done, total -> monetWriteProgress(done, total, "") }
             ) { caller.ensureActive() }) genericMonet else shapedSource
           val publishedIcons = if (custom.selections.isNotEmpty()) {
             onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.CUSTOM_ICONS))

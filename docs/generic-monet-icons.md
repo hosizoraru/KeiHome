@@ -61,11 +61,38 @@ framework composition as the source, preserving its geometry and raw textures.
 Layer-only resources remain original. See [layer geometry](monet-layer-geometry.md)
 for viewport boundaries, protected resources and regeneration compatibility.
 
-Work runs only during generation, with cancellation checks, bounded PNG
-dimensions/input bytes and a 64 MiB supplemental-data memory budget. There is no
-per-frame extraction or separate persistent bitmap cache. Additional mask
-resources become part of the generated icon pack. Temporary publication files
-are removed on success and failure.
+Generation stages derived PNGs and manifests in a private temporary file.
+The writer holds one icon's artwork at a time and copies unchanged ZIP entries
+in their original compressed form. The input, expanded output, entry count,
+per-image and native-import storage limits still apply. Cancellation and
+failure unwind the same staging cleanup as a completed generation.
+
+When a recognized day/night template is replaced, the generated template owns
+its complete resource directory. The original source stays intact. Approval
+checks each generated directory for its exact expected resources and indexes
+those directories once per archive.
+
+The progress dialog uses stage weights and the worker's completed/total
+counters. Monet derivation reports icon candidates and writing reports archive
+entries. The bar interpolates within each stage and the numeric counter remains
+visible. The overall percentage estimates work across different units and does
+not predict a completion time.
+
+### Large-pack acceptance
+
+Build b0686 imported and applied four installed APK packs with 19,477 to
+49,252 mappings and the HyperOS Monet MTZ with 13,387 mappings on the HyperOS
+Phone AVD. File-picker tests also imported and applied the 22,676-mapping
+Lawnicons APK and the original native ZIP module extracted from the MTZ.
+The ZIP exercised 13,452 Monet candidates. The physical Xiaomi 17 Pro
+imported and applied the MTZ with its existing preferences. Both devices
+restored their original themes, night mode, palette and custom selections.
+
+The b0684 deployment recorded a reload failure for `com.miui.securitycenter:cache`.
+The system event log shows `umms_selfcheck` killing that PID before the failed
+LSPosed receipt. The b0686 AVD deployment recorded nine successful reloads
+among observed targets. The launcher, SystemUI and system server retained
+their process identities during testing.
 
 The Monet overview also contains the inspiration-pack installation card.
 Installing the pack, applying colors and enabling Monet remain separate

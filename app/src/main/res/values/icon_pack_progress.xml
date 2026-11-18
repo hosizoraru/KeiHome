@@ -9,6 +9,7 @@
   <string name="pack_progress_artwork">Preparing app artwork</string>
   <string name="pack_progress_resources">Assembling theme resources</string>
   <string name="pack_progress_monet">Preparing wallpaper-colored icons</string>
+  <string name="pack_progress_monet_writing">Writing wallpaper-colored icons</string>
   <string name="pack_progress_custom">Adding custom icons</string>
   <string name="pack_progress_system_import">Importing into System Themes</string>
   <string name="pack_progress_system_wait">Waiting for System Themes to confirm the import</string>

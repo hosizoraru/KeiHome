@@ -773,12 +773,16 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
       try {
         if (pack.builtinKey != null) preferences.prepareColorOsComponent(pack.id, includePalette)
         val caller = currentCoroutineContext()
+        val progressPlan = IconPackGenerationProgressPlan(
+          nativeArchive = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS,
+          monet = selected.monetUnadaptedIcons || selected.monetFullBleedIconPadding,
+        )
         val progress = os.kei.hyper.home.iconpack.ColorOsProgressReporter({ value ->
           caller.ensureActive()
           if (generation == nativeImportGeneration) {
             iconPacks.update { current ->
               val previous = current.generationProgress ?: return@update current
-              current.copy(generationProgress = value.operationProgress(previous, afterAppleGeneration))
+              current.copy(generationProgress = value.operationProgress(previous, afterAppleGeneration, progressPlan))
             }
           }
         })

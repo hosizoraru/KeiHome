@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.status.IconPackImportProtocol
+import os.kei.hyper.home.status.NativeThemeApplyWindow
 import os.kei.hyper.home.ui.main.DesktopSection
 import os.kei.hyper.home.ui.main.DesktopDestinationScreen
 import os.kei.hyper.home.ui.main.HomeViewModel
@@ -201,6 +202,7 @@ private fun NativeIconAutoNavigation(model: HomeViewModel): IconPackStep? {
   val context = LocalContext.current
   val activity = LocalActivity.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
+  val windowState by model.nativeThemeApplyWindow.state.collectAsStateWithLifecycle()
   var applying by rememberSaveable { mutableStateOf(false) }
   val phase = remember { mutableStateOf<IconPackStep?>(null) }
   val apply = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -222,7 +224,7 @@ private fun NativeIconAutoNavigation(model: HomeViewModel): IconPackStep? {
         .distinctUntilChanged().collect { report ->
           if (report != null && model.preferences.state.value.autoApplyIconPack) {
             val intent = withContext(Dispatchers.IO) { IconPackImportProtocol.takeAutoApply(context, report) }
-            if (intent != null) {
+            if (intent != null && !model.nativeThemeApplyWindow.launch(context, intent) { model.refresh(3) }) {
               applying = true
               runCatching { apply.launch(intent) }.onFailure { applying = false }
             }
@@ -236,5 +238,9 @@ private fun NativeIconAutoNavigation(model: HomeViewModel): IconPackStep? {
       phase.value = null
     }
   }
-  return if (applying) IconPackStep.APPLYING else phase.value
+  return when {
+    applying || windowState == NativeThemeApplyWindow.State.APPLYING -> IconPackStep.APPLYING
+    windowState == NativeThemeApplyWindow.State.COMPLETE -> IconPackStep.COMPLETE
+    else -> phase.value
+  }
 }

@@ -70,6 +70,7 @@ import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeImportReceiptRetries
 import os.kei.hyper.home.status.pendingReceiptOperation
 import os.kei.hyper.home.status.NativeIconImportReport
+import os.kei.hyper.home.status.NativeThemeApplyWindow
 import os.kei.hyper.home.status.LibxposedStaticScopeClient
 import os.kei.hyper.home.status.StaticScopeRequests
 
@@ -131,6 +132,7 @@ internal data class AppsUiState(
 internal data class PageRefreshResult(val completedAt: Long, val failed: Boolean)
 
 internal class HomeViewModel(application: Application) : AndroidViewModel(application) {
+  val nativeThemeApplyWindow = NativeThemeApplyWindow(viewModelScope)
   val preferences = AppPreferences.get(application)
   val initialActivation = InitialActivationPreferences(application)
   val browserOptions: StateFlow<IconBrowserOptions>

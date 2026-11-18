@@ -56,7 +56,7 @@ import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackPreviews
 import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.status.FrameworkTarget
-import os.kei.hyper.home.status.IconPackImportProtocol
+import os.kei.hyper.home.status.openNativeThemeDetail
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
@@ -459,7 +459,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
           }), onClick = {
             // Generated packs retain their source ID while their content and native theme record change.
             if (nativeId == null || generated) onImport() else {
-              openFailed = runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(nativeId)) }.isFailure
+              openFailed = runCatching { openNativeThemeDetail(context, nativeId) }.isFailure
             }
           }, modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $actionDescription" },
             enabled = !importing && if (generated) enabled && card.matchedApps > 0

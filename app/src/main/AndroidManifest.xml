@@ -56,6 +56,13 @@
                 <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".status.NativeThemeWindowActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:resizeableActivity="true"
+            android:taskAffinity="${applicationId}.theme_window"
+            android:theme="@style/Theme.KeiHome.ThemeWindow" />
         <activity-alias
             android:name=".LauncherEntry"
             android:enabled="true"

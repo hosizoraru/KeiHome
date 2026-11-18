@@ -8,8 +8,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
-import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeIconImportReport
+import os.kei.hyper.home.status.openNativeThemeDetail
 import os.kei.hyper.home.ui.components.CenteredLinkAction
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -30,7 +30,7 @@ internal fun NativeThemeButton(report: NativeIconImportReport, autoApply: Boolea
   val context = LocalContext.current
   val label = stringResource(if (autoApply) R.string.pack_action_view else R.string.pack_apply_native)
   val open = {
-    runCatching { context.startActivity(IconPackImportProtocol.nativeDetail(requireNotNull(report.localId))) }
+    runCatching { openNativeThemeDetail(context, requireNotNull(report.localId)) }
     Unit
   }
   val caption = stringResource(if (autoApply) R.string.pack_action_view_short else R.string.pack_action_apply_short)

@@ -29,3 +29,20 @@ Preparation supports cancellation. After submission, the background action
 hides the dialog for the current import and leaves the system request running.
 The existing catalog remains the place to inspect confirmed, failed and
 uncertain import states.
+
+## HyperOS theme application
+
+The HyperOS dock opens apps with freeform activity options. On Xiaomi devices
+that advertise freeform window support, KeiHome requests the same window mode
+for a separate task. A private, resizable activity opens the existing Theme
+details screen for a result inside that task. KeiHome's main task keeps its
+current size. Automatic application still uses the native single-use
+authorization and result. Manual application uses the same window and the OEM
+controls. Devices without freeform support and launches rejected by Android
+use the existing Theme details handoff.
+
+On HyperOS Phone with launcher 9259, the Perfect Icons pack was updated and
+applied in the separate freeform task, followed by 100% on the original
+KeiHome page. The large HyperOS Monet pack exposed 13,452 candidates and
+reported changing counts during the 80% stage. Its existing generation memory
+limit stopped that run before handoff.

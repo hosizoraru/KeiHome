@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.status.openNativeThemeDetail
 
 @Composable
 internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
@@ -52,7 +53,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
     onHeightChanged = onHeightChanged,
     modifier = Modifier.testTag("icon-packs.$section.action"), enabled = ready, busy = busy, onClick = {
       if (pending != null) runCatching {
-        context.startActivity(os.kei.hyper.home.status.IconPackImportProtocol.nativeDetail(requireNotNull(pending.localId)))
+        openNativeThemeDetail(context, requireNotNull(pending.localId))
       } else if (update) model.updateCurrentSystemFallback() else model.applyColorOs(page == 2)
   })
 }

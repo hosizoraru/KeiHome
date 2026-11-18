@@ -25,7 +25,9 @@ PACKAGE = "os.kei.hyper.home"
 
 
 def adb(*args, timeout=45):
-    return subprocess.check_output(["adb", "-s", SERIAL, *args], text=True, timeout=timeout).strip()
+    return subprocess.check_output(
+        ["adb", "-s", SERIAL, *args], text=True, errors="backslashreplace", timeout=timeout,
+    ).strip()
 
 
 def root(command, timeout=45):

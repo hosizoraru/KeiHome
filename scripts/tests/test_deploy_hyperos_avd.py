@@ -19,6 +19,20 @@ ACK = "[os.kei.hyper.home,KeiHomeIconRefresh,x] System-server icon refresh hooks
 
 
 class ModuleLogDeltaTest(unittest.TestCase):
+    def test_non_utf8_log_bytes_preserve_process_exit_evidence(self):
+        check_output = deploy.subprocess.check_output
+
+        def raw_log(_command, **kwargs):
+            return check_output([
+                sys.executable, "-c",
+                "import os; os.write(1, b'bad payload: \\xff\\nam_kill: [0,24204,cache]\\n')",
+            ], **kwargs)
+
+        with patch.object(deploy.subprocess, "check_output", side_effect=raw_log):
+            text = deploy.adb("logcat", "-d")
+        self.assertIn(r"\xff", text)
+        self.assertIn("am_kill: [0,24204,cache]", text)
+
     def test_native_replacement_accepts_temporary_process_gap(self):
         previous = {"pid": 17, "parent": 10, "start": 100}
         child_only = {"pid": 18, "parent": 10, "start": 110}

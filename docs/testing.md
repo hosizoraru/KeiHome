@@ -70,6 +70,7 @@ does not automatically run navigation, color editing or native tests.
 | Hook key reuse and authenticated connection contracts | `hook-hot-paths`; [ART/member probe](../scripts/tests/hook-hot-paths/README.md) and the affected cache/host device tests |
 | API102 entry/R8 boundaries | `analyzeReleaseR8Config`; [entry probe](../scripts/tests/libxposed-entry/README.md), library probes and paired real API102 handoffs |
 | Desktop categories, scope viewer and wizard shortcut | `ui-desktop` |
+| Experimental navigation color rules | `navigation-backdrop`; `navigation-backdrop-device` (conditional OEM UID fixture: [prerequisites](gesture-navigation-backdrop.md#experimental-native-rule-feature)); `ui-desktop` for compact/wide entry |
 | Desktop capability and acknowledgement summaries | `desktop-state` |
 | Dock/search materials, persistence, leases and protocol | `desktop-materials` |
 | Appearance preferences/recovery | `ui-settings` |

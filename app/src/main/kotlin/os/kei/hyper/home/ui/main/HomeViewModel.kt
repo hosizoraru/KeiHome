@@ -232,6 +232,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val themeEffects: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val launcherLabels = LauncherLabelSettings(viewModelScope) { framework.value.launcherLabelsInScope() }
+  val navigationBackdrop = NavigationBackdropSettings(application, viewModelScope) {
+    framework.value.connected && !framework.value.readFailed && framework.value.snapshot?.systemInScope == true
+  }
 
   val dockGlass = DockGlassSettings(viewModelScope) { framework.value.dockGlassInScope() }
   fun readDockGlassSettings() { viewModelScope.launch { dockGlass.read() } }
@@ -433,6 +436,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         homeScreenRuntime.value = RuntimeStatusUiState(checking = service != null)
         themeEffects.value = ThemeEffectsUiState()
         launcherLabels.reset()
+        navigationBackdrop.reset()
         dockGlass.reset()
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()

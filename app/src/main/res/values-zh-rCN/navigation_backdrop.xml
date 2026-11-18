@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="nav_backdrop_title">手势导航栏补齐</string>
+  <string name="nav_backdrop_summary">改善部分应用底部的背景衔接（实验性）</string>
+  <string name="nav_backdrop_experimental">实验性功能</string>
+  <string name="nav_backdrop_explanation">本功能仍处于实验阶段，默认关闭。建议仅为底部背景衔接异常的应用启用。</string>
+  <string name="nav_backdrop_enable">背景取色兼容</string>
+  <string name="nav_backdrop_enable_summary">默认关闭，仅尝试补齐所选应用的小白条背景。</string>
+  <string name="nav_backdrop_backend">系统支持状态</string>
+  <string name="nav_backdrop_scope_required">请先连接 LSPosed，并授予 KeiHome 系统框架作用域。</string>
+  <string name="nav_backdrop_backend_ready">系统兼容接口已就绪，不代表所有应用页面均可补齐。</string>
+  <string name="nav_backdrop_backend_unsupported">当前系统未提供受支持的原生兼容接口。</string>
+  <string name="nav_backdrop_backend_pending">尚未收到当前版本的系统状态。请完成模块热重载，再点状态卡重新读取。</string>
+  <string name="nav_backdrop_reading">正在读取设置…</string>
+  <string name="nav_backdrop_failed">未能确认设置，请重新读取后再修改。</string>
+  <string name="nav_backdrop_restart_title">3. 彻底关闭并重开对应应用</string>
+  <string name="nav_backdrop_restart">开启、关闭及更改选择均需彻底关闭对应应用后重新打开。仅返回桌面可能仍使用旧设置；必要时可从系统应用信息页强行停止后重开。</string>
+  <string name="nav_backdrop_apps">适用应用</string>
+  <string name="nav_backdrop_selected">最多选择 %1$d 个应用，仅勾选底部背景衔接异常的应用。</string>
+  <string name="nav_backdrop_search">搜索应用或包名</string>
+  <string name="nav_backdrop_empty">没有符合条件的应用</string>
+  <string name="nav_backdrop_waiting">设置已保存，正等待系统接收。请在状态更新后重开对应应用。</string>
+  <string name="nav_backdrop_help">使用说明与限制</string>
+  <string name="nav_backdrop_restart_hint">更改后需彻底关闭并重新打开对应应用。</string>
+  <string name="nav_backdrop_selection_count">已选择 %1$d 个应用</string>
+  <string name="nav_backdrop_ready_short">系统接口已就绪</string>
+  <string name="nav_backdrop_unsupported_short">系统接口不受支持</string>
+  <string name="nav_backdrop_pending_short">尚未收到系统状态</string>
+  <string name="nav_backdrop_waiting_short">等待系统确认</string>
+  <string name="nav_backdrop_scope_short">需授予系统框架作用域</string>
+  <string name="nav_backdrop_all">全部 (%1$d)</string>
+  <string name="nav_backdrop_saved">已选 (%1$d)</string>
+  <string name="nav_backdrop_none_selected">尚未选择应用，请切换到“全部”进行选择。</string>
+  <string name="nav_backdrop_ack_hint">系统确认仅表示已收到设置，不代表每个应用页面都能改善。</string>
+  <string name="nav_backdrop_how_to">使用步骤</string>
+  <string name="nav_backdrop_step_select">1. 选择适用应用</string>
+  <string name="nav_backdrop_step_select_summary">在“适用应用”中，仅勾选底部背景衔接异常的应用。</string>
+  <string name="nav_backdrop_step_enable">2. 开启背景取色兼容</string>
+  <string name="nav_backdrop_limits">已知限制</string>
+  <string name="nav_backdrop_limits_summary">本功能利用系统原生取色，暂不支持延展皮肤图案。应用自绘底栏、强制边到边或部分视频页面可能无效；异常时请关闭本功能，并彻底重开对应应用。</string>
+  <string name="nav_backdrop_refresh_apps">刷新应用列表</string>
+</resources>

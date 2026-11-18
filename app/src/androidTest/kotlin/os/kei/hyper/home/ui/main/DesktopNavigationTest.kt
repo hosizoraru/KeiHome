@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsEqualTo
@@ -16,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.tencent.mmkv.MMKV
@@ -30,6 +34,50 @@ import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class DesktopNavigationTest {
+  @Test fun navigationExperimentOpensFromCompactDesktopAndCanReturn() =
+    navigationExperiment(wide = false)
+
+  @Test fun navigationExperimentFitsWideContentAndCanReturn() =
+    navigationExperiment(wide = true)
+
+  private fun navigationExperiment(wide: Boolean) {
+    store.complete()
+    rule.setContent {
+      androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(if (wide) 1f else 3f),
+      ) {
+        androidx.compose.foundation.layout.Box(
+          androidx.compose.ui.Modifier.fillMaxWidth().height(800.dp),
+        ) { KeiHomeTheme { MainNavigation(store) } }
+      }
+    }
+    rule.onNode(hasText(context.getString(R.string.navigation_desktop)) and isSelectable()).performClick()
+    waitForTag("desktop.settings")
+    if (wide) rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    else rule.onNodeWithTag("adaptive.rail").assertDoesNotExist()
+    rule.onNodeWithTag("desktop.open.navigation").performScrollTo().performClick()
+    waitForTag("desktop.page.navigation")
+    rule.onNodeWithText(context.getString(R.string.nav_backdrop_experimental)).performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.enabled").performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.status").performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.search").assertDoesNotExist()
+    rule.onNodeWithTag("nav-backdrop.open.apps").performScrollTo().performClick()
+    waitForTag("nav-backdrop.page.apps")
+    if (wide) rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.views").assertIsDisplayed()
+    rule.onNode(hasTestTag("nav-backdrop.help") and
+      hasAnyAncestor(hasTestTag("nav-backdrop.page.apps"))).assertDoesNotExist()
+    rule.onNodeWithTag("nav-backdrop.filter").assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.sort").assertIsDisplayed()
+    rule.onNodeWithTag("nav-backdrop.open.search").performClick()
+    rule.onNodeWithTag("nav-backdrop.search").performTextInput("com.mi.health")
+    rule.onNodeWithTag("nav-backdrop.search").assertTextContains("com.mi.health")
+    back()
+    waitForTag("desktop.page.navigation")
+    rule.onNodeWithTag("nav-backdrop.help").performClick()
+    waitForTag("nav-backdrop.help.sheet")
+  }
+
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
   @get:Rule(order = 1) val rule = createComposeRule()
   private val context = InstrumentationRegistry.getInstrumentation().targetContext

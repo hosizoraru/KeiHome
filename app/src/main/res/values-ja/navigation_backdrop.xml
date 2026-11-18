@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="nav_backdrop_title">ジェスチャーバーの背景補完</string>
+  <string name="nav_backdrop_summary">一部のアプリの下端の背景をつなげます（実験的）</string>
+  <string name="nav_backdrop_experimental">実験的な機能</string>
+  <string name="nav_backdrop_explanation">この機能は試験段階で、初期状態はオフです。下端の背景に問題があるアプリだけで有効にしてください。</string>
+  <string name="nav_backdrop_enable">背景色の互換処理</string>
+  <string name="nav_backdrop_enable_summary">初期状態はオフです。選択したアプリでジェスチャーバーの背景補正を試みます。</string>
+  <string name="nav_backdrop_backend">システムの対応状況</string>
+  <string name="nav_backdrop_scope_required">LSPosed に接続し、KeiHome のシステムフレームワークのスコープを有効にしてください。</string>
+  <string name="nav_backdrop_backend_ready">システムの対応を確認しました。すべての画面での補完を保証するものではありません。</string>
+  <string name="nav_backdrop_backend_unsupported">現在のシステムのネイティブインターフェースには対応していません。</string>
+  <string name="nav_backdrop_backend_pending">現在のバージョンのシステム状態をまだ受信していません。モジュールをホットリロードしてから、ステータスカードをタップして再読み込みしてください。</string>
+  <string name="nav_backdrop_reading">設定を読み込み中…</string>
+  <string name="nav_backdrop_failed">設定を確認できませんでした。変更する前に再読み込みしてください。</string>
+  <string name="nav_backdrop_restart_title">3. 対象アプリを完全に開き直す</string>
+  <string name="nav_backdrop_restart">オン・オフや選択の変更は、対象アプリを完全に終了してから開き直すと反映されます。ホームに戻るだけでは古い設定が残る場合があります。必要に応じてシステムのアプリ情報で強制停止してから開き直してください。</string>
+  <string name="nav_backdrop_apps">対象アプリ</string>
+  <string name="nav_backdrop_selected">下端の背景に問題があるアプリだけを、最大 %1$d 個まで選択してください。</string>
+  <string name="nav_backdrop_search">アプリ名またはパッケージ名で検索</string>
+  <string name="nav_backdrop_empty">該当するアプリはありません</string>
+  <string name="nav_backdrop_waiting">設定を保存しました。システムの受信を待っています。この表示が更新されてから対象アプリを開き直してください。</string>
+  <string name="nav_backdrop_help">使い方と制限</string>
+  <string name="nav_backdrop_restart_hint">変更後は対象アプリを完全に終了し、開き直してください。</string>
+  <string name="nav_backdrop_selection_count">%1$d 個のアプリを選択済み</string>
+  <string name="nav_backdrop_ready_short">システム機能の準備完了</string>
+  <string name="nav_backdrop_unsupported_short">システム機能は非対応</string>
+  <string name="nav_backdrop_pending_short">システム状態は未受信</string>
+  <string name="nav_backdrop_waiting_short">システムの確認待ち</string>
+  <string name="nav_backdrop_scope_short">システムフレームワークのスコープが必要</string>
+  <string name="nav_backdrop_all">すべて (%1$d)</string>
+  <string name="nav_backdrop_saved">選択済み (%1$d)</string>
+  <string name="nav_backdrop_none_selected">アプリが未選択です。「すべて」に切り替えて選択してください。</string>
+  <string name="nav_backdrop_ack_hint">確認済みは、設定がシステムに届いたことを示します。すべてのアプリ画面での改善を保証するものではありません。</string>
+  <string name="nav_backdrop_how_to">使い方</string>
+  <string name="nav_backdrop_step_select">1. 対象アプリを選ぶ</string>
+  <string name="nav_backdrop_step_select_summary">「対象アプリ」で、下端の背景に問題があるアプリだけを選択してください。</string>
+  <string name="nav_backdrop_step_enable">2. 背景色の互換処理をオンにする</string>
+  <string name="nav_backdrop_limits">既知の制限</string>
+  <string name="nav_backdrop_limits_summary">システム標準の色取得を使うため、模様の延長には対応しません。独自の下部バー、エッジツーエッジを強制するアプリ、一部の動画画面では効果がない場合があります。表示に問題があればオフにして、対象アプリを完全に開き直してください。</string>
+  <string name="nav_backdrop_refresh_apps">アプリ一覧を更新</string>
+</resources>

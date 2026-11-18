@@ -12,6 +12,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
+    "navigation-backdrop": ("jvm", "Opt-in native policy delivery, bounds and configuration identity", (
+        "NavigationRuleOverlayTest",)),
+    "navigation-backdrop-device": ("device", "Native rule copies, preferences, status and conditional OEM UID fixture", (
+        "os.kei.hyper.home.xposed.NavigationBackdropDeviceTest",)),
     "apple-matching": ("jvm", "Conservative matching, explicit retry eligibility and browser selection", (
         "AppleAutoMatchPolicyTest", "AppleMappingSelectionTest", "AppleMappingBrowserTest")),
     "apple-matching-device": ("device", "Persisted matching history, cached retries and HTTP backoff (fake transport)", (
@@ -170,7 +174,7 @@ GROUPS = {
         "SurfaceIconKeyIndexTest", "NativeMonetClientTest", "NativeMonetSocketBrokerTest",
         "NativeRuntimeIdentitySelectionTest")),
     "ui-desktop": ("device", "Desktop categories, scope viewer and wizard back stack", (
-        UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest",)),
+        UI + "DesktopNavigationTest", UI + "DesktopOperationProgressTest", UI + "NavigationBackdropScreenTest",)),
     "desktop-state": ("jvm", "Desktop acknowledgement and capability states", (
         "DesktopFeatureStatusTest", "DesktopConnectionCardTest", "LauncherVersionLabelTest")),
     "desktop-materials": ("jvm", "Material preferences, leases, protocol and independent search acknowledgements", (

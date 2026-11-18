@@ -36,9 +36,17 @@ import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSection, onBack: () -> Unit) {
+internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSection, onBack: () -> Unit,
+  navigationPage: String? = null, onOpenNavigationPage: (String) -> Unit = {}) {
   if (section == DesktopSection.TOOLS) {
     DesktopToolsScreen(model, onBack)
+    return
+  }
+  if (section == DesktopSection.NAVIGATION) {
+    NavigationBackdropScreen(model, onBack,
+      page = NavigationBackdropPage.entries.firstOrNull { it.route == navigationPage }
+        ?: NavigationBackdropPage.OVERVIEW,
+      onOpen = { onOpenNavigationPage(it.route) })
     return
   }
   val lifecycle = LocalLifecycleOwner.current.lifecycle

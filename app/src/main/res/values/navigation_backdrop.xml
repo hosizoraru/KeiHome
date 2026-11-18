@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="nav_backdrop_title">Gesture bar backdrop</string>
+  <string name="nav_backdrop_summary">Improve bottom-edge continuity in selected apps (experimental)</string>
+  <string name="nav_backdrop_experimental">Experimental feature</string>
+  <string name="nav_backdrop_explanation">This feature is experimental and off by default. Enable it only for apps whose bottom background needs correction.</string>
+  <string name="nav_backdrop_enable">Native backdrop compatibility</string>
+  <string name="nav_backdrop_enable_summary">Off by default. Try to match the gesture bar background in selected apps.</string>
+  <string name="nav_backdrop_backend">System support</string>
+  <string name="nav_backdrop_scope_required">Connect to LSPosed and grant the Android System scope to KeiHome.</string>
+  <string name="nav_backdrop_backend_ready">The system interface is ready. This does not guarantee correction on every page.</string>
+  <string name="nav_backdrop_backend_unsupported">The current system does not provide a supported native interface.</string>
+  <string name="nav_backdrop_backend_pending">No current-version system status received yet. Complete module hot reload, then read again by tapping the status card.</string>
+  <string name="nav_backdrop_reading">Reading settings…</string>
+  <string name="nav_backdrop_failed">Settings could not be confirmed. Read again before making further changes.</string>
+  <string name="nav_backdrop_restart_title">3. Fully close and reopen the apps</string>
+  <string name="nav_backdrop_restart">Turning this on or off and changing the selection take effect after the affected app fully restarts. Returning Home may keep old settings. If needed, force stop the app from system App info, then reopen it.</string>
+  <string name="nav_backdrop_apps">Affected apps</string>
+  <string name="nav_backdrop_selected">Choose only affected apps, up to %1$d in total.</string>
+  <string name="nav_backdrop_search">Search apps or package names</string>
+  <string name="nav_backdrop_empty">No matching apps</string>
+  <string name="nav_backdrop_waiting">Settings saved; waiting for the system to receive them. Reopen affected apps after this status updates.</string>
+  <string name="nav_backdrop_help">Usage and limitations</string>
+  <string name="nav_backdrop_restart_hint">Changes take effect after fully closing and reopening the selected apps.</string>
+  <string name="nav_backdrop_selection_count">%1$d apps selected</string>
+  <string name="nav_backdrop_ready_short">System interface ready</string>
+  <string name="nav_backdrop_unsupported_short">System interface unavailable</string>
+  <string name="nav_backdrop_pending_short">System status not received</string>
+  <string name="nav_backdrop_waiting_short">Waiting for system confirmation</string>
+  <string name="nav_backdrop_scope_short">Framework scope required</string>
+  <string name="nav_backdrop_all">All (%1$d)</string>
+  <string name="nav_backdrop_saved">Selected (%1$d)</string>
+  <string name="nav_backdrop_none_selected">No apps selected. Switch to All to choose apps.</string>
+  <string name="nav_backdrop_ack_hint">Confirmation means the system received your settings. It does not guarantee a visual change on every app screen.</string>
+  <string name="nav_backdrop_how_to">How to use</string>
+  <string name="nav_backdrop_step_select">1. Choose apps</string>
+  <string name="nav_backdrop_step_select_summary">Select only apps with a mismatched gesture bar background in Apps.</string>
+  <string name="nav_backdrop_step_enable">2. Enable background matching</string>
+  <string name="nav_backdrop_limits">Known limitations</string>
+  <string name="nav_backdrop_limits_summary">This experiment uses native system color sampling; it cannot extend patterned skins. Apps that draw their own bottom bar or force edge-to-edge, and some video screens, may be unaffected. If a screen looks wrong, turn this feature off and fully reopen the app.</string>
+  <string name="nav_backdrop_refresh_apps">Refresh app list</string>
+</resources>

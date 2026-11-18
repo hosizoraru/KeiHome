@@ -40,6 +40,7 @@ class RuntimeStatusProvider : ContentProvider() {
         DesktopAppearanceInbox.REPORT -> DesktopAppearanceReport.decode(extras?.getString("report"))
           ?.let { DesktopAppearanceInbox.accept(requireNotNull(context), it) } ?: false
         ThemeMaterialAutoEnable.METHOD -> ThemeMaterialAutoEnable.request()
+        NavigationBackdropInbox.METHOD -> NavigationBackdropInbox.accept(requireNotNull(context), extras ?: Bundle.EMPTY)
         "preview_exists" -> CurrentIconSnapshot.cache(requireNotNull(context)).exists(requireNotNull(arg))
         "preview_ready" -> CurrentIconSnapshot.cache(requireNotNull(context)).ready(requireNotNull(arg))
         RuntimeStatusInbox.REPORT_METHOD -> RuntimeStatusInbox.accept(arg)

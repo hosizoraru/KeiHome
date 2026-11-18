@@ -208,7 +208,8 @@ internal fun MainNavigation(
       }
       entry<DesktopRoute> { route ->
         val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
-        DesktopDestinationScreen(model, section, onBack = ::back)
+        DesktopDestinationScreen(model, section, onBack = ::back, navigationPage = route.page,
+          onOpenNavigationPage = { backStack.add(route.copy(page = it)) })
       }
       entry<OnboardingRoute>(swipeDismiss = swipe) { route ->
         OnboardingScreen(model, page = route.page, replay = route.replay,

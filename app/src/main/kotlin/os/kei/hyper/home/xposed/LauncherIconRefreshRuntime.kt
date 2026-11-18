@@ -45,6 +45,11 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var nativeBrokerReady = false
   private var nativeBrokerInstallFailure: String? = null
   private var convertedIconRuntime: ConvertedIconRuntime? = null
+  private val navigationBackdrop = NativeNavigationBackdropRuntime(xposed) { requestNavigationStatus() }
+  private var navigationBackdropReady = false
+  @Volatile private var navigationContext: Context? = null
+  private var navigationStatusPublished: String? = null
+  private val navigationStatusTask = Runnable { publishNavigationStatus() }
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme) { recentTaskLoader }
   private val iconPackImportMonitor = IconPackImportMonitor(
@@ -218,6 +223,17 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       }
 
       prepareRefreshWorker()
+      try {
+        val installed = navigationBackdrop.install(loader, oldHooks) { work ->
+          lifecycle.trackHook { work() }
+        }
+        handles += installed.first
+        installed.second?.let(replaced::add)
+        navigationBackdropReady = true
+        navigationBackdrop.start()
+      } catch (failure: Throwable) {
+        logFailure("native navigation rule compatibility unavailable", failure)
+      }
       synchronized(lock) {
         if (reconcileAfterReload) {
           // Reconciliation reads the current configuration; it only needs a fresh token.
@@ -359,6 +375,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       synchronized(lock) { hooksReady = false }
       NativeMonetSocketBroker.stop()
       monetColorMonitor.stop()
+      navigationBackdrop.stop()
       iconPackImportMonitor.stop()
       frameworkManager.stop()
       stopRefreshWorker()
@@ -386,6 +403,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         stopRefreshWorker()
         NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
+        navigationBackdrop.stop()
         iconPackImportMonitor.stop()
         true
       },
@@ -397,6 +415,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       },
       rollback = {
         prepareRefreshWorker()
+        if (navigationBackdropReady) navigationBackdrop.start()
         startMonetMonitor()
         synchronized(lock) { postPendingLocked() }
       },
@@ -431,11 +450,32 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         handler?.let { frameworkManager.start(context, it) }
       } catch (failure: Exception) { logFailure("could not register framework entry", failure) }
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
+      navigationContext = context
+      requestNavigationStatus()
       monetColorMonitor.start(context)
       iconPackImportMonitor.start(context)
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)
     }
+  }
+
+  private fun requestNavigationStatus() {
+    handler?.let { worker ->
+      worker.removeCallbacks(navigationStatusTask)
+      worker.post(navigationStatusTask)
+    }
+  }
+
+  private fun publishNavigationStatus() {
+    if (lifecycle.retiring || lifecycle.retired) return
+    val context = navigationContext ?: return
+    val fingerprint = navigationBackdrop.fingerprint()
+    val signature = "$navigationBackdropReady:$fingerprint"
+    if (signature == navigationStatusPublished) return
+    try {
+      os.kei.hyper.home.status.NavigationBackdropInbox.publish(context, navigationBackdropReady, fingerprint)
+      navigationStatusPublished = signature
+    } catch (failure: Exception) { logFailure("could not publish navigation compatibility status", failure) }
   }
 
   private fun stopRecentTaskIcons(

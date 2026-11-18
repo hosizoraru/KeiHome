@@ -11,6 +11,10 @@ The [November 4 cleanup receipt](2026-11-04-cleanup.md) records the subsequent
 removal of regenerable builds and superseded KeiHome APKs, the compressed
 launcher-label traces, and retention of three Themes and five Home versions.
 
+The [November 19 research compaction](2026-11-19-history-compaction.md) indexes
+later findings, archived QA builds and diagnostics, compressed R8 mappings,
+and the retained resource sample from the ErinAO investigation.
+
 ## Findings to reuse
 
 For app UI migration, start with the
@@ -51,10 +55,10 @@ ignored: proprietary APKs, device data and large binaries do not belong in Git.
 | `.artifacts/research/2026-11-01/manifest.json.gz` | Per-file retention/deletion decisions, hashes and duplicate-member mapping |
 | `.artifacts/releases/1793454007/diagnostics.tar.gz` | Exact R8 mapping, native symbols and saved build/test reports |
 | `.artifacts/releases/1793454007/manifest.json` | Release APK hash and hashes of retained diagnostic files |
-| `.artifacts/releases/101000181/` | Current accepted APK and verified compressed R8/native diagnostics |
+| `.artifacts/releases/101000181/` | November 4 accepted APK and verified compressed R8/native diagnostics |
 | `.artifacts/research/cleanup-20261104/` | Cleanup plan/receipt and lossless historical launcher-label trace/log archive |
 
-The current accepted APK is retained under `.artifacts/releases/101000181/`.
+The APK accepted on November 4 is retained under `.artifacts/releases/101000181/`.
 The redundant `app/build/outputs/` copy and build intermediates were removed on
 November 4; the next build recreates them. Historical delivered copies outside
 this checkout were not part of that cleanup. The older duplicate environment

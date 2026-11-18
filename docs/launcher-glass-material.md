@@ -59,6 +59,10 @@ Monet and app-name mode. Unchanged renewals do not invalidate glass. There is
 no added timer, per-frame measurement, image decoding or wrapper widget.
 Native callbacks retain their usual allocations during an actual setting change.
 Unknown/unloaded capability is reported separately from launcher connectivity.
+The independent Search capability is published after the Search capsule hook
+is installed. With only the base material capability, the client sends the
+Dock style on the existing connection and retains the saved Search choice.
+The Search acknowledgement is available only with independent Search support.
 
 ## Device and performance evidence
 

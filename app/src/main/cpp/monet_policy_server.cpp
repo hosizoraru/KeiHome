@@ -91,8 +91,12 @@ uint32_t InstalledCapabilities() {
             ? kNativeLauncherLabelsCapability : 0u;
     const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeDockGlassCapability | kNativeDockLayoutCapability : 0u;
-    const uint32_t glass = __atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u
-            ? kNativeLauncherGlassCapability | kNativeLauncherGlassPairCapability : 0u;
+    uint32_t glass = 0u;
+    if (__atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u) {
+        glass = kNativeLauncherGlassCapability;
+        if (__atomic_load_n(&kh_launcher_search_glass_installed, __ATOMIC_RELAXED) == 1u)
+            glass |= kNativeLauncherGlassPairCapability;
+    }
     return monet | materials | labels | dock | glass;
 }
 

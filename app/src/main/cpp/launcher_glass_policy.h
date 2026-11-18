@@ -11,6 +11,7 @@ extern "C" {
 // Engine frames, wallpaper values and native theme brightness stay untouched.
 extern uint64_t kh_launcher_glass_control;
 extern uint32_t kh_launcher_glass_installed;
+extern uint32_t kh_launcher_search_glass_installed;
 extern uint64_t kh_glass_material_revision, kh_glass_material_notified;
 }
 

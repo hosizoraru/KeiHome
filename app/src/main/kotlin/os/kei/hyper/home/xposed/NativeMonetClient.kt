@@ -140,7 +140,7 @@ internal class NativeMonetClient {
       recordFailure("caller: requires active system_server worker", materialCommand, dockCommand, glassCommand)
       return false
     }
-    val attempt = Attempt(context, request, dockCommand)
+    val attempt = Attempt(context, request, dockCommand, glassCommand)
     val task = FutureTask { attempt.exchange() }
     var succeeded = false
     var outerFailure: String? = null
@@ -193,7 +193,7 @@ internal class NativeMonetClient {
   }
 
   private inner class Attempt(private val context: Context, private val request: ByteArray?,
-    private val dockCommand: Boolean) {
+    private val dockCommand: Boolean, private val glassCommand: Boolean) {
     var process: NativeMonetProcessIdentity? = null
       private set
     @Volatile var greeting: NativeMonetGreeting? = null
@@ -243,6 +243,7 @@ internal class NativeMonetClient {
             peerUid = acquired.target.uid,
             request = request,
             readinessCapability = if (dockCommand) NativeMonetProtocol.DOCK_GLASS_CAPABILITY else 1,
+            allowDockOnlyGlass = glassCommand,
             beforeIo = { prepareIo(connection) },
             isCurrentTarget = { acquired.isCurrent(context) },
             onFailure = { failure = it },
@@ -524,6 +525,7 @@ internal object NativeMonetProtocol {
     onWriteAttempt: () -> Unit = {},
     readinessCapability: Int = MONET_CAPABILITY,
     onGreeting: (capabilities: Int) -> Unit = {},
+    allowDockOnlyGlass: Boolean = false,
   ): Boolean {
     fun reject(reason: String): Boolean { onFailure(reason); return false }
     if (targetUid < 0 || peerUid != targetUid) return reject("registered launcher UID rejected")
@@ -539,6 +541,7 @@ internal object NativeMonetProtocol {
     if (readinessCapability != MONET_CAPABILITY && readinessCapability != DOCK_GLASS_CAPABILITY &&
       readinessCapability != LAUNCHER_GLASS_CAPABILITY)
       return reject("native readiness capability unsupported")
+    var outgoing = request
     val requiredCapability = if (request == null) readinessCapability else {
       if (request.size < 6 * Int.SIZE_BYTES) return reject("native request header incomplete")
       when (ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN).getInt(2 * Int.SIZE_BYTES)) {
@@ -557,7 +560,10 @@ internal object NativeMonetProtocol {
           if (!validGlassPolicy(words.getInt(3 * Int.SIZE_BYTES)) ||
             words.getInt(4 * Int.SIZE_BYTES) != 0 || words.getInt(5 * Int.SIZE_BYTES) != 0)
             return reject("native glass pair invalid")
-          LAUNCHER_GLASS_CAPABILITY or LAUNCHER_GLASS_PAIR_CAPABILITY
+          if (allowDockOnlyGlass && capabilities and LAUNCHER_GLASS_PAIR_CAPABILITY == 0) {
+            outgoing = launcherGlassRequest(words.getInt(3 * Int.SIZE_BYTES) and 3)
+            LAUNCHER_GLASS_CAPABILITY
+          } else LAUNCHER_GLASS_CAPABILITY or LAUNCHER_GLASS_PAIR_CAPABILITY
         }
         else -> return reject("native request opcode unsupported")
       }
@@ -573,10 +579,10 @@ internal object NativeMonetProtocol {
       else if (requiredCapability and LAUNCHER_GLASS_PAIR_CAPABILITY != 0) "native independent glass capability unavailable"
       else "native theme materials capability unavailable")
     }
-    if (request == null) return true
+    val command = outgoing ?: return true
     beforeIo()
     onWriteAttempt()
-    output.write(request)
+    output.write(command)
     beforeIo()
     output.flush()
     val ack = readWords(input, 3, beforeIo)

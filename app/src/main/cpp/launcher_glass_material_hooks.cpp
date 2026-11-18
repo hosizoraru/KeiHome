@@ -216,6 +216,9 @@ bool InstallPreparedLauncherGlassMaterial() {
                 choices[i].word, entryBranches[i]))
             return Reject("native material branch");
     }
+    __atomic_store_n(&kh_launcher_search_glass_installed,
+            uint32_t{(gExtra.admittedMask & kLauncherGlassMaterialSearchCapsule) != 0u},
+            __ATOMIC_RELAXED);
     __atomic_store_n(&kh_launcher_glass_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&gPhase, 3u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeGlass",

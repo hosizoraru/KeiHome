@@ -4,6 +4,7 @@
 extern "C" {
 alignas(8) uint64_t kh_launcher_glass_control = 0;
 uint32_t kh_launcher_glass_installed = 0;
+uint32_t kh_launcher_search_glass_installed = 0;
 alignas(8) uint64_t kh_glass_material_revision = 0;
 alignas(8) uint64_t kh_glass_material_notified = 0;
 }

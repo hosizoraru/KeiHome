@@ -186,6 +186,8 @@ internal class MonetColorSynchronizer(
     val process = identities.process
     val acknowledgementProcess = identities.acknowledgementProcess
     val launcherGlassAvailable = greeting?.launcherGlassAvailable == true
+    val searchGlassAvailable = greeting != null &&
+      greeting.capabilities and NativeMonetProtocol.LAUNCHER_GLASS_PAIR_CAPABILITY != 0
     val glassPolicy = launcherGlass.acknowledgedStyle(
       acknowledgementProcess.takeIf { launcherGlassAvailable }, request.userId, SystemClock.elapsedRealtime())
     val dockProcess = acknowledgementProcess.takeIf { dockAvailable }
@@ -210,7 +212,7 @@ internal class MonetColorSynchronizer(
       launcherGlassAvailable = launcherGlassAvailable,
       launcherCapabilities = greeting?.capabilities,
       launcherGlassStyle = glassPolicy?.and(3),
-      launcherSearchGlassStyle = glassPolicy?.ushr(2),
+      launcherSearchGlassStyle = glassPolicy?.takeIf { searchGlassAvailable }?.ushr(2),
       iconTheme = if (request.includeIconTheme && activeUser == request.userId) {
         val inventory = iconTheme.describe()
         val identity = NativeIconPackManager.identity(context)

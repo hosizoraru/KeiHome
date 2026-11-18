@@ -126,6 +126,25 @@ class NativeMonetClientTest {
     }
   }
 
+  @Test fun partialGlassSupportSendsOnlyDockStyleOnTheAuthenticatedConnection() {
+    val command = NativeMonetProtocol.launcherGlassPairRequest(9)
+    for ((capabilities, expected) in listOf(
+      16 to NativeMonetProtocol.launcherGlassRequest(1),
+      80 to command,
+      0 to byteArrayOf(),
+    )) {
+      val output = ByteArrayOutputStream()
+      var observed: Int? = null
+      val accepted = NativeMonetProtocol.exchange(
+        ByteArrayInputStream(greeting(capabilities) + ack()), output, targetUid, targetUid,
+        request = command, onGreeting = { observed = it }, allowDockOnlyGlass = true,
+      )
+      assertEquals(capabilities != 0, accepted)
+      assertEquals(capabilities, observed)
+      assertArrayEquals(expected, output.toByteArray())
+    }
+  }
+
   @Test fun independentGlassNeedsACompleteSuccessfulAndCurrentAck() {
     val command = NativeMonetProtocol.launcherGlassPairRequest(6)
     for (length in 0 until 12) assertThrows(EOFException::class.java) {

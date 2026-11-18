@@ -1,7 +1,22 @@
 # KeiHome
 
+## Task workflow
+
+- Use the requested outcome and its acceptance criteria to guide the work.
+  Continue through implementation and relevant verification within the
+  authorized scope. Make reversible implementation choices when the evidence
+  supports them and disclose assumptions that affect the result. Ask when
+  missing input blocks progress or an action needs authorization.
+- Check the current checkout and relevant runtime evidence before relying on
+  an earlier diagnosis. Use new feedback to update the affected acceptance
+  criteria and carry forward the rest of the agreed scope.
+
 ## Project conventions
 
+- Follow the normal entry point to the code that owns the behavior and check
+  its callers before editing. Reuse existing resolvers, renderers, and UI
+  components where their contracts fit. Preserve behavior existing callers
+  and saved settings depend on unless the task changes it.
 - Follow the shared icon resolver and rendering contracts across preview, custom
   selections, recommended mappings, original-icon preservation, fallback,
   publication, and runtime consumers. Trace a geometry or precedence issue to its
@@ -10,6 +25,8 @@
 - Use existing MIUIX Glass components and adaptive chrome for UI changes. Check
   shared layout and navigation changes in compact Phone and wide Pad windows.
   See the [MIUIX playbook](docs/miuix-os4-playbook.md) and [Pad layout guide](docs/pad-adaptive-ui.md).
+  Use supplied visual references to check layout and interactions. Keep UI
+  copy focused on actions, choices, and status the user needs.
 - Follow the [localization guide](docs/localization.md) for user-facing text.
   Preserve canonical source identities and third-party attribution.
 
@@ -17,12 +34,14 @@
 
 - Choose checks based on the changed behavior. `python3 scripts/checks.py --list`
   lists focused groups. See [testing.md](docs/testing.md) for execution and
-  device prerequisites.
+  device prerequisites. Reuse existing tests and add focused regression
+  coverage when the current suite would miss the failure.
 - For visual fixes, compare the reported state at real display size and try the
   affected interaction. A startup or transition fix needs evidence during
   motion as well as at the resting state. Recheck the affected state when a new
   screenshot or recording reveals a problem.
-- Report the checks actually run and any blocker, skip, or unverified surface.
+- Close with a self-contained account of the outcome, checks actually run,
+  and any blocker, skip, or unverified surface.
   Build, installation, Java hot reload, native initialization, and visible
   behavior each need their own evidence. Keep task-specific receipts with the
   run artifacts and durable conclusions in `docs/`.

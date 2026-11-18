@@ -60,7 +60,7 @@ class PerfectConnectionUiTest {
     rule.waitUntil(5_000) {
       rule.onAllNodesWithTag("perfect.connection.error").fetchSemanticsNodes().isNotEmpty()
     }
-    rule.onNodeWithTag("perfect.connection.error").performScrollTo().assertIsDisplayed()
+    rule.onNodeWithTag("perfect.connection.error").assertIsDisplayed()
     assertEquals(PerfectGitNetworkOptions(), preferences.read())
     assertEquals(0, retried)
     rule.onNodeWithTag("perfect.connection.cancel").performClick()

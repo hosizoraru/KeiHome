@@ -61,8 +61,8 @@ import top.yukonga.miuix.kmp.basic.ColorPalette
 import top.yukonga.miuix.kmp.basic.ColorPicker
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -240,7 +240,7 @@ internal fun MonetColorEditor(
           modifier = Modifier.testTag("monet.editor.palette"))
         else ColorPicker(Color(color), { updateColor(it.toArgb()) },
           modifier = Modifier.testTag("monet.editor.picker"))
-        TextField(state = hexField, inputTransformation = InputTransformation {
+        GlassTextField(state = hexField, inputTransformation = InputTransformation {
           val digits = asCharSequence().toString().removePrefix("#")
           if (digits.length > 6 || digits.any { it !in '0'..'9' && it !in 'a'..'f' && it !in 'A'..'F' }) {
             revertAllChanges()

@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
@@ -311,12 +313,13 @@ internal fun IosLiquidGlassNavigationBar(
 
     val combinedBackdrop = backdrop?.let { rememberCombinedBackdrop(it, tabsBackdrop) }
 
-    val navBarBottomPadding = WindowInsets.navigationBars.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
+    val systemBottom = WindowInsets.navigationBars.union(WindowInsets.captionBar)
+        .only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     val bottomPaddingValue = when (platform()) {
         Platform.IOS -> 20.dp
 
         else -> {
-            if (navBarBottomPadding != 0.dp) 8.dp + navBarBottomPadding else 36.dp
+            if (systemBottom != 0.dp) 8.dp + systemBottom else 36.dp
         }
     }
 

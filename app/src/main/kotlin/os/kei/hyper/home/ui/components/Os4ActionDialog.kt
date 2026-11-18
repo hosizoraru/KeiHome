@@ -50,6 +50,7 @@ internal fun Os4ActionDialog(
   artwork: (@Composable () -> Unit)? = null,
   onDismissFinished: (() -> Unit)? = null,
   verticalActions: Boolean = false,
+  footer: (@Composable () -> Unit)? = null,
   details: @Composable () -> Unit = {},
 ) {
   val maxHeight = LocalWindowInfo.current.containerDpSize.height * 0.7f
@@ -75,6 +76,7 @@ internal fun Os4ActionDialog(
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
         details()
       }
+      if (footer != null) footer()
       Os4DialogActions(actions, Modifier.padding(top = 8.dp), forceVertical = verticalActions)
     }
   }

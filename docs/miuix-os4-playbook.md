@@ -34,6 +34,17 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
+`0.9.5-3177a684-SNAPSHOT` 对应上游
+[3177a684](https://github.com/compose-miuix-ui/miuix/commit/3177a684622a774276c49f52489a43d0d0ed123d)，
+Android 模块解析到发布批次 `20261118.045206-1`。Glass 输入用于 Monet
+色值、缓存预算和连接设置。搜索保留共用的搜索控件及展开、取消、返回
+语义。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
+提供无障碍状态，并使用新版主操作材质。
+
+原生底栏使用 MIUIX 自己的系统栏和小窗标题栏 inset。自定义 Liquid
+底栏合并两种 inset，统一预留一次。宽屏侧栏使用上游的分组动画。
+收起时由应用提供当前父标签，直接从其他分组进入也能选中正确标签。
+
 使用一个版本别名管理项目实际用到的 `ui`、`icons`、`preference`、`nav`、
 `blur`、`squircle`、`glass`、`glass-icons`、`material` 等模块，包括其传递依赖。
 平台构件按项目的 Android / Multiplatform 结构选择，不必照搬 KeiHome 的全部依赖。

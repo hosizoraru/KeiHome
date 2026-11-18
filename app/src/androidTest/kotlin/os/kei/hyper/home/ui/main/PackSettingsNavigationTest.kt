@@ -10,12 +10,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -23,7 +23,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -54,6 +53,10 @@ class PackSettingsNavigationTest {
 
   private fun waitForTag(tag: String) {
     rule.waitUntil(10_000) { rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
+    finishAnimations()
+  }
+
+  private fun finishAnimations() {
     rule.waitForIdle()
     rule.mainClock.advanceTimeBy(1_000)
     rule.waitForIdle()
@@ -73,10 +76,19 @@ class PackSettingsNavigationTest {
     val original = preferences.state.value
     store.complete()
     rule.setContent { KeiHomeTheme { MainNavigation(store) } }
+    val expand = rule.onAllNodesWithContentDescription(context.getString(R.string.navigation_expand))
+    if (expand.fetchSemanticsNodes().isNotEmpty()) {
+      expand[0].performClick()
+      finishAnimations()
+    }
     rule.onNode(hasText(context.getString(R.string.navigation_settings)) and isSelectable()).performClick()
+    finishAnimations()
     rule.onNodeWithText(context.getString(R.string.pack_action_settings)).assertDoesNotExist()
     rule.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable()).performClick()
-    rule.onNodeWithText(context.getString(R.string.pack_action_settings)).performScrollTo().performClick()
+    finishAnimations()
+    rule.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable()).assertIsSelected()
+    val settings = hasText(context.getString(R.string.pack_action_settings))
+    rule.onNode(settings and hasClickAction()).performScrollTo().assertIsDisplayed().performClick()
     waitForTag("icon-packs.settings")
     rule.onNodeWithText(context.getString(R.string.pack_settings_generation)).assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
@@ -137,16 +149,18 @@ class PackSettingsNavigationTest {
         }
       }
     }
-    fun selectShortcut(shortcut: MainShortcut) {
-      rule.onNode(hasText(context.getString(shortcut.title)) and
-        hasAnyAncestor(hasTestTag("adaptive.rail")), useUnmergedTree = true)
-        .performTouchInput { click() }
+    fun selectShortcut(shortcut: MainShortcut, destinationTag: String) {
+      val match = hasText(context.getString(shortcut.title)) and hasClickAction() and
+        hasAnyAncestor(hasTestTag("adaptive.rail"))
+      val expand = rule.onAllNodesWithContentDescription(context.getString(R.string.navigation_expand))
+      if (expand.fetchSemanticsNodes().isNotEmpty()) expand[0].performClick()
+      rule.waitUntil(10_000) { rule.onAllNodes(match).fetchSemanticsNodes().size == 1 }
+      rule.onNode(match).performScrollTo().assertIsDisplayed().performClick()
+      waitForTag(destinationTag)
     }
 
-    selectShortcut(MainShortcut.LIBRARY)
-    waitForTag("icon-packs.library")
-    selectShortcut(MainShortcut.MONET)
-    waitForTag("icon-packs.monet")
+    selectShortcut(MainShortcut.LIBRARY, "icon-packs.library")
+    selectShortcut(MainShortcut.MONET, "icon-packs.monet")
 
     rule.runOnIdle { width = 744.dp }
     rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
@@ -158,8 +172,8 @@ class PackSettingsNavigationTest {
       .assertIsSelected()
 
     rule.runOnIdle { width = 900.dp }
-    selectShortcut(MainShortcut.TOOLS)
-    waitForTag("desktop.page.tools")
+    rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    selectShortcut(MainShortcut.TOOLS, "desktop.page.tools")
     back()
     rule.onNode(hasText(context.getString(R.string.navigation_desktop)) and isSelectable())
       .assertIsSelected()

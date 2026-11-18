@@ -1,19 +1,19 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -44,10 +44,11 @@ class DesktopNavigationTest {
     store.complete()
     rule.setContent {
       androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(if (wide) 1f else 3f),
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+          if (wide) 1f else androidx.compose.ui.platform.LocalDensity.current.density),
       ) {
         androidx.compose.foundation.layout.Box(
-          androidx.compose.ui.Modifier.fillMaxWidth().height(800.dp),
+          androidx.compose.ui.Modifier.width(if (wide) 900.dp else 360.dp).height(800.dp),
         ) { KeiHomeTheme { MainNavigation(store) } }
       }
     }
@@ -72,7 +73,7 @@ class DesktopNavigationTest {
     rule.onNodeWithTag("nav-backdrop.open.search").performClick()
     rule.onNodeWithTag("nav-backdrop.search").performTextInput("com.mi.health")
     rule.onNodeWithTag("nav-backdrop.search").assertTextContains("com.mi.health")
-    back()
+    back("nav-backdrop.page.apps")
     waitForTag("desktop.page.navigation")
     rule.onNodeWithTag("nav-backdrop.help").performClick()
     waitForTag("nav-backdrop.help.sheet")
@@ -96,8 +97,10 @@ class DesktopNavigationTest {
     rule.waitForIdle()
   }
 
-  private fun back() {
-    val buttons = rule.onAllNodesWithContentDescription(context.getString(R.string.pack_back))
+  private fun back(pageTag: String? = null) {
+    val label = hasContentDescription(context.getString(R.string.pack_back))
+    val buttons = rule.onAllNodes(
+      if (pageTag == null) label else label and hasAnyAncestor(hasTestTag(pageTag)))
     rule.waitUntil(10_000) {
       buttons.fetchSemanticsNodes().indices.count { buttons[it].isDisplayed() } == 1
     }

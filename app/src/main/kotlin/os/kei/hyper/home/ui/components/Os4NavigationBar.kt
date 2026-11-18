@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
@@ -36,15 +35,12 @@ internal fun KeiHomeGlassNavigationBar(
       GlassNavigationItem(icon = item.icon, label = item.label, badge = { badge(index) })
     }
   }
-  val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
   Box(modifier.fillMaxWidth()
-    .padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues())
-    .padding(bottom = if (bottomInset == 0.dp) 36.dp else bottomInset + 8.dp),
+    .padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues()),
     contentAlignment = Alignment.Center) {
     Box(Modifier.padding(horizontal = 16.dp).widthIn(max = 560.dp).fillMaxWidth()) {
       GlassNavigationBar(items = glassItems, selectedIndex = selectedIndex, onSelect = onSelect,
-        backdrop = backdrop, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
-        defaultWindowInsetsPadding = false)
+        backdrop = backdrop, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
     }
   }
 }

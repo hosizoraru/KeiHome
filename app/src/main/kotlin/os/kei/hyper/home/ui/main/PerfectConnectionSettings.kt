@@ -40,7 +40,7 @@ import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.glassPress
@@ -147,7 +147,7 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
     ),
     details = {
       Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextField(acceleration, onValueChange = { acceleration = it; invalid = false },
+        GlassTextField(acceleration, onValueChange = { acceleration = it; invalid = false },
           label = stringResource(R.string.perfect_connection_acceleration),
           modifier = Modifier.fillMaxWidth().testTag("perfect.connection.acceleration"),
           enabled = canEdit, singleLine = true,
@@ -170,13 +170,13 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
           modifier = Modifier.testTag("perfect.connection.proxy.mode"),
         )
         if (customProxy) {
-          TextField(proxyHost, onValueChange = { proxyHost = it; invalid = false },
+          GlassTextField(proxyHost, onValueChange = { proxyHost = it; invalid = false },
             label = stringResource(R.string.perfect_connection_proxy_host),
             modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.host"),
             enabled = canEdit, singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None,
               autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next))
-          TextField(proxyPort, onValueChange = { input ->
+          GlassTextField(proxyPort, onValueChange = { input ->
             if (input.length <= 5 && input.all { it in '0'..'9' }) {
               proxyPort = input
               invalid = false
@@ -188,14 +188,16 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
           Text(stringResource(R.string.perfect_connection_proxy_help),
             style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
         }
-        if (invalid || saveFailed) {
-          Text(stringResource(if (invalid) R.string.perfect_connection_invalid else R.string.perfect_connection_save_failed),
-            color = MiuixTheme.colorScheme.error,
-            style = MiuixTheme.textStyles.footnote1,
-            modifier = Modifier.fillMaxWidth().testTag("perfect.connection.error")
-              .semantics { liveRegion = LiveRegionMode.Polite })
-        }
       }
     },
+    footer = if (invalid || saveFailed) {
+      {
+        Text(stringResource(if (invalid) R.string.perfect_connection_invalid else R.string.perfect_connection_save_failed),
+          color = MiuixTheme.colorScheme.error,
+          style = MiuixTheme.textStyles.footnote1,
+          modifier = Modifier.fillMaxWidth().testTag("perfect.connection.error")
+            .semantics { liveRegion = LiveRegionMode.Polite })
+      }
+    } else null,
   )
 }

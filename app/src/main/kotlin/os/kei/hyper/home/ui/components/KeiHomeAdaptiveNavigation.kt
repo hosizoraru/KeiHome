@@ -67,6 +67,8 @@ internal fun KeiHomeAdaptiveNavigation(
           GlassNavigationItem(icon = item.icon, label = item.label, badge = badge(index))
         },
         secondaryItems = secondary,
+        // The collapsed rail can only select a primary tab. A direct shortcut
+        // can change its parent without that tab having been selected before.
         selectedIndex = if (rail.expanded && selectedSecondary in secondary.indices)
           items.size + selectedSecondary else selectedIndex,
         onSelect = onSelect,

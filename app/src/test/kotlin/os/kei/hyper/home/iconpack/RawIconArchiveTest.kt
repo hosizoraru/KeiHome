@@ -61,6 +61,18 @@ class RawIconArchiveTest {
     }
   }
 
+  @Test fun progressCountsSelectedEntriesAndReplacements() {
+    val checkpoints = mutableListOf<Pair<Int, Int>>()
+    val result = RawIconArchive.write(fixture(), temporary.newFile(),
+      includes = { it != "skip.txt" },
+      replacements = mapOf("metadata.txt" to byteArrayOf(1), "new.txt" to byteArrayOf(2)),
+      onProgress = { done, total -> checkpoints += done to total },
+      maxOutputBytes = MAX_OUTPUT)
+    val total = result.rawEntries + result.replacementEntries
+    assertEquals((0..total).toList(), checkpoints.map { it.first }.distinct())
+    assertTrue(checkpoints.all { it.second == total })
+  }
+
   @Test fun transformationsWriteImmediatelyAndRespectFilterAndReplacementPrecedence() {
     val source = fixture()
     val output = temporary.newFile()

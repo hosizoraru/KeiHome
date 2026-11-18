@@ -47,13 +47,24 @@ internal object ImageArchiveZip {
 
   /** A completed nested ZIP (including MTZ's extensionless `icons`) needs a streaming CRC pass. */
   fun writeFile(
-    output: ZipOutputStream, name: String, file: File, time: Long = 0, check: () -> Unit = {},
+    output: ZipOutputStream, name: String, file: File, time: Long = 0,
+    onBytes: ((Long, Long) -> Unit)? = null, check: () -> Unit = {},
   ) {
     check()
     val stored = alreadyCompressed(name)
-    val metadata = if (stored) file.inputStream().use { measure(it, check) } else 0L to 0L
+    val total = file.length() * if (stored) 2 else 1
+    val metadata = if (stored) file.inputStream().use {
+      measure(it, check) { size -> onBytes?.invoke(size, total) }
+    } else 0L to 0L
     output.putNextEntry(entry(name, time, stored, metadata.first, metadata.second))
-    file.inputStream().use { transfer(it, output, check) }
+    var done = metadata.first
+    file.inputStream().use { input ->
+      readChunks(input, check) { buffer, count ->
+        output.write(buffer, 0, count)
+        done += count
+        onBytes?.invoke(done, total)
+      }
+    }
     check()
     output.closeEntry()
   }
@@ -82,10 +93,16 @@ internal object ImageArchiveZip {
     }
   }
 
-  private fun measure(input: InputStream, check: () -> Unit): Pair<Long, Long> {
+  private inline fun measure(
+    input: InputStream, check: () -> Unit, onBytes: (Long) -> Unit = {},
+  ): Pair<Long, Long> {
     val crc = CRC32()
     var size = 0L
-    readChunks(input, check) { buffer, count -> crc.update(buffer, 0, count); size += count }
+    readChunks(input, check) { buffer, count ->
+      crc.update(buffer, 0, count)
+      size += count
+      onBytes(size)
+    }
     return size to crc.value
   }
 

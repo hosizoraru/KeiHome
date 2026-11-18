@@ -23,6 +23,19 @@ import os.kei.hyper.home.xposed.ConvertedIconArchive
 class ImageArchiveZipTest {
   @get:Rule val temporary = TemporaryFolder()
 
+  @Test fun storedArchiveReportsBothCrcAndWritePasses() {
+    val input = temporary.newFile().apply { writeBytes(ByteArray(100_003)) }
+    val checkpoints = mutableListOf<Pair<Long, Long>>()
+    val file = archive { output ->
+      ImageArchiveZip.writeFile(output, "icons", input, onBytes = { done, total -> checkpoints += done to total })
+    }
+    val total = input.length() * 2
+    assertTrue(input.length() to total in checkpoints)
+    assertEquals(total to total, checkpoints.last())
+    assertTrue(checkpoints.zipWithNext().all { (a, b) -> a.first < b.first && a.second == b.second })
+    ZipFile(file).use { assertEntry(it, "icons", input.readBytes(), ZipEntry.STORED) }
+  }
+
   @Test fun encodedImagesAndArchivesAreStoredWithExactSizeAndCrc() {
     val bytes = ByteArray(100_003) { (it * 31).toByte() }
     val names = listOf("day.png", "night.PNG", "preview.jpg", "a.jpeg", "a.webp", "a.gif",

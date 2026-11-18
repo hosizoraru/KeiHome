@@ -75,6 +75,9 @@ internal object IconPackHandoffs {
     fun progress(stage: ColorOsGenerationStage): (Int, Int, String) -> Unit = { done, total, name ->
       onProgress(ColorOsGenerationProgress(stage, done, total, name.takeIf { it.isNotEmpty() }))
     }
+    fun byteProgress(stage: ColorOsGenerationStage): (Long, Long) -> Unit = { done, total ->
+      onProgress(ColorOsGenerationProgress(stage, (done / 1024).toInt(), (total / 1024).toInt(), inKiB = true))
+    }
     val mappings = recommendedMappings ?: withContext(Dispatchers.IO) { RecommendedIconMappings.snapshot(context) }
     val pack = BuiltinColorOsMappings.selected(pack, mappings.colorOsThemeStores)
     val iconMask = withContext(Dispatchers.IO) {
@@ -101,7 +104,8 @@ internal object IconPackHandoffs {
       colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
       preservedPackages = preserved, recommendedMappings = mappings, colorOsSources = sources,
       allowEmpty = custom.resources.isNotEmpty(),
-      onProgress = progress(ColorOsGenerationStage.LIGHT))
+      onProgress = progress(ColorOsGenerationStage.LIGHT),
+      onNativeCopyBytes = byteProgress(ColorOsGenerationStage.LIGHT))
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -120,7 +124,7 @@ internal object IconPackHandoffs {
               .also { darkResult = it }
               .archive.also { darkFile = it }
           IconPackAppearance.DIM_AT_NIGHT ->
-            dimmedIcons(context, light.archive).also { darkFile = it }
+            dimmedIcons(context, light.archive, progress(ColorOsGenerationStage.DARK)).also { darkFile = it }
           else -> light.archive
         }
         onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PAIRING))
@@ -132,58 +136,66 @@ internal object IconPackHandoffs {
             .filterKeys { !exclusions.containsPath(it) }
           File.createTempFile("paired-icons-", ".zip", context.cacheDir).also { paired ->
             merged = paired
-            ZipOutputStream(paired.outputStream()).use { output ->
-              listOf(light.archive to false, dark to true).forEach { (source, night) ->
-                ZipFile(source).use { zip ->
-                  zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
-                    current.ensureActive()
-                    if (night && entry.name == SystemIconFallbackManifest.PATH) return@forEach
-                    val name = if (night) "nightmode/${entry.name}" else entry.name
-                    if (name in dynamic) return@forEach
-                    ImageArchiveZip.copyEntry(output, zip, entry, name, time = 0) { current.ensureActive() }
+            ZipFile(light.archive).use { dayZip ->
+              ZipFile(dark).use { nightZip ->
+                val pairAppearances = systemFallback != null || includePalette ||
+                  sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT
+                val dayCandidates = if (pairAppearances) dayZip.entries().asSequence().filter {
+                  !it.isDirectory && it.name.startsWith("res/drawable-xxhdpi/") && it.name.endsWith(".png")
+                }.toList() else emptyList()
+                val pairingProgress = progress(ColorOsGenerationStage.PAIRING)
+                val total = dayZip.size() + nightZip.size() + dayCandidates.size + dynamic.size
+                var done = 0
+                ZipOutputStream(paired.outputStream()).use { output ->
+                  listOf(dayZip to false, nightZip to true).forEach { (zip, night) ->
+                    zip.entries().asSequence().forEach { entry ->
+                      current.ensureActive()
+                      pairingProgress(done++, total, "")
+                      if (entry.isDirectory) return@forEach
+                      if (night && entry.name == SystemIconFallbackManifest.PATH) return@forEach
+                      val name = if (night) "nightmode/${entry.name}" else entry.name
+                      if (name in dynamic) return@forEach
+                      ImageArchiveZip.copyEntry(output, zip, entry, name, time = 0) { current.ensureActive() }
+                    }
                   }
-                }
-              }
-              // The current Flutter icon chain does not select nightmode PNGs. The native
-              // MAML loader has its own configuration observer and can select this fixed pair.
-              // Keep both ordinary trees for native readers that do not allow fancy icons.
-              if (systemFallback != null || includePalette || sourceAppearance == IconPackAppearance.SYSTEM || sourceAppearance == IconPackAppearance.DIM_AT_NIGHT) {
-                ZipFile(light.archive).use { dayZip ->
-                  val systemNames = dayZip.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
-                    SystemIconFallbackManifest.decode(dayZip.getInputStream(entry).use {
-                      it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
-                    }).names
-                  }.orEmpty()
-                  ZipFile(dark).use { nightZip ->
-                    dayZip.entries().asSequence()
-                      .filterNot { it.isDirectory }
-                      .filter { it.name.startsWith("res/drawable-xxhdpi/") && it.name.endsWith(".png") }
-                      .forEach { dayEntry ->
-                        current.ensureActive()
-                        val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
-                        val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
-                        val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
-                        val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
-                        if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
-                        val mask = light.monochrome[name].takeIf { includePalette || name in light.fallbackPaletteNames }
-                        val background = light.monochromeBackgrounds[name] ?: light.paletteBackground
-                        // HYOS system frontends can ignore a flat PNG override. Their fallback
-                        // needs an explicit descriptor even when day and night artwork is equal.
-                        if (mask == null && name !in systemNames && dayBytes.contentEquals(nightBytes)) return@forEach
-                        val generated = if (mask != null && background != null)
-                          NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
-                        else NativeDayNightIcon.entries(name, dayBytes, nightBytes)
-                        for ((path, bytes) in generated) {
-                          if (!path.startsWith("fancy_icons/")) continue
-                          ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
-                        }
+                  // The current Flutter icon chain does not select nightmode PNGs. The native
+                  // MAML loader has its own configuration observer and can select this fixed pair.
+                  // Keep both ordinary trees for native readers that do not allow fancy icons.
+                  if (pairAppearances) {
+                    val systemNames = dayZip.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
+                      SystemIconFallbackManifest.decode(dayZip.getInputStream(entry).use {
+                        it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
+                      }).names
+                    }.orEmpty()
+                    dayCandidates.forEach { dayEntry ->
+                      current.ensureActive()
+                      pairingProgress(done++, total, "")
+                      val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
+                      val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
+                      val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
+                      val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
+                      if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
+                      val mask = light.monochrome[name].takeIf { includePalette || name in light.fallbackPaletteNames }
+                      val background = light.monochromeBackgrounds[name] ?: light.paletteBackground
+                      // HYOS system frontends can ignore a flat PNG override. Their fallback
+                      // needs an explicit descriptor even when day and night artwork is equal.
+                      if (mask == null && name !in systemNames && dayBytes.contentEquals(nightBytes)) return@forEach
+                      val generated = if (mask != null && background != null)
+                        NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
+                      else NativeDayNightIcon.entries(name, dayBytes, nightBytes)
+                      for ((path, bytes) in generated) {
+                        if (!path.startsWith("fancy_icons/")) continue
+                        ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
                       }
+                    }
+                  }
+                  for ((path, bytes) in dynamic) {
+                    current.ensureActive()
+                    pairingProgress(done++, total, "")
+                    ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
                   }
                 }
-              }
-              for ((path, bytes) in dynamic) {
-                current.ensureActive()
-                ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }
+                pairingProgress(done, total, "")
               }
             }
           }
@@ -215,7 +227,7 @@ internal object IconPackHandoffs {
           monetFullBleedIconPadding = monetFullBleedIconPadding,
         )
         currentCoroutineContext().ensureActive()
-        onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
+        onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.STAMPING))
         check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
         val stampedIcons = File.createTempFile("stamped-icons-", ".zip", context.cacheDir)
         val maskedIcons = File(context.cacheDir, "masked-icons-${UUID.randomUUID()}.zip")
@@ -254,12 +266,14 @@ internal object IconPackHandoffs {
           }
           RawIconArchive.write(icons, stampedIcons,
             includes = { it != IconBuildInventory.NAMES_PATH }, replacements = stamps,
+            onProgress = progress(ColorOsGenerationStage.STAMPING).let { emit -> { done, total -> emit(done, total, "") } },
             check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
           onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.MASKING))
           val maskingProgress = progress(ColorOsGenerationStage.MASKING)
           val shapedSource = if (PublishedIconCompositeMask.write(stampedIcons, maskedIcons,
               enabled = completeSystemIconConfig, check = { caller.ensureActive() },
               onProgress = { done, total -> maskingProgress(done, total, "") })) maskedIcons else stampedIcons
+          val monetProgress = progress(ColorOsGenerationStage.MONET)
           val maskedSource = if ((monetUnadaptedIcons || monetFullBleedIconPadding) &&
             PublishedGenericMonet.write(shapedSource, genericMonet,
               monetUnadaptedIcons, PreservedIconResources.fromInstalled(context, preserved + custom.packages, targets) {
@@ -271,9 +285,11 @@ internal object IconPackHandoffs {
                   addAll(export.fallbackPaletteNames)
                   addAll(export.colorOsPackages)
                 }
-              } else emptySet()
+              } else emptySet(),
+              onProgress = { done, total -> monetProgress(done, total, "") }
             ) { caller.ensureActive() }) genericMonet else shapedSource
           val publishedIcons = if (custom.selections.isNotEmpty()) {
+            onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.CUSTOM_ICONS))
             val exclusions = PreservedIconResources.fromInstalled(context, custom.packages, targets) { caller.ensureActive() }
             val replacements = linkedMapOf<String, ByteArray>()
             custom.resources.forEach { (packageName, resources) ->
@@ -291,7 +307,9 @@ internal object IconPackHandoffs {
             }
             RawIconArchive.write(maskedSource, customIcons, includes = { path ->
               !exclusions.containsPath(path) && path != IconBuildInventory.NAMES_PATH
-            }, replacements = replacements, check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
+            }, replacements = replacements,
+              onProgress = progress(ColorOsGenerationStage.CUSTOM_ICONS).let { emit -> { done, total -> emit(done, total, "") } },
+              check = { caller.ensureActive() }, maxOutputBytes = IconPackLimits().maxInputBytes)
             customIcons
           } else maskedSource
           onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PACKAGING))
@@ -306,7 +324,8 @@ internal object IconPackHandoffs {
               "<version>$version</version><uiVersion>13</uiVersion>" +
               "<description>Local icon import by KeiHome. Artwork: $title.</description></MIUI-Theme>").toByteArray())
             output.closeEntry()
-            ImageArchiveZip.writeFile(output, "icons", publishedIcons) { caller.ensureActive() }
+            ImageArchiveZip.writeFile(output, "icons", publishedIcons,
+              onBytes = byteProgress(ColorOsGenerationStage.PACKAGING)) { caller.ensureActive() }
             // Themes crops previews to a portrait phone frame, including icons-only components.
             val cover = Bitmap.createBitmap(400, 860, Bitmap.Config.ARGB_8888)
             try {
@@ -397,15 +416,20 @@ internal object IconPackHandoffs {
     return output
   }
 
-  private suspend fun dimmedIcons(context: Context, source: File): File = withContext(Dispatchers.IO) {
+  private suspend fun dimmedIcons(context: Context, source: File,
+    onProgress: (Int, Int, String) -> Unit): File = withContext(Dispatchers.IO) {
     val current = currentCoroutineContext()
     val archive = File.createTempFile("dimmed-icons-", ".zip", context.cacheDir)
     try {
       val paint = nightDimmingPaint()
       ZipFile(source).use { zip ->
+        var done = 0
+        val total = zip.size()
         ZipOutputStream(archive.outputStream()).use { output ->
-          zip.entries().asSequence().filterNot { it.isDirectory }.forEach { entry ->
+          zip.entries().asSequence().forEach { entry ->
             current.ensureActive()
+            onProgress(done++, total, "")
+            if (entry.isDirectory) return@forEach
             if (entry.name.startsWith("res/drawable-xxhdpi/") && entry.name.endsWith(".png")) {
               val bitmap = zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
                 ?: error("Cannot decode exported icon")
@@ -423,6 +447,7 @@ internal object IconPackHandoffs {
             } else ImageArchiveZip.copyEntry(output, zip, entry, time = 0) { current.ensureActive() }
           }
         }
+        onProgress(done, total, "")
       }
       current.ensureActive()
       archive

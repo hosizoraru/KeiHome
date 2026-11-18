@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_progress_local_title">导入图标包</string>
+  <string name="pack_progress_system_title">生成并导入图标</string>
+  <string name="pack_progress_apply_title">应用图标包</string>
+  <string name="pack_progress_percentage">%1$d%%</string>
+  <string name="pack_progress_reading_file">正在读取图标包文件</string>
+  <string name="pack_progress_validating">正在校验归档和图标资源</string>
+  <string name="pack_progress_artwork">正在准备应用图标资源</string>
+  <string name="pack_progress_resources">正在整理主题资源</string>
+  <string name="pack_progress_monet">正在生成壁纸取色图标</string>
+  <string name="pack_progress_custom">正在合并自定义图标</string>
+  <string name="pack_progress_system_import">正在导入系统主题</string>
+  <string name="pack_progress_system_wait">等待系统主题确认导入</string>
+  <string name="pack_progress_system_apply">等待系统主题应用图标</string>
+  <string name="pack_progress_finishing">正在更新图标包列表</string>
+  <string name="pack_progress_cancelling">正在取消生成</string>
+  <string name="pack_progress_complete">图标包已应用</string>
+  <string name="pack_progress_generated">图标包已生成</string>
+  <string name="pack_progress_local_complete">图标包已导入</string>
+  <string name="pack_progress_background">转到后台继续</string>
+  <string name="pack_progress_kib">已处理 %1$d / %2$d KiB</string>
+  <string name="pack_progress_kib_unknown">已读取 %1$d KiB</string>
+</resources>

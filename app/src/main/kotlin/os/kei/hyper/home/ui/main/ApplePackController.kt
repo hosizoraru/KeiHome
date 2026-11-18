@@ -28,6 +28,7 @@ import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.AppleBatchProgress
 import os.kei.hyper.home.iconpack.apple.AppleBatchResult
+import os.kei.hyper.home.iconpack.apple.AppleGenerationStage
 
 internal enum class ApplePackError { NETWORK, LIMITED, EMPTY, GENERATION, SIZE }
 internal enum class AppleDarkCapability { UNKNOWN, INDEPENDENT, SHARED, MISSING }
@@ -44,6 +45,7 @@ internal data class ApplePackUiState(
   val cacheBytes: Long = 0,
   val retryAtMillis: Long = 0,
   val progress: AppleGenerationProgress? = null,
+  val generatingForApply: Boolean = false,
   val result: AppleGenerationResult? = null,
   val error: ApplePackError? = null,
   val editing: AppleAppTarget? = null,
@@ -272,7 +274,8 @@ internal class ApplePackController(
   fun generate(refresh: Boolean = false, onReady: ((IconPackDescriptor) -> Unit)? = null) {
     if (mutable.value.busy || mutable.value.loading) return
     search?.cancel()
-    mutable.update { it.copy(busy = true, progress = null, result = null, error = null, searching = false,
+    mutable.update { it.copy(busy = true, progress = AppleGenerationProgress(AppleGenerationStage.APPLICATIONS),
+      generatingForApply = onReady != null, result = null, error = null, searching = false,
       previewing = false, preview = null) }
     work = scope.launch {
       try {
@@ -284,9 +287,16 @@ internal class ApplePackController(
           mutable.update { it.copy(error = ApplePackError.EMPTY) }
           return@launch
         }
+        var lastProgressNanos = 0L
         val result = repository.generate(targets, snapshot.options, retryIncomplete = refresh,
           keepLatest = keepLatestGeneratedPacks()) { progress ->
-          mutable.update { it.copy(progress = progress) }
+          val previous = mutable.value.progress
+          val now = System.nanoTime()
+          if (previous?.stage != progress.stage || previous?.total != progress.total ||
+            progress.done == progress.total || now - lastProgressNanos >= 100_000_000L) {
+            mutable.update { it.copy(progress = progress) }
+            lastProgressNanos = now
+          }
         }
         val bytes = repository.cacheBytes()
         mutable.update { it.copy(pack = result.pack, result = result,
@@ -294,12 +304,14 @@ internal class ApplePackController(
           previewRevision = it.previewRevision + 1) }
         onGenerated()
         onReady?.invoke(result.pack)
+        if (onReady == null) kotlinx.coroutines.delay(650)
       } catch (cancelled: CancellationException) { throw cancelled
       } catch (failure: Exception) {
         mutable.update { it.copy(error = failure.uiError()) }
         android.util.Log.w("KeiHomeAppleIcons", "Apple icon generation failed", failure)
       } finally {
-        mutable.update { it.copy(busy = false, progress = null, retryAtMillis = repository.retryAtMillis()) }
+        mutable.update { it.copy(busy = false, progress = null, generatingForApply = false,
+          retryAtMillis = repository.retryAtMillis()) }
         if (loads.queued) load() else refreshCapabilities()
       }
     }

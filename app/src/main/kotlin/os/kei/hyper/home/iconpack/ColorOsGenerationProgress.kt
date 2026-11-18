@@ -1,12 +1,15 @@
 package os.kei.hyper.home.iconpack
 
-internal enum class ColorOsGenerationStage { APPLICATIONS, LIGHT, DARK, PAIRING, ADAPTATIONS, PACKAGING, MASKING }
+internal enum class ColorOsGenerationStage {
+  APPLICATIONS, LIGHT, DARK, PAIRING, ADAPTATIONS, STAMPING, MASKING, MONET, CUSTOM_ICONS, PACKAGING
+}
 
 internal data class ColorOsGenerationProgress(
   val stage: ColorOsGenerationStage,
   val done: Int = 0,
   val total: Int = 0,
   val packageName: String? = null,
+  val inKiB: Boolean = false,
 )
 
 /** Report from the worker without queuing one Main-thread coroutine per icon. */

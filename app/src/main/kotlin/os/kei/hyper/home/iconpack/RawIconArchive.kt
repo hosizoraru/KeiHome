@@ -40,6 +40,7 @@ internal object RawIconArchive {
     check: () -> Unit = {},
     maxOutputBytes: Long,
     limits: IconPackLimits = IconPackLimits(),
+    onProgress: ((Int, Int) -> Unit)? = null,
     transform: ((ZipFile, ZipEntry) -> ByteArray?)? = null,
   ): Result {
     require(maxOutputBytes > 0)
@@ -104,6 +105,7 @@ internal object RawIconArchive {
       outputPaths.finish(check)
       if (selected.size.toLong() + additions.size > limits.maxEntries) fail("Raw archive output entry limit exceeded")
       val selectedCount = selected.size
+      val total = selectedCount + additions.size
       val map = ZipMap.from(input.toPath())
       if (map.entries.keys != sourceEntries.keys) fail("Raw ZIP directory mismatch")
       for ((name, expected) in sourceEntries) {
@@ -136,7 +138,9 @@ internal object RawIconArchive {
       if (maxOutputBytes < 22) fail("Raw archive output size limit exceeded")
       ZipOutputStream(target.outputStream()).use { }
       (if (transform != null) ZipFile(input) else null).use { zip ->
-        val raw = CheckedSource(map, ::checkpoint) { original ->
+        val raw = CheckedSource(map, ::checkpoint, onProgress?.let { publish ->
+          { index -> publish(index, total) }
+        }) { original ->
           if (transform == null) original
           else {
             val name = original.name
@@ -162,12 +166,16 @@ internal object RawIconArchive {
         }
         ZipArchive(target).use { archive ->
           checkpoint()
+          onProgress?.invoke(0, total)
           archive.add(raw)
           checkpoint()
+          var processed = selectedCount
+          onProgress?.invoke(processed, total)
           for ((name, bytes) in additions) {
             val method = sourceEntries[name]?.method ?: ZipEntry.DEFLATED
             archive.add(encoded(name, bytes, method))
             checkpoint()
+            onProgress?.invoke(++processed, total)
           }
           // Payloads have been written. Release validation indexes before Zipflinger
           // allocates the output central directory, especially for large native packs.
@@ -255,6 +263,7 @@ internal object RawIconArchive {
   private class CheckedSource(
     map: ZipMap,
     private val checkpoint: () -> Unit,
+    private val beforeEntry: ((Int) -> Unit)?,
     private val convert: (Source) -> Source,
   ) : ZipSource(map) {
     override fun getSelectedEntries(): List<Source> {
@@ -263,6 +272,7 @@ internal object RawIconArchive {
         override val size: Int get() = entries.size
         override fun get(index: Int): Source {
           checkpoint()
+          beforeEntry?.invoke(index)
           // ZipArchive writes this returned Source immediately; keep only raw metadata in entries.
           return convert(entries[index])
         }

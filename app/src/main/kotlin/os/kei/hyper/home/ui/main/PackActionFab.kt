@@ -34,8 +34,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
       model.currentFallbackSource(runtime.report?.iconTheme, state, preferences.colorOsComponents) == null))) return
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong() && !runtime.readFailed && !runtime.timedOut
-  val description = if (busy && state.preparing && state.colorOsProgress != null)
-    packGenerationLabel(requireNotNull(state.colorOsProgress)) else stringResource(if (busy && state.preparing) R.string.pack_action_preparing
+  val description = stringResource(if (busy && state.preparing) R.string.pack_action_preparing
     else if (busy) R.string.icon_pack_importing else if (pending != null) R.string.pack_apply_native else if (update)
     R.string.pack_action_update else if (generate) R.string.pack_action_install else R.string.pack_action_inspiration)
   val label = stringResource(when {

@@ -1,5 +1,12 @@
 package os.kei.hyper.home
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
+import os.kei.hyper.home.ui.main.IconPackProgressHost
+import os.kei.hyper.home.ui.main.IconPackStep
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,7 +67,7 @@ internal fun MainNavigation(
     lifecycle.addObserver(observer)
     onDispose { lifecycle.removeObserver(observer) }
   }
-  NativeIconAutoNavigation(model)
+  val applyingIcons = NativeIconAutoNavigation(model)
   val releaseState = releaseNotesPreferences?.state?.collectAsStateWithLifecycle()?.value
   val pending = releaseState?.pendingVersions.orEmpty()
   val pendingVersion = releaseState?.pendingVersion.orEmpty()
@@ -124,74 +131,83 @@ internal fun MainNavigation(
       backStack.add(Main)
     }
   }
-  NavDisplay(backStack = backStack,
-    onBack = ::back,
-    transition = NavTransitions.MiuixDefault,
-    effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
-      dimAmount = 0.26f, blockInputDuringTransition = true,
-      backdropColor = MiuixTheme.colorScheme.surface)) {
-    entry<Main> {
-      val transitionRunning = LocalNavTransitionScope.current.isRunning
-      MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
-        onOpenDesktopSection = ::openDesktop, overlay = {
-          UpgradeRestartReminder(
-            version = releaseState?.restartReminderVersion.orEmpty().takeIf {
-              current == Main && pendingVersion.isEmpty() && !transitionRunning
-            }.orEmpty(),
-            onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
-          )
+  Box(Modifier.fillMaxSize()) {
+    NavDisplay(backStack = backStack,
+      onBack = ::back,
+      transition = NavTransitions.MiuixDefault,
+      effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
+        dimAmount = 0.26f, blockInputDuringTransition = true,
+        backdropColor = MiuixTheme.colorScheme.surface)) {
+      entry<Main> {
+        val transitionRunning = LocalNavTransitionScope.current.isRunning
+        MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
+          onOpenDesktopSection = ::openDesktop, overlay = {
+            UpgradeRestartReminder(
+              version = releaseState?.restartReminderVersion.orEmpty().takeIf {
+                current == Main && pendingVersion.isEmpty() && !transitionRunning
+              }.orEmpty(),
+              onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
+            )
+          })
+      }
+      entry<DesktopRoute> { route ->
+        val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
+        DesktopDestinationScreen(model, section, onBack = ::back)
+      }
+      entry<OnboardingRoute>(swipeDismiss = swipe) { route ->
+        OnboardingScreen(model, page = route.page, replay = route.replay,
+          onBack = { if (backStack.lastOrNull() == route) back() }, onExit = { if (backStack.lastOrNull() == route) finishSetup(route) },
+          onNext = {
+            if (backStack.lastOrNull() == route) {
+              if (route.page == OnboardingPreferences.PAGE_COUNT - 1) finishSetup(route)
+              else backStack.add(route.copy(page = route.page + 1))
+            }
+          }, onOpenPack = { if (backStack.lastOrNull() == route) open(it) },
+          onOpenDesktop = { if (backStack.lastOrNull() == route) backStack.add(OnboardingDesktop) },
+          onOpenSettings = { if (backStack.lastOrNull() == route) openSettings(it) },
+          onOpenDesktopSection = { if (backStack.lastOrNull() == route) openDesktop(it) })
+      }
+      entry<OnboardingDesktop>(swipeDismiss = swipe) {
+        OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
+      }
+      entry<PackRoute>(swipeDismiss = if (monetNested && current == PackRoute("monet")) NavSwipeDirection.None else swipe) { route ->
+        PackDestinationScreen(model, route.section,
+          onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
+          onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) },
+          onMonetNestedChanged = { monetNested = it })
+      }
+      entry<SettingsRoute>(swipeDismiss = swipe) { route ->
+        SettingsDestinationScreen(model, route.section,
+          onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings,
+          onOpenPackSection = ::open, releaseNotesPreferences = releaseNotesPreferences,
+          onReleaseNotesViewed = ::recordReleaseViews)
+      }
+      entry<ReleaseNotesUpgradeRoute> {
+        ReleaseNotesScreen(onBack = ::back, currentVersion = releaseState?.observedVersion ?: BuildConfig.VERSION_NAME,
+          highlightedVersions = pending.toSet(),
+          unreadVersions = releaseState?.unreadVersions.orEmpty().toSet(),
+          onViewedVersionsChanged = ::recordReleaseViews,
+          onReadVersions = { releaseNotesPreferences?.markRead(it) }, onContinue = {
+          if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) back()
         })
+      }
     }
-    entry<DesktopRoute> { route ->
-      val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
-      DesktopDestinationScreen(model, section, onBack = ::back)
-    }
-    entry<OnboardingRoute>(swipeDismiss = swipe) { route ->
-      OnboardingScreen(model, page = route.page, replay = route.replay,
-        onBack = { if (backStack.lastOrNull() == route) back() }, onExit = { if (backStack.lastOrNull() == route) finishSetup(route) },
-        onNext = {
-          if (backStack.lastOrNull() == route) {
-            if (route.page == OnboardingPreferences.PAGE_COUNT - 1) finishSetup(route)
-            else backStack.add(route.copy(page = route.page + 1))
-          }
-        }, onOpenPack = { if (backStack.lastOrNull() == route) open(it) },
-        onOpenDesktop = { if (backStack.lastOrNull() == route) backStack.add(OnboardingDesktop) },
-        onOpenSettings = { if (backStack.lastOrNull() == route) openSettings(it) },
-        onOpenDesktopSection = { if (backStack.lastOrNull() == route) openDesktop(it) })
-    }
-    entry<OnboardingDesktop>(swipeDismiss = swipe) {
-      OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
-    }
-    entry<PackRoute>(swipeDismiss = if (monetNested && current == PackRoute("monet")) NavSwipeDirection.None else swipe) { route ->
-      PackDestinationScreen(model, route.section,
-        onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
-        onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) },
-        onMonetNestedChanged = { monetNested = it })
-    }
-    entry<SettingsRoute>(swipeDismiss = swipe) { route ->
-      SettingsDestinationScreen(model, route.section,
-        onBack = { if (backStack.size > 1) backStack.removeLastOrNull() }, onNavigate = ::openSettings,
-        onOpenPackSection = ::open, releaseNotesPreferences = releaseNotesPreferences,
-        onReleaseNotesViewed = ::recordReleaseViews)
-    }
-    entry<ReleaseNotesUpgradeRoute> {
-      ReleaseNotesScreen(onBack = ::back, currentVersion = releaseState?.observedVersion ?: BuildConfig.VERSION_NAME,
-        highlightedVersions = pending.toSet(),
-        unreadVersions = releaseState?.unreadVersions.orEmpty().toSet(),
-        onViewedVersionsChanged = ::recordReleaseViews,
-        onReadVersions = { releaseNotesPreferences?.markRead(it) }, onContinue = {
-        if (backStack.lastOrNull() == ReleaseNotesUpgradeRoute) back()
-      })
-    }
+    IconPackProgressHost(model, applyingIcons)
   }
 }
 
 @Composable
-private fun NativeIconAutoNavigation(model: HomeViewModel) {
+private fun NativeIconAutoNavigation(model: HomeViewModel): IconPackStep? {
   val context = LocalContext.current
   val activity = LocalActivity.current
   val lifecycle = LocalLifecycleOwner.current.lifecycle
+  var applying by rememberSaveable { mutableStateOf(false) }
+  val phase = remember { mutableStateOf<IconPackStep?>(null) }
   val apply = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    if (applying) {
+      applying = false
+      phase.value = if (result.resultCode == android.app.Activity.RESULT_OK) IconPackStep.COMPLETE else null
+    }
     if (result.resultCode == android.app.Activity.RESULT_OK) {
       model.refresh(3)
       activity?.window?.decorView?.apply {
@@ -206,9 +222,19 @@ private fun NativeIconAutoNavigation(model: HomeViewModel) {
         .distinctUntilChanged().collect { report ->
           if (report != null && model.preferences.state.value.autoApplyIconPack) {
             val intent = withContext(Dispatchers.IO) { IconPackImportProtocol.takeAutoApply(context, report) }
-            if (intent != null) runCatching { apply.launch(intent) }
+            if (intent != null) {
+              applying = true
+              runCatching { apply.launch(intent) }.onFailure { applying = false }
+            }
           }
         }
     }
   }
+  LaunchedEffect(phase.value) {
+    if (phase.value == IconPackStep.COMPLETE) {
+      delay(850)
+      phase.value = null
+    }
+  }
+  return if (applying) IconPackStep.APPLYING else phase.value
 }

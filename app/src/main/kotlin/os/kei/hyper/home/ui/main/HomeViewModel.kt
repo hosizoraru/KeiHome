@@ -681,19 +681,38 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun importIconPack(uri: Uri) {
-    if (iconPacks.value.importing || iconPacks.value.removing != null) return
-    iconPacks.update { it.copy(importing = true, error = null, importName = null) }
+    if (iconPacks.value.importing || iconPacks.value.removing != null || iconPacks.value.preparing ||
+      iconPacks.value.nativeImporting != null || applePacks.state.value.progress != null) return
+    iconPacks.update { it.copy(importing = true, error = null, importName = null,
+      localImportProgress = IconPackOperationProgress(IconPackOperation.LOCAL_IMPORT, IconPackStep.READING_FILE, 0)) }
     viewModelScope.launch {
       try {
-        when (val result = packRepository.import(uri)) {
+        var lastBytesAt = 0L
+        when (val result = packRepository.import(uri, onBytes = bytes@{ done, total ->
+          val now = System.nanoTime()
+          if (now - lastBytesAt < 100_000_000L && done != total) return@bytes
+          lastBytesAt = now
+          iconPacks.update { it.copy(localImportProgress = IconPackOperationProgress(
+            IconPackOperation.LOCAL_IMPORT, IconPackStep.READING_FILE,
+            if (total == null) 0 else (done.toDouble() / total * 44).toInt(),
+            (done / 1024).toInt(), ((total ?: 0) / 1024).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), inKiB = true,
+          )) }
+        }, onValidating = {
+          iconPacks.update { it.copy(localImportProgress =
+            IconPackOperationProgress(IconPackOperation.LOCAL_IMPORT, IconPackStep.VALIDATING_FILE, 45)) }
+        })) {
           is IconPackImportResult.Success -> {
+            iconPacks.update { it.copy(localImportProgress =
+              IconPackOperationProgress(IconPackOperation.LOCAL_IMPORT, IconPackStep.FINISHING, 95)) }
             importedPackRevision.value++
             readIconPacks()
-            iconPacks.update { it.copy(importName = result.pack.displayName) }
+            iconPacks.update { it.copy(importName = result.pack.displayName,
+              localImportProgress = IconPackOperationProgress(IconPackOperation.LOCAL_IMPORT, IconPackStep.COMPLETE, 100)) }
+            delay(650)
           }
           is IconPackImportResult.Failure -> iconPacks.update { it.copy(error = result.message) }
         }
-      } finally { iconPacks.update { it.copy(importing = false) } }
+      } finally { iconPacks.update { it.copy(importing = false, localImportProgress = null) } }
     }
   }
 
@@ -726,17 +745,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun importNativeIconPack(original: IconPackDescriptor, includePalette: Boolean = true,
     appearanceOverride: IconPackAppearance? = null) {
-    if (iconPacks.value.removing != null) return
+    if (iconPacks.value.removing != null || iconPacks.value.importing || iconPacks.value.preparing) return
     if (original.source is os.kei.hyper.home.iconpack.IconPackSource.Generated) {
       if (iconPacks.value.nativeImporting != null) return
-      applePacks.generate { fresh -> importPreparedIconPack(fresh, includePalette, appearanceOverride) }
+      applePacks.generate { fresh -> importPreparedIconPack(fresh, includePalette, appearanceOverride, afterAppleGeneration = true) }
       return
     }
     importPreparedIconPack(original, includePalette, appearanceOverride)
   }
 
   private fun importPreparedIconPack(original: IconPackDescriptor, includePalette: Boolean,
-    appearanceOverride: IconPackAppearance?) {
+    appearanceOverride: IconPackAppearance?, afterAppleGeneration: Boolean = false) {
     if (iconPacks.value.nativeImporting != null) return
     val service = FrameworkConnection.service.value ?: return
     val generation = ++nativeImportGeneration
@@ -745,8 +764,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val pack = original.copy(id = selected.systemIconFallback.sourceId(original.id))
     // Retain the previous receipt while replacing it so detail rows keep their height.
     iconPacks.update { it.copy(nativeImporting = pack.id, preparing = true, error = null,
-      colorOsProgress = os.kei.hyper.home.iconpack.ColorOsGenerationProgress(
-        os.kei.hyper.home.iconpack.ColorOsGenerationStage.APPLICATIONS)) }
+      generationProgress = IconPackOperationProgress(IconPackOperation.SYSTEM_IMPORT,
+        IconPackStep.APPLICATIONS, if (afterAppleGeneration) 40 else 0, cancellable = true)) }
     val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
       var handoff: os.kei.hyper.home.status.IconPackHandoff? = null
       try {
@@ -755,7 +774,10 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val progress = os.kei.hyper.home.iconpack.ColorOsProgressReporter({ value ->
           caller.ensureActive()
           if (generation == nativeImportGeneration) {
-            iconPacks.update { it.copy(colorOsProgress = value) }
+            iconPacks.update { current ->
+              val previous = current.generationProgress ?: return@update current
+              current.copy(generationProgress = value.operationProgress(previous, afterAppleGeneration))
+            }
           }
         })
         handoff = IconPackHandoffs.prepare(getApplication(), packRepository, packPreviews, pack,
@@ -765,13 +787,21 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           monetUnadaptedIcons = selected.monetUnadaptedIcons,
           monetFullBleedIconPadding = selected.monetFullBleedIconPadding, onProgress = progress::update)
         caller.ensureActive()
-        if (generation == nativeImportGeneration) iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
+        if (generation == nativeImportGeneration) iconPacks.update {
+          it.copy(preparing = false, generationProgress = IconPackOperationProgress(
+            IconPackOperation.SYSTEM_IMPORT, IconPackStep.SYSTEM_IMPORT, 94))
+        }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         if (!result.imported && !result.pending) android.util.Log.e("KeiHomePackImport",
           "Native icon import ${result.status}: ${result.message}")
         readIconPacks()
+        if (generation == nativeImportGeneration && result.imported && result.autoApplyToken == null) {
+          iconPacks.update { it.copy(generationProgress = IconPackOperationProgress(
+            IconPackOperation.SYSTEM_IMPORT, IconPackStep.COMPLETE, 100)) }
+          delay(650)
+        }
       } catch (cancelled: CancellationException) {
         if (generation == nativeImportGeneration) iconPacks.update {
           it.copy(error = getApplication<Application>().getString(R.string.coloros_generation_cancelled))
@@ -796,7 +826,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
           // for UI, since a newer receipt may have arrived while returning to Main.
           val current = IconPackImportProtocol.states(getApplication()).value
           iconPacks.update { it.copy(nativeImporting = if (current == null) pending else current.pendingSource,
-            preparing = false, colorOsProgress = null) }
+            preparing = false, generationProgress = null) }
           iconPackPreparationJob = null
         }
       }
@@ -806,7 +836,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun cancelIconPackPreparation() {
-    if (iconPacks.value.preparing && iconPacks.value.colorOsProgress != null) iconPackPreparationJob?.cancel()
+    if (iconPacks.value.preparing) iconPackPreparationJob?.cancel()
   }
 
   fun setSystemIconFallback(value: os.kei.hyper.home.data.SystemIconFallback) {
@@ -1237,7 +1267,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   }
 
   fun applyColorOs(inspiration: Boolean = false) {
-    if (iconPacks.value.let { it.preparing || it.nativeImporting != null || it.removing != null }) return
+    if (iconPacks.value.let { it.importing || it.preparing || it.nativeImporting != null || it.removing != null }) return
     val selected = preferences.state.value
     val style = if (inspiration) ColorOsStyle.INSPIRATION else selected.colorOsStyle
       .takeUnless { it.usesMonet } ?: ColorOsStyle.CLASSIC
@@ -1253,15 +1283,15 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     val loaded = iconPacks.value.packs.map { it.pack }
     loaded.firstOrNull { it.builtinKey == key }?.let { publish(it); return }
     iconPacks.update { it.copy(preparing = true, error = null,
-      colorOsProgress = os.kei.hyper.home.iconpack.ColorOsGenerationProgress(
-        os.kei.hyper.home.iconpack.ColorOsGenerationStage.APPLICATIONS)) }
+      generationProgress = IconPackOperationProgress(IconPackOperation.SYSTEM_IMPORT,
+        IconPackStep.APPLICATIONS, 0, cancellable = true)) }
     val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
       try {
         val pack = os.kei.hyper.home.iconpack.resolveBuiltinIconPack(key, loaded, packRepository::listBuiltins)
           ?: throw os.kei.hyper.home.iconpack.IconPackException(
             getApplication<Application>().getString(R.string.pack_local_unavailable))
         ensureActive()
-        iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
+        iconPacks.update { it.copy(preparing = false, generationProgress = null) }
         publish(pack)
       } catch (cancelled: CancellationException) {
         throw cancelled
@@ -1269,7 +1299,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         iconPacks.update { it.copy(error = failure.message.orEmpty()) }
       } finally {
         if (iconPackPreparationJob === currentCoroutineContext()[Job]) {
-          iconPacks.update { it.copy(preparing = false, colorOsProgress = null) }
+          iconPacks.update { it.copy(preparing = false, generationProgress = null) }
           iconPackPreparationJob = null
         }
       }

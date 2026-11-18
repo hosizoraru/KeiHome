@@ -56,13 +56,16 @@ internal class IconPackStore(
     checkCancelled: () -> Unit = {},
     generatedBy: GeneratedPackProducer? = null,
     replacingGenerated: Boolean = false,
+    onValidating: () -> Unit = {},
+    onBytes: ((Long) -> Unit)? = null,
     validateApk: (File) -> Unit = { throw IconPackException("APK import requires the Android resource reader") },
   ): StoredIconPackImport {
     ensureDirectory()
     val stage = Files.createTempDirectory(directory.toPath(), ".import-").toFile()
     try {
       val incoming = File(stage, "incoming")
-      incoming.outputStream().use { copyBounded(input, it, limits.maxInputBytes, checkCancelled) }
+      incoming.outputStream().use { copyBounded(input, it, limits.maxInputBytes, checkCancelled, onBytes) }
+      onValidating()
       val hash = sha256(incoming, checkCancelled)
       val destination = File(directory, hash)
       if (destination.exists()) {

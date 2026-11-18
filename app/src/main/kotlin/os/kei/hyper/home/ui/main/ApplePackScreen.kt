@@ -535,13 +535,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 onClick = { showClearDownloads = true })
             }
           }
-          state.progress?.let { progress -> item("progress") {
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.apple_progress, progress.done, progress.total),
-                summary = progress.label)
-              BasicComponent(title = stringResource(R.string.apple_cancel), onClick = controller::cancel)
-            }
-          } }
           state.result?.let { result -> item("result") {
             PackInfoCard(stringResource(if (result.unchanged) R.string.apple_unchanged else R.string.apple_generated,
               result.mapped, result.dark, result.reused, result.failed))

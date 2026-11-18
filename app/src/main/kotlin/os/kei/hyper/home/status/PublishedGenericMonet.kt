@@ -17,7 +17,8 @@ internal object PublishedGenericMonet {
 
   fun write(source: File, output: File, enabled: Boolean,
     excluded: PreservedIconResources, insetFullBleed: Boolean = false,
-    generatedPaletteNames: Set<String> = emptySet(), check: () -> Unit = {}): Boolean {
+    generatedPaletteNames: Set<String> = emptySet(), onProgress: (Int, Int) -> Unit = { _, _ -> },
+    check: () -> Unit = {}): Boolean {
     check()
     if (!enabled && !insetFullBleed) return false
     require(source.canonicalFile != output.canonicalFile && !output.exists())
@@ -97,8 +98,10 @@ internal object PublishedGenericMonet {
       for (name in fancyGroups.keys) {
         if (validNativeIconName(name) && !excluded.containsName(name)) candidates.putIfAbsent(name, emptyList())
       }
+      var processed = 0
       for ((name, variants) in candidates) {
         check()
+        onProgress(processed++, candidates.size)
         val root = "fancy_icons/$name/"
         if (name in protectedNames) continue
         val manifest = read(root + "manifest.xml", 64 * 1024)
@@ -184,6 +187,7 @@ internal object PublishedGenericMonet {
           replacements.putAll(layers)
         } finally { bitmap.recycle() }
       }
+      onProgress(processed, candidates.size)
     }
     if (replacements.isEmpty()) return false
     RawIconArchive.write(source, output, replacements = replacements, check = check,

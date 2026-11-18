@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_progress_local_title">Import icon pack</string>
+  <string name="pack_progress_system_title">Prepare and import icons</string>
+  <string name="pack_progress_apply_title">Apply icon pack</string>
+  <string name="pack_progress_percentage">%1$d%%</string>
+  <string name="pack_progress_reading_file">Reading icon pack file</string>
+  <string name="pack_progress_validating">Verifying archive and icons</string>
+  <string name="pack_progress_artwork">Preparing app artwork</string>
+  <string name="pack_progress_resources">Assembling theme resources</string>
+  <string name="pack_progress_monet">Preparing wallpaper-colored icons</string>
+  <string name="pack_progress_custom">Adding custom icons</string>
+  <string name="pack_progress_system_import">Importing into System Themes</string>
+  <string name="pack_progress_system_wait">Waiting for System Themes to confirm the import</string>
+  <string name="pack_progress_system_apply">Waiting for System Themes to apply the icons</string>
+  <string name="pack_progress_finishing">Updating the icon pack list</string>
+  <string name="pack_progress_cancelling">Cancelling generation</string>
+  <string name="pack_progress_complete">Icon pack applied</string>
+  <string name="pack_progress_generated">Icon pack generated</string>
+  <string name="pack_progress_local_complete">Icon pack imported</string>
+  <string name="pack_progress_background">Continue in background</string>
+  <string name="pack_progress_kib">Processed %1$d / %2$d KiB</string>
+  <string name="pack_progress_kib_unknown">Read %1$d KiB</string>
+</resources>

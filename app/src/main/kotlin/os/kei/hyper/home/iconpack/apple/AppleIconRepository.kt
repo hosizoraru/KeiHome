@@ -26,7 +26,13 @@ import os.kei.hyper.home.iconpack.IconPackArchive
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackSource
 
-internal data class AppleGenerationProgress(val done: Int, val total: Int, val label: String)
+internal enum class AppleGenerationStage { APPLICATIONS, METADATA, ARTWORK, PACKAGING, PUBLISHED }
+internal data class AppleGenerationProgress(
+  val stage: AppleGenerationStage,
+  val done: Int = 0,
+  val total: Int = 0,
+  val label: String? = null,
+)
 internal data class AppleGenerationResult(val pack: IconPackDescriptor, val mapped: Int,
   val dark: Int, val reused: Int, val failed: Int, val unchanged: Boolean, val stale: Int,
   val retryAtMillis: Long = 0)
@@ -333,15 +339,23 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
     keepLatest: Boolean = true,
     progress: (AppleGenerationProgress) -> Unit): AppleGenerationResult = mutex.withLock {
     withContext(Dispatchers.IO) { try {
-      val selected = targets.mapNotNull { target -> match(target, options)?.let { target to it } }
+      val caller = currentCoroutineContext()
+      progress(AppleGenerationProgress(AppleGenerationStage.APPLICATIONS, 0, targets.size))
+      val selected = targets.mapIndexedNotNull { index, target ->
+        caller.ensureActive()
+        val match = match(target, options)?.let { target to it }
+        progress(AppleGenerationProgress(AppleGenerationStage.APPLICATIONS, index + 1, targets.size))
+        match
+      }
       require(selected.isNotEmpty()) { "No Apple mappings" }
       generated.mkdirs()
       val resolved = linkedMapOf<String, PairFiles>()
       val failedUpdates = mutableSetOf<String>()
       val assignments = linkedMapOf<String, String>()
       val previous = readPublication()
+      progress(AppleGenerationProgress(AppleGenerationStage.METADATA))
       val fetched = prefetchMetadata(selected.map { it.second }, options, previous, refresh, retryIncomplete) { done, total ->
-        progress(AppleGenerationProgress(done, total, context.getString(os.kei.hyper.home.R.string.apple_fetch_metadata)))
+        progress(AppleGenerationProgress(AppleGenerationStage.METADATA, done, total))
       }
       var failed = 0
       var reused = 0
@@ -352,7 +366,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         val (target, app) = item
         val effective = options.forApp(app)
         val artworkId = app.artworkId(effective)
-        progress(AppleGenerationProgress(index, selected.size, target.label))
+        progress(AppleGenerationProgress(AppleGenerationStage.ARTWORK, index, selected.size, target.label))
         try {
           fetched.errors[artworkId]?.let { throw it }
           val pair = resolved[artworkId] ?: (
@@ -391,6 +405,7 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
       }
       if (assignments.isEmpty()) throw firstError ?: IOException("No Apple artwork")
       currentCoroutineContext().ensureActive()
+      progress(AppleGenerationProgress(AppleGenerationStage.PACKAGING))
       val identity = JSONObject().put("schema", 2).put("options", options.json()).put("bundled", bundledRevision)
         .put("dynamic", dynamicRevision(targets, options))
         .put("mappings", JSONObject(assignments.toSortedMap()))
@@ -406,6 +421,14 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
         try {
           val maxBytes = resolved.values.sumOf { it.light.length() + (it.dark?.length() ?: 0L) }
           require(maxBytes <= 300L * 1024 * 1024) { "Apple pack too large" }
+          val dynamic = selected.mapNotNull { (target, app) ->
+            AppleDynamicArtwork.kind(app, options)?.takeIf { target.packageName in assignments }
+              ?.let { target.packageName to (it to assignments.getValue(target.packageName)) }
+          }.toMap()
+          val total = 3 + resolved.size + if (dynamic.isNotEmpty()) 1 else 0
+          var done = 0
+          fun packaged() = progress(AppleGenerationProgress(AppleGenerationStage.PACKAGING, ++done, total))
+          progress(AppleGenerationProgress(AppleGenerationStage.PACKAGING, 0, total))
           ZipOutputStream(temp.outputStream().buffered()).use { zip ->
             val appfilter = buildString {
               append("<?xml version=\"1.0\" encoding=\"utf-8\"?><resources>")
@@ -417,19 +440,22 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
               append("</resources>")
             }
             zip.text("appfilter.xml", appfilter)
+            packaged()
             zip.text("description.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><MIUI-Theme>" +
               "<title>Apple</title><author>Apple / App publishers</author><version>1</version></MIUI-Theme>")
+            packaged()
             zip.text("apple-source-manifest.json", identity.toString())
+            packaged()
             for (pair in resolved.values) {
               currentCoroutineContext().ensureActive()
               zip.png("res/drawable-nodpi/apple_${pair.id}.png", pair.light)
               pair.dark?.let { zip.png("res/drawable-night-nodpi/apple_${pair.id}.png", it) }
+              packaged()
             }
-            val dynamic = selected.mapNotNull { (target, app) ->
-              AppleDynamicArtwork.kind(app, options)?.takeIf { target.packageName in assignments }
-                ?.let { target.packageName to (it to assignments.getValue(target.packageName)) }
-            }.toMap()
-            AppleDynamicIconArchive.write(zip, dynamic, options, dynamicArtwork)
+            if (dynamic.isNotEmpty()) {
+              AppleDynamicIconArchive.write(zip, dynamic, options, dynamicArtwork)
+              packaged()
+            }
           }
           archives.inspect(temp, File(generated, "nested-unused"))
           check(temp.renameTo(archive)) { "Cannot publish Apple archive" }
@@ -447,8 +473,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
           os.kei.hyper.home.iconpack.GeneratedPackProducer.APPLE)
         if (failures.isNotEmpty()) android.util.Log.w("KeiHomeAppleIcons", "Some previous generated ZIPs could not be removed")
       }
-      progress(AppleGenerationProgress(selected.size, selected.size, ""))
-      AppleGenerationResult(checkNotNull(descriptor()), assignments.size,
+      val pack = checkNotNull(descriptor())
+      progress(AppleGenerationProgress(AppleGenerationStage.PUBLISHED))
+      AppleGenerationResult(pack, assignments.size,
         assignments.values.count { resolved[it]?.dark != null }, reused, failed,
         previous?.optString("digest") == digest, resolved.values.count { it.stale }, client.retryAtMillis())
     } finally { pruneImages(emptySet()) } }

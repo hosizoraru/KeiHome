@@ -32,15 +32,18 @@ internal fun Os4Dialog(
   title: String? = null,
   summary: String? = null,
   onDismissFinished: (() -> Unit)? = null,
+  centered: Boolean? = null,
+  dismissible: Boolean = true,
+  sampleBackdrop: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   // Only sample the page's existing recording; the overlay and scrim must stay outside it.
-  val backdrop = LocalKeiHomeBackdrop.current
+  val backdrop = LocalKeiHomeBackdrop.current.takeIf { sampleBackdrop }
   val dark = LocalKeiHomeDarkTheme.current
   val dialogModifier = modifier.semantics {
     dialog()
     title?.let { paneTitle = it }
-    dismiss { onDismissRequest(); true }
+    if (dismissible) dismiss { onDismissRequest(); true }
   }
   val dialogContent: @Composable () -> Unit = {
     CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark, content = content)
@@ -49,7 +52,7 @@ internal fun Os4Dialog(
   GlassDialog(show = show, backdrop = backdrop, modifier = dialogModifier, title = title,
     material = GlassMaterials.dialogGlass(dark),
     stroke = GlassEdgeStrokes.forTheme(dark, GlassEdgeStrokes.SmallLight, GlassEdgeStrokes.SmallDark),
-    summary = summary, onDismissRequest = onDismissRequest,
+    largeScreen = centered, summary = summary, onDismissRequest = { if (dismissible) onDismissRequest() },
     onDismissFinished = onDismissFinished, content = dialogContent)
 }
 

@@ -164,9 +164,6 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("settings") { ColorOsSettings(model, importReady) }
       }
       else -> {
-        state.colorOsProgress?.takeIf { state.preparing }?.let { progress ->
-          item("generation-progress") { PackGenerationStatus(progress, model::cancelIconPackPreparation) }
-        }
         item("search") {
           Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -193,9 +190,8 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         }
         item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,
           model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true) }
-        if (state.importing || state.importName != null) item("import-status") {
-          PackInfoCard(if (state.importing) stringResource(R.string.icon_pack_importing)
-            else stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
+        if (!state.importing && state.importName != null) item("import-status") {
+          PackInfoCard(stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
             Modifier.testTag("packs.file-import.status"))
         }
         items(cards, key = { it.pack.id }, contentType = { "pack" }) { card ->

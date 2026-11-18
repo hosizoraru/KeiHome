@@ -92,9 +92,6 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,
         enabled = !busy, onCheckedChange = model.preferences::setColorOsArtPlus)
     }
-    state.colorOsProgress?.takeIf { state.preparing }?.let { progress ->
-      PackGenerationStatus(progress, model::cancelIconPackPreparation)
-    }
     state.error?.takeIf { it.isNotBlank() }?.let { message ->
       Text(message, modifier = Modifier.testTag("coloros.generation.error")
         .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1)

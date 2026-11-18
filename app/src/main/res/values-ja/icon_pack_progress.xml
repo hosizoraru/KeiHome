@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pack_progress_local_title">アイコンパックをインポート</string>
+  <string name="pack_progress_system_title">アイコンを生成してインポート</string>
+  <string name="pack_progress_apply_title">アイコンパックを適用</string>
+  <string name="pack_progress_percentage">%1$d%%</string>
+  <string name="pack_progress_reading_file">アイコンパックを読み込み中</string>
+  <string name="pack_progress_validating">アーカイブとアイコンを検証中</string>
+  <string name="pack_progress_artwork">アプリアイコンを準備中</string>
+  <string name="pack_progress_resources">テーマのリソースをまとめています</string>
+  <string name="pack_progress_monet">壁紙の色に合わせたアイコンを生成中</string>
+  <string name="pack_progress_custom">カスタムアイコンを追加中</string>
+  <string name="pack_progress_system_import">システムテーマにインポート中</string>
+  <string name="pack_progress_system_wait">システムテーマのインポート確認待ち</string>
+  <string name="pack_progress_system_apply">システムテーマの適用完了待ち</string>
+  <string name="pack_progress_finishing">アイコンパック一覧を更新中</string>
+  <string name="pack_progress_cancelling">生成をキャンセル中</string>
+  <string name="pack_progress_complete">アイコンパックを適用しました</string>
+  <string name="pack_progress_generated">アイコンパックを生成しました</string>
+  <string name="pack_progress_local_complete">アイコンパックをインポートしました</string>
+  <string name="pack_progress_background">バックグラウンドで続ける</string>
+  <string name="pack_progress_kib">処理済み %1$d / %2$d KiB</string>
+  <string name="pack_progress_kib_unknown">%1$d KiB を読み込み済み</string>
+</resources>

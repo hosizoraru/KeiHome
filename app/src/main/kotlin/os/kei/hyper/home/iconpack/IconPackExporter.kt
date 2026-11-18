@@ -131,7 +131,8 @@ internal class IconPackExporter(private val context: Context, private val limits
     phoneCompanionExclusions: Set<String> = emptySet(),
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
     allowEmpty: Boolean = false,
-    onProgress: ((Int, Int, String) -> Unit)? = null, check: () -> Unit,
+    onProgress: ((Int, Int, String) -> Unit)? = null,
+    onNativeCopyBytes: ((Long, Long) -> Unit)? = null, check: () -> Unit,
   ): IconPackExportResult {
     require(sizePx in 1..512)
     val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
@@ -176,7 +177,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }.distinct().filterNot { it.packageName in preservedPackages }
       if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
         val result = exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly,
-          maskPolicy, preservedPackages, recommendedMappings, phoneCompanionExclusions, check)
+          maskPolicy, preservedPackages, recommendedMappings, phoneCompanionExclusions, check, onNativeCopyBytes)
         try {
           systemRenderer?.validateCompletionSource()
           return result
@@ -374,6 +375,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean,
     maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>,
     recommendedMappings: RecommendedIconMappings, phoneCompanionExclusions: Set<String>, check: () -> Unit,
+    onNativeCopyBytes: ((Long, Long) -> Unit)?,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
     val directory = File(context.cacheDir, "icon-pack-exports")
@@ -382,7 +384,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     val nested = File.createTempFile("verify-", ".zip", directory)
     var success = false
     try {
-      var index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check)
+      var index = IconPackArchive(limits).copyNativeModule(record, archive, nested, check, onNativeCopyBytes)
       if (preservedPackages.isNotEmpty()) {
         val components = preservedPackages.flatMap { pkg ->
           check()

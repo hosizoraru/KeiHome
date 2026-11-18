@@ -140,19 +140,26 @@ internal class IconPackRepository(
   }
 
   /** Call from the OpenDocument result while its read grant is alive. Bytes are copied before
-   * returning; the document provider's DISPLAY_NAME is cosmetic and its reported SIZE is ignored. */
-  suspend fun import(uri: Uri): IconPackImportResult = withContext(worker) {
+   * returning. Provider metadata is for display only; the archive reader enforces its own limit. */
+  suspend fun import(
+    uri: Uri, onBytes: (Long, Long?) -> Unit = { _, _ -> }, onValidating: () -> Unit = {},
+  ): IconPackImportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     try {
       if (uri.scheme != "content") throw IconPackException("Select an icon pack using the system document picker")
       val resolver = application.contentResolver
-      val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-        if (cursor.moveToFirst()) cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }
-          ?.let(cursor::getString)?.take(256) else null
+      var reportedSize: Long? = null
+      val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+        if (!cursor.moveToFirst()) return@use null
+        reportedSize = cursor.getColumnIndex(OpenableColumns.SIZE).takeIf { it >= 0 && !cursor.isNull(it) }
+          ?.let(cursor::getLong)?.takeIf { it > 0 }
+        cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME).takeIf { it >= 0 }?.let(cursor::getString)?.take(256)
       } ?: "Icon pack"
       caller.ensureActive()
       val stored = (resolver.openInputStream(uri) ?: throw IconPackException("Document cannot be opened")).use { input ->
-        store.import(input, name, Build.VERSION.SDK_INT, { caller.ensureActive() }, validateApk = { file ->
+        store.import(input, name, Build.VERSION.SDK_INT, { caller.ensureActive() }, onValidating = onValidating,
+          onBytes = { done -> onBytes(done, reportedSize?.takeIf { done <= it }) },
+          validateApk = { file ->
           if (android.index(android.archiveInfo(file), file) { caller.ensureActive() } == null) {
             throw IconPackException("APK contains no supported appfilter")
           }
@@ -218,13 +225,15 @@ internal class IconPackRepository(
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
     allowEmpty: Boolean = false,
     onProgress: ((Int, Int, String) -> Unit)? = null,
+    onNativeCopyBytes: ((Long, Long) -> Unit)? = null,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
       systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages,
       recommendedMappings ?: RecommendedIconMappings.snapshot(application),
-      colorOsSources = colorOsSources, allowEmpty = allowEmpty, onProgress = onProgress) { caller.ensureActive() }
+      colorOsSources = colorOsSources, allowEmpty = allowEmpty, onProgress = onProgress,
+      onNativeCopyBytes = onNativeCopyBytes) { caller.ensureActive() }
   }
 
   private var runtimeFallbackCache: IconPackDescriptor? = null

@@ -24,6 +24,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   /** A lossless bridge handoff for native imports, including every night/animation resource. */
   fun copyNativeModule(
     record: StoredIconPack, destination: File, scratch: File, check: () -> Unit = {},
+    onBytes: ((Long, Long) -> Unit)? = null,
   ): IconPackArchiveIndex {
     val source = when (record.format) {
       IconPackFormat.MIUI_MTZ -> record.iconsFile
@@ -34,7 +35,14 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
       throw IconPackException("Native export requires separate staging files")
     }
     if (sha256(source, check) != record.nativeIconsSha256) throw IconPackException("Native icons checksum mismatch")
-    source.inputStream().use { input -> destination.outputStream().use { copyBounded(input, it, limits.maxInputBytes, check) } }
+    val size = source.length()
+    source.inputStream().use { input ->
+      destination.outputStream().use { output ->
+        copyBounded(input, output, limits.maxInputBytes, check, onBytes?.let { publish ->
+          { done -> publish(done, size) }
+        })
+      }
+    }
     val index = inspect(destination, scratch, checkCancelled = check)
     if (index.format != IconPackFormat.MIUI_ICONS || index.nativeIconsSha256 != record.nativeIconsSha256) {
       throw IconPackException("Native icons module validation failed")
@@ -401,7 +409,10 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   }
 }
 
-internal fun copyBounded(input: InputStream, output: OutputStream, limit: Long, check: () -> Unit = {}): Long {
+internal fun copyBounded(
+  input: InputStream, output: OutputStream, limit: Long, check: () -> Unit = {},
+  onBytes: ((Long) -> Unit)? = null,
+): Long {
   var total = 0L
   val buffer = ByteArray(32 * 1024)
   while (true) {
@@ -411,6 +422,7 @@ internal fun copyBounded(input: InputStream, output: OutputStream, limit: Long, 
     total += count
     if (total > limit) throw IconPackException("Input size limit exceeded")
     output.write(buffer, 0, count)
+    onBytes?.invoke(total)
   }
 }
 

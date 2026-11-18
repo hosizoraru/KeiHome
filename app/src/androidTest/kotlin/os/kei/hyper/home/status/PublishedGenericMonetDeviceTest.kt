@@ -459,6 +459,31 @@ class PublishedGenericMonetDeviceTest {
     }
   }
 
+  @Test fun replacingRecognizedPairRemovesSupersededImagesBeforeApproval() {
+    val name = "os.test.fancy"
+    val root = "fancy_icons/$name/"
+    val manifest = InstrumentationRegistry.getInstrumentation().context.assets
+      .open("native-maml/image-pair.xml").use { it.readBytes() }
+    val files = mapOf(
+      root + "manifest.xml" to manifest,
+      root + "iconBg_0.png" to png(),
+      root + "iconBg_1.png" to png(true),
+    )
+    fixture(files) { source, output ->
+      val progress = mutableListOf<Pair<Int, Int>>()
+      assertTrue(PublishedGenericMonet.write(source, output, true, PreservedIconResources(emptySet(), emptyList()),
+        onWriteProgress = { done, total -> progress.add(done to total) }))
+      ZipFile(output).use { zip ->
+        assertNull(zip.getEntry(root + "iconBg_0.png"))
+        assertNull(zip.getEntry(root + "iconBg_1.png"))
+        assertNotNull(zip.getEntry(root + "mask.png"))
+      }
+      assertEquals(0, progress.first().first)
+      assertEquals(progress.last().second, progress.last().first)
+      os.kei.hyper.home.xposed.LocalNativeIconValidator.validate(output)
+    }
+  }
+
   @Test fun dayOnlyFlatArtworkGetsBothCanonicalAliasesBeforeLocalApproval() {
     val name = "os.test.plain"
     fixture(mapOf("res/drawable-xxhdpi/$name.png" to png())) { source, output ->

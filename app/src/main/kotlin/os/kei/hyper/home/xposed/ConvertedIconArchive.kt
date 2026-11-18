@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import os.kei.hyper.home.iconpack.IconPackBudgets
+import os.kei.hyper.home.iconpack.IconPackLimits
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -115,13 +116,14 @@ internal object ConvertedIconArchive {
   }
 
   private fun validateIcons(file: File) {
+    val entryLimit = IconPackLimits().maxEntries
     val names = HashSet<String>()
-    val fancyNames = HashSet<String>()
+    val fancyPaths = HashMap<String, MutableSet<String>>()
     var total = 0L
     var fallback: SystemIconFallbackManifest? = null
     var genericMonet = false
     ZipFile(file).use { zip ->
-      require(zip.size() in 2..20000) { "Converted icon count limit" }
+      require(zip.size() in 2..entryLimit) { "Converted icon count limit" }
       zip.entries().asSequence().forEach { entry ->
         checkInterrupted()
         val fancy = fancyIconName.matchEntire(entry.name)
@@ -131,7 +133,7 @@ internal object ConvertedIconArchive {
         val metadata = entry.name == os.kei.hyper.home.iconpack.IconThemeMetadata.PATH
         val shape = entry.name == os.kei.hyper.home.iconpack.NativeIconShapeConfig.PATH
         require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource || generation || metadata || shape) &&
-          entry.name.length <= 300 && names.add(entry.name) && names.size <= 20000) {
+          entry.name.length <= 300 && names.add(entry.name)) {
           "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
         }
         val manifest = fancy?.groupValues?.get(2) == "manifest.xml"
@@ -146,12 +148,12 @@ internal object ConvertedIconArchive {
         else if (metadata) requireNotNull(os.kei.hyper.home.iconpack.IconThemeMetadata.decode(bytes))
         else if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)
         else if (!manifest) validatePng(bytes, 512)
-        fancy?.let { fancyNames.add(it.groupValues[1]) }
+        fancy?.let { fancyPaths.getOrPut(it.groupValues[1]) { HashSet() }.add(entry.name) }
       }
       // Regenerate the fixed selector, palette, calendar and clock templates without interpreting XML.
-      for (name in fancyNames) {
+      for ((name, resources) in fancyPaths) {
         checkInterrupted()
-        GeneratedNativeIconValidator.validate(name, names) { path, limit ->
+        GeneratedNativeIconValidator.validate(name, names, resources) { path, limit ->
           readIconEntry(zip, requireNotNull(zip.getEntry(path)) { "Missing generated icon resource: $path" }, limit)
         }
       }

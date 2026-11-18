@@ -41,6 +41,7 @@ internal object RawIconArchive {
     maxOutputBytes: Long,
     limits: IconPackLimits = IconPackLimits(),
     onProgress: ((Int, Int) -> Unit)? = null,
+    spooled: SpoolIconEntries? = null,
     transform: ((ZipFile, ZipEntry) -> ByteArray?)? = null,
   ): Result {
     require(maxOutputBytes > 0)
@@ -76,8 +77,11 @@ internal object RawIconArchive {
         }
       }
       sourcePaths.finish(check)
-      // Callers keep these byte arrays immutable until return; only their map is snapshotted here.
-      val additions = replacements.toMap()
+      val payloads = replacements.toMap()
+      val additions = spooled?.sizes.orEmpty().toMutableMap()
+      for ((name, bytes) in payloads) {
+        if (additions.putIfAbsent(name, bytes.size.toLong()) != null) fail("Duplicate replacement: $name")
+      }
       val selected = linkedMapOf<String, Metadata>()
       val outputPaths = Paths()
       var expanded = 0L
@@ -94,12 +98,12 @@ internal object RawIconArchive {
           compressedLowerBound = addWithin(compressedLowerBound, headerBytes(name), maxOutputBytes)
         }
       }
-      for ((name, bytes) in additions) {
+      for ((name, size) in additions) {
         check()
         outputPaths.add(name)
         if (name.endsWith('/')) fail("Replacement must be a file: $name")
-        if (bytes.size.toLong() > entryLimit(name, limits)) fail("Raw archive replacement size limit exceeded")
-        expanded = addWithin(expanded, bytes.size.toLong(), limits.maxExpandedBytes)
+        if (size > entryLimit(name, limits)) fail("Raw archive replacement size limit exceeded")
+        expanded = addWithin(expanded, size, limits.maxExpandedBytes)
         compressedLowerBound = addWithin(compressedLowerBound, headerBytes(name), maxOutputBytes)
       }
       outputPaths.finish(check)
@@ -171,7 +175,9 @@ internal object RawIconArchive {
           checkpoint()
           var processed = selectedCount
           onProgress?.invoke(processed, total)
-          for ((name, bytes) in additions) {
+          for (name in additions.keys) {
+            checkpoint()
+            val bytes = payloads[name] ?: requireNotNull(spooled).read(name)
             val method = sourceEntries[name]?.method ?: ZipEntry.DEFLATED
             archive.add(encoded(name, bytes, method))
             checkpoint()

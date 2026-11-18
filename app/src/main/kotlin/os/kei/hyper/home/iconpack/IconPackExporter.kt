@@ -529,52 +529,52 @@ internal class IconPackExporter(private val context: Context, private val limits
   private fun appendNativeMonet(
     archive: File, entries: List<IconPackEntry>, targets: List<IconPackComponent>, check: () -> Unit,
   ): Set<String> {
+    val targetNames = targets.flatMapTo(hashSetOf(), ::nativeLauncherIconNames)
     val candidates = entries.filter {
       (it.light as? IconPackArtwork.Archive)?.palettePair == true &&
-        targets.any { target -> it.nativeName in nativeLauncherIconNames(target) }
+        it.nativeName in targetNames
     }
     if (candidates.isEmpty()) return emptySet()
-    val replacements = linkedMapOf<String, ByteArray>()
     val replacedResources = hashSetOf<String>()
     val paletteNames = linkedSetOf<String>()
-    var replacementBytes = 0L
     fun png(bitmap: Bitmap): ByteArray {
       check()
       return ByteArrayOutputStream().also {
         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "Cannot encode native mask" }
       }.toByteArray().also { check() }
     }
-    ZipFile(archive).use { source ->
-      val paths = source.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
-      for (entry in candidates) {
-        check()
-        val name = requireNotNull(entry.nativeName)
-        val root = "fancy_icons/$name/"
-        val dayPath = (entry.light as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
-        val nightPath = (entry.dark as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
-        val originalPaths = setOf(root + "manifest.xml", dayPath, nightPath)
-        if (paths.any { it.startsWith(root) && it !in originalPaths }) continue
-        NativeMamlMonet.read(entry, check) { path ->
-          val item = source.getEntry(path) ?: throw IconPackException("Missing paired image")
-          if (item.size !in 1..4L * 1024 * 1024) byteArrayOf()
-          else source.getInputStream(item).use { it.readNBytes(4 * 1024 * 1024 + 1) }
-        }?.use { artwork ->
-          // The source is fancy-only. Do not duplicate its two PNGs into additional static trees.
-          val generated = NativePaletteIcon.entries(name, artwork.light, artwork.dark,
-            png(artwork.foreground), png(artwork.background)).filterKeys { it.startsWith(root) }
-          val bytes = generated.values.sumOf { it.size.toLong() }
-          if (replacementBytes + bytes > 64L * 1024 * 1024) return@use
-          replacementBytes += bytes
-          replacements.putAll(generated)
-          replacedResources += originalPaths
-          paletteNames += name
+    SpoolIconEntries.open(archive.parentFile!!, limits).use { replacements ->
+      ZipFile(archive).use { source ->
+        val pathsByName = source.entries().asSequence().filterNot { it.isDirectory }
+          .map { it.name }.filter { it.startsWith("fancy_icons/") }
+          .groupBy { it.substringAfter('/').substringBefore('/') }
+        for (entry in candidates) {
+          check()
+          val name = requireNotNull(entry.nativeName)
+          val root = "fancy_icons/$name/"
+          val dayPath = (entry.light as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
+          val nightPath = (entry.dark as? IconPackArtwork.Archive)?.variants?.singleOrNull()?.path ?: continue
+          val originalPaths = setOf(root + "manifest.xml", dayPath, nightPath)
+          if (pathsByName[name].orEmpty().any { it !in originalPaths }) continue
+          NativeMamlMonet.read(entry, check) { path ->
+            val item = source.getEntry(path) ?: throw IconPackException("Missing paired image")
+            if (item.size !in 1..4L * 1024 * 1024) byteArrayOf()
+            else source.getInputStream(item).use { it.readNBytes(4 * 1024 * 1024 + 1) }
+          }?.use { artwork ->
+            // The source is fancy-only. Do not duplicate its two PNGs into additional static trees.
+            val generated = NativePaletteIcon.entries(name, artwork.light, artwork.dark,
+              png(artwork.foreground), png(artwork.background)).filterKeys { it.startsWith(root) }
+            replacements.append(generated, check)
+            replacedResources += originalPaths
+            paletteNames += name
+          }
         }
       }
       if (paletteNames.isEmpty()) return emptySet()
       val stage = File.createTempFile("native-monet-", ".zip", archive.parentFile)
       try {
         RawIconArchive.write(archive, stage,
-          includes = { it !in replacedResources }, replacements = replacements,
+          includes = { it !in replacedResources }, spooled = replacements, limits = limits,
           check = check, maxOutputBytes = limits.maxInputBytes)
         check()
         if (!stage.renameTo(archive)) throw IconPackException("Cannot publish native Monet staging")

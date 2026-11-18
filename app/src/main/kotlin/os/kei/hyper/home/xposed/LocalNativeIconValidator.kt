@@ -46,6 +46,8 @@ internal object LocalNativeIconValidator {
     }
     ZipFile(file).use { zip ->
       val paths = zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet()
+      val fancyPaths = paths.asSequence().filter { it.startsWith("fancy_icons/") }
+        .groupBy { it.substringAfter('/').substringBefore('/') }
       fun read(path: String, limit: Long): ByteArray {
         val entry = requireNotNull(zip.getEntry(path))
         require(entry.size in 1..limit) { "Local icon entry size limit: $path" }
@@ -98,7 +100,8 @@ internal object LocalNativeIconValidator {
               // Our own appended palette selectors may use Settings binders, but
               // only their exact generated template and complete resources qualify.
               try {
-                GeneratedNativeIconValidator.validate(parts[1], paths, ::read)
+                GeneratedNativeIconValidator.validate(parts[1], paths,
+                  fancyPaths.getValue(parts[1]).toSet(), ::read)
               } catch (verification: Exception) {
                 if (verification is InterruptedException) throw verification
                 failure.addSuppressed(verification)

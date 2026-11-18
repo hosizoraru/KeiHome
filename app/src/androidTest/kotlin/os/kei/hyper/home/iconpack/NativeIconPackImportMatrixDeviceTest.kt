@@ -181,6 +181,14 @@ class NativeIconPackImportMatrixDeviceTest {
           }
         }
         if (generatedDigest != null) candidates.keys.retainAll(setOf(generatedDigest))
+        val arguments = InstrumentationRegistry.getArguments()
+        val minimumMappings = arguments.getString("minimumMappings")?.toIntOrNull() ?: 0
+        if (minimumMappings > 0) {
+          candidates.values.removeAll { it.pack.entries.size < minimumMappings }
+          report.put("minimumMappings", minimumMappings)
+        }
+        val testGenericMonet = arguments.getString("testGenericMonet") == "1"
+        report.put("genericMonet", testGenericMonet)
         check(candidates.isNotEmpty()) { "No import candidates were discovered" }
         candidates.values.forEach {
           rows.put(JSONObject().put("sourceId", it.pack.id).put("displayName", it.pack.displayName)
@@ -249,7 +257,12 @@ class NativeIconPackImportMatrixDeviceTest {
               colorOsForOtherPacks = selected.colorOsForOtherPacks,
               installedOnly = selected.installedIconsOnly,
               completeSystemIconConfig = selected.completeSystemIconConfig,
-              recommendedMappings = selected.recommendedIconMappings)
+              recommendedMappings = selected.recommendedIconMappings,
+              monetUnadaptedIcons = testGenericMonet,
+              onProgress = ColorOsProgressReporter({ progress ->
+                row.put("stage", progress.stage.name).put("stageDone", progress.done)
+                  .put("stageTotal", progress.total)
+              })::update)
             handoff = prepared
             row.put("prepareMs", SystemClock.elapsedRealtime() - began)
               .put("convertedOrigin", prepared.convertedOrigin ?: JSONObject.NULL)

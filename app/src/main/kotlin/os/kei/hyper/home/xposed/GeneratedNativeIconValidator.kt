@@ -20,7 +20,12 @@ internal object GeneratedNativeIconValidator {
 
   fun validate(name: String, paths: Set<String>, read: (String, Long) -> ByteArray) {
     val root = "fancy_icons/$name/"
-    val actualPaths = paths.filterTo(HashSet()) { it.startsWith(root) }
+    validate(name, paths, paths.filterTo(HashSet()) { it.startsWith(root) }, read)
+  }
+
+  fun validate(name: String, paths: Set<String>, actualPaths: Set<String>,
+    read: (String, Long) -> ByteArray) {
+    val root = "fancy_icons/$name/"
     val cache = HashMap<String, ByteArray>()
     var pngLimit = PNG_LIMIT
     fun bytes(path: String) = cache.getOrPut(path) {

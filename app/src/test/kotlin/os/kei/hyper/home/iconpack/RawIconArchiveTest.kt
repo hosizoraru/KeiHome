@@ -16,6 +16,38 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class RawIconArchiveTest {
+  @Test fun diskStagedEntriesReplaceResourcesWithoutRetainingPayloads() {
+    val directory = java.nio.file.Files.createTempDirectory("icon-spool-test").toFile()
+    try {
+      val source = File(directory, "original.zip")
+      ZipOutputStream(source.outputStream()).use {
+        it.putNextEntry(ZipEntry("kept.png"))
+        it.write(byteArrayOf(7))
+        it.closeEntry()
+        it.putNextEntry(ZipEntry("old.png"))
+        it.write(byteArrayOf(8))
+        it.closeEntry()
+      }
+      val output = File(directory, "rewritten.zip")
+      SpoolIconEntries.open(directory, IconPackLimits(maxExpandedBytes = 5)).use { spool ->
+        val pixels = byteArrayOf(1, 2)
+        spool.append(mapOf("day.png" to pixels, "alias.png" to pixels)) {}
+        assertEquals(2L, directory.listFiles()!!.single { it.extension == "spool" }.length())
+        pixels.fill(0)
+        assertThrows(IconPackException::class.java) {
+          spool.append(mapOf("overflow.png" to byteArrayOf(3, 4))) {}
+        }
+        RawIconArchive.write(source, output, includes = { it != "old.png" },
+          spooled = spool, maxOutputBytes = MAX_OUTPUT)
+      }
+      ZipFile(output).use {
+        assertEquals(setOf("kept.png", "day.png", "alias.png"), it.entries().asSequence().map { e -> e.name }.toSet())
+        assertArrayEquals(byteArrayOf(1, 2), it.getInputStream(it.getEntry("day.png")).use { input -> input.readBytes() })
+      }
+      assertTrue(directory.listFiles()!!.none { it.extension == "spool" })
+    } finally { directory.deleteRecursively() }
+  }
+
   @get:Rule val temporary = TemporaryFolder()
   private data class Entry(val name: String, val bytes: ByteArray, val method: Int = ZipEntry.DEFLATED)
 

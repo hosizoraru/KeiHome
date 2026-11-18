@@ -1,6 +1,11 @@
 # Native launcher compatibility matrix
 
-Current HyperOS Phone AVD baseline (2026-11-18) is **9261**,
+Current HyperOS Phone AVD baseline (2026-11-19) is **0308**,
+`RELEASE-8.01.03.308-261102-11171006-R`. The
+[0308 compatibility record](launcher-0308-compatibility.md) covers the shared
+configuration graph, label rendering, Dock, Search and Monet on the new branch.
+
+The previous Phone baseline was **9261**,
 `RELEASE-8.01.02.9261-261013-11142146-R`. The
 [9261 compatibility record](launcher-9261-compatibility.md) covers changes to
 the native resolver, resident scrolling labels, and the Dock and Search

@@ -1,9 +1,11 @@
 package os.kei.hyper.home.data
 
 import android.graphics.Bitmap
+import android.graphics.ColorSpace
 import android.graphics.Rect
-import android.os.SystemClock
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.libxposed.service.XposedServiceHelper
@@ -35,6 +37,7 @@ class MonetRuntimeReleaseGateTest {
     assumeTrue(InstrumentationRegistry.getArguments().getString("realMonetRelease") == "1")
     val context = instrumentation.targetContext
     val arguments = InstrumentationRegistry.getArguments()
+    val animatedBackdrop = arguments.getString("monetAnimatedBackdrop") == "1"
     val screenSize = requireNotNull(arguments.getString("monetScreenSize")).split(",").map(String::toInt)
     val coordinates = requireNotNull(arguments.getString("monetIconBounds")).split(",").map(String::toInt)
     require(screenSize.size == 2 && coordinates.size == 4)
@@ -54,16 +57,20 @@ class MonetRuntimeReleaseGateTest {
       }
       return output.substring(0, index).trim()
     }
-    fun setting(namespace: String, key: String) = root("settings get $namespace $key")
+    fun setting(namespace: String, key: String): String =
+      (if (namespace == "secure") Settings.Secure.getString(context.contentResolver, key)
+      else Settings.System.getString(context.contentResolver, key)) ?: "null"
     fun assertDisabled() {
       assertEquals("Monet app flag", "0", setting("system", "key_monochrome"))
       assertEquals("Legacy MAML must remain disabled", "0", setting("system", NativePaletteIcon.ENABLED_KEY))
       assertEquals("Packed MAML must remain disabled", "0", setting("system", NativePaletteIcon.STATE_KEY))
     }
-    fun captureIcon(): IconSample {
+    fun assertLauncherForeground() {
       check(root("dumpsys activity activities").lineSequence().any {
         "topResumedActivity=" in it && "com.miui.home/" in it
       }) { "The icon witness requires the actual foreground launcher" }
+    }
+    fun captureIcon(): IconSample {
       val screen = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
       check(screen.width == screenSize[0] && screen.height == screenSize[1] &&
         Rect(0, 0, screen.width, screen.height).contains(iconBounds) && !iconBounds.isEmpty) {
@@ -74,6 +81,11 @@ class MonetRuntimeReleaseGateTest {
       screen.recycle()
       if (crop !== image) crop.recycle()
       try {
+        // MAML publishes encoded RGB values. Compare the screenshot channels before
+        // getPixels converts a Display P3 screenshot to sRGB.
+        if (image.colorSpace == ColorSpace.get(ColorSpace.Named.DISPLAY_P3)) {
+          image.setColorSpace(ColorSpace.get(ColorSpace.Named.SRGB))
+        }
         val pixels = IntArray(image.width * image.height).also {
           image.getPixels(it, 0, image.width, 0, 0, image.width, image.height)
         }
@@ -99,10 +111,25 @@ class MonetRuntimeReleaseGateTest {
         kotlin.math.abs((pixel ushr 8 and 255) - (color ushr 8 and 255)) <= 2 &&
         kotlin.math.abs((pixel and 255) - (color and 255)) <= 2
     }
+    fun sameArtwork(first: IconSample, second: IconSample): Boolean {
+      if (first.hash == second.hash) return true
+      if (!animatedBackdrop) return false
+      // Rounded or partially transparent icons can expose the live wallpaper and Dock glass.
+      // Keep requiring the two expected opaque palette roles for enabled samples.
+      val changed = first.pixels.indices.count { index ->
+        val a = first.pixels[index]
+        val b = second.pixels[index]
+        kotlin.math.abs((a ushr 16 and 255) - (b ushr 16 and 255)) > 2 ||
+          kotlin.math.abs((a ushr 8 and 255) - (b ushr 8 and 255)) > 2 ||
+          kotlin.math.abs((a and 255) - (b and 255)) > 2
+      }
+      return changed * 50 <= first.pixels.size
+    }
     fun settledIcon(name: String, expected: MonetIconRoles? = null, disabled: Boolean = false): IconSample {
       root("input -d 0 keyevent 3")
+      assertLauncherForeground()
       val deadline = SystemClock.elapsedRealtime() + 15_000
-      var previousHash: String? = null
+      var previous: IconSample? = null
       var stable = 0
       var sample: IconSample
       do {
@@ -111,10 +138,13 @@ class MonetRuntimeReleaseGateTest {
         val colorsMatch = expected == null ||
           colorPixels(sample, expected.foreground) >= 16 && colorPixels(sample, expected.background) >= 16
         stable = if (colorsMatch) {
-          if (sample.hash == previousHash) stable + 1 else 1
+          if (animatedBackdrop && expected != null || previous?.let { sameArtwork(it, sample) } == true) {
+            stable + 1
+          } else 1
         } else 0
-        previousHash = sample.hash
+        previous = sample
         if (stable >= 3) {
+          assertLauncherForeground()
           saveIcon(name, sample)
           return sample
         }
@@ -172,8 +202,8 @@ class MonetRuntimeReleaseGateTest {
           assertDisabled()
           assertEquals(disabledChoice, MonetPaletteReader(context).read().customization)
           val disabledAfter = settledIcon("disabled-after", disabled = true)
-          assertEquals("Applying colors while disabled must not recolor the real icon",
-            disabledBefore.hash, disabledAfter.hash)
+          assertTrue("Applying colors while disabled must not recolor the real icon",
+            sameArtwork(disabledBefore, disabledAfter))
           disabledEvidence.put("beforeHash", disabledBefore.hash).put("afterHash", disabledAfter.hash)
             .put("scalarEnabled", setting("system", NativePaletteIcon.ENABLED_KEY))
             .put("packedState", setting("system", NativePaletteIcon.STATE_KEY)).put("unchanged", true)

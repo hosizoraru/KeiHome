@@ -79,8 +79,14 @@ def audit(library, debug):
     field = folder[writes[-1]-1]
     assert add.mnemonic == 'add' and cs.reg_name(add.operands[2].reg) == 'x28' and add.operands[2].shift.value == 32
     assert field.mnemonic == 'ldur' and field.operands[1].mem.disp == 11
-    instruction('FolderFallback', 328, 'mov', 'x1, x3')
-    instruction('FolderFallback', 336, 'bl', f'#{fixture.roles["Should"][0]:#x}')
+    fallback_code = code['FolderFallback']
+    should = fixture.roles['Should'][0]
+    sites = [i for i, op in enumerate(fallback_code)
+             if op.mnemonic == 'bl' and op.operands[0].imm == should]
+    assert len(sites) == 1 and sites[0] >= 2
+    argument, saved = fallback_code[sites[0]-2:sites[0]]
+    assert (argument.mnemonic, argument.op_str) == ('mov', 'x1, x3')
+    assert saved.mnemonic == 'stur' and saved.operands[1].mem.disp == -8
     instruction('ResourceProbe', 16, 'ldur', 'w2, [x0, #0x17]')
     instruction('ResourceProbe', 28, 'ldur', 'w1, [x2, #0xf]')
     instruction('ResourceProbe', 36, 'bl', f'#{fixture.roles["Resource"][0]:#x}')

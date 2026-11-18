@@ -21,7 +21,6 @@ ROLES = {
     "lines": "GridController.titleLines",
     "measure": "TitleShadowUtils._measureText",
     "editing": "ScreenLayerGetXController._isInNormalEditing",
-    "fadeWrap": "_MarqueeState._wrapWithFadingEdgeScrollView",
 }
 
 
@@ -61,7 +60,11 @@ def main():
         (args.output / f"{path.parent.name}-resolver.log").write_text(completed.stdout + completed.stderr)
         row = dict(pair.split("=") for pair in completed.stdout.splitlines()[0].split())
         image = Image(path)
-        for field, name in ROLES.items():
+        oracles = ROLES | ({"wrapper": "AospMarqueeTextState.build",
+                            "wrapperType": "AospMarqueeTextState.didUpdateWidget"}
+                           if int(row["wrapper"], 16) else
+                           {"fadeWrap": "_MarqueeState._wrapWithFadingEdgeScrollView"})
+        for field, name in oracles.items():
             [(address, _)] = image.syms[name]
             assert int(row[field], 16) == address, (path, field, name)
         if image.syms[ROLES["lines"]][0][1] == 0x9c:
@@ -71,8 +74,8 @@ def main():
         assert debug.read_bytes() == lzma.decompress(image.section(".gnu_debugdata")), path
         results.append({"image": str(path), "sha256": hashlib.sha256(image.data).hexdigest(),
                         "debug_sha256": hashlib.sha256(debug.read_bytes()).hexdigest(),
-                        "symbol_oracles": ROLES, "profile": row,
-                        "resolver_rejection_checks": 19})
+                        "symbol_oracles": oracles, "profile": row,
+                        "resolver_rejection_checks": 23 if int(row["wrapper"], 16) else 19})
     if expanded:
         generated = args.output / "launcher_label_variants.inc"
         subprocess.run([sys.executable, str(Path(__file__).with_name("generate_variants.py")),

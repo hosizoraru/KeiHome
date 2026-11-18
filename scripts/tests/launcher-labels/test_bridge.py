@@ -53,7 +53,8 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     word(prefix_result+7,2 if prefix else 0)
     put(STACK+p["prefixRoot"],prefix_widget)
     top = heap + 0x110000
-    put(THREAD + 0x60, top); put(THREAD + 0x68, top + (0x70 if pressure else 0x1000))
+    scroll_size = ((p["marqueeTag"] >> 8) & 15) * 16
+    put(THREAD + 0x60, top); put(THREAD + 0x68, top + (scroll_size if pressure else 0x1000))
     put(THREAD + 0x78, FIELDS); put(FIELDS + p["grid"], grid)
     word(grid + 0x2b, rx); word(rx + 0x13, config)
     number(config + p["width"], 92.0)
@@ -65,13 +66,13 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
     data = [POLICY, CODE+p["textAlloc"], CODE+p["measure"], CODE+p["ctor"], CODE+p["alloc"]+20,
             CODE+p["after"], p["textCid"], p["sizeCid"], p["marqueeTag"], p["grid"], 0x2b, 0x13,
             p["width"], p["sourceWidth"], p["ltr"], p["source"], p["text"], p["style"], p["widget"], p["line"]]+[0]*11+[p["prefixRoot"], CODE+p["prefix"]]
-    data += [0]*13
+    data += [0]*13 + [int(bool(p["wrapper"]))]
     data[24]=p['tickerTag'];data[36]=CODE+p['editing'];data[37]=p['editingSlot']
     editor, sentinel = heap+0x100d01, heap+0x100e01
     put(POOL+0x40,sentinel)
     put(FIELDS+p['editingSlot'], {'ready':editor,'null':null,'sentinel':sentinel}[editing_state])
     blob = bytearray(template)
-    struct.pack_into("<46Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in data))
+    struct.pack_into("<47Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in data))
     uc.mem_write(BRIDGE, bytes(blob))
     # Real methods return to this original allocation-site PC; emulate its detour.
     return_pc = CODE+p["alloc"]+4
@@ -99,12 +100,14 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
             calls.append('Editing')
             assert cpu.reg_read(X[1])==editor and cpu.reg_read(X[30])==return_pc
             expected_title_wrapper=get(STACK+p['text'])
+            if p["wrapper"]:
+                expected_marquee = heap + struct.unpack("<I", uc.mem_read(expected_title_wrapper+15, 4))[0]
             assert get(expected_title_wrapper-1)==p['tickerTag']
             if relocate:
                 old_wrapper=expected_title_wrapper;expected_title_wrapper+=0x1000
                 uc.mem_write(expected_title_wrapper-1,bytes(uc.mem_read(old_wrapper-1,32)))
                 old_marquee=expected_marquee;expected_marquee+=0x1000
-                uc.mem_write(expected_marquee-1,bytes(uc.mem_read(old_marquee-1,0x70)))
+                uc.mem_write(expected_marquee-1,bytes(uc.mem_read(old_marquee-1,scroll_size)))
                 expected_text+=0x1000;expected_style+=0x1000
                 word(expected_title_wrapper+7,expected_text);word(expected_title_wrapper+15,expected_marquee)
                 word(expected_marquee+11,expected_text);word(expected_marquee+15,expected_style)
@@ -129,9 +132,11 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
             assert struct.unpack("<I",uc.mem_read(candidate+0xb,4))[0]==expected_text&0xffffffff
             if relocate:
                 moved=candidate+0x5000
-                uc.mem_write(moved-1,bytes(uc.mem_read(candidate-1,0x70)))
+                uc.mem_write(moved-1,bytes(uc.mem_read(candidate-1,scroll_size)))
                 put(STACK+p["text"],moved)
-                uc.mem_write(candidate-1,b"\xcc"*0x70)
+                uc.mem_write(candidate-1,b"\xcc"*scroll_size)
+            if p["wrapper"]:
+                expected_marquee = get(STACK+p["text"])
             if prefix_change is not None: word(POLICY,prefix_change)
             cpu.reg_write(X[0],prefix_result);cpu.reg_write(ar.UC_ARM64_REG_PC,return_pc)
         elif pc == CODE+p["textAlloc"]:
@@ -157,12 +162,22 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
         elif pc in (CODE+p["after"], CODE+p["alloc"]+20):
             finished.append(pc); cpu.emu_stop()
 
+    if title_pressure and p["wrapper"]:
+        put(THREAD+0x68, top+scroll_size+32)
     uc.hook_add(UC_HOOK_CODE, hook)
     uc.emu_start(BRIDGE+entries["pre"], END, count=1000)
     assert len(finished) == 1, calls
     marquee = mode == 1 and change is None and math.isfinite(width) and math.isfinite(maximum) and maximum > 0 and width > (min(92, maximum) if prefix else max(92, maximum)) > 0 and not pressure
     if "Prefix" in calls and prefix_change is not None: marquee=False
-    assert ("Marquee" in calls) == marquee, (mode, width, maximum, pressure, change, calls)
+    assert ("Marquee" in calls) == (marquee and not p["wrapper"]), calls
+    if marquee and p["wrapper"]:
+        expected_marquee = expected_marquee or top + 1
+        assert get(expected_marquee-1) == p["marqueeTag"]
+        for offset, value in ((7, null), (11, expected_text), (15, expected_style), (19, direction),
+                              (39, null), (43, null), (47, null)):
+            assert struct.unpack("<I", uc.mem_read(expected_marquee+offset, 4))[0] == value & 0xffffffff
+        for offset, value in ((23, min(92.0, maximum)), (31, 30.0), (51, 12.0)):
+            assert struct.unpack("<d", uc.mem_read(expected_marquee+offset, 8))[0] == value
     assert get(STACK+p["text"]) == expected_text
     assert get(STACK+p["style"]) == expected_style
     assert get(STACK+p["source"]) == source
@@ -174,7 +189,7 @@ def execute(template, entries, p, high, mode, width=150.0, maximum=80.0, pressur
         assert struct.unpack('<I',uc.mem_read(expected_title_wrapper+15,4))[0]==expected_marquee&0xffffffff
     if marquee: assert uc.reg_read(X[4]) == 2 and finished == [CODE+p["after"]]
     else:
-        assert get(THREAD+0x60) == top+(0x70 if "Prefix" in calls else 0)
+        assert get(THREAD+0x60) == top+(scroll_size if "Prefix" in calls else 0)
         assert uc.reg_read(X[2]) == expected_text and uc.reg_read(X[3]) == expected_style
     for i, value in [(15, STACK-0x70), (21, 0x21000000), (22, null), (26, THREAD), (27, POOL), (28, high), (29, STACK)]:
         assert uc.reg_read(X[i]) == value, (i, hex(uc.reg_read(X[i])))
@@ -306,10 +321,10 @@ def execute_page(template, entries, p, high, visible, pressure=False, relocate=F
     put(THREAD+0x60, top); put(THREAD+0x68, top+(0x20 if pressure else 0x1000))
     config = [0]*24+[p["tickerTag"], CODE+p["visible"], p["cellRoot"], 0,
                        p["controller"], p["screen"], CODE+p["cell"]+48]
-    config += [0]*15
+    config += [0]*16
     config[36:38] = [CODE+p["editing"], p["editingSlot"]]
     blob = bytearray(template)
-    struct.pack_into("<46Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in config))
+    struct.pack_into("<47Q", blob, entries["config"], *(v & 0xffffffffffffffff for v in config))
     uc.mem_write(BRIDGE,bytes(blob))
     uc.mem_write(BRIDGE+entries["page_replay"],p["cellReplay"])
     return_pc = CODE+p["cell"]+4
@@ -408,11 +423,11 @@ def execute_cache(template, entries, p, high, mode, editing, pressure=False,
     word(POLICY,mode)
     top=heap+0x110000; wrapper=top+1; expected_entry=entry; expected_child=child
     put(THREAD+0x60,top); put(THREAD+0x68,top+(160 if pressure else 4096))
-    config=[0]*46
+    config=[0]*47
     config[0]=POLICY; config[24]=p['tickerTag']
-    config[36:]=[CODE+p['editing'],p['editingSlot'],CODE+p['cache'],p['cacheRoot'],p['shortcutCid'],p['dragTag'],CODE+p['factoryOne'],CODE+p['factoryTwo'],p['factoryRoot'],p['shortcutTag']]
+    config[36:46]=[CODE+p['editing'],p['editingSlot'],CODE+p['cache'],p['cacheRoot'],p['shortcutCid'],p['dragTag'],CODE+p['factoryOne'],CODE+p['factoryTwo'],p['factoryRoot'],p['shortcutTag']]
     blob=bytearray(template)
-    struct.pack_into('<46Q',blob,entries['config'],*(v&0xffffffffffffffff for v in config))
+    struct.pack_into('<47Q',blob,entries['config'],*(v&0xffffffffffffffff for v in config))
     uc.mem_write(BRIDGE,bytes(blob))
     return_pc=CODE+(p['factoryOne'] if factory==1 else p['factoryTwo'] if factory==2 else p['cache'])
     for page in {return_pc&~4095,(CODE+p['editing'])&~4095}: uc.mem_map(page,4096)
@@ -527,7 +542,7 @@ def main():
                         execute(template,entries,p,high,1,width=width,prefix=prefix,relocate=relocate);total+=1
                 for changed in (0,2):
                     execute(template,entries,p,high,1,width=90,prefix=prefix,prefix_change=changed);total+=1
-            for mode in (0,1,2):
+            for mode in (() if p["wrapper"] else (0,1,2)):
                 for start,end in ((0,0),(-0.0,0),(0,-0.0),(.1,0),(0,.1),(-.1,0),
                                   (float('nan'),0),(0,float('nan')),(float('inf'),0),(0,float('inf'))):
                     execute_fade(template,entries,p,high,mode,start,end);total+=1

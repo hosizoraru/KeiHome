@@ -18,6 +18,18 @@ bool Contains(const IconHighlightImage& im, size_t p, size_t n) {
 uint32_t Word(const IconHighlightImage& im, size_t p) {
     uint32_t w=0; if (Contains(im,p,4)) memcpy(&w,im.base+p,4); return w;
 }
+size_t Branch(const IconHighlightImage& im, size_t pc, bool link = true);
+bool ScrollSlowPaths(const IconHighlightImage& im, size_t entry) {
+    const auto target = [&](size_t offset) -> size_t {
+        const auto pc = entry + offset;
+        const uint32_t displacement = (Word(im, pc) >> 5) & 0x7ffffu;
+        if (displacement < 0xc4/4 || displacement > 0x400/4) return 0;
+        return pc + displacement*4;
+    };
+    const size_t first = target(0x24), second = target(0x4c);
+    return first && second == first+4 && Branch(im, first) &&
+        Branch(im, first) == Branch(im, second);
+}
 bool Match(const IconHighlightImage& im,size_t p,const DockPattern& pat) {
     if (!Contains(im,p,pat.count*4)) return false;
     for(size_t j=0;j<pat.count;++j) {
@@ -48,7 +60,7 @@ template<size_t N> size_t Find(const IndexedArm64Image& im,const DockPattern(&v)
     });
     return ambiguous?0:found;
 }
-size_t Branch(const IconHighlightImage& im,size_t pc,bool link=true) {
+size_t Branch(const IconHighlightImage& im,size_t pc,bool link) {
     uint32_t w=Word(im,pc);if((w&0xfc000000u)!=(link?0x94000000u:0x14000000u))return 0;
     int64_t n=w&0x3ffffffu;if(n&0x2000000)n-=0x4000000;
     int64_t to=int64_t(pc)+n*4;return to>0&&Contains(im,size_t(to),4)?size_t(to):0;
@@ -653,7 +665,7 @@ bool ResolveDockGlass(const IconHighlightImage& source,DockGlassProfile* out,con
             p.bottom_margin_return=at;
         }
     if(!p.bottom_margin_return)return Fail(why,"native Dock margin return missing");
-    if(!ResolveLauncherLabels(im,&p.labels,why))return false;
+    if(!ResolveLauncherLabelState(im,&p.labels,why))return false;
     p.phone=Find(im,kDockPhone);
     p.background=0;
     const size_t outer=Find(im,kDockOuter),width=Find(im,kDockCellWidth), max=Find(im,kDockMaxCount);
@@ -669,6 +681,7 @@ bool ResolveDockGlass(const IconHighlightImage& source,DockGlassProfile* out,con
 #endif
     if(!p.phone||!outer||!width||!max||!sizebox||!pos||!corner||!scroll||!material||!p.mode||!elderly_shape||!sync||!ink||!height||!no_word_shape)
         return Fail(why,"ambiguous Dock instruction roles");
+    if (!ScrollSlowPaths(im, scroll)) return Fail(why, "unsupported scroll slow paths");
     uint32_t original_clip_pp=0;
     const auto* phone_role=Role(im,p.phone,kDockPhone);
     if(!phone_role)return Fail(why,"native phone role missing");

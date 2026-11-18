@@ -20,6 +20,16 @@ def mask(w,role=''):
 
 def body_masks(words, role):
     result = [mask(w, role) for w in words]
+    if role == 'Outer':
+        for i in range(2, len(words)-2):
+            if (words[i-2:i] == (0xf85ff004, 0xd34c7c84)
+                and words[i] & 0xffe0001f == 0xd2800011
+                and words[i+1:i+3] == (0xeb11009f, 0x540000c0)):
+                result[i] = 0xffe0001f
+    if role == 'ScrollBuild':
+        for offset in (0x24, 0x4c):
+            assert words[offset//4] & 0xff00001f == 0x54000000
+            result[offset//4] = 0xff00001f
     for i in range(1, len(words) - 2):
         reg = words[i] & 31
         # Retain the complete PP-derived closure entry/context load and call.

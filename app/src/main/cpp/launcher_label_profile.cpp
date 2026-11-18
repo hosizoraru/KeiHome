@@ -7,6 +7,7 @@ namespace {
 struct LabelWord { uint32_t word, mask; };
 #include "launcher_label_patterns.inc"
 #include "launcher_label_variants.inc"
+#include "launcher_label_wrapper_patterns.inc"
 bool Reject(const char** why, const char* text) { if (why) *why = text; return false; }
 bool Contains(const IconHighlightImage& im, size_t pc, size_t n) {
     for (size_t i = 0; i < im.range_count; ++i) {
@@ -74,7 +75,79 @@ bool NoInteriorBranch(const IconHighlightImage& im, size_t at) {
     }
     return true;
 }
+size_t Either(size_t a, size_t b) {
+    return a && b && a != b ? 0 : a ? a : b;
+}
+
+bool ResolveMarqueeWrapper(const IndexedArm64Image& im, LauncherLabelProfile& p) {
+    const size_t build = FindWhere(im, kLabelWrapperBuild, [&](size_t at) {
+        const size_t closure = Call(im, at + 0xc8);
+        const size_t allocator = Call(im, at + 0xd0);
+        const size_t ctor = Call(im, at + 0x100);
+        return Matches(im, closure, kLabelWrapperClosure) &&
+            (AllocationTag(im, allocator) & 0xfff) == 0x71c &&
+            Matches(im, ctor, kLabelWrappedCtor);
+    });
+    if (!build) return false;
+    const size_t init = FindWhere(im, kLabelWrapperInit, [&](size_t at) {
+        return (AllocationTag(im, Call(im, at)) & 0xfff) == 0x41c;
+    });
+    if (!init) return false;
+    const size_t allocator = Call(im, init);
+    const uint32_t tag = AllocationTag(im, allocator);
+    const size_t type = FindWhere(im, kLabelWrapperType, [&](size_t at) {
+        return ((Word(im, at + 0x38) >> 5) & 65535) == tag >> 12;
+    });
+    if (!type || tag >> 12 == AllocationTag(im, Call(im, build + 0xd0)) >> 12)
+        return false;
+    p.marquee_wrapper_build = build;
+    p.marquee_wrapper_init = init;
+    p.marquee_wrapper_type = type;
+    p.marquee_constructor = Call(im, build + 0x100);
+    p.marquee_allocator = allocator;
+    p.marquee_tag = tag;
+    return true;
+}
+
+bool ResolveLabelState(const IndexedArm64Image& im, LauncherLabelProfile& p, const char** why) {
+    p.config = Either(Find(im, kLabelConfig), Find(im, kLabelConfigExpanded));
+    p.value = Find(im, kLabelValue);
+    p.change_event = Either(Find(im, kLabelChangeEvent), Find(im, kLabelChangeEventExpanded));
+    if (!p.config || !p.value || !p.change_event || Call(im, p.config + 0x54) != p.value)
+        return Reject(why, "label configuration graph changed");
+    p.grid_slot = Slot(Word(im, p.config + 16));
+    p.config_rx_field = uint32_t(Field(Word(im, p.config + 0x4c)));
+    p.rx_value_field = uint32_t(Field(Word(im, p.value + 0x3c)));
+    if (!p.grid_slot || p.rx_value_field != 0x13 ||
+            (p.config_rx_field != 0x2b && p.config_rx_field != 0x2f))
+        return Reject(why, "label configuration fields changed");
+
+    size_t log_calls = 0;
+    for (size_t at = p.change_event + 0x30; at < p.change_event + 0x120; at += 4) {
+        const size_t target = Call(im, at);
+        if (!target || !Matches(im, target, kLabelRefreshLog)) continue;
+        if (p.refresh_logger && p.refresh_logger != target)
+            return Reject(why, "item-change log targets differ");
+        if ((Word(im, at + 4) & 0xffe0001fu) != 0x92800011u ||
+                Word(im, at + 8) != 0xf8716ba2u)
+            return Reject(why, "item-change return value became live");
+        if (!log_calls++) { p.refresh_call = at; p.refresh_logger = target; }
+    }
+    return log_calls == 2 || Reject(why, "item-change refresh call graph changed");
+}
 } // namespace
+
+bool ResolveLauncherLabelState(const IconHighlightImage& source, LauncherLabelProfile* out,
+                               const char** why) {
+    if (why) *why = nullptr;
+    if (!out) return Reject(why, "missing label output");
+    *out = {};
+    if (!ValidateArm64DartImage(source)) return Reject(why, "invalid label image");
+    LauncherLabelProfile p{};
+    if (!ResolveLabelState(IndexedArm64Image(source), p, why)) return false;
+    *out = p;
+    return true;
+}
 
 bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfile* out, const char** why) {
     if (why) *why = nullptr;
@@ -83,20 +156,18 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
     if (!ValidateArm64DartImage(source)) return Reject(why, "invalid label image");
     const IndexedArm64Image im(source);
     LauncherLabelProfile p{};
-    const auto either = [](size_t a, size_t b) { return a && b && a != b ? size_t{0} : a ? a : b; };
+    if (!ResolveLabelState(im, p, why)) return false;
     p.builder = Find(im, kLabelBuilder);
-    p.lines = either(Find(im, kLabelLines), Find(im, kLabelLinesInline));
-    p.config = either(Find(im, kLabelConfig), Find(im, kLabelConfigExpanded));
-    p.value = Find(im, kLabelValue);
+    p.lines = Either(Find(im, kLabelLines), Find(im, kLabelLinesInline));
     p.measure = Find(im, kLabelMeasure); p.marquee_constructor = Find(im, kLabelMarqueeCtor);
-    p.change_event = either(Find(im, kLabelChangeEvent), Find(im, kLabelChangeEventExpanded));
     p.font_refresh = Find(im, kLabelFontRefresh);
     const size_t type = Find(im, kLabelMarqueeType);
-    if (!p.builder || !p.lines || !p.config || !p.value || !p.measure || !p.marquee_constructor || !type ||
-            !p.change_event || !p.font_refresh)
+    if (!p.builder || !p.lines || !p.measure || !p.font_refresh)
         return Reject(why, "ambiguous label instruction roles");
+    if (!p.marquee_constructor && !ResolveMarqueeWrapper(im, p))
+        return Reject(why, "unsupported native scrolling title graph");
     const size_t cell = Find(im, kLabelCellContent);
-    const size_t grid_body = either(Find(im, kLabelCellGridBody), Find(im, kLabelCellGridBodyExpanded));
+    const size_t grid_body = Either(Find(im, kLabelCellGridBody), Find(im, kLabelCellGridBodyExpanded));
     const size_t ticker_effective = Find(im, kLabelTickerEffective);
     const size_t ticker_type = Find(im, kLabelTickerType, 0x98, ticker_effective);
     p.cell_visibility = Find(im, kLabelGridVisibility);
@@ -209,18 +280,6 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
     // The UI item-change handler has two adjacent info calls before it consumes
     // the change set. Both discard their result. Reuse the first original call
     // PC for the resident title-cache refresh; no extra Dart frame is invented.
-    size_t log_calls = 0;
-    for (size_t at = p.change_event + 0x30; at < p.change_event + 0x120; at += 4) {
-        const size_t target = Call(im, at);
-        if (!target || !Matches(im, target, kLabelRefreshLog)) continue;
-        if (p.refresh_logger && p.refresh_logger != target)
-            return Reject(why, "item-change log targets differ");
-        if ((Word(im, at + 4) & 0xffe0001fu) != 0x92800011u ||
-                Word(im, at + 8) != 0xf8716ba2u)
-            return Reject(why, "item-change return value became live");
-        if (!log_calls++) { p.refresh_call = at; p.refresh_logger = target; }
-    }
-    if (log_calls != 2) return Reject(why, "item-change refresh call graph changed");
     const bool inline_lines = Matches(im, p.lines, kLabelLinesInline);
     const bool line_config_graph = inline_lines ?
         (Call(im, p.lines + 0x48) == Call(im, p.config + 0x48) &&
@@ -229,9 +288,6 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
          Call(im, p.lines + 0x54) == p.value) : Call(im, p.lines + 12) == p.config;
     if (!line_config_graph || Call(im, p.config + 0x54) != p.value)
         return Reject(why, "label configuration graph changed");
-    p.grid_slot = Slot(Word(im, p.config + 16));
-    p.config_rx_field = uint32_t(Field(Word(im, p.config + 0x4c)));
-    p.rx_value_field = uint32_t(Field(Word(im, p.value + 0x3c)));
     p.source_slot = Field(Word(im, p.builder + 0x24));
     // Each role must occur exactly once in this builder, before a new function.
     size_t line_call = 0, max_lines = 0, source_width = 0;
@@ -288,25 +344,29 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
                 w != 0xd37ff824u && w != 0xb8037004u) return Reject(why, "unknown Text initialization effect");
     }
     // The native constructor call is uniquely paired with its allocator.
-    for (size_t i = 0; i < im.range_count; ++i) {
-        const auto& r = im.ranges[i]; if (!r.executable) continue;
-        for (size_t at = r.begin + 28; at + 4 <= r.end; at += 4) {
-            if (Call(im, at) != p.marquee_constructor) continue;
-            if (p.marquee_allocator || Word(im, at - 24) != 0xaa0003e1u ||
-                    (Word(im, at - 20) & 0xffe00fffu) != 0xf84003a2u ||
-                    (Word(im, at - 16) & 0xffe00fffu) != 0xf84003a3u ||
-                    (Word(im, at - 12) & 0xffe00fffu) != 0xf84003a5u ||
-                    (Word(im, at - 8) & 0xffe00fffu) != 0xf84003a6u ||
-                    (Word(im, at - 4) & 0xffe00fffu) != 0xf80003a0u)
-                return Reject(why, "marquee allocation/constructor graph changed");
-            p.marquee_allocator = Call(im, at - 28);
+    if (!p.marquee_wrapper_build) {
+        for (size_t i = 0; i < im.range_count; ++i) {
+            const auto& r = im.ranges[i]; if (!r.executable) continue;
+            for (size_t at = r.begin + 28; at + 4 <= r.end; at += 4) {
+                if (Call(im, at) != p.marquee_constructor) continue;
+                if (p.marquee_allocator || Word(im, at - 24) != 0xaa0003e1u ||
+                        (Word(im, at - 20) & 0xffe00fffu) != 0xf84003a2u ||
+                        (Word(im, at - 16) & 0xffe00fffu) != 0xf84003a3u ||
+                        (Word(im, at - 12) & 0xffe00fffu) != 0xf84003a5u ||
+                        (Word(im, at - 8) & 0xffe00fffu) != 0xf84003a6u ||
+                        (Word(im, at - 4) & 0xffe00fffu) != 0xf80003a0u)
+                    return Reject(why, "marquee allocation/constructor graph changed");
+                p.marquee_allocator = Call(im, at - 28);
+            }
         }
+        p.marquee_tag = AllocationTag(im, p.marquee_allocator);
+        const uint32_t checked_cid = (Word(im, type + 0x30) >> 5) & 65535;
+        if (!type || (p.marquee_tag & 0xfff) != 0x71c || p.marquee_tag >> 12 != checked_cid)
+            return Reject(why, "marquee class contract changed");
     }
-    p.marquee_tag = AllocationTag(im, p.marquee_allocator);
     p.size_cid = AllocationTag(im, Call(im, p.measure + 0x16c)) >> 12;
-    const uint32_t checked_cid = Word(im, type + 0x30) >> 5 & 65535;
-    if ((p.marquee_tag & 0xfff) != 0x71c || (p.marquee_tag >> 12) != checked_cid ||
-            !p.size_cid || p.size_cid == p.text_cid || p.size_cid == checked_cid)
+    if (!p.size_cid || p.size_cid == p.text_cid || p.size_cid == p.marquee_tag >> 12 ||
+            p.text_cid == p.marquee_tag >> 12)
         return Reject(why, "marquee/Size class contract changed");
     // This exact native measurement constructor supplies TextDirection.ltr.
     p.ltr_slot = Slot(Word(im, p.measure + 0x114));
@@ -341,6 +401,10 @@ bool ResolveLauncherLabels(const IconHighlightImage& source, LauncherLabelProfil
     if (!p.prefix_helper || p.prefix_widget_slot != Field(Word(im, p.builder + 0x18)) ||
             p.prefix_widget_slot >= 0 || p.prefix_widget_slot < -frame ||
             (p.prefix_widget_slot & 7)) return Reject(why, "missing title prefix helper");
+    if (p.marquee_wrapper_build) {
+        *out = p;
+        return true;
+    }
     const size_t marquee_build = Find(im, kLabelMarqueeBuild);
     p.fade_wrap = Find(im, kLabelFadeWrap);
     if (!marquee_build || !p.fade_wrap) return Reject(why, "ambiguous marquee fade graph");

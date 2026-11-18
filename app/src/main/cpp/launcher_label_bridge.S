@@ -116,12 +116,13 @@ kh_label_post:
     // Same young-space fast path as the authenticated native allocation stub.
     // No safepoint occurs here; insufficient space falls back to native Text.
     ldp x9, x10, [x26, #0x60]
-    add x11, x9, #0x70
+    ldr x14, [x17, #64]
+    ubfx x11, x14, #8, #4
+    add x11, x9, x11, lsl #4
     cmp x10, x11
     b.ls .Lallocate_text
     str x11, [x26, #0x60]
-    ldr x10, [x17, #64]
-    str x10, [x9]
+    str x14, [x9]
     add x12, x9, #8
 .Lnull_fields:
     stp w22, w22, [x12], #8
@@ -131,6 +132,24 @@ kh_label_post:
     ldr x10, [x17, #128]
     ldr x5, [x29, x10]
     stur w5, [x1, #0xb]           // preserve String through an optional prefix call
+    ldr x14, [x17, #368]
+    cbz x14, .Lroot_candidate
+    // Initialize all references while the wrapper is still young. The prefix
+    // query may move it; after that call the bridge only reads the object.
+    ldr x14, [x17, #136]
+    ldr x14, [x29, x14]
+    stur w14, [x1, #0xf]
+    ldr x14, [x17, #112]
+    ldr x14, [x27, x14]
+    stur w14, [x1, #0x13]
+    fmin d3, d1, d2
+    stur d3, [x1, #0x17]          // spacing defaults to one third of the width
+    fmov d3, #30.0                // scroll velocity in logical pixels per second
+    stur d3, [x1, #0x1f]
+    // The nullable repeat count stays null for continuous scrolling.
+    fmov d3, #12.0
+    stur d3, [x1, #0x33]          // resident wrapper fade width
+.Lroot_candidate:
     // This was a live String root at the original allocation call. Until the
     // constructor returns it roots Marquee instead, so relocating GC updates it.
     str x1, [x29, x10]
@@ -163,6 +182,8 @@ kh_label_post:
 .Lconstruct_marquee:
     ldr x10, [x17, #128]
     ldr x1, [x29, x10]
+    ldr x16, [x17, #368]
+    cbnz x16, .Lwrapped_marquee
     ldur w5, [x1, #0xb]
     add x5, x5, x28, lsl #32
     ldr x10, [x17, #136]
@@ -173,9 +194,13 @@ kh_label_post:
     ldr x16, [x17, #24]
     br x16                         // native Marquee constructor; original return PC
 
+.Lwrapped_marquee:
+    mov x0, x1
+    b .Lpublish_marquee
 .Lconstructor_returned:
     ldr x10, [x17, #128]
     ldr x0, [x29, x10]
+.Lpublish_marquee:
     // Only our native constructor may return null to this allocation site.
     ldur w2, [x0, #0xb]
     add x2, x2, x28, lsl #32
@@ -535,6 +560,6 @@ kh_label_lines:
 
     .balign 8
 kh_label_config:
-    .zero 368
+    .zero 376
 kh_label_end:
     .section .note.GNU-stack,"",%progbits

@@ -63,7 +63,7 @@ void* AllocateNear(uintptr_t call, uintptr_t refresh_call, uintptr_t page_post, 
             if (delta >= -0x8000000 && delta < 0x8000000 &&
                     refresh_delta >= -0x8000000 && refresh_delta < 0x8000000 &&
                     page_delta >= -0x8000000 && page_delta < 0x8000000 &&
-                    fade_delta >= -0x8000000 && fade_delta < 0x8000000) return p;
+                    (!fade_call || (fade_delta >= -0x8000000 && fade_delta < 0x8000000))) return p;
             munmap(p, size);
         }
     }
@@ -92,14 +92,15 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     const size_t bytes = size_t(kh_label_end - kh_label_template);
     const size_t config = size_t(kh_label_config - kh_label_template);
     if (queried < 4096 || queried > 65536 || (queried & (queried-1)) || bytes > size_t(queried) ||
-            config + 368 != bytes) return Reject("bridge ABI");
+            config + 376 != bytes) return Reject("bridge ABI");
     auto* bridge = static_cast<uint8_t*>(AllocateNear(loaded.base + p.allocation_call,
-            loaded.base + p.refresh_call, loaded.base + p.cell_call + 4, loaded.base + p.fade_call, size_t(queried)));
+            loaded.base + p.refresh_call, loaded.base + p.cell_call + 4,
+            p.fade_call ? loaded.base + p.fade_call : 0, size_t(queried)));
     if (!bridge) return Reject("near bridge unavailable");
     memcpy(bridge, kh_label_template, bytes);
     const uint64_t data[] = {
         reinterpret_cast<uintptr_t>(&kh_launcher_label_mode), loaded.base + p.text_allocator,
-        loaded.base + p.measure, loaded.base + p.marquee_constructor,
+        loaded.base + p.measure, p.marquee_wrapper_build ? 0 : loaded.base + p.marquee_constructor,
         loaded.base + p.allocation_call + 20, loaded.base + p.after_text_init,
         p.text_cid, p.size_cid, p.marquee_tag, p.grid_slot, p.config_rx_field,
         p.rx_value_field, p.width_field, p.source_width_field, p.ltr_slot,
@@ -116,8 +117,9 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
         loaded.base + p.editing, p.editing_slot,
         loaded.base + p.cache_post, uint64_t(int64_t(p.cache_root)), p.shortcut_cid, p.drag_tag,
         loaded.base + p.factory_post[0], loaded.base + p.factory_post[1], uint64_t(int64_t(p.factory_root)), p.shortcut_tag,
+        uint64_t(p.marquee_wrapper_build != 0),
     };
-    static_assert(sizeof(data) == 368);
+    static_assert(sizeof(data) == 376);
     memcpy(bridge + config, data, sizeof(data));
     memcpy(bridge + (kh_label_page_replay - kh_label_template), p.cell_replay, sizeof(p.cell_replay));
     __builtin___clear_cache(reinterpret_cast<char*>(bridge), reinterpret_cast<char*>(bridge) + bytes);
@@ -155,13 +157,15 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     const uint32_t page_jump = 0x14000000u | (uint32_t(page_delta / 4) & 0x3ffffffu);
     if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.cell_call + 4),
             p.cell_post_expected, page_jump) != kHookSuccess) return Reject("page return transaction");
-    const uintptr_t fade_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_fade - kh_label_template));
-    const int64_t fade_delta = int64_t(fade_bridge) - int64_t(loaded.base + p.fade_call);
-    if (fade_delta < -0x8000000 || fade_delta >= 0x8000000) return Reject("fade branch range");
-    const uint32_t fade_call = 0x94000000u | (uint32_t(fade_delta / 4) & 0x3ffffffu);
-    memcpy(&original, image.base + p.fade_call, 4);
-    if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.fade_call), original, fade_call) != kHookSuccess)
-        return Reject("fade call transaction");
+    if (p.fade_call) {
+        const uintptr_t fade_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_fade - kh_label_template));
+        const int64_t fade_delta = int64_t(fade_bridge) - int64_t(loaded.base + p.fade_call);
+        if (fade_delta < -0x8000000 || fade_delta >= 0x8000000) return Reject("fade branch range");
+        const uint32_t fade_call = 0x94000000u | (uint32_t(fade_delta / 4) & 0x3ffffffu);
+        memcpy(&original, image.base + p.fade_call, 4);
+        if (PatchArm64Instruction(reinterpret_cast<void*>(loaded.base + p.fade_call), original, fade_call) != kHookSuccess)
+            return Reject("fade call transaction");
+    }
     const uintptr_t cache_bridge = reinterpret_cast<uintptr_t>(bridge + (kh_label_cache_post - kh_label_template));
     const int64_t cache_delta = int64_t(cache_bridge) - int64_t(loaded.base + p.cache_post);
     if (cache_delta < -0x8000000 || cache_delta >= 0x8000000) return Reject("cache branch range");
@@ -182,7 +186,8 @@ bool InstallLauncherLabelsAtLibraryLoad(void* handle) {
     __atomic_store_n(&kh_launcher_labels_installed, 1u, __ATOMIC_RELEASE);
     __atomic_store_n(&installed, 2u, __ATOMIC_RELEASE);
     __android_log_print(ANDROID_LOG_INFO, "KeiHomeLabels",
-            "Dynamic labels ready: builder=0x%zx lines=0x%zx refresh=0x%zx page=0x%zx textCID=%u marqueeCID=%u; mode=native",
-            p.builder, p.lines, p.refresh_call, p.cell_call, p.text_cid, p.marquee_tag >> 12);
+            "Dynamic labels ready: builder=0x%zx lines=0x%zx refresh=0x%zx page=0x%zx textCID=%u marqueeCID=%u; scroll=%s",
+            p.builder, p.lines, p.refresh_call, p.cell_call, p.text_cid, p.marquee_tag >> 12,
+            p.marquee_wrapper_build ? "resident-wrapper" : "direct-constructor");
     return true;
 }

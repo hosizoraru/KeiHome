@@ -4,6 +4,8 @@
 
 struct LauncherLabelProfile {
     size_t builder, lines, config, value, measure, marquee_constructor;
+    // The wrapper owns the underlying constructor and its completion callback.
+    size_t marquee_wrapper_build, marquee_wrapper_init, marquee_wrapper_type;
     size_t allocation_call, text_allocator, marquee_allocator, lines_tail, after_text_init;
     size_t change_event, refresh_call, refresh_logger, font_refresh;
     size_t cell_call, cell_visibility;
@@ -32,3 +34,6 @@ struct LauncherLabelProfile {
 // follows calls and derives table slots, object tags and caller stack slots.
 bool ResolveLauncherLabels(const IconHighlightImage& image, LauncherLabelProfile* out,
                            const char** rejection = nullptr);
+// Dock and material refresh consume only the shared reactive configuration.
+bool ResolveLauncherLabelState(const IconHighlightImage& image, LauncherLabelProfile* out,
+                               const char** rejection = nullptr);

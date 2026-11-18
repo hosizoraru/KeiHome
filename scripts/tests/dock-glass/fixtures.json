@@ -36,5 +36,10 @@
   "9248": {
     "inner": "0x10e90cc",
     "outer": "0x10e86ec"
+  },
+  "9261": {
+    "inner": "0x1276a9c",
+    "outer": "0x12760bc",
+    "phone_size": "0x4c0"
   }
 }

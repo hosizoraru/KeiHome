@@ -94,7 +94,7 @@ bool PrepareLauncherGlassMaterialAtLibraryLoad(void* handle) {
         gImage.span, gImage.ranges, gImage.count};
     LauncherLabelProfile labels{};
     const char* why = nullptr;
-    if (!gImage.valid || !ResolveLauncherLabels(image, &labels, &why) ||
+    if (!gImage.valid || !ResolveLauncherLabelState(image, &labels, &why) ||
             !ResolveLauncherGlassMaterial(image, labels, &gProfile, &why))
         return Reject(why);
     if (!ResolveLauncherGlassSearchCapsule(image, gProfile, &gExtra, &why))

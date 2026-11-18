@@ -49,6 +49,12 @@ bool Direct(const MonetSelectionImageView& v, uintptr_t pc, uint32_t op, uintptr
     const uint32_t w = Word(pc);
     return (w & 0xfc000000u) == op && Target(v, pc, w, 26, 0, out);
 }
+bool ImageCidCheck(const MonetSelectionImageView& v, uintptr_t pc) {
+    return pc >= 8 && Contains(v, pc-8, 20) &&
+        (Word(pc) & 0xffe0001fu) == 0xd2800011u &&
+        Word(pc-8) == 0xf85ff004u && Word(pc-4) == 0xd34c7c84u &&
+        Word(pc+4) == 0xeb11009fu && (Word(pc+8) & 0xff00001fu) == 0x54000000u;
+}
 bool Matches(const MonetSelectionImageView& v, uintptr_t pc, const Pattern& p) {
     if (!Contains(v, pc, p.count * 4) || p.count > kMaxWords) return false;
     for (size_t i = 0; i < 4; ++i) if (Word(pc+i*4) != p.prefix[i]) return false;
@@ -69,6 +75,14 @@ bool Matches(const MonetSelectionImageView& v, uintptr_t pc, const Pattern& p) {
             }
         }
         const uint32_t reg = w & 31u;
+        // A paired load can encode the low pool offset directly.
+        if (i+2 < p.count && reg != 27u && reg != 31u &&
+            (w & 0xffc003ffu) == (0x91400360u | reg) &&
+            (Word(pc+(i+1)*4) & 0xffc07fffu) == (0xa940141eu | (reg<<5u)) &&
+            Word(pc+(i+2)*4) == 0xd63f03c0u) {
+            normalized[i] = w & ~0x003ffc00u;
+            normalized[i+1] = Word(pc+(i+1)*4) & 0xffc07fffu;
+        }
         if (i+3 < p.count && reg != 27u && reg != 31u &&
             (w & 0xffc003ffu) == (0x91400360u | reg) &&
             (Word(pc+(i+1)*4) & 0xffc003ffu) == (0x91000000u | (reg<<5u) | reg) &&
@@ -80,7 +94,8 @@ bool Matches(const MonetSelectionImageView& v, uintptr_t pc, const Pattern& p) {
         if ((w & 0xffc003e0u) == 0xf9400360u && ((w >> 10) & 4095)*8 >= 256)
             normalized[i] = w & ~0x003ffc00u;
         if (p.role == kRawUpdate && i == 15) normalized[i] = w & 0xffe0001fu;
-        if (p.role == kGuardedClone && i == 0xb8/4) normalized[i] = w & 0xffe0001fu;
+        if (p.role == kGuardedClone && i >= 2 && i+2 < p.count &&
+            ImageCidCheck(v, pc+i*4)) normalized[i] = w & 0xffe0001fu;
     }
     uint8_t digest[32];
     if (p.tail_index != 65535u) {
@@ -207,8 +222,8 @@ bool ResolveMonetImageRecovery(const MonetSelectionImageView& v, MonetImageRecov
     const uintptr_t clone = roles[kClone].pc, dispose = roles[kDispose].pc;
     const uintptr_t update = roles[kRawUpdate].pc, create = roles[kRawCreate].pc;
     const uintptr_t setter = roles[kRenderSet].pc, teardown = roles[kRenderDispose].pc;
-    uintptr_t target, image_allocator, render_allocator, generic, render_generic;
-    uint32_t image_cid, render_cid;
+    uintptr_t target, image_allocator, generic;
+    uint32_t image_cid;
     // The complete setter/update/create bodies authenticate each reviewed
     // RenderImage layout. Bind its allocator size to that layout; accepting both
     // sizes independently would admit a corrupted allocator on the older one.
@@ -216,36 +231,58 @@ bool ResolveMonetImageRecovery(const MonetSelectionImageView& v, MonetImageRecov
     const uint32_t render_size_tag = render_image_field == 0x63 ? 0xe1c :
         render_image_field == 0x6f ? 0xf1c : 0;
     if (!render_size_tag) return Reject(reason, "unreviewed RenderImage layout");
+    const uint32_t render_cid = (Word(update+0x3c) >> 5) & 0xffffu;
     if (!Direct(v, update+0x78, 0x94000000u, &target) || target != clone ||
         !Direct(v, update+0x8c, 0x94000000u, &target) || target != setter ||
         !Direct(v, create+0x38, 0x94000000u, &target) || target != clone ||
         !Direct(v, clone+0x34, 0x94000000u, &image_allocator) ||
-        !Direct(v, create+0x120, 0x94000000u, &render_allocator) ||
         !Allocator(v, image_allocator, 0x31c, &image_cid, &generic) ||
-        !Allocator(v, render_allocator, render_size_tag, &render_cid, &render_generic) || generic != render_generic ||
-        ((Word(update+0x3c) >> 5) & 0xffffu) != render_cid || image_cid == render_cid ||
+        image_cid == render_cid ||
         CallsTo(v, roles[kRenderSet], dispose) != 2 || CallsTo(v, roles[kRenderDispose], dispose) != 1 ||
         !NoInteriorBranches(v, clone))
         return Reject(reason, "image-recovery call/allocator/entry contract");
+    uintptr_t render_allocator = 0, render_alloc_call = 0;
+    for (size_t i = 0; i < roles[kRawCreate].words; ++i) {
+        const uintptr_t call = create+i*4;
+        uintptr_t allocator, allocator_entry;
+        uint32_t allocator_cid;
+        if (!Direct(v, call, 0x94000000u, &allocator) ||
+            !Allocator(v, allocator, render_size_tag, &allocator_cid, &allocator_entry) ||
+            allocator_entry != generic || allocator_cid != render_cid) continue;
+        if (render_alloc_call) return Reject(reason, "ambiguous RenderImage allocation");
+        render_allocator = allocator;
+        render_alloc_call = call;
+    }
+    if (!render_alloc_call) return Reject(reason, "missing RenderImage allocation");
     // Type tests are no longer emitted beside their allocator in newer AOT
     // layouts. Follow an authenticated cast -> Image.clone caller instead;
     // its inline check and nullable cast must agree with the clone allocator.
     const uintptr_t guarded = roles[kGuardedClone].pc;
-    uintptr_t cast = 0;
-    if (!Direct(v, guarded+0xf4, 0x94000000u, &target) || target != clone ||
-        !Direct(v, guarded+0xd4, 0x94000000u, &cast) || !Contains(v, cast, 48) ||
-        ((Word(guarded+0xb8) >> 5) & 0xffffu) != image_cid)
-        return Reject(reason, "Image cast/clone graph mismatch");
-    const uint32_t check[] = {0x360000e0u, 0xf85ff009u, 0xd34c7d29u};
-    for (size_t i = 0; i < 3; ++i)
-        if (Word(cast+i*4) != check[i]) return Reject(reason, "Image type check");
-    const uint32_t tail[] = {0xeb11013fu, 0x54000041u, 0xd65f03c0u,
+    const size_t guard_size = roles[kGuardedClone].words*4;
+    uintptr_t cid_check = 0, cast_call = 0, clone_call = 0, cast = 0;
+    const uint32_t cast_body[] = {0x360000e0u, 0xf85ff009u, 0xd34c7d29u,
+        0xd2800011u | (image_cid << 5), 0xeb11013fu, 0x54000041u, 0xd65f03c0u,
         0x6b16001fu, 0x54000041u, 0xd65f03c0u, 0xf9413f50u, 0xd61f0200u};
-    for (size_t i = 0; i < 8; ++i)
-        if (Word(cast+16+i*4) != tail[i]) return Reject(reason, "Image cast return contract");
-    if ((Word(cast+12) & 0xffe0001fu) != 0xd2800011u ||
-        ((Word(cast+12) >> 5) & 0xffffu) != image_cid)
-        return Reject(reason, "Image CID/type-check mismatch");
+    for (size_t offset = 0; offset < guard_size; offset += 4) {
+        const uintptr_t pc = guarded+offset;
+        if (offset >= 8 && offset+8 < guard_size && ImageCidCheck(v, pc)) {
+            if (cid_check || ((Word(pc) >> 5) & 0xffffu) != image_cid)
+                return Reject(reason, "Image CID/type-check mismatch");
+            cid_check = pc;
+        }
+        if (!Direct(v, pc, 0x94000000u, &target)) continue;
+        if (target == clone) {
+            if (clone_call) return Reject(reason, "ambiguous Image.clone call");
+            clone_call = pc;
+        } else if (Contains(v, target, sizeof(cast_body)) &&
+                   memcmp(reinterpret_cast<const void*>(target), cast_body, sizeof(cast_body)) == 0) {
+            if (cast_call) return Reject(reason, "ambiguous Image cast call");
+            cast_call = pc;
+            cast = target;
+        }
+    }
+    if (!cid_check || cast_call <= cid_check || clone_call <= cast_call)
+        return Reject(reason, "Image cast/clone graph mismatch");
 
     // Full fingerprints preserve register/field/local-branch instructions; only
     // external BLs, PP loads and the independently checked render CID relocate.
@@ -271,6 +308,7 @@ bool ResolveMonetImageRecovery(const MonetSelectionImageView& v, MonetImageRecov
         return Reject(reason, "image-recovery field/frame contract");
     c.enabled = 1;
     *out = {clone, dispose, update, create, setter, teardown, image_allocator, render_allocator,
-            guarded, cast, c};
+            guarded, cast, cid_check, cast_call, clone_call, render_alloc_call,
+            roles[kRawUpdate].words*4, c};
     return true;
 }

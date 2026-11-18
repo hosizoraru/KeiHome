@@ -22,9 +22,15 @@ ROLES = [('Clone', 'Image.clone'), ('Dispose', 'Image.dispose'),
 
 def normalize(words, role, tail_index=65535):
     out = trace.normalize(words, role)
-    for i in range(len(words) - 3):
+    for i in range(len(words) - 2):
         reg = words[i] & 31
         if (reg not in (27, 31) and
+            words[i] & 0xffc003ff == (0x91400360 | reg) and
+            words[i+1] & 0xffc07fff == (0xa940141e | reg << 5) and
+            words[i+2] == 0xd63f03c0):
+            out[i] = words[i] & ~0x003ffc00
+            out[i+1] = words[i+1] & 0xffc07fff
+        if (i+3 < len(words) and reg not in (27, 31) and
             words[i] & 0xffc003ff == 0x91400360 | reg and
             words[i+1] & 0xffc003ff == 0x91000000 | reg << 5 | reg and
             words[i+2] == 0xa940141e | reg << 5 and
@@ -38,8 +44,13 @@ def normalize(words, role, tail_index=65535):
         assert words[15] & 0xffe0001f == 0xd2800011
         out[15] &= 0xffe0001f  # RenderImage CID independently tied to allocator
     if role == 'GuardedClone':
-        assert words[0xb8//4] & 0xffe0001f == 0xd2800011
-        out[0xb8//4] &= 0xffe0001f  # Image CID tied to clone allocator and cast
+        checks = [i for i in range(2, len(words)-2)
+                  if words[i] & 0xffe0001f == 0xd2800011
+                  and words[i-2:i] == (0xf85ff004, 0xd34c7c84)
+                  and words[i+1] == 0xeb11009f
+                  and words[i+2] & 0xff00001f == 0x54000000]
+        assert len(checks) == 1, 'review Image CID comparison'
+        out[checks[0]] &= 0xffe0001f  # Image CID tied to clone allocator and cast
     return out
 
 

@@ -1,6 +1,5 @@
 package os.kei.hyper.home.data
 
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
@@ -14,6 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import kotlinx.coroutines.runBlocking
@@ -180,12 +180,19 @@ class MonetRuntimeReleaseGateTest {
           apply(disabledChoice, enabled = true)
           for (night in listOf("no", "yes")) {
             root("cmd uimode night $night")
-            val expectedMode = if (night == "yes") Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+            val expectedQualifier = if (night == "yes") "night" else "notnight"
+            // The instrumentation context can retain its old resources while Home is foreground.
+            fun systemConfiguration() = root("am get-config").lineSequence()
+              .first { it.startsWith("config: ") }.removePrefix("config: ")
+            var configuration = systemConfiguration()
             val modeDeadline = SystemClock.elapsedRealtime() + 10_000
-            while (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK != expectedMode &&
-              SystemClock.elapsedRealtime() < modeDeadline) SystemClock.sleep(100)
-            assertEquals("Requested night mode must reach the framework context", expectedMode,
-              context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK)
+            while (expectedQualifier !in configuration.split('-') &&
+              SystemClock.elapsedRealtime() < modeDeadline) {
+              SystemClock.sleep(100)
+              configuration = systemConfiguration()
+            }
+            assertTrue("Framework configuration lacks $expectedQualifier: $configuration",
+              expectedQualifier in configuration.split('-'))
             val hashes = mutableListOf<String>()
             for ((name, color) in listOf("blue" to 0xFF1976D2.toInt(), "pink" to 0xFFB53F6F.toInt())) {
               val choice = MonetCustomization(source = MonetSeedSource.BASIC_COLOR, color = color)

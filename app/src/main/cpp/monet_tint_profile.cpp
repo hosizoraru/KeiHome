@@ -70,7 +70,9 @@ uint32_t Normalized(uintptr_t start, size_t count, size_t i, Role role) {
         ((w >> 5) & 31) == (previous & 31) && (w & 0x3b000000u) == 0x39000000u) {
         return w & 0xffc003ffu;
     }
-    if ((w & 0xffc003e0u) == 0xf9400360u && ((w >> 10) & 4095) * 8 > 0x100) {
+    if (((w & 0xffc003e0u) == 0xf9400360u ||
+         (role == kBackgroundClosure && (w & 0xffc003e0u) == 0xfd400360u)) &&
+        ((w >> 10) & 4095) * 8 > 0x100) {
         return w & 0xffc003ffu;
     }
     if ((previous & 0xffffffe0u) == 0xf9403f40u &&

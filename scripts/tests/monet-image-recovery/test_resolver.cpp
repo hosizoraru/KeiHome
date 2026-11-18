@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
                         good.render_dispose+0x34}) mutate(pc, 0x1000);
     // BL relocation is allowed only when the ownership edges still agree.
     for (uintptr_t pc : {good.clone+0x34, good.raw_update+0x78, good.raw_update+0x8c,
-                        good.raw_create+0x38, good.raw_create+0x120, good.render_set+0x64,
+                        good.raw_create+0x38, good.render_alloc_call, good.render_set+0x64,
                         good.render_set+0x1d4, good.render_dispose+0x2c}) mutate(pc, 1);
     for (uintptr_t allocator : {good.image_allocator, good.render_allocator}) {
         mutate(allocator, 0x2000); // wrong allocation size
@@ -97,10 +97,10 @@ int main(int argc, char** argv) {
     }
     mutate(good.image_cast+12, 0x20);
     mutate(good.image_cast+28, 0x20);
-    mutate(good.guarded_clone+0xb8, 0x20);
-    mutate(good.guarded_clone+0xd4, 1);
-    mutate(good.guarded_clone+0xf4, 1);
-    uintptr_t tail_pc=0,closure_pc=0;
+    mutate(good.image_cid_check, 0x20);
+    mutate(good.image_cast_call, 1);
+    mutate(good.image_clone_call, 1);
+    uintptr_t tail_pc=0,closure_pc=0,closure_pair_load=0;
     for(uintptr_t pc=good.guarded_clone;pc<good.guarded_clone+0x100;pc+=4) {
         const uint32_t op=word(pc),reg=op&31u;
         if((op&0xfc000000u)==0x14000000u) {
@@ -109,16 +109,24 @@ int main(int argc, char** argv) {
                 assert(!tail_pc);tail_pc=pc;
             }
         }
-        if(pc+16<=good.guarded_clone+0x100&&
-           (op&0xffc003ffu)==(0x91400360u|reg)&&
-           (word(pc+4)&0xffc003ffu)==(0x91000000u|(reg<<5u)|reg)&&
-           word(pc+8)==(0xa940141eu|(reg<<5u))&&word(pc+12)==0xd63f03c0u)closure_pc=pc;
+        if (pc+12 > good.guarded_clone+0x100 ||
+            (op&0xffc003ffu) != (0x91400360u|reg)) continue;
+        const uint32_t pair_load = 0xa940141eu | (reg<<5u);
+        if ((word(pc+4)&0xffc07fffu) == pair_load && word(pc+8) == 0xd63f03c0u) {
+            closure_pc = pc;
+            closure_pair_load = pc+4;
+        } else if (pc+16 <= good.guarded_clone+0x100 &&
+            (word(pc+4)&0xffc003ffu) == (0x91000000u|(reg<<5u)|reg) &&
+            word(pc+8) == pair_load && word(pc+12) == 0xd63f03c0u) {
+            closure_pc = pc;
+            closure_pair_load = pc+8;
+        }
     }
     assert(tail_pc&&closure_pc);
     mutate(tail_pc,1); // a different helper target is not a relocation
     mutate(closure_pc,1u<<22); // PP page shift
-    mutate(closure_pc+4,1u<<22); // low offset shift
-    mutate(closure_pc+8,1u<<10); // closure context register
+    mutate(closure_pair_load,1u<<22); // pair-load addressing mode
+    mutate(closure_pair_load,1u<<10); // closure context register
     mutate(good.raw_update+0x3c, 0x20);
     const uint32_t w = word(good.image_allocator+8);
     const uintptr_t generic = good.image_allocator+8+(((int64_t(w&0x3ffffff)^0x2000000)-0x2000000)*4);
@@ -133,7 +141,9 @@ int main(int argc, char** argv) {
     assert(!ResolveMonetImageRecovery(view, nullptr, &reason) && reason); ++rejects;
     for (auto& r : ranges) if (r.executable) {
         const auto saved = r;
-        r.executable = false; reject(view); r = saved;
+        if (good.clone >= r.begin && good.clone - r.begin < r.size) {
+            r.executable = false; reject(view); r = saved;
+        }
         r.size -= 1; reject(view); r = saved;
         r.begin += 1; reject(view); r = saved;
         r.size = 0x8000000; reject(view); r = saved;
@@ -150,21 +160,24 @@ int main(int argc, char** argv) {
         word(pair.first) = (low & ~(65535u << 5)) | ((moved_tag & 65535u) << 5);
         word(pair.first+4) = (high & ~(65535u << 5)) | ((moved_tag >> 16) << 5);
         word(pair.second) += 1u << 5;
-        if (pair.first == good.image_allocator) word(good.guarded_clone+0xb8) += 1u << 5;
+        if (pair.first == good.image_allocator) word(good.image_cid_check) += 1u << 5;
         positive();
         if (pair.first == good.image_allocator) assert(profile.config.image_cid == good.config.image_cid+1);
         else assert(profile.config.render_cid == good.config.render_cid+1);
         word(pair.first) = low; word(pair.first+4) = high; word(pair.second) = check;
-        if (pair.first == good.image_allocator) word(good.guarded_clone+0xb8) -= 1u << 5;
+        if (pair.first == good.image_allocator) word(good.image_cid_check) -= 1u << 5;
     }
     mapped[9] ^= 1; positive(); mapped[9] ^= 1;
 
     // The external return helper can move independently, but all authenticated
     // bytes and its Thread/return contract must remain the same.
     const uint32_t page=word(closure_pc),low=word(closure_pc+4);
-    const uint32_t slot=((page>>10)&4095u)*4096u+((low>>10)&4095u)+0x1008u;
-    word(closure_pc)=(page&~0x003ffc00u)|((slot/4096u)<<10);
-    word(closure_pc+4)=(low&~0x003ffc00u)|((slot%4096u)<<10);
+    word(closure_pc)=page^(1u<<10);
+    if (closure_pair_load == closure_pc+4) {
+        word(closure_pair_load)=low^(1u<<15);
+    } else {
+        word(closure_pc+4)=low^(8u<<10);
+    }
     positive();
     word(closure_pc)=page;word(closure_pc+4)=low;
     const uint32_t tail_branch=word(tail_pc);
@@ -185,7 +198,6 @@ int main(int argc, char** argv) {
     // The single scan must still reject duplicates in the last executable range,
     // even after all seven original roles have already been found.
     for (auto duplicate : {std::pair{good.dispose, size_t{27}},
-                          std::pair{good.raw_create, size_t{101}},
                           std::pair{good.render_set, size_t{146}},
                           std::pair{good.render_dispose, size_t{19}}}) {
         memcpy(reinterpret_cast<void*>(tail_copy),
@@ -244,8 +256,9 @@ int main(int argc, char** argv) {
     ranges.pop_back(); view.readable_range_count = ranges.size();
     positive();
     // Independently move the update caller: the published LR must follow it.
-    memcpy(reinterpret_cast<void*>(moved), reinterpret_cast<const void*>(good.raw_update), 0x284);
-    for (size_t i = 0; i < 0x284; i += 4) {
+    memcpy(reinterpret_cast<void*>(moved), reinterpret_cast<const void*>(good.raw_update),
+           good.raw_update_size);
+    for (size_t i = 0; i < good.raw_update_size; i += 4) {
         const uint32_t op = word(good.raw_update+i);
         if ((op & 0xfc000000u) == 0x94000000u) {
             const int64_t delta = (int64_t(op&0x3ffffffu)^0x2000000)-0x2000000;

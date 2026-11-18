@@ -40,6 +40,9 @@ struct MonetImageRecoveryProfile {
     uintptr_t clone, dispose, raw_update, raw_create, render_set, render_dispose;
     uintptr_t image_allocator, render_allocator;
     uintptr_t guarded_clone, image_cast;
+    uintptr_t image_cid_check, image_cast_call, image_clone_call;
+    uintptr_t render_alloc_call;
+    size_t raw_update_size;
     MonetImageRecoveryConfig config;
 };
 bool ResolveMonetImageRecovery(const MonetSelectionImageView& image,

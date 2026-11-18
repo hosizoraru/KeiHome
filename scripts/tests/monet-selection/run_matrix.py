@@ -85,7 +85,9 @@ def main():
         selection_generator += ["--fixture", fixture / "libapp.so", fixture / "debug.elf"]
         tint_generator += ["--library", fixture / "libapp.so"]
         image_generator += ["--library", fixture / "libapp.so"]
-        theme_generator += ["--library", fixture / "libapp.so"]
+    theme_inventory = json.loads((HERE.parent / "theme-night/fixture_inventory.json").read_text())
+    for version in theme_inventory["accepted"] + theme_inventory["rejected"]:
+        theme_generator += ["--library", args.fixture_root / version / "libapp.so"]
     generated = {
         "selection": (output / "selection-patterns.h", REPO / "app/src/main/cpp/monet_selection_patterns.h"),
         "tint": (output / "tint-variants.h", REPO / "app/src/main/cpp/monet_tint_variants.h"),

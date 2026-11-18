@@ -11,7 +11,7 @@ elf = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(elf)
 
 
-def normalized(words):
+def normalized(words, role=None):
     out = []
     for i, word in enumerate(words):
         previous = words[i-1] if i else 0
@@ -27,7 +27,8 @@ def normalized(words):
             value &= 0xffc003ff
         elif previous & 0xffc003e0 == 0x91400360 and (word >> 5 & 31) == (previous & 31) and word & 0x3b000000 == 0x39000000:
             value &= 0xffc003ff
-        elif word & 0xffc003e0 == 0xf9400360 and (word >> 10 & 4095)*8 > 0x100:
+        elif (word & 0xffc003e0 == 0xf9400360 or
+              role == 'BackgroundClosure' and word & 0xffc003e0 == 0xfd400360) and (word >> 10 & 4095)*8 > 0x100:
             value &= 0xffc003ff
         elif previous & 0xffffffe0 == 0xf9403f40 and (word >> 5 & 31) == (previous & 31) and word & 0xff800000 == 0xf9000000:
             value &= 0xffc003ff
@@ -54,7 +55,7 @@ def main():
                                     ('BackgroundClosure', foreground+size, 0x1a0),
                                     ('RenderSetter', render, render_size)]:
             words = struct.unpack('<'+'I'*(length//4), image.read(start, length))
-            canonical = normalized(words)
+            canonical = normalized(words, role)
             digest = hashlib.sha256(struct.pack('<'+'I'*len(canonical), *canonical)).digest()
             variants.add((role, len(words), tuple(canonical[:4]), digest))
     lines = ['// SPDX-License-Identifier: Apache-2.0',

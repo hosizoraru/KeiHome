@@ -34,10 +34,10 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-`0.9.5-3177a684-SNAPSHOT` 对应上游
-[3177a684](https://github.com/compose-miuix-ui/miuix/commit/3177a684622a774276c49f52489a43d0d0ed123d)，
-Android 模块解析到发布批次 `20261118.045206-1`。Glass 输入用于 Monet
-色值、缓存预算和连接设置。搜索保留共用的搜索控件及展开、取消、返回
+`0.9.5-670cf597-SNAPSHOT` 对应上游
+[670cf597](https://github.com/compose-miuix-ui/miuix/commit/670cf5975c157b64d625d94deca7e7c21bd4a7b6)。
+增量迁移见 [Snapshot 审查](miuix-snapshot-670cf597.md)。Glass 输入用于 Monet
+色值、缓存预算、连接设置和日志自定义时长。搜索保留共用的搜索控件及展开、取消、返回
 语义。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
 提供无障碍状态，并使用新版主操作材质。
 

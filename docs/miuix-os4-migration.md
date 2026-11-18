@@ -93,8 +93,8 @@ into the source.
 
 Pass `GlassDefaults.style(LocalKeiHomeDarkTheme.current)` explicitly for
 shaded controls. The library's plain `GlassDefaults.Style` is not an automatic
-app-theme choice. Unshaded dialogs instead select `GlassMaterials.dialogGlass`
-and the theme-specific edge stroke explicitly.
+app-theme choice. Since [670cf597](miuix-snapshot-670cf597.md), shared dialogs
+and sheets use the native theme-aware material and edge stroke defaults.
 Use the existing `MiuixTheme` controller and color roles for Monet, fixed
 appearance, and system appearance; avoid separate hardcoded light/dark
 surface palettes.

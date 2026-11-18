@@ -32,10 +32,18 @@ internal object RecentTaskIconEligibility {
 
   fun allows(
     userId: Int, contextUserId: Int, flags: Int, hasAlternateIdentity: Boolean,
-    packageName: String, rootPackages: List<String>,
   ): Boolean = userId >= 0 && userId == contextUserId && flags and EXCLUDED_FLAGS == 0 &&
-    !hasAlternateIdentity && rootPackages.isNotEmpty() &&
-    rootPackages.all { it == packageName }
+    !hasAlternateIdentity
+
+  fun ownsRoot(packageName: String, rootPackages: List<String>): Boolean =
+    rootPackages.isNotEmpty() && rootPackages.all { it == packageName }
+
+  fun redirectedLauncherEntry(
+    action: String?, categories: Set<String>?, hasPayload: Boolean,
+    realMatchesEntry: Boolean, originalMatchesEntry: Boolean,
+  ): Boolean = action == Intent.ACTION_MAIN &&
+    categories == setOf(Intent.CATEGORY_LAUNCHER) && !hasPayload &&
+    realMatchesEntry && originalMatchesEntry
 
   fun legacyLauncherIntent(action: String?, categories: Set<String>?, hasPayload: Boolean): Boolean =
     !hasPayload && when (action) {
@@ -138,17 +146,27 @@ internal class RecentTaskIconProfile private constructor(
     val component = intent.component ?: return null
     val nativeDescription = description.get(info) ?: return null
     val hasExplicitIcon = rawIcon.get(nativeDescription) != null || iconFilename.get(nativeDescription) != null
-    if (hasExplicitIcon && !RecentTaskIconEligibility.legacyLauncherIntent(
-        intent.action, intent.categories, intent.data != null || intent.type != null || intent.clipData != null,
-      )) return null
-    val roots = components.mapNotNull { (it.get(info) as? ComponentName)?.packageName }
+    val hasPayload = intent.data != null || intent.type != null || intent.clipData != null
+    if (hasExplicitIcon &&
+      !RecentTaskIconEligibility.legacyLauncherIntent(intent.action, intent.categories, hasPayload)
+    ) return null
     if (!RecentTaskIconEligibility.allows(
       userId(info), contextUserId, intent.flags,
       intent.identifier != null || intent.selector != null ||
         intent.`package`?.let { it != component.packageName } == true,
-      component.packageName, roots,
     )) return null
-    return RecentTaskArtwork(component, allowPackageFallback = !hasExplicitIcon)
+    val (original, real, base) = components.map { it.get(info) as? ComponentName }
+    val rootPackages = listOfNotNull(original?.packageName, real?.packageName, base?.packageName)
+    if (RecentTaskIconEligibility.ownsRoot(component.packageName, rootPackages)) {
+      return RecentTaskArtwork(component, allowPackageFallback = !hasExplicitIcon)
+    }
+    // A native launcher entry can keep the task identity while a proxy supplies its content.
+    // The worker still checks launcher registration before rendering the entry artwork.
+    if (base != null && RecentTaskIconEligibility.redirectedLauncherEntry(
+        intent.action, intent.categories, hasPayload,
+        real == component, original == null || original == component,
+      )) return RecentTaskArtwork(component, allowPackageFallback = false)
+    return null
   }
 
   fun copy(info: Any): Any =

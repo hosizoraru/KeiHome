@@ -33,8 +33,13 @@ existing tasks, so previously cached offscreen icons can be invalidated without
 reopening their apps. No periodic task query is added. Retention is bounded to
 64 tasks, whose 192px ARGB snapshots fit within the 9 MiB pixel cache budget and avoid
 cache-ready eviction/reload churn; tasks outside the bound retain native behavior.
-Inactive tasks may have no live `baseActivity`. Retained roots must belong to
-the same package. A direct launch of a declared launcher component can have
+Inactive tasks may have no live `baseActivity`. Ordinary retained roots must
+belong to the same package. For a plain `MAIN`/`LAUNCHER` task with proxy
+content, the framework's `realActivity` must match the base intent's exact
+component and any `origActivity` must agree. The cache still verifies that
+component's launcher registration and requires component artwork. This
+covers the Theme Store entry backed by a Themes activity on Home 0308.
+A direct launch of a declared launcher component can have
 neither a `MAIN` action nor `LAUNCHER` category. The cache worker confirms the
 component against the package's launcher entries before rendering either kind
 of task. Document intents, routes with data, and unrelated activities retain

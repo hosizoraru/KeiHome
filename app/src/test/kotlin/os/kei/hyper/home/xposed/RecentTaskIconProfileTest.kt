@@ -15,9 +15,9 @@ class RecentTaskIconProfileTest {
   }
 
   @Test fun inactiveLauncherTaskCanUseRetainedRootIdentityWithoutLiveBaseActivity() {
-    assertTrue(allowed(roots = listOf("os.kei.fixture")))
-    assertFalse(allowed(roots = emptyList()))
-    assertFalse(allowed(roots = listOf("os.kei.fixture", "foreign.identity")))
+    assertTrue(RecentTaskIconEligibility.ownsRoot("os.kei.fixture", listOf("os.kei.fixture")))
+    assertFalse(RecentTaskIconEligibility.ownsRoot("os.kei.fixture", emptyList()))
+    assertFalse(RecentTaskIconEligibility.ownsRoot("os.kei.fixture", listOf("os.kei.fixture", "foreign.identity")))
   }
   private val c = RecentTaskIconContract
 
@@ -100,11 +100,21 @@ class RecentTaskIconProfileTest {
     assertFalse(RecentTaskIconEligibility.legacyLauncherIntent(null, null, true))
   }
 
+  @Test fun redirectedEntryRequiresTheFrameworkLauncherIdentity() {
+    val launcher = setOf(Intent.CATEGORY_LAUNCHER)
+    val main = Intent.ACTION_MAIN
+    assertTrue(RecentTaskIconEligibility.redirectedLauncherEntry(main, launcher, false, true, true))
+    assertFalse(RecentTaskIconEligibility.redirectedLauncherEntry(main, launcher, false, false, true))
+    assertFalse(RecentTaskIconEligibility.redirectedLauncherEntry(main, launcher, false, true, false))
+    assertFalse(RecentTaskIconEligibility.redirectedLauncherEntry(main, launcher, true, true, true))
+    assertFalse(RecentTaskIconEligibility.redirectedLauncherEntry(main, null, false, true, true))
+    assertFalse(RecentTaskIconEligibility.redirectedLauncherEntry(Intent.ACTION_VIEW, launcher, false, true, true))
+  }
+
   private fun allowed(
     flags: Int = 0, alternateIdentity: Boolean = false,
-    user: Int = 0, roots: List<String> = listOf("os.kei.fixture", "os.kei.fixture"),
-  ) = RecentTaskIconEligibility.allows(user, 0, flags, alternateIdentity,
-    "os.kei.fixture", roots)
+    user: Int = 0,
+  ) = RecentTaskIconEligibility.allows(user, 0, flags, alternateIdentity)
 
   private fun fixture(): MutableMap<String, RecentTaskIconMethod> {
     fun method(id: String, calls: Set<String> = emptySet(), reads: Set<String> = emptySet(),

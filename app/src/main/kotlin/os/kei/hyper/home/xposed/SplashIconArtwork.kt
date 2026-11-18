@@ -36,15 +36,17 @@ import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 
 /** Uses the same published icon archive and renderer as other SystemUI icon surfaces. */
 internal class SplashIconArtwork(private val maintenance: () -> Unit) {
-  data class Result(val bitmap: Bitmap?, val cache: String)
+  data class Snapshot(val bitmap: Bitmap, val source: String)
+  data class Result(val snapshot: Snapshot?, val cache: String)
   private data class Source(val fileKey: Any?, val size: Long, val modified: FileTime)
   private data class Key(
     val component: IconPackComponent, val uid: Int, val apk: String?,
-    val icon: Int, val dark: Boolean, val locale: Locale, val palette: Long, val timeZone: String,
+    val icon: Int, val theme: Int, val dark: Boolean, val locale: Locale, val palette: Long, val timeZone: String,
+    val density: Int, val configurationRevision: Long,
   )
   private val file = File("/data/system/theme/icons")
   private val lock = Any()
-  private val snapshots = SplashSnapshotCache<Key, Bitmap>()
+  private val snapshots = SplashSnapshotCache<Key, Snapshot>()
   private var source: Source? = null
   private var archive: ZipFile? = null
   private var retryAt = 0L
@@ -163,7 +165,8 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
       if (closed) return@synchronized Result(null, "closed")
       safely {
         val now = SystemClock.uptimeMillis()
-        val zip = archive(now) ?: return@safely Result(null, "unavailable")
+        val zip = archive(now)
+        if (zip == null && source != null) return@safely Result(null, "unavailable")
         val config = context.resources.configuration
         val mode = nightMode(context)
         val dark = when (mode) {
@@ -180,29 +183,38 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
           Settings.System.getLong(context.contentResolver, NativePaletteIcon.STATE_KEY, 0L)
         val locale = config.locales[0] ?: Locale.getDefault()
         val key = Key(component, activity.applicationInfo.uid, activity.applicationInfo.sourceDir,
-          activity.icon, dark, locale, palette, TimeZone.getDefault().id)
+          activity.iconResource, activity.themeResource, dark, locale, palette, TimeZone.getDefault().id,
+          config.densityDpi, configurationRevision.get())
         val wallTime = System.currentTimeMillis()
         val minute = wallTime / 60_000
         snapshots.get(key, now, minute)?.let { return@safely Result(it.value, "hit") }
         var dynamic = false
-        val bitmap = traced("KeiHomeSplash/render") {
-          SurfaceIconSnapshotRenderer.render(zip,
+        val snapshot = traced("KeiHomeSplash/render") {
+          val original by lazy(LazyThreadSafetyMode.NONE) {
+            OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark)
+              ?.let { Snapshot(it, "original-apk") }
+          }
+          var preserved = false
+          val themed = zip?.let { SurfaceIconSnapshotRenderer.render(it,
             nativeLauncherActivityName(component) ?: activity.packageName,
             dark, locale, wallTime, palette, packageName = activity.packageName,
             onDynamic = { dynamic = true }, originalIcon = {
-              OriginalAppIcons.render(context, component, SurfaceIconSnapshotRenderer.SIZE, dark)
-            })
+              preserved = true
+              original?.bitmap
+            }) }
+          if (themed != null && !preserved) Snapshot(themed, "applied-theme") else original
         }
-        // An atomic theme replacement can race the decode. Never publish its old artwork.
-        if (source() != source) {
-          bitmap?.recycle()
-          clearLocked()
-          Result(null, "theme-changed")
+        // The archive or resource configuration can change during decoding.
+        val themeChanged = source() != source
+        if (themeChanged || key.configurationRevision != configurationRevision.get()) {
+          snapshot?.bitmap?.recycle()
+          if (themeChanged) clearLocked()
+          Result(null, if (themeChanged) "theme-changed" else "configuration-changed")
         } else {
-          snapshots.put(key, bitmap, bitmap?.allocationByteCount ?: 0,
-            if (bitmap == null) now + 30_000 else Long.MAX_VALUE,
+          snapshots.put(key, snapshot, snapshot?.bitmap?.allocationByteCount ?: 0,
+            if (snapshot == null) now + 30_000 else Long.MAX_VALUE,
             if (dynamic) minute else null)
-          Result(bitmap, "render")
+          Result(snapshot, "render")
         }
       } ?: Result(null, "unavailable")
     }
@@ -215,7 +227,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
     retryAt = SystemClock.uptimeMillis() + 1_000
     if (!warned) {
       warned = true
-      Log.w("KeiHomeSplashIcon", "Applied icon unavailable; native app icon retained", failure)
+      Log.w("KeiHomeSplashIcon", "Icon preparation failed; starting window retained", failure)
     }
     null
   }

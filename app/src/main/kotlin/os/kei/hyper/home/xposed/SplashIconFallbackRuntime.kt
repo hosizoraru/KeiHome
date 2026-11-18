@@ -126,36 +126,39 @@ internal class SplashIconFallbackRuntime(
             windowColor != null && Color.alpha(windowColor) == 255,
             oldOverlay == null || overlayColor != null && Color.alpha(overlayColor) == 255,
             ownPalette)
-          val reason = SplashIconFallbackPolicy.reason(input)
+          var reason = SplashIconFallbackPolicy.reason(input)
           var source = "native"
           var cache = "unused"
           if (reason == "fill") {
             if (ownPalette && !enabled.get()) artwork.prepare(request.context)
-            val snapshot = artwork.load(request.context, ai, paletteState.takeIf { ownPalette })
-            val themed = snapshot.bitmap
-            cache = snapshot.cache
-            val oldIcon = icon.get(values)
-            // Preserve the effective background and Shell's normal view/animation ownership.
-            // Set rollback before the first mutation, including partially failed reflection.
-            restore = {
-              type.setInt(owner, oldType)
-              overlay.set(owner, oldOverlay)
-              color.setInt(owner, oldColor)
-              icon.set(values, oldIcon)
-            }
-            try {
-              type.setInt(owner, 1)
-              overlay.set(owner, null)
-              if (ownPalette) color.setInt(owner, os.kei.hyper.home.data.MonetLaunchSurface.surfaceColor(paletteState, windowColor ?: oldColor))
-              else if (overlayColor != null) color.setInt(owner, overlayColor)
-              if (themed != null) {
-                icon.set(values, SplashIconArtwork.drawable(request.context, themed))
-                source = "applied-theme"
+            val result = artwork.load(request.context, ai, paletteState.takeIf { ownPalette })
+            cache = result.cache
+            val snapshot = result.snapshot
+            if (snapshot == null) {
+              reason = "no-artwork"
+            } else {
+              val drawable = SplashIconArtwork.drawable(request.context, snapshot.bitmap)
+              val oldIcon = icon.get(values)
+              // Commit the type and prepared drawable together. Shell's legacy icon path
+              // would otherwise wrap and resize the raw APK drawable.
+              restore = {
+                type.setInt(owner, oldType)
+                overlay.set(owner, oldOverlay)
+                color.setInt(owner, oldColor)
+                icon.set(values, oldIcon)
               }
-            } catch (failure: Throwable) {
-              restore?.invoke()
-              restore = null
-              throw failure
+              try {
+                type.setInt(owner, 1)
+                overlay.set(owner, null)
+                if (ownPalette) color.setInt(owner, os.kei.hyper.home.data.MonetLaunchSurface.surfaceColor(paletteState, windowColor ?: oldColor))
+                else if (overlayColor != null) color.setInt(owner, overlayColor)
+                icon.set(values, drawable)
+                source = snapshot.source
+              } catch (failure: Throwable) {
+                restore?.invoke()
+                restore = null
+                throw failure
+              }
             }
           }
           if (diagnostics) "package=${ai.packageName} initial=${request.initialType} final=$oldType " +

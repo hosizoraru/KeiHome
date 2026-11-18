@@ -2,8 +2,9 @@
 
 The opt-in **启动图标补全** setting is under **桌面 > 图标与启动**.
 It fills eligible opaque, neutral system starting windows using the currently
-applied theme archive. Existing app-authored splash icons, branding, custom
-backgrounds and task snapshots remain owned by the platform.
+applied theme archive or the activity's original APK icon. Existing app-authored
+splash icons, branding, custom backgrounds and task snapshots remain owned by
+the platform.
 
 This is separate from the earlier build-flag-only prototype documented in
 `splash-icon-fallback-prototype.md`.
@@ -16,7 +17,16 @@ This is separate from the earlier build-flag-only prototype documented in
   setting in the background. There is no recurring timer, package scan or
   dedicated persistent splash-cache thread.
 - A first eligible lookup renders on the Shell worker. Main-thread lookups use
-  the native fallback instead of performing archive reads or image decoding.
+  the original starting window.
+- The shared surface renderer resolves applied artwork first and respects
+  original-icon preservation. On a miss, the activity's original resource is
+  rendered at the effective light or dark appearance. Fixed-size layers
+  compose in the resource's intrinsic viewport before scaling into a square
+  snapshot. The splash renderer receives completed artwork in both cases.
+- Switching to the icon window and setting its drawable are one operation.
+  A missing snapshot leaves the Shell request intact. This avoids Shell's
+  legacy white-backed wrapping of raw layer-list resources when the theme
+  lacks a particular icon.
 - Completed snapshots use a least-recently-used cache with at most 16 entries
   and 2 MiB of bitmap allocations. Missing results expire after 30 seconds and
   count toward the entry limit.

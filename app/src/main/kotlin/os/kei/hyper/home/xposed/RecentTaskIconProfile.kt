@@ -24,28 +24,29 @@ internal data class RecentTaskIconMethod(
 )
 
 internal object RecentTaskIconEligibility {
-  const val MAIN = "android.intent.action.MAIN"
-  const val LAUNCHER = "android.intent.category.LAUNCHER"
-  private const val DOCUMENT_FLAGS =
+  private const val EXCLUDED_FLAGS =
     Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
       Intent.FLAG_ACTIVITY_MULTIPLE_TASK or
       Intent.FLAG_ACTIVITY_RETAIN_IN_RECENTS or
-      Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET
+      Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
 
   fun allows(
-    userId: Int, contextUserId: Int, action: String?, categories: Set<String>?,
-    flags: Int, hasData: Boolean, hasType: Boolean, hasSelector: Boolean,
-    componentPackage: String?, basePackage: String?, rootPackages: Set<String>,
-  ): Boolean = userId >= 0 && userId == contextUserId && ordinaryLaunch(action, categories) &&
-    flags and DOCUMENT_FLAGS == 0 &&
-    !hasData && !hasType && !hasSelector && !componentPackage.isNullOrEmpty() &&
-    (basePackage == null || componentPackage == basePackage) &&
-    rootPackages.isNotEmpty() && rootPackages.all { it == componentPackage }
+    userId: Int, contextUserId: Int, flags: Int, hasAlternateIdentity: Boolean,
+    packageName: String, rootPackages: List<String>,
+  ): Boolean = userId >= 0 && userId == contextUserId && flags and EXCLUDED_FLAGS == 0 &&
+    !hasAlternateIdentity && rootPackages.isNotEmpty() &&
+    rootPackages.all { it == packageName }
 
-  private fun ordinaryLaunch(action: String?, categories: Set<String>?): Boolean =
-    (action == MAIN && categories == setOf(LAUNCHER)) ||
-      ((action == null || action == MAIN) && categories.isNullOrEmpty())
+  fun legacyLauncherIntent(action: String?, categories: Set<String>?, hasPayload: Boolean): Boolean =
+    !hasPayload && when (action) {
+      Intent.ACTION_MAIN -> categories.isNullOrEmpty() ||
+        (categories.size == 1 && Intent.CATEGORY_LAUNCHER in categories)
+      null -> categories.isNullOrEmpty()
+      else -> false
+    }
 }
+
+internal data class RecentTaskArtwork(val component: ComponentName, val allowPackageFallback: Boolean)
 
 /** Names are discovery seeds; the live call/field graph must also authenticate the boundary. */
 internal object RecentTaskIconContract {
@@ -120,6 +121,8 @@ internal class RecentTaskIconProfile private constructor(
   private val components: List<Field>,
   private val handler: Field,
   private val recentsController: Field,
+  private val rawIcon: Field,
+  private val iconFilename: Field,
   private val setIcon: Method,
   private val setFilename: Method,
 ) {
@@ -130,18 +133,22 @@ internal class RecentTaskIconProfile private constructor(
   fun handler(controller: Any): Handler = handler.get(controller) as Handler
   fun taskId(info: Any): Int = taskId.getInt(info)
   fun userId(info: Any): Int = userId.getInt(info)
-  fun component(info: Any, contextUserId: Int): ComponentName? {
+  fun artwork(info: Any, contextUserId: Int): RecentTaskArtwork? {
     val intent = baseIntent.get(info) as? Intent ?: return null
     val component = intent.component ?: return null
-    if (intent.identifier != null || intent.`package`?.let { it != component.packageName } == true)
-      return null
-    val roots = components.mapNotNull { (it.get(info) as? ComponentName)?.packageName }.toSet()
-    val basePackage = (components.last().get(info) as? ComponentName)?.packageName
-    return component.takeIf { RecentTaskIconEligibility.allows(
-      userId(info), contextUserId, intent.action, intent.categories, intent.flags,
-      intent.data != null || intent.clipData != null, intent.type != null, intent.selector != null,
-      component.packageName, basePackage, roots,
-    ) }
+    val nativeDescription = description.get(info) ?: return null
+    val hasExplicitIcon = rawIcon.get(nativeDescription) != null || iconFilename.get(nativeDescription) != null
+    if (hasExplicitIcon && !RecentTaskIconEligibility.legacyLauncherIntent(
+        intent.action, intent.categories, intent.data != null || intent.type != null || intent.clipData != null,
+      )) return null
+    val roots = components.mapNotNull { (it.get(info) as? ComponentName)?.packageName }
+    if (!RecentTaskIconEligibility.allows(
+      userId(info), contextUserId, intent.flags,
+      intent.identifier != null || intent.selector != null ||
+        intent.`package`?.let { it != component.packageName } == true,
+      component.packageName, roots,
+    )) return null
+    return RecentTaskArtwork(component, allowPackageFallback = !hasExplicitIcon)
   }
 
   fun copy(info: Any): Any =
@@ -246,6 +253,8 @@ internal class RecentTaskIconProfile private constructor(
         listOf("origActivity", "realActivity", "baseActivity").map { info.field(it) },
         controller.field("mHandler").also { check(it.type == Handler::class.java) },
         methods.second.apply { isAccessible = true },
+        desc.field("mIcon").also { check(it.type == Icon::class.java) },
+        desc.field("mIconFilename").also { check(it.type == String::class.java) },
         desc.getDeclaredMethod("setIcon", Icon::class.java).apply { isAccessible = true },
         desc.getDeclaredMethod("setIconFilename", String::class.java).apply { isAccessible = true },
       )

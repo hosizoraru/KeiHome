@@ -13,9 +13,15 @@ arbitrary content providers are never executed. Dynamic snapshots are
 appearance- and locale-aware; minute changes invalidate only the dynamic
 entry.
 
-The recent-task bridge is admitted only for owner-user ordinary launcher
-tasks. It rejects document, deep-link, selector, work-profile, and
-multi-task-description entries. It replaces the outgoing copied
+The recent-task bridge checks that the base intent and available task roots
+identify the same package for the current user. It rejects document,
+multiple-task, excluded, alternate-identity, and cross-package entries.
+An Intent action or URI can still lead to a normal package task. The worker
+prefers artwork for a verified launcher entry, including a dialer alias,
+then shares the package artwork across other entry points. Package fallback
+requires that the task has no explicit icon resource, bitmap, or filename.
+Explicit icons retain the existing plain launcher-intent and verified
+launcher-entry checks. The bridge replaces the outgoing copied
 `TaskDescription` icon and preserves the title, colors, description and other
 task fields. A cache miss leaves the system result unchanged.
 Native description notifications retain `RunningTaskInfo`. Incoming events use
@@ -57,6 +63,15 @@ reopening either app. Both devices retained their original theme hash, palette,
 night setting, and critical process IDs. Captures and deployment receipts are
 under `.artifacts/research/recents-retained-20261119/`.
 
+Debug `112000739` extended the same path to retained tasks opened through
+Dial, theme details, and Security Center alerts. On physical Home 9259,
+the original tasks 15548, 15526, and 15518 received dark icons without
+reopening the underlying activities. The dialer used its launcher alias.
+Themes and Security Center had no enabled launcher entry and used their
+package artwork. The same scroll through Recents confirmed KeiHome and
+Bilibili remained dark. Captures and task records are under
+`.artifacts/research/recents-app-identity-20261119/`.
+
 The SystemUI bridge is deliberately narrower. It resolves
 `AppIconsManager.getAppIconBitmap(int, String): Bitmap` and replaces only a cache hit
 for the current user. Misses, badges, work-profile presentation, and every
@@ -76,11 +91,13 @@ A contiguous drain reuses its ZIP directory and reads locale/night/palette state
 once. New appearance generations close the old archive and discard obsolete
 unpublished results.
 
-The working set and negative results share the bitmap entry bound: 64 for recent
-tasks, 32 for SystemUI application icons. At 192px ARGB, the respective pixel
-budgets are 9 MiB and 4.5 MiB. Access-order retention allows new apps to replace
-old entries. These are cache budgets, not total process memory measurements:
-native owners may retain delivered bitmaps, which are never recycled on eviction.
+The bitmap budgets are 64 recent-task and 32 SystemUI application icons.
+At 192px ARGB, the respective pixel budgets are 9 MiB and 4.5 MiB. Recents
+can retain up to 128 lightweight lookup identities, since a task may need
+both a launcher-entry check and a package snapshot. Remembering the negative
+entry results keeps queries from repeating as older cards are visited.
+Access-order retention allows new apps to replace old entries. Native owners
+may retain delivered bitmaps, which are never recycled on eviction.
 
 Only recent tasks need a coalesced ready notification. SystemUI has no empty
 ready callback or forced row rebind. Neither host prewarms unrelated applications.

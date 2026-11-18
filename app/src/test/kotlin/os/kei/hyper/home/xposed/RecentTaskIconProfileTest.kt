@@ -2,37 +2,22 @@ package os.kei.hyper.home.xposed
 
 import android.content.Intent
 import org.junit.Assert.assertFalse
-
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecentTaskIconProfileTest {
-  @Test fun explicitRootLaunchCanBeVerifiedWithoutLauncherActionOrCategory() {
-    fun allowed(action: String?, categories: Set<String>? = null, hasData: Boolean = false,
-                flags: Int = Intent.FLAG_ACTIVITY_NEW_TASK) = RecentTaskIconEligibility.allows(
-      0, 0, action, categories, flags, hasData, false, false,
-      "os.kei.fixture", "os.kei.fixture", setOf("os.kei.fixture"),
-    )
-    assertTrue(allowed(null))
-    assertTrue(allowed(RecentTaskIconEligibility.MAIN))
-    assertFalse(allowed(Intent.ACTION_VIEW))
-    assertFalse(allowed(Intent.ACTION_DIAL))
-    assertFalse(allowed(null, setOf(Intent.CATEGORY_DEFAULT)))
-    assertFalse(allowed(null, hasData = true))
-    assertFalse(allowed(null, flags = Intent.FLAG_ACTIVITY_NEW_DOCUMENT))
+  @Test fun admitsAppOwnedTasksRetainedFromDialerDetailsAndAlertEntrypoints() {
+    val dialerAndAlertFlags = Intent.FLAG_ACTIVITY_NEW_TASK
+    val detailFlags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    assertTrue(allowed(flags = dialerAndAlertFlags))
+    assertTrue(allowed(flags = detailFlags))
   }
 
   @Test fun inactiveLauncherTaskCanUseRetainedRootIdentityWithoutLiveBaseActivity() {
-    fun allowed(roots: Set<String>, base: String? = null) = RecentTaskIconEligibility.allows(
-      0, 0, RecentTaskIconEligibility.MAIN, setOf(RecentTaskIconEligibility.LAUNCHER),
-      Intent.FLAG_ACTIVITY_NEW_TASK, false, false, false,
-      "os.kei.fixture", base, roots,
-    )
-    assertTrue(allowed(setOf("os.kei.fixture")))
-    assertFalse(allowed(emptySet()))
-    assertFalse(allowed(setOf("os.kei.fixture", "foreign.identity")))
-    assertFalse(allowed(setOf("os.kei.fixture"), "foreign.identity"))
+    assertTrue(allowed(roots = listOf("os.kei.fixture")))
+    assertFalse(allowed(roots = emptyList()))
+    assertFalse(allowed(roots = listOf("os.kei.fixture", "foreign.identity")))
   }
   private val c = RecentTaskIconContract
 
@@ -98,39 +83,28 @@ class RecentTaskIconProfileTest {
     assertThrows(IllegalStateException::class.java) { c.verify(methods) }
   }
 
-  @Test fun allowsOnlyAPlainLauncherRootIntentForTheCurrentUser() {
-    assertTrue(
-      RecentTaskIconEligibility.allows(
-        userId = 0, contextUserId = 0, action = RecentTaskIconEligibility.MAIN,
-        categories = setOf(RecentTaskIconEligibility.LAUNCHER), flags = 0,
-        hasData = false, hasType = false, hasSelector = false,
-        componentPackage = "com.example.app", basePackage = "com.example.app",
-        rootPackages = setOf("com.example.app"),
-      ),
-    )
+  @Test fun preservesDocumentAlternateIdentityAndOtherUserTasks() {
+    assertFalse(allowed(flags = Intent.FLAG_ACTIVITY_NEW_DOCUMENT))
+    assertFalse(allowed(flags = Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
+    assertFalse(allowed(flags = Intent.FLAG_ACTIVITY_RETAIN_IN_RECENTS))
+    assertFalse(allowed(flags = Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS))
+    assertFalse(allowed(alternateIdentity = true))
+    assertFalse(allowed(user = 10))
   }
 
-  @Test fun rejectsDocumentsBrowsersAndWorkProfiles() {
-    fun allowed(
-      user: Int = 0, action: String? = RecentTaskIconEligibility.MAIN,
-      categories: Set<String>? = setOf(RecentTaskIconEligibility.LAUNCHER),
-      flags: Int = 0, data: Boolean = false, type: Boolean = false,
-      selector: Boolean = false,
-    ) = RecentTaskIconEligibility.allows(
-      userId = user, contextUserId = 0, action = action, categories = categories,
-      flags = flags, hasData = data, hasType = type, hasSelector = selector,
-      componentPackage = "com.example.app", basePackage = "com.example.app",
-      rootPackages = setOf("com.example.app"),
-    )
-
-    assert(!allowed(flags = 0x00080000))
-    assert(!allowed(action = "android.intent.action.VIEW"))
-    assert(!allowed(categories = setOf(RecentTaskIconEligibility.LAUNCHER, "android.intent.category.DEFAULT")))
-    assert(!allowed(data = true))
-    assert(!allowed(type = true))
-    assert(!allowed(selector = true))
-    assert(!allowed(user = 10))
+  @Test fun explicitIconReplacementKeepsTheExistingLauncherIntentBoundary() {
+    assertTrue(RecentTaskIconEligibility.legacyLauncherIntent(Intent.ACTION_MAIN, setOf(Intent.CATEGORY_LAUNCHER), false))
+    assertTrue(RecentTaskIconEligibility.legacyLauncherIntent(null, null, false))
+    assertFalse(RecentTaskIconEligibility.legacyLauncherIntent(Intent.ACTION_VIEW, null, true))
+    assertFalse(RecentTaskIconEligibility.legacyLauncherIntent(Intent.ACTION_DIAL, null, false))
+    assertFalse(RecentTaskIconEligibility.legacyLauncherIntent(null, null, true))
   }
+
+  private fun allowed(
+    flags: Int = 0, alternateIdentity: Boolean = false,
+    user: Int = 0, roots: List<String> = listOf("os.kei.fixture", "os.kei.fixture"),
+  ) = RecentTaskIconEligibility.allows(user, 0, flags, alternateIdentity,
+    "os.kei.fixture", roots)
 
   private fun fixture(): MutableMap<String, RecentTaskIconMethod> {
     fun method(id: String, calls: Set<String> = emptySet(), reads: Set<String> = emptySet(),

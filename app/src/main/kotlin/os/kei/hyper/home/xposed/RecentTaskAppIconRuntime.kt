@@ -30,12 +30,14 @@ internal class RecentTaskAppIconRuntime(
   private data class Key(val taskId: Int, val userId: Int)
   private class Entry(
     val key: Key,
-    val component: ComponentName,
+    val artwork: RecentTaskArtwork,
     val info: Any,
     val controller: WeakReference<Any>,
     var delivered: WeakReference<Bitmap>? = null,
     var replayQueued: Boolean = false,
   ) {
+    val component get() = artwork.component
+
     fun alreadyDelivered(snapshot: Bitmap?): Boolean =
       if (snapshot == null) delivered == null else delivered?.get() === snapshot
   }
@@ -112,6 +114,7 @@ internal class RecentTaskAppIconRuntime(
   }
 
   private fun isLauncherEntry(component: IconPackComponent): Boolean {
+    if (component.className == null) return true
     val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
       .setPackage(component.packageName)
     // A retained task may still refer to a launcher alias disabled after an icon change.
@@ -266,17 +269,17 @@ internal class RecentTaskAppIconRuntime(
   private fun remember(profile: RecentTaskIconProfile, info: Any, controller: Any): Entry? {
     val key = Key(profile.taskId(info), profile.userId(info))
     if (key.taskId < 0 || key.userId < 0) return null
-    val component = profile.component(info, contextUserId) ?: run {
+    val artwork = profile.artwork(info, contextUserId) ?: run {
       synchronized(lock) { entries.remove(key) }
       return null
     }
-    val entry = Entry(key, component, profile.copy(info), WeakReference(controller))
+    val entry = Entry(key, artwork, profile.copy(info), WeakReference(controller))
     synchronized(lock) {
       if (stopped) return null
       val previous = entries.remove(key)
       // Query results can go to system_server or another client. Only a native
       // description notification establishes what was sent to task listeners.
-      if (previous?.component == component && previous.controller.get() === controller)
+      if (previous?.artwork == artwork && previous.controller.get() === controller)
         entry.delivered = previous.delivered
       entries[key] = entry
       entries.entries.removeAll { it.value.controller.get() == null }
@@ -286,9 +289,13 @@ internal class RecentTaskAppIconRuntime(
   }
 
   private fun bitmap(entry: Entry): Bitmap? {
-    val current = synchronized(lock) { if (stopped) null else cache }
-    return current?.get(entry.component.packageName, entry.component.className)
-      ?.takeUnless { it.isRecycled }
+    val current = synchronized(lock) { if (stopped) null else cache } ?: return null
+    val component = entry.component
+    val exact = current.get(component.packageName, component.className)
+    val bitmap = if (exact == null && entry.artwork.allowPackageFallback &&
+      current.isMissing(component.packageName, component.className))
+      current.get(component.packageName) else exact
+    return bitmap?.takeUnless { it.isRecycled }
   }
 
   private fun replacement(profile: RecentTaskIconProfile, entry: Entry): Any? {
@@ -332,8 +339,10 @@ internal class RecentTaskAppIconRuntime(
   }
 
   private fun isMissing(entry: Entry): Boolean {
-    val current = synchronized(lock) { if (stopped) null else cache }
-    return current?.isMissing(entry.component.packageName, entry.component.className) == true
+    val current = synchronized(lock) { if (stopped) null else cache } ?: return false
+    val component = entry.component
+    return current.isMissing(component.packageName, component.className) &&
+      (!entry.artwork.allowPackageFallback || current.isMissing(component.packageName))
   }
 
   private fun replay(profile: RecentTaskIconProfile, entry: Entry) {

@@ -1,17 +1,17 @@
 package os.kei.hyper.home
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
-import kotlinx.coroutines.delay
-import os.kei.hyper.home.ui.main.IconPackProgressHost
-import os.kei.hyper.home.ui.main.IconPackStep
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -27,15 +27,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeThemeApplyWindow
+import os.kei.hyper.home.ui.components.KeiHomeAdaptiveNavigation
+import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.main.DesktopSection
 import os.kei.hyper.home.ui.main.DesktopDestinationScreen
 import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.IconPackProgressHost
+import os.kei.hyper.home.ui.main.IconPackStep
 import os.kei.hyper.home.ui.main.MainScreen
+import os.kei.hyper.home.ui.main.MainShortcut
+import os.kei.hyper.home.ui.main.MainTab
+import os.kei.hyper.home.ui.main.MainTabNavigation
+import os.kei.hyper.home.ui.main.PackNavigationBadge
+import os.kei.hyper.home.ui.main.actionIcon
+import os.kei.hyper.home.ui.main.mainShortcutItems
 import os.kei.hyper.home.ui.main.PackDestinationScreen
 import os.kei.hyper.home.ui.main.SettingsDestinationScreen
 import os.kei.hyper.home.ui.main.SettingsSection
@@ -53,6 +64,7 @@ import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.NavigationItem
 
 @Composable
 internal fun MainNavigation(
@@ -80,6 +92,11 @@ internal fun MainNavigation(
   val backStack = rememberNavBackStack<HomeRoute>(*initialRoutes.toTypedArray())
   val progress by setup.state.collectAsStateWithLifecycle()
   val current = backStack.lastOrNull()
+  val tabs = MainTab.entries
+  val pager = key("main-tabs-v3") { rememberPagerState { tabs.size } }
+  val tabScope = rememberCoroutineScope()
+  val tabNavigation = remember(pager, tabScope) { MainTabNavigation(pager, tabScope) }
+  val focus = LocalFocusManager.current
   LaunchedEffect(current) {
     if (current is OnboardingRoute && !current.replay) setup.visit(current.page)
   }
@@ -132,7 +149,50 @@ internal fun MainNavigation(
       backStack.add(Main)
     }
   }
-  Box(Modifier.fillMaxSize()) {
+  val section = when (current) {
+    is PackRoute -> MainTab.PACKS
+    is DesktopRoute -> MainTab.DESKTOP
+    is SettingsRoute -> MainTab.SETTINGS
+    else -> tabs[tabNavigation.selectedPage.coerceIn(tabs.indices)]
+  }
+  val shortcut = MainShortcut.entries.indexOfFirst { it.route == current }
+  val navigation = tabs.map { NavigationItem(stringResource(it.title), actionIcon(it.icon)) }
+  val backdrop = rememberKeiHomeBlurBackdrop()
+  var homeSettled by remember { mutableStateOf(false) }
+  val railEnabled = backStack.firstOrNull() == Main &&
+    backStack.all { it is PackRoute || it is DesktopRoute || it is SettingsRoute || it == Main }
+  KeiHomeAdaptiveNavigation(
+    items = navigation,
+    selectedIndex = section.ordinal,
+    onSelect = { index ->
+      val nextShortcut = MainShortcut.entries.getOrNull(index - tabs.size)
+      val tab = tabs.getOrNull(index) ?: nextShortcut?.parent
+      if (tab != null && (nextShortcut == null || backStack.lastOrNull() != nextShortcut.route)) {
+        focus.clearFocus(force = true)
+        if (backStack.lastOrNull() == Main && nextShortcut == null) tabNavigation.selectPage(tab.ordinal)
+        else {
+          tabNavigation.jumpToPage(tab.ordinal)
+          while (backStack.size > 1) back()
+          nextShortcut?.let { backStack.add(it.route) }
+        }
+      }
+    },
+    backdrop = backdrop,
+    railBackdrop = backdrop.takeIf { current == Main },
+    badge = { index -> if (index == MainTab.PACKS.ordinal) ({ PackNavigationBadge(model) }) else null },
+    secondaryItems = mainShortcutItems(),
+    selectedSecondary = shortcut,
+    railEnabled = railEnabled,
+    overlay = {
+      IconPackProgressHost(model, applyingIcons)
+      UpgradeRestartReminder(
+        version = releaseState?.restartReminderVersion.orEmpty().takeIf {
+          current == Main && pendingVersion.isEmpty() && homeSettled
+        }.orEmpty(),
+        onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
+      )
+    },
+  ) { wide ->
     NavDisplay(backStack = backStack,
       onBack = ::back,
       transition = NavTransitions.MiuixDefault,
@@ -141,15 +201,10 @@ internal fun MainNavigation(
         backdropColor = MiuixTheme.colorScheme.surface)) {
       entry<Main> {
         val transitionRunning = LocalNavTransitionScope.current.isRunning
+        SideEffect { homeSettled = !transitionRunning }
         MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
-          onOpenDesktopSection = ::openDesktop, overlay = {
-            UpgradeRestartReminder(
-              version = releaseState?.restartReminderVersion.orEmpty().takeIf {
-                current == Main && pendingVersion.isEmpty() && !transitionRunning
-              }.orEmpty(),
-              onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
-            )
-          })
+          onOpenDesktopSection = ::openDesktop, pager = pager, tabNavigation = tabNavigation,
+          navigation = navigation, backdrop = backdrop, wide = wide)
       }
       entry<DesktopRoute> { route ->
         val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK
@@ -193,7 +248,6 @@ internal fun MainNavigation(
         })
       }
     }
-    IconPackProgressHost(model, applyingIcons)
   }
 }
 

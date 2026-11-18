@@ -9,9 +9,12 @@ This implements the adoption options in
 `KeiHomeAdaptiveNavigation` chooses the navigation surface from its measured
 window constraints, not a tablet model name or the physical display size:
 
-- At least 840dp wide and 480dp high: native `GlassNavigationRail`.
-- Smaller windows: the existing bottom navigation, including its saved style.
-- Expanded rail width is 256dp, rising to 320dp with large fonts.
+- At least 720dp wide and 480dp high: native `GlassNavigationRail` on main
+  destinations and their detail routes.
+- Smaller windows use the existing bottom navigation on the main destinations
+  and the ordinary back flow on details.
+- Expanded rail width targets 256dp, rising to 320dp with larger text. The
+  measured window can reduce that width to leave at least 472dp for the page.
 - Content reserves the rail width plus 24dp while expanded. During collapse
   it opens a separate 64dp top band for the native capsule. The capsule does
   not share the title/action row.
@@ -19,20 +22,30 @@ window constraints, not a tablet model name or the physical display size:
   measurement, not composition. Start-relative placement supports RTL.
 - The native rail owns its saveable expanded state.
 
-There is one content slot throughout window and rail changes. It keeps the
-existing pager, destination mapping, saveable page states, focus clearing,
-browser state and list state. Selection and the icon-pack update badge use
-the same logic for the rail and bottom bar. Badge subscriptions stay in
-their own composition rather than making runtime reports invalidate the
-entire root.
+The rail surrounds the navigation display and stays visible in detail pages.
+The expanded rail puts the icon-pack library, Monet, icon completion,
+customization and desktop tools below the five primary destinations, separated
+by the native divider. Collapsing the rail shows the current detail's parent
+in the compact capsule. Opening a shortcut replaces the current detail;
+Back then returns to the shortcut's parent tab. Setup and mandatory upgrade
+notes have their own navigation flow.
+
+There is one content slot throughout window and rail changes. The pager and
+navigation state stay mounted across these changes, so a resize retains the
+current detail and its return destination. Root tabs share their labels,
+selection and icon-pack update badge between the rail and bottom bar.
 
 Non-status root titles also use the selected navigation label. This removes
 the legacy desktop-title override on the icon-pack destination.
 
-The rail sits outside backdrop recording. The adaptive container owns the
-root overlay slot above both rail and content and explicitly provides the
-page backdrop to it, so popups/sheets retain their material and input ownership.
-Toggle descriptions are localized in English, Simplified Chinese and Japanese.
+The rail sits outside backdrop recording. Detail pages keep their own backdrop
+and the rail uses its unsampled material while a detail is active. The content
+pane clips navigation transitions at its edge. The adaptive container owns the
+root overlay slot above both rail and content. Toggle descriptions are localized
+in English, Simplified Chinese and Japanese.
+
+The grouped rail uses MIUIX `0.9.5-beta01`. All eight MIUIX Android modules use
+the same published version.
 
 `KeiHomeScaffold` centers its complete chrome/content at a maximum 1040dp.
 This also gives secondary screens and floating-action placement a shared
@@ -99,7 +112,6 @@ results were 2069 passed and eight conditional skips out of 2077 cases.
 The additional overlay regression and final source/build results are retained
 in the acceptance receipts; repeated device runs are not additional unique cases.
 
-This is a UI change. It does not update MIUIX again, modify native source,
-enable desktop features, import/apply icon packs or alter theme/Monet choices.
-Device identities, rotation restoration, final APK/native-library comparison,
-build results and installed-state checks belong to the acceptance receipts.
+Record the exact device and APK for visual checks. Exercise the rail across
+details, then resize to a compact window and check the detail and its Back
+destination. Restore the device rotation after orientation checks.

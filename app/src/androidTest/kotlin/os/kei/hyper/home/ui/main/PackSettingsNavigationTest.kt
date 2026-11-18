@@ -1,7 +1,18 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isDisplayed
@@ -12,6 +23,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.tencent.mmkv.MMKV
 import java.util.UUID
@@ -67,7 +81,7 @@ class PackSettingsNavigationTest {
     rule.onNodeWithText(context.getString(R.string.pack_settings_generation)).assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.pack_auto_apply)).assertIsDisplayed()
     rule.onNodeWithText(context.getString(R.string.pack_installed_icons_only)).assertIsDisplayed()
-    rule.onNodeWithTag("settings.compact-pack-hints").assertExists()
+    rule.onNodeWithTag("settings.compact-pack-hints").assertDoesNotExist()
     rule.onNodeWithTag("icon-packs.complete-system-icon-config").assertDoesNotExist()
     rule.onNodeWithTag("icon-packs.open-mask").performScrollTo().performClick()
     waitForTag("icon-mask.page")
@@ -111,5 +125,43 @@ class PackSettingsNavigationTest {
     back()
     rule.onNodeWithTag("setup.page.2").assertIsDisplayed()
     rule.runOnIdle { assertEquals("Wizard shortcuts must not enable or apply mask settings", original, preferences.state.value) }
+  }
+
+  @Test fun wideShortcutsSwitchDetailsAndBackReturnsToTheOwningTabAfterResize() {
+    var width by mutableStateOf(900.dp)
+    store.complete()
+    rule.setContent {
+      CompositionLocalProvider(LocalDensity provides Density(1f)) {
+        KeiHomeTheme {
+          Box(Modifier.size(width, 700.dp)) { MainNavigation(store) }
+        }
+      }
+    }
+    fun selectShortcut(shortcut: MainShortcut) {
+      rule.onNode(hasText(context.getString(shortcut.title)) and
+        hasAnyAncestor(hasTestTag("adaptive.rail")), useUnmergedTree = true)
+        .performTouchInput { click() }
+    }
+
+    selectShortcut(MainShortcut.LIBRARY)
+    waitForTag("icon-packs.library")
+    selectShortcut(MainShortcut.MONET)
+    waitForTag("icon-packs.monet")
+
+    rule.runOnIdle { width = 744.dp }
+    rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    rule.runOnIdle { width = 520.dp }
+    rule.onNodeWithTag("adaptive.rail").assertDoesNotExist()
+    rule.onNodeWithTag("icon-packs.monet").assertIsDisplayed()
+    back()
+    rule.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable())
+      .assertIsSelected()
+
+    rule.runOnIdle { width = 900.dp }
+    selectShortcut(MainShortcut.TOOLS)
+    waitForTag("desktop.page.tools")
+    back()
+    rule.onNode(hasText(context.getString(R.string.navigation_desktop)) and isSelectable())
+      .assertIsSelected()
   }
 }

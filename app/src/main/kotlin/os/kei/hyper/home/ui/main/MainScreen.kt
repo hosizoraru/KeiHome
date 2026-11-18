@@ -3,7 +3,7 @@ package os.kei.hyper.home.ui.main
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.ui.Alignment
@@ -37,7 +37,6 @@ import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import os.kei.hyper.home.ui.components.Os4ViewTabs
-import os.kei.hyper.home.ui.components.KeiHomeAdaptiveNavigation
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -55,7 +54,7 @@ import os.kei.hyper.home.data.IconCapabilityStatus
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.KeiHomeNavigationBar
-import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -75,7 +74,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
   onOpenSettingsSection: (String) -> Unit, onOpenDesktopSection: (String) -> Unit,
-  modifier: Modifier = Modifier, overlay: @Composable () -> Unit = {}) {
+  pager: PagerState, tabNavigation: MainTabNavigation, navigation: List<NavigationItem>,
+  backdrop: LayerBackdrop?, wide: Boolean) {
   val (interactionFlow, initialInteraction) = remember(model) {
     model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged() to
       model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture }
@@ -85,149 +85,134 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     os.kei.hyper.home.data.AppPagerGesture.NATIVE -> PagerInterceptionMode.Native
     os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
   }
-  val pages = remember { listOf(0, 1, 3, 5, 4) }
-  // The tab order changed; retain logical page IDs for content and refresh state.
-  val pager = androidx.compose.runtime.key("main-tabs-v3") { rememberPagerState { pages.size } }
   val navigationScope = rememberCoroutineScope()
   var statusPackJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-  val tabNavigation = remember(pager, navigationScope) { MainTabNavigation(pager, navigationScope) }
   val focus = LocalFocusManager.current
-  val selectedTab = tabNavigation.selectedPage.coerceIn(pages.indices)
+  val tabs = MainTab.entries
+  val selectedTab = tabNavigation.selectedPage.coerceIn(tabs.indices)
   fun selectTab(index: Int) {
     focus.clearFocus(force = true)
     tabNavigation.selectPage(index)
   }
-  val page = pages[selectedTab]
+  val page = tabs[selectedTab].page
   val appsBrowser = rememberAppsBrowserState(model, enabled = selectedTab == 1)
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, selectedTab, locales) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(page, locales) }
   }
-  val labels = listOf(stringResource(R.string.navigation_status), stringResource(R.string.navigation_apps),
-    stringResource(R.string.navigation_icon_packs), stringResource(R.string.navigation_desktop),
-    stringResource(R.string.navigation_settings))
   val (navigationStyleFlow, initialNavigationStyle) = remember(model) {
     model.preferences.state.map { it.navigationBarStyle }.distinctUntilChanged() to
       model.preferences.state.value.navigationBarStyle
   }
   val navigationStyle by navigationStyleFlow.collectAsStateWithLifecycle(initialValue = initialNavigationStyle)
-  val navIcons = listOf(actionIcon(PageActionIcon.STATUS), actionIcon(PageActionIcon.APPS),
-    actionIcon(PageActionIcon.PACKS), actionIcon(PageActionIcon.DESKTOP), actionIcon(PageActionIcon.SETTINGS))
-  val navigation = remember(navIcons, labels, navigationStyle) {
-    labels.mapIndexed { index, label -> NavigationItem(label, navIcons[index]) }
-  }
-  val backdrop = rememberKeiHomeBlurBackdrop()
-  val behaviors = pages.map { page -> androidx.compose.runtime.key("bar-$page") { MiuixScrollBehavior() } }
+  val behaviors = tabs.map { androidx.compose.runtime.key("bar-${it.page}") { MiuixScrollBehavior() } }
   val appList = rememberLazyListState()
-  val pageScrolls = pages.map { page -> androidx.compose.runtime.key("scroll-$page") { rememberScrollState() } }
+  val pageScrolls = tabs.map { androidx.compose.runtime.key("scroll-${it.page}") { rememberScrollState() } }
   val savedPages = rememberSaveableStateHolder()
   val navigationBadge: (Int) -> (@Composable () -> Unit)? = { index ->
     if (index == 2) ({ PackNavigationBadge(model) }) else null
   }
-  KeiHomeAdaptiveNavigation(navigation, selectedTab, { selectTab(it) }, backdrop,
-    modifier = modifier, badge = navigationBadge, overlay = overlay) { wide ->
-    Scaffold(backdrop = backdrop,
-      topBar = {
-        BlurredBar(backdrop, backdrop != null) {
-          TopAppBar(
-            title = if (page == 0) stringResource(R.string.app_name) else labels[selectedTab],
-            color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-            scrollBehavior = behaviors[selectedTab],
-            actions = {
-              if (selectedTab == 1) {
-                AppsPreviewHelp(model)
-                AppsFilterMenu(model)
-                AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
-              }
-              if (page != 1 && page != 3 && page != 4) RefreshAction(model, page)
-            },
-            bottomContent = {
-              if (selectedTab == 1) AppsOriginTabs(model, appsBrowser)
-            },
-          )
-        }
-      },
-      bottomBar = {
-        if (!wide) KeiHomeNavigationBar(style = navigationStyle, items = navigation, selectedIndex = selectedTab,
-          onSelect = { selectTab(it) }, backdrop = backdrop,
-          badge = navigationBadge)
-      },
-      floatingActionButton = { PackActionFab(model, page, "home") },
-    ) { insets ->
-      Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-        val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
-        HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
-          modifier = Modifier.fillMaxSize().pagerGestureOverride(pagerState = pager,
-            flingBehavior = fling, mode = gestureMode, enabled = interaction.first),
-          flingBehavior = fling, verticalAlignment = Alignment.Top,
-          pageNestedScrollConnection = if (gestureMode == PagerInterceptionMode.CrossAxis)
-            top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
-          else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
-          val page = pages[tab]
-          val padding = PaddingValues(start = 16.dp, end = 16.dp,
-            top = insets.calculateTopPadding() + 4.dp,
-            bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
-          savedPages.SaveableStateProvider(page) {
-          val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
-          if (tab == 1) {
-            PagePullToRefresh(model, 1, padding, Modifier.testTag("apps.pull-to-refresh")) { busy ->
-              AppsPage(model, appList, padding,
-                Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
-                rememberAppsRefreshContent(appsBrowser, busy))
+  Scaffold(backdrop = backdrop,
+    topBar = {
+      BlurredBar(backdrop, backdrop != null) {
+        TopAppBar(
+          title = if (page == 0) stringResource(R.string.app_name) else stringResource(tabs[selectedTab].title),
+          color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
+          scrollBehavior = behaviors[selectedTab],
+          actions = {
+            if (selectedTab == 1) {
+              AppsPreviewHelp(model)
+              AppsFilterMenu(model)
+              AppsSortMenu(model) { navigationScope.launch { appList.scrollToItem(0) } }
             }
-          } else if (page == 3) {
-            val sectionList = rememberLazyListState()
-            PagePullToRefresh(model, 3, padding) { busy ->
-              IconPacksPage(model, sectionList, padding,
-                Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
-                "home", onOpenPackSection)
-            }
-          } else {
-            // These pages are a single form. A nested lazy-item saveable owner drops the form's
-            // draft/expansion state when the outer page provider saves during tab disposal.
-            Column(modifier = pageModifier.verticalScroll(pageScrolls[tab], overscrollEffect = null).padding(padding),
-              verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              when (page) {
-                0 -> {
-                  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = {
-                      focus.clearFocus(force = true)
-                      tabNavigation.selectPage(2, animate = false) { onOpenPackSection("monet") }
-                    },
-                      onOpenPacks = {
-                        if (!model.preferences.state.value.openCurrentIconPack) selectTab(2)
-                        else if (statusPackJob?.isActive != true) {
-                          val theme = runtimeCardState(model.runtime.value,
-                            android.os.SystemClock.elapsedRealtime()).report?.iconTheme
-                          statusPackJob = navigationScope.launch {
-                            val destination = loadStatusIconPackDestination(model.getApplication(), theme)
-                            if (tabNavigation.selectedPage == 0 &&
-                              lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
-                              runtimeCardState(model.runtime.value,
-                                android.os.SystemClock.elapsedRealtime()).report?.iconTheme == theme) {
-                              if (destination == null) selectTab(2) else {
-                                focus.clearFocus(force = true)
-                                onOpenPackSection(destination)
-                              }
+            if (page != 1 && page != 3 && page != 4) RefreshAction(model, page)
+          },
+          bottomContent = {
+            if (selectedTab == 1) AppsOriginTabs(model, appsBrowser)
+          },
+        )
+      }
+    },
+    bottomBar = {
+      if (!wide) KeiHomeNavigationBar(style = navigationStyle, items = navigation, selectedIndex = selectedTab,
+        onSelect = { selectTab(it) }, backdrop = backdrop,
+        badge = navigationBadge)
+    },
+    floatingActionButton = { PackActionFab(model, page, "home") },
+  ) { insets ->
+    Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
+      val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
+      HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
+        modifier = Modifier.fillMaxSize().pagerGestureOverride(pagerState = pager,
+          flingBehavior = fling, mode = gestureMode, enabled = interaction.first),
+        flingBehavior = fling, verticalAlignment = Alignment.Top,
+        pageNestedScrollConnection = if (gestureMode == PagerInterceptionMode.CrossAxis)
+          top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
+        else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
+        val page = tabs[tab].page
+        val padding = PaddingValues(start = 16.dp, end = 16.dp,
+          top = insets.calculateTopPadding() + 4.dp,
+          bottom = insets.calculateBottomPadding() + if (page == 3) 100.dp else 24.dp)
+        savedPages.SaveableStateProvider(page) {
+        val pageModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab])
+        if (tab == 1) {
+          PagePullToRefresh(model, 1, padding, Modifier.testTag("apps.pull-to-refresh")) { busy ->
+            AppsPage(model, appList, padding,
+              Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
+              rememberAppsRefreshContent(appsBrowser, busy))
+          }
+        } else if (page == 3) {
+          val sectionList = rememberLazyListState()
+          PagePullToRefresh(model, 3, padding) { busy ->
+            IconPacksPage(model, sectionList, padding,
+              Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
+              "home", onOpenPackSection)
+          }
+        } else {
+          // These pages are a single form. A nested lazy-item saveable owner drops the form's
+          // draft/expansion state when the outer page provider saves during tab disposal.
+          Column(modifier = pageModifier.verticalScroll(pageScrolls[tab], overscrollEffect = null).padding(padding),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            when (page) {
+              0 -> {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                  StatusPage(model, onOpenApps = { selectTab(1) }, onOpenMonet = {
+                    focus.clearFocus(force = true)
+                    tabNavigation.selectPage(2, animate = false) { onOpenPackSection("monet") }
+                  },
+                    onOpenPacks = {
+                      if (!model.preferences.state.value.openCurrentIconPack) selectTab(2)
+                      else if (statusPackJob?.isActive != true) {
+                        val theme = runtimeCardState(model.runtime.value,
+                          android.os.SystemClock.elapsedRealtime()).report?.iconTheme
+                        statusPackJob = navigationScope.launch {
+                          val destination = loadStatusIconPackDestination(model.getApplication(), theme)
+                          if (tabNavigation.selectedPage == 0 &&
+                            lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
+                            runtimeCardState(model.runtime.value,
+                              android.os.SystemClock.elapsedRealtime()).report?.iconTheme == theme) {
+                            if (destination == null) selectTab(2) else {
+                              focus.clearFocus(force = true)
+                              onOpenPackSection(destination)
                             }
                           }
                         }
-                      }, onOpenEnvironment = { onOpenSettingsSection("about/environment") },
-                      onOpenGuide = { onOpenSettingsSection("setup") })
-                    RefreshFeedback(model, 0)
-                  }
+                      }
+                    }, onOpenEnvironment = { onOpenSettingsSection("about/environment") },
+                    onOpenGuide = { onOpenSettingsSection("setup") })
+                  RefreshFeedback(model, 0)
                 }
-                5 -> {
-                  DesktopPage(model, onOpenDesktopSection)
-                  RefreshFeedback(model, 5)
-                }
-                4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection,
-                  onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
               }
+              5 -> {
+                DesktopPage(model, onOpenDesktopSection)
+                RefreshFeedback(model, 5)
+              }
+              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection,
+                onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
             }
           }
-          }
+        }
         }
       }
     }
@@ -235,7 +220,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
 }
 
 @Composable
-private fun PackNavigationBadge(model: HomeViewModel) {
+internal fun PackNavigationBadge(model: HomeViewModel) {
   val packUpdate by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
   val packState by model.iconPacks.collectAsStateWithLifecycle()
   val activeComponent by remember(model) {

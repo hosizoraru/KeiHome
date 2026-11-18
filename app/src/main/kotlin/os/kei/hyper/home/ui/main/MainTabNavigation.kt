@@ -23,6 +23,15 @@ internal class MainTabNavigation(
 
   val selectedPage: Int get() = destination ?: pager.currentPage
 
+  fun jumpToPage(index: Int) {
+    if (index !in 0 until pager.pageCount) return
+    ++generation
+    navigationJob?.cancel()
+    destination = null
+    // The main pager can be off screen when a shortcut changes its parent tab.
+    pager.requestScrollToPage(index)
+  }
+
   fun selectPage(index: Int, animate: Boolean = true, onArrived: () -> Unit = {}) {
     if (index !in 0 until pager.pageCount) return
     if (animate && index == selectedPage &&

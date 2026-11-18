@@ -1,6 +1,6 @@
 # Rust MAML ZIP metadata release
 
-Run the durable framework inventory plus the 8607, 9239 and 9248 launcher widget-SDK
+Run the durable framework inventory plus the 8607, 9239, 9248 and 9261 launcher widget-SDK
 negative fixtures from the repository root:
 
 ```sh

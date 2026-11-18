@@ -6,6 +6,7 @@
   "negative_launcher_sdks": [
     ".artifacts/inputs/launchers/8607/libnative_widget_sdk.so",
     ".artifacts/inputs/launchers/9239/libnative_widget_sdk.so",
-    ".artifacts/inputs/launchers/9248/libnative_widget_sdk.so"
+    ".artifacts/inputs/launchers/9248/libnative_widget_sdk.so",
+    ".artifacts/inputs/launchers/9261/libnative_widget_sdk.so"
   ]
 }

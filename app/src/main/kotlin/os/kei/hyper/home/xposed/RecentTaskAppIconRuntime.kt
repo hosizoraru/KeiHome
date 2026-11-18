@@ -70,7 +70,9 @@ internal class RecentTaskAppIconRuntime(
               Context::class.java.getDeclaredMethod("getUserId")
                 .apply { isAccessible = true }.invoke(context) as Int
             }.getOrDefault(0)
-            val candidate = CrossSurfaceIconCache(context, refreshOnMinute = true, notifyOnMiss = true,
+            // Each retained task can need both an entry check and a package snapshot.
+            val candidate = CrossSurfaceIconCache(context, maxEntries = MAX_TASKS,
+              maxIdentities = 2 * MAX_TASKS, refreshOnMinute = true, notifyOnMiss = true,
               acceptsComponent = ::isLauncherEntry,
               originalOnMiss = setOf(BuildConfig.APPLICATION_ID)) { ready(profile) }
             synchronized(lock) {

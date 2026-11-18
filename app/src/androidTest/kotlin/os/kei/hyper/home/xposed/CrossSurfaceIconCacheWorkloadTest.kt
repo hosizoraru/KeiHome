@@ -93,7 +93,7 @@ class CrossSurfaceIconCacheWorkloadTest {
     } finally { assertTrue(cache.stop()) }
   }
 
-  @Test fun retainedTaskCacheChecksLauncherIdentityAndPublishesFinalMisses() = fixture { file ->
+  @Test fun retainedTaskCacheSharesPackageArtworkAfterNonLauncherEntryMisses() = fixture { file ->
     val checks = AtomicInteger()
     val notifications = AtomicInteger()
     val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file,
@@ -103,16 +103,44 @@ class CrossSurfaceIconCacheWorkloadTest {
       }, onReady = { notifications.incrementAndGet() })
     try {
       cache.start()
-      assertNull(cache.get(name(0), "fixture.Other"))
+      assertNull(cache.get(name(0), "fixture.Detail"))
       awaitSettled(cache)
-      assertTrue(cache.isMissing(name(0), "fixture.Other"))
+      assertTrue(cache.isMissing(name(0), "fixture.Detail"))
       assertEquals(1, notifications.get())
-      repeat(100) { assertNull(cache.get(name(0), "fixture.Other")) }
+      repeat(100) { assertNull(cache.get(name(0), "fixture.Detail")) }
       assertEquals(1, checks.get())
       cache.get(name(0))
       awaitSettled(cache)
-      assertNotNull(cache.get(name(0)))
+      val appIcon = checkNotNull(cache.get(name(0)))
+      repeat(100) { assertSame(appIcon, cache.get(name(0))) }
       assertEquals(2, checks.get())
+    } finally { assertTrue(cache.stop()) }
+  }
+
+  @Test fun entryMissesDoNotEvictTheRetainedPackageWorkingSet() = fixture { file ->
+    val checks = AtomicInteger()
+    val cache = CrossSurfaceIconCache(RecordingContext(), maxEntries = 64, maxIdentities = 128,
+      themeFile = file, paletteState = { 0L }, acceptsComponent = {
+        checks.incrementAndGet()
+        it.className == null
+      })
+    try {
+      cache.start()
+      repeat(64) { cache.get(name(it), "fixture.Detail") }
+      awaitSettled(cache)
+      repeat(64) { cache.get(name(it)) }
+      awaitSettled(cache)
+      repeat(4) {
+        repeat(64) { index ->
+          assertNull(cache.get(name(index), "fixture.Detail"))
+          assertTrue(cache.isMissing(name(index), "fixture.Detail"))
+          assertNotNull(cache.get(name(index)))
+        }
+      }
+      assertEquals(128, checks.get())
+      assertEquals(128, size(cache, "wanted"))
+      assertEquals(0, size(cache, "pending"))
+      assertEquals(64, bitmapCache(cache).snapshot().size)
     } finally { assertTrue(cache.stop()) }
   }
 

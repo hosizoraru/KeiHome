@@ -43,9 +43,13 @@ internal class CrossSurfaceIconCache(
   private val notifyOnMiss: Boolean = !eagerReload,
   private val acceptsComponent: ((IconPackComponent) -> Boolean)? = null,
   private val originalOnMiss: Set<String> = emptySet(),
+  private val maxIdentities: Int = maxEntries,
   private val onReady: (() -> Unit)? = null,
 ) {
-  init { require(maxEntries in 1..64) }
+  init {
+    require(maxEntries in 1..64)
+    require(maxIdentities in maxEntries..2 * maxEntries)
+  }
   private val keys = SurfaceIconKeyIndex()
   private data class Appearance(val dark: Boolean, val locale: Locale, val palette: Long)
   private val lock = java.lang.Object()
@@ -222,7 +226,7 @@ internal class CrossSurfaceIconCache(
     val key = keys.retain(packageName, activity)
     // Bound cold requests and the active working set; never recycle host-owned bitmaps.
     wanted[key] = Unit
-    if (wanted.size > maxEntries) {
+    if (wanted.size > maxIdentities) {
       val oldest = wanted.keys.first()
       wanted.remove(oldest)
       keys.remove(oldest)
@@ -323,9 +327,6 @@ internal class CrossSurfaceIconCache(
     var dynamic = false
     val now = System.currentTimeMillis()
     try {
-      val component = IconPackComponent(key.name, key.activity)
-      if (acceptsComponent?.invoke(component) == false)
-        return publish(key, generation, null, false, now)
       val file = themeFile
       val currentStamp = "${file.length()}:${file.lastModified()}"
       if (stamp.isNotEmpty() && currentStamp != stamp) {
@@ -338,6 +339,9 @@ internal class CrossSurfaceIconCache(
       val hasArchive = file.length() in 1..(1024L * 1024 * 1024)
       val canUseOriginal = key.name in originalOnMiss
       if (!hasArchive && !canUseOriginal) return publish(key, generation, null, false, now)
+      val component = IconPackComponent(key.name, key.activity)
+      if (acceptsComponent?.invoke(component) == false)
+        return publish(key, generation, null, false, now)
       fun checkCurrent() { check(active && generation == revision.get()) }
       if (archiveGeneration != generation) {
         check(closeArchive())

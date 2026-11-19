@@ -62,8 +62,8 @@ becomes available after a five-second wait.
 Confirming acknowledges the advice; it does not initiate a reboot or count as
 proof of a completed system restart. The user restarts the device manually.
 API 102 automatic hot reload updates only the Java part and cannot replace
-native libraries already loaded in a process. Since 1.11.0 includes new `.so`
-native code, its notes explicitly ask for a system restart after upgrading.
+native libraries already loaded in a process. The 1.11.0 and 1.13.0 entries
+enable the restart recommendation for their native library updates.
 First activation independently requires a full system restart after module
 enablement and scope authorization, followed by unlocking to the home screen.
 Finishing or skipping the guide and confirming version advice cannot satisfy
@@ -91,6 +91,10 @@ restart requirement and general once-per-version restart advice. Ten version
 fixtures passed the documented compatibility checks; this is not a guarantee
 for every unknown launcher version. Existing published entries remain verbatim,
 including MIUIX refinements already described in 1.10.0.
+[1.12.0](releases/1.12.0.md) covers per-app icons, the Monet editor, and
+icon-pack storage. [1.13.0](releases/1.13.0.md) covers the 0308 and 9261
+launcher updates, large icon packs, Recents and launch icons, gesture
+navigation, and Phone/Pad Glass refinements.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

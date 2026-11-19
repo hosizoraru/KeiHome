@@ -93,8 +93,8 @@ for every unknown launcher version. Existing published entries remain verbatim,
 including MIUIX refinements already described in 1.10.0.
 [1.12.0](releases/1.12.0.md) covers per-app icons, the Monet editor, and
 icon-pack storage. [1.13.0](releases/1.13.0.md) covers the 0308 and 9261
-launcher updates, large icon packs, Recents and launch icons, gesture
-navigation, and Phone/Pad Glass refinements.
+launcher updates, large icon packs, Recents and launch icons, the soft glass
+gesture handle, Bilibili home artwork, and Phone/Pad Glass refinements.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

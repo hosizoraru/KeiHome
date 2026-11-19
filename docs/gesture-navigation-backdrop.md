@@ -1,9 +1,210 @@
 # Gesture navigation backdrop investigation
 
+## Soft glass gesture handle (November 19)
+
+The independent **Soft glass gesture handle** switch in Desktop → Immersive
+gesture bar changes the existing primary-display SystemUI handle. It takes
+effect when SystemUI receives the preference, including on an already visible
+handle. Existing installations start with the switch off.
+
+The renderer follows the native pill rectangle and corner radius on each draw.
+On a supported HyperOS device with the soft material style, a pill-sized view
+in the native handle overlay draws the vendor glass paint. It uses the installed
+SystemUI clock material preset, MIUI view material type, glass shader, blur radii
+and a pill-local clip. The preset is read once per renderer. A translucent
+finish draws after the material child in the handle's own overlay. Keeping it
+in this pass preserves contrast when the vendor composites the child separately.
+The system's handle polarity selects the light or dark finish. The emulator's
+ranchu renderer produced a flat mask despite exposing the same methods. There the
+navigation window uses a rounded `BackgroundBlurDrawable` region in SurfaceFlinger.
+The same compositor path covers missing OEM methods and other system styles.
+When window blur is unavailable the body uses a denser gradient. Disabling the switch or replacing the hook releases the
+compositor region and redraws the native handle. The touch surface, animation
+geometry and window owner remain under SystemUI control.
+
+In glass mode the Bilibili integration skips its handle-color sample. The footer
+can still extend its original artwork, or match a solid tab background. The
+separate general app setting still uses the HyperOS backdrop policy. These
+controls address the visible gap outside the pill and can be used independently.
+
+### MIUI Extra reference
+
+Static inspection of the supplied MIUI Extra 2.7.3 APK (build 130804, r95,
+SHA-256 `2788e2ffc1f9e039feefc5b670f35626ffdbd883b90ac1d5931f45f897fe9a58`)
+found calls by name to `setMiGlass`, `setMiGlassBlurRadius` and
+`setMiGlassSdfMaxSize`, with separate preferences for refraction, blur radius,
+background scale and opacity. Its immersion and animation paths also reference
+`WindowState.getInsetsState`, navigation-bar inset sizes and a touch-event relay
+in system_server. These are distinct responsibilities. The binary establishes
+implementation choices, but does not establish which choices were active in the
+supplied screenshot or their cost on this device.
+
+KeiHome uses the installed OEM preset, a bounded drawing region and the SystemUI
+pill's animated rectangle. No touch relay or inset rewriting is needed for this
+material. Local APK inspection results, device captures and timing samples are
+under `.artifacts/research/gesture-glass-20261119/`.
+
+### HyperOS material and motion on build 113000589
+
+The installed Xiaomi SystemUI and its control-center plugin use different
+materials for clock strokes, control-center tiles and compact/expanded volume
+controls. The sliders also distinguish their tracks from progress. On the
+physical phone a clock-derived preset preserved wallpaper detail inside the
+390 × 17 px pill. An experimental pass-through setting erased the pill on
+both solid black and solid white. The final renderer uses the vendor surface
+for the background and draws the edge separately. On the dark Settings page
+the center pixel was RGB 127/128/129 against 0/0/0. On the light page it was
+166/167/168 against 243/243/243. The wallpaper and Bilibili samples retain
+their local color differences. The Home swipe returned to the launcher and
+re-entered the original Bilibili activity.
+
+On physical OS4.0.6.0.XBLCNXM we ran two six-swipe batches per state,
+with glass on, off, off and on. Window-scoped `gfxinfo` frames from
+`NavigationBar0` were matched by intended vsync. Pooled median/P90 were
+2.62/7.85 ms on (239 frames) and 2.65/7.88 ms off (240). Per-run P90
+ranged from 6.96 to 8.46 ms. These are navigation-window samples from a
+short interaction. GPU compositor cost, sustained power and device-wide
+frame pacing require separate measurement.
+
+### Clearer body and directional highlight on build 113000591
+
+On the physical OS4.0.6.0.XBLCNXM phone, the control-center brightness
+slider has a bright curved corner and a short falloff into the body.
+The compact volume panel also picks up nearby color along its edge. In 589
+the finish spanned the entire height of the handle, which made its center
+look gray on plain surfaces. The revised finish uses a low-opacity neutral
+fill with a directional highlight on an inset stroke. A second, fainter
+stroke softens its inner boundary. Both fit inside the native animated pill.
+The native and compositor blur paths share the finish. The opaque
+system-blur-disabled fallback retains its existing colors.
+
+Builds 589, 590 and 591 were photographed at native resolution in the same
+light Settings, dark Settings and themed Bilibili home scenes. Build 590
+made the body clearer, but left a relatively sharp outline on black. The
+second iteration softened that line and raised the body slightly on dark
+backgrounds. On the light page the central scanline median was 167 in 589
+and 224 in 591 against a background of 243 (8-bit luma). In the same
+120-pixel slice of Bilibili artwork, the difference between the 90th and
+10th percentile luma inside the handle grew from 22.5 to 40.4. The artwork
+just below it measured 48.5 in both captures. The fixed region and images
+are in `.artifacts/research/gesture-glass-20261119/rim-study/`.
+
+The two physical API 102 hot reloads completed with 10 and 12 successful
+target receipts respectively. SystemUI PID 24018 and Bilibili PID 8236
+survived both updates. A primary-display swipe reached the launcher and
+returned to the same Bilibili window. The AVD's 589 to 591 update also
+completed with 12 successes. SurfaceFlinger reported the 358 × 15 px blur
+region while enabled and removed it when cross-window blur was disabled.
+Both devices finished in their original night and blur modes.
+
+### Rounded highlights during gestures on build 113000593
+
+We recorded the stock HyperOS control-center volume slider moving in both
+directions on the physical phone. Its upper shoulder brightens as the curved
+surface changes shape. The middle of the long edge stays comparatively quiet.
+The media level went from 86 to 141 to 78 during the recording and was
+restored to 86. Both runs of the Bilibili-to-launcher gesture were recorded
+on the primary display at 1220 × 2656.
+
+Build 593 places a short reflection at each end of the pill and a diffuse
+shadow below the leading shoulder. The length and angle of the reflections
+follow the cap geometry. The OEM `NavigationHandle` supplies the pill rect,
+radius and continuous dark intensity. When its width changes relative to
+the resting width, the reflection follows the change in either direction.
+Only changes in the geometry update the shader transforms. SystemUI owns
+the transition timing. A short simulated press on this ROM showed 389–390
+px of visible width and 17 px of height throughout. The larger stretch and
+return were verified in an instrumented rendering test.
+
+In registered captures of light Settings, the center measured 224/255 in
+both 591 and 593. The median peak difference between the center and the edge
+along the middle 200 px fell from 53 to 0. The Bilibili pink-stripe region
+retained a 40.43 luma spread in both versions (48.51 below the handle). The
+swipe reached the launcher and returned to the same Bilibili window with
+SystemUI PID 24018 and Bilibili PID 8236 throughout both Java hot reloads.
+The final physical update recorded ten successes and one security-center
+cache process reclaimed by `umms_selfcheck`. The final AVD update recorded
+ten successes. The device rendering and footer-sampling tests passed on
+the AVD. Captures, motion comparison and per-frame measurements are under
+`.artifacts/research/gesture-glass-20261119/rim-study/motion-study/`.
+
+### API 102 hot reload and the two framework notifications
+
+KeiHome uses the `io.github.libxposed` API and service 102.0.0 contracts.
+`onHotReloading` releases SystemUI listeners, material views and owned drawing
+state on the main thread before handing off. The successor restores hooks
+and finds existing windows explicitly. Bilibili passes weak references to
+the host activity and observed Compose restart scope. When the existing
+tab strip still lacks an image binding after invalidation, only the confirmed
+`WindowAwareComposeView` with id `tab_host` recreates its composition. This
+preserves the activity, tab selection and scroll owner. The system rule list
+for general apps can still be cached for the lifetime of the client process.
+[API 102 lifecycle](https://libxposed.github.io/api/io/github/libxposed/api/XposedModuleInterface.html)
+and [service source](https://github.com/libxposed/service).
+
+On AVD OS4.0.31.0.XFRCNXM, the 20:31 status failure followed an early LSPosed
+attempt to open an obsolete APK path. The package manager published the
+replacement path after system startup. Once both paths agreed, a single AVD
+cold start restored early module loading. Subsequent in-place updates retained
+the system, launcher and SystemUI PIDs. On the final build the status page
+reported the system loaded, launcher ready and system navigation interface ready.
+
+For the separate 20:42 notification, the installed `lspctl` on the AVD
+reported API 102, LSPosed 7944, module enabled and eight scopes for owner 0.
+The Folder-Lab user (10) was disabled with zero scopes. The verbose service
+log recorded 11 successes and a failed callback for Settings provider PID
+17190. Android exit info recorded `umms_selfcheck` reclaiming this empty
+process at 20:42:30.797. Bilibili PID 7117 finished successfully at
+20:42:43.178. Deployment diagnostics now allow 25 seconds for outstanding
+targets. Existing CLI commands `status`, `module show --user` and
+`scope list --user` were used interactively. On the physical phone
+`status` worked and this transport's root shell was denied the scope query.
+
+For the final 588 → 589 update, the physical phone (LSPosed 7940) recorded
+11 successes. The AVD recorded 11 successes and one system reclamation of
+the security-center cache process. Native reload was not requested. The
+Bilibili activity and process survived on both devices. On the AVD, drawing
+the original artwork through the 60 px inset resumed on the already visible
+Compose page. On the phone, the legacy image resumed through the 65 px inset.
+The scoped deployment receipts, `final-589-real-handle.png`, before/after
+captures and motion clips are in the research directory above.
+
+## Immersive gesture bar (November 19)
+
+The general switch asks HyperOS to sample rendered content for a selected app's
+resolved launcher activity. A missing launch rule can be added to the delivered
+copy. Existing positive modes, explicit colors, view selectors, nonzero sampling
+policies and unrelated activities retain their own sampling choices. Apps that
+opt out of the OEM controller can still have a discontinuous bottom edge.
+
+Bilibili's separate home-tabs setting follows the active footer. A validated
+image continues to the bottom using the original artwork transform. If the
+visible tab host reaches the navigation inset and has a uniform bottom edge,
+KeiHome can instead fill the strip with that color. A pending sample is discarded
+when window focus, geometry or artwork changes. A hidden tab host, IME,
+three-button navigation, split screen and secure windows cannot supply a sample.
+
+Once the window frame commits, PixelCopy reads a small strip of the app surface
+into a 33 × 3 bitmap. The artwork path samples the area behind the center of the
+handle, compares dark and light contrast across the strip and retains part of its
+hue. Hysteresis avoids toggling between two appearances on small luminance
+changes. Static artwork is sampled once per placement. A visible solid tab bar
+can refresh during redraws at most once per 650 ms.
+
+HyperOS can composite a pale handle even when the app window requests dark
+navigation icons. The SystemUI integration colors the native handle for the
+verified Bilibili home window on the primary display, preserving its geometry
+and view-level fade animation. An opaque tint avoids washing out the sampled hue
+when the stock paint itself is translucent. Window focus loss, an IME or another foreground owner, process
+death, and hot reload release the tint. A build mismatch or unknown SystemUI
+method leaves the standard window appearance request in effect.
+
 ## OS4 settings hierarchy
 
 The Desktop entry opens an overview with a refreshable system status card,
-the MIUIX switch preference and a short app-restart reminder. The toolbar Help
+the MIUIX switch preference. Its summary identifies color matching as experimental
+and explains when to fully close and reopen the selected apps. The separate
+soft glass switch applies immediately. The toolbar Help
 button opens a scrollable details sheet. App selection has its own destination
 within the Desktop route. Older saved status and help routes restore to the
 overview.

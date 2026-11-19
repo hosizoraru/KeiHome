@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -52,6 +53,7 @@ class NavigationBackdropScreenTest {
       NavigationBackdropStatus(installedVersion, true, choice.fingerprint()),
     onToggle: (String) -> Unit = {},
     onEnabled: (Boolean) -> Unit = {},
+    onGlassHandle: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
     onBilibiliArtwork: (Boolean) -> Unit = {},
     onOpenManager: () -> Unit = {},
@@ -61,7 +63,7 @@ class NavigationBackdropScreenTest {
     rule.setContent {
       KeiHomeTheme {
         NavigationBackdropContent(page, state, backend, {}, {}, onEnabled, onToggle, onRefresh,
-          onBilibiliArtwork, onOpenManager, bilibili, receipt)
+          onBilibiliArtwork, onOpenManager, bilibili, receipt, onGlassHandle)
       }
     }
   }
@@ -80,6 +82,8 @@ class NavigationBackdropScreenTest {
   @Test fun overviewDoesNotEmbedLongInstructionsOrAppInventory() {
     show()
     rule.onNodeWithTag("nav-backdrop.enabled").performScrollTo().assertIsDisplayed().assertIsEnabled()
+    rule.onNode(hasText(context.getString(R.string.nav_backdrop_enable_summary)) and
+      hasAnyAncestor(hasTestTag("nav-backdrop.enabled")), useUnmergedTree = true).assertIsDisplayed()
     rule.onNodeWithTag("nav-backdrop.open.apps").performScrollTo().assertIsDisplayed()
     rule.onNodeWithTag("nav-backdrop.help").assertIsDisplayed()
     rule.onNodeWithTag("nav-backdrop.search").assertDoesNotExist()
@@ -158,6 +162,13 @@ class NavigationBackdropScreenTest {
     rule.onNodeWithTag("nav-backdrop.sort").performClick()
     rule.onNodeWithText(context.getString(R.string.browser_sort_reverse)).performClick()
     rule.onNodeWithTag("nav-backdrop.app:test.second").assertIsDisplayed()
+  }
+
+  @Test fun glassHandleCanBeEnabledWithoutSelectingApps() {
+    var glass = false
+    show(backend = null, onGlassHandle = { glass = it })
+    rule.onNodeWithTag("nav-backdrop.glass").assertIsEnabled().performClick()
+    rule.runOnIdle { assertEquals(true, glass) }
   }
 
   @Test fun failedReadBlocksEditsEvenWithPreviouslyLoadedChoice() {

@@ -89,6 +89,7 @@ internal class NavigationBackdropSettings(
   }
 
   fun enabled(value: Boolean) = save { it.copy(enabled = value) }
+  fun glassHandle(value: Boolean) = save { it.copy(glassHandle = value) }
   fun bilibiliArtwork(value: Boolean) = save { it.copy(bilibiliArtwork = value) }
 
   fun toggle(packageName: String) = save {
@@ -106,7 +107,7 @@ internal class NavigationBackdropSettings(
     if (enablingArtwork && current.bilibiliInScope != true) return
     val backend = NavigationBackdropInbox.status.value
     val disablingArtwork = !choice.bilibiliArtwork && current.choice.bilibiliArtwork
-    if (!disablingArtwork && (choice.enabled || enablingArtwork) &&
+    if (choice.glassHandle == current.choice.glassHandle && !disablingArtwork && (choice.enabled || enablingArtwork) &&
       (backend?.available != true || backend.version != BuildConfig.VERSION_CODE.toLong())) return
     mutable.update { it.copy(saving = true) }
     scope.launch {

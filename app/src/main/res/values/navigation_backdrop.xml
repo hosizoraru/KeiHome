@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="nav_backdrop_title">Gesture bar backdrop</string>
-  <string name="nav_backdrop_summary">Improve bottom-edge continuity in selected apps (experimental)</string>
-  <string name="nav_backdrop_experimental">Experimental feature</string>
+  <string name="nav_backdrop_title">Immersive gesture bar</string>
+  <string name="nav_backdrop_summary">Match the gesture area to the app’s bottom bar</string>
   <string name="nav_backdrop_explanation">This feature is experimental and off by default. Enable it only for apps whose bottom background needs correction.</string>
-  <string name="nav_backdrop_enable">Native backdrop compatibility</string>
-  <string name="nav_backdrop_enable_summary">Off by default. Try to match the gesture bar background in selected apps.</string>
+  <string name="nav_backdrop_enable">Match bottom bar color</string>
+  <string name="nav_backdrop_enable_summary">Match the bottom bar color in selected apps. Experimental and off by default. Fully close and reopen the affected apps after changes.</string>
   <string name="nav_backdrop_backend">System support</string>
   <string name="nav_backdrop_scope_required">Connect to LSPosed and grant the Android System scope to KeiHome.</string>
   <string name="nav_backdrop_backend_ready">The system interface is ready. This does not guarantee correction on every page.</string>
@@ -21,7 +20,6 @@
   <string name="nav_backdrop_empty">No matching apps</string>
   <string name="nav_backdrop_waiting">Settings saved; waiting for the system to receive them. Reopen affected apps after this status updates.</string>
   <string name="nav_backdrop_help">Usage and limitations</string>
-  <string name="nav_backdrop_restart_hint">Changes take effect after fully closing and reopening the selected apps.</string>
   <string name="nav_backdrop_selection_count">%1$d apps selected</string>
   <string name="nav_backdrop_ready_short">System interface ready</string>
   <string name="nav_backdrop_unsupported_short">System interface unavailable</string>
@@ -35,14 +33,15 @@
   <string name="nav_backdrop_how_to">How to use</string>
   <string name="nav_backdrop_step_select">1. Choose apps</string>
   <string name="nav_backdrop_step_select_summary">Select only apps with a mismatched gesture bar background in Apps.</string>
-  <string name="nav_backdrop_step_enable">2. Enable background matching</string>
+  <string name="nav_backdrop_step_enable">2. Turn on Match bottom bar color</string>
+  <string name="nav_backdrop_step_enable_summary">Match the bottom bar color in selected apps. Off by default.</string>
   <string name="nav_backdrop_limits">Known limitations</string>
-  <string name="nav_backdrop_limits_summary">This experiment uses native system color sampling; it cannot extend patterned skins. Apps that draw their own bottom bar or force edge-to-edge, and some video screens, may be unaffected. If a screen looks wrong, turn this feature off and fully reopen the app.</string>
-  <string name="nav_backdrop_bilibili">Bilibili theme artwork</string>
-  <string name="nav_backdrop_bilibili_summary">Extend the current home tab artwork behind the gesture bar. Includes Bilibili in Affected apps. Fully close and reopen Bilibili after changing this setting.</string>
+  <string name="nav_backdrop_limits_summary">System color matching may have little effect on app-drawn bars, enforced edge-to-edge layouts and some video screens. Bilibili home tabs have a separate setting.</string>
+  <string name="nav_backdrop_bilibili">Bilibili home tabs</string>
+  <string name="nav_backdrop_bilibili_summary">Extend supported tab artwork or a solid tab color to the screen edge. The handle picks up the background hue and turns darker on light backgrounds or lighter on dark backgrounds. Fully reopen Bilibili after changes.</string>
   <string name="nav_backdrop_bilibili_scope">Enable the optional Bilibili scope in LSPosed, then return here.</string>
   <string name="nav_backdrop_bilibili_limit">Free an Affected apps slot before enabling this option.</string>
-  <string name="nav_backdrop_bilibili_bound">Included by Bilibili theme artwork</string>
+  <string name="nav_backdrop_bilibili_bound">Included by Bilibili home tabs</string>
   <string name="nav_backdrop_refresh_apps">Refresh app list</string>
   <string name="nav_backdrop_bilibili_version">Bilibili %1$s</string>
   <string name="nav_backdrop_artwork_needs_scope">Scope required</string>
@@ -51,4 +50,7 @@
   <string name="nav_backdrop_artwork_drawn">Theme artwork drawn</string>
   <string name="nav_backdrop_artwork_fallback">Artwork not extended</string>
   <string name="nav_backdrop_artwork_unsupported">Artwork profile unavailable</string>
+  <string name="nav_backdrop_artwork_solid">Tab color matched</string>
+  <string name="nav_backdrop_glass">Soft glass gesture handle</string>
+  <string name="nav_backdrop_glass_summary">Give the handle on the main display a frosted surface and a fine highlight. It follows system contrast and updates immediately.</string>
 </resources>

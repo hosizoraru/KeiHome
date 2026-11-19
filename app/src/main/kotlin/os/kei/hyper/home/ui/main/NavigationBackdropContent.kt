@@ -28,7 +28,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Velocity
@@ -94,6 +93,7 @@ internal fun NavigationBackdropContent(
   onOpenManager: () -> Unit = {},
   bilibili: BilibiliInstallation? = null,
   artworkReceipt: BilibiliArtworkReceipt? = null,
+  onGlassHandle: (Boolean) -> Unit = {},
   appIcon: @Composable (InstalledIconCapability?) -> Unit = {},
 ) {
   val choice = state.choice
@@ -251,6 +251,7 @@ internal fun NavigationBackdropContent(
                     state.bilibiliInScope == false -> R.string.nav_backdrop_artwork_needs_scope
                     choice == null || state.bilibiliInScope == null -> R.string.nav_backdrop_artwork_waiting
                     !artworkOn -> R.string.nav_backdrop_artwork_off
+                    receipt?.outcome == BilibiliArtworkOutcome.SOLID -> R.string.nav_backdrop_artwork_solid
                     receipt?.outcome == BilibiliArtworkOutcome.DRAWN -> R.string.nav_backdrop_artwork_drawn
                     receipt?.outcome == BilibiliArtworkOutcome.FALLBACK -> R.string.nav_backdrop_artwork_fallback
                     receipt?.outcome == BilibiliArtworkOutcome.UNSUPPORTED -> R.string.nav_backdrop_artwork_unsupported
@@ -268,7 +269,13 @@ internal fun NavigationBackdropContent(
               onRefresh = { if (!state.loading && !state.saving) onRefresh() },
               modifier = Modifier.testTag("nav-backdrop.status"))
           }
-          section("experiment", R.string.nav_backdrop_experimental)
+          item("glass", contentType = "setting") {
+            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              SwitchPreference(title = stringResource(R.string.nav_backdrop_glass),
+                summary = stringResource(R.string.nav_backdrop_glass_summary), checked = choice?.glassHandle == true,
+                enabled = editable, onCheckedChange = onGlassHandle, modifier = Modifier.testTag("nav-backdrop.glass"))
+            }
+          }
           item("enable", contentType = "setting") {
             val enabled = editable && (supported || choice.enabled)
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
@@ -279,7 +286,6 @@ internal fun NavigationBackdropContent(
                   .semantics { if (!enabled) disabled() })
             }
           }
-          hint("restart", R.string.nav_backdrop_restart_hint)
           item("settings", contentType = "settings") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               NavigationBackdropLink(R.string.nav_backdrop_apps,
@@ -352,7 +358,7 @@ internal fun NavigationBackdropContent(
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_select),
           summary = stringResource(R.string.nav_backdrop_step_select_summary))
         BasicComponent(title = stringResource(R.string.nav_backdrop_step_enable),
-          summary = stringResource(R.string.nav_backdrop_enable_summary))
+          summary = stringResource(R.string.nav_backdrop_step_enable_summary))
         BasicComponent(title = stringResource(R.string.nav_backdrop_restart_title),
           summary = stringResource(R.string.nav_backdrop_restart))
       }
@@ -403,12 +409,6 @@ private fun NavigationBackdropLink(title: Int, summary: String?, tag: String, on
   BasicComponent(title = stringResource(title), summary = summary, onClick = onClick,
     modifier = Modifier.testTag(tag),
     endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
-}
-
-private fun LazyListScope.section(key: String, title: Int) {
-  item("section:$key", contentType = "section") {
-    SmallTitle(stringResource(title), modifier = Modifier.semantics { heading() })
-  }
 }
 
 private fun LazyListScope.hint(key: String, text: Int, vararg args: Any) {

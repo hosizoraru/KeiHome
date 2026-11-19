@@ -78,7 +78,7 @@ internal fun NavigationBackdropScreen(
     } },
     onBilibiliArtwork = model.navigationBackdrop::bilibiliArtwork, onOpenManager = openManager,
     bilibili = installation, artworkReceipt = artwork,
-    appIcon = appIcon)
+    onGlassHandle = model.navigationBackdrop::glassHandle, appIcon = appIcon)
 }
 
 @Composable

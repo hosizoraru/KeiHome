@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="nav_backdrop_title">ジェスチャーバーの背景補完</string>
-  <string name="nav_backdrop_summary">一部のアプリの下端の背景をつなげます（実験的）</string>
-  <string name="nav_backdrop_experimental">実験的な機能</string>
+  <string name="nav_backdrop_title">没入型ジェスチャーバー</string>
+  <string name="nav_backdrop_summary">ジェスチャー領域の背景をアプリの下部バーに合わせます</string>
   <string name="nav_backdrop_explanation">この機能は試験段階で、初期状態はオフです。下端の背景に問題があるアプリだけで有効にしてください。</string>
-  <string name="nav_backdrop_enable">背景色の互換処理</string>
-  <string name="nav_backdrop_enable_summary">初期状態はオフです。選択したアプリでジェスチャーバーの背景補正を試みます。</string>
+  <string name="nav_backdrop_enable">下部バーの色に合わせる</string>
+  <string name="nav_backdrop_enable_summary">選んだアプリの下部バーに色を合わせる試験機能です（初期設定はオフ）。変更後は対象アプリを完全に終了し、開き直してください。</string>
   <string name="nav_backdrop_backend">システムの対応状況</string>
   <string name="nav_backdrop_scope_required">LSPosed に接続し、KeiHome のシステムフレームワークのスコープを有効にしてください。</string>
   <string name="nav_backdrop_backend_ready">システムの対応を確認しました。すべての画面での補完を保証するものではありません。</string>
@@ -21,7 +20,6 @@
   <string name="nav_backdrop_empty">該当するアプリはありません</string>
   <string name="nav_backdrop_waiting">設定を保存しました。システムの受信を待っています。この表示が更新されてから対象アプリを開き直してください。</string>
   <string name="nav_backdrop_help">使い方と制限</string>
-  <string name="nav_backdrop_restart_hint">変更後は対象アプリを完全に終了し、開き直してください。</string>
   <string name="nav_backdrop_selection_count">%1$d 個のアプリを選択済み</string>
   <string name="nav_backdrop_ready_short">システム機能の準備完了</string>
   <string name="nav_backdrop_unsupported_short">システム機能は非対応</string>
@@ -35,14 +33,15 @@
   <string name="nav_backdrop_how_to">使い方</string>
   <string name="nav_backdrop_step_select">1. 対象アプリを選ぶ</string>
   <string name="nav_backdrop_step_select_summary">「対象アプリ」で、下端の背景に問題があるアプリだけを選択してください。</string>
-  <string name="nav_backdrop_step_enable">2. 背景色の互換処理をオンにする</string>
+  <string name="nav_backdrop_step_enable">2. 「下部バーの色に合わせる」をオンにする</string>
+  <string name="nav_backdrop_step_enable_summary">選択したアプリの下部バーに色を合わせます。初期設定はオフです。</string>
   <string name="nav_backdrop_limits">既知の制限</string>
-  <string name="nav_backdrop_limits_summary">システム標準の色取得を使うため、模様の延長には対応しません。独自の下部バー、エッジツーエッジを強制するアプリ、一部の動画画面では効果がない場合があります。表示に問題があればオフにして、対象アプリを完全に開き直してください。</string>
-  <string name="nav_backdrop_bilibili">Bilibili のテーマ画像</string>
-  <string name="nav_backdrop_bilibili_summary">ホームのテーマ画像をジェスチャーバーの領域まで延長します。Bilibili は対象アプリに自動で追加されます。変更後は Bilibili を完全に終了してから開き直してください。</string>
+  <string name="nav_backdrop_limits_summary">アプリ独自の下部バー、エッジツーエッジを強制する画面、一部の動画画面では、システムの色取得による変化が見えない場合があります。ビリビリのホームには専用設定があります。</string>
+  <string name="nav_backdrop_bilibili">ビリビリ専用設定</string>
+  <string name="nav_backdrop_bilibili_summary">対応するホーム画面のテーマ画像や単色の背景を画面の下端まで延ばします。バーは背景の色味を取り入れ、明るい背景では暗く、暗い背景では明るくなります。変更後はアプリを完全に終了して開き直してください。</string>
   <string name="nav_backdrop_bilibili_scope">LSPosed でオプションの Bilibili スコープを有効にしてから、この画面に戻ってください。</string>
   <string name="nav_backdrop_bilibili_limit">対象アプリの選択を一つ解除してから有効にしてください。</string>
-  <string name="nav_backdrop_bilibili_bound">Bilibili のテーマ画像設定により自動で追加</string>
+  <string name="nav_backdrop_bilibili_bound">ビリビリ専用設定により追加</string>
   <string name="nav_backdrop_refresh_apps">アプリ一覧を更新</string>
   <string name="nav_backdrop_bilibili_version">Bilibili %1$s</string>
   <string name="nav_backdrop_artwork_needs_scope">スコープが必要</string>
@@ -51,4 +50,7 @@
   <string name="nav_backdrop_artwork_drawn">テーマ画像を描画済み</string>
   <string name="nav_backdrop_artwork_fallback">テーマ画像は未拡張</string>
   <string name="nav_backdrop_artwork_unsupported">このレイアウトは未対応</string>
+  <string name="nav_backdrop_artwork_solid">下部バーの色を反映済み</string>
+  <string name="nav_backdrop_glass">ソフトガラスのジェスチャーバー</string>
+  <string name="nav_backdrop_glass_summary">メイン画面のバーにすりガラスの質感と細いハイライトを加えます。明暗はシステムに連動し、変更はすぐに反映されます。</string>
 </resources>

@@ -1149,3 +1149,45 @@ plain handle center measured RGB 153 on white and 146 on the dark surface in
 both builds. With `enable_miui_ime_bottom_view=0`, WeType still started at
 1643 px, the navigation inset at 2591 px, and `miui_bottom_area` was hidden
 with zero height. Phone AVD settings/material instrumentation passed 18 tests.
+
+## Plain handle contrast during theme and keyboard changes
+
+On pandora OS4.0.6.0.XBLCNXM, the native region sampler requests a contrast
+change through `NavigationBar$9.onRegionDarknessChanged`. The navigation bar
+then supplies a device-dependent duration to `LightBarTransitionsController`.
+With glass off, build 630 caps that duration at 120 ms for a selected app on
+the default display in gesture mode. It checks the window owner, foreground
+activity and profile at a tint decision. The keyboard, lock screen and dedicated
+Bilibili artwork path keep their own timing. SystemUI supplies the sample,
+interpolator, cancellation on reversal, and final paint. There is no polling or
+additional work per rendered frame for this transition.
+
+Physical recordings used Xiaomi Health (361000), Via (20261113) and WeType with
+the keyboard bottom view disabled. Both glass and dedicated Bilibili artwork
+were off. The interval starts at the first frame with a new bottom-strip luma
+and ends when the handle-to-strip difference stays within eight luma levels of
+its native endpoint for 120 ms. It includes OEM detection time. Values below
+are individual observed intervals in milliseconds.
+
+| Surface | Build 629 | Build 630, selected | Build 630, removed from selection |
+| --- | ---: | ---: | ---: |
+| Health, dark to light | 570, 589 | 298, 364 | — |
+| Health, light to dark | 688, 462 | 373, 339 | — |
+| Via, dark to light | 605 | 381 | 631 |
+| Via, light to dark | 481 | 407 | 574 |
+
+Via's address field exercised keyboard show/hide in both themes, including a
+second quick open/close in light mode. During these interactions the luma
+difference kept its sign. Its largest single-frame change was 28 before and 27
+after on the light page, and 16 on the dark page in both builds. The keyboard
+surface itself still changes shade as it slides. These captures cover this IME
+and these app versions. They do not measure sustained power use.
+
+In a 15-second Perfetto capture, the SystemUI main thread made six `getTasks`
+Binder calls during four Health theme switches (0.322–0.709 ms each, 3.069 ms
+total). The four seconds of idle time before the switches and the four seconds
+after settling contained zero such calls. The counts include all SystemUI
+callers. The signed in-place upgrade retained SystemUI PID 31827. LSPosed
+reported seven successful targets and zero observed failures. Traces, recordings,
+frame measurements, preferences and upgrade receipts are in the local evidence
+folder `.artifacts/research/ordinary-handle-motion/`.

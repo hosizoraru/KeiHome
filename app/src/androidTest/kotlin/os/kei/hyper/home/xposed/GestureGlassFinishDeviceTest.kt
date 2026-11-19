@@ -45,6 +45,8 @@ class GestureGlassFinishDeviceTest {
     val core = Color.red(bitmap.getPixel(220, 22))
     assertTrue(core < 56)
     assertTrue(Color.red(shoulder) > core + 20)
+    assertTrue("The highlight peaks inside the shoulder", Color.red(shoulder) >
+      Color.red(bitmap.getPixel(105, 12)) + 12)
     assertTrue((50..210).count { Color.red(bitmap.getPixel(it, 14)) > core + 20 } >= 65)
     assertTrue(Color.red(bitmap.getPixel(220, 14)) < Color.red(shoulder))
     val outer = bitmap.getPixel(42, 14)

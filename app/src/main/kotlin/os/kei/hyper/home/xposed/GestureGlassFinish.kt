@@ -63,14 +63,17 @@ internal class GestureGlassFinish(backdrop: Shader? = null) : Drawable() {
       }
       half4 reflection(float2 p, float2 slope) {
         float x = p.x / halfSize.x;
-        float grazing = smoothstep(0.16, 0.91, length(slope));
-        float key = max(dot(slope, float2(-0.55, -0.83)), 0.0);
-        float bounce = max(dot(slope, float2(0.65, 0.76)), 0.0);
+        // Reflect a head-on view ray off the curved cross-section. Its environment
+        // coordinate changes continuously from either straight shoulder onto the cap.
+        float nz = sqrt(max(0.0, 1.0 - dot(slope, slope)));
+        float2 reflected = 2.0 * nz * slope;
+        float key = smoothstep(0.18, 0.86, dot(reflected, float2(-0.5, -0.866)));
+        float bounce = smoothstep(0.22, 0.92, dot(reflected, float2(0.68, 0.73)));
         float left = 1.0 - smoothstep(0.02, 0.72, abs(x + 0.59 - 0.13 * motion));
         float right = 1.0 - smoothstep(0.03, 0.66, abs(x - 0.65 - 0.08 * motion));
-        float glint = grazing * (0.78 * key * left + 0.52 * bounce * right);
-        float shade = grazing * (0.06 + 0.21 * dark) * (bounce * left + key * right);
-        float base = mix(0.105, 0.085, dark);
+        float glint = 0.37 * key * left + 0.22 * bounce * right;
+        float shade = (0.055 + 0.105 * dark) * (bounce * left + key * right);
+        float base = mix(0.064, 0.058, dark);
         float alpha = glint + (1.0-glint) * (shade + (1.0-shade)*base);
         float light = glint + (1.0-glint)*(1.0-shade)*base*(1.0-dark);
         return half4(half3(light), alpha);
@@ -87,8 +90,10 @@ internal class GestureGlassFinish(backdrop: Shader? = null) : Drawable() {
       half4 main(float2 pos) {
         float2 p = pos - center;
         float2 slope = slopeAt(p);
-        float depth = dot(slope, slope);
-        half4 under = scene.eval(pos - slope * radius * (0.85 + depth * 1.35));
+        float nz = sqrt(max(0.0, 1.0 - dot(slope, slope)));
+        float3 ray = refract(float3(0, 0, -1), float3(slope, nz), 1.0 / 1.46);
+        float depth = radius * (1.65 + 0.45 * nz);
+        half4 under = scene.eval(pos + ray.xy * depth / max(-ray.z, 0.25));
         half4 light = reflection(p, slope);
         return light + (1.0 - light.a) * under;
       }

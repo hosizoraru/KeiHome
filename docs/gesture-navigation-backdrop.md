@@ -1092,3 +1092,34 @@ light-page and Bilibili measurements in b0625. The b0627 physical recording
 shows the Bilibili-to-Home transition and return in the same processes. Home
 was triggered with the Home key after an injected swipe stayed in Bilibili.
 This recording verifies transition rendering, not completion by touch alone.
+
+### Liquid glass comparison on November 20
+
+On Phone AVD (OS4.0.31.0.XFRCNXM, LSPosed 7944) KeiHome's glass was switched
+off and each reference module was enabled separately in SystemUI. MIUI Extra
+r95 exposes separate controls for optical thickness, refraction, tint and blur.
+Its gesture runtime sets the SDF to the bounds of the actual handle. HyperLight
+1.2.3 has separate controls for gesture dimensions and spring-back. Its liquid
+material shader derives a surface normal, uses reflected and refracted ray
+directions, and samples a background input. Its non-launcher editor showed
+refraction height 20, strength 48 and depth 1. Those values belong to that
+renderer and have no direct mapping to the OEM handle. Enabling the liquid
+renderer registered its material guard on the AVD. SystemUI subsequently had
+an input-dispatch ANR while the notification shade held focus. The full shader
+was not verified on a live HyperLight gesture handle. Both reference packages
+were removed and KeiHome's glass setting was restored after comparison.
+
+KeiHome b0628 places the peak of each reflection inside the curved shoulder,
+using the reflected view vector to orient the light through the rounded ends.
+The preview computes its sample offset using the refracted ray and capsule
+depth. The live renderer keeps the existing compositor path and one finish
+pass, with no additional capture, animation clock or background sample. A GPU
+pixel assertion checks that the highlight falls off at the outer edge.
+
+At physical size on OS4.0.6.0.XBLCNXM, the Settings edge's peak luminance
+contrast against a flat page fell from 71 to 54 on white, and from 142 to 92
+on dark gray (b0627 → b0628, 0–255 scale). On the Bilibili detail fixture the
+texture span across the same interior stripe was 40.50 → 41.93. SystemUI
+31827 and Bilibili 18779 stayed alive through the installation and recorded
+Home transition. The injected swipe stayed in Bilibili, so the transition
+recording uses the Home key. These measurements cover optical appearance.

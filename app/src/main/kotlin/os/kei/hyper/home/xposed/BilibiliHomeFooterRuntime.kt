@@ -60,10 +60,11 @@ internal class BilibiliHomeFooterRuntime(
   private var matchedImages = 0
   private val reporter = BilibiliArtworkReporter(apk)
 
-  fun install(compose: BilibiliComposeFooter?, oldHooks: List<XposedInterface.HookHandle>) {
+  fun install(compose: BilibiliComposeFooter?, remaining: MutableList<XposedInterface.HookHandle>) {
     fun hook(id: String, method: Method, callback: XposedInterface.Hooker) {
-      installOrReplaceIconHook(xposed, findMatchingIconHook(oldHooks, id, method),
-        id, method, callback).first
+      val previous = findMatchingIconHook(remaining, id, method)
+      installOrReplaceIconHook(xposed, previous, id, method, callback)
+      if (previous != null) remaining.remove(previous)
     }
     val resume = home.getDeclaredMethod("onResume")
     hook(HOOK, resume) { chain ->
@@ -631,6 +632,28 @@ internal class BilibiliHomeFooterRuntime(
     const val PACKAGE = BILIBILI_PACKAGE
     const val TAG = "KeiHomeBiliFooter"
     private const val HOOK = "keihome.bilibili.home.footer.v1"
+
+    /** Only reuse the exact previous profile in the same host class space. Older or partial profiles rescan. */
+    fun inheritedProfile(loader: ClassLoader, handles: List<XposedInterface.HookHandle>): Pair<Class<out Activity>, BilibiliComposeFooter>? {
+      if (handles.isEmpty()) return null
+      fun method(id: String): Method? {
+        val method = handles.singleOrNull { it.id == id }?.executable as? Method ?: return null
+        return method.takeIf { Class.forName(it.declaringClass.name, false, loader) === it.declaringClass }
+      }
+      return try {
+        val resume = method(HOOK) ?: return null
+        if (resume.name != "onResume" || resume.parameterCount != 0 || resume.returnType != Void.TYPE) return null
+        val compose = method("$HOOK.compose") ?: return null
+        val image = method("$HOOK.image") ?: return null
+        resume.declaringClass.asSubclass(Activity::class.java) to BilibiliComposeFooter.bind(loader, compose, image)
+      } catch (_: ReflectiveOperationException) {
+        null
+      } catch (_: RuntimeException) {
+        null
+      } catch (_: LinkageError) {
+        null
+      }
+    }
 
     fun resolveHome(dex: DexKitBridge, loader: ClassLoader): Class<out Activity> {
       // These extras are the home tab-routing protocol, shared even when classes are renamed.

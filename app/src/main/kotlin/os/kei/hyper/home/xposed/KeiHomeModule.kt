@@ -124,6 +124,7 @@ class KeiHomeModule : XposedModule() {
     if (!param.isSystemServer) {
       if (processName == BilibiliHomeFooterRuntime.PACKAGE) {
         val app = currentApplication()
+        check(app != null || param.oldHookHandles.isEmpty()) { "Bilibili application unavailable for hook handoff" }
         if (app != null) installBilibiliFooter(
           savedState as? ClassLoader ?: app.classLoader, app.applicationInfo.sourceDir,
           param.oldHookHandles, app.codeCacheDir,
@@ -200,10 +201,12 @@ class KeiHomeModule : XposedModule() {
     oldHooks: List<XposedInterface.HookHandle> = emptyList(),
     cacheDir: java.io.File? = null,
   ) {
+    val remaining = oldHooks.toMutableList()
     try {
       val preferences = getRemotePreferences(NavigationBackdropPreferences.GROUP)
       if (!NavigationBackdropPreferences.read(preferences).includesBilibiliArtwork(Process.myUid())) return
-      val runtime = SystemUiMaterialDexKit.open(apk, cacheDir).use { dex ->
+      val inherited = BilibiliHomeFooterRuntime.inheritedProfile(loader, remaining)
+      val (home, compose) = inherited ?: SystemUiMaterialDexKit.open(apk, cacheDir).use { dex ->
         dex.setThreadNum(1)
         val home = BilibiliHomeFooterRuntime.resolveHome(dex, loader)
         val compose = try {
@@ -215,15 +218,19 @@ class KeiHomeModule : XposedModule() {
           log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
           null
         }
-        BilibiliHomeFooterRuntime(this, home, loader, apk).also { it.install(compose, oldHooks) }
+        home to compose
       }
-      bilibiliFooter = runtime
+      bilibiliFooter = BilibiliHomeFooterRuntime(this, home, loader, apk).also { it.install(compose, remaining) }
+      if (inherited != null) log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Rebound inherited home and Compose methods")
     } catch (failure: Exception) {
       log(Log.WARN, "KeiHomeBiliFooter", "Home footer unavailable", failure)
       reportUnsupportedBilibiliArtwork(apk)
     } catch (failure: LinkageError) {
       log(Log.WARN, "KeiHomeBiliFooter", "Home footer linkage unavailable", failure)
       reportUnsupportedBilibiliArtwork(apk)
+    } finally {
+      // API 102 keeps every inherited handle that the successor neither replaces nor removes.
+      remaining.forEach { it.unhook() }
     }
   }
 

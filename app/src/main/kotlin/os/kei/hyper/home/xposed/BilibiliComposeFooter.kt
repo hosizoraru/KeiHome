@@ -234,26 +234,31 @@ internal class BilibiliComposeFooter private constructor(
         val image = footer.invokes.filter {
           it.className == IMAGE && it.name == "BiliImage"
         }.distinctBy { it.descriptor }.single()
-        check(image.paramTypeNames == listOf(
-          "$LOADER.ImmutableImageRequest", "androidx.compose.ui.Modifier", "java.lang.String",
-          "androidx.lifecycle.Lifecycle", "kotlin.jvm.functions.Function1",
-          "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function1",
-          "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function2",
-          "kotlin.jvm.functions.Function4", "androidx.compose.runtime.Composer", "int", "int",
-        )) { "Unrecognized Compose image ABI" }
         footer.getMethodInstance(loader) to image.getMethodInstance(loader)
       }
+      return bind(loader, methods.first, methods.second)
+    }
+
+    fun bind(loader: ClassLoader, footer: Method, image: Method): BilibiliComposeFooter {
+      require(footer.name == "invoke" && footer.parameterTypes.toList() == List(3) { Any::class.java })
+      require(image.declaringClass.name == IMAGE && image.name == "BiliImage" && image.parameterTypes.map { it.name } == listOf(
+        "$LOADER.ImmutableImageRequest", "androidx.compose.ui.Modifier", "java.lang.String",
+        "androidx.lifecycle.Lifecycle", "kotlin.jvm.functions.Function1",
+        "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function1",
+        "kotlin.jvm.functions.Function1", "kotlin.jvm.functions.Function2",
+        "kotlin.jvm.functions.Function4", "androidx.compose.runtime.Composer", "int", "int",
+      )) { "Unrecognized Compose image ABI" }
       fun type(name: String) = Class.forName(name, false, loader)
       fun companion(owner: String, getter: String): Any {
         val instance = type(owner).getField("Companion").get(null)
         return checkNotNull(instance.javaClass.getMethod(getter).invoke(instance))
       }
-      val options = methods.second.parameterTypes[0].getMethod("getOptions")
+      val options = image.parameterTypes[0].getMethod("getOptions")
       val coordinates = type("$LAYOUT.LayoutCoordinates")
       val source = type("$LOADER.ImageState\$Success").getMethod("getSource")
       val bitmap = type("$LOADER.StaticImage").getMethod("getBitmap")
       return BilibiliComposeFooter(
-        methods.first, methods.second, options,
+        footer, image, options,
         options.returnType.getMethod("getContentScale"), options.returnType.getMethod("getAlign"),
         options.returnType.methods.single {
           it.name.startsWith("getAlpha-") && it.parameterCount == 0 && it.returnType == Float::class.javaPrimitiveType
@@ -261,14 +266,14 @@ internal class BilibiliComposeFooter private constructor(
         companion("$LAYOUT.ContentScale", "getCrop"),
         companion("androidx.compose.ui.Alignment", "getTopCenter"),
         type("$LAYOUT.OnGloballyPositionedModifierKt").getMethod(
-          "onGloballyPositioned", methods.second.parameterTypes[1], methods.second.parameterTypes[4],
+          "onGloballyPositioned", image.parameterTypes[1], image.parameterTypes[4],
         ),
         coordinates.getMethod("isAttached"),
         type("$LAYOUT.LayoutCoordinatesKt").getMethod("positionInWindow", coordinates),
         coordinates.methods.single { it.name.startsWith("getSize-") && it.parameterCount == 0 },
         source, bitmap, type("androidx.compose.ui.graphics.AndroidImageBitmap_androidKt")
           .getMethod("asAndroidBitmap", bitmap.returnType),
-        Drawing(loader, methods.second.parameterTypes[1], methods.second.parameterTypes[4]),
+        Drawing(loader, image.parameterTypes[1], image.parameterTypes[4]),
         checkNotNull(type("kotlin.Unit").getField("INSTANCE").get(null)),
       )
     }

@@ -78,3 +78,40 @@ Reject or label runs affected by ANRs, watchdog dumps, critical process changes,
 launch timeouts or a materially different load. Validate light/dark changes,
 palette changes, atomic archive replacement, disabling and re-enabling after
 the performance run. Restore the original archive, palette state and appearance.
+
+## Completed artwork during the launch transition
+
+On pandora OS4.0.6.0.XBLCNXM, the Shell splash builder increases the icon
+viewport for the no-background foreground path and wraps the result in an
+`ImmobileIconDrawable` that prepares another bitmap. Applying this path to a
+finished launcher icon enlarged the entire plate during the window expansion.
+
+Build 633 supplies the prepared bitmap directly to Shell's center `ImageView`
+when it encounters the exact drawable supplied by the current fill request.
+It uses the icon size that the builder selected before foreground expansion.
+The bitmap already contains the plate, any icon-pack mask, and transparent
+padding. Filtered scaling preserves that geometry and corner artwork. The
+existing window animation drives the expansion and exit. There is no extra
+animation, minimum display time, or bitmap cache. An incompatible builder
+continues through the existing adaptive-wrapper route. The module's own
+palette route retains its previous rendering contract.
+
+Physical recordings at 976 × 2124 captured Via from the Home dock on a cold
+launch and on reentry, and Settings via its MAIN launcher activity. In dark
+Settings, the peak width of the contrasting gear on the center scanline fell
+from 350 pixels (build 631) to 290 (633). Light Settings and Via also reached
+their first app frames. The native fade briefly overlaps Settings content.
+Health and KeiHome's authored starts took the native path. These recordings
+measure appearance. They do not establish a change in cold-start latency.
+
+On the Phone AVD, the plain fixture used its original APK icon, and the
+custom icon, branding and layered background fixtures retained Shell handling.
+All 28 icon geometry and rendering device tests passed, including a completed
+icon with opposite colored corners and transparent interior at 3× scale.
+The local recordings, scanline measurements, Shell disassembly and deployment
+receipts are under `.artifacts/research/splash-launch-motion-20261120/`.
+
+On build 633, returning Home after Via had acquired focus and launching again
+succeeded. Attempts to interrupt earlier with a timed Home key or an injected
+upward swipe did not consistently transfer focus to Home. Those recordings
+leave gesture cancellation during the earliest launch frames unverified.

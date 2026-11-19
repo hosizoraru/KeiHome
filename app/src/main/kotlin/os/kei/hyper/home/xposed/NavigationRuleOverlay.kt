@@ -8,22 +8,22 @@ internal object NavigationRuleOverlay {
   const val MAX_RULE_BYTES = 128 * 1024
   const val MAX_ACTIVITIES = 512
 
-  fun apply(original: Bundle?, artworkActivity: String? = null): Bundle? {
+  fun apply(original: Bundle?, launchActivity: String? = null): Bundle? {
     @Suppress("DEPRECATION")
     if (original?.containsKey("activityRules") == true &&
       original.get("activityRules") !is String) return original
     val raw = original?.getString("activityRules").orEmpty()
-    val rewritten = rewriteActivityRules(raw, artworkActivity) ?: return original
+    val rewritten = rewriteActivityRules(raw, launchActivity) ?: return original
     return Bundle(original ?: Bundle()).apply {
       putBoolean("enable", true)
       putString("activityRules", rewritten)
     }
   }
 
-  fun rewriteActivityRules(raw: String, artworkActivity: String? = null): String? {
-    if (raw.isEmpty()) return ""
+  fun rewriteActivityRules(raw: String, launchActivity: String? = null): String? {
+    if (raw.isEmpty() && launchActivity == null) return ""
     if (raw.length > MAX_RULE_BYTES || raw.toByteArray(Charsets.UTF_8).size > MAX_RULE_BYTES) return null
-    if (raw.firstOrNull { !it.isWhitespace() } != '{') return null
+    if (raw.isNotEmpty() && raw.firstOrNull { !it.isWhitespace() } != '{') return null
     var depth = 0
     var finished = false
     var quoted = false
@@ -50,12 +50,15 @@ internal object NavigationRuleOverlay {
       val activity = rules.optJSONObject(name) ?: return null
       if (activity.opt("mode") == 0) {
         activity.put("mode", -1)
-        if (name == artworkActivity && activity.opt("sf_sampling_mode") == 0) {
-          // The themed footer is drawn artwork. Ask the OEM to sample its rendered pixels.
-          activity.put("sf_sampling_mode", 1)
-        }
+        if (name == launchActivity && activity.isNull("color") &&
+          (!activity.has("viewRules") || activity.optJSONArray("viewRules")?.length() == 0) &&
+          (!activity.has("sf_sampling_mode") || activity.opt("sf_sampling_mode") == 0)
+        ) activity.put("sf_sampling_mode", 1)
       }
     }
-    return rules.toString()
+    if (launchActivity != null && !rules.has(launchActivity) && rules.length() < MAX_ACTIVITIES) {
+      rules.put(launchActivity, JSONObject().put("mode", -1).put("sf_sampling_mode", 1))
+    }
+    return rules.toString().takeIf { it.toByteArray(Charsets.UTF_8).size <= MAX_RULE_BYTES }
   }
 }

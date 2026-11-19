@@ -92,6 +92,36 @@ class NavigationRuleOverlayTest {
     }
   }
 
+  @Test fun renderedSamplingOnlyFillsMissingLaunchPolicy() {
+    for (tree in listOf("", "{}", """{"Other":{"mode":1}}""")) {
+      val home = JSONObject(NavigationRuleOverlay.rewriteActivityRules(tree, "Home")!!).getJSONObject("Home")
+      assertEquals(-1, home.getInt("mode"))
+      assertEquals(1, home.getInt("sf_sampling_mode"))
+    }
+    for (field in listOf("\"color\":123", "\"viewRules\":[{}]")) {
+      val tree = """{"Home":{"mode":0,"sf_sampling_mode":0,$field}}"""
+      val home = JSONObject(NavigationRuleOverlay.rewriteActivityRules(tree, "Home")!!).getJSONObject("Home")
+      assertEquals(0, home.getInt("sf_sampling_mode"))
+    }
+  }
+
+  @Test fun footerColorsDistinguishArtworkTransparencyAndHandleContrast() {
+    fun strip(rgb: Int) = IntArray(33) { 0xff000000.toInt() or rgb }
+    assertEquals(false, FooterPalette.darkHandle(strip(0x17181a), null))
+    assertEquals(true, FooterPalette.darkHandle(strip(0xf0e2d4), null))
+    assertEquals(true, FooterPalette.darkHandle(strip(0x757575), true))
+    assertEquals(false, FooterPalette.darkHandle(strip(0x757575), false))
+    assertEquals(0xff141e28.toInt(), FooterPalette.tint(strip(0x6496c8), true))
+    assertEquals(0xffd0d4d8.toInt(), FooterPalette.tint(strip(0x14283c), false))
+    val solid = strip(0x222222)
+    assertEquals(solid.first(), FooterPalette.solid(solid))
+    solid[2] = -1
+    assertNull(FooterPalette.solid(solid))
+    assertEquals(false, FooterPalette.darkHandle(solid, null))
+    solid[3] = 0
+    assertNull(FooterPalette.darkHandle(solid, null))
+  }
+
   @Test fun malformedOrUnexpectedActivityTreesStayUnchanged() {
     for (raw in listOf("not-json", "[]", "{\"Main\":null}", "{\"Main\":0}", "{\"Main\":[]}"))
       assertNull(raw, NavigationRuleOverlay.rewriteActivityRules(raw))

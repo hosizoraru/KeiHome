@@ -10,7 +10,6 @@ import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import java.util.concurrent.ConcurrentHashMap
 import os.kei.hyper.home.BuildConfig
-import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 
@@ -52,13 +51,13 @@ internal class NativeNavigationBackdropRuntime(
               ?.activityInfo?.packageName
             if (packageName == home || pm.getPackagesForUid(uid)?.contains(packageName) != true) original
             else {
-              val artworkActivity = if (packageName == BILIBILI_PACKAGE) runCatching {
+              val launchActivity = runCatching {
                 val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName)
                 pm.resolveActivity(launch, PackageManager.ResolveInfoFlags.of(0))?.activityInfo?.let {
                   it.targetActivity ?: it.name
                 }
-              }.getOrNull() else null
-              NavigationRuleOverlay.apply(original as? Bundle, artworkActivity).also {
+              }.getOrNull()
+              NavigationRuleOverlay.apply(original as? Bundle, launchActivity).also {
                 if (it !== original && reported.add(packageName))
                   xposed.log(Log.INFO, TAG, "Native rule delivery enabled for $packageName; OEM table unchanged")
               }

@@ -34,8 +34,10 @@ internal class BilibiliFooterSampling(
   private var layerAttached = false
   var handleSampling = true
     set(value) {
-      if (field != value) clear()
+      if (field == value) return
+      clear()
       field = value
+      decor.invalidate()
     }
   val hasSolidColor: Boolean get() = layerAttached
   private var revision: Long? = null
@@ -129,7 +131,8 @@ internal class BilibiliFooterSampling(
             onSolid()
           }
           if (!handleSampling) return@request
-          val dark = FooterPalette.darkHandle(pixels, appliedDark) ?: return@request releaseHandle()
+          val paint = FooterPalette.handlePaint(pixels, appliedDark) ?: return@request releaseHandle()
+          val dark = (paint and 0xffffff) == 0
           val controller = window.insetsController ?: return@request
           val current = controller.systemBarsAppearance and APPEARANCE_LIGHT_NAVIGATION_BARS != 0
           if (current != dark) {
@@ -137,7 +140,7 @@ internal class BilibiliFooterSampling(
             controller.setSystemBarsAppearance(if (dark) APPEARANCE_LIGHT_NAVIGATION_BARS else 0, APPEARANCE_LIGHT_NAVIGATION_BARS)
           }
           if (appliedDark != dark || !sampled) Log.d(BilibiliHomeFooterRuntime.TAG, "Sampled gesture background, darkHandle=$dark")
-          tint.publish(FooterPalette.tint(pixels, dark))
+          tint.publish(paint)
           appliedDark = dark
           sampled = true
         } finally { bitmap.recycle() }

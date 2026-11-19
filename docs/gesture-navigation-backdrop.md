@@ -1123,3 +1123,29 @@ texture span across the same interior stripe was 40.50 → 41.93. SystemUI
 31827 and Bilibili 18779 stayed alive through the installation and recorded
 Home transition. The injected swipe stayed in Bilibili, so the transition
 recording uses the Home key. These measurements cover optical appearance.
+
+### Plain handle with soft glass off, b0629
+
+On the physical Bilibili artwork fixture the previous tint reduced the whole
+sample to one opaque color. The app now chooses neutral black or white and the
+lowest alpha that gives a 3:1 luminance contrast on at least three quarters of
+the sampled pixels, subject to the native-style alpha floor. If the artwork is
+too varied to meet that target, it covers as many samples as that ink can make
+legible. Hysteresis stabilizes the polarity across nearby shades. The pixels
+under each part of the handle therefore retain their local hue. The settings
+preview uses translucent plain paint with the glass switch off.
+
+SystemUI checks the active owner and preferences before accepting a tint. The
+glass switch or removal of the artwork rule clears the old session. The app
+invalidates its footer when switching back to plain to request a fresh sample.
+Without a custom tint the OEM draws the handle and owns its hit area, animations
+and insets. Glass support is now resolved when the switch is enabled.
+
+On OS4.0.6.0.XBLCNXM, in the same Bilibili screenshot region, the interior
+P90–P10 luminance span rose from 0 to 24.76, against 48.51 beside the handle.
+An off/on/off cycle restored the same 24.76 span (41.93 with glass enabled),
+with SystemUI PID 31827 and Bilibili PID 18779 throughout. In Settings the
+plain handle center measured RGB 153 on white and 146 on the dark surface in
+both builds. With `enable_miui_ime_bottom_view=0`, WeType still started at
+1643 px, the navigation inset at 2591 px, and `miui_bottom_area` was hidden
+with zero height. Phone AVD settings/material instrumentation passed 18 tests.

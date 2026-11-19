@@ -58,12 +58,14 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   @Volatile private var closed = false
   private var allowedOwner: Boolean? = null
   private var owner: IBinder? = null
+  private var ownerUid = -1
   private var death: IBinder.DeathRecipient? = null
   private var registered = false
   private val windows = context.getSystemService(WindowManager::class.java)
   private var watchingBlur = false
   private val blurListener = java.util.function.Consumer<Boolean> { if (!closed) invalidateHandle() }
   private var glass: GestureHandleGlass? = null
+  private lateinit var handleClass: Class<*>
   @Volatile private var glassOn = false
   private val style = object : ContentObserver(main) {
     override fun onChange(selfChange: Boolean) { if (!closed) refreshStyle() }
@@ -72,13 +74,17 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
     glass?.allowVendor = Settings.Secure.getInt(context.contentResolver, "material_style", -1) == 1
     invalidateHandle()
   }
-  private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-    if (key == null || key == NavigationBackdropPreferences.GLASS_HANDLE) main.post { refreshGlass() }
+  private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+    main.post { refreshGlass() }
   }
   private fun refreshGlass() {
     if (closed) return
-    glassOn = runCatching { prefs.getBoolean(NavigationBackdropPreferences.GLASS_HANDLE, false) }.getOrDefault(false)
+    val choice = runCatching { NavigationBackdropPreferences.read(prefs) }.getOrNull()
+    val wasOn = glassOn
+    glassOn = choice?.glassHandle == true
+    if (owner != null && (glassOn || choice?.includesBilibiliArtwork(ownerUid) != true)) reset()
     if (glassOn && !watchingBlur && windows != null) {
+      if (glass == null) glass = runCatching { GestureHandleGlass(handleClass) }.getOrNull()
       windows.addCrossWindowBlurEnabledListener(context.mainExecutor, blurListener)
       context.contentResolver.registerContentObserver(Settings.Secure.getUriFor("material_style"), false, style)
       refreshStyle()
@@ -88,8 +94,10 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
       context.contentResolver.unregisterContentObserver(style)
       watchingBlur = false
     }
-    if (!glassOn) glass?.clear()
-    invalidateHandle()
+    if (wasOn && !glassOn) {
+      glass?.clear()
+      invalidateHandle()
+    }
   }
 
   private val receiver = object : BroadcastReceiver() {
@@ -103,17 +111,21 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
       }
       @Suppress("DEPRECATION")
       val top = tasks?.getRunningTasks(1)?.firstOrNull()?.topActivity
-      if (allowedOwner == false || top?.packageName != BILIBILI_PACKAGE || top.className != intent.getStringExtra("activity") ||
-        keyguard?.isKeyguardLocked != false || !NavigationBackdropPreferences.read(prefs).bilibiliArtwork) return
+      val choice = runCatching { NavigationBackdropPreferences.read(prefs) }.getOrNull() ?: return
+      if (choice.glassHandle || !choice.includesBilibiliArtwork(sentFromUid) || allowedOwner == false ||
+        top?.packageName != BILIBILI_PACKAGE || top.className != intent.getStringExtra("activity") ||
+        keyguard?.isKeyguardLocked != false) return
       val tint = intent.getIntExtra("color", 0)
-      if (tint ushr 24 != 255) return
+      if (tint ushr 24 == 0) return
       if (owner != session) {
         reset()
         val listener = IBinder.DeathRecipient { main.post { if (owner == session) reset() } }
         try { session.linkToDeath(listener, 0) } catch (_: RemoteException) { return }
         owner = session
+        ownerUid = sentFromUid
         death = listener
       }
+      if (color == tint) return
       color = tint
       invalidateHandle()
     }
@@ -122,7 +134,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   fun install(loader: ClassLoader, replace: (Method, String, XposedInterface.Hooker) -> Unit) {
     require(handleId != 0)
     val handle = loader.loadClass("com.android.systemui.navigationbar.gestural.NavigationHandle")
-    glass = runCatching { GestureHandleGlass(handle) }.getOrNull()
+    handleClass = handle
     val paint = handle.getDeclaredField("mPaint").apply { isAccessible = true }
     require(paint.type == Paint::class.java)
     val bar = loader.loadClass("com.android.systemui.navigationbar.views.NavigationBar")
@@ -147,7 +159,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
           return@Hooker null
         }
         if (tint == null) return@Hooker chain.proceed()
-        // OEM endpoint paint can be only 40% opaque. View alpha still animates the whole handle.
+        // The sampled paint includes its contrast alpha. SystemUI still owns the view animation.
         brush.color = tint
         try { chain.proceed() } finally { brush.color = old }
       }
@@ -178,6 +190,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   private fun reset() {
     death?.let { owner?.unlinkToDeath(it, 0) }
     owner = null
+    ownerUid = -1
     death = null
     if (color != null) {
       color = null

@@ -38,15 +38,17 @@ internal fun GestureGlassPreview(enabled: Boolean) {
       intArrayOf(light.toArgb(), light.toArgb(), crest.toArgb(), shade.toArgb()),
       floatArrayOf(0f, .69f, .87f, .96f), android.graphics.Shader.TileMode.CLAMP)
     val scene = ShaderBrush(background)
-    val finish = GestureGlassFinish(background)
-    finish.update(topLeft.x.roundToInt(), topLeft.y.roundToInt(), (topLeft.x + pill.width).roundToInt(),
-      (topLeft.y + pill.height).roundToInt(), radius.x, if (darkPage) 0f else 1f, 1f)
+    val finish = if (enabled) GestureGlassFinish(background).apply {
+      update(topLeft.x.roundToInt(), topLeft.y.roundToInt(), (topLeft.x + pill.width).roundToInt(),
+        (topLeft.y + pill.height).roundToInt(), radius.x, if (darkPage) 0f else 1f, 1f)
+    } else null
     onDrawBehind {
       drawRect(scene)
-      if (enabled) {
+      if (finish != null) {
         drawIntoCanvas { finish.draw(it.nativeCanvas) }
       } else {
-        drawRoundRect(if (darkPage) Color.White else Color.Black, topLeft, pill, radius)
+        val ink = if (darkPage) Color.White.copy(alpha = .5f) else Color.Black.copy(alpha = .4f)
+        drawRoundRect(ink, topLeft, pill, radius)
       }
     }
   })

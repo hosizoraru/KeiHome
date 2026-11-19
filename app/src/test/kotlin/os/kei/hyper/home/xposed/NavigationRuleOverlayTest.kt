@@ -107,19 +107,24 @@ class NavigationRuleOverlayTest {
 
   @Test fun footerColorsDistinguishArtworkTransparencyAndHandleContrast() {
     fun strip(rgb: Int) = IntArray(33) { 0xff000000.toInt() or rgb }
-    assertEquals(false, FooterPalette.darkHandle(strip(0x17181a), null))
-    assertEquals(true, FooterPalette.darkHandle(strip(0xf0e2d4), null))
-    assertEquals(true, FooterPalette.darkHandle(strip(0x757575), true))
-    assertEquals(false, FooterPalette.darkHandle(strip(0x757575), false))
-    assertEquals(0xff141e28.toInt(), FooterPalette.tint(strip(0x6496c8), true))
-    assertEquals(0xffd0d4d8.toInt(), FooterPalette.tint(strip(0x14283c), false))
+    fun paint(rgb: Int, previous: Boolean? = null) = FooterPalette.handlePaint(strip(rgb), previous)!!
+    assertEquals(0x80ffffff.toInt(), paint(0x17181a))
+    assertEquals(0, paint(0xf0e2d4) and 0xffffff)
+    assertEquals(0, paint(0x757575, true) and 0xffffff)
+    assertEquals(0xffffff, paint(0x757575, false) and 0xffffff)
+    assertTrue(paint(0x757575, true) ushr 24 > paint(0xffffff) ushr 24)
+    assertTrue(paint(0xffc8d8) ushr 24 in 102..145)
+    // The white majority favors dark ink even if the preceding tab needed white.
+    val split = IntArray(33) { if (it < 20) -1 else 0xff000000.toInt() }
+    assertEquals(paint(0xffffff), FooterPalette.handlePaint(split, false))
     val solid = strip(0x222222)
     assertEquals(solid.first(), FooterPalette.solid(solid))
     solid[2] = -1
     assertNull(FooterPalette.solid(solid))
-    assertEquals(false, FooterPalette.darkHandle(solid, null))
+    assertEquals(0xffffff, FooterPalette.handlePaint(solid, null)!! and 0xffffff)
     solid[3] = 0
-    assertNull(FooterPalette.darkHandle(solid, null))
+    assertNull(FooterPalette.handlePaint(solid, null))
+    assertNull(FooterPalette.handlePaint(intArrayOf(), null))
   }
 
   @Test fun malformedOrUnexpectedActivityTreesStayUnchanged() {

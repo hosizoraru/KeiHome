@@ -2,10 +2,7 @@ package os.kei.hyper.home.xposed
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.WindowManager
@@ -20,10 +17,6 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
     var backdrop: Drawable? = null
     var triedBlur = false
     val finish = GestureGlassFinish()
-    val body = Paint(Paint.ANTI_ALIAS_FLAG)
-    var top = Float.NaN
-    var bottom = Float.NaN
-    var dark = false
   }
 
   private val pill = handle.getMethod("getPillRect")
@@ -47,7 +40,7 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
     private val corners = create.returnType.getMethod("setCornerRadius", Float::class.javaPrimitiveType)
 
     fun create(view: View): Drawable = (create.invoke(root.invoke(view)) as Drawable).also {
-      blurRadius.invoke(it, (8 * view.resources.displayMetrics.density).roundToInt())
+      blurRadius.invoke(it, (4 * view.resources.displayMetrics.density).roundToInt())
     }
     fun round(drawable: Drawable, radius: Float) { corners.invoke(drawable, radius) }
   }
@@ -84,7 +77,6 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
       material.triedBlur = true
       material.backdrop = runCatching { blur?.create(view) }.getOrNull()
     }
-    val dark = Color.red(nativeColor) < 128
     material.backdrop?.let { drawable ->
       drawable.setVisible(blurEnabled, false)
       if (blurEnabled) {
@@ -97,15 +89,8 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
         return true
       }
     }
-    if (rect.top != material.top || rect.bottom != material.bottom || material.dark != dark) {
-      val colors = if (dark) SMOKED_SOLID else FROSTED_SOLID
-      material.body.shader = LinearGradient(0f, rect.top, 0f, rect.bottom, colors, STOPS, Shader.TileMode.CLAMP)
-      material.top = rect.top
-      material.bottom = rect.bottom
-      material.dark = dark
-    }
-    canvas.drawRoundRect(rect, r, r, material.body)
-    return true
+    // Let SystemUI choose its contrast paint when the compositor cannot supply a backdrop.
+    return false
   }
 
   override fun onViewAttachedToWindow(view: View) = Unit
@@ -119,10 +104,4 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
   }
 
   fun clear() { materials.keys.toList().forEach(::release) }
-
-  private companion object {
-    val STOPS = floatArrayOf(0f, .12f, .47f, .88f, 1f)
-    val SMOKED_SOLID = intArrayOf(0xffa6aab0.toInt(), 0xff545960.toInt(), 0xff444850.toInt(), 0xff3c4047.toInt(), 0xff33373d.toInt())
-    val FROSTED_SOLID = intArrayOf(-1, 0xffe8ebf0.toInt(), 0xffd3d7df.toInt(), 0xffc8cdd6.toInt(), 0xff999fa9.toInt())
-  }
 }

@@ -52,5 +52,5 @@
   <string name="nav_backdrop_artwork_unsupported">暂不支持此布局</string>
   <string name="nav_backdrop_artwork_solid">已匹配底栏颜色</string>
   <string name="nav_backdrop_glass">柔光玻璃手势条</string>
-  <string name="nav_backdrop_glass_summary">为主屏幕的手势条添加磨砂质感和细高光，随系统明暗变化。切换后立即生效。</string>
+  <string name="nav_backdrop_glass_summary">让底色透过手势条，柔和的高光随手势伸展，并适应背景明暗。</string>
 </resources>

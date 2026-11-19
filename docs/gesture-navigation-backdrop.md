@@ -1050,3 +1050,22 @@ panel. Toggling the material changed none of these dimensions. This measurement
 covers WeType in the reported Settings scene. The before/off/restored window
 and view measurements are in
 `.artifacts/research/process-reload-20261119/ime/comparison.json`.
+
+### Soft-glass gesture handle on pandora
+
+The b0603 finish spreads reflected light along the upper shoulder of the capsule.
+The return light is weaker and follows the moving lower shoulder. The small
+alpha in the center and 4 dp backdrop blur let Bilibili's footer continue through
+the handle. The HyperOS material child and the compositor drawable use the same
+finish. With window blur disabled SystemUI paints its standard handle. The setting
+card draws the finish over a curved color band so transmission is visible even
+on a plain settings page. The preview simulates the transmitted color locally.
+
+Compared b0599 and b0603 in light and dark Settings and Bilibili on pandora,
+with the OEM material selector on soft glass. The OS selector's example and
+the launcher dock, search capsule and folder captures were visual references.
+During the recorded swipe to Home and return to Bilibili, SystemUI PID 24018
+and Bilibili PID 18779 stayed alive. The light Settings capture still shows
+low contrast on white. Compositor blur on/off/on was checked on Phone AVD.
+The native-scale comparison, card screenshot and `b603-swipe.mp4` are under
+`.artifacts/research/gesture-reload-acceptance-20261119/`.

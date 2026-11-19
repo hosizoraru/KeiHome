@@ -43,7 +43,7 @@ internal class HyperOsHandleMaterial private constructor(context: Context, val a
       layout(l, t, r, b)
       api.clip.invoke(this, 0f, 0f, width.toFloat(), height.toFloat())
     }
-    val color = ColorUtils.blendARGB(0x27f9fafb, 0x17383d40, intensity)
+    val color = ColorUtils.blendARGB(0x21ffffff, 0x140f1519, intensity)
     if (curvature != radius || surface.color != color) {
       if (curvature != radius) {
         curvature = radius
@@ -90,7 +90,7 @@ internal class HyperOsHandleMaterial private constructor(context: Context, val a
       val view = HyperOsHandleMaterial(context, this)
       val density = context.resources.displayMetrics.density
       backgroundBlur.invoke(view, 1)
-      backgroundRadius.invoke(view, Math.round(8 * density))
+      backgroundRadius.invoke(view, Math.round(4 * density))
       viewBlur.invoke(view, 3)
       colorType.invoke(view, 16)
       material.invoke(view, 1)

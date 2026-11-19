@@ -271,6 +271,7 @@ internal fun NavigationBackdropContent(
           }
           item("glass", contentType = "setting") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              GestureGlassPreview(choice?.glassHandle == true)
               SwitchPreference(title = stringResource(R.string.nav_backdrop_glass),
                 summary = stringResource(R.string.nav_backdrop_glass_summary), checked = choice?.glassHandle == true,
                 enabled = editable, onCheckedChange = onGlassHandle, modifier = Modifier.testTag("nav-backdrop.glass"))

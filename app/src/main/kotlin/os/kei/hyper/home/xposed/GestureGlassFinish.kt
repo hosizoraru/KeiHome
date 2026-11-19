@@ -11,7 +11,7 @@ import android.graphics.drawable.Drawable
 import androidx.core.graphics.ColorUtils
 import kotlin.math.roundToInt
 
-/** Two localized reflections on the curved ends. The middle carries only the translucent fill. */
+/** Soft grazing light across a shallow capsule. The center transmits the compositor backdrop. */
 internal class GestureGlassFinish : Drawable() {
   private val body = Paint(Paint.ANTI_ALIAS_FLAG)
   private val shoulder = reflection(0xfffbfdff.toInt())
@@ -45,13 +45,14 @@ internal class GestureGlassFinish : Drawable() {
     if (bounds.isEmpty) return
     val height = bounds.height().toFloat()
     val width = bounds.width().toFloat()
-    // Bound the footprint by cap height, not by pill width. Even on a short handle the reflections stay apart.
-    val reach = minOf(width * .28f, height * (2.7f + .7f * stretch))
-    val inset = curvature * (.62f + .32f * stretch)
-    // Near the left shoulder the tangent turns upward; the lower right shoulder has the same slope.
-    position(shoulder, bounds.left + inset, bounds.top + height * .07f, reach, height * .43f, -13f)
-    position(returnLight, bounds.right - inset, bounds.bottom - height * .04f, reach * .81f, height * .48f, -12f)
-    position(underside, bounds.left + curvature, bounds.bottom + height * .22f, reach * .93f, height * .66f, 6f)
+    // Keep the light in window space as the OEM stretches the handle. A steep ellipse
+    // crosses this thin capsule in just a few pixels and looks like a painted dot.
+    val reach = minOf(width * .56f, height * (12f + stretch * 1.6f))
+    val shoulderX = bounds.left + curvature + width * (.16f + .05f * stretch)
+    position(shoulder, shoulderX, bounds.top - height * .13f, reach, height * .85f, -1.2f)
+    position(returnLight, bounds.right - width * (.21f - .04f * stretch),
+      bounds.bottom + height * .19f, reach * .72f, height * .72f, -1.6f)
+    position(underside, shoulderX, bounds.bottom + height * .21f, reach, height * .88f, 1.2f)
   }
 
   private fun position(paint: Paint, x: Float, y: Float, rx: Float, ry: Float, angle: Float) {
@@ -63,11 +64,11 @@ internal class GestureGlassFinish : Drawable() {
 
   private fun updatePaints() {
     if (darkness < 0f) return
-    body.color = ColorUtils.blendARGB(0x31ffffff, 0x162a2b2c, darkness)
+    body.color = ColorUtils.blendARGB(0x18ffffff, 0x130f1519, darkness)
     body.alpha = body.alpha * opacity / 255
-    shoulder.alpha = ((137f + 46f * darkness + 14f * stretch) * opacity / 255).roundToInt()
-    returnLight.alpha = ((83f + 32f * darkness + 12f * stretch) * opacity / 255).roundToInt()
-    underside.alpha = ((22f + 59f * darkness) * opacity / 255).roundToInt()
+    shoulder.alpha = ((116f + 20f * darkness + 8f * stretch) * opacity / 255).roundToInt()
+    returnLight.alpha = ((65f + 18f * darkness) * opacity / 255).roundToInt()
+    underside.alpha = ((20f + 70f * darkness) * opacity / 255).roundToInt()
   }
 
   override fun draw(canvas: Canvas) {

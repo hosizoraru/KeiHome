@@ -52,5 +52,5 @@
   <string name="nav_backdrop_artwork_unsupported">Artwork profile unavailable</string>
   <string name="nav_backdrop_artwork_solid">Tab color matched</string>
   <string name="nav_backdrop_glass">Soft glass gesture handle</string>
-  <string name="nav_backdrop_glass_summary">Give the handle on the main display a frosted surface and a fine highlight. It follows system contrast and updates immediately.</string>
+  <string name="nav_backdrop_glass_summary">Let the background show through the handle. Its soft highlights follow the gesture and adapt to light and dark backgrounds.</string>
 </resources>

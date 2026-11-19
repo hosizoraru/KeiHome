@@ -52,5 +52,5 @@
   <string name="nav_backdrop_artwork_unsupported">このレイアウトは未対応</string>
   <string name="nav_backdrop_artwork_solid">下部バーの色を反映済み</string>
   <string name="nav_backdrop_glass">ソフトガラスのジェスチャーバー</string>
-  <string name="nav_backdrop_glass_summary">メイン画面のバーにすりガラスの質感と細いハイライトを加えます。明暗はシステムに連動し、変更はすぐに反映されます。</string>
+  <string name="nav_backdrop_glass_summary">背景が透けて見えます。やわらかな光沢がジェスチャーに合わせて伸び、背景の明暗に応じて変化します。</string>
 </resources>

@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class GestureGlassFinishDeviceTest {
-  @Test fun reflectionsMoveWithCapsAndTheCenterHasNoOutline() {
+  @Test fun lightSpreadsAlongTheShoulderAndFollowsTheAnimatedBounds() {
     val glass = GestureGlassFinish()
     val bitmap = Bitmap.createBitmap(440, 46, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -22,15 +22,18 @@ class GestureGlassFinishDeviceTest {
       glass.draw(canvas)
     }
     render(35, 405, 1f)
-    val center = bitmap.getPixel(220, 22)
-    val shoulder = bitmap.getPixel(42, 14)
-    assertTrue(Color.red(shoulder) > Color.red(center) + 20)
-    for (y in 13..30) assertEquals(center, bitmap.getPixel(220, y))
+    val shoulder = bitmap.getPixel(105, 14)
+    val core = Color.red(bitmap.getPixel(220, 22))
+    assertTrue(core < 56)
+    assertTrue(Color.red(shoulder) > core + 20)
+    assertTrue((50..210).count { Color.red(bitmap.getPixel(it, 14)) > core + 20 } >= 65)
+    assertTrue(Color.red(bitmap.getPixel(220, 14)) < Color.red(shoulder))
+    val outer = bitmap.getPixel(42, 14)
     render(17, 423, 1.1f)
-    assertNotEquals(shoulder, bitmap.getPixel(42, 14))
-    assertEquals(center, bitmap.getPixel(220, 22))
+    assertNotEquals(outer, bitmap.getPixel(42, 14))
+    assertTrue(Color.red(bitmap.getPixel(220, 22)) < 56)
     render(35, 405, 1f)
-    assertEquals(shoulder, bitmap.getPixel(42, 14))
+    assertEquals(shoulder, bitmap.getPixel(105, 14))
     assertEquals(Color.BLACK, bitmap.getPixel(34, 22))
     glass.alpha = 0
     render(35, 405, 1f)

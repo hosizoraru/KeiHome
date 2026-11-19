@@ -97,10 +97,34 @@ updates to b0598 and b0599. An earlier b0596 update lost a different `:cache`
 PID to `umms_selfcheck` during dispatch. Future process-death notifications
 remain possible. Physical Bilibili PID 18779 rebound the inherited methods and
 resumed drawing its visible footer through the 65 px navigation inset. The
-unit suite covered recovery state selection. These updates did not produce a
-live `FAILED` owner for an end-to-end retry. Receipts are under
+unit suite covered recovery state selection. Receipts are under
 `.artifacts/research/process-reload-20261119` and
 `.artifacts/research/gesture-glass-20261119/rim-study/b599-deploy`.
+
+The next Phone AVD test kept Settings PID 8138 in the foreground. A disposable
+b0600 build rejected its first `onHotReloading` in this process before retiring
+any resources. An ordinary in-place install of unmodified b0601 produced the
+following sequence on LSPosed 7944. No KeiHome activity was opened and no job
+was forced. Times are local device time.
+
+| Time | Evidence |
+| --- | --- |
+| 22:54:16 | Settings returned `false` and LSPosed reported `FAILED` (1). |
+| 22:55:46 | The scheduled check found one recoverable target. PID 8138 accepted retirement and installed its host icon hooks. The callback returned `SUCCEEDED`. |
+| 22:58:36 | A read-only instrumentation check found `UP_TO_DATE` for PID 8138, with `loadedVersionCode == installedVersionCode == 113000601`. |
+
+The active LSPosed notification still reported ten successes and one failure
+after that final check. On this framework build the installation notification
+reflects the original automatic dispatch. The later service callback establishes
+recovery independently. The observation is specific to 7944. A separate b0602
+install lost Security `:cache` to `umms_selfcheck` (4, `PROCESS_DIED`).
+
+The disposable patch, first failure, callback, framework generation assertion
+and post-recovery notification are in
+`.artifacts/research/gesture-reload-acceptance-20261119/`. For a subsequent
+controlled run, invoke `ModuleRetirementDeviceTest#recoveredPidRunsInstalledVersion`
+with `recoveredPid` and `recoveredProcess` from the failed dispatch after observing
+the autonomous callback. The assertion only reads framework state.
 
 The reference's SDK assumptions also should not replace KeiHome's actual target and
 ABI checks. Manifest-rule overlap alone is insufficient evidence to delete explicit

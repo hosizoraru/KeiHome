@@ -18,6 +18,23 @@ import os.kei.hyper.home.status.FrameworkConnection
 
 /** Opt-in: exercises normal API 102 handoffs, never process restart or native activation. */
 class ModuleRetirementDeviceTest {
+  /** Read the framework's receipt after the autonomous retry, without dispatching another reload. */
+  @Test fun recoveredPidRunsInstalledVersion() {
+    val args = InstrumentationRegistry.getArguments()
+    val pid = args.getString("recoveredPid")?.toIntOrNull()
+    assumeTrue("Provide the original PID from the FAILED receipt", pid != null)
+    val process = requireNotNull(args.getString("recoveredProcess"))
+    val service = runBlocking {
+      withTimeout(10_000) { FrameworkConnection.service.filterNotNull().first() }
+    }
+    val target = service.runningTargets.single { it.pid == pid && it.processName == process }
+    val app = InstrumentationRegistry.getInstrumentation().targetContext
+    val installed = app.packageManager.getPackageInfo(app.packageName, 0).longVersionCode
+    android.util.Log.i("KeiHomeReloadTest", "$process/$pid ${target.state} loaded=${target.loadedVersionCode} installed=$installed")
+    assertEquals(io.github.libxposed.service.HookedTarget.State.UP_TO_DATE, target.state)
+    assertEquals(installed, target.loadedVersionCode)
+  }
+
   @Test fun twoSameProcessHandoffsForEachLiveJavaHost() {
     assumeTrue(InstrumentationRegistry.getArguments().getString("retirementReload") == "true")
     val service = runBlocking {

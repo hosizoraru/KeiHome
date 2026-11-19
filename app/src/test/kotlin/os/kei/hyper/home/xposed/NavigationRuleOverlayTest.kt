@@ -163,4 +163,20 @@ class NavigationRuleOverlayTest {
     val quoted = JSONObject().put("Main", JSONObject().put("mode", 0).put("future", "[\"\\\\{}]"))
     assertNotNull(NavigationRuleOverlay.rewriteActivityRules(quoted.toString()))
   }
+
+  @Test fun plainHandleStillShowsWhileAwaitingTheNextNativeSample() {
+    fun over(color: Int, background: Int): Int {
+      val alpha = color ushr 24
+      return ((color and 255) * alpha + background * (255 - alpha) + 127) / 255
+    }
+    val light = plainGesturePaint(0x80ffffff.toInt())
+    val dark = plainGesturePaint(0x66000000)
+    assertEquals(128, over(light, 0))
+    assertEquals(153, over(dark, 255))
+    assertEquals(207, over(light, 255))
+    assertEquals(48, over(dark, 0))
+    for (color in listOf(0x00ffffff, 0xff888888.toInt(), 0x80654321.toInt())) {
+      assertEquals(color, plainGesturePaint(color))
+    }
+  }
 }

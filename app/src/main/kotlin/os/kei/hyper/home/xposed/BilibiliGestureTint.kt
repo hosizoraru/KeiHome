@@ -29,6 +29,7 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
+import java.lang.ref.WeakReference
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
@@ -61,6 +62,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   @Volatile private var closed = false
   private var allowedOwner: Boolean? = null
   private var foregroundBarPackage: String? = null
+  private var plainHandle: WeakReference<View>? = null
   private var choice: NavigationBackdropChoice? = null
   private var owner: IBinder? = null
   private var ownerUid = -1
@@ -85,6 +87,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   private fun refreshGlass() {
     if (closed) return
     val choice = runCatching { NavigationBackdropPreferences.read(prefs) }.getOrNull()
+    if (this.choice != choice) trackPlainHandle(null)
     this.choice = choice
     val wasOn = glassOn
     glassOn = choice?.glassHandle == true
@@ -149,7 +152,9 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
       it.parameterTypes[6] == String::class.java }
     replace(attrs, "keihome.systemui.gesture.owner", XposedInterface.Hooker { chain ->
       if (!closed && chain.getArg(0) == Display.DEFAULT_DISPLAY) {
-        foregroundBarPackage = (chain.getArg(6) as? String)?.takeIf { chain.getArg(3) == false }
+        val pkg = (chain.getArg(6) as? String)?.takeIf { chain.getArg(3) == false }
+        if (foregroundBarPackage != pkg) trackPlainHandle(null)
+        foregroundBarPackage = pkg
         allowedOwner = foregroundBarPackage == BILIBILI_PACKAGE
         if (allowedOwner == false && owner != null) reset()
       }
@@ -159,16 +164,17 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
     replace(handle.getDeclaredMethod("onDraw", Canvas::class.java), "keihome.systemui.gesture.tint", XposedInterface.Hooker { chain ->
       val tint = color
       val view = chain.thisObject as View
-      if (closed || (!glassOn && tint == null) || view.id != handleId || view.display?.displayId != Display.DEFAULT_DISPLAY) chain.proceed()
+      val plain = plainHandle?.get() === view && view.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == false
+      if (closed || (!glassOn && tint == null && !plain) || view.id != handleId || view.display?.displayId != Display.DEFAULT_DISPLAY) chain.proceed()
       else {
         val brush = paint.get(view) as Paint
         val old = brush.color
         if (glassOn && runCatching { glass?.draw(view, chain.getArg(0) as Canvas, old) }.getOrDefault(false) == true) {
           return@Hooker null
         }
-        if (tint == null) return@Hooker chain.proceed()
-        // The sampled paint includes its contrast alpha. SystemUI still owns the view animation.
-        brush.color = tint
+        val adjusted = tint ?: if (plain) plainGesturePaint(old) else old
+        if (adjusted == old) return@Hooker chain.proceed()
+        brush.color = adjusted
         try { chain.proceed() } finally { brush.color = old }
       }
     })
@@ -179,7 +185,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   }
 
   private fun installPlainTintTiming(loader: ClassLoader, replace: (Method, String, XposedInterface.Hooker) -> Unit) {
-    // This optional hook changes the native animator's duration only at a new contrast decision.
+    // Verify the visible owner at the native contrast decision, outside the draw loop.
     val transitions = runCatching { loader.loadClass("com.android.systemui.navigationbar.views.NavigationBarTransitions") }
       .getOrNull() ?: return
     val duration = transitions.declaredMethods.singleOrNull {
@@ -194,17 +200,27 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
       val pkg = foregroundBarPackage ?: return@Hooker native
       if (closed || native <= 120 || !settings.enabled || settings.glassHandle || pkg !in settings.packages ||
         (pkg == BILIBILI_PACKAGE && settings.bilibiliArtwork)) return@Hooker native
-      val eligible = runCatching {
+      val handle = runCatching {
         val view = viewField.get(chain.thisObject) as View
         if (modeField.getInt(chain.thisObject) != 2 || view.display?.displayId != Display.DEFAULT_DISPLAY ||
-          view.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false || keyguard?.isKeyguardLocked != false) return@runCatching false
+          view.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false || keyguard?.isKeyguardLocked != false) return@runCatching null
         @Suppress("DEPRECATION")
-        val top = tasks?.getRunningTasks(1)?.firstOrNull() ?: return@runCatching false
-        val info = activityInfo.get(top) as? ActivityInfo ?: return@runCatching false
-        top.topActivity?.packageName == pkg && info.packageName == pkg && settings.includes(pkg, info.applicationInfo.uid)
-      }.getOrDefault(false)
-      if (eligible) 120 else native
+        val top = tasks?.getRunningTasks(1)?.firstOrNull() ?: return@runCatching null
+        val info = activityInfo.get(top) as? ActivityInfo ?: return@runCatching null
+        if (top.topActivity?.packageName != pkg || info.packageName != pkg || !settings.includes(pkg, info.applicationInfo.uid)) return@runCatching null
+        view.findViewById<View>(handleId)
+      }.getOrNull()
+      trackPlainHandle(handle)
+      if (handle != null) 120 else native
     })
+  }
+
+  private fun trackPlainHandle(view: View?) {
+    val previous = plainHandle?.get()
+    if (previous === view) return
+    plainHandle = view?.let(::WeakReference)
+    previous?.invalidate()
+    view?.invalidate()
   }
 
   private fun invalidateHandle() {
@@ -258,6 +274,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   }
 
   private fun dispose() {
+    trackPlainHandle(null)
     if (closed) return
     closed = true
     if (registered) {

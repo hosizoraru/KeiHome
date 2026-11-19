@@ -2,6 +2,7 @@ package os.kei.hyper.home.xposed
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.ColorFilter
@@ -13,6 +14,7 @@ import android.graphics.drawable.Animatable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.os.Binder
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -23,17 +25,26 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.ImageView
 import io.github.libxposed.api.XposedInterface
-import java.io.File
 import java.lang.reflect.Method
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.luckypray.dexkit.DexKitBridge
+import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 import os.kei.hyper.home.data.BILIBILI_PACKAGE
+import os.kei.hyper.home.status.BilibiliArtworkInbox
+import os.kei.hyper.home.status.BilibiliArtworkOutcome
+import os.kei.hyper.home.status.BilibiliInstallation
 
 /** Owns only the extra drawing in Bilibili's main window. */
 internal class BilibiliHomeFooterRuntime(
   private val xposed: XposedInterface,
   private val home: Class<out Activity>,
+  private val loader: ClassLoader,
+  apk: String,
 ) {
   private val main = Handler(Looper.getMainLooper())
   private var preferences: SharedPreferences? = null
@@ -45,15 +56,13 @@ internal class BilibiliHomeFooterRuntime(
 
   private var composing: FooterSession? = null
   private var matchedImages = 0
+  private val reporter = BilibiliArtworkReporter(apk)
 
-  fun install(apk: String, cacheDir: File?, oldHooks: List<XposedInterface.HookHandle>) {
+  fun install(compose: BilibiliComposeFooter?, oldHooks: List<XposedInterface.HookHandle>) {
     fun hook(id: String, method: Method, callback: XposedInterface.Hooker) {
       installOrReplaceIconHook(xposed, findMatchingIconHook(oldHooks, id, method),
         id, method, callback).first
     }
-    // Scope authorization alone should not trigger a DEX scan on app startup.
-    val source = xposed.getRemotePreferences(NavigationBackdropPreferences.GROUP)
-    if (!NavigationBackdropPreferences.read(source).includesBilibiliArtwork(Process.myUid())) return
     val resume = home.getDeclaredMethod("onResume")
     hook(HOOK, resume) { chain ->
       chain.proceed().also {
@@ -61,8 +70,7 @@ internal class BilibiliHomeFooterRuntime(
         if (activity != null && home.isInstance(activity)) attachSafely(activity)
       }
     }
-    try {
-      val compose = BilibiliComposeFooter.resolve(apk, home.classLoader!!, cacheDir)
+    if (compose != null) try {
       hook("$HOOK.compose", compose.drawFooter) { chain ->
         if (Looper.myLooper() != main.looper || retired || composing != null) return@hook chain.proceed()
         val current = session?.takeIf { it.observesCompose } ?: return@hook chain.proceed()
@@ -98,14 +106,20 @@ internal class BilibiliHomeFooterRuntime(
   }
 
   private fun attachSafely(activity: Activity) {
-    if (retired || activity.isDestroyed || activity.isFinishing || session?.activity === activity) return
+    if (retired || activity.packageName != PACKAGE || activity.isDestroyed || activity.isFinishing) return
+    if (session?.activity === activity) {
+      session?.repeatReceipt()
+      return
+    }
     try {
       val source = preferences ?: xposed.getRemotePreferences(NavigationBackdropPreferences.GROUP).also {
         it.registerOnSharedPreferenceChangeListener(listener)
         preferences = it
       }
       session?.close()
-      session = FooterSession(activity, source) { session = null }
+      session = FooterSession(activity, source, { outcome ->
+        if (!retired) reporter.report(activity.applicationContext, outcome)
+      }) { session = null }
       Log.i(TAG, "Attached to home window")
     } catch (failure: Exception) {
       xposed.log(Log.WARN, TAG, "Home footer unavailable; retaining the app's drawing", failure)
@@ -129,18 +143,19 @@ internal class BilibiliHomeFooterRuntime(
       main.removeCallbacks(cleanup)
       return false
     }
-    publish(home.classLoader)
+    publish(loader)
     return true
   }
 
   private class FooterSession(
     val activity: Activity,
     private val preferences: SharedPreferences,
+    private val report: (BilibiliArtworkOutcome) -> Unit,
     private val onClose: () -> Unit,
   ) : ViewTreeObserver.OnPreDrawListener, Application.ActivityLifecycleCallbacks {
     private val decor = activity.window.decorView
     private val backgroundId = activity.resources.getIdentifier("tab_background", "id", PACKAGE)
-    private val overlay = FooterOverlay {
+    private val overlay = FooterOverlay({ setOutcome(BilibiliArtworkOutcome.DRAWN) }) {
       // Defer removal until decor has finished iterating its drawables.
       decor.post { failDrawing() }
     }
@@ -161,6 +176,27 @@ internal class BilibiliHomeFooterRuntime(
     private var active = false
     private var drawingFailed = false
     private var lastDecision = ""
+    private var outcome: BilibiliArtworkOutcome? = null
+    private var fallbackPosted = false
+    private val fallback = Runnable {
+      fallbackPosted = false
+      if (active && started) setOutcome(BilibiliArtworkOutcome.FALLBACK)
+    }
+
+    private fun cancelFallback() {
+      if (!fallbackPosted) return
+      decor.removeCallbacks(fallback)
+      fallbackPosted = false
+    }
+
+    private fun setOutcome(value: BilibiliArtworkOutcome) {
+      cancelFallback()
+      if (outcome == value) return
+      outcome = value
+      report(value)
+    }
+
+    fun repeatReceipt() { outcome?.takeIf { active }?.let(report) }
 
     init {
       activity.registerActivityLifecycleCallbacks(this)
@@ -169,9 +205,11 @@ internal class BilibiliHomeFooterRuntime(
 
     fun updateSelection() {
       if (closed) return
+      val wasActive = active
       active = runCatching {
         NavigationBackdropPreferences.read(preferences).includesBilibiliArtwork(Process.myUid())
       }.getOrDefault(false)
+      if (wasActive != active) setOutcome(BilibiliArtworkOutcome.WAITING)
       Log.d(TAG, "Home artwork enabled=$active")
       if (active && started && !observing && !drawingFailed) {
         decor.viewTreeObserver.addOnPreDrawListener(this)
@@ -179,6 +217,7 @@ internal class BilibiliHomeFooterRuntime(
         decor.invalidate()
       } else if (!active) {
         stopDrawing()
+        cancelFallback()
         releaseCompose()
       }
     }
@@ -208,6 +247,7 @@ internal class BilibiliHomeFooterRuntime(
       drawingFailed = true
       stopDrawing()
       releaseCompose()
+      setOutcome(BilibiliArtworkOutcome.FALLBACK)
     }
 
     override fun onPreDraw(): Boolean {
@@ -354,6 +394,7 @@ internal class BilibiliHomeFooterRuntime(
         clearArtwork()
         return false
       }
+      cancelFallback()
 
       val attach = overlay.artwork == null
       overlay.update(artwork, imageMatrix, decor.width, top, decor.height, alpha)
@@ -374,6 +415,10 @@ internal class BilibiliHomeFooterRuntime(
     private fun clearArtwork() {
       binding?.clearArtwork()
       restoreLegacyArtwork()
+      if (active && started && outcome != BilibiliArtworkOutcome.FALLBACK && !fallbackPosted) {
+        fallbackPosted = true
+        decor.postDelayed(fallback, 500L)
+      }
       if (overlay.artwork == null) return
       decor.overlay.remove(overlay)
       overlay.artwork = null
@@ -406,6 +451,8 @@ internal class BilibiliHomeFooterRuntime(
       if (closed) return
       closed = true
       stopDrawing()
+      cancelFallback()
+      if (active) setOutcome(BilibiliArtworkOutcome.WAITING)
       releaseCompose()
       activity.unregisterActivityLifecycleCallbacks(this)
       onClose()
@@ -420,6 +467,7 @@ internal class BilibiliHomeFooterRuntime(
     override fun onActivityPaused(activity: Activity) = Unit
     override fun onActivityStopped(activity: Activity) {
       started = false
+      cancelFallback()
       // Keep the last validated frame in its own decor for task transitions.
       // A start revalidates its geometry before the next draw.
       stopObserving()
@@ -433,7 +481,7 @@ internal class BilibiliHomeFooterRuntime(
     val view: ImageView, val artwork: Drawable, val original: Matrix, val adjusted: Matrix,
   )
 
-  private class FooterOverlay(private val onDrawFailure: () -> Unit) : Drawable() {
+  private class FooterOverlay(private val onDrawn: () -> Unit, private val onDrawFailure: () -> Unit) : Drawable() {
     var artwork: Drawable? = null
     private val matrix = Matrix()
     private var layerAlpha = 255
@@ -463,6 +511,7 @@ internal class BilibiliHomeFooterRuntime(
         }
         canvas.concat(matrix)
         source.draw(canvas)
+        onDrawn()
       } catch (failure: RuntimeException) {
         failed = true
         Log.w(TAG, "Gesture artwork draw failed", failure)
@@ -479,8 +528,46 @@ internal class BilibiliHomeFooterRuntime(
 
   companion object {
     const val PACKAGE = BILIBILI_PACKAGE
-    const val HOME = "$PACKAGE.MainActivityV2"
-    private const val TAG = "KeiHomeBiliFooter"
+    const val TAG = "KeiHomeBiliFooter"
     private const val HOOK = "keihome.bilibili.home.footer.v1"
+
+    fun resolveHome(dex: DexKitBridge, loader: ClassLoader): Class<out Activity> {
+      // These extras are the home tab-routing protocol, shared even when classes are renamed.
+      val home = dex.findMethod {
+        matcher {
+          name("onNewIntent")
+          paramTypes(android.content.Intent::class.java)
+          returnType(Void.TYPE)
+          usingEqStrings("bottom_tab_id", "bottom_tab_name")
+        }
+      }.single().getMethodInstance(loader).declaringClass.asSubclass(Activity::class.java)
+      // AppComponentFactory can resolve an Activity through a delegated class loader.
+      check(home.getDeclaredMethod("onResume").returnType == Void.TYPE) { "Unrecognized home lifecycle method" }
+      return home
+    }
+  }
+}
+
+internal class BilibiliArtworkReporter(private val apk: String) {
+  private val processToken = Binder()
+  private val reports = CoroutineScope(Dispatchers.IO.limitedParallelism(1))
+
+  fun report(context: Context, outcome: BilibiliArtworkOutcome) {
+    reports.launch {
+      try {
+        val info = context.packageManager.getPackageInfo(BILIBILI_PACKAGE,
+          android.content.pm.PackageManager.PackageInfoFlags.of(0))
+        if (info.applicationInfo?.sourceDir != apk) return@launch
+        context.contentResolver.call(BilibiliArtworkInbox.uri, BilibiliArtworkInbox.METHOD, null, Bundle().apply {
+          putInt("module", BuildConfig.VERSION_CODE)
+          putLong("version", info.longVersionCode)
+          putLong("updated", info.lastUpdateTime)
+          putBinder("process", processToken)
+          putString("outcome", outcome.name)
+        })
+      } catch (failure: Exception) {
+        Log.d(BilibiliHomeFooterRuntime.TAG, "Artwork status could not be reported", failure)
+      }
+    }
   }
 }

@@ -1,7 +1,11 @@
 package os.kei.hyper.home.xposed
 
-import android.app.Activity
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
+import os.kei.hyper.home.data.NavigationBackdropPreferences
+import os.kei.hyper.home.status.BilibiliArtworkOutcome
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
@@ -102,10 +106,7 @@ class KeiHomeModule : XposedModule() {
     val savedState = reloadState.restore(param.savedInstanceState)
     if (!param.isSystemServer) {
       if (processName == BilibiliHomeFooterRuntime.PACKAGE) {
-        val app = runCatching {
-          Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
-            .invoke(null) as? Application
-        }.getOrNull()
+        val app = currentApplication()
         if (app != null) installBilibiliFooter(
           savedState as? ClassLoader ?: app.classLoader, app.applicationInfo.sourceDir,
           param.oldHookHandles, app.codeCacheDir,
@@ -199,17 +200,41 @@ class KeiHomeModule : XposedModule() {
     cacheDir: java.io.File? = null,
   ) {
     try {
-      val home = Class.forName(BilibiliHomeFooterRuntime.HOME, false, loader)
-        .asSubclass(Activity::class.java)
-      val runtime = BilibiliHomeFooterRuntime(this, home)
-      runtime.install(apk, cacheDir, oldHooks)
+      val preferences = getRemotePreferences(NavigationBackdropPreferences.GROUP)
+      if (!NavigationBackdropPreferences.read(preferences).includesBilibiliArtwork(Process.myUid())) return
+      val runtime = SystemUiMaterialDexKit.open(apk, cacheDir).use { dex ->
+        dex.setThreadNum(1)
+        val home = BilibiliHomeFooterRuntime.resolveHome(dex, loader)
+        val compose = try {
+          BilibiliComposeFooter.resolve(dex, loader)
+        } catch (failure: Exception) {
+          log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
+          null
+        } catch (failure: LinkageError) {
+          log(Log.INFO, BilibiliHomeFooterRuntime.TAG, "Compose footer profile unavailable", failure)
+          null
+        }
+        BilibiliHomeFooterRuntime(this, home, loader, apk).also { it.install(compose, oldHooks) }
+      }
       bilibiliFooter = runtime
     } catch (failure: Exception) {
       log(Log.WARN, "KeiHomeBiliFooter", "Home footer unavailable", failure)
+      reportUnsupportedBilibiliArtwork(apk)
     } catch (failure: LinkageError) {
       log(Log.WARN, "KeiHomeBiliFooter", "Home footer linkage unavailable", failure)
+      reportUnsupportedBilibiliArtwork(apk)
     }
   }
+
+  private fun reportUnsupportedBilibiliArtwork(apk: String) {
+    Handler(Looper.getMainLooper()).post {
+      currentApplication()?.let { BilibiliArtworkReporter(apk).report(it, BilibiliArtworkOutcome.UNSUPPORTED) }
+    }
+  }
+
+  private fun currentApplication(): Application? = runCatching {
+    Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication").invoke(null) as? Application
+  }.getOrNull()
 
   private fun installHostAppIcons(loader: ClassLoader, oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
     val runtime = HostAppIconRuntime(this, loader, processName)

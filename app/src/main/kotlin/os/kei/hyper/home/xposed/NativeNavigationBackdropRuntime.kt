@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Binder
@@ -9,6 +10,7 @@ import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import java.util.concurrent.ConcurrentHashMap
 import os.kei.hyper.home.BuildConfig
+import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 
@@ -49,9 +51,17 @@ internal class NativeNavigationBackdropRuntime(
             val home = pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
               ?.activityInfo?.packageName
             if (packageName == home || pm.getPackagesForUid(uid)?.contains(packageName) != true) original
-            else NavigationRuleOverlay.apply(original as? Bundle, packageName).also {
-              if (it !== original && reported.add(packageName))
-                xposed.log(Log.INFO, TAG, "Native rule delivery enabled for $packageName; OEM table unchanged")
+            else {
+              val artworkActivity = if (packageName == BILIBILI_PACKAGE) runCatching {
+                val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName)
+                pm.resolveActivity(launch, PackageManager.ResolveInfoFlags.of(0))?.activityInfo?.let {
+                  it.targetActivity ?: it.name
+                }
+              }.getOrNull() else null
+              NavigationRuleOverlay.apply(original as? Bundle, artworkActivity).also {
+                if (it !== original && reported.add(packageName))
+                  xposed.log(Log.INFO, TAG, "Native rule delivery enabled for $packageName; OEM table unchanged")
+              }
             }
           } catch (failure: Exception) {
             if (reported.add(packageName))

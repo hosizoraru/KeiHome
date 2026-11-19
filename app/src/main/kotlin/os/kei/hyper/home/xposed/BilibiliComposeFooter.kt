@@ -4,9 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
-import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import org.luckypray.dexkit.DexKitBridge
 
 /** Resolves the home footer's loaded image, placement and draw phase. */
 internal class BilibiliComposeFooter private constructor(
@@ -195,16 +195,25 @@ internal class BilibiliComposeFooter private constructor(
     private const val LAYOUT = "androidx.compose.ui.layout"
     private const val IMAGE = "$LOADER.BiliImageKt"
 
-    fun resolve(apk: String, loader: ClassLoader, cacheDir: File?): BilibiliComposeFooter {
-      val methods = SystemUiMaterialDexKit.open(apk, cacheDir).use { dex ->
-        dex.setThreadNum(1)
+    fun resolve(dex: DexKitBridge, loader: ClassLoader): BilibiliComposeFooter {
+      val methods = run {
         val candidates = dex.findMethod {
-          matcher { usingStrings("tv.danmaku.bili.khome.widget.bottomtab.HomeBottomTabContainer.") }
+          matcher {
+            name("invoke")
+            paramTypes(Any::class.java, Any::class.java, Any::class.java)
+            usingEqStrings("切换底部导航页")
+          }
         }.filter { data ->
           data.name == "invoke" && data.paramTypeNames.size == 3 &&
             data.invokes.any { it.className == IMAGE && it.name == "BiliImage" } &&
             data.invokes.any { it.className == "$LOADER.ImageRequest" && it.name == "contentScale" } &&
-            data.invokes.any { it.className == "$LOADER.ImageRequest" && it.name == "align" }
+            data.invokes.any { it.className == "$LOADER.ImageRequest" && it.name == "align" } &&
+            data.declaredClass?.methods.orEmpty().filter { it.name == "<init>" }.any { constructor ->
+              constructor.callers.any { parent ->
+                parent.invokes.any { it.className == "androidx.compose.foundation.layout.BoxWithConstraintsKt" &&
+                  it.name == "BoxWithConstraints" }
+              }
+            }
         }
         val footer = candidates.single()
         val image = footer.invokes.filter {

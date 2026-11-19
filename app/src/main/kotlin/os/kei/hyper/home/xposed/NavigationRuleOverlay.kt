@@ -8,19 +8,19 @@ internal object NavigationRuleOverlay {
   const val MAX_RULE_BYTES = 128 * 1024
   const val MAX_ACTIVITIES = 512
 
-  fun apply(original: Bundle?, packageName: String? = null): Bundle? {
+  fun apply(original: Bundle?, artworkActivity: String? = null): Bundle? {
     @Suppress("DEPRECATION")
     if (original?.containsKey("activityRules") == true &&
       original.get("activityRules") !is String) return original
     val raw = original?.getString("activityRules").orEmpty()
-    val rewritten = rewriteActivityRules(raw, packageName) ?: return original
+    val rewritten = rewriteActivityRules(raw, artworkActivity) ?: return original
     return Bundle(original ?: Bundle()).apply {
       putBoolean("enable", true)
       putString("activityRules", rewritten)
     }
   }
 
-  fun rewriteActivityRules(raw: String, packageName: String? = null): String? {
+  fun rewriteActivityRules(raw: String, artworkActivity: String? = null): String? {
     if (raw.isEmpty()) return ""
     if (raw.length > MAX_RULE_BYTES || raw.toByteArray(Charsets.UTF_8).size > MAX_RULE_BYTES) return null
     if (raw.firstOrNull { !it.isWhitespace() } != '{') return null
@@ -50,9 +50,7 @@ internal object NavigationRuleOverlay {
       val activity = rules.optJSONObject(name) ?: return null
       if (activity.opt("mode") == 0) {
         activity.put("mode", -1)
-        if (packageName == "tv.danmaku.bili" && name == "tv.danmaku.bili.MainActivityV2" &&
-          activity.opt("sf_sampling_mode") == 0
-        ) {
+        if (name == artworkActivity && activity.opt("sf_sampling_mode") == 0) {
           // The themed footer is drawn artwork. Ask the OEM to sample its rendered pixels.
           activity.put("sf_sampling_mode", 1)
         }

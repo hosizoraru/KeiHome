@@ -75,19 +75,19 @@ class NavigationRuleOverlayTest {
   }
 
   @Test fun disabledBilibiliHomeUsesOemPixelSamplingWithoutChangingOtherPolicies() {
-    val home = "tv.danmaku.bili.MainActivityV2"
+    val home = "tv.danmaku.bili.NewHomeActivity"
     val raw = """{"$home":{"mode":0,"sf_sampling_mode":0},"Settings":{"mode":2,"sf_sampling_mode":0},"Other":{"mode":0,"sf_sampling_mode":0}}"""
-    val rewritten = NavigationRuleOverlay.rewriteActivityRules(raw, "tv.danmaku.bili")!!
+    val rewritten = NavigationRuleOverlay.rewriteActivityRules(raw, home)!!
     val result = JSONObject(rewritten)
     assertEquals(1, result.getJSONObject(home).getInt("sf_sampling_mode"))
     assertEquals(2, result.getJSONObject("Settings").getInt("mode"))
     assertEquals(0, result.getJSONObject("Other").getInt("sf_sampling_mode"))
-    assertEquals(rewritten, NavigationRuleOverlay.rewriteActivityRules(rewritten, "tv.danmaku.bili"))
+    assertEquals(rewritten, NavigationRuleOverlay.rewriteActivityRules(rewritten, home))
     val unrelated = JSONObject(NavigationRuleOverlay.rewriteActivityRules(raw, "other.app")!!)
     assertEquals(0, unrelated.getJSONObject(home).getInt("sf_sampling_mode"))
     for ((mode, sampling) in listOf(2 to 0, -1 to 0, 0 to -1, 0 to 1)) {
       val input = """{"$home":{"mode":$mode,"sf_sampling_mode":$sampling}}"""
-      val preserved = JSONObject(NavigationRuleOverlay.rewriteActivityRules(input, "tv.danmaku.bili")!!)
+      val preserved = JSONObject(NavigationRuleOverlay.rewriteActivityRules(input, home)!!)
       assertEquals(sampling, preserved.getJSONObject(home).getInt("sf_sampling_mode"))
     }
   }

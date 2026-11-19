@@ -15,6 +15,8 @@ OUTCOME = re.compile(
     r"(?P<process>[^/\s]+)/(?P<pid>\d+)(?::\s*(?P<detail>.*))?$"
 )
 RECLAIM_REASON = r"umms_(?:selfcheck|pressure|launch)"
+# io.github.libxposed.service.IXposedService.HOT_RELOAD_PROCESS_DIED (API 102).
+PROCESS_DIED = 4
 KILL = re.compile(
     r"^(?P<time>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\s+"
     r"\d+\s+\d+\s+I ActivityManager:\s+Killing (?P<pid>\d+):"
@@ -122,12 +124,12 @@ def parse_reloads(text, module, *, capture_issues=(), system_log=""):
             row["detail"] = failures[-1]["detail"]
             # A policy reclaim is not proof of a kernel OOM or memory exhaustion.
             for failure in failures:
+                if failure["status"] != PROCESS_DIED:
+                    continue
                 end = datetime.fromisoformat(failure["time"])
-                begin = end - timedelta(seconds=5)
                 starts = [datetime.fromisoformat(event["time"]) for event in row["starts"]
                           if event["time"] <= failure["time"]]
-                if starts:
-                    begin = max(begin, max(starts))
+                begin = max(starts) if starts else end - timedelta(seconds=5)
                 for kill, line in kills:
                     when = datetime.fromisoformat(kill["time"])
                     if (int(kill["pid"]) != row["pid"] or kill["process"] != row["process"]

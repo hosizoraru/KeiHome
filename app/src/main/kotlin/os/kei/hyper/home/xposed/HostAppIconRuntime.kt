@@ -429,6 +429,11 @@ internal class HostAppIconRuntime(
     const val SETTINGS_PACKAGE = "com.android.settings"
     fun supports(packageName: String) = packageName == SIDEBAR_PACKAGE ||
       packageName == "$SIDEBAR_PACKAGE:ui" || packageName == SETTINGS_PACKAGE
+
+    /** Package-wide LSPosed scopes also load the entry in these host-private workers. */
+    fun isInactiveWorker(process: String): Boolean =
+      (process.startsWith("$SIDEBAR_PACKAGE:") || process.startsWith("$SETTINGS_PACKAGE:")) &&
+        !supports(process)
     private const val TAG = "KeiHomeHostIcons"
     // Outside the host's 0x7f resource namespace. Preserve an unexpected existing value.
     private const val TAG_KEY = 0x4b480001

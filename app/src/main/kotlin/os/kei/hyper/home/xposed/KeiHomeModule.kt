@@ -25,18 +25,19 @@ class KeiHomeModule : XposedModule() {
   private var hostAppIcons: HostAppIconRuntime? = null
   private var bilibiliFooter: BilibiliHomeFooterRuntime? = null
   private var processName: String = ""
-  private val reloadState = ModuleReloadState(
-    requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
-    ModulePlatformRoots::release,
-    { message -> log(Log.INFO, "KeiHomeRetirement", message) },
-  )
+  private var inactiveWorker = false
+  private val reloadState by lazy {
+    ModuleReloadState(requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
+      ModulePlatformRoots::release, { message -> log(Log.INFO, "KeiHomeRetirement", message) })
+  }
 
   override fun onModuleLoaded(param: ModuleLoadedParam) {
     processName = param.processName
+    inactiveWorker = HostAppIconRuntime.isInactiveWorker(processName)
   }
 
   override fun onPackageLoaded(param: PackageLoadedParam) {
-    if (!param.isFirstPackage) return
+    if (inactiveWorker || !param.isFirstPackage) return
     when (param.packageName) {
       HostAppIconRuntime.SIDEBAR_PACKAGE, HostAppIconRuntime.SETTINGS_PACKAGE ->
         if (HostAppIconRuntime.supports(processName) && hostAppIcons == null)
@@ -52,6 +53,7 @@ class KeiHomeModule : XposedModule() {
   }
 
   override fun onPackageReady(param: PackageReadyParam) {
+    if (inactiveWorker) return
     when (param.packageName) {
       BilibiliHomeFooterRuntime.PACKAGE ->
         if (processName == param.packageName && bilibiliFooter == null)
@@ -75,7 +77,7 @@ class KeiHomeModule : XposedModule() {
   }
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
-    if (processName.substringBefore(':') == "com.miui.home") return true
+    if (inactiveWorker || processName.substringBefore(':') == "com.miui.home") return true
     var footerHandoff: Array<Any?>? = null
     return reloadState.retire({ state ->
       val envelope = footerHandoff
@@ -107,6 +109,12 @@ class KeiHomeModule : XposedModule() {
 
   override fun onHotReloaded(param: HotReloadedParam) {
     processName = param.processName
+    inactiveWorker = !param.isSystemServer && HostAppIconRuntime.isInactiveWorker(processName)
+    if (inactiveWorker) {
+      // Retire any inherited registration when upgrading from a version with different ownership.
+      param.oldHookHandles.forEach { it.unhook() }
+      return
+    }
     if (processName.substringBefore(':') == "com.miui.home") return
     val footerHandoff = (param.savedInstanceState as? Array<*>)?.takeIf {
       processName == BilibiliHomeFooterRuntime.PACKAGE && it.size == 4 && it[0] == BilibiliHomeFooterRuntime.HANDOFF

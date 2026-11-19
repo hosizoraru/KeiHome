@@ -1,5 +1,6 @@
 """Hermetic regressions for the 12:47 nine-success/one-UMMS-reclaim transaction."""
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -129,6 +130,19 @@ class ReloadParserTest(unittest.TestCase):
             with self.subTest(event=unrelated):
                 row = self.provider(self.parse(system_log=unrelated))
                 self.assertEqual("unknown", row["failureReason"])
+
+    def test_delayed_process_died_receipt_uses_the_observed_reload_interval(self):
+        late = re.sub(r"12:47:\d\d\.\d+(?=.*Auto hot reload failed)", "12:48:03.000",
+                      provider_lines())
+        row = self.provider(self.parse(late, system_log=KILL))
+        self.assertEqual("failed", row["status"])
+        self.assertEqual("system_reclaimed", row["failureReason"])
+
+    def test_an_independent_kill_does_not_explain_a_module_error(self):
+        row = self.provider(self.parse(provider_lines().replace("status=4", "status=1"), system_log=KILL))
+        self.assertEqual("failed", row["status"])
+        self.assertEqual("unknown", row["failureReason"])
+        self.assertNotIn("systemReclaimEvidence", row)
 
     def test_capture_gap_cannot_be_hidden_by_observed_successes(self):
         text = "\n".join(line for line in REAL.splitlines() if PROVIDER not in line)

@@ -159,7 +159,7 @@ class ServiceReloadCapture:
         return report
 
 
-def settle_service_reloads(capture, out, timeout=6):
+def settle_service_reloads(capture, out, timeout=25):
     """Wait briefly for late asynchronous results, without changing native gates."""
     deadline = time.monotonic() + timeout
     last_signature = None
@@ -209,8 +209,10 @@ def print_reload_results(report):
           "target population completeness=unknown.", flush=True)
     for target in report["targets"]:
         if target["status"] != "success":
+            reclaim = target.get("systemReclaimEvidence")
+            context = f"; Android killed this PID at {reclaim['time']} ({reclaim['reason']})" if reclaim else ""
             print(f"  {target['process']}/{target['pid']}: {target['status']}; "
-                  f"detail={target['detail']!r}; reason={target['failureReason']}", flush=True)
+                  f"detail={target['detail']!r}; reason={target['failureReason']}{context}", flush=True)
     for issue in report["issues"]:
         print(f"  Evidence unknown: {issue}", flush=True)
 
@@ -249,7 +251,7 @@ def process(name, attempts=12):
         suffix = shlex.quote(name[-15:])
         raw = root(
             'for f in /proc/[0-9]*/comm; do '
-            'IFS= read -r n < "$f" 2>/dev/null || continue; '
+            'IFS= read -r n 2>/dev/null < "$f" || continue; '
             f'if [ "$n" = {suffix} ]; then '
             'p=${f#/proc/}; printf "%s\\n" "${p%/comm}"; fi; done',
             timeout=5,

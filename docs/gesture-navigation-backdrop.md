@@ -169,6 +169,23 @@ Compose page. On the phone, the legacy image resumed through the 65 px inset.
 The scoped deployment receipts, `final-589-real-handle.png`, before/after
 captures and motion clips are in the research directory above.
 
+The 593 → 594 AVD failure was in `com.miui.securitycenter:cache`, PID 18765.
+The service requested reload at 21:55:37.193. Android reclaimed the empty
+process at 21:55:38.616 with reason `umms_selfcheck`. LSPosed reported status
+4 for that PID at 21:55:41.477. This worker hosts Xiaomi's game predownload
+provider and services. KeiHome owns icon hooks in Security's main and `:ui`
+processes. From build 595 onward, unused private Security and Settings workers
+skip hook installation and retirement bookkeeping during an in-process update.
+The parser retains the framework failure and only attributes a reclaim to a
+process-death result with matching PID, name, system reason and timing.
+
+During 595 → 596, Android also reclaimed cache PID 19660 after reload began.
+The subsequent cache PID 32759 loaded KeiHome from the installed 596 APK
+path. The result for 19660 remains a failed reload, and 32759 is a fresh
+load. Empty-process lifetime and the LSPosed notification are controlled by
+Android and the framework. The module leaves the system's reclamation policy
+in place. Evidence is under `summary-card/` in the research directory.
+
 ## Immersive gesture bar (November 19)
 
 The general switch asks HyperOS to sample rendered content for a selected app's

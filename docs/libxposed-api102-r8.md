@@ -64,6 +64,44 @@ that module's design and is not a direct replacement for KeiHome's cross-generat
 boundary. Source-level diagnostic gates are useful; no blanket logging removal is
 needed. KeiHome's handoff INFO messages are part of deployment verification.
 
+## Process ownership during an APK update
+
+Keep `autoHotReload=true`. LSPosed dispatches the initial update. After
+`MY_PACKAGE_REPLACED`, KeiHome schedules one background check with a minimum
+delay of 30 seconds. Android controls when it runs. The same check is available
+when the manager connects. Both paths use fresh framework-issued handles, serialize
+requests, and request recovery only for `STALE` or `FAILED` Java owners in the
+current user. Check `KeiHomeReload` for the target PID and result. A dead PID
+can no longer receive a request. Its successor loads the installed APK on startup.
+[API 102 service source](https://github.com/libxposed/service/blob/102.0.0/service/src/main/java/io/github/libxposed/service/XposedService.java)
+
+The shared process predicate covers system server, SystemUI, Themes, the share
+resolver, Settings main, Security main and `:ui`, and Bilibili main. Inactive
+workers skip module bookkeeping. The launcher's mapped native library has its
+own initialization and restart requirements. Cold package callbacks also check the
+package against the process owner. Bilibili rebinds the inherited method handles
+when the host loader and method signatures match. It releases obsolete handles,
+including when the user has disabled the adaptation.
+
+On LSPosed 7944 the detach callback removes the local Java entry. The loader
+can still return success with an empty entry set. API 102 exposes package
+scope and a module-wide automatic-update switch. It provides no per-process
+exclusion from the framework's update notification. An AVD trial with automatic
+updates disabled successfully targeted seven Java owners, but LSPosed posted its
+restart-required notification. Keep the framework dispatcher enabled in releases.
+[Module configuration and scope](https://github.com/libxposed/api/blob/102.0.0/api/src/main/java/io/github/libxposed/api/package-info.java)
+
+On 2026-11-19, Phone AVD 7944 and physical pandora 7940 each reported 12
+successes on b0598 → b0599. The AVD Security `:cache` PID 29728 survived both
+updates to b0598 and b0599. An earlier b0596 update lost a different `:cache`
+PID to `umms_selfcheck` during dispatch. Future process-death notifications
+remain possible. Physical Bilibili PID 18779 rebound the inherited methods and
+resumed drawing its visible footer through the 65 px navigation inset. The
+unit suite covered recovery state selection. These updates did not produce a
+live `FAILED` owner for an end-to-end retry. Receipts are under
+`.artifacts/research/process-reload-20261119` and
+`.artifacts/research/gesture-glass-20261119/rim-study/b599-deploy`.
+
 The reference's SDK assumptions also should not replace KeiHome's actual target and
 ABI checks. Manifest-rule overlap alone is insufficient evidence to delete explicit
 component guards. Native JNI contracts and the JGit NLS reflection fields have their

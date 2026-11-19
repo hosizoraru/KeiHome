@@ -1028,3 +1028,25 @@ The classifier accepts the original AVD Health empty strip, reports
 capture, and rejects the physical Bilibili skin as `nonuniform-content-edge`.
 These different results are intentional; the patterned-skin problem is not
 solved by the demonstrated color backdrop.
+
+### Keyboard spacing with fullscreen keyboard optimization disabled
+
+On physical pandora OS4.0.6.0.XBLCNXM, the Settings search field showed WeType
+4.0.1 with `enable_miui_ime_bottom_view=0`. The IME hierarchy reported
+`android:id/miui_bottom_area` as `GONE` and 0 × 0. With gesture glass on,
+off, and restored, the 1220 × 2656 display reported the same geometry each time.
+
+| Measurement | Pixels |
+| --- | ---: |
+| IME top | 1643 |
+| Navigation bar top | 2591 |
+| WeType root height | 948 |
+| WeType keyboard panel height | 868 |
+| Space inside WeType below its panel | 80 |
+| System navigation inset | 65 |
+
+The two bottom regions account for the observed 145 px below the keyboard
+panel. Toggling the material changed none of these dimensions. This measurement
+covers WeType in the reported Settings scene. The before/off/restored window
+and view measurements are in
+`.artifacts/research/process-reload-20261119/ime/comparison.json`.

@@ -1191,3 +1191,49 @@ callers. The signed in-place upgrade retained SystemUI PID 31827. LSPosed
 reported seven successful targets and zero observed failures. Traces, recordings,
 frame measurements, preferences and upgrade receipts are in the local evidence
 folder `.artifacts/research/ordinary-handle-motion/`.
+
+### Reversing a transition inside the same app (build 631)
+
+On the same pandora device, Termux 118 opens a white settings activity from
+its black terminal. Both can report `LIGHT_NAVIGATION_BARS` even when their
+actual bottom surfaces are opposite. Sampling the displayed region remains
+the authority for the final handle color.
+
+Four build 630 Health theme changes were captured with AIDL tracing and the
+screen recorder running together. Frame times came from the recording's
+Winscope v2 elapsed-clock track. From the first frame of the new background,
+the last observed SystemUI `onSampleCollected` call preceding its next
+`getTasks` was at 95–142 ms. The foreground check at the tint decision arrived
+at 122–193 ms and the native endpoint was visible by 298–356 ms. The checks
+themselves took under 0.9 ms. These are correlated process-level events. The
+trace does not identify the sampled rectangle or give a precise queueing
+breakdown. The remaining 151–184 ms after the decision includes animation
+and presentation. The implementation retains the 120 ms native duration cap.
+
+Build 631 adjusts the paint only on the verified ordinary handle. For a
+translucent achromatic paint, the additional opacity and gray preserve the
+composited endpoints on matching black and white surfaces. On the opposite
+pure background they give about 48 luma levels of separation while the next
+native sample is pending. The calculation runs in the existing draw hook and
+uses integer arithmetic. There is no new sampling, frame scheduling or IPC.
+A weak view reference clears on ownership or preference changes. Visible IME
+insets exclude this paint during keyboard handoff.
+
+For the physical interaction, open the Termux drawer, tap its settings gear
+and press Back at multiple delays. The Termux soft-keyboard switch was
+temporarily disabled for the timing recordings, then restored and checked by
+opening and dismissing WeType. With Back issued at 307 ms in build 630, the
+black handle and black page coincided, spending 108 ms less than 24 luma
+levels apart on return. With Back at 287 ms in build 631, the closest distance
+on either the white or black surface was 47. None of the six recorded returns
+in that run spent a frame below 24 on the black surface. At the shortest
+delays the white bottom surface did not fully arrive before reversal. No claim
+is made for arbitrary mid-gray surfaces.
+
+In a separate four-switch Health run, time to a 24-level difference went from
+173–306 ms to 0, 0, 74 and 124 ms. Time to the final appearance still ranged
+from 116 to 364 ms on build 631. An initial frame can still blend into its
+background when ownership changes or the handle has yet to be verified.
+The local evidence folder `.artifacts/research/plain-page-return/` contains
+synchronized recordings, traces, samples and the upgrade receipt. The release
+upgrade kept SystemUI PID 31827 and reported seven successful target reloads.

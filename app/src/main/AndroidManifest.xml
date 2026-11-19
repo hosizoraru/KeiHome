@@ -111,6 +111,10 @@
                 android:name="androidx.profileinstaller.ProfileInstallerInitializer"
                 tools:node="remove" />
         </provider>
+        <service android:name=".status.ModuleUpdateRecoveryJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
+        <receiver android:name=".status.ModuleUpdateReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
+        </receiver>
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"
             tools:node="remove"

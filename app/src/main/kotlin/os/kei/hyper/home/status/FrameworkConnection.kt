@@ -7,8 +7,6 @@ import java.util.Collections
 import java.util.IdentityHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import os.kei.hyper.home.BuildConfig
-import android.util.Log
 
 internal object FrameworkConnection : XposedServiceHelper.OnServiceListener {
   private val lock = Any()
@@ -84,22 +82,3 @@ internal fun XposedService.readFrameworkSnapshot(): FrameworkSnapshot {
     frameworkProperties = frameworkProperties,
   )
 }
-
-/** Retry Java targets when the installed generation differs, including a version-code downgrade. */
-internal fun XposedService.reloadMismatchedSystemTargets() {
-  if (apiVersion < 102) return
-  val user = android.os.Process.myUid() / 100_000
-  val targets = runningTargets.filter {
-    ((it.uid == android.os.Process.SYSTEM_UID && it.processName in setOf("system_server", "system")) ||
-      ((it.processName in setOf("com.android.thememanager", "com.android.systemui") ||
-        it.processName.substringBefore(':') == "com.android.intentresolver") &&
-        it.uid / 100_000 == user)) &&
-      needsJavaReload(it.loadedVersionCode, BuildConfig.VERSION_CODE.toLong())
-  }
-  for (target in targets) hotReloadModule(target, null) { _, result ->
-    Log.i("KeiHomeReload", "API 102 upgrade ${target.processName}: ${result.status}, ${result.message}")
-  }
-}
-
-internal fun needsJavaReload(loadedVersion: Long, installedVersion: Long): Boolean =
-  loadedVersion != installedVersion

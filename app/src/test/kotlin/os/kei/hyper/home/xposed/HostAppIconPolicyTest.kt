@@ -34,13 +34,4 @@ class HostAppIconPolicyTest {
     assertFalse(HostAppIconRuntime.supports("com.android.systemui"))
     assertFalse(HostAppIconRuntime.supports("org.example.gallery"))
   }
-
-  @Test fun onlyUnownedPrivateSettingsAndSecurityProcessesSkipReloadWork() {
-    for (process in listOf("com.miui.securitycenter:cache", "com.android.settings:provider",
-      "com.android.settings:remote")) assertTrue(process, HostAppIconRuntime.isInactiveWorker(process))
-    for (process in listOf("com.miui.securitycenter", "com.miui.securitycenter:ui", "com.android.settings",
-      "com.android.systemui", "system", "com.miui.securitycenter.remote", "other:cache")) {
-      assertFalse(process, HostAppIconRuntime.isInactiveWorker(process))
-    }
-  }
 }

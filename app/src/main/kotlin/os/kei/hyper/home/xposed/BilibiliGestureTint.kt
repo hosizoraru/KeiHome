@@ -8,6 +8,7 @@ import android.app.BroadcastOptions
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.Intent
 import android.content.SharedPreferences
 import os.kei.hyper.home.data.NavigationBackdropPreferences
@@ -23,12 +24,14 @@ import android.os.RemoteException
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
+import android.view.WindowInsets
 import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.BILIBILI_PACKAGE
+import os.kei.hyper.home.data.NavigationBackdropChoice
 
 private const val ACTION = "os.kei.hyper.home.BILIBILI_FOOTER_TINT"
 
@@ -57,6 +60,8 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   @Volatile private var color: Int? = null
   @Volatile private var closed = false
   private var allowedOwner: Boolean? = null
+  private var foregroundBarPackage: String? = null
+  private var choice: NavigationBackdropChoice? = null
   private var owner: IBinder? = null
   private var ownerUid = -1
   private var death: IBinder.DeathRecipient? = null
@@ -80,6 +85,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
   private fun refreshGlass() {
     if (closed) return
     val choice = runCatching { NavigationBackdropPreferences.read(prefs) }.getOrNull()
+    this.choice = choice
     val wasOn = glassOn
     glassOn = choice?.glassHandle == true
     if (owner != null && (glassOn || choice?.includesBilibiliArtwork(ownerUid) != true)) reset()
@@ -143,11 +149,13 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
       it.parameterTypes[6] == String::class.java }
     replace(attrs, "keihome.systemui.gesture.owner", XposedInterface.Hooker { chain ->
       if (!closed && chain.getArg(0) == Display.DEFAULT_DISPLAY) {
-        allowedOwner = chain.getArg(3) == false && chain.getArg(6) == BILIBILI_PACKAGE
+        foregroundBarPackage = (chain.getArg(6) as? String)?.takeIf { chain.getArg(3) == false }
+        allowedOwner = foregroundBarPackage == BILIBILI_PACKAGE
         if (allowedOwner == false && owner != null) reset()
       }
       chain.proceed()
     })
+    installPlainTintTiming(loader, replace)
     replace(handle.getDeclaredMethod("onDraw", Canvas::class.java), "keihome.systemui.gesture.tint", XposedInterface.Hooker { chain ->
       val tint = color
       val view = chain.thisObject as View
@@ -168,6 +176,35 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
     registered = true
     prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
     main.post { refreshGlass() }
+  }
+
+  private fun installPlainTintTiming(loader: ClassLoader, replace: (Method, String, XposedInterface.Hooker) -> Unit) {
+    // This optional hook changes the native animator's duration only at a new contrast decision.
+    val transitions = runCatching { loader.loadClass("com.android.systemui.navigationbar.views.NavigationBarTransitions") }
+      .getOrNull() ?: return
+    val duration = transitions.declaredMethods.singleOrNull {
+      it.name == "getTintAnimationDuration" && it.parameterCount == 0 && it.returnType == Int::class.javaPrimitiveType
+    } ?: return
+    val viewField = runCatching { transitions.getDeclaredField("mView").apply { isAccessible = true } }.getOrNull() ?: return
+    val modeField = runCatching { transitions.getDeclaredField("mNavBarMode").apply { isAccessible = true } }.getOrNull() ?: return
+    val activityInfo = runCatching { ActivityManager.RunningTaskInfo::class.java.getField("topActivityInfo") }.getOrNull() ?: return
+    replace(duration, "keihome.systemui.gesture.contrast.duration", XposedInterface.Hooker { chain ->
+      val native = chain.proceed() as Int
+      val settings = choice ?: return@Hooker native
+      val pkg = foregroundBarPackage ?: return@Hooker native
+      if (closed || native <= 120 || !settings.enabled || settings.glassHandle || pkg !in settings.packages ||
+        (pkg == BILIBILI_PACKAGE && settings.bilibiliArtwork)) return@Hooker native
+      val eligible = runCatching {
+        val view = viewField.get(chain.thisObject) as View
+        if (modeField.getInt(chain.thisObject) != 2 || view.display?.displayId != Display.DEFAULT_DISPLAY ||
+          view.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) != false || keyguard?.isKeyguardLocked != false) return@runCatching false
+        @Suppress("DEPRECATION")
+        val top = tasks?.getRunningTasks(1)?.firstOrNull() ?: return@runCatching false
+        val info = activityInfo.get(top) as? ActivityInfo ?: return@runCatching false
+        top.topActivity?.packageName == pkg && info.packageName == pkg && settings.includes(pkg, info.applicationInfo.uid)
+      }.getOrDefault(false)
+      if (eligible) 120 else native
+    })
   }
 
   private fun invalidateHandle() {

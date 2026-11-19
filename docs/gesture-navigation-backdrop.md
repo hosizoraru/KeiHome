@@ -18,7 +18,7 @@ The system's handle polarity selects the light or dark finish. The emulator's
 ranchu renderer produced a flat mask despite exposing the same methods. There the
 navigation window uses a rounded `BackgroundBlurDrawable` region in SurfaceFlinger.
 The same compositor path covers missing OEM methods and other system styles.
-When window blur is unavailable the body uses a denser gradient. Disabling the switch or replacing the hook releases the
+When window blur is unavailable SystemUI draws its stock handle. Disabling the switch or replacing the hook releases the
 compositor region and redraws the native handle. The touch surface, animation
 geometry and window owner remain under SystemUI control.
 
@@ -1069,3 +1069,20 @@ and Bilibili PID 18779 stayed alive. The light Settings capture still shows
 low contrast on white. Compositor blur on/off/on was checked on Phone AVD.
 The native-scale comparison, card screenshot and `b603-swipe.mp4` are under
 `.artifacts/research/gesture-reload-acceptance-20261119/`.
+
+### Capsule optics on OS4.0.6.0.XBLCNXM
+
+MIUI Extra r95 sets the gesture material's SDF bounds to the actual view size.
+HyperLight 1.2.3 maps the shoulder, thickness, reflection and refractive index to
+separate OEM fields. Its APK also contains a shader with a background input,
+whose use for the navigation handle was not established. KeiHome scales its own
+profile to the handle radius and updates the SDF when its bounds change. A
+single analytic draw lights the shoulders. The settings preview refracts its own
+background, while live app content stays in the compositor.
+
+On the physical 390 × 17 px handle, OEM view blur mode 1 produced a black fill
+on the Bilibili detail fixture. Mode 3 retained the image under the pill. In
+b0606 the central stripe's P90–P10 luminance span was 40.50 against 48.51 in
+the adjacent image, compared with 36.13 in b0603 and zero in the mode 1 trial.
+This measures visible texture. Its displacement across app windows and the
+performance cost were not established. On flat white the capsule remains subtle.

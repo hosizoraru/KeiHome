@@ -2,108 +2,96 @@ package os.kei.hyper.home.xposed
 
 import android.graphics.Canvas
 import android.graphics.ColorFilter
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.RadialGradient
+import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
-import androidx.core.graphics.ColorUtils
-import kotlin.math.roundToInt
 
-/** Soft grazing light across a shallow capsule. The center transmits the compositor backdrop. */
-internal class GestureGlassFinish : Drawable() {
-  private val body = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val shoulder = reflection(0xfffbfdff.toInt())
-  private val returnLight = reflection(0xfff7faff.toInt())
-  private val underside = reflection(0xff333940.toInt())
-  private val transform = Matrix()
-  private var darkness = -1f
+/** The compositor owns the live transmitted image. Only the in-app sample supplies a local backdrop. */
+internal class GestureGlassFinish(backdrop: Shader? = null) : Drawable() {
+  private val optics = RuntimeShader(if (backdrop == null) REFLECTION else TRANSMISSION).apply {
+    if (backdrop != null) setInputShader("scene", backdrop)
+  }
+  private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = optics }
   private var curvature = -1f
+  private var darkness = -1f
   private var stretch = Float.NaN
-  private var opacity = 255
 
   fun update(left: Int, top: Int, right: Int, bottom: Int, radius: Float, intensity: Float, widthScale: Float) {
+    if (right <= left || bottom <= top) {
+      setBounds(0, 0, 0, 0)
+      return
+    }
+    val r = radius.coerceIn(.01f, (bottom - top) * .5f)
+    val movement = ((widthScale - 1f) * 3f).coerceIn(-1f, 1f)
     val dark = intensity.coerceIn(0f, 1f)
-    val r = radius.coerceIn(0f, (bottom - top) * .5f)
-    val expansion = ((widthScale - 1f) * 4f).coerceIn(-1f, 1f)
-    val moved = bounds.left != left || bounds.top != top || bounds.right != right || bounds.bottom != bottom ||
-      curvature != r || stretch != expansion
-    if (!moved && darkness == dark) return
+    val moved = bounds.left != left || bounds.top != top || bounds.right != right || bounds.bottom != bottom || curvature != r
+    if (!moved && darkness == dark && stretch == movement) return
     if (moved) {
       setBounds(left, top, right, bottom)
+      optics.setFloatUniform("center", bounds.exactCenterX(), bounds.exactCenterY())
+      optics.setFloatUniform("halfSize", bounds.width() * .5f, bounds.height() * .5f)
+      optics.setFloatUniform("radius", r)
       curvature = r
-      stretch = expansion
-      positionReflections()
     }
+    optics.setFloatUniform("dark", dark)
+    optics.setFloatUniform("motion", movement)
     darkness = dark
-    updatePaints()
+    stretch = movement
     invalidateSelf()
   }
 
-  private fun positionReflections() {
-    if (bounds.isEmpty) return
-    val height = bounds.height().toFloat()
-    val width = bounds.width().toFloat()
-    // Keep the light in window space as the OEM stretches the handle. A steep ellipse
-    // crosses this thin capsule in just a few pixels and looks like a painted dot.
-    val reach = minOf(width * .56f, height * (12f + stretch * 1.6f))
-    val shoulderX = bounds.left + curvature + width * (.16f + .05f * stretch)
-    position(shoulder, shoulderX, bounds.top - height * .13f, reach, height * .85f, -1.2f)
-    position(returnLight, bounds.right - width * (.21f - .04f * stretch),
-      bounds.bottom + height * .19f, reach * .72f, height * .72f, -1.6f)
-    position(underside, shoulderX, bounds.bottom + height * .21f, reach, height * .88f, 1.2f)
-  }
-
-  private fun position(paint: Paint, x: Float, y: Float, rx: Float, ry: Float, angle: Float) {
-    transform.setScale(rx, ry)
-    transform.postRotate(angle)
-    transform.postTranslate(x, y)
-    paint.shader!!.setLocalMatrix(transform)
-  }
-
-  private fun updatePaints() {
-    if (darkness < 0f) return
-    body.color = ColorUtils.blendARGB(0x18ffffff, 0x130f1519, darkness)
-    body.alpha = body.alpha * opacity / 255
-    shoulder.alpha = ((116f + 20f * darkness + 8f * stretch) * opacity / 255).roundToInt()
-    returnLight.alpha = ((65f + 18f * darkness) * opacity / 255).roundToInt()
-    underside.alpha = ((20f + 70f * darkness) * opacity / 255).roundToInt()
-  }
-
   override fun draw(canvas: Canvas) {
-    if (bounds.isEmpty || darkness < 0f) return
-    drawPill(canvas, body)
-    drawPill(canvas, underside)
-    drawPill(canvas, shoulder)
-    drawPill(canvas, returnLight)
-  }
-
-  private fun drawPill(canvas: Canvas, paint: Paint) {
+    if (bounds.isEmpty || curvature < 0f || !canvas.isHardwareAccelerated) return
     canvas.drawRoundRect(bounds.left.toFloat(), bounds.top.toFloat(), bounds.right.toFloat(),
       bounds.bottom.toFloat(), curvature, curvature, paint)
   }
 
-  override fun setAlpha(alpha: Int) {
-    opacity = alpha
-    updatePaints()
-    invalidateSelf()
-  }
-
-  override fun setColorFilter(filter: ColorFilter?) {
-    body.colorFilter = filter
-    shoulder.colorFilter = filter
-    returnLight.colorFilter = filter
-    underside.colorFilter = filter
-    invalidateSelf()
-  }
-
+  override fun setAlpha(alpha: Int) { paint.alpha = alpha; invalidateSelf() }
+  override fun setColorFilter(filter: ColorFilter?) { paint.colorFilter = filter; invalidateSelf() }
   @Deprecated("Deprecated in Java")
   override fun getOpacity() = PixelFormat.TRANSLUCENT
 
-  private fun reflection(color: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    val colors = intArrayOf(color, ColorUtils.setAlphaComponent(color, 160),
-      ColorUtils.setAlphaComponent(color, 50), ColorUtils.setAlphaComponent(color, 0))
-    shader = RadialGradient(0f, 0f, 1f, colors, floatArrayOf(0f, .32f, .66f, 1f), Shader.TileMode.CLAMP)
+  private companion object {
+    const val OPTICS = """
+      uniform float2 center, halfSize;
+      uniform float radius, dark, motion;
+      float2 slopeAt(float2 p) {
+        float2 core = max(halfSize - radius, float2(0.0));
+        return clamp((p - clamp(p, -core, core)) / radius, -1.0, 1.0);
+      }
+      half4 reflection(float2 p, float2 slope) {
+        float x = p.x / halfSize.x;
+        float grazing = smoothstep(0.16, 0.91, length(slope));
+        float key = max(dot(slope, float2(-0.55, -0.83)), 0.0);
+        float bounce = max(dot(slope, float2(0.65, 0.76)), 0.0);
+        float left = 1.0 - smoothstep(0.02, 0.72, abs(x + 0.59 - 0.13 * motion));
+        float right = 1.0 - smoothstep(0.03, 0.66, abs(x - 0.65 - 0.08 * motion));
+        float glint = grazing * (0.78 * key * left + 0.52 * bounce * right);
+        float shade = grazing * (0.06 + 0.21 * dark) * (bounce * left + key * right);
+        float base = mix(0.105, 0.085, dark);
+        float alpha = glint + (1.0-glint) * (shade + (1.0-shade)*base);
+        float light = glint + (1.0-glint)*(1.0-shade)*base*(1.0-dark);
+        return half4(half3(light), alpha);
+      }
+    """
+    const val REFLECTION = OPTICS + """
+      half4 main(float2 pos) {
+        float2 p = pos - center;
+        return reflection(p, slopeAt(p));
+      }
+    """
+    const val TRANSMISSION = OPTICS + """
+      uniform shader scene;
+      half4 main(float2 pos) {
+        float2 p = pos - center;
+        float2 slope = slopeAt(p);
+        float depth = dot(slope, slope);
+        half4 under = scene.eval(pos - slope * radius * (0.85 + depth * 1.35));
+        half4 light = reflection(p, slope);
+        return light + (1.0 - light.a) * under;
+      }
+    """
   }
 }

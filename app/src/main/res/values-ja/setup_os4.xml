@@ -7,7 +7,7 @@
     <string name="setup_os4_icons_title">お気に入りのアイコンを</string>
     <string name="setup_os4_icons_body">画像を選び、プレビューしてから生成・適用します。ダウンロードやプレビューではテーマは適用されません。</string>
     <string name="setup_os4_desktop_title">ホーム画面を、使いやすく</string>
-    <string name="setup_os4_desktop_body">Dock の質感、外観と文字、アイコンと起動。必要なものを選んで調整できます。</string>
+    <string name="setup_os4_desktop_body">Dock の質感、アプリ名、起動画面を調整できます。必要に応じてホームのツールやジェスチャーナビゲーションの設定を開けます。</string>
     <string name="setup_os4_finish_title">準備ができたら、始めよう</string>
     <string name="setup_os4_finish_body">未完了の項目はあとから設定できます。このガイドは「設定」からいつでも見直せます。</string>
     <string name="setup_os4_framework_manager">フレームワークを開く</string>

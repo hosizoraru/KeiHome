@@ -7,7 +7,7 @@
     <string name="setup_os4_icons_title">选一套喜欢的图标</string>
     <string name="setup_os4_icons_body">选择资源、预览效果，再生成并应用；下载或预览不会应用主题。</string>
     <string name="setup_os4_desktop_title">让桌面用起来顺手</string>
-    <string name="setup_os4_desktop_body">从 Dock 质感、外观与文字、图标与启动中，按需调整。</string>
+    <string name="setup_os4_desktop_body">按需调整 Dock 质感、应用名称和启动外观，也可以在这里打开小工具与手势导航栏设置。</string>
     <string name="setup_os4_finish_title">准备好，就出发</string>
     <string name="setup_os4_finish_body">未完成的步骤可以稍后完善，也能随时在设置中重新查看向导。</string>
     <string name="setup_os4_framework_manager">打开框架</string>

@@ -24,12 +24,12 @@
     <string name="setup_icons_title">Choose an icon style</string>
     <string name="setup_icons_body">Choose system icons, Perfect, Apple or an imported pack. Supported system surfaces can reuse the applied artwork; coverage depends on the host and app.</string>
     <string name="setup_native_icons_title">Supported system icons follow light/dark mode</string>
-    <string name="setup_library_body">Browse built-in styles, or use the floating import button for APK, MTZ or ZIP files. Follow the sheet to import into system Themes; automatic application follows your setting.</string>
+    <string name="setup_library_body">Browse built-in packs and installed APK packs, or import an APK, MTZ, or ZIP icon pack from your files.</string>
     <string name="setup_monet_body">Choose a color source and scheme, preview both appearances, then tap Apply colors. Custom colors and palette details have their own pages. Applying keeps the current on/off state; use the switch separately.</string>
     <string name="setup_fallback_body">ColorOS and Perfect can fill gaps in app coverage. Download any Perfect style first; HyperOS4 is recommended. Perfect completion pauses system fallback and restores your choice when turned off. Apps set to keep their original icons are excluded.</string>
     <string name="setup_mask_body">Compare original, HyperOS4 and custom masks on the same icons. With adaptation on, custom masks take priority; pack masks come next, then HyperOS4.</string>
     <string name="setup_icon_tip_title">Preview, apply, then check</string>
-    <string name="setup_icon_tip_body">After changing icon resources or rules, update or regenerate as prompted, then apply the pack. Reapply after changing custom icons or kept originals. Previews alone do not update the applied theme.</string>
+    <string name="setup_icon_tip_body">Preview a pack, then follow the prompts to generate or update it and apply it in Themes. In Icon pack settings, you can choose to apply automatically after generation. The progress dialog shows the current stage, percentage, and item counts when available. After changing icons or matching rules, update the pack and apply it again.</string>
     <string name="setup_desktop_title">Make optional adjustments</string>
     <string name="setup_desktop_body">Browse desktop settings by category. Supported changes sync automatically; check their status on the corresponding page. Availability depends on your launcher and scope access. Opening a page keeps your settings unchanged.</string>
     <string name="setup_open_desktop">Open desktop settings</string>

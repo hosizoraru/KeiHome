@@ -24,12 +24,12 @@
     <string name="setup_icons_title">好みのアイコンを選ぶ</string>
     <string name="setup_icons_body">標準アイコン、Perfect、Apple、インポートしたパックから選べます。対応するシステム画面でも適用済み画像を使用できますが、対応範囲はホストとアプリによって異なります。</string>
     <string name="setup_native_icons_title">対応する標準アイコンは明暗へ自動追従</string>
-    <string name="setup_library_body">内蔵スタイルを選ぶか、フローティングインポートボタンで APK、MTZ / ZIP を選びます。シートの案内に沿ってシステムのテーマへ取り込み、自動適用は設定に従います。</string>
+    <string name="setup_library_body">内蔵パックやインストール済みの APK パックを選べます。ファイルから APK・MTZ・ZIP のアイコンパックも取り込めます。</string>
     <string name="setup_monet_body">色の取得元と配色スタイルを選び、明暗をプレビューして「配色を適用」を押します。色のカスタマイズとパレット詳細は個別の画面で確認できます。適用してもオン・オフは変わらず、専用スイッチで切り替えます。</string>
     <string name="setup_fallback_body">ColorOS と Perfect で未対応アプリのアイコンを補完できます。Perfect のスタイルを先にダウンロードしてください。HyperOS4 がおすすめです。Perfect 補完中はシステムの代替アイコンを使わず、オフにすると元の選択に戻ります。元のアイコンを使う指定のアプリは対象外です。</string>
     <string name="setup_mask_body">同じアイコンで元の形状、HyperOS4、カスタムマスクを比較。適応がオンの場合、カスタム、パック付属、HyperOS4 の順に優先します。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>
-    <string name="setup_icon_tip_body">画像やルールを変更したら、画面の案内に沿ってパックを更新・再生成して適用します。カスタムアイコンや元のアイコン保持を変更した場合も再適用してください。プレビューだけでは適用中のテーマは変わりません。</string>
+    <string name="setup_icon_tip_body">パックをプレビューし、案内に沿って生成または更新してから、テーマで適用します。アイコンパックの設定で生成後の自動適用も選べます。進捗ダイアログには現在の段階、進捗率、集計できる場合は処理件数を表示します。アイコンや照合ルールを変更したら、パックを更新して再適用してください。</string>
     <string name="setup_desktop_title">必要に応じて見た目を調整</string>
     <string name="setup_desktop_body">カテゴリ別にホーム設定を開きます。対応する変更は自動で同期され、状態は各ページで確認できます。利用可否はホームアプリとスコープ許可によって異なり、開くだけでは設定は変わりません。</string>
     <string name="setup_open_desktop">デスクトップ設定を開く</string>

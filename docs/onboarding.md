@@ -80,9 +80,11 @@ copied, and the configured device's setup wizard was not rerun or reset.
    floating action submits the draft and preserves the current Monet on/off
    state; use the dedicated switch to enable or disable Monet. Refresh rereads
    system state without submitting the draft. A short note
-   distinguishes generated packs from applied themes: after changing artwork,
-   completion, recommended mappings, masks, kept originals or generation scope, update or regenerate,
-   then apply. Downloads and previews do not apply a theme. Local-resource details
+   distinguishes generated packs from applied themes and explains the stage,
+   percentage, and counts shown during generation and application. After changing
+   artwork, completion, recommended mappings, masks, kept originals or generation
+   scope, update or regenerate, then apply. Downloads and previews do not apply a
+   theme. Local-resource details
    open a shared OS4 details sheet, with cache/network behavior and the default
    latest-generated archive retention policy. Apple and Perfect each retain their
    newest successful generation; manual imports are preserved. The default direct
@@ -91,8 +93,9 @@ copied, and the configured device's setup wizard was not rerun or reset.
    Perfect management destinations. Cleaning preview memory, downloaded resources
    and generated archives are distinct actions; the top preview-memory action
    does not remove saved packs.
-4. **Desktop:** direct links to Dock, Appearance and text, and Icons and launching,
-   plus the category overview. Each destination returns to the originating step.
+4. **Desktop:** direct links to Dock, Appearance and text, Icons and launching,
+   Desktop tools, and experimental gesture navigation fill, plus the category
+   overview. Each destination returns to the originating step.
    The short status note explains that search-bar material can follow Dock or be
    configured independently.
 5. **Finish:** current framework/scope states, shortcuts to scope authorization,
@@ -120,6 +123,8 @@ desktop section:
 | Dock | `onOpenDesktopSection("dock")` |
 | Appearance and text | `onOpenDesktopSection("appearance")` |
 | Icons and launching | `onOpenDesktopSection("icons")` |
+| Desktop tools | `onOpenDesktopSection("tools")` |
+| Gesture navigation fill | `onOpenDesktopSection("navigation")` |
 | App logs / Cache | `onOpenSettings("log")` / `onOpenSettings("cache")` |
 
 Desktop > Icons and launching uses `icons` for desktop behavior settings;
@@ -129,7 +134,7 @@ Service connection, authorization, hook loading and visible icon results remain
 separate states. First activation **requires a full system restart** after
 enabling the module and granting scopes, followed by unlocking to the home screen.
 API 102 automatic hot reload updates only the Java part. An upgrade containing
-new `.so` native code, including 1.11.0, requires a manual system restart so
+new `.so` native code, including 1.11.0 and 1.13.0, requires a manual system restart so
 processes load the new libraries. Restarting KeiHome or the launcher alone does
 not replace the first-activation requirement. A newly authorized host may need
 its next process start.

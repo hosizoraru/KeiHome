@@ -24,12 +24,12 @@
     <string name="setup_icons_title">选择喜欢的图标方案</string>
     <string name="setup_icons_body">可选择系统图标、完美图标、Apple 或导入的图标包。受支持的系统界面可沿用已应用的图标，覆盖情况取决于宿主与应用。</string>
     <string name="setup_native_icons_title">受支持的系统图标自动跟随深浅色</string>
-    <string name="setup_library_body">浏览内置方案，或用悬浮导入按钮选择 APK、MTZ / ZIP，按 sheet 指引导入系统主题；是否自动应用遵循你的设置。</string>
+    <string name="setup_library_body">浏览内置图标包和已安装的 APK 图标包，或从文件导入 APK、MTZ 或 ZIP 图标包。</string>
     <string name="setup_monet_body">选择取色来源与配色方案，预览深浅色后点击「应用配色」。自定义色彩和配色详情有独立子页。应用配色保留当前开关，启用或关闭请单独操作开关。</string>
     <string name="setup_fallback_body">ColorOS 与完美图标可补齐未覆盖的应用。完美补全需先下载任一样式，推荐 HyperOS4；启用时暂停系统回退，关闭后恢复原选择。保留原始图标的应用不参与补齐。</string>
     <string name="setup_mask_body">用同一组图标对比原始、HyperOS4 与自定义遮罩。启用适配后依次优先使用自定义遮罩、图标包自带遮罩，再用 HyperOS4 补缺。</string>
     <string name="setup_icon_tip_title">预览、应用，再确认效果</string>
-    <string name="setup_icon_tip_body">修改图标资源或规则后，按页面提示更新或重新生成图标包，再应用。修改自定义图标或保留原图标选择后也需重新应用。仅预览不会更新已应用主题。</string>
+    <string name="setup_icon_tip_body">预览图标包后，按提示生成或更新，再到主题壁纸应用。也可以在图标包设置中选择生成后自动应用。进度弹窗会显示当前阶段、百分比和可统计的处理数量。更改图标或匹配规则后，请更新图标包并重新应用。</string>
     <string name="setup_desktop_title">按需调整桌面效果</string>
     <string name="setup_desktop_body">按分类浏览桌面设置。受支持的更改会自动同步，可在对应子页查看功能状态。实际可用情况取决于系统桌面与作用域；仅打开页面不会改变配置。</string>
     <string name="setup_open_desktop">打开桌面个性化</string>

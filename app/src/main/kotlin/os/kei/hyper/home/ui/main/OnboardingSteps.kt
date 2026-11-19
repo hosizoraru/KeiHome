@@ -149,6 +149,7 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupLink(R.string.icon_mask_entry_title, R.string.setup_mask_body, PageActionIcon.MATCH) { onOpenPack("icon-mask") }
           SetupDivider()
           SetupLink(R.string.preserved_icons_title, R.string.setup_preserved_body, PageActionIcon.APPS) { onOpenPack("preserved-icons") }
+          SetupDivider()
           SetupLink(R.string.custom_icons_title, R.string.custom_icons_entry, PageActionIcon.PACKS) { onOpenPack("custom-icons") }
           SetupDivider()
           SetupLink(R.string.recommended_mappings_title, R.string.setup_recommended_mappings_body, PageActionIcon.MATCH) { onOpenPack("recommended-mappings") }
@@ -172,6 +173,14 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
           SetupDivider()
           SetupLink(R.string.setup_os4_desktop_launch, DesktopSection.ICONS.summary, PageActionIcon.APPS) {
             onOpenDesktopSection(DesktopSection.ICONS.route)
+          }
+          SetupDivider()
+          SetupLink(DesktopSection.TOOLS.title, DesktopSection.TOOLS.summary, PageActionIcon.TOOLS) {
+            onOpenDesktopSection(DesktopSection.TOOLS.route)
+          }
+          SetupDivider()
+          SetupLink(DesktopSection.NAVIGATION.title, DesktopSection.NAVIGATION.summary, PageActionIcon.SETTINGS) {
+            onOpenDesktopSection(DesktopSection.NAVIGATION.route)
           }
           SetupDivider()
           SetupLink(R.string.setup_open_desktop, R.string.desktop_overview_summary, PageActionIcon.DESKTOP, onClick = onOpenDesktop)

@@ -217,6 +217,8 @@ class OnboardingNavigationTest {
       R.string.setup_os4_desktop_dock to "dock",
       R.string.setup_os4_desktop_appearance to "appearance",
       R.string.setup_os4_desktop_launch to "icons",
+      DesktopSection.TOOLS.title to DesktopSection.TOOLS.route,
+      DesktopSection.NAVIGATION.title to DesktopSection.NAVIGATION.route,
     )) {
       openLink(title)
       destination("desktop.page.$section")

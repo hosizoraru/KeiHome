@@ -2,6 +2,7 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -38,9 +37,13 @@ import java.text.Collator
 import java.util.Locale
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.BILIBILI_PACKAGE
+import os.kei.hyper.home.data.InstalledIconCapability
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.NavigationBackdropPreferences
 import os.kei.hyper.home.status.NavigationBackdropStatus
+import os.kei.hyper.home.status.BilibiliArtworkOutcome
+import os.kei.hyper.home.status.BilibiliArtworkReceipt
+import os.kei.hyper.home.status.BilibiliInstallation
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
@@ -89,6 +92,9 @@ internal fun NavigationBackdropContent(
   onRefresh: () -> Unit,
   onBilibiliArtwork: (Boolean) -> Unit = {},
   onOpenManager: () -> Unit = {},
+  bilibili: BilibiliInstallation? = null,
+  artworkReceipt: BilibiliArtworkReceipt? = null,
+  appIcon: @Composable (InstalledIconCapability?) -> Unit = {},
 ) {
   val choice = state.choice
   val selected = choice?.selectedPackages.orEmpty()
@@ -125,6 +131,7 @@ internal fun NavigationBackdropContent(
   val collator = remember(localeTag) { Collator.getInstance(Locale.forLanguageTag(localeTag)) }
   val installed = remember(state.apps) { state.apps.mapTo(HashSet()) { it.packageName } }
   val artworkOn = choice?.bilibiliArtwork == true
+  val bilibiliInstalled = bilibili != null || BILIBILI_PACKAGE in installed
   val apps = remember(state.apps, selected, installed) {
     state.apps + (selected - installed).map { NavigationBackdropApp(it, it) }
   }
@@ -153,9 +160,6 @@ internal fun NavigationBackdropContent(
         (text.isEmpty() || app.label.contains(text, true) || app.packageName.contains(text, true))
     }
   }
-  val context = LocalContext.current.applicationContext
-  val inventory = if (isApps) remember(context) { PreservedIconInventory(context) } else null
-  val configuration = LocalConfiguration.current.toString()
   val list = rememberLazyListState()
   val revealSearch = {
     searchVisible = true
@@ -240,6 +244,27 @@ internal fun NavigationBackdropContent(
                 R.string.nav_backdrop_failed -> StatusTone.ERROR
                 else -> StatusTone.WARNING
               }, titleBadge = if (statusSummary != statusText) stringResource(R.string.nav_backdrop_backend) else null,
+              badgeContent = bilibili?.let { host ->
+                { color ->
+                  val receipt = artworkReceipt?.takeIf { it.matches(host) }
+                  val label = when {
+                    state.bilibiliInScope == false -> R.string.nav_backdrop_artwork_needs_scope
+                    choice == null || state.bilibiliInScope == null -> R.string.nav_backdrop_artwork_waiting
+                    !artworkOn -> R.string.nav_backdrop_artwork_off
+                    receipt?.outcome == BilibiliArtworkOutcome.DRAWN -> R.string.nav_backdrop_artwork_drawn
+                    receipt?.outcome == BilibiliArtworkOutcome.FALLBACK -> R.string.nav_backdrop_artwork_fallback
+                    receipt?.outcome == BilibiliArtworkOutcome.UNSUPPORTED -> R.string.nav_backdrop_artwork_unsupported
+                    else -> R.string.nav_backdrop_artwork_waiting
+                  }
+                  FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    MetadataPill(stringResource(R.string.nav_backdrop_bilibili_version,
+                      host.name?.takeIf(String::isNotBlank) ?: host.version.toString()), color,
+                      Modifier.testTag("nav-backdrop.bilibili.version"))
+                    MetadataPill(stringResource(label), color, Modifier.testTag("nav-backdrop.bilibili.outcome"))
+                  }
+                }
+              },
               onRefresh = { if (!state.loading && !state.saving) onRefresh() },
               modifier = Modifier.testTag("nav-backdrop.status"))
           }
@@ -262,11 +287,11 @@ internal fun NavigationBackdropContent(
                 "nav-backdrop.open.apps") { onOpen(NavigationBackdropPage.APPS) }
             }
           }
-          if (BILIBILI_PACKAGE in installed || artworkOn) {
+          if (bilibiliInstalled || artworkOn) {
             item("bilibili", contentType = "setting") {
               val hasRoom = BILIBILI_PACKAGE in selected || selected.size < NavigationBackdropPreferences.MAX_PACKAGES
               val enabled = editable && (artworkOn ||
-                (supported && state.bilibiliInScope == true && hasRoom && BILIBILI_PACKAGE in installed))
+                (supported && state.bilibiliInScope == true && hasRoom && bilibiliInstalled))
               val summary = when {
                 state.bilibiliInScope == false -> R.string.nav_backdrop_bilibili_scope
                 !hasRoom -> R.string.nav_backdrop_bilibili_limit
@@ -277,7 +302,7 @@ internal fun NavigationBackdropContent(
                   summary = stringResource(summary), checked = artworkOn, enabled = enabled,
                   onCheckedChange = onBilibiliArtwork, modifier = Modifier.testTag("nav-backdrop.bilibili")
                     .semantics { if (!enabled) disabled() })
-                if (state.bilibiliInScope == false && BILIBILI_PACKAGE in installed) {
+                if (state.bilibiliInScope == false && bilibiliInstalled) {
                   NavigationBackdropLink(R.string.scope_open_manager, null, "nav-backdrop.bilibili.scope",
                     onOpenManager)
                 }
@@ -308,7 +333,7 @@ internal fun NavigationBackdropContent(
                 modifier = Modifier.testTag("nav-backdrop.app:${app.packageName}")
                   .os4Toggleable(checked, enabled = enabled, role = Role.Checkbox,
                     onValueChange = { onToggle(app.packageName) }),
-                startAction = { OriginalPreservedIcon(app.artwork, checkNotNull(inventory), configuration) },
+                startAction = { appIcon(app.artwork) },
                 endActions = {
                   Checkbox(if (checked) ToggleableState.On else ToggleableState.Off, onClick = null,
                     enabled = enabled, modifier = Modifier.clearAndSetSemantics {})

@@ -102,28 +102,13 @@ internal suspend fun readBrowserSource(context: Context, report: SystemIconTheme
 
 internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowserSource?,
   options: IconBrowserOptions, query: String): List<IconBrowserRow> {
-  fun row(app: InstalledIconCapability, entry: IconPackEntry?, installed: Boolean = true): IconBrowserRow {
-    val name = entry?.nativeName
-    val dynamic = name in source?.dynamicNames.orEmpty()
-    val resolved = if (entry == null) app else app.copy(
-      nightMode = when { dynamic -> IconCapabilityStatus.UNKNOWN
-        name in source?.nightNames.orEmpty() -> IconCapabilityStatus.DETECTED
-        else -> IconCapabilityStatus.NOT_DETECTED },
-      monochrome = when { name in source?.paletteNames.orEmpty() -> IconCapabilityStatus.DETECTED
-        dynamic -> IconCapabilityStatus.UNKNOWN; else -> IconCapabilityStatus.NOT_DETECTED },
-      monochromeFallbackRecommended = false)
-    return IconBrowserRow(resolved, entry, installed, dynamic,
-      source?.systemFallback?.takeIf { name in it.names }?.style)
-  }
-  val installed = apps.map { app -> row(app,
-    nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName))
-      .firstNotNullOfOrNull { source?.entries?.get(it) }) }
+  val installed = apps.map { app -> currentIconBrowserRow(app, source) }
   val rows = if (options.scope == 2) {
     val used = installed.mapNotNull { it.entry?.key }.toSet()
     installed.filter { it.entry != null } + source?.pack?.entries.orEmpty().filter { it.key !in used }.map { entry ->
       val name = entry.component?.packageName ?: entry.nativeName ?: entry.key
-      row(InstalledIconCapability(name, name, -1, true, IconCapabilityStatus.UNKNOWN,
-        IconCapabilityStatus.UNKNOWN, hasLauncher = false), entry, false)
+      currentIconBrowserRow(InstalledIconCapability(name, name, -1, true, IconCapabilityStatus.UNKNOWN,
+        IconCapabilityStatus.UNKNOWN, hasLauncher = false), source, entry, false)
     }
   } else installed
   val result = rows.filter { r ->
@@ -147,6 +132,27 @@ internal fun browserRows(apps: List<InstalledIconCapability>, source: IconBrowse
     else -> result.sortedWith(compareBy<IconBrowserRow> { it.app.label.lowercase() }.thenBy { it.app.packageName })
   }
   return if (options.reverse) sorted.reversed() else sorted
+}
+
+internal fun currentIconBrowserRow(
+  app: InstalledIconCapability,
+  source: IconBrowserSource?,
+  entry: IconPackEntry? = source?.let {
+    nativeLauncherIconNames(IconPackComponent(app.packageName, app.componentName)).firstNotNullOfOrNull(it.entries::get)
+  },
+  installed: Boolean = true,
+): IconBrowserRow {
+  val name = entry?.nativeName
+  val dynamic = name in source?.dynamicNames.orEmpty()
+  val resolved = if (entry == null) app else app.copy(
+    nightMode = when { dynamic -> IconCapabilityStatus.UNKNOWN
+      name in source?.nightNames.orEmpty() -> IconCapabilityStatus.DETECTED
+      else -> IconCapabilityStatus.NOT_DETECTED },
+    monochrome = when { name in source?.paletteNames.orEmpty() -> IconCapabilityStatus.DETECTED
+      dynamic -> IconCapabilityStatus.UNKNOWN; else -> IconCapabilityStatus.NOT_DETECTED },
+    monochromeFallbackRecommended = false)
+  return IconBrowserRow(resolved, entry, installed, dynamic,
+    source?.systemFallback?.takeIf { name in it.names }?.style)
 }
 
 internal fun isDevelopmentPackage(packageName: String): Boolean =

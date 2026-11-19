@@ -44,4 +44,11 @@
   <string name="nav_backdrop_bilibili_limit">请先在适用应用中腾出一个名额。</string>
   <string name="nav_backdrop_bilibili_bound">由哔哩哔哩专属适配自动加入</string>
   <string name="nav_backdrop_refresh_apps">刷新应用列表</string>
+  <string name="nav_backdrop_bilibili_version">哔哩哔哩 %1$s</string>
+  <string name="nav_backdrop_artwork_needs_scope">需要作用域</string>
+  <string name="nav_backdrop_artwork_off">专属适配已关闭</string>
+  <string name="nav_backdrop_artwork_waiting">等待主题原图</string>
+  <string name="nav_backdrop_artwork_drawn">主题原图已绘制</string>
+  <string name="nav_backdrop_artwork_fallback">主题原图未延伸</string>
+  <string name="nav_backdrop_artwork_unsupported">暂不支持此布局</string>
 </resources>

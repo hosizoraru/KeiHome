@@ -9,7 +9,6 @@ import java.io.File
 import java.util.zip.ZipFile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -96,7 +95,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
     }
   }
   LaunchedEffect(model, lifecycle) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeAboutIcon() }
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeCurrentIconAppearance() }
   }
   val context = LocalContext.current
   val appName = stringResource(R.string.app_name)
@@ -173,19 +172,12 @@ private fun AboutAppIcon(model: HomeViewModel) {
         IconCapabilityStatus.UNKNOWN, IconCapabilityStatus.UNKNOWN, versionCode = BuildConfig.VERSION_CODE.toLong()), 256)
     }
   }
-  val night = isSystemInDarkTheme()
-  val bitmap = previews?.let { if (night) it.dark else it.light }
-  val mono = previews?.let { if (night) it.darkMonochrome else it.lightMonochrome }
   val colors = remember(monet.snapshot) { previewColors(monet.snapshot) }
-  val useMonet = monet.snapshot?.monochrome?.enabled == true && mono != null && colors != null
-  if (bitmap != null || useMonet) {
-    PreviewIcon(if (useMonet) mono else bitmap,
-      if (useMonet) (if (night) colors?.darkForeground else colors?.lightForeground) else null,
-      if (useMonet) (if (night) colors?.darkBackground else colors?.lightBackground) else null,
-      Modifier.size(96.dp), previews?.backgroundMask, previews?.maskPathData)
-  } else Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null,
-    modifier = Modifier.size(96.dp).clip(RoundedCornerShape(25.dp))
-      .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
+  CurrentAppearanceIcon(previews, monet.snapshot?.monochrome?.enabled == true, colors, Modifier.size(96.dp)) {
+    Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null,
+      modifier = Modifier.size(96.dp).clip(RoundedCornerShape(25.dp))
+        .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
+  }
 }
 
 @Composable

@@ -29,6 +29,9 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.BILIBILI_PACKAGE
 import os.kei.hyper.home.data.NavigationBackdropChoice
 import os.kei.hyper.home.status.NavigationBackdropStatus
+import os.kei.hyper.home.status.BilibiliArtworkOutcome
+import os.kei.hyper.home.status.BilibiliArtworkReceipt
+import os.kei.hyper.home.status.BilibiliInstallation
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 /** Pure presentation fixtures never write framework preferences or alter native app rules. */
@@ -52,13 +55,26 @@ class NavigationBackdropScreenTest {
     onRefresh: () -> Unit = {},
     onBilibiliArtwork: (Boolean) -> Unit = {},
     onOpenManager: () -> Unit = {},
+    bilibili: BilibiliInstallation? = null,
+    receipt: BilibiliArtworkReceipt? = null,
   ) {
     rule.setContent {
       KeiHomeTheme {
         NavigationBackdropContent(page, state, backend, {}, {}, onEnabled, onToggle, onRefresh,
-          onBilibiliArtwork, onOpenManager)
+          onBilibiliArtwork, onOpenManager, bilibili, receipt)
       }
     }
+  }
+
+  @Test fun artworkPillsUseCurrentInstallationAndIgnoreAnOlderReceipt() {
+    val choice = NavigationBackdropChoice(bilibiliArtwork = true)
+    val state = NavigationBackdropUiState(choice, apps, loading = false, bilibiliInScope = true)
+    show(choice = choice, state = state, bilibili = BilibiliInstallation("9.20.0", 9200300, 20L),
+      receipt = BilibiliArtworkReceipt(9200300, 10L, BilibiliArtworkOutcome.DRAWN))
+    rule.onNodeWithText(context.getString(R.string.nav_backdrop_bilibili_version, "9.20.0"))
+      .assertExists()
+    rule.onNodeWithText(context.getString(R.string.nav_backdrop_artwork_waiting)).assertExists()
+    rule.onNodeWithText(context.getString(R.string.nav_backdrop_artwork_drawn)).assertDoesNotExist()
   }
 
   @Test fun overviewDoesNotEmbedLongInstructionsOrAppInventory() {

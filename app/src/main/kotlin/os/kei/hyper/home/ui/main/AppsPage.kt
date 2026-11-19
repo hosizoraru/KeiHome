@@ -398,6 +398,23 @@ private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
 }
 
 @Composable
+internal fun CurrentAppearanceIcon(previews: AppIconPreviews?, monetEnabled: Boolean,
+  colors: IconPreviewColors?, modifier: Modifier, placeholder: (@Composable () -> Unit)? = null) {
+  val night = androidx.compose.foundation.isSystemInDarkTheme()
+  val bitmap = previews?.let { if (night) it.dark ?: it.light else it.light }
+  val mono = previews?.let { if (night) it.darkMonochrome ?: it.lightMonochrome else it.lightMonochrome }
+  val palette = colors?.takeIf { monetEnabled && mono != null }
+  if (bitmap == null && palette == null && placeholder != null) {
+    placeholder()
+    return
+  }
+  PreviewIcon(if (palette != null) mono else bitmap,
+    if (night) palette?.darkForeground else palette?.lightForeground,
+    if (night) palette?.darkBackground else palette?.lightBackground,
+    modifier, previews?.backgroundMask, previews?.maskPathData)
+}
+
+@Composable
 internal fun PreviewIcon(bitmap: Bitmap?, foreground: Int?, background: Int?, modifier: Modifier,
   backgroundMask: Bitmap? = null, maskPathData: String? = null) {
   val maskImage = remember(backgroundMask) { backgroundMask?.asImageBitmap() }

@@ -44,4 +44,11 @@
   <string name="nav_backdrop_bilibili_limit">対象アプリの選択を一つ解除してから有効にしてください。</string>
   <string name="nav_backdrop_bilibili_bound">Bilibili のテーマ画像設定により自動で追加</string>
   <string name="nav_backdrop_refresh_apps">アプリ一覧を更新</string>
+  <string name="nav_backdrop_bilibili_version">Bilibili %1$s</string>
+  <string name="nav_backdrop_artwork_needs_scope">スコープが必要</string>
+  <string name="nav_backdrop_artwork_off">専用対応はオフ</string>
+  <string name="nav_backdrop_artwork_waiting">テーマ画像を待機中</string>
+  <string name="nav_backdrop_artwork_drawn">テーマ画像を描画済み</string>
+  <string name="nav_backdrop_artwork_fallback">テーマ画像は未拡張</string>
+  <string name="nav_backdrop_artwork_unsupported">このレイアウトは未対応</string>
 </resources>

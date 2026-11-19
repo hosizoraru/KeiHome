@@ -160,7 +160,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   val browserSource = MutableStateFlow<IconBrowserSource?>(null)
   val iconPackUpdateNeeded: StateFlow<Boolean>
     field = MutableStateFlow(false)
-  private val packageInventoryRevision = MutableStateFlow(0)
+  internal val packageInventoryRevision: StateFlow<Int>
+    field = MutableStateFlow(0)
   internal val importedPackRevision: StateFlow<Int>
     field = MutableStateFlow(0)
   val previews = IconPreviewRepository(application)
@@ -547,7 +548,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     }
   }
 
-  suspend fun observeAboutIcon(): Unit = coroutineScope {
+  suspend fun observeCurrentIconAppearance(): Unit = coroutineScope {
     launch { while (true) { readRuntimeStatus(true); delay(10_000) } }
     launch { while (true) { readPalette(); delay(5_000) } }
   }

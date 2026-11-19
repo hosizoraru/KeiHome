@@ -44,4 +44,11 @@
   <string name="nav_backdrop_bilibili_limit">Free an Affected apps slot before enabling this option.</string>
   <string name="nav_backdrop_bilibili_bound">Included by Bilibili theme artwork</string>
   <string name="nav_backdrop_refresh_apps">Refresh app list</string>
+  <string name="nav_backdrop_bilibili_version">Bilibili %1$s</string>
+  <string name="nav_backdrop_artwork_needs_scope">Scope required</string>
+  <string name="nav_backdrop_artwork_off">Artwork off</string>
+  <string name="nav_backdrop_artwork_waiting">Waiting for artwork</string>
+  <string name="nav_backdrop_artwork_drawn">Theme artwork drawn</string>
+  <string name="nav_backdrop_artwork_fallback">Artwork not extended</string>
+  <string name="nav_backdrop_artwork_unsupported">Artwork profile unavailable</string>
 </resources>

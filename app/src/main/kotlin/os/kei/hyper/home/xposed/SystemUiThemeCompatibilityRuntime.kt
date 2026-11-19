@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.app.Application
+import os.kei.hyper.home.data.NavigationBackdropPreferences
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
@@ -70,6 +71,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   private val splashPreferenceGuard = optionalGuard("splash preference")
   @Volatile private var preferences: SharedPreferences? = null
   @Volatile private var splashPreferences: SharedPreferences? = null
+  private var gestureTint: SystemUiGestureTint? = null
   @Volatile private var hostContext: Context? = null
   private var appIconRuntime: SystemUiAppIconRuntime? = null
   @Volatile private var splashIconRuntime: SplashIconFallbackRuntime? = null
@@ -118,6 +120,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   fun retryInitialization() {
     initializationWork.submit(bootstrapKey) {
       neutralizeRetiredHooks()
+      initializeGestureTint()
       val existing = synchronized(plugins) { plugins.entries.map { it.key to it.value.apkPath } }
       hostInitialization.run("plugin loader hook") {
         val factory = Class.forName(FACTORY_CLASS, false, classLoader)
@@ -199,6 +202,23 @@ internal class SystemUiThemeCompatibilityRuntime(
     }
   }
 
+  private fun initializeGestureTint() {
+    hostInitialization.run("gesture handle tint") {
+      val app = Class.forName("android.app.ActivityThread").getDeclaredMethod("currentApplication")
+        .invoke(null) as? Application ?: return@run false
+      val prefs = xposed.getRemotePreferences(NavigationBackdropPreferences.GROUP)
+      val runtime = SystemUiGestureTint(app, prefs)
+      try {
+        runtime.install(classLoader, ::replace)
+      } catch (failure: Throwable) {
+        runtime.close()
+        throw failure
+      }
+      gestureTint = runtime
+      true
+    }
+  }
+
   private fun scheduleProfile(loader: ClassLoader, apkPath: String) {
     val initialization = synchronized(plugins) {
       plugins.getOrPut(loader) {
@@ -206,8 +226,9 @@ internal class SystemUiThemeCompatibilityRuntime(
       }
     }
     if (!initialization.needsWork() && !hostInitialization.canRun("notification icons") &&
-      !hostInitialization.canRun("material preferences")) return
+      !hostInitialization.canRun("material preferences") && !hostInitialization.canRun("gesture handle tint")) return
     initializationWork.submit(initialization.workKey) {
+      initializeGestureTint()
       initializeMaterialPreferences()
       hostInitialization.run("host context") context@{
         val threadClass = Class.forName("android.app.ActivityThread")
@@ -527,6 +548,8 @@ internal class SystemUiThemeCompatibilityRuntime(
         appIconRuntime = null
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
+        check(gestureTint?.closeBefore(deadline) != false) { "Gesture material cleanup pending" }
+        gestureTint = null
         saveState()
         splashIconRuntime?.close()
         splashIconRuntime = null

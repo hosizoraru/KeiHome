@@ -12,6 +12,7 @@ internal data class NavigationBackdropChoice(
   val packages: Set<String> = emptySet(),
   val userId: Int = 0,
   val bilibiliArtwork: Boolean = false,
+  val glassHandle: Boolean = false,
 ) {
   val selectedPackages: Set<String> get() = if (bilibiliArtwork) packages + BILIBILI_PACKAGE else packages
 
@@ -36,6 +37,7 @@ internal object NavigationBackdropPreferences {
   private const val ENABLED = "enabled"
   private const val PACKAGES = "packages"
   private const val USER = "user"
+  const val GLASS_HANDLE = "glass_handle"
   private const val BILIBILI_ARTWORK = "bilibili_artwork"
   const val MAX_PACKAGES = 64
   private val packagePattern = Regex("[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+")
@@ -49,7 +51,7 @@ internal object NavigationBackdropPreferences {
     val user = preferences.getInt(USER, 0)
     require(user in 0..999)
     return NavigationBackdropChoice(preferences.getBoolean(ENABLED, false), packages, user,
-      preferences.getBoolean(BILIBILI_ARTWORK, false)).also {
+      preferences.getBoolean(BILIBILI_ARTWORK, false), preferences.getBoolean(GLASS_HANDLE, false)).also {
       require(it.selectedPackages.size <= MAX_PACKAGES)
     }
   }
@@ -66,7 +68,7 @@ internal object NavigationBackdropPreferences {
     // API 102 serializes Set values verbatim into a process without Kotlin.
     check(preferences.edit().putBoolean(ENABLED, choice.enabled)
       .putStringSet(PACKAGES, java.util.HashSet(choice.packages)).putInt(USER, choice.userId)
-      .putBoolean(BILIBILI_ARTWORK, choice.bilibiliArtwork).commit()) {
+      .putBoolean(BILIBILI_ARTWORK, choice.bilibiliArtwork).putBoolean(GLASS_HANDLE, choice.glassHandle).commit()) {
       "Navigation backdrop save is unconfirmed"
     }
   }

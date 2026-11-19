@@ -111,7 +111,31 @@ icon with opposite colored corners and transparent interior at 3× scale.
 The local recordings, scanline measurements, Shell disassembly and deployment
 receipts are under `.artifacts/research/splash-launch-motion-20261120/`.
 
-On build 633, returning Home after Via had acquired focus and launching again
-succeeded. Attempts to interrupt earlier with a timed Home key or an injected
-upward swipe did not consistently transfer focus to Home. Those recordings
-leave gesture cancellation during the earliest launch frames unverified.
+### Interrupting the launch from Home
+
+On the Xiaomi 17 Pro (OS4.0.6.0.XBLCNXM, launcher 801030308, KeiHome build
+633), a timed single-finger touch sequence opened Via from the dock and Settings
+from its desktop icon. Each trial force-stopped the target before the first
+tap and kept the device in dark mode. Video frames and touches were timestamped
+against the same device boot clock.
+The upward gesture began 40, 80 or 135 ms after the first tap was released.
+Home logged `performAppToHome` for both apps. Tapping the same icon 260, 210
+or 300 ms after lifting the gesture finger, respectively, reopened the target
+in all six trials. Both apps also accepted an earlier second tap about 100 ms
+after the gesture ended, while the window was still shrinking. With completion
+both on and off, the launcher reversed the shrinking window into the next
+opening before it reached the desktop icon. A cancellation without a second
+tap left each app's icon in place on Home with no visible splash residue.
+
+In the 40 ms recordings, the window expanded during the swipe and began to
+shrink before the finger lifted. Across the turn, the measured width of the
+Settings gear stayed at 32.8–33.3% of window width over 24 recorded frames
+(90–282 ms after tap release). The orange Via mark stayed at 27.2–27.9% over
+15 frames (88–205 ms), before the app began drawing its homepage. The smaller
+Via mark and search box also appeared with completion disabled. In Settings
+the gear briefly faded over the list as the native starting window exited.
+Each enabled trial logged one fill across the whole sequence. The recordings showed no
+separate flash or scale change from the completed icon during reversal.
+
+Recordings, per-frame measurements and timestamped input, launcher and window
+logs are under `.artifacts/research/splash-cancel-20261120/`.

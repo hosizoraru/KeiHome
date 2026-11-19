@@ -24,7 +24,7 @@ internal data class BilibiliInstallation(val name: String?, val version: Long, v
   }
 }
 
-internal enum class BilibiliArtworkOutcome { WAITING, DRAWN, FALLBACK, UNSUPPORTED }
+internal enum class BilibiliArtworkOutcome { WAITING, DRAWN, SOLID, FALLBACK, UNSUPPORTED }
 
 internal data class BilibiliArtworkReceipt(
   val version: Long,

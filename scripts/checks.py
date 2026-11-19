@@ -14,8 +14,10 @@ UI = "os.kei.hyper.home.ui.main."
 GROUPS = {
     "navigation-backdrop": ("jvm", "Opt-in native policy delivery, bounds and configuration identity", (
         "NavigationRuleOverlayTest",)),
-    "navigation-backdrop-device": ("device", "Native rule copies, preferences, status and conditional OEM UID fixture", (
-        "os.kei.hyper.home.xposed.NavigationBackdropDeviceTest",)),
+    "navigation-backdrop-device": ("device", "Native rules, footer sampling, gesture glass and conditional OEM UID fixture", (
+        "os.kei.hyper.home.xposed.NavigationBackdropDeviceTest",
+        "os.kei.hyper.home.xposed.GestureGlassFinishDeviceTest",
+        "os.kei.hyper.home.xposed.FooterSamplingDeviceTest",)),
     "apple-matching": ("jvm", "Conservative matching, explicit retry eligibility and browser selection", (
         "AppleAutoMatchPolicyTest", "AppleMappingSelectionTest", "AppleMappingBrowserTest")),
     "apple-matching-device": ("device", "Persisted matching history, cached retries and HTTP backoff (fake transport)", (

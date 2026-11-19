@@ -29,6 +29,21 @@ internal class BilibiliComposeFooter private constructor(
   private val drawing: Drawing,
   private val unit: Any,
 ) {
+  private val scope = runCatching { image.parameterTypes[10].getMethod("getRecomposeScope") }.getOrNull()
+  private val useScope = scope?.let { runCatching {
+    it.declaringClass.getMethod("recordUsed", it.returnType)
+  }.getOrNull() }
+  private val invalidateScope = scope?.let { runCatching { it.returnType.getMethod("invalidate") }.getOrNull() }
+
+  fun observeScope(composer: Any?): Any? = scope?.let { getter ->
+    if (!getter.declaringClass.isInstance(composer) || invalidateScope == null) return null
+    getter.invoke(composer)?.also { useScope?.invoke(composer, it) }
+  }
+
+  fun refreshScope(previous: Any) {
+    invalidateScope?.takeIf { it.declaringClass.isInstance(previous) }?.invoke(previous)
+  }
+
   private data class Artwork(
     val drawable: BitmapDrawable,
     val scale: Float,

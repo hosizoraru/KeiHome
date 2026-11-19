@@ -76,7 +76,12 @@ class KeiHomeModule : XposedModule() {
 
   override fun onHotReloading(param: HotReloadingParam): Boolean {
     if (processName.substringBefore(':') == "com.miui.home") return true
-    return reloadState.retire(param::setSavedInstanceState) { publish ->
+    var footerHandoff: Array<Any?>? = null
+    return reloadState.retire({ state ->
+      val envelope = footerHandoff
+      if (envelope != null) envelope[1] = state
+      param.setSavedInstanceState(envelope ?: state)
+    }) { publish ->
       val ui = systemUiTheme
       val themes = themeIconImport
       val server = launcherRefresh
@@ -84,7 +89,7 @@ class KeiHomeModule : XposedModule() {
       val sidebar = hostAppIcons
       val footer = bilibiliFooter
       when {
-        footer != null -> footer.retire { publish(it) }
+        footer != null -> footer.retire { loader, handoff -> footerHandoff = handoff; publish(loader) }
         sidebar != null -> sidebar.retire { publish(sidebar.classLoader) }
         share != null -> share.retire { publish(share.classLoader) }
         ui != null -> ui.retire { publish(ui.classLoader) }
@@ -103,7 +108,10 @@ class KeiHomeModule : XposedModule() {
   override fun onHotReloaded(param: HotReloadedParam) {
     processName = param.processName
     if (processName.substringBefore(':') == "com.miui.home") return
-    val savedState = reloadState.restore(param.savedInstanceState)
+    val footerHandoff = (param.savedInstanceState as? Array<*>)?.takeIf {
+      processName == BilibiliHomeFooterRuntime.PACKAGE && it.size == 4 && it[0] == BilibiliHomeFooterRuntime.HANDOFF
+    }
+    val savedState = reloadState.restore(if (footerHandoff == null) param.savedInstanceState else footerHandoff[1])
     if (!param.isSystemServer) {
       if (processName == BilibiliHomeFooterRuntime.PACKAGE) {
         val app = currentApplication()
@@ -111,6 +119,7 @@ class KeiHomeModule : XposedModule() {
           savedState as? ClassLoader ?: app.classLoader, app.applicationInfo.sourceDir,
           param.oldHookHandles, app.codeCacheDir,
         )
+        bilibiliFooter?.restoreVisibleHome(footerHandoff)
         reloadState.startMaintenance()
         return
       }

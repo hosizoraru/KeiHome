@@ -55,6 +55,8 @@ internal class BilibiliHomeFooterRuntime(
   }
 
   private var composing: FooterSession? = null
+  private var composeProfile: BilibiliComposeFooter? = null
+  private var composeScope: java.lang.ref.WeakReference<Any>? = null
   private var matchedImages = 0
   private val reporter = BilibiliArtworkReporter(apk)
 
@@ -71,6 +73,7 @@ internal class BilibiliHomeFooterRuntime(
       }
     }
     if (compose != null) try {
+      composeProfile = compose
       hook("$HOOK.compose", compose.drawFooter) { chain ->
         if (Looper.myLooper() != main.looper || retired || composing != null) return@hook chain.proceed()
         val current = session?.takeIf { it.observesCompose } ?: return@hook chain.proceed()
@@ -89,7 +92,12 @@ internal class BilibiliHomeFooterRuntime(
           runCatching {
             val args = chain.args.toTypedArray()
             if (!compose.matches(args) || ++matchedImages != 1) null
-            else current.observeCompose(compose, args)
+            else {
+              runCatching { compose.observeScope(args[10]) }.getOrNull()?.let {
+                if (composeScope?.get() !== it) composeScope = java.lang.ref.WeakReference(it)
+              }
+              current.observeCompose(compose, args)
+            }
           }.onFailure {
             current.releaseCompose()
             Log.w(TAG, "Compose footer observation unavailable", it)
@@ -105,6 +113,47 @@ internal class BilibiliHomeFooterRuntime(
     }
   }
 
+  /** API 102 does not replay onResume. Adopt the visible host decor after a generation change. */
+  fun restoreVisibleHome(previous: Array<*>?) {
+    main.post {
+      if (retired) return@post
+      val prior = (previous?.getOrNull(2) as? java.lang.ref.WeakReference<*>)?.get() as? Activity
+      val roots = android.view.inspector.WindowInspector.getGlobalWindowViews()
+      val activity = prior?.takeIf { home.isInstance(it) && it.window.peekDecorView() in roots }
+        ?: roots.firstNotNullOfOrNull { root ->
+          if (!root.isAttachedToWindow || !root.isShown) return@firstNotNullOfOrNull null
+          // DecorContext can wrap the application rather than the owner. PhoneWindow keeps
+          // the activity token in the top-level layout params even behind the system shade.
+          val token = (root.layoutParams as? android.view.WindowManager.LayoutParams)?.token
+          val owner = runCatching {
+            val thread = Class.forName("android.app.ActivityThread")
+            thread.getMethod("getActivity", android.os.IBinder::class.java)
+              .invoke(thread.getMethod("currentActivityThread").invoke(null), token) as? Activity
+          }.getOrNull()
+          val content = root.findViewById<android.view.ViewGroup>(android.R.id.content)
+          listOfNotNull(owner, contextActivity(root.context), content?.getChildAt(0)?.context?.let(::contextActivity))
+            .firstOrNull { home.isInstance(it) && it.window.peekDecorView() === root }
+        }
+      if (activity != null) {
+        attachSafely(activity)
+        val scope = (previous?.getOrNull(3) as? java.lang.ref.WeakReference<*>)?.get()
+        if (scope != null && activity === prior) runCatching { composeProfile?.refreshScope(scope) }
+        if (composeProfile != null) session?.rebindExistingFooter()
+      }
+    }
+  }
+
+  private fun contextActivity(start: Context): Activity? {
+    var context = start
+    while (context is android.content.ContextWrapper) {
+      if (context is Activity) return context
+      val base = context.baseContext ?: return null
+      if (base === context) return null
+      context = base
+    }
+    return null
+  }
+
   private fun attachSafely(activity: Activity) {
     if (retired || activity.packageName != PACKAGE || activity.isDestroyed || activity.isFinishing) return
     if (session?.activity === activity) {
@@ -117,6 +166,7 @@ internal class BilibiliHomeFooterRuntime(
         preferences = it
       }
       session?.close()
+      composeScope = null
       session = FooterSession(activity, source, { outcome ->
         if (!retired) reporter.report(activity.applicationContext, outcome)
       }) { session = null }
@@ -126,24 +176,27 @@ internal class BilibiliHomeFooterRuntime(
     }
   }
 
-  fun retire(publish: (ClassLoader?) -> Unit): Boolean {
+  fun retire(publish: (ClassLoader, Array<Any?>) -> Unit): Boolean {
     val cleanup = FutureTask {
       retired = true
+      val handoff = arrayOf<Any?>(HANDOFF, null, java.lang.ref.WeakReference(session?.activity), composeScope)
       main.removeCallbacksAndMessages(null)
       preferences?.unregisterOnSharedPreferenceChangeListener(listener)
       preferences = null
       session?.close()
+      composeScope = null
+      handoff
     }
     if (Looper.myLooper() == main.looper) cleanup.run()
     else if (!main.postAtFrontOfQueue(cleanup)) return false
-    try {
-      cleanup.get(1, TimeUnit.SECONDS)
+    val handoff = try {
+      cleanup.get(6, TimeUnit.SECONDS)
     } catch (_: Exception) {
       cleanup.cancel(false)
       main.removeCallbacks(cleanup)
       return false
     }
-    publish(loader)
+    publish(loader, handoff)
     return true
   }
 
@@ -158,6 +211,13 @@ internal class BilibiliHomeFooterRuntime(
     private val overlay = FooterOverlay({ setOutcome(BilibiliArtworkOutcome.DRAWN) }) {
       // Defer removal until decor has finished iterating its drawables.
       decor.post { failDrawing() }
+    }
+    private val sampling = BilibiliFooterSampling(activity) {
+      cancelFallback()
+      setOutcome(BilibiliArtworkOutcome.SOLID)
+    }
+    private val focus = ViewTreeObserver.OnWindowFocusChangeListener { focused ->
+      if (focused) decor.invalidate() else sampling.clear()
     }
     private val sourcePosition = IntArray(2)
     private val decorPosition = IntArray(2)
@@ -207,11 +267,14 @@ internal class BilibiliHomeFooterRuntime(
       if (closed) return
       val wasActive = active
       active = runCatching {
-        NavigationBackdropPreferences.read(preferences).includesBilibiliArtwork(Process.myUid())
+        NavigationBackdropPreferences.read(preferences).also { choice ->
+          sampling.handleSampling = !choice.glassHandle
+        }.includesBilibiliArtwork(Process.myUid())
       }.getOrDefault(false)
       if (wasActive != active) setOutcome(BilibiliArtworkOutcome.WAITING)
       Log.d(TAG, "Home artwork enabled=$active")
       if (active && started && !observing && !drawingFailed) {
+        decor.viewTreeObserver.addOnWindowFocusChangeListener(focus)
         decor.viewTreeObserver.addOnPreDrawListener(this)
         observing = true
         decor.invalidate()
@@ -223,6 +286,31 @@ internal class BilibiliHomeFooterRuntime(
     }
 
     val observesCompose: Boolean get() = active && !closed && !drawingFailed
+
+    fun rebindExistingFooter() {
+      if (!observesCompose) return
+      // A pre-handoff module (or a footer without an image) has no restart scope.
+      // Give Compose its normal invalidate pass first, then rebind only Bilibili's tab strip.
+      decor.postOnAnimation {
+        decor.postOnAnimation rebind@{
+          if (!observesCompose || binding != null || !decor.isAttachedToWindow) return@rebind
+          val id = activity.resources.getIdentifier("tab_host", "id", PACKAGE)
+          val tabs = decor.findViewById<View>(id) ?: return@rebind
+          if (tabs.javaClass.name != "tv.danmaku.bili.home.components.bottomtab.WindowAwareComposeView" ||
+            !tabs.isAttachedToWindow || !tabs.isShown) return@rebind
+          runCatching {
+            val owner = activity.classLoader.loadClass("androidx.compose.ui.platform.AbstractComposeView")
+            val dispose = owner.getMethod("disposeComposition")
+            val create = owner.getMethod("createComposition")
+            if (owner.isInstance(tabs) && owner.getMethod("getHasComposition").invoke(tabs) == true) {
+              dispose.invoke(tabs)
+              create.invoke(tabs)
+            }
+          }.onFailure { Log.d(TAG, "Existing tab composition could not be rebound", it) }
+        }
+      }
+      decor.invalidate()
+    }
 
     fun observeCompose(profile: BilibiliComposeFooter, args: Array<Any?>): Array<Any?>? {
       if (!observesCompose) return null
@@ -322,9 +410,9 @@ internal class BilibiliHomeFooterRuntime(
         ?: (decor.findViewById<View>(backgroundId) as? ImageView).also { image = it }
         ?: run {
           trace("No active artwork (Compose binding=${compose != null}, bitmap=${bitmap != null})")
-          return clearArtwork()
+          return sampleFooter(top)
         }
-      val artwork = source.drawable ?: return clearArtwork()
+      val artwork = source.drawable ?: return sampleFooter(top)
       if (artwork is Animatable || !artwork.isVisible || artwork.alpha == 0 ||
         !source.isShown || !source.getLocalVisibleRect(visibleRect)
       ) return clearArtwork()
@@ -354,7 +442,7 @@ internal class BilibiliHomeFooterRuntime(
         restoreLegacyArtwork()
       }
       val original = legacyPlacement?.original ?: source.imageMatrix
-      if (source.scaleType != ImageView.ScaleType.MATRIX) return clearArtwork()
+      if (source.scaleType != ImageView.ScaleType.MATRIX) return sampleFooter(top)
       val originX = x + source.paddingLeft
       val originY = y + source.paddingTop
       imageMatrix.set(original)
@@ -403,7 +491,16 @@ internal class BilibiliHomeFooterRuntime(
         decor.overlay.add(overlay)
         Log.i(TAG, "Drawing home artwork through ${decor.height - top}px navigation inset")
       }
+      val generation = (artwork as? BitmapDrawable)?.bitmap?.generationId ?: 0
+      val revision = ((System.identityHashCode(artwork).toLong() * 31 + generation) * 31 +
+        imageMatrix.hashCode()) * 31 + alpha
+      sampling.update(top, revision)
       return true
+    }
+
+    private fun sampleFooter(top: Int) {
+      clearArtwork(trySolid = true)
+      sampling.update(top, null)
     }
 
     private fun trace(decision: String) {
@@ -412,10 +509,11 @@ internal class BilibiliHomeFooterRuntime(
       Log.d(TAG, decision)
     }
 
-    private fun clearArtwork() {
+    private fun clearArtwork(trySolid: Boolean = false) {
+      if (!trySolid) sampling.clear()
       binding?.clearArtwork()
       restoreLegacyArtwork()
-      if (active && started && outcome != BilibiliArtworkOutcome.FALLBACK && !fallbackPosted) {
+      if (!(trySolid && sampling.hasSolidColor) && active && started && outcome != BilibiliArtworkOutcome.FALLBACK && !fallbackPosted) {
         fallbackPosted = true
         decor.postDelayed(fallback, 500L)
       }
@@ -435,6 +533,7 @@ internal class BilibiliHomeFooterRuntime(
     private fun stopObserving() {
       if (observing) {
         decor.viewTreeObserver.takeIf { it.isAlive }?.let {
+          it.removeOnWindowFocusChangeListener(focus)
           it.removeOnPreDrawListener(this)
         }
         observing = false
@@ -467,6 +566,7 @@ internal class BilibiliHomeFooterRuntime(
     override fun onActivityPaused(activity: Activity) = Unit
     override fun onActivityStopped(activity: Activity) {
       started = false
+      sampling.clear()
       cancelFallback()
       // Keep the last validated frame in its own decor for task transitions.
       // A start revalidates its geometry before the next draw.
@@ -527,6 +627,7 @@ internal class BilibiliHomeFooterRuntime(
   }
 
   companion object {
+    const val HANDOFF = "keihome.bilibili.window.v1"
     const val PACKAGE = BILIBILI_PACKAGE
     const val TAG = "KeiHomeBiliFooter"
     private const val HOOK = "keihome.bilibili.home.footer.v1"

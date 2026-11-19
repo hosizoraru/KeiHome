@@ -32,6 +32,9 @@ for the observed resting folder was established. Folder overrides and refresh
 hooks are excluded from Android activation. Their saved-source audits are
 compiled on the host only, and the unshipped runtime experiment is archived under
 `unshipped-folder/`. Folder animation, resources and material stay native.
+The later [0308 folder material research](launcher-manifest-capabilities.md#resting-folder-experiment)
+records same-page refresh from the system material selector and the remaining
+work for an independent folder setting.
 Each optional role must have a unique source/allocator/token/control-flow
 relationship; an ambiguous or changed role contributes no patch. A hook count
 or preference ACK alone does not establish resting-folder visual acceptance.

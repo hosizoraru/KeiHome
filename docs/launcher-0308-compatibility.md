@@ -103,6 +103,9 @@ Local evidence: `.artifacts/research/launcher-0308-20261119/`.
 Follow-up captures, recordings, test logs and the restoration receipt are in
 `desktop-acceptance/` under that run.
 
+The separate [folder research archive](launcher-manifest-capabilities.md#research-status-as-of-2026-11-19)
+records native material switching and isolated freeform resize experiments.
+
 ## Physical Xiaomi 17 Pro icon-pack acceptance
 
 On `OS4.0.6.0.XBLCNXM`, the launcher was updated in place from 9259 to

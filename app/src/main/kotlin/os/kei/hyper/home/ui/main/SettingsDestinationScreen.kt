@@ -67,7 +67,9 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   if (route == SettingsSection.RELEASE_NOTES.route) {
     val state = releaseNotesPreferences?.state?.collectAsStateWithLifecycle()?.value
-    ReleaseNotesScreen(onBack, unreadVersions = state?.unreadVersions.orEmpty().toSet(),
+    ReleaseNotesScreen(onBack, currentVersion = state?.observedVersion?.takeIf { it.isNotEmpty() }
+      ?: os.kei.hyper.home.BuildConfig.VERSION_NAME.substringBefore('+'),
+      unreadVersions = state?.unreadVersions.orEmpty().toSet(),
       onReadVersions = { releaseNotesPreferences?.markRead(it) }, onViewedVersionsChanged = onReleaseNotesViewed)
     return
   }

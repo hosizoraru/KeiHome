@@ -75,7 +75,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
   onOpenSettingsSection: (String) -> Unit, onOpenDesktopSection: (String) -> Unit,
   pager: PagerState, tabNavigation: MainTabNavigation, navigation: List<NavigationItem>,
-  backdrop: LayerBackdrop?, wide: Boolean) {
+  backdrop: LayerBackdrop?, wide: Boolean, overlay: @Composable () -> Unit) {
   val (interactionFlow, initialInteraction) = remember(model) {
     model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged() to
       model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture }
@@ -141,6 +141,8 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     },
     floatingActionButton = { PackActionFab(model, page, "home") },
   ) { insets ->
+    // Glass dialogs register with the MIUIX popup host supplied by this scaffold.
+    overlay()
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
       HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,

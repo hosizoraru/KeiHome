@@ -1,7 +1,6 @@
 package os.kei.hyper.home
 
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalFocusManager
@@ -158,7 +157,6 @@ internal fun MainNavigation(
   val shortcut = MainShortcut.entries.indexOfFirst { it.route == current }
   val navigation = tabs.map { NavigationItem(stringResource(it.title), actionIcon(it.icon)) }
   val backdrop = rememberKeiHomeBlurBackdrop()
-  var homeSettled by remember { mutableStateOf(false) }
   val railEnabled = backStack.firstOrNull() == Main &&
     backStack.all { it is PackRoute || it is DesktopRoute || it is SettingsRoute || it == Main }
   KeiHomeAdaptiveNavigation(
@@ -183,15 +181,7 @@ internal fun MainNavigation(
     secondaryItems = mainShortcutItems(),
     selectedSecondary = shortcut,
     railEnabled = railEnabled,
-    overlay = {
-      IconPackProgressHost(model, applyingIcons)
-      UpgradeRestartReminder(
-        version = releaseState?.restartReminderVersion.orEmpty().takeIf {
-          current == Main && pendingVersion.isEmpty() && homeSettled
-        }.orEmpty(),
-        onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
-      )
-    },
+    overlay = { IconPackProgressHost(model, applyingIcons) },
   ) { wide ->
     NavDisplay(backStack = backStack,
       onBack = ::back,
@@ -201,10 +191,15 @@ internal fun MainNavigation(
         backdropColor = MiuixTheme.colorScheme.surface)) {
       entry<Main> {
         val transitionRunning = LocalNavTransitionScope.current.isRunning
-        SideEffect { homeSettled = !transitionRunning }
         MainScreen(model = model, onOpenPackSection = ::open, onOpenSettingsSection = ::openSettings,
           onOpenDesktopSection = ::openDesktop, pager = pager, tabNavigation = tabNavigation,
-          navigation = navigation, backdrop = backdrop, wide = wide)
+          navigation = navigation, backdrop = backdrop, wide = wide) {
+          val show = current == Main && pendingVersion.isEmpty() && !transitionRunning
+          UpgradeRestartReminder(
+            version = if (show) releaseState?.restartReminderVersion.orEmpty() else "",
+            onAcknowledged = { releaseNotesPreferences?.acknowledgeRestart(it) },
+          )
+        }
       }
       entry<DesktopRoute> { route ->
         val section = DesktopSection.entries.firstOrNull { it.route == route.section } ?: DesktopSection.DOCK

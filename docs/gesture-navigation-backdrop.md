@@ -84,9 +84,13 @@ Changes to the rules take effect after a complete app restart.
 
 The bridge runs in the Bilibili main process. It uses the app's own loaded
 static artwork, measured width and placement, and current gesture inset.
-Compose resolution requires a unique footer image call shape. The View path
-uses the active `tab_background` drawable, its scale matrix and ancestor
-opacity. Both align the original image bottom with the window bottom and
+DexKit resolves the home Activity through the bottom-tab intent protocol. It
+resolves the Compose footer through its tab action and its image request,
+layout caller and image ABI. Both resolutions require a unique match. The
+system sampling rule uses the installed launcher activity or its alias target.
+The View path resolves `tab_background` from the installed resources and uses
+the active drawable, its scale matrix and ancestor opacity. Both align the
+original image bottom with the window bottom and
 require that the projected image fit within the allowed background region.
 They change drawing only, leaving labels, touch targets and the SystemUI
 gesture handle to their original owners.
@@ -96,6 +100,18 @@ window state on destruction or reload. Without a usable image, the native
 color policy supplies the fallback. IME, tappable navigation, side insets,
 secure windows and multi-window surfaces retain their original rendering.
 Cold startup can show the native background before the theme image loads.
+
+The status card reads the installed version from PackageManager. Its artwork
+pill reflects the most recent home-window outcome from the current installation.
+A drawing receipt is sent after the original artwork is painted into the gesture
+inset. The receipt is bound to the Bilibili UID, package, install timestamp,
+KeiHome build and live process, and is dropped when that process exits.
+
+Affected apps uses the same published icon source, component mapping and bounded
+preview cache as the Applications browser. It loads visible rows on demand and
+uses the published mask, current night mode and active Monet colors. The app
+inventory is fetched when the list is opened, and reused across filter, sort
+and search changes.
 
 #### Optional scope verification
 

@@ -17,6 +17,27 @@ import os.kei.hyper.home.iconpack.OriginalAppIcons
 
 @RunWith(AndroidJUnit4::class)
 class OriginalAppIconGeometryDeviceTest {
+  @Test fun completedSplashPreservesCornerArtworkAndTransparentPixelsAtWindowSize() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+    val output = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+    try {
+      val paint = android.graphics.Paint().apply { color = Color.RED }
+      Canvas(source).drawRect(0f, 0f, 8f, 8f, paint)
+      paint.color = Color.BLUE
+      Canvas(source).drawRect(24f, 24f, 32f, 32f, paint)
+      val drawable = SplashIconArtwork.completedDrawable(context, source)
+      drawable.setBounds(0, 0, 96, 96)
+      drawable.draw(Canvas(output))
+      assertEquals(Color.RED, output.getPixel(2, 2))
+      assertEquals(Color.BLUE, output.getPixel(93, 93))
+      assertEquals(Color.TRANSPARENT, output.getPixel(48, 48))
+    } finally {
+      source.recycle()
+      output.recycle()
+    }
+  }
+
   @Test
   fun completedLaunchDrawablePreservesFixedLayersAcrossOutputSizes() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext

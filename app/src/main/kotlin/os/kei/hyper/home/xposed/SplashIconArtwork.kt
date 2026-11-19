@@ -233,6 +233,12 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
   }
 
   companion object {
+    fun completedDrawable(context: Context, bitmap: Bitmap) =
+      BitmapDrawable(context.resources, bitmap).apply {
+        gravity = android.view.Gravity.FILL
+        isFilterBitmap = true
+      }
+
     fun drawable(context: Context, bitmap: Bitmap): Drawable {
       val extra = AdaptiveIconDrawable.getExtraInsetFraction()
       // The archive contains a complete icon, not an adaptive foreground layer.

@@ -30,6 +30,9 @@ internal class SplashIconFallbackRuntime(
     val initialType: Int,
     val hasSnapshot: Boolean,
     var attrs: Any? = null,
+    var declaredIcon: Drawable? = null,
+    var completedIcon: Drawable? = null,
+    var iconSize: Int = 0,
   )
   private val current = ThreadLocal<Request>()
   private val sequence = AtomicInteger()
@@ -83,6 +86,33 @@ internal class SplashIconFallbackRuntime(
       original
     })
     val build = builder.getDeclaredMethod("build")
+    // A complete launcher icon already includes its own plate and padding. On known Shell
+    // builders, keep the pre-expansion size and give the native ImageView its prepared drawable.
+    val finalSize = runCatching {
+      val size = builder.field("mFinalIconSize").also { require(it.type == Int::class.javaPrimitiveType) }
+      val layers = builder.field("mFinalIconDrawables").also { require(it.type == Array<Drawable>::class.java) }
+      val create = builder.getDeclaredMethod("createIconDrawable", Drawable::class.java,
+        Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+      require(create.returnType == Void.TYPE)
+      xposed.deoptimize(build)
+      replace(create, "$PREFIX.completedIcon", XposedInterface.Hooker { chain ->
+        val request = current.get()
+        // This synchronous call is already covered by the enclosing build's lifecycle lease.
+        val drawable = request?.completedIcon
+        if (drawable == null || request.declaredIcon !== chain.getArg(0)) return@Hooker chain.proceed()
+        val owner = chain.thisObject
+        val installed = guard.run(false) {
+          layers.set(owner, arrayOf(drawable))
+          size.setInt(owner, request.iconSize)
+          true
+        }
+        if (installed) null else chain.proceed()
+      })
+      size
+    }.getOrElse {
+      xposed.log(Log.WARN, TAG, "Using Shell's default icon sizing", recoverableSystemUiFailure(it))
+      null
+    }
     replace(build, "$PREFIX.build", XposedInterface.Hooker { chain ->
       val request = current.get()
       if (request == null || !lifecycle.enter()) chain.proceed() else try {
@@ -139,9 +169,12 @@ internal class SplashIconFallbackRuntime(
             } else {
               val drawable = SplashIconArtwork.drawable(request.context, snapshot.bitmap)
               val oldIcon = icon.get(values)
+              val baseSize = if (ownPalette) 0 else finalSize?.getInt(owner) ?: 0
               // Commit the type and prepared drawable together. Shell's legacy icon path
               // would otherwise wrap and resize the raw APK drawable.
               restore = {
+                request.declaredIcon = null
+                request.completedIcon = null
                 type.setInt(owner, oldType)
                 overlay.set(owner, oldOverlay)
                 color.setInt(owner, oldColor)
@@ -153,6 +186,11 @@ internal class SplashIconFallbackRuntime(
                 if (ownPalette) color.setInt(owner, os.kei.hyper.home.data.MonetLaunchSurface.surfaceColor(paletteState, windowColor ?: oldColor))
                 else if (overlayColor != null) color.setInt(owner, overlayColor)
                 icon.set(values, drawable)
+                if (baseSize > 0) {
+                  request.iconSize = baseSize
+                  request.declaredIcon = drawable
+                  request.completedIcon = SplashIconArtwork.completedDrawable(request.context, snapshot.bitmap)
+                }
                 source = snapshot.source
               } catch (failure: Throwable) {
                 restore?.invoke()

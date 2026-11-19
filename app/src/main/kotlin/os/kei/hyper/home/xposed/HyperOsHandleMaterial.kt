@@ -1,13 +1,12 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.drawable.ShapeDrawable
+import android.graphics.drawable.shapes.RoundRectShape
 import android.view.ViewGroup
 import android.view.ViewOverlay
-import android.graphics.Outline
-import android.view.ViewOutlineProvider
 import android.view.View
 import androidx.core.graphics.ColorUtils
 
@@ -16,29 +15,25 @@ internal class HyperOsHandleMaterial private constructor(
   context: Context,
   val api: Api,
   private val parameters: FloatArray,
-) : View(context) {
-  private val surface = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x63eff2f7 }
+) {
+  // SystemUI extensions cache the concrete class of every View they encounter.
+  // A framework View and background can outlive this controller without pinning its loader.
+  val view = View(context)
+  private val surface = ShapeDrawable()
   // SystemUI composites the MIUI surface in its own render pass. Put the readable edge
   // in the host overlay's drawable pass, which Android draws after the material child.
   private val finish = GestureGlassFinish()
   private var curvature = 0f
 
   init {
-    importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-    outlineProvider = object : ViewOutlineProvider() {
-      override fun getOutline(view: View, outline: Outline) {
-        outline.setRoundRect(0, 0, view.width, view.height, curvature)
-      }
-    }
-    clipToOutline = true
-    api.glassPaint.invoke(surface, true)
+    view.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    surface.paint.isAntiAlias = true
+    api.glassPaint.invoke(surface.paint, true)
+    view.background = surface
+    view.clipToOutline = true
   }
 
-  override fun onDraw(canvas: Canvas) {
-    canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), curvature, curvature, surface)
-  }
-
-  fun update(rect: RectF, radius: Float, intensity: Float, widthScale: Float) {
+  fun update(rect: RectF, radius: Float, intensity: Float, widthScale: Float) = with(view) {
     val l = Math.round(rect.left)
     val t = Math.round(rect.top)
     val r = Math.round(rect.right)
@@ -52,7 +47,7 @@ internal class HyperOsHandleMaterial private constructor(
       }
     }
     val color = ColorUtils.blendARGB(0x15ffffff, 0x0c111111, intensity)
-    if (curvature != radius || surface.color != color) {
+    if (curvature != radius || surface.paint.color != color) {
       if (curvature != radius) {
         // The clock preset is authored for much larger glyphs. These HyperOS shape fields
         // are in pixels. Keep the refracting edge inside the rounded shoulder of this pill.
@@ -61,23 +56,24 @@ internal class HyperOsHandleMaterial private constructor(
         parameters[22] = radius * 1.8f
         api.glass.invoke(this, parameters)
         curvature = radius
+        surface.shape = RoundRectShape(FloatArray(8) { radius }, null, null)
         invalidateOutline()
       }
-      surface.color = color
-      invalidate()
+      surface.paint.color = color
+      surface.invalidateSelf()
     }
     finish.update(l, t, r, b, radius, intensity, widthScale)
   }
 
   fun removeFrom(host: View) {
     host.overlay.remove(finish)
-    (parent as? ViewGroup)?.removeView(this)
+    (view.parent as? ViewGroup)?.removeView(view)
   }
 
   class Api(loader: ClassLoader) {
     private val overlay = ViewOverlay::class.java.getDeclaredMethod("getOverlayView").apply { isAccessible = true }
     fun attach(host: View, child: HyperOsHandleMaterial) {
-      (overlay.invoke(host.overlay) as ViewGroup).addView(child)
+      (overlay.invoke(host.overlay) as ViewGroup).addView(child.view)
       host.overlay.add(child.finish)
     }
     private val clock = loader.loadClass("com.miui.clock.allInOne.TimeView")
@@ -108,7 +104,8 @@ internal class HyperOsHandleMaterial private constructor(
         this[24] = .82f // Reflection strength
         this[32] = 1.48f // Refraction index
       }
-      val view = HyperOsHandleMaterial(context, this, profile)
+      val child = HyperOsHandleMaterial(context, this, profile)
+      val view = child.view
       val density = context.resources.displayMetrics.density
       backgroundBlur.invoke(view, 1)
       backgroundRadius.invoke(view, Math.round(1.4f * density))
@@ -116,7 +113,7 @@ internal class HyperOsHandleMaterial private constructor(
       colorType.invoke(view, 16)
       material.invoke(view, 1)
       radii.invoke(view, Math.round(density), Math.round(2 * density))
-      return view
+      return child
     }
   }
 

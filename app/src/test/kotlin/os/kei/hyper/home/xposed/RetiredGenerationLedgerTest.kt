@@ -52,6 +52,21 @@ class RetiredGenerationLedgerTest {
   }
 
   @Test
+  fun collectionCadenceSurvivesHandoffAndSkipsClearedLoaders() {
+    val live = List(8) { Loader() }
+    var ledger = RetiredGenerationLedger.restore(null)
+    for ((index, loader) in live.withIndex()) {
+      ledger = RetiredGenerationLedger.restore(ledger.snapshotWith(loader, "round-$index"))
+      assertEquals(index == 3 || index == 7, ledger.needsCollection())
+    }
+    val references = ledger.pendingReferences()
+    references.drop(1).forEach { it.clear() }
+    assertFalse(ledger.needsCollection())
+    assertEquals(1, ledger.pendingCount)
+    assertSame(live.first(), references.first().get())
+  }
+
+  @Test
   fun capRefusesAnotherLoaderButAllowsRetryOfLastExport() {
     val clock = Clock()
     val loaders = List(17) { Loader() }

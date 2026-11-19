@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.lang.ref.WeakReference
 
 /** Only bootstrap containers, weak references and the live host loader cross generations. */
 internal class ModuleReloadState(
@@ -8,6 +9,7 @@ internal class ModuleReloadState(
   private val label: String,
   private val cleanup: (ClassLoader) -> String,
   private val report: (String) -> Unit,
+  private val collectRetired: (() -> Unit)? = null,
 ) {
   private var ledger = RetiredGenerationLedger.restore(null)
   @Volatile private var acceptedState: Array<Any?>? = null
@@ -42,15 +44,24 @@ internal class ModuleReloadState(
     if (references.isEmpty()) return
     maintenance.start {
       for (reference in references) {
-        val retired = reference.get() as? ClassLoader ?: continue
-        val result = try {
-          cleanup(retired)
-        } catch (failure: Exception) {
-          "cleanup unavailable (${failure.javaClass.simpleName})"
-        }
-        report("maintenance $result")
+        cleanRetiredLoader(reference)
+      }
+      if (collectRetired != null && ledger.needsCollection()) {
+        val before = ledger.pendingCount
+        collectRetired.invoke()
+        report("collection before=$before ${ledger.describe()}")
       }
     }
+  }
+
+  private fun cleanRetiredLoader(reference: WeakReference<*>) {
+    val loader = reference.get() as? ClassLoader ?: return
+    val result = try {
+      cleanup(loader)
+    } catch (failure: Exception) {
+      "cleanup unavailable (${failure.javaClass.simpleName})"
+    }
+    report("maintenance $result")
   }
 
   internal fun awaitMaintenance(timeoutMillis: Long): Boolean = maintenance.awaitStopped(timeoutMillis)

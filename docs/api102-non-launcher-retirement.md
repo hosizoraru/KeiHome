@@ -239,3 +239,47 @@ deferral. Previously, one fresh system-server acknowledgement was enough to
 reach the process-identity check, which could miss a simultaneous SystemUI
 refusal. The earlier two successful rounds have matching acknowledgements for
 both hosts; the later reproduced refusal remains a failed intermediate round.
+
+## Repeated SystemUI updates on OS4, November 20
+
+The b0605 physical update was refused at 16 live weak references after 34 had
+already cleared. On the fresh SystemUI PID 31827, the b0606 heap showed both
+the current and retired generation's material View classes as keys in a
+`HashMap` belonging to `com.os4.musiccover.d`. A key alone retains the class
+and its defining loader after the actual View has left the overlay. A separate
+process-lifetime table also held the first module loader on both devices.
+
+The material controller now owns an Android `View`, a `ShapeDrawable` and a
+`RoundRectShape`. The overlay exposes only the framework View class to other
+view consumers. Outline, paint and layout use the same bounds as the lighting
+pass. The SystemUI maintenance worker also requests an ART collection if four
+or more old loaders are still pending on every fourth generation, or at the
+16-entry limit. The request follows cache cleanup and releases temporary strong
+references before entering ART. The ledger prunes only cleared weak references.
+The existing refusal at capacity remains in force. This follows the bounded
+collection and host-root investigation approach used in KeiMi.
+
+Phone AVD, LSPosed 7944, SystemUI PID 9406: 18 ordinary APK replacements
+(b0607–b0624) all reached `adopted` and mapped their new APK in that PID.
+The post-adoption counts ranged from 2 to 6 and finished at 2. Across the run
+`weakCleared` advanced from 18 to 36. Two bounded collection requests occurred.
+The closing heap still showed the first loader in the shared table. A forced
+same-version service call was rejected by LSPosed because the APK also has
+native libraries. Actual package upgrades are required for this soak.
+
+On the physical phone with LSPosed 7940 the three release APK replacements
+b0625, b0626 and b0627 all preserved SystemUI PID 31827 and had 11/11, 10/10
+and 11/11 successful observed target results, respectively. The b0627 ledger
+initially recorded four retired loaders. After `dumpsys meminfo -s` and a
+second heap snapshot, the b0625 and b0626 weak referents were null and those
+loaders were absent. The b0605 and b0606 loaders remained reachable. The
+third-party map had exactly the same two KeiHome class keys in the before and
+after snapshots. New builds avoid adding keys. They cannot dislodge keys an
+older APK already exposed, and cannot run in a PID whose old owner refuses the
+upgrade at capacity. Earlier, after that refusal, SystemUI alone was restarted
+once (24018 → 31827). Launcher, system_server and Bilibili retained their PIDs.
+
+The AVD's Settings and SecurityCenter workers briefly deferred b0606 and later
+adopted updates in their original PIDs. The final b0627 AVD install yielded
+nine observed successful Java reloads. The actual native Launcher payload and
+CPU/frame-time impact are outside these measurements.

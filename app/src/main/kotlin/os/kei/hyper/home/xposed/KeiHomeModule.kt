@@ -28,7 +28,8 @@ class KeiHomeModule : XposedModule() {
   private var inactiveWorker = false
   private val reloadState by lazy {
     ModuleReloadState(requireNotNull(KeiHomeModule::class.java.classLoader), BuildConfig.VERSION_NAME,
-      ModulePlatformRoots::release, { message -> log(Log.INFO, "KeiHomeRetirement", message) })
+      ModulePlatformRoots::release, { message -> log(Log.INFO, "KeiHomeRetirement", message) },
+      collectRetired = if (processName == "com.android.systemui") Runtime.getRuntime()::gc else null)
   }
 
   override fun onModuleLoaded(param: ModuleLoadedParam) {

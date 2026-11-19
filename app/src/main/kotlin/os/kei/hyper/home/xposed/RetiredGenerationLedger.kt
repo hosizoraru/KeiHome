@@ -30,13 +30,22 @@ internal class RetiredGenerationLedger(
       return entries.size
     }
 
-  /** Check before tearing down the owner. Generation exhaustion also refuses retirement. */
   @Synchronized
   fun pendingReferences(): List<WeakReference<*>> {
     prune()
     return entries.map { it.reference }
   }
 
+  // The generation counter survives handoff. Rapid updates cannot start a GC on every adoption.
+  @Synchronized
+  fun needsCollection(): Boolean {
+    prune()
+    return entries.size >= COLLECTION_INTERVAL &&
+      (lastGeneration % COLLECTION_INTERVAL == 0L || entries.size == MAX_PENDING)
+  }
+
+  /** Check before tearing down the owner. Generation exhaustion also refuses retirement. */
+  @Synchronized
   fun canRetire(): Boolean {
     prune()
     return entries.size < MAX_PENDING && lastGeneration < Long.MAX_VALUE
@@ -94,6 +103,7 @@ internal class RetiredGenerationLedger(
   }
 
   companion object {
+    private const val COLLECTION_INTERVAL = 4
     internal const val MAX_PENDING = 16
     internal const val MAX_LABEL_LENGTH = 96
     private const val MARKER = "KeiHome.RetiredGenerationLedger"

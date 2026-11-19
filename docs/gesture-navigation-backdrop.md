@@ -1086,3 +1086,9 @@ b0606 the central stripe's P90–P10 luminance span was 40.50 against 48.51 in
 the adjacent image, compared with 36.13 in b0603 and zero in the mode 1 trial.
 This measures visible texture. Its displacement across app windows and the
 performance cost were not established. On flat white the capsule remains subtle.
+
+The switch to a framework View for retirement safety preserved the b0606
+light-page and Bilibili measurements in b0625. The b0627 physical recording
+shows the Bilibili-to-Home transition and return in the same processes. Home
+was triggered with the Home key after an injected swipe stayed in Bilibili.
+This recording verifies transition rendering, not completion by touch alone.

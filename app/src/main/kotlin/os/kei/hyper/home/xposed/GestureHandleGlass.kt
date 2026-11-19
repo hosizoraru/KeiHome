@@ -61,7 +61,7 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
         child.update(rect, r, intensity, widthScale)
         child.api.attach(view, child)
         material.backdrop?.setVisible(false, false)
-        android.util.Log.i("KeiHomeGestureGlass", "Attached HyperOS pill material ${child.width}x${child.height}")
+        android.util.Log.i("KeiHomeGestureGlass", "Attached HyperOS pill material ${child.view.width}x${child.view.height}")
       } }.getOrNull()
     }
     material.native?.let { child ->

@@ -22,6 +22,15 @@ When window blur is unavailable SystemUI draws its stock handle. Disabling the s
 compositor region and redraws the native handle. The touch surface, animation
 geometry and window owner remain under SystemUI control.
 
+The OEM material needs a real `View` in the handle's overlay render pass.
+A regular `ViewOverlay` only exposes drawable insertion in the public SDK.
+KeiHome probes its container only in the privileged SystemUI process. The
+verified HyperOS API 37 SystemUI declares `usesNonSdkApi=true`. If the container
+is missing or inaccessible on another build, the renderer uses the existing
+window blur or stock handle. Failed insertion removes the partially attached
+material. This path uses the host's existing policy without changing hidden API
+exemptions. The Lint suppression applies only to the container lookup.
+
 In glass mode the Bilibili integration skips its handle-color sample. The footer
 can still extend its original artwork, or match a solid tab background. The
 separate general app setting still uses the HyperOS backdrop policy. These

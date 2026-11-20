@@ -93,7 +93,7 @@ internal class SystemUiGestureTint(private val context: Context, private val pre
     glassOn = choice?.glassHandle == true
     if (owner != null && (glassOn || choice?.includesBilibiliArtwork(ownerUid) != true)) reset()
     if (glassOn && !watchingBlur && windows != null) {
-      if (glass == null) glass = runCatching { GestureHandleGlass(handleClass) }.getOrNull()
+      if (glass == null) glass = runCatching { GestureHandleGlass(context, handleClass) }.getOrNull()
       windows.addCrossWindowBlurEnabledListener(context.mainExecutor, blurListener)
       context.contentResolver.registerContentObserver(Settings.Secure.getUriFor("material_style"), false, style)
       refreshStyle()

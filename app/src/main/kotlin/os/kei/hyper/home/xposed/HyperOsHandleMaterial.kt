@@ -1,13 +1,17 @@
 package os.kei.hyper.home.xposed
 
+import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RoundRectShape
+import android.util.Log
+import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOverlay
-import android.view.View
 import androidx.core.graphics.ColorUtils
 
 /** A pill-sized, non-interactive child of the OEM handle overlay. Vendor flags belong to this view alone. */
@@ -70,12 +74,21 @@ internal class HyperOsHandleMaterial private constructor(
     (view.parent as? ViewGroup)?.removeView(view)
   }
 
-  class Api(loader: ClassLoader) {
-    private val overlay = ViewOverlay::class.java.getDeclaredMethod("getOverlayView").apply { isAccessible = true }
+  class Api private constructor(loader: ClassLoader) {
+    private val overlay = resolveOverlayContainer()
+
     fun attach(host: View, child: HyperOsHandleMaterial) {
-      (overlay.invoke(host.overlay) as ViewGroup).addView(child.view)
-      host.overlay.add(child.finish)
+      val hostOverlay = host.overlay
+      val container = overlay.invoke(hostOverlay) as ViewGroup
+      try {
+        container.addView(child.view)
+        hostOverlay.add(child.finish)
+      } catch (failure: Exception) {
+        child.removeFrom(host)
+        throw failure
+      }
     }
+
     private val clock = loader.loadClass("com.miui.clock.allInOne.TimeView")
     private val preset = clock.getMethod("getGlassData")
     private val constructor = clock.getConstructor(Context::class.java)
@@ -115,11 +128,28 @@ internal class HyperOsHandleMaterial private constructor(
       radii.invoke(view, Math.round(density), Math.round(2 * density))
       return child
     }
-  }
 
-  companion object {
-    fun resolve(loader: ClassLoader) = runCatching { Api(loader) }.onFailure {
-      android.util.Log.d("KeiHomeGestureGlass", "HyperOS glass unavailable: ${it.javaClass.simpleName}")
-    }.getOrNull()
+    companion object {
+      // An ordinary View's public overlay only accepts drawables. Keep the vendor child in
+      // the handle's own render pass so it inherits the handle's visibility and transforms.
+      // This probe runs in privileged SystemUI under its existing non-SDK policy.
+      @SuppressLint("SoonBlockedPrivateApi")
+      private fun resolveOverlayContainer() =
+        ViewOverlay::class.java.getDeclaredMethod("getOverlayView").apply {
+          check(ViewGroup::class.java.isAssignableFrom(returnType))
+          isAccessible = true
+        }
+
+      fun resolve(context: Context, loader: ClassLoader): Api? {
+        val systemUi = SystemUiThemeCompatibilityRuntime.PACKAGE_NAME
+        val systemFlags = ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP
+        if (Application.getProcessName() != systemUi || context.packageName != systemUi ||
+          context.applicationInfo.flags and systemFlags == 0) return null
+
+        return runCatching { Api(loader) }.onFailure {
+          Log.d("KeiHomeGestureGlass", "HyperOS glass unavailable: ${it.javaClass.simpleName}")
+        }.getOrNull()
+      }
+    }
   }
 }

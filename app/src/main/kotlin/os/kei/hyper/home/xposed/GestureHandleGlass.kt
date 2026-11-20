@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.RectF
@@ -10,7 +11,7 @@ import java.util.IdentityHashMap
 import kotlin.math.roundToInt
 
 /** The blur drawable belongs to the navigation window's compositor. Its bounds are the actual animated pill. */
-internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeListener {
+internal class GestureHandleGlass(context: Context, handle: Class<*>) : View.OnAttachStateChangeListener {
   private class Material {
     var native: HyperOsHandleMaterial? = null
     var triedNative = false
@@ -29,7 +30,7 @@ internal class GestureHandleGlass(handle: Class<*>) : View.OnAttachStateChangeLi
   private val materials = IdentityHashMap<View, Material>()
   // The ranchu renderer advertises the MIUI API but draws a flat mask in both day and night mode.
   private val vendor = if (android.os.Build.HARDWARE == "ranchu") null
-    else handle.classLoader?.let(HyperOsHandleMaterial::resolve)
+    else handle.classLoader?.let { HyperOsHandleMaterial.Api.resolve(context, it) }
   var allowVendor = false
   private val blur = runCatching { BlurApi() }.getOrNull()
 

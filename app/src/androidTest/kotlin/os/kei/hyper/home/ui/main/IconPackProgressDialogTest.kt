@@ -9,6 +9,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -56,6 +59,8 @@ class IconPackProgressDialogTest {
     assertTrue(abs(window.center.y - dialog.center.y) < window.height * .09f)
     assertTrue(dialog.width < window.width)
     rule.onNodeWithTag("icon-pack.progress.percent").assertIsDisplayed()
+    rule.onNode(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo,
+      ProgressBarRangeInfo(if (waiting) .94f else .81f, 0f..1f))).assertIsDisplayed()
     if (waiting) rule.onNodeWithTag("icon-pack.progress.count").assertDoesNotExist()
     else rule.onNodeWithTag("icon-pack.progress.count").assertIsDisplayed().assertTextEquals(countLabel)
     val action = if (waiting) "background" else "cancel"

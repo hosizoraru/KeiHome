@@ -387,6 +387,7 @@ internal fun PerfectSubpage(
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior, overScrollEnabled = !pullRefresh || refreshEnabled && !refreshing),
       contentPadding = listPadding,
+      topAppBarScrollBehavior = behavior,
       content = content)
     }
     if (pullRefresh && onRefresh != null) {

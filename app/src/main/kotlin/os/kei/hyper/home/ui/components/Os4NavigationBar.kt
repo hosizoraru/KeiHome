@@ -1,13 +1,8 @@
 package os.kei.hyper.home.ui.components
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -35,12 +30,9 @@ internal fun KeiHomeGlassNavigationBar(
       GlassNavigationItem(icon = item.icon, label = item.label, badge = { badge(index) })
     }
   }
-  Box(modifier.fillMaxWidth()
-    .padding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).asPaddingValues()),
-    contentAlignment = Alignment.Center) {
-    Box(Modifier.padding(horizontal = 16.dp).widthIn(max = 560.dp).fillMaxWidth()) {
-      GlassNavigationBar(items = glassItems, selectedIndex = selectedIndex, onSelect = onSelect,
-        backdrop = backdrop, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
-    }
+  Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    GlassNavigationBar(items = glassItems, selectedIndex = selectedIndex, onSelect = onSelect,
+      modifier = Modifier.padding(horizontal = 16.dp).widthIn(max = 560.dp),
+      backdrop = backdrop, style = GlassDefaults.style(LocalKeiHomeDarkTheme.current))
   }
 }

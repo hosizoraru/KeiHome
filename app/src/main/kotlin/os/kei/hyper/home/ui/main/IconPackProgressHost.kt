@@ -18,9 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,10 +79,7 @@ internal fun IconPackProgressDialog(
           Text(stringResource(R.string.pack_progress_percentage, progress.percent),
             modifier = Modifier.testTag("icon-pack.progress.percent"), style = MiuixTheme.textStyles.subtitle)
         }
-        val fraction = progress.measuredPercent / 100f
-        LinearProgressIndicator(Modifier.fillMaxWidth().semantics {
-          progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
-        }, progress = fraction)
+        LinearProgressIndicator(progress = { progress.measuredPercent / 100f })
         if (progress.total > 0 || (progress.inKiB && progress.done > 0)) {
           val count = when {
             !progress.inKiB -> stringResource(R.string.coloros_generation_count, progress.done, progress.total)

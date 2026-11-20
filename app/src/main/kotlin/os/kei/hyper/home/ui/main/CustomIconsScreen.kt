@@ -223,6 +223,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier).testTag("custom-icons.list"),
       contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+      topAppBarScrollBehavior = behavior,
       verticalArrangement = Arrangement.spacedBy(10.dp)) {
       if (root) item("origins", contentType = "origins") {
           val origins = if (uncustomized) newApps.map { it.systemApp }

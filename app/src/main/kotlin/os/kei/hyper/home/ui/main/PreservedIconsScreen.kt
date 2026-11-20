@@ -285,6 +285,7 @@ internal fun PreservedIconsPage(
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .testTag("preserved-icons.list"),
       contentPadding = listPadding,
+      topAppBarScrollBehavior = behavior,
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
       item("search", contentType = "search") {
         Os4SearchField(query = query, onQueryChange = { query = it },

@@ -14,10 +14,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
@@ -30,12 +29,12 @@ internal fun Os4LazyColumn(
   modifier: Modifier = Modifier,
   contentPadding: PaddingValues = PaddingValues(0.dp),
   verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+  topAppBarScrollBehavior: ScrollBehavior? = null,
   content: LazyListScope.() -> Unit,
 ) {
   val scrollable by remember(state) {
     derivedStateOf { state.canScrollForward || state.canScrollBackward }
   }
-  val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
   Box(modifier) {
     LazyColumn(state = state, overscrollEffect = null, modifier = Modifier.fillMaxSize(),
       contentPadding = contentPadding, verticalArrangement = verticalArrangement, content = content)
@@ -43,10 +42,11 @@ internal fun Os4LazyColumn(
       // The narrow native hit strip stays in the outer margin, away from trailing controls.
       VerticalScrollBar(
         adapter = rememberScrollBarAdapter(state),
-        modifier = Modifier.align(if (rtl) Alignment.CenterStart else Alignment.CenterEnd)
+        modifier = Modifier.align(Alignment.CenterEnd)
           .fillMaxHeight().testTag("os4.list.scrollbar"),
         trackPadding = PaddingValues(top = contentPadding.calculateTopPadding(),
           bottom = contentPadding.calculateBottomPadding()),
+        topAppBarScrollBehavior = topAppBarScrollBehavior,
       )
     }
   }

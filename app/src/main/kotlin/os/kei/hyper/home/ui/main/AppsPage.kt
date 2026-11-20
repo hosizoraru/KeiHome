@@ -72,6 +72,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -80,7 +81,14 @@ import top.yukonga.miuix.kmp.icon.glass.Help
 import top.yukonga.miuix.kmp.icon.glass.Ok
 
 @Composable
-internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues, modifier: Modifier, browser: AppsBrowserUi) {
+internal fun AppsPage(
+  model: HomeViewModel,
+  listState: LazyListState,
+  padding: PaddingValues,
+  modifier: Modifier,
+  browser: AppsBrowserUi,
+  scrollBehavior: ScrollBehavior,
+) {
   val scan by model.apps.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
   val monet by model.monet.collectAsStateWithLifecycle()
@@ -100,7 +108,7 @@ internal fun AppsPage(model: HomeViewModel, listState: LazyListState, padding: P
     monet.snapshot?.customizationActive) { previewColors(monet.snapshot) }
   val configuration = LocalConfiguration.current.toString()
   Os4LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
-    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    verticalArrangement = Arrangement.spacedBy(8.dp), topAppBarScrollBehavior = scrollBehavior) {
     item(key = "search", contentType = "search") {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Os4SearchField(query = browser.query, onQueryChange = browser.onQueryChange,

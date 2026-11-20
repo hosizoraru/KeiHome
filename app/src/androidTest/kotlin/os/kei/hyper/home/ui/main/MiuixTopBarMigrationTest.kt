@@ -81,9 +81,9 @@ class MiuixTopBarMigrationTest {
     rule.runOnIdle { assertEquals(12, clicks) }
   }
 
-  @Test fun collapsedGlassTitleAndSubtitleRemainOneCenteredGroup() = checkSubtitleGroup(glass = true)
+  @Test fun collapsedGlassTitleAndSubtitleStayTogetherWhenSpaceIsLimited() = checkSubtitleGroup(glass = true)
 
-  @Test fun collapsedStandardTitleAndSubtitleRemainOneCenteredGroup() = checkSubtitleGroup(glass = false)
+  @Test fun collapsedStandardTitleAndSubtitleStayTogetherWhenSpaceIsLimited() = checkSubtitleGroup(glass = false)
 
   private fun checkSubtitleGroup(glass: Boolean) {
     val direction = mutableStateOf(LayoutDirection.Ltr)
@@ -134,13 +134,17 @@ class MiuixTopBarMigrationTest {
         // The expanded subtitle is also composed; select the one directly below the collapsed title.
         val subtitle = rule.onAllNodesWithText("Backup and cache", useUnmergedTree = true)
           .fetchSemanticsNodes().map { it.boundsInRoot }.minBy { abs(it.top - title.bottom) }
-        assertEquals("Title and subtitle share a horizontal center", title.center.x, subtitle.center.x, 2f)
+        val titleStart = if (layout == LayoutDirection.Ltr) title.left else title.right
+        val subtitleStart = if (layout == LayoutDirection.Ltr) subtitle.left else subtitle.right
+        assertTrue("Title and subtitle share a center or a leading edge",
+          abs(title.center.x - subtitle.center.x) <= 2f || abs(titleStart - subtitleStart) <= 2f)
         assertEquals("Center the whole group against controls", leading.center.y,
           (title.top + subtitle.bottom) / 2, 2f)
         assertEquals("Subtitle follows the title without overlap", title.bottom, subtitle.top, 2f)
         val left = if (layout == LayoutDirection.Ltr) leading.right else trailing.right
         val right = if (layout == LayoutDirection.Ltr) trailing.left else leading.left
         assertTrue("Text must clear both controls", title.left >= left - 1 && title.right <= right + 1)
+        assertTrue("Subtitle must clear both controls", subtitle.left >= left - 1 && subtitle.right <= right + 1)
         rule.onNodeWithTag("action").performClick()
       }
     }

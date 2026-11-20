@@ -59,7 +59,9 @@ import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -240,13 +242,16 @@ class AdaptiveChromeDeviceTest {
   @Test fun scrollbarDragsSharedListWithoutStealingTrailingActions() {
     lateinit var list: LazyListState
     lateinit var scope: CoroutineScope
+    lateinit var behavior: ScrollBehavior
     var taps = 0
     rule.setContent {
       Fixture {
         list = rememberLazyListState()
         scope = rememberCoroutineScope()
+        behavior = MiuixScrollBehavior()
         Os4LazyColumn(list, Modifier.size(400.dp, 600.dp),
-          contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 40.dp, bottom = 70.dp)) {
+          contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 40.dp, bottom = 70.dp),
+          topAppBarScrollBehavior = behavior) {
           items(200, key = { it }) { index ->
             Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 20.dp)) {
               Text("Row $index", Modifier.weight(1f))
@@ -256,10 +261,17 @@ class AdaptiveChromeDeviceTest {
         }
       }
     }
+    // The fading scrollbar accepts touch once scrolling has revealed its thumb.
+    rule.runOnIdle { scope.launch { list.scrollToItem(1) } }
+    rule.waitUntil { list.firstVisibleItemIndex == 1 }
     rule.onNodeWithTag("os4.list.scrollbar").performTouchInput {
       swipe(start = center.copy(y = 50f), end = center.copy(y = height - 100f), durationMillis = 600)
     }
-    rule.runOnIdle { assertTrue(list.firstVisibleItemIndex > 30); scope.launch { list.scrollToItem(50) } }
+    rule.runOnIdle {
+      assertTrue(list.firstVisibleItemIndex > 30)
+      assertTrue("Scrollbar drag updates the app bar's content offset", behavior.state.contentOffset < 0f)
+      scope.launch { list.scrollToItem(50) }
+    }
     rule.onNodeWithText("Action 51").performClick()
     rule.runOnIdle { assertEquals(1, taps) }
   }

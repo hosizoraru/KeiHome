@@ -231,6 +231,7 @@ internal fun NavigationBackdropContent(
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
       contentPadding = PaddingValues(start = 12.dp, end = 12.dp,
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+      topAppBarScrollBehavior = behavior,
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
       when (page) {
         NavigationBackdropPage.OVERVIEW -> {

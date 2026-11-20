@@ -162,7 +162,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
           PagePullToRefresh(model, 1, padding, Modifier.testTag("apps.pull-to-refresh")) { busy ->
             AppsPage(model, appList, padding,
               Modifier.fillMaxSize().keiHomeTopBarScroll(behaviors[tab], overScrollEnabled = !busy),
-              rememberAppsRefreshContent(appsBrowser, busy))
+              rememberAppsRefreshContent(appsBrowser, busy), scrollBehavior = behaviors[tab])
           }
         } else if (page == 3) {
           val sectionList = rememberLazyListState()

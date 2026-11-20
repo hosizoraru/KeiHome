@@ -34,11 +34,11 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-`0.9.5-5ff41ba9-SNAPSHOT` 对应上游
-[5ff41ba9](https://github.com/compose-miuix-ui/miuix/commit/5ff41ba90d963e48c3db1f3b28eb8dbebc9391f9)。
-增量迁移见 [Snapshot 审查](miuix-snapshot-5ff41ba9.md)。Glass 输入用于 Monet
-色值、缓存预算、连接设置和日志自定义时长。搜索保留共用的搜索控件及展开、取消、返回
-语义。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
+`0.9.5-66248bac-SNAPSHOT` 对应上游
+[66248bac](https://github.com/compose-miuix-ui/miuix/commit/66248bacc7be29ae6bdc0957de9458b42ac67732)，
+与项目的 AndroidX Compose `1.13.0-rc01` 对齐。Glass 输入通过 `TextFieldState`
+编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
+展开、取消与返回。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
 提供无障碍状态，并使用新版主操作材质。
 
 原生底栏使用 MIUIX 自己的系统栏和小窗标题栏 inset。自定义 Liquid
@@ -551,6 +551,7 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [66248bac 迁移](miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。
 - [5ff41ba9 迁移](miuix-snapshot-5ff41ba9.md)汇总底栏、滚动条、顶部栏和进度条交接，以及验收记录。
 - [670cf597 迁移](miuix-snapshot-670cf597.md)记录 Glass 输入、对话框与底部面板。
 - [早期 OS4 架构迁移](miuix-os4-migration.md)：材质、导航与统一封装。

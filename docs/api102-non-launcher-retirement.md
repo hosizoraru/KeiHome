@@ -16,6 +16,32 @@ This contract does not guarantee immediate ClassLoader collection, DEX
 unmapping or native-library unloading. An acknowledgement or a quiet worker
 proves neither the absence of external roots nor reclaimed physical memory.
 
+## HyperOS OS4.0.8.0 on pandora
+
+On November 20 the ROM updated to `OS4.0.8.0.XBLCNXM` (API 37), with
+the installed Launcher still at `801030308`. SystemUI and Settings had
+different DEX and resource hashes at the same reported package versions.
+The existing SystemUI profile matched on the new APK and the OEM glass
+gesture handle attached at 390 × 17 pixels. The Settings material selector,
+control center, volume panel, and swipe-home transition were checked on
+the physical phone.
+
+The OTA boot logs contained 31 `Unknown authority os.kei.hyper.home.runtime`
+errors before user 0 was unlocked. The navigation compatibility reply and
+native icon import path now check credential-storage availability before
+proceeding. The existing Monet monitor owns the unlock receiver and schedules
+coalesced rechecks for navigation status, native import and runtime status.
+Native import resumes through its existing journal and request identity
+checks. Module retirement unregisters the receiver with the other monitor
+registrations.
+
+KeiOS-signed b0638 published its navigation receipt after an in-place update
+with user 0 already unlocked. All seven observed Java reloads succeeded.
+SystemUI, Launcher and system_server kept their original PIDs, and the
+packaged native libraries matched b0636. Cold boot through first unlock and
+pending import reconciliation remain to be verified on the new build.
+Receipts are in `.artifacts/research/pandora-os4.0.8-20261120/`.
+
 ## Existing owners
 
 | Process | Retirement responsibilities in current source |

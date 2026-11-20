@@ -12,6 +12,8 @@ internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
 internal enum class AppPagerGesture { NATIVE, CROSS_AXIS }
 internal enum class AppTopBarBlur { OFF, GAUSSIAN, PROGRESSIVE }
 internal enum class AppNavigationBarStyle { IOS_LIKE, OS4_GLASS }
+internal const val DEFAULT_APP_SCALE_PERCENT = 100
+internal val APP_SCALE_RANGE = 80..110
 internal enum class ColorOsStyle(val key: String) {
   CLASSIC("classic"), DAYLIGHT("daylight"), NIGHT_SHADOW("nightshadow"),
   MATERIAL("material"), PEBBLE("pebble"), INSPIRATION("inspiration");
@@ -47,6 +49,9 @@ internal data class AppPreferencesState(
   val pageUserScroll: Boolean = true,
   val pagerGesture: AppPagerGesture = AppPagerGesture.CROSS_AXIS,
   val topBarBlur: AppTopBarBlur = AppTopBarBlur.PROGRESSIVE,
+  val squircleShapes: Boolean = true,
+  val appScalePercent: Int = DEFAULT_APP_SCALE_PERCENT,
+  val scrollEndHaptic: Boolean = true,
   val autoApplyIconPack: Boolean = true,
   val openCurrentIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
@@ -112,6 +117,11 @@ internal class AppPreferences internal constructor(
       ?: AppPagerGesture.CROSS_AXIS,
     topBarBlur = AppTopBarBlur.entries.firstOrNull { it.name == preferences.getString("top_bar_blur", null) }
       ?: AppTopBarBlur.PROGRESSIVE,
+    squircleShapes = preferences.getBoolean("ui_squircle_shapes", true),
+    appScalePercent = if (preferences.contains("ui_scale_percent"))
+      preferences.getInt("ui_scale_percent", DEFAULT_APP_SCALE_PERCENT).coerceIn(APP_SCALE_RANGE)
+    else DEFAULT_APP_SCALE_PERCENT,
+    scrollEndHaptic = preferences.getBoolean("ui_scroll_end_haptic", true),
     showIconPreviews = preferences.getBoolean("icon_previews", true),
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
@@ -163,6 +173,22 @@ internal class AppPreferences internal constructor(
   fun setTopBarBlur(value: AppTopBarBlur) {
     preferences.edit().putString("top_bar_blur", value.name).apply()
     state.update { it.copy(topBarBlur = value) }
+  }
+
+  fun setSquircleShapes(value: Boolean) {
+    preferences.edit().putBoolean("ui_squircle_shapes", value).apply()
+    state.update { it.copy(squircleShapes = value) }
+  }
+
+  fun setAppScalePercent(value: Int) {
+    val percent = value.coerceIn(APP_SCALE_RANGE)
+    preferences.edit().putInt("ui_scale_percent", percent).apply()
+    state.update { it.copy(appScalePercent = percent) }
+  }
+
+  fun setScrollEndHaptic(value: Boolean) {
+    preferences.edit().putBoolean("ui_scroll_end_haptic", value).apply()
+    state.update { it.copy(scrollEndHaptic = value) }
   }
 
   fun setNavigationBarStyle(value: AppNavigationBarStyle) {

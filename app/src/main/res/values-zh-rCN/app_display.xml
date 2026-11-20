@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_squircle_title">平滑圆角</string>
+    <string name="app_squircle_summary">让支持的卡片、按钮等控件使用过渡更平滑的圆角。</string>
+    <string name="app_squircle_unsupported">平滑圆角需要设备支持图形着色器。</string>
+    <string name="app_scale_title">界面缩放</string>
+    <string name="app_scale_summary">调整 KeiHome 界面的大小。</string>
+    <string name="app_scale_input">缩放比例（%1$d–%2$d%%）</string>
+    <string name="app_scale_percent">%1$d%%</string>
+    <string name="app_scale_reset">恢复为 %1$d%%</string>
+    <string name="app_interaction_title">滚动与切页</string>
+    <string name="app_scroll_haptic_title">滚动边缘触感</string>
+    <string name="app_scroll_haptic_summary">快速滑动到页面顶部或底部时轻微振动。</string>
+</resources>

@@ -42,12 +42,16 @@ internal fun KeiHomeAdaptiveNavigation(
   content: @Composable (wide: Boolean) -> Unit,
 ) {
   val rail = rememberGlassNavigationRailState()
-  val preferredRailWidth = 256.dp * LocalDensity.current.fontScale.coerceIn(1f, 1.25f)
+  val density = LocalDensity.current
+  val preferredRailWidth = 256.dp * density.fontScale.coerceIn(1f, 1.25f)
   CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
     BoxWithConstraints(modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-      val wide = maxWidth >= 720.dp && maxHeight >= 480.dp
+      // App scale can change density while the window's pixel constraints stay the same.
+      val viewportWidth = if (constraints.hasBoundedWidth) with(density) { constraints.maxWidth.toDp() } else maxWidth
+      val viewportHeight = if (constraints.hasBoundedHeight) with(density) { constraints.maxHeight.toDp() } else maxHeight
+      val wide = viewportWidth >= 720.dp && viewportHeight >= 480.dp
       val showRail = wide && railEnabled
-      val railWidth = preferredRailWidth.coerceAtMost((maxWidth - 496.dp).coerceAtLeast(0.dp))
+      val railWidth = preferredRailWidth.coerceAtMost((viewportWidth - 496.dp).coerceAtLeast(0.dp))
       Box(Modifier.fillMaxSize().layout { measurable, constraints ->
         // Read animated progress in measurement, rather than recomposing pages per frame.
         val progress = if (showRail) rail.progress else 0f

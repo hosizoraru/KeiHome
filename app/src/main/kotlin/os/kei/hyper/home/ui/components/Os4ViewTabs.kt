@@ -102,10 +102,11 @@ private fun Os4NativeTabs(
     (ceil(shadowReach * this.density).toInt() + 1).toDp()
   }
   BoxWithConstraints(modifier.fillMaxWidth()) {
-    val availableWidth = (maxWidth - shadowPadding * 2).coerceAtLeast(0.dp)
+    val viewportWidth = with(density) { constraints.maxWidth.toDp() }
+    val availableWidth = (viewportWidth - shadowPadding * 2).coerceAtLeast(0.dp)
     val trackWidth = if (constraints.hasBoundedWidth) maxOf(availableWidth, minimumWidth) else minimumWidth
     val overflows = constraints.hasBoundedWidth && minimumWidth > availableWidth
-    LaunchedEffect(selected, trackWidth, maxWidth, scroll.maxValue, overflows, shadowPadding) {
+    LaunchedEffect(selected, trackWidth, viewportWidth, scroll.maxValue, overflows, shadowPadding) {
       if (overflows && scroll.maxValue != Int.MAX_VALUE) {
         val tabWidth = (trackWidth - trackPadding * 2 - tabGap * (items.size - 1)) / items.size
         val halo = with(density) { shadowPadding.roundToPx() }
@@ -113,7 +114,7 @@ private fun Os4NativeTabs(
           (shadowPadding + trackPadding + (tabWidth + tabGap) * selected).roundToPx()
         }
         val end = start + with(density) { tabWidth.roundToPx() }
-        val viewport = with(density) { maxWidth.roundToPx() }
+        val viewport = constraints.maxWidth
         val target = when {
           selected == 0 -> 0
           selected == items.lastIndex -> scroll.maxValue

@@ -34,8 +34,8 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-`0.9.5-66248bac-SNAPSHOT` 对应上游
-[66248bac](https://github.com/compose-miuix-ui/miuix/commit/66248bacc7be29ae6bdc0957de9458b42ac67732)，
+`0.9.5-f3829d3d-SNAPSHOT` 对应上游
+[f3829d3d](https://github.com/compose-miuix-ui/miuix/commit/f3829d3d162eb267a792d43b3c8541e64effc28d)，
 与项目的 AndroidX Compose `1.13.0-rc01` 对齐。Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
 展开、取消与返回。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
@@ -551,6 +551,7 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [f3829d3d 迁移](miuix-snapshot-f3829d3d.md)记录侧栏、标签栏和应用显示设置。
 - [66248bac 迁移](miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。
 - [5ff41ba9 迁移](miuix-snapshot-5ff41ba9.md)汇总底栏、滚动条、顶部栏和进度条交接，以及验收记录。
 - [670cf597 迁移](miuix-snapshot-670cf597.md)记录 Glass 输入、对话框与底部面板。

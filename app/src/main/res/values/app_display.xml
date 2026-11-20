@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_squircle_title">Smooth corners</string>
+    <string name="app_squircle_summary">Use smoother corner curves on supported cards, buttons, and other controls.</string>
+    <string name="app_squircle_unsupported">Smooth corners require graphics shader support.</string>
+    <string name="app_scale_title">Interface scale</string>
+    <string name="app_scale_summary">Resize the KeiHome interface.</string>
+    <string name="app_scale_input">Scale (%1$d–%2$d%%)</string>
+    <string name="app_scale_percent">%1$d%%</string>
+    <string name="app_scale_reset">Reset to %1$d%%</string>
+    <string name="app_interaction_title">Scrolling and page navigation</string>
+    <string name="app_scroll_haptic_title">Scroll end haptics</string>
+    <string name="app_scroll_haptic_summary">Feel a light vibration when a fast scroll reaches the top or bottom of a page.</string>
+</resources>

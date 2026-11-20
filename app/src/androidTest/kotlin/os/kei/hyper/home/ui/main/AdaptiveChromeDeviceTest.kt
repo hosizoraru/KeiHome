@@ -146,6 +146,30 @@ class AdaptiveChromeDeviceTest {
     }
   }
 
+  @Test fun appScaleReevaluatesRailAtTheSameWindowSize() {
+    var scale by mutableStateOf(1f)
+    var creations = 0
+    rule.setContent {
+      Fixture {
+        Box(Modifier.size(760.dp, 700.dp)) {
+          CompositionLocalProvider(LocalDensity provides Density(scale)) {
+            KeiHomeAdaptiveNavigation(destinations(), 0, {}, null) { wide ->
+              remember { creations++ }
+              Text(if (wide) "Wide content" else "Compact content")
+            }
+          }
+        }
+      }
+    }
+    rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    rule.runOnIdle { scale = 1.1f }
+    rule.onNodeWithTag("adaptive.rail").assertDoesNotExist()
+    rule.onNodeWithText("Compact content").assertIsDisplayed()
+    rule.runOnIdle { scale = 1f }
+    rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
+    rule.runOnIdle { assertEquals(1, creations) }
+  }
+
   @Test fun collapsedNavigationAndListPositionSurviveSavedStateRestoration() {
     val restoration = StateRestorationTester(rule)
     lateinit var list: LazyListState

@@ -24,14 +24,15 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppAppearance
 import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferencesState
+import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
-import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -66,6 +67,9 @@ internal fun SettingsContent(
   staticScopeContent: @Composable () -> Unit = {},
   onKeepLatestGeneratedPacksChange: (Boolean) -> Unit = {},
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
+  onSquircleShapesChange: (Boolean) -> Unit = {},
+  onAppScaleChange: (Int) -> Unit = {},
+  onScrollEndHapticChange: (Boolean) -> Unit = {},
   onOpenRecommendedMappings: (() -> Unit)? = null,
   fallbackContent: @Composable () -> Unit,
 ) {
@@ -86,6 +90,12 @@ internal fun SettingsContent(
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
   val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
     R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
+  val squircle = matches(SettingsSection.APP, R.string.polish_settings_display,
+    R.string.app_squircle_title, R.string.app_squircle_summary, extra = "Squircle")
+  val scale = matches(SettingsSection.APP, R.string.polish_settings_display,
+    R.string.app_scale_title, R.string.app_scale_summary, extra = "Global Scale")
+  val scrollEndHaptic = matches(SettingsSection.APP, R.string.app_interaction_title,
+    R.string.app_scroll_haptic_title, R.string.app_scroll_haptic_summary, extra = "Scroll End Haptic")
   val navigationBarStyle = matches(SettingsSection.APP, R.string.polish_settings_display,
     R.string.navigation_bar_style_title, R.string.navigation_bar_style_summary,
     R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass,
@@ -133,8 +143,10 @@ internal fun SettingsContent(
   val keepLatestGeneratedPacks = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_settings_experience, R.string.generated_pack_retention_title,
     R.string.generated_pack_retention_summary)
-  val pageScroll = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_page_scroll)
-  val pagerMode = matches(SettingsSection.APP, R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
+  val pageScroll = matches(SettingsSection.APP, R.string.app_interaction_title,
+    R.string.browser_pager_title, R.string.browser_page_scroll)
+  val pagerMode = matches(SettingsSection.APP, R.string.app_interaction_title,
+    R.string.browser_pager_title, R.string.browser_pager_mode, R.string.browser_pager_hint,
     R.string.browser_pager_native, R.string.browser_pager_cross)
   val previews = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_settings_experience,
     R.string.polish_previews_title, R.string.polish_previews_summary)
@@ -148,7 +160,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -173,7 +185,7 @@ internal fun SettingsContent(
           onClick = onOpenRecommendedMappings)
       }
     }
-    if (colorMode || appearance || language || blur || navigationBarStyle) {
+    if (colorMode || appearance || language || blur || squircle || scale || navigationBarStyle) {
       SmallTitle(
         stringResource(R.string.polish_settings_display),
         modifier = Modifier.semantics { heading() },
@@ -214,6 +226,15 @@ internal fun SettingsContent(
           items = listOf(R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
             .map { stringResource(it) }, selectedIndex = preferences.topBarBlur.ordinal,
           onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
+        if (squircle) {
+          val supported = isRuntimeShaderSupported()
+          SwitchPreference(title = stringResource(R.string.app_squircle_title),
+            summary = stringResource(if (supported) R.string.app_squircle_summary else R.string.app_squircle_unsupported),
+            checked = supported && preferences.squircleShapes,
+            enabled = supported, onCheckedChange = onSquircleShapesChange,
+            modifier = Modifier.testTag("settings.squircle-shapes"))
+        }
+        if (scale) AppScalePreference(preferences.appScalePercent, onAppScaleChange)
       }
     }
     if (effects || launcherGlass) {
@@ -238,8 +259,8 @@ internal fun SettingsContent(
         showRememberMenus = rememberMenus, showPreviews = previews,
         onKeepLatestGeneratedPacks = onKeepLatestGeneratedPacksChange.takeIf { keepLatestGeneratedPacks })
     }
-    if (pageScroll || pagerMode) {
-      SmallTitle(stringResource(R.string.browser_pager_title))
+    if (pageScroll || pagerMode || scrollEndHaptic) {
+      SmallTitle(stringResource(R.string.app_interaction_title), modifier = Modifier.semantics { heading() })
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         if (pageScroll) SwitchPreference(title = stringResource(R.string.browser_page_scroll),
           checked = preferences.pageUserScroll, onCheckedChange = onPageUserScrollChange)
@@ -249,6 +270,10 @@ internal fun SettingsContent(
             .map { stringResource(it) }, selectedIndex = preferences.pagerGesture.ordinal,
           enabled = preferences.pageUserScroll,
           onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
+        if (scrollEndHaptic) SwitchPreference(title = stringResource(R.string.app_scroll_haptic_title),
+          summary = stringResource(R.string.app_scroll_haptic_summary),
+          checked = preferences.scrollEndHaptic, onCheckedChange = onScrollEndHapticChange,
+          modifier = Modifier.testTag("settings.scroll-end-haptic"))
       }
     }
     if (clear && section != SettingsSection.CACHE) {

@@ -6,7 +6,44 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
-class NavigationBarStylePreferencesTest {
+class AppDisplayPreferencesTest {
+  @Test fun displayControlsUseDefaultsWithoutMigratingExistingChoices() {
+    val store = Store(legacyValues())
+    val before = store.values.toMap()
+    val state = store.open().state.value
+
+    assertEquals(100, state.appScalePercent)
+    assertEquals(true, state.squircleShapes)
+    assertEquals(true, state.scrollEndHaptic)
+    assertEquals(AppTopBarBlur.OFF, state.topBarBlur)
+    assertEquals(before, store.values)
+    assertEquals(AppTopBarBlur.PROGRESSIVE, Store(mutableMapOf()).open().state.value.topBarBlur)
+  }
+
+  @Test fun scaleAndDisabledEffectsRestoreWithOtherAppearancePreferences() {
+    val store = Store(legacyValues())
+    val initial = store.open().state.value
+    val preferences = store.open()
+    preferences.setSquircleShapes(false)
+    preferences.setScrollEndHaptic(false)
+    preferences.setAppScalePercent(107)
+    val expected = initial.copy(squircleShapes = false, scrollEndHaptic = false, appScalePercent = 107)
+
+    assertEquals(expected, preferences.state.value)
+    assertEquals(expected, store.open().state.value)
+  }
+
+  @Test fun scaleStaysWithinSupportedRangeWhenRestoredAndSaved() {
+    val store = Store(mutableMapOf("ui_scale_percent" to 70))
+    val preferences = store.open()
+    assertEquals(80, preferences.state.value.appScalePercent)
+    assertEquals(70, store.values["ui_scale_percent"])
+
+    preferences.setAppScalePercent(120)
+    assertEquals(110, preferences.state.value.appScalePercent)
+    assertEquals(110, store.open().state.value.appScalePercent)
+  }
+
   @Test fun missingStyleDefaultsToOs4GlassWithoutWritingPreferences() {
     assertEquals(AppNavigationBarStyle.OS4_GLASS, AppPreferencesState().navigationBarStyle)
     for (values in listOf(mutableMapOf<String, Any>(), legacyValues())) {
@@ -78,7 +115,7 @@ class NavigationBarStylePreferencesTest {
     ) { _, method, args ->
       when (method.name) {
         "getAll" -> values.toMap()
-        "getString", "getBoolean", "getLong" -> values[args!![0] as String] ?: args[1]
+        "getString", "getBoolean", "getLong", "getInt" -> values[args!![0] as String] ?: args[1]
         "contains" -> values.containsKey(args!![0] as String)
         "edit" -> editor()
         else -> error("Unexpected preference call: ${method.name}")
@@ -93,7 +130,7 @@ class NavigationBarStylePreferencesTest {
         SharedPreferences.Editor::class.java.classLoader, arrayOf(SharedPreferences.Editor::class.java),
       ) { editor, method, args ->
         when (method.name) {
-          "putString" -> {
+          "putString", "putBoolean", "putInt" -> {
             pending[args!![0] as String] = requireNotNull(args[1])
             editor
           }

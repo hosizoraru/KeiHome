@@ -38,6 +38,8 @@ import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import os.kei.hyper.home.data.AppTopBarBlur
 
 private val LocalGlassToolbar = staticCompositionLocalOf { false }
@@ -52,7 +54,8 @@ internal fun Modifier.keiHomeTopBarScroll(scrollBehavior: ScrollBehavior, overSc
   // Keep actual scroll inside the spring so rebound never accumulates in contentOffset.
   // MIUIX overscroll can drive its inherited pull state directly, bypassing a parent's
   // disabled nested-scroll connection. Disable that spring too while a pull is unavailable.
-  return overScrollVertical(onOffsetChanged = onOffsetChanged, isEnabled = { overScrollEnabled })
+  val modifier = if (overScrollEnabled && LocalKeiHomeScrollEndHaptic.current) scrollEndHaptic() else this
+  return modifier.overScrollVertical(onOffsetChanged = onOffsetChanged, isEnabled = { overScrollEnabled })
     .nestedScroll(scrollBehavior.nestedScrollConnection)
 }
 

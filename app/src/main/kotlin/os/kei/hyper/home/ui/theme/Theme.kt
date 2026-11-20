@@ -13,6 +13,8 @@ import androidx.core.view.WindowCompat
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -21,11 +23,14 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.channels.awaitClose
 import os.kei.hyper.home.data.AppAppearance
 import os.kei.hyper.home.data.AppPreferences
+import os.kei.hyper.home.data.DEFAULT_APP_SCALE_PERCENT
+import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 internal val LocalKeiHomeDarkTheme = staticCompositionLocalOf { false }
+internal val LocalKeiHomeScrollEndHaptic = staticCompositionLocalOf { true }
 
 @Composable
 fun KeiHomeTheme(content: @Composable () -> Unit) {
@@ -36,6 +41,17 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
   }
   val choice by choiceFlow.collectAsStateWithLifecycle(initialValue = initialChoice)
   val (appearance, colorMode) = choice
+  val (interactionFlow, initialInteraction) = remember(preferences) {
+    preferences.state.map { Triple(it.appScalePercent, it.squircleShapes, it.scrollEndHaptic) }.distinctUntilChanged() to
+      preferences.state.value.let { Triple(it.appScalePercent, it.squircleShapes, it.scrollEndHaptic) }
+  }
+  val interaction by interactionFlow.collectAsStateWithLifecycle(initialValue = initialInteraction)
+  val (scalePercent, squircleShapes, scrollEndHaptic) = interaction
+  val platformDensity = LocalDensity.current
+  val appDensity = remember(platformDensity, scalePercent) {
+    if (scalePercent == DEFAULT_APP_SCALE_PERCENT) platformDensity
+    else Density(platformDensity.density * (scalePercent / 100f), platformDensity.fontScale)
+  }
   val context = LocalContext.current
   val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
   val palette by androidx.compose.runtime.produceState<os.kei.hyper.home.data.MonetPaletteSnapshot?>(null, context, colorMode, lifecycle) {
@@ -88,7 +104,12 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
       }
     }
   }
-  CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark) {
+  CompositionLocalProvider(
+    LocalKeiHomeDarkTheme provides dark,
+    LocalDensity provides appDensity,
+    LocalSquircleEnabled provides squircleShapes,
+    LocalKeiHomeScrollEndHaptic provides scrollEndHaptic,
+  ) {
     MiuixTheme(controller = controller) {
       // Include Monet's surface when the system hands the starting window to Compose.
       val windowBackground = MiuixTheme.colorScheme.surface.toArgb()

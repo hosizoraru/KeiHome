@@ -5,7 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -13,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -27,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.R
@@ -40,9 +47,9 @@ import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
@@ -55,13 +62,18 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
   val scope = rememberCoroutineScope()
   val currentOnSaved by rememberUpdatedState(onSaved)
   var show by rememberSaveable { mutableStateOf(false) }
-  var acceleration by rememberSaveable { mutableStateOf("") }
+  val acceleration = rememberTextFieldState()
   var proxyMode by rememberSaveable { mutableStateOf(PerfectGitProxyMode.SYSTEM) }
-  var proxyHost by rememberSaveable { mutableStateOf("") }
-  var proxyPort by rememberSaveable { mutableStateOf("") }
+  val proxyHost = rememberTextFieldState()
+  val proxyPort = rememberTextFieldState()
   var invalid by rememberSaveable { mutableStateOf(false) }
   var saveFailed by rememberSaveable { mutableStateOf(false) }
   var saving by remember { mutableStateOf(false) }
+  LaunchedEffect(acceleration, proxyHost, proxyPort) {
+    snapshotFlow {
+      Triple(acceleration.text.toString(), proxyHost.text.toString(), proxyPort.text.toString())
+    }.drop(1).collect { invalid = false }
+  }
   val canEdit = enabled && !saving
   val title = stringResource(R.string.perfect_connection_title)
   val pressSource = rememberOs4PressSource()
@@ -76,10 +88,10 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
     onClick = {
       if (canEdit) {
         val saved = preferences.read()
-        acceleration = saved.acceleration
+        acceleration.setTextAndPlaceCursorAtEnd(saved.acceleration)
         proxyMode = saved.proxyMode
-        proxyHost = saved.proxyHost
-        proxyPort = saved.proxyPort.takeIf { it > 0 }?.toString().orEmpty()
+        proxyHost.setTextAndPlaceCursorAtEnd(saved.proxyHost)
+        proxyPort.setTextAndPlaceCursorAtEnd(saved.proxyPort.takeIf { it > 0 }?.toString().orEmpty())
         invalid = false
         saveFailed = false
         show = true
@@ -113,10 +125,10 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
         else R.string.perfect_connection_save), {
         if (canEdit) {
           val draft = PerfectGitNetworkOptions(
-            acceleration = acceleration.trim(),
+            acceleration = acceleration.text.toString().trim(),
             proxyMode = proxyMode,
-            proxyHost = if (customProxy) proxyHost.trim() else "",
-            proxyPort = if (customProxy) proxyPort.toIntOrNull() ?: 0 else 0,
+            proxyHost = if (customProxy) proxyHost.text.toString().trim() else "",
+            proxyPort = if (customProxy) proxyPort.text.toString().toIntOrNull() ?: 0 else 0,
           )
           saving = true
           invalid = false
@@ -147,14 +159,14 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
     ),
     details = {
       Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        GlassTextField(acceleration, onValueChange = { acceleration = it; invalid = false },
+        GlassTextField(state = acceleration,
           label = stringResource(R.string.perfect_connection_acceleration),
           modifier = Modifier.fillMaxWidth().testTag("perfect.connection.acceleration"),
-          enabled = canEdit, singleLine = true,
+          enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
           keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None,
             autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next))
         TextButton(stringResource(R.string.perfect_connection_fill_example), onClick = {
-          acceleration = "https://gh-proxy.org/"
+          acceleration.setTextAndPlaceCursorAtEnd("https://gh-proxy.org/")
           invalid = false
           saveFailed = false
         }, enabled = canEdit, modifier = Modifier.testTag("perfect.connection.fill_example"))
@@ -170,20 +182,17 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
           modifier = Modifier.testTag("perfect.connection.proxy.mode"),
         )
         if (customProxy) {
-          GlassTextField(proxyHost, onValueChange = { proxyHost = it; invalid = false },
+          GlassTextField(state = proxyHost,
             label = stringResource(R.string.perfect_connection_proxy_host),
             modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.host"),
-            enabled = canEdit, singleLine = true,
+            enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None,
               autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next))
-          GlassTextField(proxyPort, onValueChange = { input ->
-            if (input.length <= 5 && input.all { it in '0'..'9' }) {
-              proxyPort = input
-              invalid = false
-            }
+          GlassTextField(state = proxyPort, inputTransformation = InputTransformation {
+            if (length > 5 || asCharSequence().any { it !in '0'..'9' }) revertAllChanges()
           }, label = stringResource(R.string.perfect_connection_proxy_port),
             modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.port"),
-            enabled = canEdit, singleLine = true,
+            enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done))
           Text(stringResource(R.string.perfect_connection_proxy_help),
             style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)

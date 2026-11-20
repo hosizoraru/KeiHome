@@ -2,9 +2,12 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,18 +34,20 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun CacheBudgetEditor(customBudget: Long, effectiveBudget: Long, onChange: (Long) -> Unit) {
   var show by rememberSaveable { mutableStateOf(false) }
-  var draft by rememberSaveable { mutableStateOf("") }
-  val value = draft.toLongOrNull()?.takeIf { it in 50L..20_000L }?.times(1_000_000L)
+  val draft = rememberTextFieldState()
+  val value = draft.text.toString().toLongOrNull()?.takeIf { it in 50L..20_000L }?.times(1_000_000L)
   KeiHomeIconButton(onClick = {
-    draft = ((customBudget.takeIf { it > 0 } ?: effectiveBudget) / 1_000_000L).toString()
+    val budget = (customBudget.takeIf { it > 0 } ?: effectiveBudget) / 1_000_000L
+    draft.setTextAndPlaceCursorAtEnd(budget.toString())
     show = true
   }, modifier = Modifier.testTag("cache.budget.edit")) {
     Icon(MiuixIcons.Glass.Edit, stringResource(R.string.storage_edit_budget))
   }
   Os4DetailsSheet(show, onDismissRequest = { show = false }, title = stringResource(R.string.storage_budget_title)) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      GlassTextField(draft, onValueChange = { if (it.length <= 5 && it.all { c -> c in '0'..'9' }) draft = it },
-        label = stringResource(R.string.storage_budget_mb), singleLine = true,
+      GlassTextField(state = draft, inputTransformation = InputTransformation {
+        if (length > 5 || asCharSequence().any { it !in '0'..'9' }) revertAllChanges()
+      }, label = stringResource(R.string.storage_budget_mb), lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth().testTag("cache.budget.input"))
       Text(stringResource(R.string.storage_budget_range), style = MiuixTheme.textStyles.footnote1,

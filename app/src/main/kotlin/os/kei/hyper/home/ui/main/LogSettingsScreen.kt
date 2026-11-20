@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,7 +82,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   var level by remember { mutableStateOf(AppLogStore.level(context)) }
   var savingLevel by remember { mutableStateOf(false) }
   var rangeIndex by rememberSaveable { mutableIntStateOf(3) }
-  var customHours by rememberSaveable { mutableStateOf("24") }
+  val customHours = rememberTextFieldState("24")
   var refresh by remember { mutableIntStateOf(0) }
   var stats by remember { mutableStateOf(0L to 0) }
   var confirmClear by remember { mutableStateOf(false) }
@@ -88,7 +91,7 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val hours = when (rangeIndex) { 0 -> 3L; 1 -> 6L; 2 -> 12L; 3 -> 24L
-    else -> customHours.toLongOrNull()?.takeIf { it in 1..168 } ?: 0L }
+    else -> customHours.text.toString().toLongOrNull()?.takeIf { it in 1..168 } ?: 0L }
   LaunchedEffect(hours, refresh) {
     stats = if (hours == 0L) 0L to 0 else withContext(Dispatchers.IO) {
       AppLogStore.stats(context, System.currentTimeMillis() - hours * 3_600_000)
@@ -198,9 +201,9 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
           onSelectedIndexChange = { rangeIndex = it })
       }
       if (rangeIndex == 4) {
-        GlassTextField(value = customHours, onValueChange = { input ->
-          if (input.length <= 3 && input.all(Char::isDigit)) customHours = input
-        }, label = stringResource(R.string.logs_hours_custom), singleLine = true,
+        GlassTextField(state = customHours, inputTransformation = InputTransformation {
+          if (length > 3 || !asCharSequence().all(Char::isDigit)) revertAllChanges()
+        }, label = stringResource(R.string.logs_hours_custom), lineLimits = TextFieldLineLimits.SingleLine,
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
           modifier = Modifier.fillMaxWidth())
       }

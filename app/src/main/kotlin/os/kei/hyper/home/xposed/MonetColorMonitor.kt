@@ -1,7 +1,10 @@
 package os.kei.hyper.home.xposed
 
-import android.content.Context
 import android.app.WallpaperManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.database.ContentObserver
 import android.hardware.display.DisplayManager
@@ -38,6 +41,7 @@ internal class MonetColorMonitor(
   private val onOverlayResourcesChanged: (String) -> Unit = {},
   private val onTimeResourcesChanged: (Boolean) -> Unit = {},
   private val onStatusDiagnostic: (String) -> Unit = {},
+  private val onUserUnlocked: () -> Unit = {},
 ) {
   private val lifecycle = RestartableMonitor<Context>(
     createWorker = ::Watch,
@@ -300,6 +304,18 @@ internal class MonetColorMonitor(
       handler.post {
         if (closed) return@post
         connectActionPreferences()
+        try {
+          val unlockReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+              if (closed || intent.action != Intent.ACTION_USER_UNLOCKED) return
+              onUserUnlocked()
+              requestStatus()
+            }
+          }
+          context.registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED),
+            null, handler, Context.RECEIVER_NOT_EXPORTED)
+          registrations.own { context.unregisterReceiver(unlockReceiver) }
+        } catch (failure: Exception) { onFailure(failure) }
         try {
           val packageObserver = os.kei.hyper.home.data.PackageChangeObserver(context, handler) { name ->
             if (!closed) {

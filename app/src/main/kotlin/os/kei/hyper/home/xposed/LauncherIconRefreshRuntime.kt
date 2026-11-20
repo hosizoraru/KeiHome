@@ -100,6 +100,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     requestPreferences = { xposed.getRemotePreferences(MonetAction.GROUP) },
     statusPreferences = { xposed.getRemotePreferences(RuntimeStatusProtocol.GROUP) },
     onStatusDiagnostic = { message -> xposed.log(Log.INFO, TAG, "Runtime status: $message") },
+    onUserUnlocked = {
+      requestNavigationStatus()
+      iconPackImportMonitor.request()
+    },
     refreshReceipt = { lastRefreshReceipt },
     themePreferences = { xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP) },
     onThemeMaterialsChanged = {
@@ -451,9 +455,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       } catch (failure: Exception) { logFailure("could not register framework entry", failure) }
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       navigationContext = context
-      requestNavigationStatus()
-      monetColorMonitor.start(context)
       iconPackImportMonitor.start(context)
+      monetColorMonitor.start(context)
+      requestNavigationStatus()
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)
     }
@@ -469,6 +473,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun publishNavigationStatus() {
     if (lifecycle.retiring || lifecycle.retired) return
     val context = navigationContext ?: return
+    // The app inbox lives in credential-protected storage. The unlock receiver
+    // requests another publication even when the navigation choice has not changed.
+    if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return
     val fingerprint = navigationBackdrop.fingerprint()
     val signature = "$navigationBackdropReady:$fingerprint"
     if (signature == navigationStatusPublished) return

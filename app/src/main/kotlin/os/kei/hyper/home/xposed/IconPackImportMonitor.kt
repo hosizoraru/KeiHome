@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.os.UserHandle
+import android.os.UserManager
 import android.util.AtomicFile
 import java.io.File
 import java.io.IOException
@@ -26,6 +27,7 @@ internal class IconPackImportMonitor(
 ) {
   private val lifecycle = RestartableMonitor<Context>(::Watch, onFailure)
   fun start(context: Context) = lifecycle.start(context)
+  fun request() = lifecycle.withWorker { (it as Watch).request() }
   fun stop() = lifecycle.stop()
   fun awaitStopped(deadline: Long) = lifecycle.awaitStopped(deadline)
 
@@ -41,7 +43,7 @@ internal class IconPackImportMonitor(
     private var authorization: IconAutoApplyAuthorization? = null
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> request() }
 
-    private fun request() {
+    fun request() {
       if (closed) return
       handler.removeCallbacks(import)
       handler.postDelayed(import, 100)
@@ -84,6 +86,7 @@ internal class IconPackImportMonitor(
         if (user != request.userId) return@Runnable
         val context = Context::class.java.getMethod("createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType)
           .invoke(base, UserHandle.getUserHandleForUid(user * 100_000), 0) as Context
+        if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return@Runnable
         fun deliver(report: NativeIconImportReport) {
           if (closed) return
           val notification = forDelivery(report) ?: return

@@ -224,7 +224,7 @@ class PublishedGenericMonetDeviceTest {
     }
   }
 
-  @Test fun nativeLayersSupplyGenericColoringInsteadOfTheirSmallerFlatAlias() {
+  @Test fun nativeLayersSupplyGenericColoringWithOrWithoutFlatAliases() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     fun image(background: Int, foreground: Int? = null): ByteArray {
       val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
@@ -236,8 +236,8 @@ class PublishedGenericMonetDeviceTest {
     }
     val name = "os.kei.layered.monet"
     val base = "res/drawable-xxhdpi/$name"
-    for (nightMode in listOf("partial", "pair", "flat")) {
-      val completeNight = nightMode == "pair"
+    for (nightMode in listOf("partial", "pair", "flat", "layer-only")) {
+      val completeNight = nightMode == "pair" || nightMode == "layer-only"
       val files = linkedMapOf(
         "$base.png" to png(),
         "$base/0.png" to image(-1),
@@ -245,6 +245,7 @@ class PublishedGenericMonetDeviceTest {
         "nightmode/$base/0.png" to image(0xff222222.toInt()),
         NativeIconShapeConfig.PATH to NativeIconShapeConfig.generated("M0 0H100V100H0Z"))
       if (completeNight) files["nightmode/$base/1.png"] = image(0, -1)
+      if (nightMode == "layer-only") files.remove("$base.png")
       if (nightMode == "flat") {
         files.remove("nightmode/$base/0.png")
         files["nightmode/$base.png"] = image(0xff111111.toInt(), -1)
@@ -252,6 +253,15 @@ class PublishedGenericMonetDeviceTest {
       fixture(files) { input, output ->
         assertTrue(PublishedGenericMonet.write(input, output, true, PreservedIconResources(emptySet(), emptyList())))
         ZipFile(output).use { zip ->
+          if (nightMode == "layer-only") {
+            assertNull(zip.getEntry("$base.png"))
+            assertNull(zip.getEntry("nightmode/$base.png"))
+            os.kei.hyper.home.xposed.GeneratedNativeIconValidator.validate(
+              name, zip.entries().asSequence().map { it.name }.toSet(),
+            ) { path, limit ->
+              zip.getInputStream(zip.getEntry(path)).use { it.readNBytes(limit.toInt() + 1) }
+            }
+          }
           for ((path, bytes) in files.filterKeys { it.endsWith("/0.png") || it.endsWith("/1.png") }) {
             assertArrayEquals("Raw native layers stay unchanged", bytes, zip.getInputStream(zip.getEntry(path)).use { it.readBytes() })
           }

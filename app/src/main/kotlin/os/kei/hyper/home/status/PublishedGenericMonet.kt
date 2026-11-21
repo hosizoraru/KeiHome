@@ -96,7 +96,8 @@ internal object PublishedGenericMonet {
               !it.startsWith("icon_") && !it.endsWith(".9")
           }?.let { it to path }
         }.groupBy({ it.first }, { it.second }).toMutableMap()
-        for (name in fancyGroups.keys) {
+        val layeredNames = if (enabled) fancyGroups.keys + nativeGroups.keys else generatedPaletteNames
+        for (name in layeredNames) {
           if (validNativeIconName(name) && !excluded.containsName(name)) candidates.putIfAbsent(name, emptyList())
         }
         var processed = 0
@@ -135,9 +136,10 @@ internal object PublishedGenericMonet {
             } == true) continue
           val sourceDay = if (useNativePair) nativePair(name, "") ?: continue
             else read(pair?.let { root + it.light } ?: path ?: continue, MAX_IMAGE) ?: continue
+          val nightPath = pair?.let { root + it.dark } ?: path?.let { "nightmode/$it" }
           val sourceNight = if (pair == null && name in nightGroups)
-            nativePair(name, "nightmode/") ?: read("nightmode/$path", MAX_IMAGE) ?: sourceDay
-            else read(pair?.let { root + it.dark } ?: "nightmode/$path", MAX_IMAGE) ?: sourceDay
+            nativePair(name, "nightmode/") ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+            else nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
           val day = ImportedStaticPng.normalize(sourceDay, check) ?: continue
           val night = if (sourceNight === sourceDay) day
             else ImportedStaticPng.normalize(sourceNight, check) ?: continue
@@ -169,8 +171,8 @@ internal object PublishedGenericMonet {
             val layers = NativePaletteIcon.entries(name, day, night, png(foreground),
               png(GenericMonetMask.background(pixels, size, check)))
               .filterKeys { it.startsWith(root) }.toMutableMap()
-            // A fancy-only native icon stays fancy-only. Once either canonical flat
-            // alias exists, publish both aliases from the exact same day/night pair.
+            // Keep alias-free native artwork alias-free. If either canonical flat
+            // alias exists, publish both aliases from the same day/night pair.
             val dayFallback = "res/drawable-xxhdpi/$name.png"
             val nightFallback = "nightmode/$dayFallback"
             if (dayFallback in paths || nightFallback in paths) {

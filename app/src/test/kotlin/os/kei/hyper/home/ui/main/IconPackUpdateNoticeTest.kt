@@ -46,6 +46,20 @@ class IconPackUpdateNoticeTest {
     }
   }
 
+  @Test fun nativeLayerCoverageUpgradeRefreshesOnlyOlderNativePacksWithColoringEnabled() {
+    for (format in listOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS, IconPackFormat.INSTALLED_APK)) {
+      for (schema in listOf(15, IconGenerationManifest.CURRENT_SCHEMA)) {
+        for (enabled in listOf(false, true)) {
+          val current = source.copy(generation = IconGenerationManifest(schemaVersion = schema,
+            monetUnadaptedIcons = enabled, considered = setOf(target.flattened)))
+          assertEquals(enabled && schema == 15 && format != IconPackFormat.INSTALLED_APK,
+            iconPackNeedsUpdate(pack.copy(format = format), current, listOf(target),
+              SystemIconFallback.DEFAULT, emptySet(), monetUnadaptedIcons = enabled))
+        }
+      }
+    }
+  }
+
   @Test fun genericMonetSettingChangesRequireRegenerationInBothDirections() {
     val enabled = source.copy(generation =
       IconGenerationManifest(schemaVersion = 11, monetUnadaptedIcons = true))

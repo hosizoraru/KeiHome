@@ -52,7 +52,7 @@ internal data class IconGenerationManifest(
   }
 
   companion object {
-    const val CURRENT_SCHEMA = 15
+    const val CURRENT_SCHEMA = 16
     const val PATH = "keihome-icon-generation.txt"
     const val MAX_BYTES = 2 * 1024 * 1024
     fun decode(bytes: ByteArray): IconGenerationManifest {
@@ -74,6 +74,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration13" -> 13
         "KeiHomeIconGeneration14" -> 14
         "KeiHomeIconGeneration15" -> 15
+        "KeiHomeIconGeneration16" -> 16
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))

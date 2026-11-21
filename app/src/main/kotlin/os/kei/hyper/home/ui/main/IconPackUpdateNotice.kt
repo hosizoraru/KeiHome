@@ -35,6 +35,8 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if ((source.generation?.monetFullBleedIconPadding ?: false) !=
     monetFullBleedIconPadding) return true
   if (monetUnadaptedIcons && source.generation?.schemaVersion?.let { it < 12 } == true) return true
+  if (monetUnadaptedIcons && pack.format in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS) &&
+    source.generation?.schemaVersion?.let { it < 16 } == true) return true
   if ((pack.colorOsProfile != null || source.generation?.colorOsPackages?.isNotEmpty() == true) &&
     source.generation?.schemaVersion?.let { it < 14 } == true) return true
   val effectivePreserved = preservedPackages - customizedPackages

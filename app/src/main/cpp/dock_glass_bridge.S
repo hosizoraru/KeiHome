@@ -376,18 +376,18 @@ kh_dock_background:
 .Ldock_default_vertical_padding:
     fmov d16, #18.0
 .Ldock_vertical_padding_ready:
-    fsub d20, d21, d16
-    fmov d7, #-12.0
-    fmax d20, d20, d7            // top = max(-12, nativeIconTop-18)
-    fadd d21, d21, d19
-    dock_finite d21
-    fmov d22, d21               // full native painted bottom, before padding
-    fadd d21, d21, d16
+    fadd d22, d21, d19           // native painted bottom
+    dock_finite d22
     fmov d7, #12.0
+    fadd d20, d21, d7           // room above the painted icon
+    fmin d16, d16, d20
     fadd d7, d1, d7
-    fmin d21, d7, d21            // bottom = min(H+12, nativeIconTop+inkWidth+18)
-    fcmp d21, d22
+    fsub d7, d7, d22            // room below the painted icon
+    fcmp d7, #0.0
     b.lt .Ldock_original        // do not draw a plate containing only part of an icon
+    fmin d16, d16, d7           // use the tighter edge's padding on both sides
+    fsub d20, d21, d16
+    fadd d21, d22, d16
     fsub d7, d21, d20
     fdiv d7, d7, d18              // actual painted plate height/2
     fmin d5, d5, d7

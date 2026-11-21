@@ -348,13 +348,13 @@ void NativeVerticalEnvelope() {
          0, 400, 2, 94, 32);
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, 256, 56, 20),
          0, 400, 2, 94, 32);
-    // Near-top ink keeps its native Y; only the extra plate padding is clipped.
+    // Near-top ink keeps its native Y, with equal reduced padding on both sides.
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 0),
-         154, 246, -12, 74, 28);
+         154, 246, -12, 68, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 4),
-         154, 246, -12, 78, 28);
+         154, 246, -12, 76, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, 256, 56, 5.5),
-         154, 246, -12, 79.5, 45.75);
+         154, 246, -12, 79, 45.5);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, 256, 56, 6),
          154, 246, -12, 80, 46);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, 256, 56, 6.5),
@@ -365,16 +365,16 @@ void NativeVerticalEnvelope() {
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 38),
          154, 246, 20, 112, 28);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 38.5),
-         154, 246, 20.5, 112, 28);
+         154, 246, 21, 112, 28);
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 80));
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 56),
-         154, 246, 38, 112, 28);
+         154, 246, 56, 112, 28);
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 100, std::nullopt, 56, 56.001));
     // An explicit top remains useful even for roots too short for legacy insets.
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 16, std::nullopt, 8, 4),
          178, 222, -12, 28, 20);
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 1, std::nullopt, 8, 0),
-         178, 222, -12, 13, 12.5);
+         178, 222, -5, 13, 9);
     // Off-root ink must never leave only part of an icon inside the plate.
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 128));
     Hidden(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt, 56, 149));
@@ -383,7 +383,7 @@ void NativeVerticalEnvelope() {
     // Missing ink width uses the native cell width on both axes.
     Rect(ComputeDockGlassGeometry(400, 100, 1, 5, 120, std::nullopt,
                                   std::nullopt, 20),
-         132, 268, 2, 132, 28);
+         132, 268, 8, 132, 28);
     // Omission retains the original container-based vertical bounds exactly.
     Rect(ComputeDockGlassGeometry(400, 100, 5, 5, 120, std::nullopt, 56),
          0, 400, 8, 112, 28);
@@ -400,16 +400,15 @@ void NativeVerticalEnvelope() {
                                     149.0, 150.0, 1000.0}) {
                 const auto g = ComputeDockGlassGeometry(400, 100, 1, 5, height,
                                                        256, ink, icon_top);
-                const double top = std::max(-12.0, icon_top - 18);
-                const double bottom = std::min(height + 12, icon_top + ink + 18);
-                CHECK(g.visible == (bottom > top && bottom >= icon_top + ink));
+                CHECK(g.visible == (icon_top + ink <= height + 12));
                 if (!g.visible) { Hidden(g); continue; }
+                const double padding = std::min({18.0, icon_top + 12, height + 12 - icon_top - ink});
                 const double left = 200 - ink / 2 - 18;
                 const double right = 200 + ink / 2 + 18;
-                Rect(g, left, right, top, bottom,
-                     std::min((ink + 36) / 2, (bottom - top) / 2));
-                // Ink stays centered in its original 100dp native cell.
+                Rect(g, left, right, icon_top - padding, icon_top + ink + padding,
+                     std::min((ink + 36) / 2, ink / 2 + padding));
                 CHECK(Near((g.left + g.right) / 2, 200));
+                CHECK(Near((g.top + g.bottom) / 2, icon_top + ink / 2));
                 CHECK(g.top >= -12 && g.bottom <= height + 12);
                 CHECK(g.top <= icon_top);
                 CHECK(g.bottom >= icon_top + ink);
@@ -513,7 +512,7 @@ int main() {
                 if(style==4)CHECK(shape.radius==12.0);
             }
     const auto pad=ComputeDockGlassGeometry(420,80,4,5,88,60.0,64.0,4.0,false,20.0,std::nullopt,2u);
-    CHECK(std::abs(pad.radius-(64.0*16.0/60.0+17.0))<1e-10);
+    CHECK(std::abs(pad.radius-(64.0*16.0/60.0+16.0))<1e-10);
     static_assert(std::is_trivial<DockGlassGeometry>::value, "plain result");
     static_assert(noexcept(ComputeDockGlassGeometry(400, 56, 1, 5, 80)), "pure math");
     // Conservative RRect containment also covers the fuller native continuous

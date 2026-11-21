@@ -36,7 +36,8 @@ The renderer executes 3,561 cases, including 579 five-slot clearance regressions
 inclusive zero clearance, fractional boundaries, negative overflow, and unchanged
 one-to-four/elderly behavior. It also checks 150 signed horizontal padding cases
 across compact and wide layouts and all corner styles. The pure geometry suite
-runs 54,112 ASan/UBSan checks. Mode/curve, refresh and glass ownership/radius have separate execution
+runs 54,173 ASan/UBSan checks, including symmetric padding at either vertical
+paint limit. Mode/curve, refresh and glass ownership/radius have separate execution
 suites. They authenticate the payload from the supplied ELF rather than a
 separately assembled approximation.
 

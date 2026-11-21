@@ -337,8 +337,11 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     padding=padding_code-1 if padding_code else 18
     native_radius=q8/256 if corner_address and 0<q8<=65536 else 0
     actual_left,actual_right=left,right
-    expected_top = max(-12, native_icon_top - padding)
-    expected_bottom = min(H + 12, native_icon_top + ink_width + padding)
+    ink_bottom = native_icon_top + ink_width
+    applied_padding = min(padding, native_icon_top + 12, H + 12 - ink_bottom)
+    assert applied_padding >= 0
+    expected_top = native_icon_top - applied_padding
+    expected_bottom = ink_bottom + applied_padding
     assert num(ref(pos + 23) + 7) == expected_top
     assert num(ref(pos + 31) + 7) == H - expected_bottom, 'Positioned bottom must be an inset'
     M = 4 if elderly else 5

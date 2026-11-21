@@ -22,8 +22,8 @@ struct DockGlassGeometry {
 // icon_width is the centered painted width inside each native layout cell;
 // absence preserves the cell-width envelope. No native icon positions change.
 // icon_top is the native painted Y coordinate; absence retains the legacy
-// container-height envelope. An explicit top surrounds the ink with 18dp
-// padding, allowing at most 12dp of decorative paint beyond the native box.
+// container-height envelope. An explicit top uses equal padding above and below
+// the ink, limited by the 12dp paint allowance beyond each end of the native box.
 [[nodiscard]] inline DockGlassGeometry ComputeDockGlassGeometry(
         double content_width, double cell_width, int count, int max_count,
         double container_height,
@@ -75,14 +75,18 @@ struct DockGlassGeometry {
     // Establish the original plate before applying the user's symmetric adjustment.
     double left = std::max(plate_edge, first_left - kPadding);
     double right = std::min(content_width - plate_edge, last_right + kPadding);
-    if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};
-    const double kVerticalPadding = DockGlassPadding(options);
     constexpr double kPaintOverflow = 12.0;
-    const double top = icon_top ? std::max(-kPaintOverflow, *icon_top - kVerticalPadding) : kEdge;
-    const double bottom = icon_top
-            ? std::min(container_height + kPaintOverflow, *icon_top + ink_width + kVerticalPadding)
-            : container_height - kEdge;
-    if (icon_top && bottom < *icon_top + ink_width) return {};
+    double top = kEdge;
+    double bottom = container_height - kEdge;
+    if (icon_top) {
+        const double ink_bottom = *icon_top + ink_width;
+        const double bottom_room = container_height + kPaintOverflow - ink_bottom;
+        if (!std::isfinite(ink_bottom) || bottom_room < 0.0) return {};
+        const double padding = std::min({double(DockGlassPadding(options)),
+                                        *icon_top + kPaintOverflow, bottom_room});
+        top = *icon_top - padding;
+        bottom = ink_bottom + padding;
+    }
     const unsigned style = options & 7u;
     if (style == 3u && count != 5 && screen_bottom_radius && std::isfinite(*screen_bottom_radius) &&
             *screen_bottom_radius > 0) {

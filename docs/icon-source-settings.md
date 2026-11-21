@@ -75,8 +75,8 @@ uv run --with pillow --with resvg-py python scripts/prepare-coloros-builtins.py
 Ten standalone appfilter ZIPs (five styles, ART+ on/off) are generated under
 `.artifacts/generated/assets/builtin-icon-packs`. The optional Gradle asset source
 includes them in local APKs. OEM inputs and generated artwork remain ignored by
-Git. A build without these inputs reports the missing resources and disables
-generation.
+Git. A build without these inputs shows the missing-resource message in the
+ColorOS settings, and ColorOS generation cannot proceed.
 
 For a worktree build, pass
 `-Pkeihome.generatedAssetsDir=/absolute/path/to/.artifacts/generated/assets`
@@ -88,7 +88,11 @@ before installing.
 The November 22 ColorOS preview report was traced to the optional asset
 input. Archived `b0660` included the store, while the isolated-worktree builds
 `b0661`, `b0662`, `b0663`, and `b0694` omitted it. Both the style thumbnails
-and the selected style's icon preview depend on that store.
+and the selected style's icon preview depend on that store. Those builds also
+omitted the generated `system-icon-fallback/` assets that supply the Classic
+and Boundless fallback choices. The signed `b0695` included both asset groups.
+On Xiaomi 17 Pro, the ColorOS page displayed its style thumbnails and the
+selected Classic and Daylight light/dark previews.
 
 The profiles retain per-file provenance and verified resource masks. Material
 uses a standard radius-8 rectangle in a 150-unit viewport; the vendor's smooth/G2

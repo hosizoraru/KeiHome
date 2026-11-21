@@ -96,13 +96,21 @@ validation, application receipt, and applied-pack status remain authoritative.
 Manual detail launches use a separate full-screen task so Themes can show its
 Apply action. When Themes immediately returns a cancellation or the launch
 fails, KeiHome prompts users to update or reimport the pack. The detail result
-does not identify why Themes closed. Successful application and ordinary
-returns from viewing the detail do not show the prompt.
+does not identify why Themes closed. A normal Back action within the
+1.5-second cancellation window can show the same prompt.
 
 To verify manual application, tap Apply in Themes, check the same desktop page
 before and after, and compare the active icon archive with the imported record.
 Reapply the original pack in Themes and verify its active archive matches the
 pre-test checksum.
+
+On Xiaomi 17 Pro (`OS4.0.8.0.XBLCNXM`, Themes `11.5.6.0`), signed `b0695`
+opened the Apple pack from KeiHome directly in full screen. Apply switched
+the active archive and the icons on the same desktop page. Reapplying the
+original Perfect pack restored its archive byte for byte. A separate test app
+with a deliberately missing local record reproduced the immediate Themes
+exit and displayed KeiHome's update/reimport message. The original failed
+record was unavailable for replay.
 
 ## Preservation and fallback boundaries
 

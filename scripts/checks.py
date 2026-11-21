@@ -114,8 +114,9 @@ GROUPS = {
         UI + "ThemeEffectsCardTest",)),
     "ui-color-editor": ("device", "Color input, confirmation and draft recreation", (
         UI + "MonetColorEditorTest",)),
-    "ui-pack-settings": ("device", "Pack preferences entry, back stack and wizard shortcut", (
-        UI + "PackSettingsNavigationTest", UI + "PackSettingsOpenCurrentIconPackTest")),
+    "ui-pack-settings": ("device", "Pack preferences, navigation, and manual Themes fallback", (
+        UI + "PackSettingsNavigationTest", UI + "PackSettingsOpenCurrentIconPackTest",
+        UI + "NativeThemeManualFallbackUiTest")),
     "status-pack-shortcut": ("jvm", "Default-on preference and applied-source navigation", (
         "OpenCurrentIconPackPreferencesTest", "StatusIconPackDestinationTest")),
     "icon-pack-read": ("jvm", "Archive validation receipts, bounded metadata reuse and progressive loading", (

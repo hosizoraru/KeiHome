@@ -84,6 +84,15 @@ application receipts govern this shortcut. Artwork changes reach the desktop
 when the rebuilt pack is applied. Enabling Monet icons and applying a palette
 remain separate actions.
 
+## Manual application in Themes
+
+Icon Pack Settings can show a manual Themes link for an imported pack even
+when the converted-icon validation receipt is incomplete. KeiHome opens the
+existing local record without an automatic-application token. System Themes
+still decides whether to offer or accept manual application. A failed or
+pending import does not establish a local record for that attempt. The usual
+validation, application receipt, and applied-pack status remain authoritative.
+
 ## Preservation and fallback boundaries
 
 Preserved packages use original APK artwork in previews, are excluded from

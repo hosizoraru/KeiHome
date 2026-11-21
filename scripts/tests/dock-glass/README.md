@@ -32,10 +32,11 @@ python3 scripts/tests/dock-glass/test_refresh.py --elf PATH_TO_RELEASE_SO --repo
 python3 scripts/tests/dock-glass/test_glass_scope.py --elf PATH_TO_RELEASE_SO --report /tmp/dock-glass-scope.json
 ```
 
-The renderer executes 3,411 cases, including 579 five-slot clearance regressions:
+The renderer executes 3,561 cases, including 579 five-slot clearance regressions:
 inclusive zero clearance, fractional boundaries, negative overflow, and unchanged
-one-to-four/elderly behavior. The pure geometry suite runs 39,347 ASan/UBSan
-checks. Mode/curve, refresh and glass ownership/radius have separate execution
+one-to-four/elderly behavior. It also checks 150 signed horizontal padding cases
+across compact and wide layouts and all corner styles. The pure geometry suite
+runs 54,112 ASan/UBSan checks. Mode/curve, refresh and glass ownership/radius have separate execution
 suites. They authenticate the payload from the supplied ELF rather than a
 separately assembled approximation.
 

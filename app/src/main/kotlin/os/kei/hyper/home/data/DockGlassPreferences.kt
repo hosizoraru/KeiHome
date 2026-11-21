@@ -22,11 +22,13 @@ internal data class DockGlassChoice(
   val verticalPaddingDp: Int = 18,
   val verticalOffsetDp: Int = 0,
   val customRadiusDp: Int = 24,
+  val horizontalPaddingDeltaDp: Int = 0,
 ) {
   init {
     require(verticalPaddingDp in 0..32)
     require(verticalOffsetDp in -48..96)
     require(customRadiusDp in 0..64)
+    require(horizontalPaddingDeltaDp in DockGlassOptions.HORIZONTAL_PADDING_RANGE)
   }
 
   val options: Int get() = DockGlassOptions.encode(this)
@@ -34,13 +36,16 @@ internal data class DockGlassChoice(
 
 /** Command 8 word 5. Default Rounded/Recents remain byte-for-byte compatible with old payloads. */
 internal object DockGlassOptions {
-  const val MAX_MASK = 0x00ffffff
+  val HORIZONTAL_PADDING_RANGE = -16..24
+  private const val MAX_MASK = 0x3fffffff
+
+  fun horizontalPaddingDelta(options: Int): Int = ((options ushr 24 and 63) xor 32) - 32
 
   fun encode(choice: DockGlassChoice): Int {
     val padding = if (choice.verticalPaddingDp == 18) 0 else choice.verticalPaddingDp + 1
     val radius = if (choice.cornerStyle == DockGlassCornerStyle.CUSTOM) choice.customRadiusDp else 0
     return choice.cornerStyle.nativeValue or (padding shl 3) or (radius shl 9) or
-      ((choice.verticalOffsetDp and 0xff) shl 16)
+      ((choice.verticalOffsetDp and 0xff) shl 16) or ((choice.horizontalPaddingDeltaDp and 63) shl 24)
   }
 
   fun isValid(options: Int): Boolean {
@@ -50,7 +55,8 @@ internal object DockGlassOptions {
     val radius = (options ushr 9) and 127
     val offset = (options ushr 16).toByte().toInt()
     return style in 0..4 && padding in 0..33 && radius in 0..64 &&
-      (style == DockGlassCornerStyle.CUSTOM.nativeValue || radius == 0) && offset in -48..96
+      (style == DockGlassCornerStyle.CUSTOM.nativeValue || radius == 0) && offset in -48..96 &&
+      horizontalPaddingDelta(options) in HORIZONTAL_PADDING_RANGE
   }
 
   fun decode(options: Int): DockGlassChoice? {
@@ -62,6 +68,7 @@ internal object DockGlassOptions {
       verticalPaddingDp = if (padding == 0) 18 else padding - 1,
       verticalOffsetDp = (options ushr 16).toByte().toInt(),
       customRadiusDp = if (style == DockGlassCornerStyle.CUSTOM) (options ushr 9) and 127 else 24,
+      horizontalPaddingDeltaDp = horizontalPaddingDelta(options),
     )
   }
 }
@@ -73,8 +80,10 @@ internal object DockGlassPreferences {
   const val VERTICAL_PADDING_KEY = "dock_glass_vertical_padding_dp"
   const val VERTICAL_OFFSET_KEY = "dock_glass_vertical_offset_dp"
   const val CUSTOM_RADIUS_KEY = "dock_glass_custom_radius_dp"
+  const val HORIZONTAL_PADDING_KEY = "dock_glass_horizontal_padding_delta_dp"
   fun isPreferenceKey(key: String?): Boolean = when (key) {
-    null, KEY, CORNER_STYLE_KEY, VERTICAL_PADDING_KEY, VERTICAL_OFFSET_KEY, CUSTOM_RADIUS_KEY -> true
+    null, KEY, CORNER_STYLE_KEY, VERTICAL_PADDING_KEY, VERTICAL_OFFSET_KEY, CUSTOM_RADIUS_KEY,
+    HORIZONTAL_PADDING_KEY -> true
     else -> false
   }
   private val mutex = Mutex()
@@ -91,6 +100,8 @@ internal object DockGlassPreferences {
       verticalPaddingDp = (values[VERTICAL_PADDING_KEY] as? Int)?.takeIf { it in 0..32 } ?: 18,
       verticalOffsetDp = (values[VERTICAL_OFFSET_KEY] as? Int)?.takeIf { it in -48..96 } ?: 0,
       customRadiusDp = (values[CUSTOM_RADIUS_KEY] as? Int)?.takeIf { it in 0..64 } ?: 24,
+      horizontalPaddingDeltaDp = (values[HORIZONTAL_PADDING_KEY] as? Int)
+        ?.takeIf { it in DockGlassOptions.HORIZONTAL_PADDING_RANGE } ?: 0,
     )
   }
 
@@ -113,7 +124,8 @@ internal object DockGlassPreferences {
         .putInt(CORNER_STYLE_KEY, choice.cornerStyle.nativeValue)
         .putInt(VERTICAL_PADDING_KEY, choice.verticalPaddingDp)
         .putInt(VERTICAL_OFFSET_KEY, choice.verticalOffsetDp)
-        .putInt(CUSTOM_RADIUS_KEY, choice.customRadiusDp).commit()) { "Remote save is unconfirmed" }
+        .putInt(CUSTOM_RADIUS_KEY, choice.customRadiusDp)
+        .putInt(HORIZONTAL_PADDING_KEY, choice.horizontalPaddingDeltaDp).commit()) { "Remote save is unconfirmed" }
       unconfirmed.remove(preferences)
       Unit
     }

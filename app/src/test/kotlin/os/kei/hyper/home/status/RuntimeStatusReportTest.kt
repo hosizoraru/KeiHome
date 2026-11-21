@@ -37,8 +37,9 @@ class RuntimeStatusReportTest {
   @Test fun capabilitiesAllowZeroAndRequireKnownBitsAndAResidentLauncherIdentity() {
     for (bits in 0..LauncherRuntimeCapabilities.KNOWN) {
       val report = ready.copy(launcherCapabilities = bits)
-      if (bits and 64 == 0 || bits and 16 != 0) assertEquals(report, RuntimeStatusReport.decode(report.encode()))
-      else assertNull("Pair capability needs existing glass: $bits", RuntimeStatusReport.decode(report.encode()))
+      if ((bits and 64 == 0 || bits and 16 != 0) && (bits and 128 == 0 || bits and 40 == 40))
+        assertEquals(report, RuntimeStatusReport.decode(report.encode()))
+      else assertNull("Extension capability needs its base capabilities: $bits", RuntimeStatusReport.decode(report.encode()))
     }
     for (bits in listOf(-2, Int.MIN_VALUE, 64, 65, 128, Int.MAX_VALUE))
       assertNull(RuntimeStatusReport.decode(ready.copy(launcherCapabilities = bits).encode()))
@@ -171,19 +172,19 @@ class RuntimeStatusReportTest {
 
   @Test fun rawDockGeometryRoundTripsWithoutChangingTheSchemaAndAckChecksEveryActiveField() {
     val choice = os.kei.hyper.home.data.DockGlassChoice(true,
-      os.kei.hyper.home.data.DockGlassCornerStyle.CUSTOM, 0, -48, 64)
+      os.kei.hyper.home.data.DockGlassCornerStyle.CUSTOM, 0, -48, 64, -16)
     val report = ready.copy(dockGlassEnabled = true, dockGlassPid = 9000,
       dockGlassStartTicks = 123L, dockGlassCornerStyle = choice.options)
     assertEquals(report, RuntimeStatusReport.decode(report.encode()))
     assertEquals("8", report.encode().substringBefore('|'))
     assertTrue(report.acknowledgesDockGlass(choice))
     for (different in listOf(choice.copy(verticalPaddingDp = 32),
-      choice.copy(verticalOffsetDp = 96), choice.copy(customRadiusDp = 24),
+      choice.copy(verticalOffsetDp = 96), choice.copy(customRadiusDp = 24), choice.copy(horizontalPaddingDeltaDp = 24),
       choice.copy(cornerStyle = os.kei.hyper.home.data.DockGlassCornerStyle.PAD))) {
       assertFalse(report.acknowledgesDockGlass(different))
     }
     for (invalid in listOf(5, 1 or (34 shl 3), 4 or (65 shl 9),
-      1 or (24 shl 9), 1 or (97 shl 16), 1 shl 24)) {
+      1 or (24 shl 9), 1 or (97 shl 16), 25 shl 24, 1 shl 30)) {
       assertNull(RuntimeStatusReport.decode(report.copy(dockGlassCornerStyle = invalid).encode()))
     }
     val legacy = report.copy(dockGlassCornerStyle = 1)

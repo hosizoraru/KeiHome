@@ -339,12 +339,6 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     actual_left,actual_right=left,right
     expected_top = max(-12, native_icon_top - padding)
     expected_bottom = min(H + 12, native_icon_top + ink_width + padding)
-    if (corner_style&7)==3 and count!=5 and native_radius>0:
-        capacity = 4 if elderly else 5
-        centers0 = [C/2+(i-(count-1)/2)*w if count<capacity else (i+0.5)*(C/capacity) for i in range(count)]
-        inset = min(max(0,native_radius-(expected_bottom-expected_top)/2),
-                    centers0[0]-ink_width/2,C-centers0[-1]-ink_width/2)
-        left,right=inset,C-inset
     assert num(ref(pos + 23) + 7) == expected_top
     assert num(ref(pos + 31) + 7) == H - expected_bottom, 'Positioned bottom must be an inset'
     M = 4 if elderly else 5
@@ -353,15 +347,19 @@ def setup(count=1, elderly=False, C=400.0, H=80.0, w=56.0, native=True,
     last = centers[-1] + ink_width / 2
     clearance = 0 if count == M == 5 else 8
     assert first >= clearance and last <= C - clearance, 'invalid painted envelope admitted'
-    for center in centers:
-        assert left <= center - ink_width / 2 and right >= center + ink_width / 2, 'painted icon clipped'
+    edge = 0 if count == 5 else 8
     if (corner_style&7)==3 and count!=5 and native_radius>0:
-        assert math.isclose(actual_left,left,abs_tol=1e-10) and math.isclose(actual_right,right,abs_tol=1e-10)
+        left = min(max(0,native_radius-(expected_bottom-expected_top)/2),first,C-last)
+        right = C-left
     else:
-        assert math.isclose(left, max(0 if count==5 else 8, first - 18), abs_tol=1e-10)
-    if not ((corner_style&7)==3 and count!=5 and native_radius>0):
-        assert math.isclose(right, min(C - (0 if count==5 else 8), last + 18), abs_tol=1e-10)
-    native_radius = q8 / 256 if corner_address and 0 <= q8 <= 65536 else 0
+        left,right = max(edge,first-18),min(C-edge,last+18)
+    requested = (((corner_style >> 24) & 63) ^ 32) - 32
+    delta = max(-max(0,min(first-left,right-last)), min(requested,max(0,min(left,C-right))))
+    left,right = left-delta,right+delta
+    assert math.isclose(actual_left,left,abs_tol=1e-10) and math.isclose(actual_right,right,abs_tol=1e-10)
+    for center in centers:
+        assert actual_left <= center - ink_width / 2 + 1e-10
+        assert actual_right >= center + ink_width / 2 - 1e-10
     expected_radius = min(max(28, native_radius - max(8,min(left, C - right))), (right - left) / 2, (expected_bottom - expected_top) / 2)
     if (corner_style&7)==1:
         target=native_card_radius if math.isfinite(native_card_radius) and 0<native_card_radius<=256 else 20
@@ -430,6 +428,15 @@ for count in (1,5):
 for style in (5,0xffffffff):
     assert not setup(corner_style=style)
     recents_cases+=1
+horizontal_cases=0
+for C,count,elderly in ((340,4,False),(360,4,False),(360.5,3,False),
+                         (336,5,False),(560,4,True)):
+    for style in range(5):
+        for delta in (-16,-8,0,1,8,24):
+            options = style | ((delta & 63) << 24) | (12 << 9 if style == 4 else 0)
+            assert setup(count=count,elderly=elderly,C=C,w=80,H=100,ink_width=56,
+                         corner_style=options,q8=64*256), (C,count,elderly,style,delta)
+            horizontal_cases+=1
 active_case = {}
 
 
@@ -437,7 +444,7 @@ def test_failure(kind, value, traceback):
     print('FAIL scenario: ' + repr(active_case), file=sys.stderr)
     sys.__excepthook__(kind, value, traceback)
 sys.excepthook = test_failure
-cases = recents_cases
+cases = recents_cases + horizontal_cases
 # Literal ink bounds are independent of the production header/assembly formula.
 # The first case is the exact new boundary: five 80dp icons touch C=400 at 0dp.
 # setup executes linked ARM64 and checks every reference, allocation and inset.
@@ -927,7 +934,9 @@ for bit in range(20):
 
 report = dict(passed=True, cases=cases, elf=str(args.elf.resolve()), sha256=artifact_sha256, payload_bytes=len(blob), render_config_bytes=456, arena_bytes={'rounded_glass':384,'recents_glass':400,'other':368}, coverage=['production linked bytes copied to a different address', 'enabled-only parent Clip.none; stock off; original child load/store; all registers/flags', 'native gate outcomes and all NZCV patterns', 'counts, native ink envelopes, cells wider than slots', 'independent device layout and elderly enum', 'four material headers/sizes/raw fields', 'Q8 corner adaptation and radius floor/caps', 'painted vertical bounds, no-word cell height, elderly bypass and branch read guards', 'legacy and extended no-word guards, suppression ordering and enum-index short-circuit', 'compressed references and dynamic offsets', 'one native UnlockAnimWidget scopes one IgnorePointer and leaves native background outside', 'native background inclusion/order and fallback target', 'register/stack preservation and zero corner-list reads', 'full arena initialization and exact-end pressure'], limits='Authored Dart roots and configured tags; does not validate profile resolution, VM GC, Flutter rendering, mode/refresh execution or device behavior')
 report['five_item_clearance_cases'] = five_item_cases
+report['horizontal_padding_cases'] = horizontal_cases
 report['coverage'].append('full-capacity five: inclusive zero-clearance ink, old 8dp boundary, negative overflow, unchanged one-to-four and elderly rejection')
+report['coverage'].append('signed horizontal padding across compact and wide layouts, three through five icons and all corner styles')
 if args.report:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')

@@ -418,6 +418,31 @@ kh_dock_background:
     fdiv d5, d5, d18
     fmin d5, d5, d7
 .Ldock_concentric_edges_ready:
+    // Adjust only the decoration. Apply the same delta on both sides; the
+    // native content edges and the outermost painted icons bound the result.
+    fmov x16, d26
+    sbfx w16, w16, #24, #6
+    cbz w16, .Ldock_horizontal_padding_ready
+    scvtf d16, w16
+    fsub d6, d28, d3             // available inner space at the left
+    fsub d7, d0, d4
+    fsub d18, d29, d7            // available inner space at the right
+    fmin d6, d6, d18
+    fmin d7, d3, d7              // available outer space
+    fmov d18, xzr
+    fmax d6, d6, d18
+    fmax d7, d7, d18
+    fneg d6, d6
+    fmax d16, d16, d6
+    fmin d16, d16, d7
+    fsub d3, d3, d16
+    fadd d4, d4, d16
+    fsub d5, d4, d3
+    fsub d7, d21, d20
+    fmin d5, d5, d7
+    fmov d18, #2.0
+    fdiv d5, d5, d18
+.Ldock_horizontal_padding_ready:
     fmov d7, #28.0
     fmov x16, d25
     cmp w16, #2

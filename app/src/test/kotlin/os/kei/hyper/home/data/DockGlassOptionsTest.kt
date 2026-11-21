@@ -20,7 +20,8 @@ class DockGlassOptionsTest {
     for (style in DockGlassCornerStyle.entries) {
       val choices = (0..32).map { DockGlassChoice(false, style, it, -48, 64) } +
         (-48..96).map { DockGlassChoice(false, style, 32, it, 0) } +
-        (0..64).map { DockGlassChoice(false, style, 0, 96, it) }
+        (0..64).map { DockGlassChoice(false, style, 0, 96, it) } +
+        (-16..24).map { DockGlassChoice(false, style, 32, -48, 64, it) }
       for (choice in choices) {
         val decoded = DockGlassOptions.decode(choice.options)!!
         assertEquals(choice.copy(customRadiusDp = if (style == DockGlassCornerStyle.CUSTOM) choice.customRadiusDp else 24), decoded)
@@ -38,7 +39,8 @@ class DockGlassOptionsTest {
       (65..127).map { 4 or (it shl 9) } +
       (0..3).flatMap { style -> (1..64).map { style or (it shl 9) } } +
       ((-128..-49) + (97..127)).map { 1 or ((it and 255) shl 16) } +
-      (24..31).map { 1 or (1 shl it) } + listOf(-1)
+      ((-32..-17) + (25..31)).map { 1 or ((it and 63) shl 24) } +
+      (30..31).map { 1 or (1 shl it) } + listOf(-1)
     for (options in invalid) {
       assertFalse("accepted $options", DockGlassOptions.isValid(options))
       assertNull(DockGlassOptions.decode(options))

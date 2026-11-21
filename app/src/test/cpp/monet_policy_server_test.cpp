@@ -562,7 +562,9 @@ void TestDockGlassCapabilitiesAndCommandAdmission() {
             __atomic_store_n(&kh_theme_materials_installed, uint32_t{bool(caps & 2u)}, __ATOMIC_RELEASE);
             __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
             __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
-            assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u) | ((caps & 16u) ? 64u : 0u)));
+            const uint32_t dock_extensions = (caps & 8u)
+                    ? kNativeDockLayoutCapability | kNativeDockHorizontalPaddingCapability : 0u;
+            assert(InstalledCapabilities() == (caps | dock_extensions));
             assert(kh_monet_policy == nullptr && kh_dock_glass_enabled == 0u);
             const uint64_t revision = kh_dock_glass_revision;
             const uint64_t notified = kh_dock_glass_notified;
@@ -923,7 +925,9 @@ void TestLauncherGlassAdmissionAndRefresh() {
         __atomic_store_n(&kh_launcher_labels_installed, uint32_t{bool(caps & 4u)}, __ATOMIC_RELEASE);
         __atomic_store_n(&kh_dock_glass_installed, uint32_t{bool(caps & 8u)}, __ATOMIC_RELEASE);
         __atomic_store_n(&kh_launcher_glass_installed, uint32_t{bool(caps & 16u)}, __ATOMIC_RELEASE);
-        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u)));
+        const uint32_t dock_extensions = (caps & 8u)
+                ? kNativeDockLayoutCapability | kNativeDockHorizontalPaddingCapability : 0u;
+        assert(InstalledCapabilities() == (caps | dock_extensions));
         for (uint32_t mode = 0u; mode <= 2u; ++mode) {
             PolicyState state{};
             const bool available = (caps & 16u) != 0u;
@@ -1160,7 +1164,7 @@ void TestLauncherLabelCommands() {
         kh_monet_installed = (caps & 1) != 0;
         kh_theme_materials_installed = (caps & 2) != 0;
         kh_launcher_labels_installed = (caps & 4) != 0;
-        assert(InstalledCapabilities() == (caps | ((caps & 8u) ? 32u : 0u) | ((caps & 16u) ? 64u : 0u)));
+        assert(InstalledCapabilities() == caps);
         for (uint32_t mode = 0; mode < 3; ++mode) {
             kh_launcher_label_mode = 0;
             const uint64_t revision = kh_launcher_label_revision;
@@ -1211,6 +1215,7 @@ int main() {
     {
         InstalledFlagSnapshot flags;
         __atomic_store_n(&kh_dock_glass_installed,1u,__ATOMIC_RELEASE);
+        assert((InstalledCapabilities() & kNativeDockHorizontalPaddingCapability) != 0u);
         PolicyState extended{};
         for(uint32_t style=0;style<=4;++style)
             for(uint32_t padding : {0u,6u,18u,32u})
@@ -1224,13 +1229,18 @@ int main() {
                     assert(ApplyRequest(&extended,DockRequest(1u,15360u,options),2u));
                     assert(kh_dock_glass_revision==revision);
                 }
-        for(uint32_t invalid : {0x01000000u,5u,34u<<3u,65u<<9u,
-                               1u<<9u,97u<<16u,207u<<16u}) {
+        for (int delta = -16; delta <= 24; ++delta) {
+            const uint32_t options = 1u | ((uint32_t(delta) & 63u) << 24u);
+            assert(ApplyRequest(&extended,DockRequest(1u,15360u,options),3u));
+            assert(kh_dock_glass_corner_style==options);
+        }
+        for(uint32_t invalid : {25u<<24u,47u<<24u,1u<<30u,1u<<31u,
+                               5u,34u<<3u,65u<<9u,1u<<9u,97u<<16u,207u<<16u}) {
             const uint32_t prior=kh_dock_glass_corner_style;
             assert(!ApplyRequest(&extended,DockRequest(1u,15360u,invalid),3u));
             assert(kh_dock_glass_corner_style==prior);
         }
-        puts("Dock extended geometry: 80 atomic choices, quiet renewals and invalid words rejected");
+        puts("Dock extended geometry: 80 existing choices, 41 horizontal deltas, quiet renewals and invalid words rejected");
     }
     TestLauncherGlassAdmissionAndRefresh();
     TestLauncherGlassLeaseIsolation(9u);

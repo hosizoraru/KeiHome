@@ -72,7 +72,7 @@ struct DockGlassGeometry {
         return {};
     }
 
-    // Keep existing padding and all <=4 geometry unchanged.
+    // Establish the original plate before applying the user's symmetric adjustment.
     double left = std::max(plate_edge, first_left - kPadding);
     double right = std::min(content_width - plate_edge, last_right + kPadding);
     if (icon_top && !std::isfinite(*icon_top + ink_width)) return {};
@@ -89,6 +89,13 @@ struct DockGlassGeometry {
         left = std::min({std::max(0.0, *screen_bottom_radius - (bottom - top) * 0.5),
                         first_left, content_width - last_right});
         right = content_width - left;
+    }
+    if (const int requested = DockGlassHorizontalPaddingDelta(options); requested != 0) {
+        const double available_inside = std::max(0.0, std::min(first_left - left, right - last_right));
+        const double available_outside = std::max(0.0, std::min(left, content_width - right));
+        const double delta = std::clamp(double(requested), -available_inside, available_outside);
+        left -= delta;
+        right += delta;
     }
     const double radius_cap = std::min((right - left) / 2.0, (bottom - top) / 2.0);
     if (!(radius_cap > 0.0)) return {};

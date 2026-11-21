@@ -17,6 +17,7 @@ constexpr uint32_t kNativeDockGlassCapability = 8u;
 constexpr uint32_t kNativeDockLayoutCapability = 32u;
 constexpr uint32_t kNativeLauncherGlassCapability = 16u;
 constexpr uint32_t kNativeLauncherGlassPairCapability = 64u;
+constexpr uint32_t kNativeDockHorizontalPaddingCapability = 128u;
 constexpr uint32_t kNativeMonetMaxPackages = 512u;
 constexpr uint32_t kNativeMonetMaxPackageLength = 255u;
 constexpr uint32_t kNativeMonetIoTimeoutMs = 2000u;

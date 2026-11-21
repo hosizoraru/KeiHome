@@ -90,7 +90,8 @@ uint32_t InstalledCapabilities() {
     const uint32_t labels = __atomic_load_n(&kh_launcher_labels_installed, __ATOMIC_ACQUIRE) == 1u
             ? kNativeLauncherLabelsCapability : 0u;
     const uint32_t dock = __atomic_load_n(&kh_dock_glass_installed, __ATOMIC_ACQUIRE) == 1u
-            ? kNativeDockGlassCapability | kNativeDockLayoutCapability : 0u;
+            ? kNativeDockGlassCapability | kNativeDockLayoutCapability |
+              kNativeDockHorizontalPaddingCapability : 0u;
     uint32_t glass = 0u;
     if (__atomic_load_n(&kh_launcher_glass_installed, __ATOMIC_ACQUIRE) == 1u) {
         glass = kNativeLauncherGlassCapability;

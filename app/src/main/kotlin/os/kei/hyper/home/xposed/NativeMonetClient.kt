@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import os.kei.hyper.home.status.NativeRuntimeDiagnostic
+import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import os.kei.hyper.home.data.DockGlassOptions
 
 /**
@@ -436,9 +437,7 @@ internal object NativeMonetProtocol {
   const val LAUNCHER_GLASS_CAPABILITY = 16
   const val DOCK_LAYOUT_CAPABILITY = 32
   const val LAUNCHER_GLASS_PAIR_CAPABILITY = 64
-  private const val KNOWN_CAPABILITIES = MONET_CAPABILITY or THEME_MATERIALS_CAPABILITY or
-    LAUNCHER_LABELS_CAPABILITY or DOCK_GLASS_CAPABILITY or LAUNCHER_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY or
-    LAUNCHER_GLASS_PAIR_CAPABILITY
+  private const val DOCK_HORIZONTAL_PADDING_CAPABILITY = LauncherRuntimeCapabilities.DOCK_HORIZONTAL_PADDING
   private const val ENABLED = 1
   private const val THEME_MATERIALS = 2
   private const val LAUNCHER_LABELS = 3
@@ -534,8 +533,7 @@ internal object NativeMonetProtocol {
     if (greeting[1] != VERSION) return reject("native greeting protocol mismatch")
     if (greeting[2] != targetUid) return reject("native greeting launcher UID mismatch")
     val capabilities = greeting[3]
-    if (capabilities and KNOWN_CAPABILITIES.inv() != 0 ||
-      (capabilities and LAUNCHER_GLASS_PAIR_CAPABILITY != 0 && capabilities and LAUNCHER_GLASS_CAPABILITY == 0)) {
+    if (!LauncherRuntimeCapabilities.isValid(capabilities)) {
       return reject("native greeting capabilities invalid")
     }
     if (readinessCapability != MONET_CAPABILITY && readinessCapability != DOCK_GLASS_CAPABILITY &&
@@ -551,7 +549,12 @@ internal object NativeMonetProtocol {
         DOCK_GLASS -> {
           val options = ByteBuffer.wrap(request).order(ByteOrder.LITTLE_ENDIAN).getInt(5 * Int.SIZE_BYTES)
           if (!DockGlassOptions.isValid(options)) return reject("native Dock options invalid")
-          if (options in 0..1) DOCK_GLASS_CAPABILITY else DOCK_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
+          when {
+            options in 0..1 -> DOCK_GLASS_CAPABILITY
+            DockGlassOptions.horizontalPaddingDelta(options) != 0 ->
+              DOCK_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY or DOCK_HORIZONTAL_PADDING_CAPABILITY
+            else -> DOCK_GLASS_CAPABILITY or DOCK_LAYOUT_CAPABILITY
+          }
         }
         LAUNCHER_GLASS -> LAUNCHER_GLASS_CAPABILITY
         LAUNCHER_GLASS_PAIR -> {
@@ -574,6 +577,8 @@ internal object NativeMonetProtocol {
       return reject(if (requiredCapability == MONET_CAPABILITY) NativeRuntimeDiagnostic.MONET_CAPABILITY_UNAVAILABLE
       else if (requiredCapability == LAUNCHER_LABELS_CAPABILITY) "native launcher labels capability unavailable"
       else if (requiredCapability == DOCK_GLASS_CAPABILITY) "native Dock glass capability unavailable"
+      else if (requiredCapability and DOCK_HORIZONTAL_PADDING_CAPABILITY != 0 &&
+        capabilities and DOCK_HORIZONTAL_PADDING_CAPABILITY == 0) "native Dock horizontal padding capability unavailable"
       else if (requiredCapability and DOCK_LAYOUT_CAPABILITY != 0) "native Dock layout capability unavailable"
       else if (requiredCapability == LAUNCHER_GLASS_CAPABILITY) "native launcher glass capability unavailable"
       else if (requiredCapability and LAUNCHER_GLASS_PAIR_CAPABILITY != 0) "native independent glass capability unavailable"

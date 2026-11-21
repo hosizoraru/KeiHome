@@ -22,7 +22,8 @@ class DockGlassPreferencesTest {
     val remote = Preferences()
     for (style in DockGlassCornerStyle.entries) {
       for (enabled in listOf(true, false, true)) {
-        val choice = DockGlassChoice(enabled, style, verticalPaddingDp = 32, verticalOffsetDp = -48, customRadiusDp = 64)
+        val choice = DockGlassChoice(enabled, style, verticalPaddingDp = 32, verticalOffsetDp = -48,
+          customRadiusDp = 64, horizontalPaddingDeltaDp = 12)
         DockGlassPreferences.save(remote.preferences, choice)
         assertEquals(enabled, remote.values[DockGlassPreferences.KEY])
         assertEquals(style.nativeValue, remote.values[DockGlassPreferences.CORNER_STYLE_KEY])
@@ -75,24 +76,26 @@ class DockGlassPreferencesTest {
       remote.values[DockGlassPreferences.VERTICAL_PADDING_KEY] = value
       remote.values[DockGlassPreferences.VERTICAL_OFFSET_KEY] = value
       remote.values[DockGlassPreferences.CUSTOM_RADIUS_KEY] = value
+      remote.values[DockGlassPreferences.HORIZONTAL_PADDING_KEY] = value
       assertEquals(DockGlassChoice(), DockGlassPreferences.readChoice(remote.preferences))
     }
     for (key in listOf(null, DockGlassPreferences.KEY, DockGlassPreferences.CORNER_STYLE_KEY,
       DockGlassPreferences.VERTICAL_PADDING_KEY, DockGlassPreferences.VERTICAL_OFFSET_KEY,
-      DockGlassPreferences.CUSTOM_RADIUS_KEY)) {
+      DockGlassPreferences.CUSTOM_RADIUS_KEY, DockGlassPreferences.HORIZONTAL_PADDING_KEY)) {
       org.junit.Assert.assertTrue(DockGlassPreferences.isPreferenceKey(key))
     }
     org.junit.Assert.assertFalse(DockGlassPreferences.isPreferenceKey("launcher_glass_style"))
   }
 
-  @Test fun readUsesOneSnapshotForAllFiveFields() {
+  @Test fun readUsesOneSnapshotForAllFields() {
     val remote = Preferences()
     remote.values.putAll(mapOf(DockGlassPreferences.KEY to true,
       DockGlassPreferences.CORNER_STYLE_KEY to 4,
       DockGlassPreferences.VERTICAL_PADDING_KEY to 0,
       DockGlassPreferences.VERTICAL_OFFSET_KEY to -48,
-      DockGlassPreferences.CUSTOM_RADIUS_KEY to 64))
-    assertEquals(DockGlassChoice(true, DockGlassCornerStyle.CUSTOM, 0, -48, 64),
+      DockGlassPreferences.CUSTOM_RADIUS_KEY to 64,
+      DockGlassPreferences.HORIZONTAL_PADDING_KEY to -16))
+    assertEquals(DockGlassChoice(true, DockGlassCornerStyle.CUSTOM, 0, -48, 64, -16),
       DockGlassPreferences.readChoice(remote.preferences))
     assertEquals(1, remote.snapshots)
   }

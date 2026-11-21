@@ -469,6 +469,37 @@ void CountChangesAndEnvelopeSweep() {
 
 int main() {
     FiveItemContentClearance();
+    {
+        const auto dock = [](double width, int count, int delta, unsigned style = 1) {
+            return ComputeDockGlassGeometry(width, 80, count, 5, 100, 40.0, 56.0, 8.0,
+                    false, 20.0, std::nullopt, style | ((uint32_t(delta) & 63u) << 24u));
+        };
+        for (unsigned style : {0u, 1u, 2u, 3u, 4u}) {
+            for (double width : {320.0, 360.0, 400.0, 560.0}) {
+                for (int count : {3, 4, 5}) {
+                    const auto base = dock(width, count, 0, style);
+                    if (!base.visible) continue;
+                    auto previous = dock(width, count, -16, style);
+                    for (int delta = -16; delta <= 24; ++delta) {
+                        const auto adjusted = dock(width, count, delta, style);
+                        CHECK(adjusted.visible);
+                        CHECK(Near(base.left - adjusted.left, adjusted.right - base.right));
+                        CHECK(adjusted.left <= previous.left && adjusted.right >= previous.right);
+                        CHECK(adjusted.left >= 0 && adjusted.right <= width);
+                        CHECK(base.top == adjusted.top && base.bottom == adjusted.bottom);
+                        const double first = count == 5 ? width / 10 - 28 : (width - (count - 1) * 80) / 2 - 28;
+                        CHECK(adjusted.left <= first && adjusted.right >= width - first);
+                        previous = adjusted;
+                    }
+                }
+            }
+        }
+        CHECK(dock(360, 4, 0).left == 14);
+        CHECK(dock(360, 4, 24).left == 0);
+        CHECK(dock(340, 4, 0).left == 8);
+        CHECK(dock(340, 4, 24).left == 0);
+        CHECK(dock(336, 5, 24).left == 0);
+    }
     for(uint32_t style=0;style<=4;++style)
         for(uint32_t padding : {0u,6u,18u,32u})
             for(int count=1;count<=5;++count) {

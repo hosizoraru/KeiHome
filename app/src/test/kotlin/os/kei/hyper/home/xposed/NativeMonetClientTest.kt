@@ -271,6 +271,23 @@ class NativeMonetClientTest {
     assertEquals(0, DockScreenCorners.quantize(120, 0f))
   }
 
+  @Test fun dockHorizontalPaddingRequiresNewNativeSupportAndKeepsLegacyRequestsUsable() {
+    val old = 8 or 32
+    val supported = old or 128
+    for (delta in listOf(-16, 0, 24)) {
+      val options = (19 shl 3) or 1 or ((delta and 63) shl 24)
+      val command = NativeMonetProtocol.dockGlassRequest(true, options = options)
+      assertArrayEquals(words(magic, 1, 8, 1, 0, options), command)
+      for (capabilities in listOf(8, old, 128, 8 or 128, supported, supported or 1)) {
+        val output = ByteArrayOutputStream()
+        val accepted = capabilities and supported == supported || (capabilities == old && delta == 0)
+        assertEquals(accepted, NativeMonetProtocol.exchange(
+          ByteArrayInputStream(greeting(capabilities) + ack()), output, targetUid, targetUid, command))
+        assertArrayEquals(if (accepted) command else byteArrayOf(), output.toByteArray())
+      }
+    }
+  }
+
   @Test fun bothDockStylesUseTheSameExact24ByteCommandAndTheirOwnAck() {
     for (enabled in listOf(false, true)) for (style in 0..1) {
       val command = NativeMonetProtocol.dockGlassRequest(enabled, 10_240, style)

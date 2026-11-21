@@ -90,8 +90,8 @@ geometry. Lease identities/status ACKs compare full options. Unchanged renewals
 stay quiet; one committed change uses the existing scoped refresh.
 
 Horizontal padding is covered by the host geometry sweep, the linked ARM64 Dock
-renderer cases, and preference, protocol and status tests. These checks do not
-establish the visual result on a physical Phone or Pad.
+renderer cases, and preference, protocol and status tests. Device results are
+recorded separately below.
 
 The bottom-margin role resolves structurally from mapped AOT instructions. Its
 unique native return must authenticate before any patch is published. Five
@@ -133,3 +133,28 @@ Checks: 97 focused JVM tests, Release lint, native wire/lease sanitizers includi
 rendering/placement/material/mode/refresh checks, and five source-profile
 admissions with mutated margin returns rejected. Pad evidence is source-only;
 this task did not install/test on the physical phone or live Pad.
+
+### Horizontal padding on physical Phone, 2026-11-21
+
+The Xiaomi 17 Pro ran `OS4.0.8.0.XBLCNXM`, Home `801030308`, and
+KeiOS-signed KeiHome `113000656`. The in-place update matched the archived
+APK hash and passed all nine observed Java hot reloads. A separate Home-only
+relaunch initialized the Dock renderer and mapped the newly installed APK.
+SystemUI and system_server did not restart.
+
+Three- and four-icon layouts accepted -16, 0, +8 and +24 dp. Captures show the
+plate narrowing and widening while the icon positions stay fixed for each
+count. The +24 dp setting can reach the available-width limit. Dragging a
+shortcut out and back updated the plate as the count changed. Tapping the
+outer icon at +8 dp opened Via, and the return animation settled back onto the
+adjusted plate. Reset restored 0 dp and received the native settings ACK.
+The original 206 launcher rows and screen order matched after the test;
+the applied icon file and system settings were unchanged.
+
+Evidence: `.artifacts/research/dock-horizontal-padding-20261121/`, including
+`physical-acceptance.json`, the three- and four-icon comparison captures, and
+the drag and launch recordings. The Release passed lint with zero errors.
+The 129 focused JVM tests and linked ARM64 bridge checks passed. A separate
+comparison against the prior signed build produced identical native Dock
+object graphs in 240 zero-adjustment cases. Five-icon and wide-layout
+horizontal padding coverage is host-only; no live five-icon or Pad test ran.

@@ -225,10 +225,11 @@ internal fun NavigationBackdropContent(
         })
     }
   }) { padding ->
+    // Capture the viewport before overscroll moves the list's drawing layer.
     Os4LazyColumn(state = list, modifier = Modifier.fillMaxSize().testTag("nav-backdrop.list")
+      .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior, overScrollEnabled = !isApps || searchVisible)
-      .then(if (isApps && !searchVisible) Modifier.nestedScroll(pullToSearch) else Modifier)
-      .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+      .then(if (isApps && !searchVisible) Modifier.nestedScroll(pullToSearch) else Modifier),
       contentPadding = PaddingValues(start = 12.dp, end = 12.dp,
         top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
       topAppBarScrollBehavior = behavior,

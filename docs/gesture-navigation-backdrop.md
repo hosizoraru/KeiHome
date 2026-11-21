@@ -1,5 +1,27 @@
 # Gesture navigation backdrop investigation
 
+## Settings status card during scroll (November 22)
+
+The 1.13.0 b0647 report and screen recording showed a strip missing from
+the status card's title, badges, and artwork while scrolling. The reporter
+used a Xiaomi 17 on HyperOS OS4.0.6.0.XPCCNXM. The same clipping reproduced
+on a Xiaomi 17 Pro on OS4.0.8.0.XBLCNXM. Removing the card's inner clip in
+b0661 still reproduced it with progressive blur. Turning off app blur cleared
+the artifact during the same swipe sequence.
+
+Keep the list's `layerBackdrop` ahead of `keiHomeTopBarScroll` in the
+modifier chain. MIUIX captures the viewport for the Glass toolbar, while
+overscroll places the list in a translated, clipped layer. Capturing outside
+the translation gives the toolbar a stable viewport and retains the list's
+native rebound and the card's rounded clipping. See the [Glass list example
+in the MIUIX playbook](miuix-os4-playbook.md#33-录制页面内容glass-在外部采样).
+
+On the Xiaomi 17 Pro, signed b0662 retained the title, summary, badges and
+status artwork through slow swipes, quick reversals and return to the top.
+Captures cover light and dark progressive blur, light progressive blur at
+130% system font scale, and dark Gaussian blur. Recordings and the signed
+candidate are in `.artifacts/research/navigation-status-scroll-20261122/`.
+
 ## Soft glass gesture handle (November 19)
 
 The independent **Soft glass gesture handle** switch in Desktop → Immersive

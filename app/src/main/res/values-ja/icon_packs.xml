@@ -50,6 +50,7 @@
     <string name="icon_pack_native_uncertain">システムテーマでのインポート完了を待っています。アイコンが多い場合は数分かかることがあります。自動確認には上限がありますが、手動でも状況を確認できます。</string>
     <string name="icon_pack_native_unsupported">このシステムのテーマインポートはまだ対応していません。</string>
     <string name="icon_pack_native_failed">システムテーマの操作を完了できませんでした。</string>
+    <string name="icon_pack_native_preparation_failed">システムテーマに読み込むアイコンパックを準備できませんでした。詳細はアプリのログをエクスポートして確認できます。</string>
     <string name="icon_pack_native_note">APK/ZIP はインストール済みアプリのライト・ダークアイコンを書き出します。アプリ追加後は再インポートしてください。MTZ の元リソースは保持されます。適用はシステムテーマ画面で行います。</string>
     <string name="icon_pack_recheck">インポート状況を確認</string>
     <string name="icon_pack_native_update">インポート済みアイコンを更新</string>

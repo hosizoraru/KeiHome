@@ -20,6 +20,16 @@ class IconPackImportMonitorTest {
     ConvertedIconArchive.Digests("c".repeat(40), "d".repeat(64)))
 
   @Test
+  fun receiptQueryKeepsInFlightOperationCurrentButReplacementDoesNot() {
+    assertTrue(request.sameOperation(request.copy(recheck = 15_100)))
+    for (replacement in listOf(request.copy(token = "another-token"), request.copy(sourceId = "another-pack"),
+      request.copy(userId = 10), request.copy(startedAt = 200), request.copy(autoApply = true),
+      request.copy(convertedOrigin = "LOCAL_NATIVE_ICONS"))) {
+      assertFalse(request.sameOperation(replacement.copy(recheck = 15_100)))
+    }
+  }
+
+  @Test
   fun terminalWriteFailureKeepsOriginalForTheReplacementWorker() = withInput { input ->
     val receipt = IconImportReceipt()
     receipt.persist(pending, null) {}

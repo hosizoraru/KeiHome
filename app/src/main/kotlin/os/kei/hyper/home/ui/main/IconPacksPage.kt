@@ -476,11 +476,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         }
       }
       if (result != null && !result.imported) {
-        Text(stringResource(when (result.status) {
-          "IMPORTING", "UNCERTAIN" -> R.string.icon_pack_native_uncertain
-          "UNSUPPORTED" -> R.string.icon_pack_native_unsupported
-          else -> R.string.icon_pack_native_failed
-        }), style = MiuixTheme.textStyles.footnote2,
+        Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote2,
           color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
         if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
       }
@@ -493,6 +489,13 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
 
     }
   }
+}
+
+internal fun NativeIconImportReport.failureLabel(): Int = when (status) {
+  "IMPORTING", "UNCERTAIN" -> R.string.icon_pack_native_uncertain
+  "UNSUPPORTED" -> R.string.icon_pack_native_unsupported
+  "PREPARATION_FAILED" -> R.string.icon_pack_native_preparation_failed
+  else -> R.string.icon_pack_native_failed
 }
 
 @Composable

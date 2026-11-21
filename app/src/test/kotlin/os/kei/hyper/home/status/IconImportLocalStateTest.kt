@@ -65,6 +65,21 @@ class IconImportLocalStateTest {
     assertEquals("source", uncertain.state.pendingSource)
   }
 
+  @Test fun requestThatExpiresDuringHandoffCompletesAsRetryableFailure() {
+    val request = request("00000000-0000-0000-0000-000000000001")
+    val initial = IconImportLocalState().begin(request)
+    val deadline = request.startedAt + 600_000L
+    assertNull(request.expiredBeforeSubmission(deadline))
+    val report = requireNotNull(request.expiredBeforeSubmission(deadline + 1))
+    val mutation = initial.accept(report)
+    assertEquals("FAILED", mutation.state.result?.status)
+    assertTrue(mutation.complete)
+    assertNull(mutation.state.pendingToken)
+    assertNull(mutation.state.request)
+    assertTrue(mutation.state.associations.isEmpty())
+    assertEquals("next", mutation.state.begin(request("next")).pendingToken)
+  }
+
   @Test fun automaticNavigationRequiresCurrentDurableReceiptAndIsNotReplayedAfterAnotherToken() {
     val a = result()
     val completed = IconImportLocalState().begin(request()).accept(a).state

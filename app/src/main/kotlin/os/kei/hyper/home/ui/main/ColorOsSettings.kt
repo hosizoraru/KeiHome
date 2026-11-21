@@ -109,8 +109,7 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         if (result?.imported == true) {
           NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
         } else if (result != null) {
-          Text(stringResource(if (result.pending) R.string.icon_pack_native_uncertain
-            else R.string.icon_pack_native_failed),
+          Text(stringResource(result.failureLabel()),
             color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
           if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck),
             onClick = model::recheckNativeIconImport)

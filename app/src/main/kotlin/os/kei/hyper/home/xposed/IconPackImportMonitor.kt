@@ -60,6 +60,7 @@ internal class IconPackImportMonitor(
       var retainedStage: String? = null
       var outcome: NativeIconImportReport? = null
       var convertedProof: ConvertedIconArchive.Proof? = null
+      var sendReport: ((NativeIconImportReport) -> Boolean)? = null
       val receipt = IconImportReceipt()
       fun persist(report: NativeIconImportReport, mayHaveImported: Boolean, stage: String?) {
         receipt.persist(report, stage, convertedProof) {
@@ -67,7 +68,7 @@ internal class IconPackImportMonitor(
         }
       }
       fun isCurrent(): Boolean = !closed && !Thread.currentThread().isInterrupted &&
-        IconPackImportProtocol.read(prefs) == request &&
+        IconPackImportProtocol.read(prefs)?.let(request::sameOperation) == true &&
         ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) == request.userId
       fun forDelivery(report: NativeIconImportReport): NativeIconImportReport? {
         if (!isCurrent()) return null
@@ -81,18 +82,29 @@ internal class IconPackImportMonitor(
           pause = { Thread.sleep(it) },
           onFailure = { failure -> if (!closed) onFailure(failure) })
       }
+      fun deliver(report: NativeIconImportReport): Boolean {
+        val send = sendReport ?: return false
+        val notification = forDelivery(report) ?: return false
+        if (!isCurrent()) return false
+        if (!send(notification)) throw IOException("App did not acknowledge the native import receipt")
+        return true
+      }
+      fun finishExpiredRequest(): Boolean {
+        val expired = request.expiredBeforeSubmission(SystemClock.elapsedRealtime()) ?: return false
+        outcome = expired
+        persist(expired, false, null)
+        if (deliver(expired)) handled = request
+        return true
+      }
       try {
         val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
         if (user != request.userId) return@Runnable
         val context = Context::class.java.getMethod("createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType)
           .invoke(base, UserHandle.getUserHandleForUid(user * 100_000), 0) as Context
         if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return@Runnable
-        fun deliver(report: NativeIconImportReport) {
-          if (closed) return
-          val notification = forDelivery(report) ?: return
-          if (!isCurrent()) return
+        sendReport = { notification ->
           context.contentResolver.call(RuntimeStatusInbox.AUTHORITY, IconPackImportProtocol.REPORT_METHOD,
-            null, notification.bundle())
+            null, notification.bundle())?.getBoolean("accepted") == true
         }
         val directory = File("/data/system/keihome-icon-imports")
         check(directory.isDirectory || directory.mkdir())
@@ -119,27 +131,20 @@ internal class IconPackImportMonitor(
             val result = NativeIconPackManager.reconcile(context, input.path, retainedStage, request.convertedOrigin)
             retainedStage = result.retainedStagePath
             convertedProof = result.convertedProof
-            outcome = stored.copy(status = result.status.name, localId = result.localId,
+            val report = stored.copy(status = result.status.name, localId = result.localId,
               title = result.title, message = result.message, convertedReady = result.convertedReady)
-            persist(outcome, result.mayHaveImported, retainedStage)
+            outcome = report
+            persist(report, result.mayHaveImported, retainedStage)
           } else if (stored.imported && retainedStage != null) {
             NativeIconPackManager.cleanupConfirmedImport(input.path, retainedStage)
             retainedStage = null
             persist(stored, previous?.optBoolean("mayHaveImported") ?: true, null)
           }
-          deliver(outcome)
-          handled = request
+          if (deliver(checkNotNull(outcome))) handled = request
           return@Runnable
         }
-        if (!request.pending(SystemClock.elapsedRealtime())) {
-          outcome = NativeIconImportReport(request.token, user, request.sourceId, "FAILED",
-            message = "Request expired before native submission")
-          persist(outcome, false, null)
-          deliver(outcome)
-          handled = request
-          return@Runnable
-        }
-        deliver(NativeIconImportReport(request.token, user, request.sourceId, "IMPORTING"))
+        if (finishExpiredRequest()) return@Runnable
+        if (!deliver(NativeIconImportReport(request.token, user, request.sourceId, "IMPORTING"))) return@Runnable
         val uri = Uri.Builder().scheme("content").authority(RuntimeStatusInbox.AUTHORITY)
           .appendPath("icon-import").appendPath(request.token).build()
         context.contentResolver.openInputStream(uri)!!.use { source ->
@@ -156,8 +161,7 @@ internal class IconPackImportMonitor(
             }
           }
         }
-        if (closed || IconPackImportProtocol.read(prefs) != request ||
-          !request.pending(SystemClock.elapsedRealtime())) return@Runnable
+        if (!isCurrent() || finishExpiredRequest()) return@Runnable
         // Journal before the native transaction: a replacement queries its outcome and never
         // blindly resubmits a call that Themes may still be processing.
         persist(NativeIconImportReport(request.token, user, request.sourceId, "IMPORTING"), true, null)
@@ -178,28 +182,29 @@ internal class IconPackImportMonitor(
         }
         retainedStage = result.retainedStagePath
         convertedProof = result.convertedProof
-        outcome = NativeIconImportReport(request.token, user, request.sourceId, result.status.name,
+        val report = NativeIconImportReport(request.token, user, request.sourceId, result.status.name,
           result.localId, result.title, result.message, result.convertedReady)
-        persist(outcome, result.mayHaveImported, retainedStage)
-        deliver(outcome)
-        handled = request
+        outcome = report
+        persist(report, result.mayHaveImported, retainedStage)
+        if (deliver(report)) handled = request
       } catch (failure: Exception) {
         if (failure is InterruptedException) Thread.currentThread().interrupt()
         if (!submitted && outcome == null && (closed || failure is InterruptedException)) return@Runnable
         if (!closed) onFailure(failure)
         // Delivery failure cannot turn a successful native import into FAILED.
         if (outcome == null) {
-          outcome = NativeIconImportReport(request.token, request.userId, request.sourceId,
+          val report = NativeIconImportReport(request.token, request.userId, request.sourceId,
             if (submitted) "UNCERTAIN" else "FAILED", message = failure.message?.take(400))
-          journal?.let { runCatching { persist(outcome, submitted, retainedStage) } }
+          outcome = report
+          if (journal != null) {
+            runCatching { persist(report, submitted, retainedStage) }
+              .onFailure { if (!closed) onFailure(it) }
+          }
         }
         if (!closed) {
-          runCatching {
-            val notification = forDelivery(outcome)
-            if (notification != null && isCurrent()) base.contentResolver.call(RuntimeStatusInbox.AUTHORITY,
-              IconPackImportProtocol.REPORT_METHOD, null, notification.bundle())
-          }
-          handled = request
+          runCatching { deliver(checkNotNull(outcome)) }
+            .onSuccess { if (it) handled = request }
+            .onFailure(onFailure)
         }
       } finally {
         receipt.releaseInput(input)
@@ -266,7 +271,7 @@ internal class IconAutoApplyAuthorization(
   private var failureMessage: String? = null
 
   fun matches(other: IconPackImportRequest, report: NativeIconImportReport): Boolean =
-    request.copy(recheck = 0) == other.copy(recheck = 0) &&
+    request.sameOperation(other) &&
       report.token == request.token && report.userId == request.userId &&
       report.sourceId == request.sourceId && report.localId == localId
 

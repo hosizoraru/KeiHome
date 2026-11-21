@@ -66,6 +66,7 @@ import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.status.IconPackHandoffs
+import os.kei.hyper.home.status.AppLogStore
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.NativeImportReceiptRetries
 import os.kei.hyper.home.status.pendingReceiptOperation
@@ -805,8 +806,6 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
-        if (!result.imported && !result.pending) android.util.Log.e("KeiHomePackImport",
-          "Native icon import ${result.status}: ${result.message}")
         readIconPacks()
         if (generation == nativeImportGeneration && result.imported && result.autoApplyToken == null) {
           iconPacks.update { it.copy(generationProgress = IconPackOperationProgress(
@@ -819,12 +818,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         }
         throw cancelled
       } catch (failure: Exception) {
-        android.util.Log.e("KeiHomePackImport", "Icon pack preparation or import failed: ${pack.id}", failure)
+        val step = iconPacks.value.generationProgress?.step
+        val detail = "Icon import failed at $step, format=${pack.format}, token=${handoff?.token ?: "none"}"
+        android.util.Log.e("KeiHomePackImport", detail, failure)
+        val causes = generateSequence<Throwable>(failure) { it.cause }.take(5).joinToString(" | ") {
+          "${it.javaClass.simpleName}: ${it.message.orEmpty().take(512)}"
+        }
+        withContext(Dispatchers.IO) { AppLogStore.record(getApplication(), AppLogStore.Level.ERROR, "$detail: $causes") }
         val stored = readImportState()
         if (generation != nativeImportGeneration) return@launch
         if (stored?.pendingSource == pack.id) iconPacks.update { it.copy(error = failure.message.orEmpty()) }
         else iconPacks.update { it.copy(nativeResult = NativeIconImportReport(handoff?.token.orEmpty(),
-          Process.myUid() / 100_000, pack.id, "FAILED", message = failure.message)) }
+          Process.myUid() / 100_000, pack.id, if (handoff == null) "PREPARATION_FAILED" else "FAILED",
+          message = failure.message)) }
       } finally {
         val pending = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
           // Unknown storage state must retain the handoff, never turn into a false failure/cleanup.

@@ -108,3 +108,37 @@ The English, Chinese and Japanese pending text explains that large packs may
 take several minutes. Explicit native failures remain errors. Focused tests
 cover foreground cancellation, replacement, clock reset, late receipt replay,
 query serialization and dispatcher jitter at the final scheduled query.
+
+## Perfect HyperOS4 import investigation
+
+The November 20 report showed a generated HyperOS4 ZIP with original dynamic
+icons, light/dark adaptation and installed-app filtering enabled. The card
+showed a local pack and a system-theme operation failure. At export time the
+reporter's device was a REDMI K100 Pro Max on `OS4.0.7.0.XGNCNXM`, with Home
+`801029248` and KeiHome `113000647`. The supplied App archive contained process
+start events. Neither supplied archive contained a matching import failure
+receipt, and the reporter's ZIP was unavailable.
+
+The same options on a Xiaomi 17 Pro with `OS4.0.8.0.XBLCNXM`, Home `801030308`
+and Themes `11560` produced a native `IMPORTED` receipt with
+`convertedReady=true`. The older icon-pack path from b0647 also produced that
+receipt on the same phone. The installed app set and system build differ from
+the report, so these runs establish compatibility for the local fixtures.
+
+Signed b0659 regenerated the same configuration on that phone with 118
+mappings, 112 installed matches and 15 dynamic icons. Updating the system import
+returned `ALREADY_IMPORTED` with `convertedReady=true` and applied the verified
+component. The previously applied component was then restored and matched its
+pre-test SHA-256. The Home, SystemUI and `system_server` processes kept their
+identities. Request-expiry and receipt-query boundaries were exercised by host
+tests rather than by delaying the device import.
+
+| Boundary | Failure and recovery |
+| --- | --- |
+| Local source to MTZ | Local generation and native import are distinct results. Native resource validation and packaging failures happen before submission and retain the generated ZIP for another import attempt. Preparation records the stage and exception chain. |
+| MTZ handoff | The system worker checks the request deadline both before and after copying. An expired request that has never reached Themes now completes with a terminal failure and clears the pending App operation. Receipt queries advance their own nonce while the copy remains owned by the original operation. |
+| Themes import | Contract resolution, staging storage and the native import reply can fail. After submission, a timeout or an ambiguous inventory leaves the same request pending reconciliation. Rechecks query the saved operation without submitting it again. |
+| App receipt | A worker only marks delivery handled after the App acknowledges it. A missing acknowledgement can be replayed from the persisted receipt. Terminal errors and uncertain waits are recorded for App log export even when the original screen is gone or its wait ended. |
+
+Device receipts and the locally generated ZIP are retained under
+`.artifacts/research/perfect-system-import-20261122/`.

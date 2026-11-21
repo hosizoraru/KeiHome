@@ -29,6 +29,12 @@ internal data class IconPackImportRequest(
 ) {
   fun pending(now: Long) = now >= startedAt && now - startedAt <= 600_000L &&
     userId >= 0 && token.matches(Regex("[0-9a-f-]{36}")) && sourceId.isNotBlank()
+
+  fun sameOperation(other: IconPackImportRequest): Boolean = copy(recheck = other.recheck) == other
+
+  fun expiredBeforeSubmission(now: Long): NativeIconImportReport? =
+    if (pending(now)) null else NativeIconImportReport(token, userId, sourceId, "FAILED",
+      message = "Request expired before native submission")
 }
 
 internal data class NativeIconImportReport(
@@ -94,7 +100,13 @@ internal object IconPackImportProtocol {
     if (report.userId != Process.myUid() / 100_000) return false
     val mutation = local(context).accept(report)
     // Persistence precedes both publication and release of the original handoff.
-    if (mutation.complete) IconPackHandoffs.file(context, report.token).delete()
+    if (mutation.complete) {
+      IconPackHandoffs.file(context, report.token).delete()
+      if (!report.imported || report.convertedReady == false) {
+        AppLogStore.record(context, AppLogStore.Level.ERROR,
+          "System icon import ${report.status}, token=${report.token}: ${report.message.orEmpty().take(512)}")
+      }
+    }
     return mutation.accepted
   }
 
@@ -136,7 +148,11 @@ internal object IconPackImportProtocol {
     autoApply: Boolean = false, preparedPalette: Boolean? = null): NativeIconImportReport? = withContext(Dispatchers.IO) {
     val request = IconPackImportRequest(handoff.token, Process.myUid() / 100_000,
       SystemClock.elapsedRealtime(), handoff.sourceId, convertedOrigin = handoff.convertedOrigin, autoApply = autoApply, preparedPalette = preparedPalette)
-    submitNativeImport(local(context), request, local(context).states.map { it?.result }, publicationMutex = remoteWrites) { publishRequest(service, request) }
+    submitNativeImport(local(context), request, local(context).states.map { it?.result },
+      publicationMutex = remoteWrites) { publishRequest(service, request) }.also { report ->
+      if (report?.status == "UNCERTAIN") AppLogStore.record(context, AppLogStore.Level.WARN,
+        "System icon import UNCERTAIN, token=${request.token}: ${report.message.orEmpty().take(512)}")
+    }
   }
 
   fun nativeDetail(localId: String): Intent = Intent(Intent.ACTION_VIEW, Uri.Builder()

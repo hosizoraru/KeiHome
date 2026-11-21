@@ -162,6 +162,27 @@ class RawIconArchiveTest {
     assertArrayEquals(outputs[0].readBytes(), outputs[1].readBytes())
   }
 
+  @Test fun newEncodedAssetsAreStoredWithoutChangingAuthoredEntryMethods() {
+    val source = fixture()
+    val output = temporary.newFile()
+    val png = randomBytes(2048)
+    val path = "fancy_icons/com.example/day.png"
+    val manifest = "fancy_icons/com.example/manifest.xml"
+    SpoolIconEntries.open(output.parentFile).use { additions ->
+      additions.append(mapOf(path to png)) {}
+      RawIconArchive.write(source, output, maxOutputBytes = MAX_OUTPUT, spooled = additions,
+        replacements = mapOf("deflated.png" to png, manifest to "<Icon />".encodeToByteArray()))
+    }
+    ZipFile(output).use { zip ->
+      val image = zip.getEntry(path)
+      assertEquals(ZipEntry.STORED, image.method)
+      assertArrayEquals(png, zip.getInputStream(image).use { it.readBytes() })
+      assertEquals(ZipEntry.DEFLATED, zip.getEntry(manifest).method)
+      assertEquals(ZipEntry.DEFLATED, zip.getEntry("deflated.png").method)
+    }
+    assertArrayEquals(raw(source, "stored.png"), raw(output, "stored.png"))
+  }
+
   @Test fun transformedOutputBudgetsUseNewSizesAndIncludeExplicitAdditions() {
     val source = archive(listOf(Entry("image.png", randomBytes(4096), ZipEntry.STORED)))
     val output = temporary.newFile()

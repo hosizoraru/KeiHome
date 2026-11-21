@@ -87,6 +87,31 @@ class IconPackArchiveTest {
     assertArrayEquals(opaqueAsset, IconPackArchive.readEntry(output, "fancy_icons/org.example.Calendar/dark.png", 4096))
   }
 
+  @Test fun stagedNativeCopyReportsBytesAndRejectsChangedSourceBeforeZipValidation() {
+    val bytes = zip("res/drawable/org.example.png" to png)
+    val store = IconPackStore(temporary.newFolder())
+    val record = store.import(bytes.inputStream(), "native.zip").record
+    val output = temporary.newFile()
+    val scratch = temporary.newFile()
+    val progress = mutableListOf<Pair<Long, Long>>()
+    var validating = false
+    fun copy() = IconPackArchive().copyNativeModule(record, output, scratch,
+      onBytes = { done, total -> progress += done to total },
+      onValidating = { validating = true })
+
+    assertEquals(record.nativeIconsSha256, copy().nativeIconsSha256)
+    assertEquals(0L to bytes.size.toLong(), progress.first())
+    assertEquals(bytes.size.toLong() to bytes.size.toLong(), progress.last())
+    assertTrue(validating)
+    assertArrayEquals(bytes, output.readBytes())
+
+    record.originalFile.appendBytes(byteArrayOf(0))
+    validating = false
+    val error = assertThrows(IconPackException::class.java) { copy() }
+    assertEquals("Native icons checksum mismatch", error.message)
+    assertFalse(validating)
+  }
+
   @Test fun nativeNightPrefixSelectsItsOwnArtworkAndKeepsOriginalBytes() {
     val index = inspect(file(zip("res/drawable-xxhdpi/org.example.png" to png,
       "nightmode/res/drawable-xxhdpi/org.example.png" to png)))

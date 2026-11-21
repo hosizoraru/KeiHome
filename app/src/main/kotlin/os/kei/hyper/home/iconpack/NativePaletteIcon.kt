@@ -4,14 +4,22 @@ package os.kei.hyper.home.iconpack
 internal object NativePaletteIcon {
   fun recognizes(
     nativeName: String, manifest: ByteArray, day: ByteArray, night: ByteArray,
-    mask: ByteArray, background: ByteArray,
-  ): Boolean = listOf(false, true).any { expanded -> listOf(false, true).any { scalar ->
-    try {
-      entries(nativeName, day, night, mask, background,
-        legacyExpanded = expanded, legacyScalarBinders = scalar)
-        .getValue("fancy_icons/$nativeName/manifest.xml").contentEquals(manifest)
-    } catch (_: IllegalArgumentException) { false }
-  } }
+    mask: ByteArray, background: ByteArray, legacyExpanded: Boolean? = null,
+  ): Boolean = try {
+    NativeDayNightIcon.validateName(nativeName)
+    val size = NativeDayNightIcon.pngSize(day)
+    val identical = day.contentEquals(night)
+    val compact = identical && legacyExpanded != true
+    val matched = matchesManifest(size, compact, manifest) ||
+      (legacyExpanded == null && compact && matchesManifest(size, false, manifest))
+    if (matched) {
+      validateImages(day, night, mask, background)
+      true
+    } else false
+  } catch (_: IllegalArgumentException) { false }
+
+  private fun matchesManifest(size: Int, compact: Boolean, bytes: ByteArray): Boolean =
+    manifest(size, compact, false).contentEquals(bytes) || manifest(size, compact, true).contentEquals(bytes)
 
   const val FOREGROUND_KEY = "keihome_maml_fg_hex"
   const val BACKGROUND_KEY = "keihome_maml_bg_hex"
@@ -27,13 +35,27 @@ internal object NativePaletteIcon {
     monochromePng: ByteArray, backgroundMaskPng: ByteArray,
     legacyExpanded: Boolean = false, legacyScalarBinders: Boolean = false,
   ): Map<String, ByteArray> {
+    val size = validateImages(lightPng, darkPng, monochromePng, backgroundMaskPng)
     val pair = NativeDayNightIcon.entries(nativeName, lightPng, darkPng, legacyExpanded = legacyExpanded)
+    val root = "fancy_icons/$nativeName"
+    return pair + linkedMapOf(
+      "$root/manifest.xml" to manifest(size, "$root/night.png" !in pair, legacyScalarBinders),
+      "$root/mask.png" to monochromePng.copyOf(),
+      "$root/bg.png" to backgroundMaskPng.copyOf(),
+    )
+  }
+
+  private fun validateImages(
+    lightPng: ByteArray, darkPng: ByteArray, monochromePng: ByteArray, backgroundMaskPng: ByteArray,
+  ): Int {
     val size = GeneratedIconPng.squareSize(lightPng)
-    require(GeneratedIconPng.squareSize(darkPng) == size) { "Day/night PNG dimensions must match" }
+    require(lightPng === darkPng || GeneratedIconPng.squareSize(darkPng) == size) { "Day/night PNG dimensions must match" }
     GeneratedIconPng.requireAlphaMask(monochromePng, size)
     GeneratedIconPng.requireAlphaMask(backgroundMaskPng, size)
-    val root = "fancy_icons/$nativeName"
-    val compact = "$root/night.png" !in pair
+    return size
+  }
+
+  private fun manifest(size: Int, compact: Boolean, legacyScalarBinders: Boolean): ByteArray {
     val enabled = if (legacyScalarBinders) "#palette_enabled" else "int(#palette_state/281474976710656)"
     val dayVisibility = if (compact) "(1-$enabled)" else "(1-$enabled)*(1-#__darkmode)"
     val nightImage = if (compact) "" else
@@ -73,10 +95,6 @@ ${binders.prependIndent("          ")}
         <Image x="0" y="0" w="$size" h="$size" src="mask.png" tint="$fgTint" tintmode="5" visibility="$enabled" />
       </Icon>
     """.trimIndent() + "\n"
-    return pair + linkedMapOf(
-      "$root/manifest.xml" to manifest.toByteArray(Charsets.UTF_8),
-      "$root/mask.png" to monochromePng.copyOf(),
-      "$root/bg.png" to backgroundMaskPng.copyOf(),
-    )
+    return manifest.toByteArray(Charsets.UTF_8)
   }
 }

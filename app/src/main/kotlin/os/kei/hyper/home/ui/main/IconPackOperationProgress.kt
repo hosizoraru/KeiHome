@@ -8,7 +8,8 @@ import os.kei.hyper.home.iconpack.apple.AppleGenerationStage
 internal enum class IconPackOperation { LOCAL_IMPORT, GENERATE, SYSTEM_IMPORT, AUTO_APPLY }
 
 internal enum class IconPackStep {
-  READING_FILE, VALIDATING_FILE, APPLICATIONS, METADATA, ARTWORK, APPLE_PACKAGING, LIGHT, DARK, PAIRING,
+  READING_FILE, VALIDATING_FILE, APPLICATIONS, METADATA, ARTWORK, APPLE_PACKAGING,
+  COPYING_NATIVE, COMPLETING_NATIVE, LIGHT, DARK, PAIRING,
   ADAPTATIONS, STAMPING, MASKING, MONET, MONET_WRITING, CUSTOM_ICONS, PACKAGING, SYSTEM_IMPORT, APPLYING,
   WAITING_FOR_SYSTEM, FINISHING, CANCELLING, GENERATED, COMPLETE,
 }
@@ -57,7 +58,8 @@ internal class IconPackGenerationProgressPlan(
   monet: Boolean = false,
 ) {
   private val weights = listOf(
-    2, if (nativeArchive) 16 else 30, if (nativeArchive) 0 else 26,
+    2, if (nativeArchive) 5 else 0, if (nativeArchive) 6 else 0, if (nativeArchive) 5 else 0,
+    if (nativeArchive) 0 else 30, if (nativeArchive) 0 else 26,
     if (nativeArchive) 0 else 12, 3, 5, 7,
     if (monet) 48 else 0, if (monet) 10 else 0, 3, 9,
   )
@@ -81,6 +83,9 @@ internal fun ColorOsGenerationProgress.operationProgress(
 ): IconPackOperationProgress {
   val step = when (stage) {
     ColorOsGenerationStage.APPLICATIONS -> IconPackStep.APPLICATIONS
+    ColorOsGenerationStage.COPYING_NATIVE -> IconPackStep.COPYING_NATIVE
+    ColorOsGenerationStage.VALIDATING_NATIVE -> IconPackStep.VALIDATING_FILE
+    ColorOsGenerationStage.COMPLETING_NATIVE -> IconPackStep.COMPLETING_NATIVE
     ColorOsGenerationStage.LIGHT -> IconPackStep.LIGHT
     ColorOsGenerationStage.DARK -> IconPackStep.DARK
     ColorOsGenerationStage.PAIRING -> IconPackStep.PAIRING

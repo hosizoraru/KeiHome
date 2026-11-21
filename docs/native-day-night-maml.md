@@ -9,6 +9,9 @@ proves the generated selector is consumed for the tested component and device
 state; it does not prove every package-policy class, retained snapshot or
 large-pack performance.
 
+See the [0308 physical-device comparison](maml-launcher-performance.md) for
+transition costs and the visual trade-offs of static icon fallbacks.
+
 `IconPackHandoffs.prepare` adds generated fancy resources when converted day
 and night PNG bytes differ. It retains both ordinary PNG trees and preserves
 original native modules unchanged. The generated-MAML archive validator is a
@@ -177,17 +180,19 @@ devices that deny MAML to Settings.
 
 ## Identical artwork
 
-Generated pairs whose day and night PNGs are byte-identical keep the ordinary
-fallback PNG and the native fancy descriptor, but now contain just `day.png`
-and one base Image. Its visibility is `1`, or `(1-#palette_enabled)` in a
-palette selector. Real day/night pairs, palette masks, Settings observers and
-the zero frame rate are unchanged.
+Generated pairs whose day and night PNGs are byte-identical keep both ordinary
+fallbacks. Ordinary artwork does not need a fancy descriptor. When a native
+compatibility override or live palette requires one, it contains just
+`day.png` and one base Image. Its visibility is `1`, or
+`(1-#palette_enabled)` in a palette selector. Real day/night pairs, palette
+masks, Settings observers and the zero frame rate are unchanged.
 
-This avoids an unnecessary resource entry and Image node without removing
-system-fallback coverage. Validation accepts both the new canonical compact
-form and the previous canonical expanded form. It still compares exact paths
-and bytes; arbitrary MAML programs and mixed layouts are rejected. Existing
-applied packs remain valid and adopt the smaller form when regenerated.
+This avoids starting MAML for equivalent ordinary artwork without removing
+system-fallback coverage. Validation accepts both canonical compact and
+expanded forms when a descriptor is present. It still compares exact paths
+and bytes; arbitrary MAML programs and mixed layouts are rejected by the
+generated-resource validator. Existing applied packs are not rewritten in
+place; regenerate and apply to receive the new output.
 
 The November 7 physical snapshot contains 937 descriptors, of which 38 have
 identical day/night artwork. This is a bounded reduction, not evidence that

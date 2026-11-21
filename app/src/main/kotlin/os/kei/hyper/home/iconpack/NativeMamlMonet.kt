@@ -17,12 +17,15 @@ internal object NativeMamlMonet {
     val night = entry.dark as? IconPackArtwork.Archive ?: return null
     if (!day.palettePair || !night.palettePair || day.variants.size != 1 || night.variants.size != 1 ||
       day.part != night.part) return null
+    val dayPath = day.variants.single().path
+    val nightPath = night.variants.single().path
     val root = "fancy_icons/${entry.nativeName ?: return null}/"
-    if (day.variants.single().path.substringBeforeLast('/') + "/" != root ||
-      night.variants.single().path.substringBeforeLast('/') + "/" != root) return null
+    if (dayPath == nightPath || dayPath.substringBeforeLast('/') + "/" != root ||
+      nightPath.substringBeforeLast('/') + "/" != root) return null
     check()
-    val lightBytes = bytes(day.variants.single().path)
-    val darkBytes = bytes(night.variants.single().path)
+    val lightBytes = bytes(dayPath)
+    val darkBytes = bytes(nightPath)
+    if (lightBytes.contentEquals(darkBytes)) return null
     fun decode(data: ByteArray): Bitmap? {
       if (data.size > 4 * 1024 * 1024) return null
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

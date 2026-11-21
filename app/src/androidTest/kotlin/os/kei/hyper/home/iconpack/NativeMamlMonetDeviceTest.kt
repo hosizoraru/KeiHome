@@ -55,14 +55,15 @@ class NativeMamlMonetDeviceTest {
       val raw = testContext.assets.open("native-maml/image-pair.xml").use { it.readBytes() }
       val archive = File(folder, "source.zip")
       val resources = linkedMapOf<String, ByteArray>()
-      for (name in listOf("com.example.present", "com.example.absent", "com.example.color", "com.example.metadata")) {
+      for (name in listOf("com.example.present", "com.example.absent", "com.example.color",
+        "com.example.metadata", "com.example.identical")) {
         resources["fancy_icons/$name/manifest.xml"] = raw
         resources["fancy_icons/$name/iconBg_0.png"] = when {
           name.endsWith(".color") -> image(0xffffd6f8.toInt(), 0xff643662.toInt(), true)
           name.endsWith(".metadata") -> annotated(day)
           else -> day
         }
-        resources["fancy_icons/$name/iconBg_1.png"] = dark
+        resources["fancy_icons/$name/iconBg_1.png"] = if (name.endsWith(".identical")) day else dark
       }
       resources["fancy_icons/com.example.dynamic/manifest.xml"] =
         "<Icon version=\"1\" width=\"96\" height=\"96\"><Var name=\"date\" expression=\"#date\" /></Icon>".toByteArray()
@@ -96,7 +97,8 @@ class NativeMamlMonetDeviceTest {
       }
       val output = IconPackExporter(context, IconPackLimits()).export(pack,
         listOf(IconPackComponent("com.example.present"), IconPackComponent("com.example.color"),
-          IconPackComponent("com.example.metadata"), IconPackComponent("com.example.shadow")), false, 96) {}
+          IconPackComponent("com.example.metadata"), IconPackComponent("com.example.shadow"),
+          IconPackComponent("com.example.identical")), false, 96) {}
       try {
         assertEquals(setOf("com.example.present"), output.fallbackPaletteNames)
         ZipFile(output.archive).use { zip ->

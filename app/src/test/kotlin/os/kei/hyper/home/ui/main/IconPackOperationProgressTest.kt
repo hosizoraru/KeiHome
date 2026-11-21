@@ -43,6 +43,24 @@ class IconPackOperationProgressTest {
     assertEquals(91, packaged.percent)
   }
 
+  @Test fun nativeCopyCompletionMakesRoomForValidationAndResourceCompletion() {
+    val plan = IconPackGenerationProgressPlan(nativeArchive = true)
+    val start = IconPackOperationProgress(IconPackOperation.SYSTEM_IMPORT, IconPackStep.APPLICATIONS, 0)
+    val copied = ColorOsGenerationProgress(ColorOsGenerationStage.COPYING_NATIVE, 26672, 26672, inKiB = true)
+      .operationProgress(start, false, plan)
+    val validating = ColorOsGenerationProgress(ColorOsGenerationStage.VALIDATING_NATIVE)
+      .operationProgress(copied, false, plan)
+    val completing = ColorOsGenerationProgress(ColorOsGenerationStage.COMPLETING_NATIVE)
+      .operationProgress(validating, false, plan)
+    assertEquals(IconPackStep.COPYING_NATIVE, copied.step)
+    assertEquals(26672, copied.done)
+    assertTrue(copied.inKiB)
+    assertEquals(IconPackStep.VALIDATING_FILE, validating.step)
+    assertEquals(0, validating.total)
+    assertEquals(IconPackStep.COMPLETING_NATIVE, completing.step)
+    assertTrue(completing.measuredPercent > validating.measuredPercent)
+  }
+
   @Test fun largeNativePalettePacksAdvanceLinearlyThroughDerivationAndWriting() {
     val plan = IconPackGenerationProgressPlan(nativeArchive = true, monet = true)
     val start = IconPackOperationProgress(IconPackOperation.SYSTEM_IMPORT, IconPackStep.APPLICATIONS, 0)

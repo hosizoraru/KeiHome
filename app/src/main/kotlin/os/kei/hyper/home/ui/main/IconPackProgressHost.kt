@@ -104,7 +104,7 @@ internal fun IconPackProgressDialog(
 }
 
 private fun IconPackStep.label(): Int = when (this) {
-  IconPackStep.READING_FILE -> R.string.pack_progress_reading_file
+  IconPackStep.READING_FILE, IconPackStep.COPYING_NATIVE -> R.string.pack_progress_reading_file
   IconPackStep.VALIDATING_FILE -> R.string.pack_progress_validating
   IconPackStep.APPLICATIONS -> R.string.coloros_generation_applications
   IconPackStep.METADATA -> R.string.apple_fetch_metadata
@@ -113,7 +113,7 @@ private fun IconPackStep.label(): Int = when (this) {
   IconPackStep.LIGHT -> R.string.coloros_generation_light
   IconPackStep.DARK -> R.string.coloros_generation_dark
   IconPackStep.PAIRING -> R.string.coloros_generation_pairing
-  IconPackStep.ADAPTATIONS -> R.string.coloros_generation_adaptations
+  IconPackStep.ADAPTATIONS, IconPackStep.COMPLETING_NATIVE -> R.string.coloros_generation_adaptations
   IconPackStep.STAMPING -> R.string.pack_progress_resources
   IconPackStep.MASKING -> R.string.coloros_generation_masking
   IconPackStep.MONET -> R.string.pack_progress_monet

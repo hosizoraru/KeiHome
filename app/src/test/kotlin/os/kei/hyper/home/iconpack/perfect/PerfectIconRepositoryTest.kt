@@ -246,7 +246,7 @@ class PerfectIconRepositoryTest {
         else assertArrayEquals(bytes, read(day + relative))
       }
     }
-    assertTrue(result.nightRevision.endsWith(PerfectDynamicNight.REVISION))
+    assertEquals(options.nightContract(), result.nightRevision)
     assertTrue(result.file.delete())
     val regenerated = repo.generate(options, setOf("third.party")) {}
     assertEquals(1, regenerated.derivedDynamicCount)
@@ -416,6 +416,24 @@ class PerfectIconRepositoryTest {
     assertEquals(3, renders)
     assertEquals(1, f.http.calls.size)
     assertTrue(repo.cacheBytes() > 0)
+  }
+
+  @Test fun identicalStaticNightLeavesNativeLayersAndOmitsTheDescriptor() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val artwork = png(30)
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      staticRenderer = { _, _, check -> check(); PerfectStaticPair(artwork, artwork.copyOf()) })
+    repo.catalog(refresh = true)
+    val result = repo.generate(PerfectIconOptions("default", staticNight = true), setOf("third.party")) {}
+    ZipFile(result.file).use { zip ->
+      val day = "res/drawable-xxhdpi/third.party.png"
+      assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/0.png"))
+      assertNotNull(zip.getEntry("res/drawable-xxhdpi/third.party/1.png"))
+      assertNull(zip.getEntry("fancy_icons/third.party/manifest.xml"))
+      for (path in listOf(day, "nightmode/$day")) {
+        assertArrayEquals(artwork, zip.getInputStream(zip.getEntry(path)).use { it.readBytes() })
+      }
+    }
   }
 
   @Test fun staticNightNeverRewritesConfiguredNativeResources() = runBlocking {

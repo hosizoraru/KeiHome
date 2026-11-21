@@ -98,14 +98,18 @@ internal object IconPackHandoffs {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
       else -> appearance
     }
-    onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.LIGHT))
+    val firstStage = when (pack.format) {
+      IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> ColorOsGenerationStage.COPYING_NATIVE
+      else -> ColorOsGenerationStage.LIGHT
+    }
+    onProgress(ColorOsGenerationProgress(firstStage))
     val light = repository.exportNativeIcons(pack, exportTargets, darkMode = sourceAppearance.sourceDarkMode(false),
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
       colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
       preservedPackages = preserved, recommendedMappings = mappings, colorOsSources = sources,
       allowEmpty = custom.resources.isNotEmpty(),
       onProgress = progress(ColorOsGenerationStage.LIGHT),
-      onNativeCopyBytes = byteProgress(ColorOsGenerationStage.LIGHT))
+      onNativeProgress = onProgress)
     var darkFile: File? = null
     var darkResult: IconPackExportResult? = null
     var merged: File? = null
@@ -162,6 +166,7 @@ internal object IconPackHandoffs {
                   // MAML loader has its own configuration observer and can select this fixed pair.
                   // Keep both ordinary trees for native readers that do not allow fancy icons.
                   if (pairAppearances) {
+                    val sameArchive = dark == light.archive
                     val systemNames = dayZip.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
                       SystemIconFallbackManifest.decode(dayZip.getInputStream(entry).use {
                         it.readNBytes(SystemIconFallbackManifest.MAX_BYTES + 1)
@@ -170,19 +175,23 @@ internal object IconPackHandoffs {
                     dayCandidates.forEach { dayEntry ->
                       current.ensureActive()
                       pairingProgress(done++, total, "")
-                      val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
-                      val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
-                      val nightBytes = nightZip.getInputStream(nightEntry).use { it.readBytes() }
                       val name = dayEntry.name.removePrefix("res/drawable-xxhdpi/").removeSuffix(".png")
                       if ("fancy_icons/$name/manifest.xml" in dynamic) return@forEach
                       val mask = light.monochrome[name].takeIf { includePalette || name in light.fallbackPaletteNames }
                       val background = light.monochromeBackgrounds[name] ?: light.paletteBackground
+                      if (sameArchive && (mask == null || background == null) && name !in systemNames) return@forEach
+                      val nightEntry = nightZip.getEntry(dayEntry.name) ?: return@forEach
+                      val dayBytes = dayZip.getInputStream(dayEntry).use { it.readBytes() }
+                      val nightBytes = if (sameArchive) dayBytes else nightZip.getInputStream(nightEntry).use { it.readBytes() }
                       // HYOS system frontends can ignore a flat PNG override. Their fallback
                       // needs an explicit descriptor even when day and night artwork is equal.
-                      if (mask == null && name !in systemNames && dayBytes.contentEquals(nightBytes)) return@forEach
-                      val generated = if (mask != null && background != null)
-                        NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
-                      else NativeDayNightIcon.entries(name, dayBytes, nightBytes)
+                      val generated = when {
+                        mask != null && background != null ->
+                          NativePaletteIcon.entries(name, dayBytes, nightBytes, mask, background)
+                        NativeDayNightIcon.needsSelector(dayBytes, nightBytes, name in systemNames) ->
+                          NativeDayNightIcon.entries(name, dayBytes, nightBytes)
+                        else -> return@forEach
+                      }
                       for ((path, bytes) in generated) {
                         if (!path.startsWith("fancy_icons/")) continue
                         ImageArchiveZip.writeBytes(output, path, bytes) { current.ensureActive() }

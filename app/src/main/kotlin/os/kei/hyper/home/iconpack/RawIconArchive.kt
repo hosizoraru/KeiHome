@@ -16,7 +16,8 @@ import java.util.zip.ZipOutputStream
  * Rewrites an immutable, already content/CRC-admitted native ZIP without inflating unchanged entries.
  * Rechecks all source metadata, including excluded entries. Does not replace reader admission.
  * Output is caller-owned empty/new staging; caller remains responsible for atomic publication.
- * Replacements are unconditional, retain an existing entry's method, and otherwise use DEFLATED.
+ * Replacements retain an existing entry's method. New encoded assets use STORED,
+ * like [ImageArchiveZip]; new text still uses DEFLATED.
  * Optional transforms run synchronously on this writer's thread, only for included source files
  * not overridden by replacements. Return null to preserve the original compressed payload.
  * Returned bytes are written before invoking the next transform; neither they nor their encoded
@@ -178,7 +179,8 @@ internal object RawIconArchive {
           for (name in additions.keys) {
             checkpoint()
             val bytes = payloads[name] ?: requireNotNull(spooled).read(name)
-            val method = sourceEntries[name]?.method ?: ZipEntry.DEFLATED
+            val method = sourceEntries[name]?.method ?:
+              if (ImageArchiveZip.alreadyCompressed(name)) ZipEntry.STORED else ZipEntry.DEFLATED
             archive.add(encoded(name, bytes, method))
             checkpoint()
             onProgress?.invoke(++processed, total)

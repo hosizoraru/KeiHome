@@ -3,6 +3,7 @@ package os.kei.hyper.home.iconpack
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -24,7 +25,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   /** A lossless bridge handoff for native imports, including every night/animation resource. */
   fun copyNativeModule(
     record: StoredIconPack, destination: File, scratch: File, check: () -> Unit = {},
-    onBytes: ((Long, Long) -> Unit)? = null,
+    onBytes: ((Long, Long) -> Unit)? = null, onValidating: () -> Unit = {},
   ): IconPackArchiveIndex {
     val source = when (record.format) {
       IconPackFormat.MIUI_MTZ -> record.iconsFile
@@ -34,15 +35,21 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
     if (setOf(source.canonicalPath, destination.canonicalPath, scratch.canonicalPath).size != 3) {
       throw IconPackException("Native export requires separate staging files")
     }
-    if (sha256(source, check) != record.nativeIconsSha256) throw IconPackException("Native icons checksum mismatch")
     val size = source.length()
-    source.inputStream().use { input ->
+    if (size !in 1..limits.maxInputBytes) throw IconPackException("Native icons size limit exceeded")
+    val digest = MessageDigest.getInstance("SHA-256")
+    onBytes?.invoke(0, size)
+    DigestInputStream(source.inputStream(), digest).use { input ->
       destination.outputStream().use { output ->
         copyBounded(input, output, limits.maxInputBytes, check, onBytes?.let { publish ->
           { done -> publish(done, size) }
         })
       }
     }
+    if (digest.digest().toHexString() != record.nativeIconsSha256) {
+      throw IconPackException("Native icons checksum mismatch")
+    }
+    onValidating()
     val index = inspect(destination, scratch, checkCancelled = check)
     if (index.format != IconPackFormat.MIUI_ICONS || index.nativeIconsSha256 != record.nativeIconsSha256) {
       throw IconPackException("Native icons module validation failed")
@@ -179,7 +186,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
   }
 
   private fun classicIndex(file: File, paths: Set<String>, sdk: Int, check: () -> Unit): IconPackArchiveIndex =
-    classicIndex(paths, sdk, check) { path, max -> readEntry(file, path, max, check) }
+    ZipFile(file).use { zip -> classicIndex(paths, sdk, check) { path, max -> readEntry(zip, path, max, check) } }
 
   /** Same parser for validated archive paths and the signed, content-addressed builtin catalog. */
   fun classicIndex(paths: Set<String>, sdk: Int, check: () -> Unit,
@@ -303,7 +310,7 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         if (pieces.size == 3 && pieces[0] == "layer_animating_icons" &&
           pieces[2] == "config.xml" && nativeName(pieces[1])) {
           val config = try {
-            NativeLayerConfig.parse(readEntry(file, path, 64 * 1024, check), limits, check)
+            NativeLayerConfig.parse(readEntry(zip, path, 64 * 1024, check), limits, check)
           } catch (_: IconPackException) { continue }
           val base = path.removeSuffix("config.xml")
           val qualifiers = IconResourceQualifiers("drawable-nodpi",
@@ -394,16 +401,17 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
       if (parts.size > 12 || parts.any { it.isEmpty() || it == "." || it == ".." }) throw IconPackException("Unsafe archive path")
     }
 
-    fun readEntry(file: File, path: String, maxBytes: Int, checkCancelled: () -> Unit = {}): ByteArray {
+    fun readEntry(file: File, path: String, maxBytes: Int, checkCancelled: () -> Unit = {}): ByteArray =
+      ZipFile(file).use { readEntry(it, path, maxBytes, checkCancelled) }
+
+    private fun readEntry(zip: ZipFile, path: String, maxBytes: Int, checkCancelled: () -> Unit): ByteArray {
       validatePath(path)
-      return ZipFile(file).use { zip ->
-        val entry = zip.getEntry(path) ?: throw IconPackException("Missing artwork entry")
-        if (entry.isDirectory || entry.size !in 0..maxBytes.toLong()) throw IconPackException("Artwork size limit exceeded")
-        zip.getInputStream(entry).use { input ->
-          val output = java.io.ByteArrayOutputStream(minOf(entry.size.toInt(), 64 * 1024))
-          copyBounded(input, output, maxBytes.toLong(), checkCancelled)
-          output.toByteArray()
-        }
+      val entry = zip.getEntry(path) ?: throw IconPackException("Missing artwork entry")
+      if (entry.isDirectory || entry.size !in 0..maxBytes.toLong()) throw IconPackException("Artwork size limit exceeded")
+      return zip.getInputStream(entry).use { input ->
+        val output = java.io.ByteArrayOutputStream(minOf(entry.size.toInt(), 64 * 1024))
+        copyBounded(input, output, maxBytes.toLong(), checkCancelled)
+        output.toByteArray()
       }
     }
   }

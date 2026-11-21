@@ -64,7 +64,7 @@ data class PerfectIconResult(
 }
 
 internal fun PerfectIconOptions.nightContract(): String =
-  if (staticNight) "${PerfectStaticNightRenderer.REVISION}:${if (dynamic) PerfectDynamicNight.REVISION else "static"}"
+  if (staticNight) "${PerfectStaticNightRenderer.REVISION}:${if (dynamic) PerfectDynamicNight.REVISION else "static"}:selector-2"
   else ""
 
 class PerfectIconCooldownException(val retryAt: Long) :

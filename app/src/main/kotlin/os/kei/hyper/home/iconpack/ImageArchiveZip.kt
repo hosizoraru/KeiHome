@@ -69,7 +69,7 @@ internal object ImageArchiveZip {
     output.closeEntry()
   }
 
-  private fun alreadyCompressed(name: String): Boolean =
+  fun alreadyCompressed(name: String): Boolean =
     name == "icons" || name.substringAfterLast('.', "").lowercase(Locale.ROOT) in compressedExtensions
 
   private fun entry(name: String, time: Long, stored: Boolean, size: Long, crc: Long) =

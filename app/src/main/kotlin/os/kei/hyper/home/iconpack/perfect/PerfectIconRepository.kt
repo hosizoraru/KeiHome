@@ -1309,8 +1309,7 @@ class PerfectIconRepository internal constructor(
       append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
       append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
-      if (options.staticNight) append(PerfectStaticNightRenderer.REVISION)
-        .append(':').append(PerfectDynamicNight.REVISION).append('\n')
+      if (options.staticNight) append(options.nightContract()).append('\n')
       append(listOf(staticRenderer != null, staticEquivalentRenderer != null,
         nativeSnapshotRenderer != null, dynamicNightRenderer != null).joinToString(":")).append('\n')
       plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
@@ -1385,18 +1384,21 @@ class PerfectIconRepository internal constructor(
           nightInputs.entries.forEachIndexed { index, (name, inputs) ->
             coroutine.ensureActive()
             val pair = staticPair(inputs, mask, { coroutine.ensureActive() }, read)
-            NativeDayNightIcon.entries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
+            NativeDayNightIcon.artworkEntries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
             renderProgress(index + 1, nightInputs.size)
             if (index % 32 == 31) trimRendered()
           }
           if (dynamicNight) {
-            val groups = plan.files.keys.filter { it.startsWith("layer_animating_icons/") }
-              .map { it.removePrefix("layer_animating_icons/").substringBefore('/') }.toSortedSet()
-            for (name in groups) {
+            val groups = sortedMapOf<String, MutableMap<String, PerfectIconBlob>>()
+            for ((path, blob) in plan.files) {
+              coroutine.ensureActive()
+              if (!path.startsWith("layer_animating_icons/")) continue
+              val relative = path.removePrefix("layer_animating_icons/")
+              groups.getOrPut(relative.substringBefore('/')) { linkedMapOf() }[relative.substringAfter('/')] = blob
+            }
+            for ((name, files) in groups) {
               coroutine.ensureActive()
               val prefix = "layer_animating_icons/$name/"
-              val files = plan.files.filterKeys { it.startsWith(prefix) }
-                .mapKeys { (path, _) -> path.removePrefix(prefix) }
               fun original() = files.toSortedMap().forEach { (path, blob) ->
                 entry("$prefix$path", read(blob), blob.sha)
               }

@@ -11,18 +11,49 @@ import java.nio.ByteOrder
  * This checks PNG headers and dimensions; it is not an arbitrary-image decoder.
  */
 internal object NativeDayNightIcon {
+  /** Ordinary artwork needs a live selector only if its two appearances differ. */
+  fun artworkEntries(
+    nativeName: String, lightPng: ByteArray, darkPng: ByteArray,
+    requiresNativeDescriptor: Boolean = false,
+  ): Map<String, ByteArray> {
+    if (needsSelector(lightPng, darkPng, requiresNativeDescriptor)) {
+      return entries(nativeName, lightPng, darkPng)
+    }
+    validateName(nativeName)
+    pngSize(lightPng)
+    val image = lightPng.copyOf()
+    return mapOf(
+      "res/drawable-xxhdpi/$nativeName.png" to image,
+      "nightmode/res/drawable-xxhdpi/$nativeName.png" to image,
+    )
+  }
+
+  fun needsSelector(lightPng: ByteArray, darkPng: ByteArray, requiresNativeDescriptor: Boolean): Boolean =
+    requiresNativeDescriptor || !lightPng.contentEquals(darkPng)
+
   fun entries(
     nativeName: String, lightPng: ByteArray, darkPng: ByteArray,
     legacyExpanded: Boolean = false,
   ): Map<String, ByteArray> {
-    require(validNativeIconName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
-      "Invalid native icon filename stem"
-    }
+    validateName(nativeName)
     val size = pngSize(lightPng)
     require(pngSize(darkPng) == size) { "Day/night PNG dimensions must match" }
     val root = "fancy_icons/$nativeName"
-    // Retain the old canonical form only for validating already installed archives.
-    val compact = !legacyExpanded && lightPng.contentEquals(darkPng)
+    val identical = lightPng.contentEquals(darkPng)
+    val compact = !legacyExpanded && identical
+    val light = lightPng.copyOf()
+    val dark = if (identical) light else darkPng.copyOf()
+    val result = linkedMapOf(
+      "res/drawable-xxhdpi/$nativeName.png" to light,
+      "nightmode/res/drawable-xxhdpi/$nativeName.png" to dark,
+      "$root/manifest.xml" to manifest(size, compact),
+      "$root/day.png" to light,
+    )
+    if (!compact) result["$root/night.png"] = dark
+    return result
+  }
+
+  internal fun manifest(size: Int, compact: Boolean): ByteArray {
     val dayVisibility = if (compact) "1" else "1-#__darkmode"
     val nightImage = if (compact) "" else
       "\n        <Image x=\"0\" y=\"0\" w=\"$size\" h=\"$size\" src=\"night.png\" visibility=\"#__darkmode\" />"
@@ -34,18 +65,16 @@ internal object NativeDayNightIcon {
         <Image x="0" y="0" w="$size" h="$size" src="day.png" visibility="$dayVisibility" />$nightImage
       </Icon>
     """.trimIndent() + "\n"
-    val light = lightPng.copyOf()
-    val result = linkedMapOf(
-      "res/drawable-xxhdpi/$nativeName.png" to light,
-      "nightmode/res/drawable-xxhdpi/$nativeName.png" to darkPng.copyOf(),
-      "$root/manifest.xml" to manifest.toByteArray(Charsets.UTF_8),
-      "$root/day.png" to light,
-    )
-    if (!compact) result["$root/night.png"] = darkPng.copyOf()
-    return result
+    return manifest.toByteArray(Charsets.UTF_8)
   }
 
-  private fun pngSize(png: ByteArray): Int {
+  internal fun validateName(nativeName: String) {
+    require(validNativeIconName(nativeName) && nativeName.toByteArray(Charsets.UTF_8).size <= 240) {
+      "Invalid native icon filename stem"
+    }
+  }
+
+  internal fun pngSize(png: ByteArray): Int {
     require(png.size in 33..(4 * 1024 * 1024)) { "Invalid rendered PNG size" }
     val header = ByteBuffer.wrap(png).order(ByteOrder.BIG_ENDIAN)
     require(header.int == 0x89504e47.toInt() && header.int == 0x0d0a1a0a &&

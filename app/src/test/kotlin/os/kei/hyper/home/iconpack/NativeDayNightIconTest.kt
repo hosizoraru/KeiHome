@@ -91,4 +91,19 @@ class NativeDayNightIconTest {
       assertThrows(IllegalArgumentException::class.java) { NativeDayNightIcon.entries(invalid, day, night) }
     }
   }
+
+  @Test fun ordinaryIdenticalPairStaysStaticButCompatibilityAndDistinctArtKeepSelectors() {
+    val dayPath = "res/drawable-xxhdpi/$name.png"
+    val nightPath = "nightmode/$dayPath"
+    val static = NativeDayNightIcon.artworkEntries(name, day, day.copyOf())
+    assertEquals(setOf(dayPath, nightPath), static.keys)
+    assertArrayEquals(day, static.getValue(dayPath))
+    assertArrayEquals(day, static.getValue(nightPath))
+
+    val compatible = NativeDayNightIcon.artworkEntries(name, day, day, requiresNativeDescriptor = true)
+    assertEquals(static.keys + setOf("$root/manifest.xml", "$root/day.png"), compatible.keys)
+    val distinct = NativeDayNightIcon.artworkEntries(name, day, night)
+    assertEquals(compatible.keys + "$root/night.png", distinct.keys)
+    assertArrayEquals(night, distinct.getValue("$root/night.png"))
+  }
 }

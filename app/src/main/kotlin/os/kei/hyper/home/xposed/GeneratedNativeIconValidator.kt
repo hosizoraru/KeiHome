@@ -48,7 +48,9 @@ internal object GeneratedNativeIconValidator {
     val dark = if (fancyOnlyPalette && "${root}night.png" !in actualPaths) light
       else bytes(if (fancyOnlyPalette) "${root}night.png" else darkFallback)
     // Asset presence selects one fixed template; every path and byte must still match.
-    val legacyExpanded = light.contentEquals(dark) && "${root}night.png" in actualPaths
+    val identical = light.contentEquals(dark)
+    val legacyExpanded = identical && "${root}night.png" in actualPaths
+    val compact = identical && !legacyExpanded
     fun matches(canonical: Map<String, ByteArray>): Boolean {
       val expected = canonical.filterKeys { it.startsWith(root) }
       return actualPaths == expected.keys && expected.all { (path, value) ->
@@ -75,16 +77,25 @@ internal object GeneratedNativeIconValidator {
       return
     }
     if ("${root}mask.png" in actualPaths) {
-      require(listOf(false, true).any { legacyScalar ->
-        matches(NativePaletteIcon.entries(name, light, dark,
-          bytes("${root}mask.png"), bytes("${root}bg.png"), legacyExpanded = legacyExpanded,
-          legacyScalarBinders = legacyScalar))
-      }) {
+      val expected = mutableSetOf("${root}manifest.xml", "${root}day.png", "${root}mask.png", "${root}bg.png")
+      if (!compact) expected += "${root}night.png"
+      require(actualPaths == expected &&
+        bytes("${root}day.png").contentEquals(light) &&
+        (compact || bytes("${root}night.png").contentEquals(dark)) &&
+        NativePaletteIcon.recognizes(name, manifest, light, dark, bytes("${root}mask.png"),
+          bytes("${root}bg.png"), legacyExpanded = legacyExpanded)) {
         "Incomplete or noncanonical generated palette icon: $name"
       }
       return
     }
-    if (matches(NativeDayNightIcon.entries(name, light, dark, legacyExpanded = legacyExpanded))) return
+    NativeDayNightIcon.validateName(name)
+    val size = NativeDayNightIcon.pngSize(light)
+    require(NativeDayNightIcon.pngSize(dark) == size) { "Day/night PNG dimensions must match" }
+    val expected = mutableSetOf("${root}manifest.xml", "${root}day.png")
+    if (!compact) expected += "${root}night.png"
+    if (actualPaths == expected && NativeDayNightIcon.manifest(size, compact).contentEquals(manifest) &&
+      bytes("${root}day.png").contentEquals(light) &&
+      (compact || bytes("${root}night.png").contentEquals(dark))) return
 
     val kind = if (clockNames.any { "$root$it" in actualPaths }) NativeColorOsDynamicIcon.Kind.CLOCK
       else NativeColorOsDynamicIcon.Kind.CALENDAR

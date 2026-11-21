@@ -225,7 +225,7 @@ internal class IconPackRepository(
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
     allowEmpty: Boolean = false,
     onProgress: ((Int, Int, String) -> Unit)? = null,
-    onNativeCopyBytes: ((Long, Long) -> Unit)? = null,
+    onNativeProgress: ((ColorOsGenerationProgress) -> Unit)? = null,
   ): IconPackExportResult = withContext(worker) {
     val caller = currentCoroutineContext()
     val fallback = if (colorOsForOtherPacks && pack.colorOsProfile == null) runtimeFallback() else null
@@ -233,7 +233,7 @@ internal class IconPackRepository(
       systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages,
       recommendedMappings ?: RecommendedIconMappings.snapshot(application),
       colorOsSources = colorOsSources, allowEmpty = allowEmpty, onProgress = onProgress,
-      onNativeCopyBytes = onNativeCopyBytes) { caller.ensureActive() }
+      onNativeProgress = onNativeProgress) { caller.ensureActive() }
   }
 
   private var runtimeFallbackCache: IconPackDescriptor? = null

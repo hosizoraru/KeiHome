@@ -52,7 +52,8 @@ internal object NativeRecommendedIconCompletion {
           val dark = png(night, target) ?: continue
           for (name in listOfNotNull(nativeLauncherActivityName(target), target.packageName).distinct()) {
             if (!written.add(name)) continue
-            output.putAll(NativeDayNightIcon.entries(name, light, dark))
+            output.putAll(NativeDayNightIcon.artworkEntries(name, light, dark,
+              requiresNativeDescriptor = target.packageName in PhoneCompanionIcons.TARGETS))
           }
         }
       }

@@ -33,10 +33,13 @@ foreign MAML is still not executed.
 both runtime snapshots and saved-mask migration. It accepts the historical
 generated variants without treating arbitrary authored XML as a known template.
 
-`NativeDayNightIcon.entries` returns a complete closure, including both native
-flat fallbacks. Palette, recommended and Perfect generation reuse that closure
-instead of independently remembering to append the night fallback. Explicit
-native night files retain their normal precedence when indexing a source pack.
+`NativeDayNightIcon.artworkEntries` writes both native flat fallbacks and only
+adds a selector if the encoded images differ or a native compatibility
+override requires it. The handoff uses the same decision when both flat
+fallbacks are already in its output. Palette generation always keeps its
+live binding and uses the complete closure from `NativeDayNightIcon.entries`.
+Explicit native night files retain their normal precedence when indexing a
+source pack. Neither rule strips descriptors from authored resource closures.
 
 ## Refresh derived state without replacing user choices
 

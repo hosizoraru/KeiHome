@@ -34,9 +34,11 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-`0.9.5-f3829d3d-SNAPSHOT` 对应上游
-[f3829d3d](https://github.com/compose-miuix-ui/miuix/commit/f3829d3d162eb267a792d43b3c8541e64effc28d)，
-与项目的 AndroidX Compose `1.13.0-rc01` 对齐。Glass 输入通过 `TextFieldState`
+KeiHome 当前使用 `0.9.5-c83aacd8-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
+这一轮沿用现有 Glass 封装来接入顶栏折叠、标签淡出和模糊绘制改进。
+构件时间戳、上游提交与设备验收见 [c83aacd8 迁移记录](miuix-snapshot-c83aacd8.md)。
+
+Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
 展开、取消与返回。需要文字和进度的主操作沿用 `GlassFloatingToolbar`，由共用封装
 提供无障碍状态，并使用新版主操作材质。
@@ -59,6 +61,16 @@ Snapshot 版本中包含提交哈希。仓库元数据的 `latest` 可能按字�
 | API 与契约 | 同看组件源码、文档、示例以及近期修复，特别是宿主和动画规则 |
 | 运行身份 | 保留最终源码 SHA、完整版本、签名、APK 哈希和安装回执 |
 
+从目标分支的 `publish.yml` 运行记录核对 `headSha` 和 `publish_snapshot` 结果。
+同一分支后续提交可以取消尚在运行的发布。若较新任务正在运行，继续审阅提交，
+等发布成功并能解析构件后再切换。取消或失败时，取最近一次成功且构件完整的版本。
+示例 APK 构建及通知渠道只提供示例证据。连续提交先做本地验证，避免为中间候选
+重复触发面向订阅用户的通知。
+
+使用 `dependencyInsight` 核对实际 compile 和 runtime classpath 的 MIUIX 模块、
+Android 变体及传递 Compose 版本。上游仓库的 AGP、格式化插件或示例热重载工具升级，
+先检查是否影响消费端，项目的构建工具独立决定是否升级。
+
 `gradle dependencies` 输出包含解析失败时，任务本身仍可能成功结束；检查输出后
 还应编译真实应用。临时网络失败与符号不兼容要分开处理。
 
@@ -79,6 +91,7 @@ Snapshot 版本中包含提交哈希。仓库元数据的 `latest` 可能按字�
 | 列表滚动条 | 逻辑末端、滚动条拖动与顶部栏折叠联动 | 当前列表状态、页眉与底栏留白、内容滚动与下拉刷新 |
 | 图标包进度 | 进度绘制和无障碍范围 | 阶段、百分比、处理数及取消／后台操作 |
 | 分类标签和搜索 | 原生标签材质过渡、搜索浮层随滚动显示材质 | 采样来源、标签尺寸，以及业务查询、清除、焦点和本地化 |
+| 手势设置页滚动 | 顶栏渐变、模糊带尺寸与标签淡出期间的绘制 | 录制层放在回弹变换外侧，保持视口坐标稳定 |
 
 把结果记为已移除补丁、沿用业务封装或暂缓采用，并注明上游提交、应用调用点和
 复测范围。例子见 [5ff41ba9 Snapshot 审查](miuix-snapshot-5ff41ba9.md)。
@@ -238,6 +251,12 @@ fun GlassListExample(dark: Boolean, blurEnabled: Boolean) {
 容器已经使用这套回弹时，关闭其自带 `overscrollEffect`，避免两套系统同时位移。
 顶栏的实际状态还要连接当前正在显示的列表；分页页面不能始终读取第一个 Tab 的状态。
 
+遇到卡片或背景只在滚动回弹时闪动，先画清楚 `layerBackdrop` 与弹性变换的嵌套。
+需要稳定视口的页面，把录制 Modifier 放在回弹 Modifier 外侧，顶栏在录制外消费。
+KeiHome 的[手势设置页](../app/src/main/kotlin/os/kei/hyper/home/ui/main/NavigationBackdropContent.kt)
+按这个顺序录制列表。升级修复顶栏淡出的 Snapshot 后，继续保留这一层次。
+复测时从页面顶部下拉触发回弹，再滚到顶栏折叠并返回，比较拖动中、回弹中和落地后的卡片与背景。
+
 使用原生 `VerticalScrollBar` 时，将同一个 `ScrollBehavior` 传给页面顶栏和
 滚动条。轨道上下留白沿用列表 `contentPadding`，用 `Alignment.CenterEnd`
 保留 RTL 下的逻辑末端。测试先滚动内容让渐隐滑块出现，再拖动轨道，
@@ -262,6 +281,16 @@ KeiHome 的 Gaussian 路径使用透明 band brush，让已有均匀模糊负责
 上游 `SmallTopAppBar` 已恢复操作按钮的放置，并会考虑标题两侧的占位。
 KeiHome 使用 `GlassTopAppBar`，应用侧继续管理按钮尺寸和展开策略。
 迁移其他项目时，用长标题、双操作按钮和宽屏侧栏一起验证。
+
+从 `c83aacd8` 起，可展开顶栏用 `ScrollBehavior.state.collapsedFraction` 驱动渐变
+和渐进模糊，固定顶栏沿用渐隐动画。早期调用若传过 `visualContentOffset`，
+迁移到这版时先把当前列表的 `ScrollBehavior` 接对，再验证滚动与回弹；该参数已移除。
+模糊覆盖随实际栏高和 `gradientOverhang` 计算。额外放入标签、搜索或其他 `bottomContent`
+时，检查它们的底边以及内容开始经过顶栏的帧。
+
+列表内标签与顶栏内标签需要分别验收。上游示例给列表内标签设了透明静置底板；
+实际应用按所在表面的材质和采样源选择 `surfaceAlpha`。淡出过程中让原生标签继续
+管理玻璃层的挂载。应用层保持既有的文字尺寸、阴影留白和溢出滚动规则。
 
 ### 导航保持一个状态来源
 
@@ -439,7 +468,8 @@ KeiHome 的 Gaussian 条带使用实现 `BackdropPipeline` 的不可变值对象
 | --- | --- |
 | `show = true`，Sheet 不出现 | 调用处是否位于实际渲染浮层列表的 MIUIX Scaffold 内 |
 | 深色面板像透明洞，或异常发灰 | 材质混合层是否缺失，或完整材质与 shading 是否重复 |
-| 分段控制闪烁、录制异常 | 是否采样了包含自身的父录制层 |
+| 分段控制闪烁、录制异常 | 是否采样了包含自身的父录制层，淡出时宿主或材质底层是否提前拆除 |
+| 状态卡或背景随回弹闪动 | 采样视口是否放在弹性变换外侧，顶栏是否连接实际滚动列表 |
 | 顶栏回弹后不恢复 | 弹性位移是否进入真实 content offset，是否有双重 overscroll |
 | 顶栏始终没有内容经过 | top padding 是否在滚动容器外，状态是否接错列表 |
 | 菜单位置整体偏移 | 是否重复转换窗口／宿主坐标，锚点是否完成测量 |
@@ -515,6 +545,10 @@ launchd `KeepAlive` 任务反复拉起 ColorOS，已禁用卸载；手动启动�
 系统 inset，需要相应窗口的设备证据。角标裁剪和材质过渡要检查拖动中与松手后，
 并确认原位保持一个可操作、可朗读的节点。
 
+升级前后尽量在同一页面、主题、缩放和滚动位置录制相同操作。保留关键帧和落地
+截图，并核对最终选中项与实际内容。构建通过证明 API 与产物可用；视觉复验说明所测
+交互的结果。若要声称掉帧或耗时改善，另外采集同一条件下的帧时间数据。
+
 ## 13. 大快照、刷新与阴影
 
 目录或映射列表更新为内容相等的新实例后，`remember(largeList)` 可能在后续
@@ -551,6 +585,7 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [c83aacd8 迁移](miuix-snapshot-c83aacd8.md)记录顶栏折叠、标签淡出和模糊渲染。
 - [f3829d3d 迁移](miuix-snapshot-f3829d3d.md)记录侧栏、标签栏和应用显示设置。
 - [66248bac 迁移](miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。
 - [5ff41ba9 迁移](miuix-snapshot-5ff41ba9.md)汇总底栏、滚动条、顶部栏和进度条交接，以及验收记录。

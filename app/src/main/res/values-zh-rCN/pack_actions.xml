@@ -14,6 +14,10 @@
   <string name="pack_open_current_summary">点击状态页的当前图标包，直接打开对应子页面；关闭后进入图标包首页。</string>
   <string name="pack_auto_apply">生成后自动应用</string>
   <string name="pack_auto_apply_summary">安装或更新图标包后，通过系统主题自动应用并返回。</string>
+  <string name="pack_manual_theme_fallback">在主题壁纸中手动应用</string>
+  <string name="pack_manual_theme_fallback_summary">已导入的图标包即使未完成本地校验，也可以打开主题壁纸详情。在详情页有「应用」按钮时，可手动尝试。不兼容的图标包可能无法应用，或出现部分图标缺失、显示异常。</string>
+  <string name="pack_manual_theme_validation_incomplete">本地校验未完成。可以前往主题壁纸查看此图标包能否应用。</string>
+  <string name="pack_open_themes_failed">无法打开图标包详情。请在主题壁纸的「我的主题」中查找，或重新导入图标包。</string>
   <string name="pack_installed_icons_only">仅为已安装应用生成图标</string>
   <string name="pack_installed_icons_only_summary">减小生成包体积，新装应用后可能需更新。默认关闭，保留离线覆盖；原生导入资源不裁剪。</string>
   <string name="pack_remember_menus">记住菜单选择</string>

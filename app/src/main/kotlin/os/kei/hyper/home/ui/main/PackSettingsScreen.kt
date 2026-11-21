@@ -59,6 +59,7 @@ internal fun PackSettingsScreen(model: HomeViewModel, onBack: () -> Unit, onOpen
         PackSettingsContent(preferences, model.preferences::setAutoApplyIconPack,
           model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
           model.preferences::setShowIconPreviews,
+          onManualThemeFallback = model.preferences::setManualThemeFallback,
           onOpenMask = onOpenMask,
           onOpenCurrentIconPack = model.preferences::setOpenCurrentIconPack,
           onKeepLatestGeneratedPacks = model.preferences::setKeepLatestGeneratedPacks)
@@ -82,13 +83,20 @@ internal fun PackSettingsContent(
   onOpenMask: (() -> Unit)? = null,
   onOpenCurrentIconPack: ((Boolean) -> Unit)? = null,
   onKeepLatestGeneratedPacks: ((Boolean) -> Unit)? = null,
+  onManualThemeFallback: ((Boolean) -> Unit)? = null,
 ) {
-  if (showAutoApply || showInstalledOnly || onCompleteSystemIconConfig != null || onOpenMask != null) {
+  if (showAutoApply || onManualThemeFallback != null || showInstalledOnly ||
+    onCompleteSystemIconConfig != null || onOpenMask != null) {
     SmallTitle(stringResource(R.string.pack_settings_generation))
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       if (showAutoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
         summary = stringResource(R.string.pack_auto_apply_summary), checked = preferences.autoApplyIconPack,
         onCheckedChange = onAutoApply)
+      if (onManualThemeFallback != null) SwitchPreference(
+        title = stringResource(R.string.pack_manual_theme_fallback),
+        summary = stringResource(R.string.pack_manual_theme_fallback_summary),
+        checked = preferences.manualThemeFallback, onCheckedChange = onManualThemeFallback,
+        modifier = Modifier.testTag("icon-packs.manual-theme-fallback"))
       if (showInstalledOnly) SwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
         summary = stringResource(R.string.pack_installed_icons_only_summary), checked = preferences.installedIconsOnly,
         onCheckedChange = onInstalledOnly)

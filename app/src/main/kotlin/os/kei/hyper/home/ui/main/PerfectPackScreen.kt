@@ -271,6 +271,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
               packs.nativeImporting == sourceId, ready && !busy,
               packs.nativeResult?.takeIf { it.sourceId == sourceId },
               onImport = { vm.importNativeIconPack(card.pack) }, onRecheck = vm::recheckNativeIconImport,
+              manualThemeFallback = prefs.manualThemeFallback,
               metadataContent = {
                 state.generatedOptions?.let { generated ->
                   MetadataPill(stringResource(if (generated.staticNight) R.string.perfect_icons_night_mode_derived

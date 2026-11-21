@@ -228,9 +228,11 @@ private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (
           NativeThemeLink(pending, autoApply = false, enabled = !busy)
         }
         packs.nativeResult?.takeIf { it.sourceId == sourceId }?.let { result ->
-          if (!result.imported || result.convertedReady == false) {
-            Text(stringResource(if (result.imported) R.string.icon_pack_native_eligibility_failed
-              else result.failureLabel()), style = MiuixTheme.textStyles.footnote1,
+          if (result.imported && result.convertedReady == false) {
+            NativeThemeLink(result, autoApply = false, enabled = !busy,
+              manualFallback = preferences.manualThemeFallback)
+          } else if (!result.imported) {
+            Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote1,
               color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
             if (result.pending) PackInlineAction(stringResource(R.string.icon_pack_recheck),
               onClick = model::recheckNativeIconImport)

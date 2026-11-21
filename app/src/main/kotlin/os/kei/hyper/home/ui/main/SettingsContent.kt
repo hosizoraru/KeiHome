@@ -66,6 +66,7 @@ internal fun SettingsContent(
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
   onKeepLatestGeneratedPacksChange: (Boolean) -> Unit = {},
+  onManualThemeFallbackChange: ((Boolean) -> Unit)? = null,
   onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
   onSquircleShapesChange: (Boolean) -> Unit = {},
   onAppScaleChange: (Int) -> Unit = {},
@@ -138,6 +139,9 @@ internal fun SettingsContent(
   val splashIconsVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_icons_title, R.string.splash_icons_summary, R.string.splash_icons_help)
   val splashVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
   val autoApply = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
+  val manualThemeFallback = onManualThemeFallbackChange != null &&
+    matches(SettingsSection.PACKS, R.string.pack_action_settings,
+      R.string.pack_manual_theme_fallback, R.string.pack_manual_theme_fallback_summary)
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
   val rememberMenus = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
@@ -161,7 +165,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -253,11 +257,12 @@ internal fun SettingsContent(
     if (splashIconsVisible) splashIconsContent()
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
-    if (autoApply || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {
+    if (autoApply || manualThemeFallback || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
         onRememberMenusChange, onPreviewsChange,
         showAutoApply = autoApply, showInstalledOnly = installedIconsOnly,
         showRememberMenus = rememberMenus, showPreviews = previews,
+        onManualThemeFallback = onManualThemeFallbackChange.takeIf { manualThemeFallback },
         onKeepLatestGeneratedPacks = onKeepLatestGeneratedPacksChange.takeIf { keepLatestGeneratedPacks })
     }
     if (pageScroll || pagerMode || scrollEndHaptic) {

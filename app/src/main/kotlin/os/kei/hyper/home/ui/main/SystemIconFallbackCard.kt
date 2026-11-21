@@ -308,7 +308,8 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
           Text(stringResource(R.string.system_fallback_source_needed),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        if (result?.imported == true) NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
+        if (result?.imported == true) NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy,
+          manualFallback = preferences.manualThemeFallback)
         if (result != null && !result.imported) {
           Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote2,
             color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)

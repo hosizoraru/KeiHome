@@ -201,6 +201,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             importReady && !busy,
             state.nativeResult?.takeIf { it.sourceId == preferences.systemIconFallback.sourceId(card.pack.id) },
             onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport,
+            manualThemeFallback = preferences.manualThemeFallback,
             onRemove = if (card.pack.source is IconPackSource.Imported) ({
               removingPack = card.pack
               confirmRemoval = true
@@ -384,7 +385,8 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   appearance: IconPackAppearance, nativeId: String?, current: Boolean, importing: Boolean, enabled: Boolean,
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit,
   metadataContent: @Composable (() -> Unit)? = null,
-  onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false) {
+  onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false,
+  manualThemeFallback: Boolean = false) {
   val context = LocalContext.current
   var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
@@ -481,8 +483,9 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
         if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
       }
       if (result?.imported == true && result.convertedReady == false) {
-        Text(stringResource(R.string.icon_pack_native_eligibility_failed), style = MiuixTheme.textStyles.footnote2,
-          color = MiuixTheme.colorScheme.error)
+        NativeThemeLink(result, autoApply = false, enabled = !importing, manualFallback = manualThemeFallback)
+      } else if (manualThemeFallback && generated && nativeId != null && (result == null || result.imported)) {
+        NativeThemeDetailLink(nativeId, enabled = !importing)
       }
       if (openFailed) Text(stringResource(R.string.icon_pack_native_failed),
         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)

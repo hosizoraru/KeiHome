@@ -2,6 +2,10 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -16,31 +20,40 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true) {
-  NativeThemeButton(report, autoApply, enabled)
+internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true,
+  manualFallback: Boolean = false) {
+  val localId = report.localId?.takeIf { report.imported && it.isNotBlank() } ?: return
+  if (report.convertedReady == false) {
+    Text(stringResource(if (manualFallback) R.string.pack_manual_theme_validation_incomplete
+      else R.string.pack_local_apply_unavailable),
+      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    if (manualFallback) NativeThemeDetailLink(localId, enabled = enabled)
+  } else {
+    NativeThemeDetailLink(localId, showApply = !autoApply, enabled = enabled)
+  }
 }
 
 @Composable
-internal fun NativeThemeButton(report: NativeIconImportReport, autoApply: Boolean, enabled: Boolean = true) {
-  if (report.convertedReady == false) {
-    Text(stringResource(R.string.pack_local_apply_unavailable),
-      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    return
-  }
+internal fun NativeThemeDetailLink(localId: String, showApply: Boolean = false, enabled: Boolean = true) {
   val context = LocalContext.current
-  val label = stringResource(if (autoApply) R.string.pack_action_view else R.string.pack_apply_native)
+  var openFailed by rememberSaveable(localId) { mutableStateOf(false) }
+  val label = stringResource(if (showApply) R.string.pack_apply_native else R.string.pack_action_view)
   val open = {
-    runCatching { openNativeThemeDetail(context, requireNotNull(report.localId)) }
-    Unit
+    openFailed = runCatching { openNativeThemeDetail(context, localId) }.onFailure { failure ->
+      android.util.Log.w("KeiHomePackImport", "Cannot open icon pack details in system Themes", failure)
+    }.isFailure
   }
-  val caption = stringResource(if (autoApply) R.string.pack_action_view_short else R.string.pack_action_apply_short)
-  if (autoApply) {
-    CenteredLinkAction(caption, onClick = open, enabled = enabled && report.imported,
-      description = label, icon = actionIcon(PageActionIcon.OPEN_EXTERNAL))
-  } else {
-    CenteredLinkAction(caption, onClick = open, modifier = Modifier.padding(12.dp),
-      enabled = enabled && report.imported, description = label,
+  if (showApply) {
+    CenteredLinkAction(stringResource(R.string.pack_action_apply_short), onClick = open,
+      modifier = Modifier.padding(12.dp), enabled = enabled, description = label,
       icon = actionIcon(PageActionIcon.OPEN_EXTERNAL), colors = ButtonDefaults.buttonColorsPrimary())
+  } else {
+    PackInlineAction(label, onClick = open,
+      enabled = enabled, description = label)
+  }
+  if (openFailed) {
+    Text(stringResource(R.string.pack_open_themes_failed),
+      style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
   }
 }
 

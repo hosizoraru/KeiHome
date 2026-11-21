@@ -143,6 +143,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
       }
     },
     onKeepLatestGeneratedPacksChange = model.preferences::setKeepLatestGeneratedPacks,
+    onManualThemeFallbackChange = model.preferences::setManualThemeFallback,
     onNavigationBarStyleChange = onNavigationBarStyleChange,
     onSquircleShapesChange = model.preferences::setSquircleShapes,
     onAppScaleChange = model.preferences::setAppScalePercent,

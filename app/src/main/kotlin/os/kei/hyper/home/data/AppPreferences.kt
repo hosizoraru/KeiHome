@@ -53,6 +53,7 @@ internal data class AppPreferencesState(
   val appScalePercent: Int = DEFAULT_APP_SCALE_PERCENT,
   val scrollEndHaptic: Boolean = true,
   val autoApplyIconPack: Boolean = true,
+  val manualThemeFallback: Boolean = false,
   val openCurrentIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
   val preservedIconPackages: Set<String> = emptySet(),
@@ -108,6 +109,7 @@ internal class AppPreferences internal constructor(
       ?: AppColorMode.FOLLOW_ICONS,
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
     autoApplyIconPack = preferences.getBoolean("auto_apply_icons", true),
+    manualThemeFallback = preferences.getBoolean("manual_theme_fallback", false),
     openCurrentIconPack = preferences.getBoolean("open_current_icon_pack", true),
     installedIconsOnly = preferences.getBoolean("installed_icons_only", false),
     preservedIconPackages = PreservedIcons.read(preferences),
@@ -212,6 +214,11 @@ internal class AppPreferences internal constructor(
   fun setAutoApplyIconPack(value: Boolean) {
     preferences.edit().putBoolean("auto_apply_icons", value).apply()
     state.update { it.copy(autoApplyIconPack = value) }
+  }
+
+  fun setManualThemeFallback(value: Boolean) {
+    preferences.edit().putBoolean("manual_theme_fallback", value).apply()
+    state.update { it.copy(manualThemeFallback = value) }
   }
 
   fun setOpenCurrentIconPack(value: Boolean) {

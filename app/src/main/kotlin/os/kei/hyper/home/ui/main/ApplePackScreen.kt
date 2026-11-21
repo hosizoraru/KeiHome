@@ -554,7 +554,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 false, packs.nativeImporting == prefs.systemIconFallback.sourceId(card.pack.id),
                 ready && enabled, packs.nativeResult?.takeIf {
                   it.sourceId == prefs.systemIconFallback.sourceId(card.pack.id)
-                }, onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport)
+                }, onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport,
+                manualThemeFallback = prefs.manualThemeFallback)
             }
           }
         } else if (!search) {

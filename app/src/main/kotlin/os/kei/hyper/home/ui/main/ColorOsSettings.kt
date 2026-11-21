@@ -107,7 +107,8 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
       insideMargin = PaddingValues(if (result?.imported == true) 0.dp else 16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (result?.imported == true) {
-          NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy)
+          NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy,
+            manualFallback = preferences.manualThemeFallback)
         } else if (result != null) {
           Text(stringResource(result.failureLabel()),
             color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)

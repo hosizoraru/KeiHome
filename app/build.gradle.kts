@@ -49,6 +49,8 @@ abstract class PrepareBuiltinIconStore @javax.inject.Inject constructor(
   private val execution: org.gradle.process.ExecOperations,
   private val fileSystem: org.gradle.api.file.FileSystemOperations,
 ) : DefaultTask() {
+  @get:Input
+  abstract val requirePacks: Property<Boolean>
   @get:InputFiles
   @get:PathSensitive(PathSensitivity.RELATIVE)
   abstract val packs: ConfigurableFileCollection
@@ -63,6 +65,9 @@ abstract class PrepareBuiltinIconStore @javax.inject.Inject constructor(
 
   @TaskAction
   fun prepare() {
+    check(!requirePacks.get() || !packs.isEmpty) {
+      "keihome.generatedAssetsDir must contain builtin-icon-packs/*.zip"
+    }
     fileSystem.sync {
       from(otherAssets.asFileTree)
       into(outputDirectory)
@@ -76,9 +81,12 @@ abstract class PrepareBuiltinIconStore @javax.inject.Inject constructor(
   }
 }
 
+val generatedAssetsOverride = providers.gradleProperty("keihome.generatedAssetsDir")
+val generatedAssets = rootProject.file(generatedAssetsOverride.getOrElse(".artifacts/generated/assets"))
 val builtinAssets = tasks.register<PrepareBuiltinIconStore>("prepareBuiltinIconStore") {
-  packs.from(rootProject.fileTree(".artifacts/generated/assets/builtin-icon-packs") { include("*.zip") })
-  otherAssets.from(rootProject.fileTree(".artifacts/generated/assets") { exclude("builtin-icon-packs/**") })
+  requirePacks.set(generatedAssetsOverride.map { true }.orElse(false))
+  packs.from(rootProject.fileTree(generatedAssets.resolve("builtin-icon-packs")) { include("*.zip") })
+  otherAssets.from(rootProject.fileTree(generatedAssets) { exclude("builtin-icon-packs/**") })
   generator.set(rootProject.layout.projectDirectory.file("scripts/pack-builtin-icons.py"))
   outputDirectory.set(layout.buildDirectory.dir("generated/assets/shared-builtins"))
 }

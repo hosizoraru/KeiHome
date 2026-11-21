@@ -78,6 +78,18 @@ includes them in local APKs. OEM inputs and generated artwork remain ignored by
 Git. A build without these inputs reports the missing resources and disables
 generation.
 
+For a worktree build, pass
+`-Pkeihome.generatedAssetsDir=/absolute/path/to/.artifacts/generated/assets`
+to use the generated inputs from the main checkout. An explicit directory must
+contain ZIP profiles under `builtin-icon-packs/`. For visual QA, check that the
+APK contains `assets/builtin-icon-store/catalog.json` and `objects.kicons`
+before installing.
+
+The November 22 ColorOS preview report was traced to the optional asset
+input. Archived `b0660` included the store, while the isolated-worktree builds
+`b0661`, `b0662`, `b0663`, and `b0694` omitted it. Both the style thumbnails
+and the selected style's icon preview depend on that store.
+
 The profiles retain per-file provenance and verified resource masks. Material
 uses a standard radius-8 rectangle in a 150-unit viewport; the vendor's smooth/G2
 curve is not reproduced. Pebble uses its extracted resource path. Other custom

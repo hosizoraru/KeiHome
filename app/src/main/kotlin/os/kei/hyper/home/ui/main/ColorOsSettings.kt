@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -27,7 +26,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
@@ -83,6 +81,12 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
             PackIconPair(card.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f), compact = true)
           }
         }
+      }
+    }
+    if (card == null && state.scanned && !state.isSectionLoading("coloros")) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+        Text(stringResource(R.string.pack_local_unavailable), style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
     if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,

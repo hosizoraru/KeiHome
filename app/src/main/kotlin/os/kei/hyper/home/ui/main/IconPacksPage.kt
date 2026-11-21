@@ -388,7 +388,6 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false,
   manualThemeFallback: Boolean = false) {
   val context = LocalContext.current
-  var openFailed by rememberSaveable(card.pack.id) { mutableStateOf(false) }
   val pack = card.pack
   val generated = pack.source is IconPackSource.Generated || result?.convertedReady == false
   val native = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS
@@ -461,7 +460,7 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
           }), onClick = {
             // Generated packs retain their source ID while their content and native theme record change.
             if (nativeId == null || generated) onImport() else {
-              openFailed = runCatching { openNativeThemeDetail(context, nativeId) }.isFailure
+              openNativeThemeDetail(context, nativeId)
             }
           }, modifier = Modifier.semantics { contentDescription = "${pack.displayName}: $actionDescription" },
             enabled = !importing && if (generated) enabled && card.matchedApps > 0
@@ -487,9 +486,6 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
       } else if (manualThemeFallback && generated && nativeId != null && (result == null || result.imported)) {
         NativeThemeDetailLink(nativeId, enabled = !importing)
       }
-      if (openFailed) Text(stringResource(R.string.icon_pack_native_failed),
-        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
-
     }
   }
 }

@@ -11,7 +11,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Parcel
 import android.os.ResultReceiver
+import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -19,11 +21,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import os.kei.hyper.home.R
 
 private const val THEME_APPLY_RESULT = "os.kei.hyper.home.extra.THEME_APPLY_RESULT"
 // ActivityOptions' Android windowing-mode wire format, also used by HyperOS' dock.
 private const val WINDOWING_MODE = "android.activity.windowingMode"
+private const val FULLSCREEN = 1
 private const val FREEFORM = 5
+private const val DETAIL_LAUNCHED_AT = "detailLaunchedAt"
+private const val EARLY_DETAIL_EXIT_MS = 1_500L
 
 /** Owns the callback while the separate theme task is in front of KeiHome. */
 internal class NativeThemeApplyWindow(private val scope: CoroutineScope) {
@@ -66,24 +72,20 @@ internal class NativeThemeApplyWindow(private val scope: CoroutineScope) {
 }
 
 internal fun openNativeThemeDetail(context: Context, localId: String) {
-  val intent = IconPackImportProtocol.nativeDetail(localId)
-  if (!startThemeInFreeform(context, intent)) context.startActivity(intent)
+  try {
+    startThemeTask(context, IconPackImportProtocol.nativeDetail(localId), FULLSCREEN)
+  } catch (failure: RuntimeException) {
+    Log.w("KeiHomePackImport", "Cannot launch manual Themes detail", failure)
+    showThemeDetailRetry(context)
+  }
 }
 
-private fun startThemeInFreeform(context: Context, intent: Intent, callback: ResultReceiver? = null): Boolean {
+private fun startThemeInFreeform(context: Context, intent: Intent, callback: ResultReceiver): Boolean {
   if (!Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
     !context.packageManager.hasSystemFeature(PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT)) return false
 
-  val options = ActivityOptions.makeBasic().toBundle().apply {
-    putInt(WINDOWING_MODE, FREEFORM)
-  }
-  // A separate task keeps the current KeiHome window in place behind Themes.
-  val launch = Intent(context, NativeThemeWindowActivity::class.java)
-    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-    .putExtra(NativeThemeWindowActivity.THEME, intent)
-    .putExtra(THEME_APPLY_RESULT, callback)
   return try {
-    context.startActivity(launch, options)
+    startThemeTask(context, intent, FREEFORM, callback)
     true
   } catch (failure: RuntimeException) {
     Log.w("KeiHomeAutoApply", "Cannot open Themes in freeform", failure)
@@ -91,17 +93,45 @@ private fun startThemeInFreeform(context: Context, intent: Intent, callback: Res
   }
 }
 
-/** Keeps the OEM activity result inside the separate, resizable Themes task. */
+private fun startThemeTask(context: Context, intent: Intent, windowingMode: Int, callback: ResultReceiver? = null) {
+  val options = ActivityOptions.makeBasic().toBundle().apply {
+    putInt(WINDOWING_MODE, windowingMode)
+  }
+  // A separate task keeps the current KeiHome window in place behind Themes.
+  val launch = Intent(context, NativeThemeWindowActivity::class.java)
+    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+    .putExtra(NativeThemeWindowActivity.THEME, intent)
+    .putExtra(THEME_APPLY_RESULT, callback)
+  context.startActivity(launch, options)
+}
+
+internal fun needsThemeDetailRetry(resultCode: Int, timeOpenMs: Long): Boolean =
+  resultCode == Activity.RESULT_CANCELED && timeOpenMs in 0..EARLY_DETAIL_EXIT_MS
+
+private fun showThemeDetailRetry(context: Context) {
+  Toast.makeText(context, R.string.pack_open_themes_failed, Toast.LENGTH_LONG).show()
+}
+
+/** Keeps the OEM activity result inside the separate Themes task. */
 class NativeThemeWindowActivity : androidx.activity.ComponentActivity() {
+  private val applyCallback get() = intent.getParcelableExtra(THEME_APPLY_RESULT, ResultReceiver::class.java)
+  private var launchedAt = 0L
   private val openTheme = registerForActivityResult(
     androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
   ) { result ->
+    val callback = applyCallback
+    val timeOpenMs = SystemClock.elapsedRealtime() - launchedAt
+    if (callback == null && needsThemeDetailRetry(result.resultCode, timeOpenMs)) {
+      Log.i("KeiHomePackImport", "Manual Themes detail closed immediately; showing reimport guidance")
+      showThemeDetailRetry(this)
+    }
+    callback?.send(result.resultCode, null)
     finishAndRemoveTask()
-    intent.getParcelableExtra(THEME_APPLY_RESULT, ResultReceiver::class.java)?.send(result.resultCode, null)
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    launchedAt = savedInstanceState?.getLong(DETAIL_LAUNCHED_AT) ?: SystemClock.elapsedRealtime()
     if (savedInstanceState != null) return
     val theme = intent.getParcelableExtra(THEME, Intent::class.java)
     if (theme != null) {
@@ -112,8 +142,15 @@ class NativeThemeWindowActivity : androidx.activity.ComponentActivity() {
         Log.w("KeiHomeAutoApply", "Cannot open Themes", failure)
       }
     }
+    val callback = applyCallback
+    if (callback == null) showThemeDetailRetry(this)
+    callback?.send(RESULT_CANCELED, null)
     finishAndRemoveTask()
-    intent.getParcelableExtra(THEME_APPLY_RESULT, ResultReceiver::class.java)?.send(RESULT_CANCELED, null)
+  }
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    super.onSaveInstanceState(outState)
+    outState.putLong(DETAIL_LAUNCHED_AT, launchedAt)
   }
 
   internal companion object {

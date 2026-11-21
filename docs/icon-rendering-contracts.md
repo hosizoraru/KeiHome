@@ -93,10 +93,11 @@ still decides whether to offer or accept manual application. A failed or
 pending import does not establish a local record for that attempt. The usual
 validation, application receipt, and applied-pack status remain authoritative.
 
-On HyperOS `OS4.0.8.0.XBLCNXM` with Themes `11.5.6.0`, the detail page opened
-from KeiHome in a floating window can show only the preview. Expand Themes to
-full screen to reach Apply. If Themes exits immediately when opening an old
-record, update the pack in KeiHome to obtain a fresh import record.
+Manual detail launches use a separate full-screen task so Themes can show its
+Apply action. When Themes immediately returns a cancellation or the launch
+fails, KeiHome prompts users to update or reimport the pack. The detail result
+does not identify why Themes closed. Successful application and ordinary
+returns from viewing the detail do not show the prompt.
 
 To verify manual application, tap Apply in Themes, check the same desktop page
 before and after, and compare the active icon archive with the imported record.

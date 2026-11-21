@@ -55,6 +55,7 @@ class NativeThemeManualFallbackUiTest {
     var report by mutableStateOf(imported)
     var busy by mutableStateOf(false)
     var launch: Intent? = null
+    var launchOptions: Bundle? = null
     rule.setContent {
       KeiHomeTheme {
         val preferences by prefs.state.collectAsStateWithLifecycle()
@@ -72,6 +73,7 @@ class NativeThemeManualFallbackUiTest {
 
             override fun startActivity(intent: Intent, options: Bundle?) {
               launch = intent
+              launchOptions = options
             }
           }
           CompositionLocalProvider(LocalContext provides recordingHost) {
@@ -97,7 +99,8 @@ class NativeThemeManualFallbackUiTest {
       assertTrue(AppPreferences(storage, SystemIconFallback.entries).state.value.manualThemeFallback)
       assertTrue(prefs.state.value.autoApplyIconPack)
       val activity = requireNotNull(launch)
-      val detail = activity.getParcelableExtra(NativeThemeWindowActivity.THEME, Intent::class.java) ?: activity
+      assertEquals(1, launchOptions?.getInt("android.activity.windowingMode"))
+      val detail = requireNotNull(activity.getParcelableExtra(NativeThemeWindowActivity.THEME, Intent::class.java))
       assertEquals("com.android.thememanager", detail.component?.packageName)
       assertEquals("local", detail.data?.fragment)
       assertEquals("icons", detail.getStringExtra("REQUEST_RESOURCE_CODE"))

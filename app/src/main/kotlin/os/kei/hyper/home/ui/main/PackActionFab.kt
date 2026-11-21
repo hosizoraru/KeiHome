@@ -52,7 +52,7 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   }), description = description,
     onHeightChanged = onHeightChanged,
     modifier = Modifier.testTag("icon-packs.$section.action"), enabled = ready, busy = busy, onClick = {
-      if (pending != null) runCatching {
+      if (pending != null) {
         openNativeThemeDetail(context, requireNotNull(pending.localId))
       } else if (update) model.updateCurrentSystemFallback() else model.applyColorOs(page == 2)
   })

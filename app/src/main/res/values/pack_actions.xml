@@ -17,7 +17,7 @@
   <string name="pack_manual_theme_fallback">Manual application in Themes</string>
   <string name="pack_manual_theme_fallback_summary">Show a link to an imported pack in system Themes even if local icon validation is incomplete. Tap Apply there if available. Incompatible packs may be rejected or show missing or incorrect icons.</string>
   <string name="pack_manual_theme_validation_incomplete">Local icon validation is incomplete. Open system Themes to check whether the pack can be applied.</string>
-  <string name="pack_open_themes_failed">Could not open this pack in system Themes. Check My themes in system Themes or import the pack again.</string>
+  <string name="pack_open_themes_failed">Could not open this pack in Themes. Update or reimport it in KeiHome.</string>
   <string name="pack_installed_icons_only">Only generate icons for installed apps</string>
   <string name="pack_installed_icons_only_summary">Reduces generated artwork; newly installed apps may need an update. Off by default to retain offline coverage. Original native imports are preserved.</string>
   <string name="pack_remember_menus">Remember menu choices</string>

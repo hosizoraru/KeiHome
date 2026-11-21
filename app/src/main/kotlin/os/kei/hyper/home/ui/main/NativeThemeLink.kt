@@ -2,10 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -36,13 +32,8 @@ internal fun NativeThemeLink(report: NativeIconImportReport, autoApply: Boolean,
 @Composable
 internal fun NativeThemeDetailLink(localId: String, showApply: Boolean = false, enabled: Boolean = true) {
   val context = LocalContext.current
-  var openFailed by rememberSaveable(localId) { mutableStateOf(false) }
   val label = stringResource(if (showApply) R.string.pack_apply_native else R.string.pack_action_view)
-  val open = {
-    openFailed = runCatching { openNativeThemeDetail(context, localId) }.onFailure { failure ->
-      android.util.Log.w("KeiHomePackImport", "Cannot open icon pack details in system Themes", failure)
-    }.isFailure
-  }
+  val open = { openNativeThemeDetail(context, localId) }
   if (showApply) {
     CenteredLinkAction(stringResource(R.string.pack_action_apply_short), onClick = open,
       modifier = Modifier.padding(12.dp), enabled = enabled, description = label,
@@ -50,10 +41,6 @@ internal fun NativeThemeDetailLink(localId: String, showApply: Boolean = false, 
   } else {
     PackInlineAction(label, onClick = open,
       enabled = enabled, description = label)
-  }
-  if (openFailed) {
-    Text(stringResource(R.string.pack_open_themes_failed),
-      style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.error)
   }
 }
 

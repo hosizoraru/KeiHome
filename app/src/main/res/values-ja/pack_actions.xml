@@ -17,7 +17,7 @@
   <string name="pack_manual_theme_fallback">テーマアプリで手動適用</string>
   <string name="pack_manual_theme_fallback_summary">ローカル検証が未完了でも、インポート済みパックの詳細をテーマアプリで開けます。適用ボタンが表示された場合は手動で試せます。互換性がないパックは適用できなかったり、アイコンが正しく表示されなかったりする場合があります。</string>
   <string name="pack_manual_theme_validation_incomplete">ローカル検証が未完了です。テーマアプリでこのパックを適用できるか確認できます。</string>
-  <string name="pack_open_themes_failed">テーマアプリでパックの詳細を開けませんでした。テーマアプリのマイテーマで探すか、パックを再インポートしてください。</string>
+  <string name="pack_open_themes_failed">テーマアプリで開けませんでした。KeiHome で更新または再インポートしてください。</string>
   <string name="pack_installed_icons_only">インストール済みアプリのアイコンのみ生成</string>
   <string name="pack_installed_icons_only_summary">生成する画像を減らします。新規アプリは更新が必要な場合があります。初期設定はオフで未導入アプリも対象です。ネイティブ形式の元のリソースは保持します。</string>
   <string name="pack_remember_menus">メニューの選択を記憶</string>

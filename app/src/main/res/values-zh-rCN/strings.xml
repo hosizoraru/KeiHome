@@ -237,7 +237,11 @@
     <string name="monet_full_bleed_padding_title">满幅图标留白</string>
     <string name="monet_full_bleed_padding_summary">为铺满或大面积贴边的取色图案增加留白，露出背景。修改后需重新生成并应用图标包。</string>
     <string name="monet_unadapted_summary">为未适配的静态图标生成双色图层。修改后需重新生成并应用图标包。</string>
-    <string name="monet_unadapted_help">未适配图标取色补全默认关闭。已有 Monet 适配、动态图标、自定义图标及保留原图规则优先。通用取色会近似保留原图轮廓，无法重建设计师绘制的矢量线稿。Monet 仍需单独开启。</string>
+    <string name="monet_unadapted_help">Pixel / AOSP 和 ColorOS 灵感都支持取色补全与留白。取色补全为符合条件的静态图标增加双色图层，留白调整由 KeiHome 生成或转换的满幅前景。图标包原有的 Monet 图层、动态图标、自定义图标和保留原图规则优先。</string>
+    <string name="monet_artwork_pack_title">应用图标改动</string>
+    <string name="monet_artwork_update_steps">更新「%1$s」以重新生成图标图层。若未开启自动应用，请在系统主题中应用更新后的图标包。之后开启 Monet 图标并应用配色。</string>
+    <string name="monet_artwork_choose_steps">在可用图标包中找到原图标包，导入或更新后在系统主题中应用。图标包生效后，再开启 Monet 图标并应用配色。</string>
+    <string name="monet_artwork_update_pack">更新当前图标包</string>
     <string name="monet_inspiration_install_summary">生成或更新双色图标包。应用配色、开启 Monet 仍由你单独操作。</string>
     <string name="pack_local_apply_unavailable">本地校验未完成，请重新生成并导入图标包后重试。此类本地资源问题无需在线授权。</string>
 </resources>

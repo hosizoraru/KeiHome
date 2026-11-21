@@ -93,7 +93,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   if (section == "monet") {
-    MonetDestinationScreen(model, onBack, onMonetNestedChanged)
+    MonetDestinationScreen(model, onBack, onOpenPacks = { onNavigate("library") },
+      onNestedChanged = onMonetNestedChanged)
     return
   }
   val prefs by model.preferences.state.collectAsStateWithLifecycle()

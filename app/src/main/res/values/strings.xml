@@ -240,7 +240,11 @@
     <string name="monet_full_bleed_padding_title">Inset full-bleed icons</string>
     <string name="monet_full_bleed_padding_summary">Inset large, edge-filling themed artwork to reveal its background. Regenerate and apply the icon pack after changing this option.</string>
     <string name="monet_unadapted_summary">Add two-tone layers to unthemed static icons. Regenerate and apply the icon pack after changing this option.</string>
-    <string name="monet_unadapted_help">Coloring unthemed icons is optional and off by default. Existing Monet artwork, dynamic icons, custom icons and preserved originals take priority. Generic coloring approximates the original shape; it cannot reconstruct hand-drawn vector outlines. Monet is enabled separately.</string>
+    <string name="monet_unadapted_help">Icon coloring and padding work with both Pixel / AOSP and ColorOS Inspiration. Coloring adds two-tone layers to eligible static artwork. Padding adjusts full-bleed foregrounds generated or converted by KeiHome. Authored Monet layers, dynamic icons, custom icons and preserved originals take priority.</string>
+    <string name="monet_artwork_pack_title">Apply icon changes</string>
+    <string name="monet_artwork_update_steps">Update %1$s to rebuild the icon layers. If automatic application is off, apply the updated pack in Themes. Then enable Monet icons and apply your palette.</string>
+    <string name="monet_artwork_choose_steps">Choose the original pack in the library, then import or update it and apply it in Themes. Enable Monet icons and apply your palette once the pack is active.</string>
+    <string name="monet_artwork_update_pack">Update current icon pack</string>
     <string name="monet_inspiration_install_summary">Generate or update the two-tone icon pack. Applying colors and enabling Monet remain separate controls.</string>
     <string name="pack_local_apply_unavailable">Local validation did not complete. Regenerate and import the icon pack to retry; online authorization will not repair this local resource.</string>
 </resources>

@@ -63,6 +63,27 @@ Generation schema 14 marks the corrected monochrome source selection. Existing
 ColorOS-derived output requests regeneration through the normal update notice.
 Historical generation schemas remain readable.
 
+## Monet coverage and application
+
+Pixel / AOSP and ColorOS Inspiration select a palette. Both use the same
+icon-pack generation preferences for static artwork coloring and full-bleed
+foreground padding. Compatible APK, classic ZIP, MTZ and native icons ZIP
+sources enter the shared handoff. Imported Monet layers and dynamic resources
+retain ownership. Padding is independent of coloring and applies to eligible
+foregrounds generated or converted by KeiHome.
+
+Generation schema 16 adds coverage for static native layer pairs without flat
+aliases. Their original numbered resources remain intact. A qualifying pair
+gets a palette tree, while any native flat aliases already present use the same
+day/night snapshots. Older native packs with static coloring enabled can use
+the existing update action to pick up the added coverage.
+
+The Monet page can update a current pack whose source KeiHome can resolve, or
+open the pack library to select its original source. The normal import and
+application receipts govern this shortcut. Artwork changes reach the desktop
+when the rebuilt pack is applied. Enabling Monet icons and applying a palette
+remain separate actions.
+
 ## Preservation and fallback boundaries
 
 Preserved packages use original APK artwork in previews, are excluded from

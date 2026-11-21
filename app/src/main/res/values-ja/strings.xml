@@ -237,7 +237,11 @@
     <string name="monet_full_bleed_padding_title">全面アイコンに余白を追加</string>
     <string name="monet_full_bleed_padding_summary">画面端まで広がる大きな配色図柄に余白を設けます。変更後はアイコンパックの再生成と適用が必要です。</string>
     <string name="monet_unadapted_summary">未対応の静止アイコンに2色のレイヤーを追加します。変更後はパックの再生成と適用が必要です。</string>
-    <string name="monet_unadapted_help">配色補完は初期状態では無効です。既存の Monet 対応、動的アイコン、カスタムアイコン、元のアイコンの保持を優先します。汎用配色は輪郭を近似し、元のベクター線画は再構成できません。Monet は別途有効にしてください。</string>
+    <string name="monet_unadapted_help">Pixel / AOSP と ColorOS インスピレーションの両方で配色補完と余白調整を利用できます。対象の静止アイコンに2色のレイヤーを追加し、KeiHome が生成または変換した前景に余白を設けます。既存の Monet レイヤー、動的アイコン、カスタムアイコン、元のアイコンの保持を優先します。</string>
+    <string name="monet_artwork_pack_title">アイコンの変更を適用</string>
+    <string name="monet_artwork_update_steps">「%1$s」を更新してアイコンレイヤーを再生成します。自動適用がオフの場合は、テーマアプリで更新済みのパックを適用してください。その後、Monet アイコンを有効にして配色を適用します。</string>
+    <string name="monet_artwork_choose_steps">ライブラリで元のパックを選び、インポートまたは更新してからテーマアプリで適用します。パックの適用後に Monet アイコンを有効にして配色を適用します。</string>
+    <string name="monet_artwork_update_pack">現在のアイコンパックを更新</string>
     <string name="monet_inspiration_install_summary">2色のアイコンパックを生成・更新します。配色の適用と Monet の有効化は別途操作できます。</string>
     <string name="pack_local_apply_unavailable">ローカル検証が完了していません。アイコンパックを再生成・インポートして再試行してください。オンライン認証では修復できないローカルリソースの問題です。</string>
 </resources>

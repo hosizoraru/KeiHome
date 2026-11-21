@@ -60,7 +60,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
-  onNestedChanged: (Boolean) -> Unit = {}) {
+  onOpenPacks: () -> Unit, onNestedChanged: (Boolean) -> Unit = {}) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales) {
@@ -128,7 +128,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
           bottom = insets.calculateBottomPadding() + actionClearance),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        MonetPage(model, section, navigate, back, applyState)
+        MonetPage(model, section, navigate, back, applyState, onOpenPacks)
         RefreshFeedback(model, 2)
       }
     }
@@ -147,7 +147,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
 
 @Composable
 private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (MonetSection) -> Unit,
-  onDismissPanel: () -> Unit, applyState: MutableState<MonetApplyUiState>) {
+  onDismissPanel: () -> Unit, applyState: MutableState<MonetApplyUiState>, onOpenPacks: () -> Unit) {
   val monet by model.monet.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val runtime by model.runtime.collectAsStateWithLifecycle()
@@ -190,6 +190,55 @@ private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (
         editable = packs.nativeImporting == null,
         onEnabledChange = model.preferences::setMonetUnadaptedIcons,
         onPaddingChange = model.preferences::setMonetFullBleedIconPadding)
+    }
+    val theme = runtime.report?.iconTheme
+    val source = model.currentFallbackSource(theme, packs, preferences.colorOsComponents)
+    val sourceId = source?.let { preferences.systemIconFallback.sourceId(it.id) }
+    val pending = pendingNativeApplication(packs, theme?.localId)
+      ?.takeIf { it.sourceId == sourceId }
+    val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+    val busy = packs.importing || packs.preparing || packs.nativeImporting != null || packs.removing != null
+    Card(Modifier.fillMaxWidth().testTag("monet.artwork.pack"),
+      insideMargin = PaddingValues(16.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.monet_artwork_pack_title), style = MiuixTheme.textStyles.body1)
+        Text(if (source != null) stringResource(R.string.monet_artwork_update_steps, source.displayName)
+          else stringResource(R.string.monet_artwork_choose_steps),
+          style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        if (source != null && updateNeeded && pending == null) {
+          MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary)
+        }
+        if (source != null) {
+          PackActionButton(stringResource(R.string.monet_artwork_update_pack),
+            onClick = model::updateCurrentSystemFallback,
+            modifier = Modifier.fillMaxWidth().testTag("monet.artwork.update"),
+            enabled = ready && !runtime.readFailed && !runtime.timedOut && !busy,
+            primary = true, operation = PageActionIcon.UPDATE)
+          if (framework.snapshot?.themesInScope == false) {
+            Text(stringResource(R.string.icon_pack_scope_needed), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+        } else {
+          PackActionButton(stringResource(R.string.icon_pack_library), onClick = onOpenPacks,
+            modifier = Modifier.fillMaxWidth().testTag("monet.artwork.library"),
+            operation = PageActionIcon.OPEN_INTERNAL)
+        }
+        if (pending != null) {
+          Text(stringResource(R.string.pack_pending_apply_hint), style = MiuixTheme.textStyles.footnote1)
+          NativeThemeLink(pending, autoApply = false, enabled = !busy)
+        }
+        packs.nativeResult?.takeIf { it.sourceId == sourceId }?.let { result ->
+          if (!result.imported || result.convertedReady == false) {
+            Text(stringResource(if (result.imported) R.string.icon_pack_native_eligibility_failed
+              else result.failureLabel()), style = MiuixTheme.textStyles.footnote1,
+              color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+            if (result.pending) PackInlineAction(stringResource(R.string.icon_pack_recheck),
+              onClick = model::recheckNativeIconImport)
+          }
+        }
+        packs.error?.takeIf { source != null }?.let { Text(it, style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.error) }
+      }
     }
   }
   if (section.page == MonetSection.OVERVIEW && inspiration) {

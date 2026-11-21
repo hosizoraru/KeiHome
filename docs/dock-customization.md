@@ -7,6 +7,11 @@ Default geometry remains 18 dp of requested vertical padding and zero vertical
 translation. All choices retain the native glass material and unlock/drag/edit
 animation path.
 
+Vertical padding uses the native painted icon bounds for the effective
+launcher label mode. When either edge reaches the existing paint allowance,
+both edges use the same reduced padding. The height control still requests
+padding, and the vertical position control still translates the whole Dock.
+
 Left and right padding is a symmetric adjustment from the current plate
 edges, from -16 to +24 dp per side. The 0 dp setting leaves the existing
 plate unchanged. It moves only the decoration; the native cells, icons, hit
@@ -158,3 +163,28 @@ The 129 focused JVM tests and linked ARM64 bridge checks passed. A separate
 comparison against the prior signed build produced identical native Dock
 object graphs in 240 zero-adjustment cases. Five-icon and wide-layout
 horizontal padding coverage is host-only; no live five-icon or Pad test ran.
+
+### Vertical centering across label modes, 2026-11-22
+
+The old renderer limited each vertical edge independently. With labels on,
+the native icon top can be close to the upper paint limit. Clipping that
+padding alone left more glass below the icons. The new renderer uses the
+smaller available padding on both sides of the painted icon bounds. It reuses
+the dynamically resolved effective no-word mode and native metrics.
+
+On Xiaomi 17 Pro (`OS4.0.8.0.XBLCNXM`, Home `801030308`), signed b0660
+rendered a centered four-icon Dock with system no-word mode off and with
+all labels hidden, at requested padding of both 18 and 32 dp. The 32 dp
+request made a shorter plate in normal mode because the upper paint limit
+was closer to the icons. Tapping the first icon opened Camera, and returning
+home preserved the Dock. The original all-hidden mode and 18 dp were
+restored, and the active icon theme hash matched the pre-test value.
+
+The APK replacement recorded nine Java reloads. A separate Home relaunch
+loaded the updated native renderer while SystemUI and `system_server` kept
+their process identities. Host checks passed 54,173 geometry assertions,
+3,561 linked ARM64 cases and 129 Home 0308 structural checks. The live
+comparison covered one Phone layout with four icons.
+
+Evidence: `.artifacts/research/dock-vertical-centering-20261122/`, including
+`b0660-four-states.png`, `b0660-native-load.log` and the host test receipts.

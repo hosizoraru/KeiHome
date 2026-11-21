@@ -179,7 +179,8 @@ private fun desktopStatusBadge(title: String, value: String, status: DesktopFeat
     DesktopFeatureStatus.CHECKING -> R.string.desktop_status_checking
     DesktopFeatureStatus.READ_FAILED -> R.string.desktop_status_read_failed
     DesktopFeatureStatus.TIMED_OUT -> R.string.desktop_status_timeout
-    DesktopFeatureStatus.LAYOUT_UNAVAILABLE -> R.string.desktop_status_layout_unavailable
+    DesktopFeatureStatus.LAYOUT_UNAVAILABLE, DesktopFeatureStatus.HORIZONTAL_PADDING_UNAVAILABLE ->
+      R.string.desktop_status_layout_unavailable
     DesktopFeatureStatus.PENDING -> R.string.launcher_glass_pending
     DesktopFeatureStatus.ACCEPTED -> R.string.launcher_glass_accepted
   })

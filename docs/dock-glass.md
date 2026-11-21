@@ -13,16 +13,17 @@ owned by the system.
 It does not introduce a separate wallpaper sampler, blur engine, or color scheme.
 
 The plate follows the painted icon envelope for one through five normal-mode
-items; an empty Dock has no added plate. The enlarged plate uses 18dp desired
-padding on each side. Rounded retains its 28dp minimum corner radius. Native horizontal screen
+items; an empty Dock has no added plate. The default plate uses 18dp desired
+padding on each side. [Dock geometry settings](dock-customization.md) can
+adjust the left and right padding symmetrically. Rounded retains its 28dp minimum corner radius. Native horizontal screen
 insets still bound its width. Its decoration can paint up to 12dp above/below
 the original box, while native layout and hit bounds keep their original size. Native elderly-mode capacity is handled
 separately. Native item centers and icon sizes are retained. Padding is bounded
 by the available Dock and screen edges. With five items only, the plate can use
 the full native content width rather than retaining the 8dp decorative edge,
 and the corner radius is capped at 32dp. This leaves the first/last icons inside
-the plate's curved corners. Native item positions, touch bounds and all layouts
-with four or fewer items retain their previous geometry.
+the plate's curved corners. Native item positions and touch bounds remain
+unchanged regardless of the padding setting.
 
 Bottom screen corner radii come from `Display.getRoundedCorner`, converted using
 the same display's density. The selector offers two policies:

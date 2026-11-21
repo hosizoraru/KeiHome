@@ -17,11 +17,14 @@
     <string name="dock_glass_corner_custom">半径を指定</string>
     <string name="dock_glass_padding_title">Dockの高さ</string>
     <string name="dock_glass_padding_summary">アイコンのサイズを変えずに、上下の背景の余白を調整します。既定値は18 dpです。</string>
+    <string name="dock_glass_horizontal_padding_title">左右の余白</string>
+    <string name="dock_glass_horizontal_padding_summary">両端のアイコンとガラスの縁の間隔を調整します。0 dpは既定の間隔です。調整幅はDockの空き幅に応じて制限されます。</string>
+    <string name="dock_glass_horizontal_padding_unavailable">現在のホーム画面は左右の余白の調整に対応していません。Dockの形状をリセットすると、既定の間隔に戻ります。</string>
     <string name="dock_glass_offset_title">上下の位置</string>
     <string name="dock_glass_offset_summary">利用可能な領域内で、正の値は下へ、負の値は上へ移動します。既定値は0 dpです。</string>
     <string name="dock_glass_radius_title">指定する角の半径</string>
     <string name="dock_glass_radius_summary">「半径を指定」の場合のみ使用します。表示される半径は背景の範囲で制限されます。既定値は24 dpです。</string>
     <string name="dock_glass_reset">Dockの形状をリセット</string>
-    <string name="dock_glass_reset_summary">最近のタスク、余白18 dp、オフセット0 dp、指定半径24 dpに戻します。</string>
+    <string name="dock_glass_reset_summary">角の形状、高さ、左右の余白、縦位置を既定値に戻します。</string>
     <string name="dock_glass_dp">%1$d dp</string>
 </resources>

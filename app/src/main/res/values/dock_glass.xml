@@ -17,11 +17,14 @@
     <string name="dock_glass_corner_custom">Custom radius</string>
     <string name="dock_glass_padding_title">Dock height</string>
     <string name="dock_glass_padding_summary">Adjust background space above and below icons without resizing them. Default: 18 dp.</string>
+    <string name="dock_glass_horizontal_padding_title">Left and right padding</string>
+    <string name="dock_glass_horizontal_padding_summary">Adjust the space between the outer icons and the glass edges. 0 dp keeps the default spacing. Available width may limit the adjustment.</string>
+    <string name="dock_glass_horizontal_padding_unavailable">The current home screen does not support this adjustment. Reset Dock geometry to restore default spacing.</string>
     <string name="dock_glass_offset_title">Vertical position</string>
     <string name="dock_glass_offset_summary">Positive moves down; negative moves up, within available space. Default: 0 dp.</string>
     <string name="dock_glass_radius_title">Custom corner radius</string>
     <string name="dock_glass_radius_summary">Used only with Custom radius. The background bounds limit the visible radius. Default: 24 dp.</string>
     <string name="dock_glass_reset">Reset Dock geometry</string>
-    <string name="dock_glass_reset_summary">Restore Recents, 18 dp padding, 0 dp offset and 24 dp custom radius.</string>
+    <string name="dock_glass_reset_summary">Restore the default corners, height, left and right padding, and vertical position.</string>
     <string name="dock_glass_dp">%1$d dp</string>
 </resources>

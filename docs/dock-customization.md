@@ -7,14 +7,24 @@ Default geometry remains 18 dp of requested vertical padding and zero vertical
 translation. All choices retain the native glass material and unlock/drag/edit
 animation path.
 
+Left and right padding is a symmetric adjustment from the current plate
+edges, from -16 to +24 dp per side. The 0 dp setting leaves the existing
+plate unchanged. It moves only the decoration; the native cells, icons, hit
+targets and edit/drag geometry are untouched. A positive adjustment can use
+the existing decorative edge reserve but cannot paint outside the native Dock
+content. A negative adjustment cannot move inside either outer icon's
+painted horizontal extent. A full-width plate may have no room to grow.
+This applies equally to the supported corner styles, with the radius bounded
+again after adjusting width.
+
 Additional choices:
 
 - **Pad** uses the retained Pad launcher's relation: `16 / 60 * iconExtent +
   (plateHeight - iconExtent) / 2`, bounded to the actual plate.
 - **Screen-concentric reference** adjusts plate width and radius from the
   system-reported bottom screen radius. Vertical placement remains an explicit
-  user adjustment. Five icons retain the full available plate width and edge
-  clearance.
+  user adjustment. Five icons retain the original full-width allowance and
+  edge clearance before applying horizontal padding.
 - **Custom** accepts a 0-64 dp radius, clamped to half the plate's short side.
 
 Height is controlled by 0-32 dp of padding above/below the actual painted icon
@@ -69,12 +79,19 @@ uses one validated unsigned word in that field:
 | 3-8 | Padding: zero means legacy 18 dp; otherwise value minus one, 0-32 |
 | 9-15 | Custom radius, 0-64; zero outside Custom |
 | 16-23 | Signed relative translation, -48 to +96 dp |
-| 24-31 | Reserved, must be zero |
+| 24-29 | Signed horizontal adjustment per side, -16 to +24 dp |
+| 30-31 | Reserved, must be zero |
 
 Native Dock layout capability is bit 32; existing Dock capability bit 8 is still
-required. Legacy 0/1 remains compatible. Lease identities/status ACKs compare
-full options. Unchanged renewals stay quiet; one committed change uses the
-existing scoped refresh.
+required. A nonzero horizontal adjustment also requires capability bit 128.
+Older resident payloads remain compatible with a zero delta, and saved nonzero
+values are retained until a supporting payload is loaded or the user resets
+geometry. Lease identities/status ACKs compare full options. Unchanged renewals
+stay quiet; one committed change uses the existing scoped refresh.
+
+Horizontal padding is covered by the host geometry sweep, the linked ARM64 Dock
+renderer cases, and preference, protocol and status tests. These checks do not
+establish the visual result on a physical Phone or Pad.
 
 The bottom-margin role resolves structurally from mapped AOT instructions. Its
 unique native return must authenticate before any patch is published. Five

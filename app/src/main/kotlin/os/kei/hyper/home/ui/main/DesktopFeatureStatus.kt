@@ -10,7 +10,7 @@ import os.kei.hyper.home.status.RuntimeStatusUiState
 
 internal enum class DesktopFeatureStatus {
   OUT_OF_SCOPE, LOADING, SAVING, ERROR, UNAVAILABLE, UNKNOWN, CHECKING, READ_FAILED, TIMED_OUT,
-  LAYOUT_UNAVAILABLE, PENDING, ACCEPTED,
+  LAYOUT_UNAVAILABLE, HORIZONTAL_PADDING_UNAVAILABLE, PENDING, ACCEPTED,
 }
 
 internal fun FrameworkUiState.desktopScopeChecking(): Boolean =
@@ -60,8 +60,9 @@ internal fun desktopDockCornerSelection(choice: DockGlassChoice, style: DockGlas
 }
 
 internal fun desktopDockSaveSupported(choice: DockGlassChoice, dockSupported: Boolean?,
-  layoutSupported: Boolean?): Boolean =
-  dockSupported != false && (layoutSupported != false || choice.options in 0..1)
+  layoutSupported: Boolean?, horizontalPaddingSupported: Boolean? = null): Boolean =
+  dockSupported != false && (layoutSupported != false || choice.options in 0..1) &&
+    (horizontalPaddingSupported != false || choice.horizontalPaddingDeltaDp == 0)
 
 internal data class DesktopSyncSummary(val accepted: Int, val supported: Int, val ready: Boolean)
 
@@ -94,6 +95,9 @@ internal fun desktopDockStatus(
   if (supported == true && state.saved != null && state.saved.options !in 0..1 &&
     report.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK_LAYOUT) == false)
     return DesktopFeatureStatus.LAYOUT_UNAVAILABLE
+  if (supported == true && state.saved != null && state.saved.horizontalPaddingDeltaDp != 0 &&
+    report.supportsLauncherCapability(LauncherRuntimeCapabilities.DOCK_HORIZONTAL_PADDING) == false)
+    return DesktopFeatureStatus.HORIZONTAL_PADDING_UNAVAILABLE
   return desktopReceiverStatus(runtime, report, supported, report?.acknowledgesDockGlass(state.saved) == true)
 }
 
@@ -227,6 +231,7 @@ internal fun desktopStatusMessage(status: DesktopFeatureStatus, hasPending: Bool
     DesktopFeatureStatus.READ_FAILED -> R.string.desktop_status_read_failed
     DesktopFeatureStatus.TIMED_OUT -> R.string.desktop_status_timeout
     DesktopFeatureStatus.LAYOUT_UNAVAILABLE -> R.string.dock_glass_layout_unavailable
+    DesktopFeatureStatus.HORIZONTAL_PADDING_UNAVAILABLE -> R.string.dock_glass_horizontal_padding_unavailable
     DesktopFeatureStatus.PENDING -> R.string.launcher_glass_pending
     DesktopFeatureStatus.ACCEPTED -> null
   }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import os.kei.hyper.home.data.DockGlassPreferences
 import os.kei.hyper.home.data.DockGlassChoice
 import os.kei.hyper.home.data.DockGlassCornerStyle
+import os.kei.hyper.home.data.DockGlassOptions
 import os.kei.hyper.home.status.FrameworkConnection
 
 @Immutable
@@ -53,6 +54,12 @@ internal class DockGlassSettings(private val scope: CoroutineScope, private val 
 
   fun setVerticalPadding(value: Int) {
     (state.value.pending ?: state.value.saved)?.let { save(it.copy(verticalPaddingDp = value.coerceIn(0, 32))) }
+  }
+
+  fun setHorizontalPadding(value: Int) {
+    (state.value.pending ?: state.value.saved)?.let {
+      save(it.copy(horizontalPaddingDeltaDp = value.coerceIn(DockGlassOptions.HORIZONTAL_PADDING_RANGE)))
+    }
   }
 
   fun setVerticalOffset(value: Int) {

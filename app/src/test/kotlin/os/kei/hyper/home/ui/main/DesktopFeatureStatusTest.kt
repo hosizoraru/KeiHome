@@ -252,7 +252,12 @@ class DesktopFeatureStatusTest {
   @Test fun eachMissingCapabilityDisablesOnlyItsOwnFeatureEvenWithAnOldAck() {
     for (bit in listOf(LauncherRuntimeCapabilities.DOCK, LauncherRuntimeCapabilities.LABELS,
       LauncherRuntimeCapabilities.GLASS)) {
-      val removed = if (bit == LauncherRuntimeCapabilities.GLASS) bit or LauncherRuntimeCapabilities.GLASS_PAIR else bit
+      val removed = when (bit) {
+        LauncherRuntimeCapabilities.GLASS -> bit or LauncherRuntimeCapabilities.GLASS_PAIR
+        LauncherRuntimeCapabilities.DOCK ->
+          bit or LauncherRuntimeCapabilities.DOCK_LAYOUT or LauncherRuntimeCapabilities.DOCK_HORIZONTAL_PADDING
+        else -> bit
+      }
       val state = runtime.copy(report = report.copy(launcherCapabilities = LauncherRuntimeCapabilities.KNOWN and removed.inv()))
       val statuses = listOf(
         desktopDockStatus(dock, state, true, now, version),
@@ -338,6 +343,21 @@ class DesktopFeatureStatusTest {
       assertEquals(DesktopSyncSummary(0, 0, false),
         desktopSyncSummary(List(3) { DesktopFeatureStatus.UNKNOWN }, capabilities))
     }
+  }
+
+  @Test fun horizontalPaddingRequiresItsOwnCapabilityAndExactAck() {
+    val choice = requireNotNull(dock.saved).copy(horizontalPaddingDeltaDp = 12)
+    val configured = dock.copy(saved = choice)
+    val oldNative = runtime.copy(report = report.copy(launcherCapabilities =
+      LauncherRuntimeCapabilities.KNOWN and LauncherRuntimeCapabilities.DOCK_HORIZONTAL_PADDING.inv()))
+    assertEquals(DesktopFeatureStatus.HORIZONTAL_PADDING_UNAVAILABLE,
+      desktopDockStatus(configured, oldNative, true, now, version))
+    assertEquals(DesktopFeatureStatus.ACCEPTED, desktopDockStatus(dock, oldNative, true, now, version))
+    assertEquals(DesktopFeatureStatus.PENDING, desktopDockStatus(configured, runtime, true, now, version))
+    assertEquals(DesktopFeatureStatus.ACCEPTED, desktopDockStatus(configured,
+      runtime.copy(report = report.copy(dockGlassCornerStyle = choice.options)), true, now, version))
+    assertFalse(desktopDockSaveSupported(choice, true, true, false))
+    assertTrue(desktopDockSaveSupported(choice.copy(horizontalPaddingDeltaDp = 0), true, true, false))
   }
 
   @Test fun missingLayoutCapabilityPreservesBasicDockControlAndSavedGeometry() {

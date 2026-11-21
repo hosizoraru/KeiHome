@@ -131,6 +131,7 @@ internal fun SettingsContent(
     R.string.dock_glass_corner_summary, R.string.dock_glass_corner_recents, R.string.dock_glass_corner_rounded,
     R.string.dock_glass_corner_pad, R.string.dock_glass_corner_concentric, R.string.dock_glass_corner_custom,
     R.string.dock_glass_padding_title, R.string.dock_glass_padding_summary,
+    R.string.dock_glass_horizontal_padding_title, R.string.dock_glass_horizontal_padding_summary,
     R.string.dock_glass_offset_title, R.string.dock_glass_offset_summary,
     R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)

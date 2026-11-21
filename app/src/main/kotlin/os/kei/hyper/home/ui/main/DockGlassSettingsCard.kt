@@ -17,6 +17,7 @@ import os.kei.hyper.home.BuildConfig
 import kotlin.math.roundToInt
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.DockGlassCornerStyle
+import os.kei.hyper.home.data.DockGlassOptions
 import os.kei.hyper.home.status.LauncherRuntimeCapabilities
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -33,7 +34,7 @@ internal val DockGlassCornerStyle.labelResource: Int get() = when (this) {
   DockGlassCornerStyle.CUSTOM -> R.string.dock_glass_corner_custom
 }
 
-private enum class DockEditedField { STYLE, CORNER, PADDING, OFFSET, RADIUS, RESET }
+private enum class DockEditedField { STYLE, CORNER, PADDING, HORIZONTAL_PADDING, OFFSET, RADIUS, RESET }
 
 @Composable
 internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Modifier) {
@@ -50,6 +51,8 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
   val version = BuildConfig.VERSION_CODE.toLong()
   val supported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK)
   val layoutSupported = desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK_LAYOUT)
+  val horizontalPaddingSupported =
+    desktopCapability(runtime, now, version, LauncherRuntimeCapabilities.DOCK_HORIZONTAL_PADDING)
   val controlsEnabled = desktopControlEnabled(inScope, state.saving, state.unavailable, state.saved != null,
     supported, scopeChecking)
   val cornerSummary = when (choice?.cornerStyle) {
@@ -105,6 +108,16 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
       },
       modifier = Modifier.testTag("dock-glass.vertical-padding"))
     DockOptionProgress(DockEditedField.PADDING, lastEdited, status)
+    DockGeometrySlider(value = choice?.horizontalPaddingDeltaDp ?: 0, range = DockGlassOptions.HORIZONTAL_PADDING_RANGE,
+      title = stringResource(R.string.dock_glass_horizontal_padding_title),
+      summary = stringResource(if (supported == true && horizontalPaddingSupported == false)
+        R.string.dock_glass_horizontal_padding_unavailable else R.string.dock_glass_horizontal_padding_summary),
+      enabled = dockControls.geometry && horizontalPaddingSupported != false, onCommit = {
+        lastEdited = DockEditedField.HORIZONTAL_PADDING
+        model.dockGlass.setHorizontalPadding(it)
+      },
+      modifier = Modifier.testTag("dock-glass.horizontal-padding"))
+    DockOptionProgress(DockEditedField.HORIZONTAL_PADDING, lastEdited, status)
     DockGeometrySlider(value = choice?.verticalOffsetDp ?: 0, range = -48..96,
       title = stringResource(R.string.dock_glass_offset_title),
       summary = stringResource(R.string.dock_glass_offset_summary),
@@ -136,7 +149,7 @@ internal fun DockGlassSettingsCard(model: HomeViewModel, modifier: Modifier = Mo
     DockOptionProgress(DockEditedField.RESET, lastEdited, status)
     if (state.failed && inScope) BasicComponent(title = stringResource(R.string.launcher_labels_retry),
       enabled = !scopeChecking && !state.saving && (state.pending?.let {
-        desktopDockSaveSupported(it, supported, layoutSupported)
+        desktopDockSaveSupported(it, supported, layoutSupported, horizontalPaddingSupported)
       } ?: true), onClick = {
         state.pending?.let(model.dockGlass::save) ?: model.readDockGlassSettings()
       })

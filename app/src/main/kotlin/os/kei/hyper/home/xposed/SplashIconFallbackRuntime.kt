@@ -29,6 +29,7 @@ internal class SplashIconFallbackRuntime(
     val context: Context,
     val initialType: Int,
     val hasSnapshot: Boolean,
+    val startingFlags: Int?,
     var attrs: Any? = null,
     var declaredIcon: Drawable? = null,
     var completedIcon: Drawable? = null,
@@ -49,6 +50,9 @@ internal class SplashIconFallbackRuntime(
     val info = Class.forName("android.window.StartingWindowInfo", false, loader)
     fun Class<*>.field(name: String) = getDeclaredField(name).apply { isAccessible = true }
     val snapshot = info.field("mQSFileDescriptor")
+    val startingFlags = runCatching {
+      info.field("startingWindowTypeParameter").takeIf { it.type == Int::class.javaPrimitiveType }
+    }.getOrNull()
     val type = builder.field("mSuggestType")
     val overlay = builder.field("mOverlayDrawable")
     val color = builder.field("mThemeColor")
@@ -67,7 +71,7 @@ internal class SplashIconFallbackRuntime(
           if (!enabled.get() && context.packageName != BuildConfig.APPLICATION_ID) null else {
             val window = chain.getArg(1)
             Request(context, chain.getArg(2) as Int,
-              snapshot.get(window) != null)
+              snapshot.get(window) != null, startingFlags?.getInt(window))
           }
         }
         val previous = current.get()
@@ -147,15 +151,25 @@ internal class SplashIconFallbackRuntime(
           val windowFlags = request.context.obtainStyledAttributes(intArrayOf(
             android.R.attr.windowIsTranslucent, android.R.attr.windowIsFloating,
             android.R.attr.windowDisablePreview))
-          val protected = try { (0..2).any { windowFlags.getBoolean(it, false) } }
-            finally { windowFlags.recycle() }
+          val protected: Boolean
+          val previewDisabled: Boolean
+          try {
+            val flags = (0..2).filter { windowFlags.getBoolean(it, false) }
+            protected = flags.any { it < 2 }
+            previewDisabled = 2 in flags
+          } finally { windowFlags.recycle() }
           val input = SplashIconFallbackPolicy.Input(
             enabled.get(), request.initialType, oldType,
             request.hasSnapshot, icon.get(values) != null, brand.get(values) != null,
             protected || ai.applicationInfo.uid / 100000 != android.os.Process.myUid() / 100000,
             windowColor != null && Color.alpha(windowColor) == 255,
             oldOverlay == null || overlayColor != null && Color.alpha(overlayColor) == 255,
-            ownPalette)
+            ownPalette,
+            previewDisabled = previewDisabled,
+            startingFlags = request.startingFlags,
+            neutralBacking = previewDisabled &&
+              windowColor?.let(SplashBackgroundPolicy::isNeutral) == true &&
+              (oldOverlay == null || overlayColor?.let(SplashBackgroundPolicy::isNeutral) == true))
           var reason = SplashIconFallbackPolicy.reason(input)
           var source = "native"
           var cache = "unused"
@@ -202,6 +216,7 @@ internal class SplashIconFallbackRuntime(
           if (diagnostics) "package=${ai.packageName} initial=${request.initialType} final=$oldType " +
             "qs=${request.hasSnapshot} overlay=${oldOverlay?.javaClass?.simpleName} " +
             "icon=${input.hasExplicitIcon} branding=${input.hasBranding} " +
+            "previewDisabled=$previewDisabled startingFlags=${request.startingFlags?.toUInt()?.toString(16)} " +
             "windowColor=$windowColor background=$oldColor reason=$reason source=$source cache=$cache ownPalette=$ownPalette " +
             "paletteSurface=${if (ownPalette) os.kei.hyper.home.data.MonetLaunchSurface.surfaceColor(paletteState, windowColor ?: oldColor) else windowColor}"
           else ""

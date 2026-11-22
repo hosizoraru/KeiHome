@@ -13,6 +13,9 @@ internal object SplashIconFallbackPolicy {
     val plainBackground: Boolean,
     val plainOverlay: Boolean,
     val ownPalette: Boolean = false,
+    val previewDisabled: Boolean = false,
+    val startingFlags: Int? = null,
+    val neutralBacking: Boolean = false,
   )
 
   fun beforeBackground(
@@ -33,9 +36,30 @@ internal object SplashIconFallbackPolicy {
     beforeBackground(input.enabled, input.initialType, input.finalType,
       input.hasSnapshot, input.hasExplicitIcon, input.hasBranding, input.ownPalette) ?: when {
       input.protectedWindow -> "protected-window"
+      input.previewDisabled && !acceptsExistingColdPreview(input) -> "disabled-preview"
       !input.plainBackground || !input.plainOverlay -> "artwork-or-transparency"
       else -> "fill"
     }
+
+  // StartingWindowInfo.TYPE_PARAMETER_* (the Shell request, not process state at build time).
+  private const val NEW_TASK = 0x1
+  private const val PROCESS_RUNNING = 0x4
+  private const val ACTIVITY_CREATED = 0x10
+  private const val USE_SOLID_COLOR = 0x20
+  private const val ACTIVITY_DRAWN = 0x40
+  private const val WINDOWLESS = 0x100
+  private const val LEGACY_SPLASH = Int.MIN_VALUE
+  private const val INELIGIBLE_PREVIEW_FLAGS = PROCESS_RUNNING or ACTIVITY_CREATED or USE_SOLID_COLOR or
+    ACTIVITY_DRAWN or WINDOWLESS or LEGACY_SPLASH
+
+  private fun acceptsExistingColdPreview(input: Input): Boolean {
+    val flags = input.startingFlags ?: return false
+    // HyperOS can create a modern splash despite windowDisablePreview. Only complete one
+    // that Shell is already building as its type-6, color-only variant.
+    // The solid-color exit-listener bit is independent of whether a solid splash was requested.
+    return input.enabled && input.initialType == 1 && input.finalType == 6 &&
+      input.neutralBacking && flags and NEW_TASK != 0 && flags and INELIGIBLE_PREVIEW_FLAGS == 0
+  }
 
   fun ownPalette(packageName: String, ownPackage: String, palette: Long): Boolean =
     packageName == ownPackage && palette ushr 48 == 1L

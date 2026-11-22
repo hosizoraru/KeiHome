@@ -9,6 +9,24 @@ the platform.
 This is separate from the earlier build-flag-only prototype documented in
 `splash-icon-fallback-prototype.md`.
 
+On HyperOS, a theme can set `windowDisablePreview` and still receive a modern
+Shell splash. The completion path may fill an existing type-6 splash from a
+normal splash request only when the request describes a new, cold task and
+the backing and overlay are opaque, flat and neutral. A missing request field
+keeps the preview-disabled exclusion. The platform's solid-color exit-listener
+capability is distinct from a request for a solid splash. No starting window
+is created, kept longer or enabled by changing the app's preview flags.
+Existing snapshot, artwork, branding, floating and translucent guards still apply.
+
+KeiHome `113000655` was verified on the Xiaomi 17 Pro running HyperOS
+`OS4.0.8.0.XBLCNXM` with Home `801030308` and WeChat 8.0.80. Two cold launches
+from the desktop logged `initial=1`, `final=6`, `previewDisabled=true`,
+`startingFlags=8b`, and `reason=fill source=applied-theme`, first rendering and
+then reusing the icon. Both recordings show the themed icon in motion and on
+the black starting surface before WeChat's own Earth artwork takes over.
+See `b0655-cold-{1,2}-wechat.mp4` and the matching logs under
+`.artifacts/research/splash-wechat-weibo-20261121/`.
+
 ## Work and resource ownership
 
 - Existing authored icons and snapshots are rejected before background resource

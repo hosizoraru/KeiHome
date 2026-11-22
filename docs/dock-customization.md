@@ -188,3 +188,39 @@ comparison covered one Phone layout with four icons.
 
 Evidence: `.artifacts/research/dock-vertical-centering-20261122/`, including
 `b0660-four-states.png`, `b0660-native-load.log` and the host test receipts.
+
+## 1.14.0 physical reboot check
+
+On November 22, 2026, the Xiaomi 17 Pro booted HyperOS
+`OS4.0.8.0.XBLCNXM` with Home `801030308` and KeiHome
+`1.14.0+gb57bce1.b0709.override` (`114000709`). The installed APK digest
+matched the signed release. Home mapped the executable segment of
+`libkeihome_hyos_lsp.so` from that APK, KeiHome reported a native desktop
+connection, and both supported Dock settings were acknowledged.
+
+The existing four-icon Dock accepted side settings of -16, 0, and +8 dp
+with app names shown and hidden. Screenshot estimates at the center of
+the glass gave widths of 1044, 1140, and 1190 px, respectively. The icons
+stayed in place as the side setting changed. At 18 and 32 dp requested
+height, the sampled icon center and glass center were within one pixel
+in both label modes. With no-word mode fully disabled at +8 dp, the
+outer icon opened Via and returned to the same Dock. The initial
+widgets-only no-word mode, 0 dp sides, and 18 dp height were restored.
+The four icon positions, active theme file digest, night mode, and
+Home, SystemUI, and system_server PIDs matched their pre-test values.
+
+The boot capture contained one shortcut enumeration rejected while
+user 0 was locked. Enumeration resumed after unlock and returned 77
+shortcuts. An older runtime status request had a negative age after boot
+and expired under the existing freshness check. The app reported ready
+when opened. No KeiHome, Home, or SystemUI crash or ANR was observed in
+the captured window. Android recorded a low-memory exit of KeiHome's
+background provider process. Separately, SystemUI logged a rejected
+`keihome_maml_palette_state` query while live palette coloring was off.
+The crash buffer also contained an early `init` SIGABRT without an
+available crash dump. The capture did not establish its cause. Pending
+icon import recovery and live Monet coloring were outside this run.
+
+Evidence: `.artifacts/research/release-1.14.0-reboot-dock-20261122/`,
+including `verification.json`, `dock-padding-comparison.png`, and
+`centering-four-states.png`.

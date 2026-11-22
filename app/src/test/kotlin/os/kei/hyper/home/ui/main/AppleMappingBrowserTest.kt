@@ -39,6 +39,18 @@ class AppleMappingBrowserTest {
     assertEquals(listOf("app.a"), browse(AppleMappingFilter.AUTOMATIC, gallery = true))
   }
 
+  @Test fun galleryViewsPartitionTheSameSearchResultsByAppOrigin() {
+    val matches = appleMappingRows(rows, "apple", AppleMappingFilter.ALL, AppleMappingSort.NAME_DESC,
+      "us", "", true, Locale.US)
+    val views = appleMappingViewRows(matches, matchedOnly = true)
+      .map { view -> view.map { it.target.packageName } }
+    assertEquals(listOf(listOf("app.z", "app.a"), listOf("app.a"), listOf("app.z")), views)
+
+    val manual = appleMappingRows(rows, "apple", AppleMappingFilter.CUSTOM, AppleMappingSort.NAME_DESC,
+      "us", "jp", true, Locale.US)
+    assertEquals(listOf(1, 0, 1), appleMappingViewRows(manual, matchedOnly = true).map { it.size })
+  }
+
   @Test fun searchFindsDestinationIdentityAndSourcePackageWithoutChangingAssignments() {
     assertEquals(listOf("app.a"), browse(query = "CLASSICAL"))
     assertEquals(listOf("app.z"), browse(query = "com.apple.Music", region = "jp"))

@@ -9,18 +9,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import java.text.NumberFormat
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationItem
+import top.yukonga.miuix.kmp.basic.Text
 
 internal enum class ApplePackTab(val section: String, val label: Int, val icon: PageActionIcon) {
   GENERATE("apple", R.string.action_label_generate, PageActionIcon.GENERATE),
@@ -41,10 +47,22 @@ internal fun ApplePackDestination(model: HomeViewModel, initialTab: ApplePackTab
   val navigation = remember(pager, scope) { TabPagerNavigation(pager, scope) }
   val loadRequested = observeApplePack(model)
   val items = tabs.map { NavigationItem(label = stringResource(it.label), icon = actionIcon(it.icon)) }
-  PackTabScaffold(model, pager, navigation, items, "icon-packs.apple") { index, backdrop, bottomInset ->
+  PackTabScaffold(model, pager, navigation, items, "icon-packs.apple", badge = { index ->
+    if (tabs[index] == ApplePackTab.MATCHED) ({ AppleMatchedNavigationBadge(model.applePacks) }) else null
+  }) { index, backdrop, bottomInset ->
     ApplePackScreen(model, tabs[index].section, onBack, onOpenSearch, loadRequested, backdrop,
       bottomBar = bottomInset, active = navigation.selectedPage == index)
   }
+}
+
+@Composable
+private fun AppleMatchedNavigationBadge(controller: ApplePackController) {
+  val state by controller.state.collectAsStateWithLifecycle()
+  if (state.previewRevision == 0) return
+  val count = remember(SnapshotIdentity(state.rows)) { state.rows.count { it.app != null } }
+  val locale = LocalConfiguration.current.locales[0]
+  val label = remember(count, locale) { NumberFormat.getIntegerInstance(locale).format(count) }
+  Badge(modifier = Modifier.testTag("apple.matched.badge")) { Text(label) }
 }
 
 @Composable

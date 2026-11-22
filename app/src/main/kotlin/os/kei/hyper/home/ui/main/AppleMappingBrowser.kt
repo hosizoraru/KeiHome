@@ -79,8 +79,11 @@ internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, 
   sort: AppleMappingSort, onSort: (AppleMappingSort) -> Unit) {
   val locale = LocalConfiguration.current.locales[0]
   val choices = AppleMappingFilter.entries.filter {
-    it !in listOf(AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED) &&
-      (!matchedOnly || it != AppleMappingFilter.EXCLUDED)
+    when (it) {
+      AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED -> false
+      AppleMappingFilter.EXCLUDED, AppleMappingFilter.SYSTEM, AppleMappingFilter.USER -> !matchedOnly
+      else -> true
+    }
   }
   val groups = DropdownEntry(items = listOf(
     DropdownItem(text = stringResource(R.string.apple_browser_filter), children = choices.map {
@@ -107,9 +110,11 @@ internal fun AppleMappingFilterMenu(filter: AppleMappingFilter, region: String, 
 }
 
 internal val appleMappingViews = listOf(AppleMappingFilter.ALL, AppleMappingFilter.MAPPED, AppleMappingFilter.UNMAPPED)
+internal val appleMatchedViews = listOf(AppleMappingFilter.ALL, AppleMappingFilter.SYSTEM, AppleMappingFilter.USER)
 
-internal fun appleMappingViewRows(rows: List<AppleMappingRow>): List<List<AppleMappingRow>> =
-  listOf(rows, rows.filter { it.app != null }, rows.filter { it.app == null })
+internal fun appleMappingViewRows(rows: List<AppleMappingRow>, matchedOnly: Boolean = false): List<List<AppleMappingRow>> =
+  if (matchedOnly) listOf(rows, rows.filter { it.target.system }, rows.filterNot { it.target.system })
+  else listOf(rows, rows.filter { it.app != null }, rows.filter { it.app == null })
 
 @Composable
 internal fun AppleMappingSortMenu(sort: AppleMappingSort, onSort: (AppleMappingSort) -> Unit) {

@@ -77,6 +77,7 @@ import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
@@ -218,11 +219,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }
   val locale = LocalConfiguration.current.locales[0]
   val savedFilter = AppleMappingFilter.entries.firstOrNull { it.name == filterName } ?: AppleMappingFilter.ALL
-  var mappingView by rememberSaveable(section) {
-    mutableIntStateOf(appleMappingViews.indexOf(savedFilter).coerceAtLeast(0))
+  val browserViews = if (matchedOnly) appleMatchedViews else appleMappingViews
+  var browserView by rememberSaveable(section) {
+    mutableIntStateOf(browserViews.indexOf(savedFilter).coerceAtLeast(0))
   }
-  val mappingFilter = savedFilter.takeUnless { it == AppleMappingFilter.MAPPED || it == AppleMappingFilter.UNMAPPED }
-    ?: AppleMappingFilter.ALL
+  val selectedBrowserView = browserView.coerceIn(browserViews.indices)
+  val mappingFilter = savedFilter.takeUnless { it in browserViews } ?: AppleMappingFilter.ALL
   val mappingSort = AppleMappingSort.entries.firstOrNull { it.name == sortName } ?: AppleMappingSort.NAME
   val browserScope = remember(rowsIdentity) { Any() }
   val browserOptions = remember(mappingFilter, mappingSort, state.options.country,
@@ -232,10 +234,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       val context = currentCoroutineContext()
       appleMappingRows(state.rows, request.query, mappingFilter, mappingSort, state.options.country,
         regionFilter, matchedOnly, Locale.forLanguageTag(locales.substringBefore(',')), now,
-        check = { context.ensureActive() }).let(::appleMappingViewRows)
+        check = { context.ensureActive() }).let { appleMappingViewRows(it, matchedOnly) }
     }
   } else null
-  val browserRows = browserResult?.value?.getOrNull(if (batchBrowser) mappingView.coerceIn(0, 2) else 0).orEmpty()
+  val browserRows = browserResult?.value?.getOrNull(selectedBrowserView).orEmpty()
   val browserRowsIdentity = SnapshotIdentity(browserRows)
   val browserLoading = browserResult?.status?.let { it.pending || it.error != null } == true
   val regions = remember(main, search, rowsIdentity, state.options.country) {
@@ -243,7 +245,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       it.app?.let { app -> app.country ?: state.options.country } ?: it.attempt?.country
     }.distinct().sorted()
   }
-  val mappedCount = remember(rowsIdentity) { state.rows.count { it.app != null } }
+  val mappedCount = remember(batchBrowser, rowsIdentity) {
+    if (batchBrowser) state.rows.count { it.app != null } else 0
+  }
   val visibleMatchEligible = remember(browserRowsIdentity, SnapshotIdentity(eligiblePackages)) {
     browserRows.filter { it.target.packageName in eligiblePackages }.mapTo(linkedSetOf()) { it.target.packageName }
   }
@@ -390,14 +394,17 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
         }, bottomContent = {
-          if (batchBrowser) os.kei.hyper.home.ui.components.Os4ViewTabs(
-            items = appleMappingViews.mapIndexed { index, view ->
-              val title = stringResource(view.label)
-              browserResult?.value?.get(index)?.size?.let { stringResource(R.string.browser_view_count, title, it) } ?: title
+          if (batchBrowser || matchedOnly) Os4ViewTabs(
+            items = browserViews.mapIndexed { index, view ->
+              val title = stringResource(
+                if (matchedOnly && view == AppleMappingFilter.USER) R.string.browser_origin_user else view.label)
+              val count = if (batchBrowser) browserResult?.value?.get(index)?.size else null
+              if (count != null) stringResource(R.string.browser_view_count, title, count) else title
             },
-            selectedIndex = mappingView.coerceIn(0, 2),
-            onSelect = { mappingView = it; browserChanged(resetSelection = true) },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).testTag("apple.mapping.views"),
+            selectedIndex = selectedBrowserView,
+            onSelect = { browserView = it; browserChanged(resetSelection = true) },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+              .testTag(if (matchedOnly) "apple.matched.views" else "apple.mapping.views"),
           )
         })
     }
@@ -575,7 +582,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               browserResult?.status?.let { LocalSearchError(it) }
             }
           }
-          item("count") {
+          if (batchBrowser) item("count") {
             Text(stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
               Modifier.padding(horizontal = 12.dp), style = MiuixTheme.textStyles.footnote2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)

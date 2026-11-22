@@ -60,8 +60,14 @@ class ApplePackNavigationTest {
     }
     fun query(value: ApplePackTab) = rule.onNode(hasTestTag("apple.browser.query") and
       hasAnyAncestor(hasTestTag("icon-packs.${value.section}")))
+    fun matchedView(label: Int) = rule.onNode(isSelectable() and hasText(context.getString(label)) and
+      hasAnyAncestor(hasTestTag("apple.matched.views")))
 
     tab(ApplePackTab.MATCHED).assertIsSelected()
+    matchedView(R.string.apple_filter_all).assertIsSelected()
+    val views = rule.onNodeWithTag("apple.matched.views").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+    assertTrue(views.bottom <= query(ApplePackTab.MATCHED).fetchSemanticsNode().boundsInRoot.top)
+    matchedView(R.string.apple_filter_system).performClick().assertIsSelected()
     query(ApplePackTab.MATCHED).performTextInput("calendar")
     tab(ApplePackTab.MAPPINGS).performClick().assertIsSelected()
     query(ApplePackTab.MAPPINGS).performTextInput("settings")
@@ -71,11 +77,17 @@ class ApplePackNavigationTest {
     assertTrue(action.bottom <= bar.top)
     tab(ApplePackTab.MATCHED).performClick().assertIsSelected()
     query(ApplePackTab.MATCHED).assertTextContains("calendar")
+    matchedView(R.string.apple_filter_system).assertIsSelected()
+    matchedView(R.string.browser_origin_user).performClick().assertIsSelected()
+    query(ApplePackTab.MATCHED).assertTextContains("calendar")
     tab(ApplePackTab.MAPPINGS).performClick().assertIsSelected()
     query(ApplePackTab.MAPPINGS).assertTextContains("settings")
     restoration.emulateSavedInstanceStateRestore()
     tab(ApplePackTab.MAPPINGS).assertIsSelected()
     query(ApplePackTab.MAPPINGS).assertTextContains("settings")
+    tab(ApplePackTab.MATCHED).performClick()
+    matchedView(R.string.browser_origin_user).assertIsSelected()
+    tab(ApplePackTab.MAPPINGS).performClick()
     rule.onNodeWithTag("apple.selection-mode").performClick()
     val toolbar = rule.onNodeWithTag("apple.selection.toolbar").assertIsDisplayed()
     val restoredBar = rule.onNodeWithTag("icon-packs.apple.tabs").fetchSemanticsNode().boundsInRoot

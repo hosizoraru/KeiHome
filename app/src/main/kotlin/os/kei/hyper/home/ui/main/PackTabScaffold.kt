@@ -30,6 +30,7 @@ internal fun PackTabScaffold(
   navigation: TabPagerNavigation,
   items: List<NavigationItem>,
   tag: String,
+  badge: (Int) -> (@Composable () -> Unit)? = { null },
   floatingActionButton: @Composable () -> Unit = {},
   overlays: @Composable () -> Unit = {},
   content: @Composable (Int, LayerBackdrop?, @Composable () -> Unit) -> Unit,
@@ -49,7 +50,7 @@ internal fun PackTabScaffold(
       KeiHomeNavigationBar(style, items, navigation.selectedPage, onSelect = { index ->
         focus.clearFocus(force = true)
         navigation.selectPage(index)
-      }, backdrop = backdrop, modifier = Modifier.testTag("$tag.tabs"))
+      }, backdrop = backdrop, modifier = Modifier.testTag("$tag.tabs"), badge = badge)
     },
   ) { insets ->
     // The stationary bottom bar samples the moving pages. Each top bar uses its own recording.

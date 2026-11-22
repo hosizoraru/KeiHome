@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,13 +41,20 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetIconRole
+import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.MonetPaletteFamily
+import os.kei.hyper.home.data.MonetPaletteSource
+import os.kei.hyper.home.data.MonetReadState
+import os.kei.hyper.home.data.MonetSchemeStyle
+import os.kei.hyper.home.data.MonochromeIconSettings
+import os.kei.hyper.home.data.WallpaperColorSnapshot
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.basic.Text
+import os.kei.hyper.home.R
 
 class GlassInteractionsUiTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()
@@ -66,6 +74,43 @@ class GlassInteractionsUiTest {
     }
     val image = compose.onNodeWithTag("recorded.tabs").captureToImage()
     assertTrue(image.width > 0 && image.height > 0)
+  }
+
+  @Test fun switchingMonetStyleDisablesApplyWithoutShowingMissingSeed() {
+    val seed = 0xff445577.toInt()
+    val emptyPalette = MonetPaletteSource("empty", MonetReadState.NOT_PROVIDED, emptyList())
+    val snapshot = MonetPaletteSnapshot(
+      source = null, style = null,
+      wallpaper = WallpaperColorSnapshot(MonetReadState.AVAILABLE, listOf(seed)),
+      launcherPalette = emptyPalette, frameworkPalette = emptyPalette,
+      monochrome = MonochromeIconSettings(enabled = true, colorArgb = null),
+    )
+    var style by mutableStateOf<MonetSchemeStyle?>(null)
+    var current by mutableStateOf<MonetPaletteSnapshot?>(snapshot)
+    val states = mutableListOf<MonetApplyUiState>()
+    compose.setContent {
+      MonetPicker(snapshot = current, readFailed = false, actionAvailable = true,
+        preferredStyle = style, familiesExpanded = true, onFamiliesExpandedChange = {},
+        iconsExpanded = true, onIconsExpandedChange = {},
+      ) { apply, _, _ -> SideEffect { states += apply } }
+    }
+    compose.waitUntil(5_000) { compose.runOnIdle { states.lastOrNull()?.enabled == true } }
+    for (target in listOf(MonetSchemeStyle.COLOROS_INSPIRATION, null)) {
+      val expectedStyle = target ?: MonetSchemeStyle.TONAL_SPOT
+      compose.runOnIdle {
+        states.clear()
+        style = target
+      }
+      compose.waitUntil(5_000) {
+        compose.runOnIdle { states.lastOrNull()?.let { it.choice.style == expectedStyle && it.enabled } == true }
+      }
+      compose.runOnIdle {
+        assertTrue(states.any { !it.enabled && it.notice == null })
+        assertTrue(states.none { it.notice == R.string.monet_seed_waiting })
+      }
+    }
+    compose.runOnIdle { current = null }
+    compose.runOnIdle { assertEquals(R.string.monet_seed_waiting, states.last().notice) }
   }
 
   @Test fun expandedMonetFamiliesAndRolesNeverOverlapAtLargeFont() {

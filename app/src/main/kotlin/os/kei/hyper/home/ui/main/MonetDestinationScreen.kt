@@ -64,7 +64,7 @@ import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-private val MonetTabs = listOf(MonetSection.OVERVIEW, MonetSection.COLORS, MonetSection.DETAILS)
+private val MonetTabs = listOf(MonetSection.OVERVIEW, MonetSection.COLORS, MonetSection.DETAILS, MonetSection.INSTALL)
 
 @Composable
 internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, onOpenPacks: () -> Unit) {
@@ -92,6 +92,7 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, on
     NavigationItem(label = stringResource(R.string.monet_tab_overview), icon = actionIcon(PageActionIcon.MONET)),
     NavigationItem(label = stringResource(R.string.monet_page_colors), icon = actionIcon(PageActionIcon.CUSTOMIZE)),
     NavigationItem(label = stringResource(R.string.monet_page_details), icon = MiuixIcons.Glass.Info),
+    NavigationItem(label = stringResource(R.string.monet_page_install), icon = actionIcon(PageActionIcon.UPDATE)),
   )
   var help by rememberSaveable { mutableStateOf(false) }
   var actionHeight by remember { mutableIntStateOf(0) }
@@ -113,10 +114,14 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, on
     ) { index, backdrop, bottomInset ->
       val section = MonetTabs[index]
       MonetTabPage(model, section, backdrop, bottomInset, actionClearance, onBack, onHelp = { help = true }) {
-        if (section == MonetSection.OVERVIEW) {
-          MonetOverview(model, monet, framework, runtime, preferences, ordinary, locked, inspiration, onOpenPacks)
+        when (section) {
+          MonetSection.OVERVIEW -> {
+            MonetOverview(model, monet, framework, ordinary, locked, inspiration)
+            renderSection(section)
+          }
+          MonetSection.INSTALL -> MonetInstall(model, framework, runtime, preferences, inspiration, onOpenPacks)
+          else -> renderSection(section)
         }
-        renderSection(section)
         RefreshFeedback(model, 2)
       }
     }
@@ -194,11 +199,7 @@ private fun MonetHelp(show: Boolean, onDismiss: () -> Unit) {
 
 @Composable
 private fun MonetOverview(model: HomeViewModel, monet: MonetUiState, framework: FrameworkUiState,
-  runtime: RuntimeStatusUiState, preferences: AppPreferencesState, ordinary: Boolean, locked: Boolean,
-  inspiration: Boolean, onOpenPacks: () -> Unit) {
-  val packs by model.iconPacks.collectAsStateWithLifecycle()
-  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
-    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
+  ordinary: Boolean, locked: Boolean, inspiration: Boolean) {
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     top.yukonga.miuix.kmp.preference.SwitchPreference(
       title = stringResource(R.string.pack_monet_toggle),
@@ -216,12 +217,23 @@ private fun MonetOverview(model: HomeViewModel, monet: MonetUiState, framework: 
       items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
       selectedIndex = if (inspiration) 1 else 0,
       onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
+  }
+}
+
+@Composable
+private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runtime: RuntimeStatusUiState,
+  preferences: AppPreferencesState, inspiration: Boolean, onOpenPacks: () -> Unit) {
+  val packs by model.iconPacks.collectAsStateWithLifecycle()
+  val ready = framework.connected && framework.snapshot?.themesInScope == true &&
+    runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
+  val editable = packs.nativeImporting == null
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
-      model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
+      model.preferences::setIconPackAppearance, editable, compact = true)
     MonetArtworkPreferences(
       enabled = preferences.monetUnadaptedIcons,
       padding = preferences.monetFullBleedIconPadding,
-      editable = packs.nativeImporting == null,
+      editable = editable,
       onEnabledChange = model.preferences::setMonetUnadaptedIcons,
       onPaddingChange = model.preferences::setMonetFullBleedIconPadding)
   }

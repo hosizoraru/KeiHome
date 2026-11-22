@@ -80,6 +80,7 @@ internal enum class MonetSection(val title: Int) {
   COLORS(R.string.monet_page_colors),
   PREVIEW(R.string.monet_page_preview),
   DETAILS(R.string.monet_page_details),
+  INSTALL(R.string.monet_page_install),
 }
 
 internal data class MonetApplyUiState(

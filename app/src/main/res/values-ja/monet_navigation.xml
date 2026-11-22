@@ -6,10 +6,11 @@
     <string name="monet_page_colors">色のカスタマイズ</string>
     <string name="monet_page_preview">アイコンのプレビュー</string>
     <string name="monet_page_details">パレットの詳細</string>
+    <string name="monet_page_install">導入と更新</string>
     <string name="monet_page_preview_summary">ライトとダークを比較してから適用</string>
     <string name="monet_draft_hint">変更は下書きに保存され、適用すると反映されます。</string>
     <string name="monet_page_help">下部のタブから色を編集し、パレットの詳細を確認できます。すべてのタブで同じ下書きを使います。適用する前に概要で明暗のアイコンを確認できます。更新はシステムの状態を読み取るだけで、下書きは適用しません。</string>
     <string name="monet_help_title">Monet の使い方</string>
     <string name="monet_help_apply_note">「配色を適用」は配色を保存し、Monet スイッチの状態を維持します。オフの間はアイコンの表示を変えず、Monet を有効にすると保存した配色を使います。画面全体で一つの適用フローティングボタンを使用します。</string>
-    <string name="monet_help_inspiration_note">アイコンの明暗や未対応アイコンの配色補完にはパックの再生成が必要です。Monet 画面で直接インスピレーションアイコンをインストールできます。配色の適用と Monet の有効化は別の操作です。</string>
+    <string name="monet_help_inspiration_note">「導入と更新」で、インポートするアイコンの明暗、未対応アイコンの配色補完、余白を調整できます。ColorOS インスピレーションのアイコンもインストールできます。アイコンの変更は、パックを再生成して適用すると反映されます。</string>
 </resources>

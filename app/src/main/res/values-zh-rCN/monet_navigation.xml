@@ -6,10 +6,11 @@
     <string name="monet_page_colors">自定义色彩</string>
     <string name="monet_page_preview">图标预览</string>
     <string name="monet_page_details">配色详情</string>
+    <string name="monet_page_install">安装更新</string>
     <string name="monet_page_preview_summary">对比浅色和深色图标后再应用</string>
     <string name="monet_draft_hint">修改会保留为草稿，点击应用后生效。</string>
-    <string name="monet_page_help">通过底栏切换到自定义色彩和配色详情，三个页签共用同一份草稿。应用前可在概览预览深浅色图标。刷新只读取当前系统状态，不会应用草稿。</string>
+    <string name="monet_page_help">通过底栏切换到自定义色彩和配色详情，切换时会保留草稿。应用前可在概览预览深浅色图标。刷新只读取当前系统状态，不会应用草稿。</string>
     <string name="monet_help_title">Monet 使用说明</string>
     <string name="monet_help_apply_note">“应用配色”会保存当前配色，不会改变 Monet 开关。关闭时图标保持原来的显示，开启后使用已保存的配色。整个界面共用一个“应用配色”悬浮按钮。</string>
-    <string name="monet_help_inspiration_note">图标明暗与未适配图标取色补全等设置需要重新生成图标包。可直接在 Monet 主页面安装灵感图标；安装图标包、应用配色和开启 Monet 是独立操作。</string>
+    <string name="monet_help_inspiration_note">在「安装更新」调整导入图标明暗、取色补全和留白，也可安装 ColorOS 灵感图标。图标改动需重新生成并应用图标包后才会生效。</string>
 </resources>

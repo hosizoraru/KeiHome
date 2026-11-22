@@ -6,10 +6,11 @@
     <string name="monet_page_colors">Custom colors</string>
     <string name="monet_page_preview">Icon preview</string>
     <string name="monet_page_details">Palette details</string>
+    <string name="monet_page_install">Install &amp; update</string>
     <string name="monet_page_preview_summary">Compare light and dark icons before applying</string>
     <string name="monet_draft_hint">Changes stay in your draft until you apply them.</string>
     <string name="monet_page_help">Use the bottom tabs to edit custom colors and inspect the palette. All tabs share the same draft. Preview both icon appearances from Overview before applying. Refresh reads the current system state without applying your draft.</string>
     <string name="monet_help_title">Monet help</string>
     <string name="monet_help_apply_note">Apply colors saves the palette without changing the Monet switch. If Monet is off, icons keep their current appearance; enabling Monet uses the saved palette. The floating Apply colors button is shared by the whole page.</string>
-    <string name="monet_help_inspiration_note">Icon appearance and coloring unthemed icons require regenerating the icon pack. Install inspiration icons directly on the Monet page; applying colors and enabling Monet are separate operations.</string>
+    <string name="monet_help_inspiration_note">Use Install &amp; update to change imported icon appearance, color unthemed icons, adjust padding, or install ColorOS Inspiration icons. Artwork changes take effect after you regenerate and apply the icon pack.</string>
 </resources>

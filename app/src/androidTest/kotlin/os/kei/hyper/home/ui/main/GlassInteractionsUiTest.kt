@@ -87,10 +87,12 @@ class GlassInteractionsUiTest {
     )
     var style by mutableStateOf<MonetSchemeStyle?>(null)
     var current by mutableStateOf<MonetPaletteSnapshot?>(snapshot)
+    var submitted by mutableStateOf<MonetCustomization?>(null)
     val states = mutableListOf<MonetApplyUiState>()
     compose.setContent {
       MonetPicker(snapshot = current, readFailed = false, actionAvailable = true,
-        preferredStyle = style, familiesExpanded = true, onFamiliesExpandedChange = {},
+        actionStatus = MonetActionStatus.APPLIED, submittedChoice = submitted, preferredStyle = style,
+        familiesExpanded = true, onFamiliesExpandedChange = {},
         iconsExpanded = true, onIconsExpandedChange = {},
       ) { apply, _, _ -> SideEffect { states += apply } }
     }
@@ -100,15 +102,20 @@ class GlassInteractionsUiTest {
       compose.runOnIdle {
         states.clear()
         style = target
+        current = snapshot.copy(customization = MonetCustomization(style = expectedStyle))
+        submitted = MonetCustomization(style = if (target == null) MonetSchemeStyle.COLOROS_INSPIRATION
+          else MonetSchemeStyle.TONAL_SPOT)
       }
       compose.waitUntil(5_000) {
         compose.runOnIdle { states.lastOrNull()?.let { it.choice.style == expectedStyle && it.enabled } == true }
       }
       compose.runOnIdle {
         assertTrue(states.any { !it.enabled && it.notice == null })
-        assertTrue(states.none { it.notice == R.string.monet_seed_waiting })
+        assertTrue(states.all { it.notice == null })
       }
     }
+    compose.runOnIdle { submitted = current?.customization }
+    compose.runOnIdle { assertEquals(R.string.monet_action_applied, states.last().notice) }
     compose.runOnIdle { current = null }
     compose.runOnIdle { assertEquals(R.string.monet_seed_waiting, states.last().notice) }
   }

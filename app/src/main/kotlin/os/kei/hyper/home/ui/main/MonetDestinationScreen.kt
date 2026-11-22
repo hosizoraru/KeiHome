@@ -220,7 +220,8 @@ private fun MonetOverview(model: HomeViewModel, monet: MonetUiState, framework: 
       title = stringResource(R.string.pack_monet_design),
       items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
       selectedIndex = if (inspiration) 1 else 0,
-      onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
+      enabled = monet.action != MonetActionStatus.APPLYING,
+      onSelectedIndexChange = { model.selectMonetDesign(it == 1) })
   }
 }
 

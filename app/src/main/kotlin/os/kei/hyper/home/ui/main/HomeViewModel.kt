@@ -1266,6 +1266,14 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     submitMonet(choice, preserveEnabled = true)
   }
 
+  fun selectMonetDesign(inspiration: Boolean) {
+    monet.update {
+      if (it.action == MonetActionStatus.APPLIED) it.copy(action = MonetActionStatus.IDLE, submittedChoice = null)
+      else it
+    }
+    preferences.setMonetInspiration(inspiration)
+  }
+
   fun setMonetEnabled(enabled: Boolean) {
     if (enabled && colorOsPaletteUnavailable()) return
     val choice = monet.value.snapshot?.customization ?: MonetCustomization()

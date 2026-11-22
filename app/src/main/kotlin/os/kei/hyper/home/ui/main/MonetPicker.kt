@@ -187,7 +187,7 @@ internal fun MonetPicker(
     !actionAvailable || actionStatus == MonetActionStatus.UNAVAILABLE -> R.string.monet_action_unavailable
     palette == null -> null
     !legible -> R.string.monet_custom_low_contrast
-    actionStatus == MonetActionStatus.APPLIED && choice == snapshot?.customization ->
+    actionStatus == MonetActionStatus.APPLIED && choice == submittedChoice && choice == snapshot?.customization ->
       if (snapshot?.monochrome?.enabled == true) R.string.monet_action_applied else R.string.monet_action_saved_off
     else -> null
   }

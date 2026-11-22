@@ -344,6 +344,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         .combine(iconMasks.state.map { it.custom?.digest }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(preferences.state.map { it.monetUnadaptedIcons to
           it.monetFullBleedIconPadding }.distinctUntilChanged()) { _, _ -> Unit }
+        .combine(preferences.state.map { it.extraIconPackages }.distinctUntilChanged()) { _, _ -> Unit }
         .combine(os.kei.hyper.home.iconpack.CustomIconStore.revision) { _, _ -> Unit }.collectLatest {
         val needed = try { withContext(Dispatchers.IO) {
           val source = browserSource.value ?: return@withContext false
@@ -383,7 +384,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             preservedPackages = selected.preservedIconPackages, recommendedMappings = mappings,
             customizedPackages = custom.packages, customIconIdentity = custom.identity,
             monetUnadaptedIcons = selected.monetUnadaptedIcons,
-            monetFullBleedIconPadding = selected.monetFullBleedIconPadding) {
+            monetFullBleedIconPadding = selected.monetFullBleedIconPadding,
+            extraIconPackages = selected.extraIconPackages) {
             exporter.canComplete(pack, it, fallback, nameMatching, nameMatcher, colorOsFallback, mappings) { caller.ensureActive() }
           }
         } } catch (cancelled: CancellationException) { throw cancelled
@@ -801,7 +803,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         caller.ensureActive()
         if (generation == nativeImportGeneration) iconPacks.update {
           it.copy(preparing = false, generationProgress = IconPackOperationProgress(
-            IconPackOperation.SYSTEM_IMPORT, IconPackStep.SYSTEM_IMPORT, 94))
+            IconPackOperation.SYSTEM_IMPORT, IconPackStep.SYSTEM_IMPORT, 94),
+            extraIconPreparation = handoff.token to selected.extraIconPackages)
         }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
           preparedPalette = if (pack.builtinKey != null) includePalette else null)

@@ -7,6 +7,18 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
+  @Test fun extraDarkChoiceRequiresApplyInBothDirections() {
+    val chosen = setOf(ExtraIcon.SCENE.packageName)
+    val applied = source.copy(generation = IconGenerationManifest(
+      schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
+      considered = setOf(target.flattened), extraIconPackages = chosen))
+    assertTrue(iconPackNeedsUpdate(pack, source, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), extraIconPackages = chosen))
+    assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
+      emptySet(), extraIconPackages = chosen))
+    assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet()))
+  }
+
   @Test fun fullBleedPaddingRequiresRegenerationIndependentlyOfGenericColoring() {
     fun applied(generic: Boolean, inset: Boolean) = source.copy(generation =
       IconGenerationManifest(schemaVersion = 15, considered = setOf(target.flattened),

@@ -5,6 +5,24 @@ import org.junit.Test
 import os.kei.hyper.home.data.RecommendedIconMappings
 
 class IconGenerationManifestTest {
+  @Test fun extraIconsRoundTripAndDefaultToDisabledOnExistingPacks() {
+    val previous = IconGenerationManifest(schemaVersion = 16)
+    assertTrue(IconGenerationManifest.decode(previous.encode()).extraIconPackages.isEmpty())
+    val selected = setOf(ExtraIcon.SCENE.packageName, ExtraIcon.MT.packageName)
+    val current = previous.copy(schemaVersion = IconGenerationManifest.CURRENT_SCHEMA, extraIconPackages = selected)
+    assertEquals(current, IconGenerationManifest.decode(current.encode()))
+    assertThrows(IllegalArgumentException::class.java) { previous.copy(extraIconPackages = selected).encode() }
+    assertThrows(IllegalArgumentException::class.java) {
+      IconGenerationManifest.decode(current.encode() + "extra\tbin.mt.plus\n".toByteArray())
+    }
+  }
+
+  @Test fun sceneExtraDoesNotReplaceTheAppFreezerIcon() {
+    assertTrue(ExtraIcon.SCENE.accepts(IconPackComponent(ExtraIcon.SCENE.packageName, ExtraIcon.SCENE.activity)))
+    assertFalse(ExtraIcon.SCENE.accepts(IconPackComponent(
+      ExtraIcon.SCENE.packageName, "com.omarea.vtools.activities.ActivityFreezeApps")))
+  }
+
   @Test fun schemaThirteenPreservesColorOsGeometryProvenance() {
     val value = IconGenerationManifest(schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
       colorOsPackages = setOf("com.android.settings"))

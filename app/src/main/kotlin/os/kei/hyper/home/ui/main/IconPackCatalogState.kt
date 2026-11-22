@@ -49,6 +49,7 @@ internal data class IconPacksUiState(
   val nativeAssociations: Map<String, String> = emptyMap(),
   val nativeSources: Map<String, String> = emptyMap(),
   val nativeResult: os.kei.hyper.home.status.NativeIconImportReport? = null,
+  val extraIconPreparation: Pair<String, Set<String>>? = null,
 )
 
 internal enum class IconPackCatalogStatus { ALL, CURRENT, OTHER }

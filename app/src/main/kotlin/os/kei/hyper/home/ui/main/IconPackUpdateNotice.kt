@@ -27,10 +27,12 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   customIconIdentity: String? = null,
   monetUnadaptedIcons: Boolean = false,
   monetFullBleedIconPadding: Boolean = false,
+  extraIconPackages: Set<String> = emptySet(),
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
   if ((source.generation?.recommendedMappings ?: RecommendedIconMappings()) != recommendedMappings) return true
   if (source.generation?.customIconIdentity != customIconIdentity) return true
+  if (source.generation?.extraIconPackages.orEmpty() != extraIconPackages) return true
   if ((source.generation?.monetUnadaptedIcons ?: false) != monetUnadaptedIcons) return true
   if ((source.generation?.monetFullBleedIconPadding ?: false) !=
     monetFullBleedIconPadding) return true

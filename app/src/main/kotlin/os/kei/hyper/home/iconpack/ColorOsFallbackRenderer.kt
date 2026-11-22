@@ -93,6 +93,21 @@ internal class ColorOsFallbackRenderer(
     check: () -> Unit = {},
   ): Bitmap? = load(target, dark, sizePx, mask, false, check)
 
+  fun renderExtra(
+    icon: ExtraIcon, target: IconPackComponent, sizePx: Int,
+    mask: NativeAdaptiveIconMask? = null, check: () -> Unit = {},
+  ): Bitmap? {
+    if (!icon.accepts(target)) return null
+    val resolved = target.copy(className = target.className ?: icon.activity)
+    val flat = load(resolved, false, sizePx, null, false, check, extra = icon) ?: return null
+    return try {
+      IconMaskPolicy.clip(flat, mask).also { if (it !== flat) flat.recycle() }
+    } catch (failure: Throwable) {
+      flat.recycle()
+      throw failure
+    }
+  }
+
   /** Only the original AdaptiveIconDrawable.monochrome; never a synthesized color silhouette. */
   fun monochrome(
     target: IconPackComponent, dark: Boolean, sizePx: Int, mask: Bitmap? = null,
@@ -110,7 +125,7 @@ internal class ColorOsFallbackRenderer(
 
   private fun load(
     target: IconPackComponent, dark: Boolean, sizePx: Int, mask: Bitmap?,
-    monochrome: Boolean, check: () -> Unit, dimAtNight: Boolean = true,
+    monochrome: Boolean, check: () -> Unit, dimAtNight: Boolean = true, extra: ExtraIcon? = null,
   ): Bitmap? {
     require(sizePx in 1..512)
     check()
@@ -133,6 +148,7 @@ internal class ColorOsFallbackRenderer(
       val drawable = resources.getDrawable(id, null).mutate().apply {
         layoutDirection = configuration.layoutDirection
       }
+      if (extra != null) return renderExtraLayer(drawable, extra, sizePx, check)
       return rasterize(drawable, dimAtNight && dark && style == "classic", sizePx, mask,
         resources.displayMetrics.density, monochrome, check)
     } catch (cancelled: CancellationException) {
@@ -149,6 +165,29 @@ internal class ColorOsFallbackRenderer(
     check()
     onSkip(target, reason)
     return null
+  }
+
+  private fun renderExtraLayer(
+    drawable: Drawable, icon: ExtraIcon, size: Int, check: () -> Unit,
+  ): Bitmap? {
+    val foreground = (drawable as? AdaptiveIconDrawable)?.foreground ?: return null
+    visit(foreground, check) {
+      if (it is Animatable) throw Unavailable(SkipReason.ANIMATED_DRAWABLE)
+    }
+    val output = createBitmap(size, size)
+    try {
+      val canvas = Canvas(output)
+      canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint().apply {
+        shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(),
+          icon.top, icon.bottom, android.graphics.Shader.TileMode.CLAMP)
+      })
+      icon.tint?.let { foreground.setTint(it) }
+      drawLayer(canvas, foreground, adaptiveBounds(size), false, check)
+      return output
+    } catch (failure: Throwable) {
+      output.recycle()
+      throw failure
+    }
   }
 
   private fun activity(target: IconPackComponent, pm: PackageManager): ActivityInfo {

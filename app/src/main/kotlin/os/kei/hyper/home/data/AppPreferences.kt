@@ -6,6 +6,8 @@ import com.tencent.mmkv.MMKV
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import os.kei.hyper.home.iconpack.ExtraIcon
+import os.kei.hyper.home.iconpack.ExtraIcons
 
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
@@ -57,6 +59,7 @@ internal data class AppPreferencesState(
   val openCurrentIconPack: Boolean = true,
   val installedIconsOnly: Boolean = false,
   val preservedIconPackages: Set<String> = emptySet(),
+  val extraIconPackages: Set<String> = emptySet(),
   val rememberMenuSelections: Boolean = true,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
@@ -115,6 +118,7 @@ internal class AppPreferences internal constructor(
     openCurrentIconPack = preferences.getBoolean("open_current_icon_pack", true),
     installedIconsOnly = preferences.getBoolean("installed_icons_only", false),
     preservedIconPackages = PreservedIcons.read(preferences),
+    extraIconPackages = ExtraIcons.read(preferences),
     rememberMenuSelections = preferences.getBoolean("remember_menus", true),
     pagerGesture = AppPagerGesture.entries.firstOrNull { it.name == preferences.getString("pager_gesture", null) }
       // MIUIX retired TapToHalt; migrate its persisted IOS_LIKE value to CrossAxis.
@@ -239,6 +243,13 @@ internal class AppPreferences internal constructor(
     val packages = PreservedIcons.normalize(value)
     preferences.edit().putStringSet(PreservedIcons.KEY, packages.toMutableSet()).apply()
     state.update { it.copy(preservedIconPackages = packages) }
+  }
+
+  fun setExtraIconEnabled(icon: ExtraIcon, enabled: Boolean) {
+    val current = state.value.extraIconPackages
+    val updated = if (enabled) current + icon.packageName else current - icon.packageName
+    preferences.edit().putStringSet(ExtraIcons.KEY, updated).apply()
+    state.update { it.copy(extraIconPackages = updated) }
   }
 
   fun setRememberMenuSelections(value: Boolean) {

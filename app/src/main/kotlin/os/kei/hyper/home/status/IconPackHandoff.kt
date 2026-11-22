@@ -37,6 +37,7 @@ import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
 import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
 import os.kei.hyper.home.iconpack.ColorOsGenerationProgress
 import os.kei.hyper.home.iconpack.ColorOsGenerationStage
+import os.kei.hyper.home.iconpack.ExtraIcons
 import os.kei.hyper.home.iconpack.SystemIconFallbackManifest
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconThemeMetadata
@@ -93,6 +94,10 @@ internal object IconPackHandoffs {
     val preserved = withContext(Dispatchers.IO) {
       if (applyCustomIcons) os.kei.hyper.home.data.PreservedIcons.snapshot(context) - custom.packages else emptySet()
     }
+    val extraIcons = withContext(Dispatchers.IO) {
+      if (applyCustomIcons) ExtraIcons.snapshot(context) else emptySet()
+    }
+    val effectiveExtraIcons = extraIcons - preserved - custom.packages
     val exportTargets = targets.filterNot { it.packageName in preserved }
     val sourceAppearance = when (pack.format) {
       IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS -> IconPackAppearance.SYSTEM
@@ -231,6 +236,7 @@ internal object IconPackHandoffs {
           preservedIconPackages = preserved,
           recommendedMappings = mappings,
           schemaVersion = IconGenerationManifest.CURRENT_SCHEMA,
+          extraIconPackages = extraIcons,
           customIconIdentity = custom.identity,
           monetUnadaptedIcons = monetUnadaptedIcons,
           monetFullBleedIconPadding = monetFullBleedIconPadding,
@@ -299,7 +305,9 @@ internal object IconPackHandoffs {
               onProgress = { done, total -> monetProgress(done, total, "") },
               onWriteProgress = { done, total -> monetWriteProgress(done, total, "") }
             ) { caller.ensureActive() }) genericMonet else shapedSource
-          val publishedIcons = if (custom.selections.isNotEmpty()) {
+          val replaceExtraIcons = if (!light.preservesNativeResources && sourceAppearance == IconPackAppearance.LIGHT)
+            emptySet() else effectiveExtraIcons
+          val publishedIcons = if (replaceExtraIcons.isNotEmpty() || custom.selections.isNotEmpty()) {
             onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.CUSTOM_ICONS))
             val exclusions = PreservedIconResources.fromInstalled(context, custom.packages, targets) { caller.ensureActive() }
             val replacements = linkedMapOf<String, ByteArray>()
@@ -310,6 +318,8 @@ internal object IconPackHandoffs {
               replacements.putAll(os.kei.hyper.home.iconpack.CustomIconResources.retarget(resources, names))
             }
             ZipFile(maskedSource).use { source ->
+              replacements.putAll(PublishedExtraIcons.replacements(context, source, targets,
+                replaceExtraIcons) { caller.ensureActive() })
               source.getEntry(SystemIconFallbackManifest.PATH)?.let { entry ->
                 val provenance = source.getInputStream(entry).use { SystemIconFallbackManifest.decode(it.readBytes()) }
                 replacements[SystemIconFallbackManifest.PATH] = provenance.copy(

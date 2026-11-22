@@ -18,6 +18,7 @@ internal data class IconGenerationManifest(
   val customIconIdentity: String? = null,
   val monetUnadaptedIcons: Boolean = false,
   val monetFullBleedIconPadding: Boolean = false,
+  val extraIconPackages: Set<String> = emptySet(),
 ) {
   fun encode(): ByteArray {
     require(schemaVersion in 1..CURRENT_SCHEMA && (schemaVersion != 1 || !installedOnly) &&
@@ -34,6 +35,8 @@ internal data class IconGenerationManifest(
     require(customIconIdentity == null || schemaVersion >= 10 && customIconIdentity.matches(Regex("[0-9a-f]{64}")))
     require(schemaVersion >= 11 || !monetUnadaptedIcons)
     require(!monetFullBleedIconPadding || schemaVersion >= 15)
+    require((schemaVersion >= 17 || extraIconPackages.isEmpty()) &&
+      extraIconPackages == ExtraIcons.normalize(extraIconPackages))
     return (listOf("KeiHomeIconGeneration$schemaVersion") +
     listOfNotNull(customIconIdentity?.let { "custom\t$it" }) +
     (if (schemaVersion >= 11) listOf("monet-fallback\t${if (monetUnadaptedIcons) "on" else "off"}") else emptyList()) +
@@ -45,14 +48,15 @@ internal data class IconGenerationManifest(
     colorOsPackages.sorted().map { "coloros\t$it" } + considered.sorted().map { "target\t$it" } +
     nativeAdaptations.toSortedMap().map { (key, value) -> "native\t$key\t$value" } +
     activeLauncherTargets.sorted().map { "active\t$it" } +
-    preservedIconPackages.sorted().map { "preserve\t$it" })
+    preservedIconPackages.sorted().map { "preserve\t$it" } +
+    extraIconPackages.sorted().map { "extra\t$it" })
     .also { require(it.size < maxLines(schemaVersion)) }
     .joinToString("\n", postfix = "\n").toByteArray(Charsets.UTF_8)
     .also { require(it.size <= MAX_BYTES) }
   }
 
   companion object {
-    const val CURRENT_SCHEMA = 16
+    const val CURRENT_SCHEMA = 17
     const val PATH = "keihome-icon-generation.txt"
     const val MAX_BYTES = 2 * 1024 * 1024
     fun decode(bytes: ByteArray): IconGenerationManifest {
@@ -75,12 +79,14 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration14" -> 14
         "KeiHomeIconGeneration15" -> 15
         "KeiHomeIconGeneration16" -> 16
+        "KeiHomeIconGeneration17" -> 17
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
       val packages = linkedSetOf<String>(); val targets = linkedSetOf<String>(); val native = linkedMapOf<String, String>()
       val active = linkedSetOf<String>()
       val preserved = linkedSetOf<String>()
+      val extra = linkedSetOf<String>()
       var scope: String? = null
       var shape: String? = null
       var mask: String? = null
@@ -129,6 +135,8 @@ internal data class IconGenerationManifest(
           "preserve" -> require(schema >= 7 && row.size == 2 &&
             os.kei.hyper.home.data.PreservedIcons.isValidPackageName(row[1]) &&
             preserved.size < 4096 && preserved.add(row[1]))
+          "extra" -> require(schema >= 17 && row.size == 2 &&
+            ExtraIcon.entries.any { it.packageName == row[1] } && extra.add(row[1]))
           else -> error("Unknown generation decision")
         }
       }
@@ -140,12 +148,13 @@ internal data class IconGenerationManifest(
       require(schema < 15 || monetInset != null)
       return IconGenerationManifest(packages, targets, native, scope == "installed", schema, shape == "complete",
         mask ?: if (shape == "complete") IconMaskPolicy.DEFAULT_IDENTITY else "original", active, preserved,
-        mappings ?: RecommendedIconMappings.LEGACY, custom, monetFallback == true, monetInset == true).also {
+        mappings ?: RecommendedIconMappings.LEGACY, custom, monetFallback == true, monetInset == true, extra).also {
         require(it.encode().contentEquals(bytes)) { "Noncanonical generation decisions" }
       }
     }
     // Active components can add one row per previously considered target.
-    private fun maxLines(schema: Int) = if (schema >= 15) 60013 else if (schema >= 10) 60012 else if (schema >= 6) 60005 else 30005
+    private fun maxLines(schema: Int) = if (schema >= 17) 60013 + ExtraIcon.entries.size
+      else if (schema >= 15) 60013 else if (schema >= 10) 60012 else if (schema >= 6) 60005 else 30005
     private fun validActiveTarget(value: String): Boolean {
       val component = IconPackComponent.parse(value) ?: return false
       return component.className != null && component.flattened == value

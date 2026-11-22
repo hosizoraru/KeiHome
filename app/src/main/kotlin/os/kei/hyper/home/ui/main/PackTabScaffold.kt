@@ -30,6 +30,8 @@ internal fun PackTabScaffold(
   navigation: TabPagerNavigation,
   items: List<NavigationItem>,
   tag: String,
+  floatingActionButton: @Composable () -> Unit = {},
+  overlays: @Composable () -> Unit = {},
   content: @Composable (Int, LayerBackdrop?, @Composable () -> Unit) -> Unit,
 ) {
   val savedTabs = rememberSaveableStateHolder()
@@ -42,6 +44,7 @@ internal fun PackTabScaffold(
   val style by styleFlow.collectAsStateWithLifecycle(initialValue = initialStyle)
   KeiHomeScaffold(
     modifier = Modifier.imePadding().testTag("$tag.destination"), backdrop = backdrop,
+    floatingActionButton = floatingActionButton,
     bottomBar = {
       KeiHomeNavigationBar(style, items, navigation.selectedPage, onSelect = { index ->
         focus.clearFocus(force = true)
@@ -59,5 +62,6 @@ internal fun PackTabScaffold(
         }
       }
     }
+    overlays()
   }
 }

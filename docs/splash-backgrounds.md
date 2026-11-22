@@ -4,6 +4,48 @@ This feature changes eligible system-owned starting surfaces. It does not change
 an application's content window, advertisements, first-frame timing, task
 snapshot lifecycle or exit animation.
 
+## App-owned logo pages
+
+On the Xiaomi 17 Pro running HyperOS `OS4.0.8.0.XBLCNXM`, Weibo International
+7.0.2 (`com.weico.international`, code `7020`) draws two distinct surfaces:
+
+- Shell builds an eligible color-only starting window. In the recorded cold start,
+  its background changed from `#F8F8F8` to `#090909`, and the standard missing-icon
+  path supplied the original APK icon.
+- The launcher alias resolves to `LogoActivity`, which inflates `activity_splash`
+  and displays its own wordmark. Its `LogoBackground` theme uses `color/logo_bg`
+  (`#F8F8F8`) without a night override. Shell removes its window on first draw;
+  the light branded page in the recording is the app window after that handoff.
+
+The exact HyperOS packages show another path, separate from Shell's adaptation.
+`ForceDarkUiModeModeManager` supplies app-wide eligibility and configuration
+from `ForceDarkAppConfigProvider`. The app-side
+`ForceDarkHelperStubImpl.updateForceDarkMode` enables Force Dark on its renderer
+using those prerequisites. Activity and view rules refine an already-enabled
+renderer; they do not identify a standalone splash frame automatically.
+An activity name or launch timestamp also cannot distinguish a plain wordmark
+from consent, an advertisement, or later content on the same activity.
+`ActivityRecord.updateColorTransform` targets the whole activity surface, not a
+background within the submitted buffer. Neither path was promoted to a generic
+KeiHome feature.
+
+An app-scope prototype identified the passive layout and attempted to adjust
+only its background and wordmark contrast before drawing. It was compiled but
+not visually accepted; it is not part of the product. Do not expand static scope,
+apply app-wide inversion, or prolong an opaque overlay for this experiment.
+For an unscoped implementation, require proof that the candidate owns only the
+logo surface from its first frame through dismissal. Compare system light and
+dark captures, including app-designated dark mode, and verify no conversion of
+ads, privacy prompts, or the destination UI. An optional experimental control
+would need to disclose possible changes to logo colors and contrast.
+
+Evidence: `.artifacts/research/splash-wechat-weibo-20261121/`
+(`settled-before-lite.mp4`, `settled-before-lite-log.txt`, `LogoActivity.smali`,
+`ForceDarkHelperStubImpl.smali`, `ForceDarkUiModeModeManager.smali`, and
+`scoped-experiment.patch`). The installed `113000655` candidate has the original
+static scope list. Its `b0655-restored-lite.mp4` and matching logs confirm the
+dark system splash still hands off to the unchanged light app page.
+
 ## Exact source and target
 
 | Input | Live path | SHA-256 |

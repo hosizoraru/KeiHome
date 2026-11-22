@@ -60,15 +60,21 @@ class ApplePackNavigationTest {
     }
     fun query(value: ApplePackTab) = rule.onNode(hasTestTag("apple.browser.query") and
       hasAnyAncestor(hasTestTag("icon-packs.${value.section}")))
-    fun matchedView(label: Int) = rule.onNode(isSelectable() and hasText(context.getString(label)) and
-      hasAnyAncestor(hasTestTag("apple.matched.views")))
+    val matchedTabs = isSelectable() and hasAnyAncestor(hasTestTag("apple.matched.views"))
+    fun matchedView(label: Int) = rule.onNode(matchedTabs and hasText(context.getString(label), substring = true))
+    val emptyQuery = "keihome-no-matched-fixture-498d3"
 
     tab(ApplePackTab.MATCHED).assertIsSelected()
     matchedView(R.string.apple_filter_all).assertIsSelected()
     val views = rule.onNodeWithTag("apple.matched.views").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
     assertTrue(views.bottom <= query(ApplePackTab.MATCHED).fetchSemanticsNode().boundsInRoot.top)
     matchedView(R.string.apple_filter_system).performClick().assertIsSelected()
-    query(ApplePackTab.MATCHED).performTextInput("calendar")
+    query(ApplePackTab.MATCHED).performTextInput(emptyQuery)
+    val zeroCounts = listOf(R.string.apple_filter_all, R.string.apple_filter_system, R.string.browser_origin_user)
+      .map { context.getString(R.string.browser_view_count, context.getString(it), 0) }
+    rule.waitUntil(timeoutMillis = 5_000) {
+      zeroCounts.all { rule.onAllNodes(matchedTabs and hasText(it)).fetchSemanticsNodes().size == 1 }
+    }
     tab(ApplePackTab.MAPPINGS).performClick().assertIsSelected()
     query(ApplePackTab.MAPPINGS).performTextInput("settings")
     tab(ApplePackTab.GENERATE).performClick().assertIsSelected()
@@ -76,10 +82,10 @@ class ApplePackNavigationTest {
     val action = rule.onNodeWithTag("apple.action").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
     assertTrue(action.bottom <= bar.top)
     tab(ApplePackTab.MATCHED).performClick().assertIsSelected()
-    query(ApplePackTab.MATCHED).assertTextContains("calendar")
+    query(ApplePackTab.MATCHED).assertTextContains(emptyQuery)
     matchedView(R.string.apple_filter_system).assertIsSelected()
     matchedView(R.string.browser_origin_user).performClick().assertIsSelected()
-    query(ApplePackTab.MATCHED).assertTextContains("calendar")
+    query(ApplePackTab.MATCHED).assertTextContains(emptyQuery)
     tab(ApplePackTab.MAPPINGS).performClick().assertIsSelected()
     query(ApplePackTab.MAPPINGS).assertTextContains("settings")
     restoration.emulateSavedInstanceStateRestore()

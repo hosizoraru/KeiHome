@@ -398,7 +398,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             items = browserViews.mapIndexed { index, view ->
               val title = stringResource(
                 if (matchedOnly && view == AppleMappingFilter.USER) R.string.browser_origin_user else view.label)
-              val count = if (batchBrowser) browserResult?.value?.get(index)?.size else null
+              val count = browserResult?.value?.get(index)?.size
               if (count != null) stringResource(R.string.browser_view_count, title, count) else title
             },
             selectedIndex = selectedBrowserView,

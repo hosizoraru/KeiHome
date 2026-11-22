@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -69,6 +70,7 @@ fun Os4InfoPopup(
   contentDescription: String = stringResource(R.string.info_os4_show, title),
   enabled: Boolean = true,
   backdrop: Backdrop? = LocalKeiHomeBackdrop.current,
+  icon: ImageVector = MiuixIcons.Glass.Info,
 ) {
   var expanded by remember { mutableStateOf(false) }
   val mounted = remember { mutableStateOf(false) }
@@ -133,7 +135,7 @@ fun Os4InfoPopup(
           stateDescription = expandedDescription
         }),
     ) {
-      Icon(MiuixIcons.Glass.Info, null,
+      Icon(icon, null,
         Modifier.size(24.dp).glassPopupAnchorContent(anchor), tint = iconColor)
     }
   }
@@ -167,7 +169,7 @@ fun Os4InfoPopup(
             visuals = visuals,
             contentPadding = PaddingValues(20.dp),
             anchorContent = {
-              Icon(MiuixIcons.Glass.Info, null, Modifier.size(24.dp), tint = iconColor)
+              Icon(icon, null, Modifier.size(24.dp), tint = iconColor)
             },
           ) {
             // Native content leaves composition only after the transform finishes closing.

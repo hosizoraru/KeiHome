@@ -35,6 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4InfoPopup
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
@@ -49,6 +50,7 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -106,6 +108,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
   )
   val fallback = section == "fallback"
   val fallbackSettings = section == "fallback-settings"
+  val extraIcons = section == "extra-icons"
   val fileImport = section == "installed" || section == "imported"
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottomPadding = maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
@@ -141,6 +144,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           "imported" -> R.string.pack_imported
           "fallback" -> R.string.pack_completion_title
           "fallback-settings" -> R.string.icon_fallback_title
+          "extra-icons" -> R.string.extra_icons_title
           else -> R.string.pack_coloros_title
         }), scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
@@ -152,6 +156,11 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
                 notes = packListGuidance(prefs.iconPackAppearance) +
                   if (section == "installed") listOf(stringResource(R.string.icon_pack_apk_file_guidance)) else emptyList(),
                 page = if (section == "installed") PackGuidancePage.INSTALLED else PackGuidancePage.IMPORTED)
+              "extra-icons" -> Os4InfoPopup(
+                title = stringResource(R.string.pack_guidance_title),
+                summary = stringResource(R.string.extra_icons_instructions),
+                modifier = Modifier.testTag("extra-icons.help"),
+                icon = MiuixIcons.Glass.UsageHelp)
               "coloros" -> PackHelpAction(colorOsPackGuidance(prefs.autoApplyIconPack), PackGuidancePage.COLOROS)
             }
             if (section == "installed" || section == "imported") {
@@ -170,7 +179,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() +
-          if (contentSection == "coloros" || fallback || fallbackSettings || fileImport) actionBottomPadding else 24.dp)
+          if (contentSection == "coloros" || fallback || fallbackSettings || extraIcons || fileImport)
+            actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
       if (builtin) {
         Column(contentModifier.padding(top = insets.calculateTopPadding() + 4.dp)) {
@@ -181,6 +191,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               bottom = padding.calculateBottomPadding()),
             Modifier.fillMaxWidth().weight(1f), contentSection, onNavigate)
         }
+      } else if (extraIcons) {
+        ExtraIconsPage(model, contentModifier, padding)
       } else if (fallbackSettings) {
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -207,6 +219,12 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null) },
               modifier = Modifier.testTag("icon-packs.open-recommended-mappings"),
               onClick = { onNavigate("recommended-mappings") })
+            BasicComponent(title = stringResource(R.string.extra_icons_title),
+              summary = stringResource(R.string.extra_icons_entry),
+              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), null) },
+              endActions = { Icon(actionIcon(PageActionIcon.OPEN_INTERNAL), null) },
+              modifier = Modifier.testTag("icon-packs.open-extra-icons"),
+              onClick = { onNavigate("extra-icons") })
           }
           IconFallbackSettingsEntry(onNavigate)
           IconPackRefreshFeedback(model)

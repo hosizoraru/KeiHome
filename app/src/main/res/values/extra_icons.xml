@@ -1,0 +1,13 @@
+<resources>
+    <string name="extra_icons_title">KeiHome extra icons</string>
+    <string name="extra_icons_entry">Compare and enable dark icons for selected apps.</string>
+    <string name="extra_icons_instructions">Compare the current pack and KeiHome dark icons in each row. Enable the ones you want, then update and apply the icon pack. The Always light import setting, pinned icons, preserved originals, and authored live icons take priority.</string>
+    <string name="extra_icons_mt">MT Manager</string>
+    <string name="extra_icons_enable">Use KeiHome dark icon for %1$s</string>
+    <string name="extra_icons_override">A custom icon or preserved original takes priority</string>
+    <string name="extra_icons_keihome">KeiHome</string>
+    <string name="extra_icons_dark_preview">Dark appearance</string>
+    <string name="extra_icons_current">Current icon pack</string>
+    <string name="extra_icons_loading">Loading %1$s</string>
+    <string name="extra_icons_unavailable">%1$s preview unavailable</string>
+</resources>

@@ -1,0 +1,13 @@
+<resources>
+    <string name="extra_icons_title">KeiHome 额外补全</string>
+    <string name="extra_icons_entry">对比并选择要启用的应用深色图标。</string>
+    <string name="extra_icons_instructions">每行对比当前图标包和 KeiHome 补全的深色图标。按需开启，随后更新并应用图标包。导入时选择的「始终浅色」、已固定或保留的图标，以及图标包自带的动态效果优先。</string>
+    <string name="extra_icons_mt">MT 管理器</string>
+    <string name="extra_icons_enable">为 %1$s 使用 KeiHome 深色图标</string>
+    <string name="extra_icons_override">优先使用已固定或保留的图标</string>
+    <string name="extra_icons_keihome">KeiHome</string>
+    <string name="extra_icons_dark_preview">深色外观</string>
+    <string name="extra_icons_current">当前图标包</string>
+    <string name="extra_icons_loading">正在加载 %1$s</string>
+    <string name="extra_icons_unavailable">%1$s暂无预览</string>
+</resources>

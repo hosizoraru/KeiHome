@@ -1,0 +1,185 @@
+package os.kei.hyper.home.ui.main
+
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import os.kei.hyper.home.R
+import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
+import os.kei.hyper.home.iconpack.ExtraIcon
+import os.kei.hyper.home.iconpack.IconMaskPolicy
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+@Composable
+internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: PaddingValues) {
+  val prefs by model.preferences.state.collectAsStateWithLifecycle()
+  val packs by model.iconPacks.collectAsStateWithLifecycle()
+  val custom by model.customIcons.state.collectAsStateWithLifecycle()
+  val installed by model.apps.collectAsStateWithLifecycle()
+  val masks by model.iconMasks.state.collectAsStateWithLifecycle()
+  val context = LocalContext.current.applicationContext
+  val current = rememberAppleCurrentThemePreviewProvider(model)
+  val currentArtwork = remember(current) { mutableStateMapOf<ExtraIcon, Bitmap?>() }
+  val extraArtwork = remember(context, installed.previewGeneration, prefs.completeSystemIconConfig,
+    masks.custom?.digest) { mutableStateMapOf<ExtraIcon, Bitmap?>() }
+  LaunchedEffect(currentArtwork) {
+    for (icon in ExtraIcon.entries) {
+      val preview = current.load(icon.packageName)
+      currentArtwork[icon] = preview?.dark ?: preview?.light
+    }
+  }
+  LaunchedEffect(extraArtwork) {
+    val mask = withContext(Dispatchers.IO) { IconMaskPolicy.snapshot(context).resolve(null) }
+    val renderer = ColorOsFallbackRenderer(context)
+    for (icon in ExtraIcon.entries) {
+      extraArtwork[icon] = withContext(Dispatchers.IO) {
+        val caller = currentCoroutineContext()
+        renderer.renderExtra(icon, IconPackComponent(icon.packageName, icon.activity), 192, mask) {
+          caller.ensureActive()
+        }
+      }
+    }
+  }
+
+  var query by rememberSaveable { mutableStateOf("") }
+  val mtLabel = stringResource(R.string.extra_icons_mt)
+  val term = query.trim()
+  val visible = ExtraIcon.entries.filter { icon ->
+    icon.label.contains(term, ignoreCase = true) || icon.packageName.contains(term, ignoreCase = true) ||
+      (icon == ExtraIcon.MT && mtLabel.contains(term, ignoreCase = true))
+  }
+  Column(modifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
+    horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Os4SearchField(query = query, onQueryChange = { query = it }, label = stringResource(R.string.search_apps),
+        inputModifier = Modifier.testTag("extra-icons.search"))
+      if (visible.isEmpty()) {
+        Text(stringResource(R.string.no_matching_apps), Modifier.padding(12.dp),
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      } else {
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+          ExtraIconsRow(Modifier.padding(top = 12.dp, bottom = 6.dp),
+            name = { ExtraColumnTitle(R.string.extra_icons_dark_preview, TextAlign.Start) },
+            current = { ExtraColumnTitle(R.string.extra_icons_current) },
+            extra = { ExtraColumnTitle(R.string.extra_icons_keihome) },
+            toggle = { Spacer(Modifier.width(49.dp)) })
+          visible.forEach { icon ->
+            key(icon) {
+              HorizontalDivider(Modifier.padding(horizontal = 12.dp))
+              val name = if (icon == ExtraIcon.MT) mtLabel else icon.label
+              val overridden = icon.packageName in prefs.preservedIconPackages ||
+                custom.selections.any { it.packageName == icon.packageName }
+              ExtraIconsRow(Modifier.testTag("extra-icons.row.${icon.packageName}").heightIn(min = 64.dp)
+                .padding(vertical = 8.dp), name = {
+                  Text(name, style = MiuixTheme.textStyles.body2)
+                  if (overridden) Text(stringResource(R.string.extra_icons_override),
+                    style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                }, current = {
+                  ExtraArtwork(R.string.extra_icons_current, currentArtwork[icon], icon !in currentArtwork)
+                }, extra = {
+                  ExtraArtwork(R.string.extra_icons_title, extraArtwork[icon], icon !in extraArtwork)
+                }, toggle = {
+                  val description = stringResource(R.string.extra_icons_enable, name)
+                  Switch(checked = icon.packageName in prefs.extraIconPackages,
+                    enabled = packs.nativeImporting == null,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("extra-icons.enable.${icon.packageName}")
+                      .semantics { contentDescription = description },
+                    onCheckedChange = { model.preferences.setExtraIconEnabled(icon, it) })
+                })
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun ExtraIconsRow(
+  modifier: Modifier,
+  name: @Composable () -> Unit,
+  current: @Composable () -> Unit,
+  extra: @Composable () -> Unit,
+  toggle: @Composable () -> Unit,
+) {
+  Row(modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.weight(1f)) { name() }
+    Box(Modifier.width(56.dp), contentAlignment = Alignment.Center, content = { current() })
+    Box(Modifier.width(56.dp), contentAlignment = Alignment.Center, content = { extra() })
+    Box(Modifier.width(49.dp), contentAlignment = Alignment.Center, content = { toggle() })
+  }
+}
+
+@Composable
+private fun ExtraColumnTitle(label: Int, alignment: TextAlign = TextAlign.Center) {
+  Text(stringResource(label), textAlign = alignment, style = MiuixTheme.textStyles.footnote2,
+    color = MiuixTheme.colorScheme.onSurfaceSecondary)
+}
+
+@Composable
+private fun ExtraArtwork(label: Int, bitmap: Bitmap?, loading: Boolean) {
+  val name = stringResource(label)
+  IconPreviewArtworkFrame(Modifier.size(40.dp)) {
+    when {
+      bitmap != null -> Image(remember(bitmap) { bitmap.asImageBitmap() }, contentDescription = name,
+        modifier = Modifier.fillMaxSize())
+      loading -> {
+        val status = stringResource(R.string.extra_icons_loading, name)
+        Box(Modifier.clearAndSetSemantics { contentDescription = status }) {
+          CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
+        }
+      }
+      else -> {
+        val status = stringResource(R.string.extra_icons_unavailable, name)
+        Text("\u2014", Modifier.clearAndSetSemantics { contentDescription = status },
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
+    }
+  }
+}

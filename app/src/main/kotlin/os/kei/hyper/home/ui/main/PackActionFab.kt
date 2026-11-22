@@ -23,12 +23,17 @@ internal fun PackActionFab(model: HomeViewModel, page: Int, section: String,
   val inspiration = preferences.monetInspiration ?:
     (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
       runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
-  val update = page == 3 && (section == "home" || section == "fallback" || section == "fallback-settings")
+  val update = page == 3 && when (section) {
+    "home", "fallback", "fallback-settings", "extra-icons" -> true
+    else -> false
+  }
   val generate = page == 3 && section == "coloros"
   val busy = state.nativeImporting != null
   // Read the observed report before the early return so a later source discovery shows the FAB.
   val activeSource = runtime.report?.iconTheme?.localId
-  val pending = if (update) pendingNativeApplication(state, activeSource, preferences.systemIconFallback) else null
+  val pending = if (update) pendingNativeApplication(state, activeSource, preferences.systemIconFallback)
+    ?.takeIf { section != "extra-icons" || state.extraIconPreparation == (it.token to preferences.extraIconPackages) }
+    else null
   val context = LocalContext.current
   if ((!update && !generate && !(page == 2 && inspiration)) ||
     (update && (activeSource == null ||

@@ -1,0 +1,13 @@
+<resources>
+    <string name="extra_icons_title">KeiHome の追加アイコン</string>
+    <string name="extra_icons_entry">アプリごとにダークアイコンを比較して選べます。</string>
+    <string name="extra_icons_instructions">各行で現在のパックと KeiHome のダークアイコンを比較できます。使いたいものを有効にして、パックを更新して適用してください。インポート時の「常にライト」設定、固定または保持したアイコン、パック独自の動的アイコンが優先されます。</string>
+    <string name="extra_icons_mt">MT Manager</string>
+    <string name="extra_icons_enable">%1$s に KeiHome のダークアイコンを使う</string>
+    <string name="extra_icons_override">固定または保持したアイコンが優先されます</string>
+    <string name="extra_icons_keihome">KeiHome</string>
+    <string name="extra_icons_dark_preview">ダーク表示</string>
+    <string name="extra_icons_current">現在のアイコンパック</string>
+    <string name="extra_icons_loading">%1$s を読み込み中</string>
+    <string name="extra_icons_unavailable">%1$s のプレビューを表示できません</string>
+</resources>

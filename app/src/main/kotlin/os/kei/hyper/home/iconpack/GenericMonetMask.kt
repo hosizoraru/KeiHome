@@ -75,6 +75,14 @@ internal object GenericMonetMask {
 
   fun foreground(pixels: IntArray, size: Int, check: () -> Unit = {}): IntArray? {
     require(size in 1..512 && pixels.size == size * size)
+    FlatIconStencil.prove(pixels, size, check)?.let { stencil ->
+      val plate = background(pixels, size, check)
+      return IntArray(pixels.size) { i ->
+        if (i % size == 0) check()
+        val alpha = ((plate[i] ushr 24) * (stencil.ink[i].toInt() and 255) + 127) / 255
+        (alpha shl 24) or 0x00ffffff
+      }
+    }
     val border = IntArray(4096)
     var borderCount = 0
     fun bucket(c: Int) = ((c ushr 20 and 15) shl 8) or
@@ -122,6 +130,30 @@ internal object GenericMonetMask {
       val mask = if (cutout) alpha else
         (alpha * ((contrasts[i] - 12).toFloat() / (peak - 12)).coerceIn(0f, 1f)).roundToInt()
       (mask shl 24) or 0x00ffffff
+    }
+  }
+
+  /** Uses an authored color layer only when its alpha separates a mark from the plate. */
+  fun layeredForeground(
+    foreground: IntArray, plate: IntArray, size: Int, check: () -> Unit,
+  ): IntArray? {
+    require(size in 1..512 && foreground.size == size * size && plate.size == foreground.size)
+    var interior = 0
+    var clear = 0
+    var ink = 0
+    for (i in foreground.indices) {
+      if (i % size == 0) check()
+      val alpha = foreground[i] ushr 24
+      if (plate[i] ushr 24 >= 224) {
+        interior++
+        if (alpha <= 8) clear++
+        if (alpha >= 64) ink++
+      }
+    }
+    if (interior == 0 || clear * 10 < interior || ink * 100 < interior) return null
+    return IntArray(foreground.size) { i ->
+      if (i % size == 0) check()
+      (minOf(foreground[i] ushr 24, plate[i] ushr 24) shl 24) or 0x00ffffff
     }
   }
 }

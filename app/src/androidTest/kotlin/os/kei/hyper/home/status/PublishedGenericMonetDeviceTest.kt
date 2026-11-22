@@ -407,6 +407,41 @@ class PublishedGenericMonetDeviceTest {
     } finally { root.deleteRecursively() }
   }
 
+  @Test fun nativeLayerAlphaProvidesMonetForAnAlmostInvisibleColorMark() {
+    val name = "os.test.pale"
+    val base = "res/drawable-xxhdpi/$name"
+    fun image(pixel: (Int, Int) -> Int): ByteArray {
+      val pixels = IntArray(64 * 64) { pixel(it % 64, it / 64) }
+      val bitmap = Bitmap.createBitmap(pixels, 64, 64, Bitmap.Config.ARGB_8888)
+      return try {
+        ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+      } finally { bitmap.recycle() }
+    }
+    val files = mapOf("$base/0.png" to image { _, _ -> -1 },
+      "$base/1.png" to image { x, y ->
+        when {
+          x in 27..36 && y in 27..36 -> 0xfff8f8f8.toInt()
+          x in 24..25 && y in 27..36 -> 0x40f8f8f8
+          else -> 0
+        }
+      })
+    fixture(files) { source, output ->
+      assertTrue(PublishedGenericMonet.write(source, output, true, PreservedIconResources(emptySet(), emptyList())))
+      ZipFile(output).use { zip ->
+        val path = "fancy_icons/$name/mask.png"
+        val mask = zip.getInputStream(zip.getEntry(path)).use { BitmapFactory.decodeStream(it) }
+        try {
+          assertEquals(255, mask.getPixel(32, 32) ushr 24)
+          assertEquals(0, mask.getPixel(10, 32) ushr 24)
+          assertTrue((12..26).any { mask.getPixel(it, 32) ushr 24 in 1..80 })
+          for ((entry, bytes) in files) {
+            assertArrayEquals(bytes, zip.getInputStream(zip.getEntry(entry)).use { it.readBytes() })
+          }
+        } finally { mask.recycle() }
+      }
+    }
+  }
+
   @Test fun staticDayNightGainsPaletteLayersAndKeepsOriginalArtwork() {
     val day = png(); val night = png(true)
     fixture(NativeDayNightIcon.entries("os.test.static", day, night)) { source, output ->

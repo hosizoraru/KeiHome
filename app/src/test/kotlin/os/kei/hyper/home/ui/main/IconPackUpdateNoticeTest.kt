@@ -46,7 +46,7 @@ class IconPackUpdateNoticeTest {
 
   @Test fun fullBleedPaddingRequiresRegenerationIndependentlyOfGenericColoring() {
     fun applied(generic: Boolean, inset: Boolean) = source.copy(generation =
-      IconGenerationManifest(schemaVersion = 15, considered = setOf(target.flattened),
+      IconGenerationManifest(schemaVersion = IconGenerationManifest.CURRENT_SCHEMA, considered = setOf(target.flattened),
         monetUnadaptedIcons = generic, monetFullBleedIconPadding = inset))
     assertTrue(iconPackNeedsUpdate(pack, applied(true, false), listOf(target), SystemIconFallback.DEFAULT,
       emptySet(), monetUnadaptedIcons = true, monetFullBleedIconPadding = true))
@@ -73,23 +73,25 @@ class IconPackUpdateNoticeTest {
   }
 
   @Test fun genericMonetLayerGeometryUpgradeRequiresReapplyOnce() {
-    for (schema in listOf(11, 12)) {
-      val current = source.copy(generation =
-        IconGenerationManifest(schemaVersion = schema, monetUnadaptedIcons = true,
-          considered = setOf(target.flattened)))
-      assertEquals("Only old generic Monet output needs regeneration", schema < 12,
-        iconPackNeedsUpdate(pack, current, listOf(target), SystemIconFallback.DEFAULT,
-          emptySet(), monetUnadaptedIcons = true))
+    for (format in listOf(pack.format, IconPackFormat.MIUI_ICONS)) {
+      for (schema in listOf(18, IconGenerationManifest.CURRENT_SCHEMA)) {
+        val current = source.copy(generation =
+          IconGenerationManifest(schemaVersion = schema, monetUnadaptedIcons = true,
+            considered = setOf(target.flattened)))
+        assertEquals("Only old generic Monet output needs regeneration", schema == 18,
+          iconPackNeedsUpdate(pack.copy(format = format), current, listOf(target), SystemIconFallback.DEFAULT,
+            emptySet(), monetUnadaptedIcons = true))
+      }
     }
   }
 
-  @Test fun nativeLayerCoverageUpgradeRefreshesOnlyOlderNativePacksWithColoringEnabled() {
+  @Test fun coverageUpgradeRefreshesOldPacksOnlyWhenColoringIsEnabled() {
     for (format in listOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS, IconPackFormat.INSTALLED_APK)) {
       for (schema in listOf(15, IconGenerationManifest.CURRENT_SCHEMA)) {
         for (enabled in listOf(false, true)) {
           val current = source.copy(generation = IconGenerationManifest(schemaVersion = schema,
             monetUnadaptedIcons = enabled, considered = setOf(target.flattened)))
-          assertEquals(enabled && schema == 15 && format != IconPackFormat.INSTALLED_APK,
+          assertEquals(enabled && schema == 15,
             iconPackNeedsUpdate(pack.copy(format = format), current, listOf(target),
               SystemIconFallback.DEFAULT, emptySet(), monetUnadaptedIcons = enabled))
         }

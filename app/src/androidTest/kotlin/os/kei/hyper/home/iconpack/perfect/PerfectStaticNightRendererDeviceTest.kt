@@ -16,6 +16,31 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PerfectStaticNightRendererDeviceTest {
+  @Test fun bluePlateBecomesBlueInkWithReconstructedEdgesAndUnchangedDayArtwork() {
+    val blue = Color.rgb(20, 100, 244)
+    val half = Color.rgb(138, 178, 250)
+    val source = image(512, 512) { x, y ->
+      when {
+        y in 180..331 && x in 180..331 -> Color.WHITE
+        y in 180..331 && x == 179 -> half
+        else -> blue
+      }
+    }
+    rendered(listOf(source)) { day, night ->
+      assertEquals(blue, day.getPixel(178, 256))
+      assertEquals(half, day.getPixel(179, 256))
+      assertEquals(Color.WHITE, day.getPixel(180, 256))
+      val plate = night.getPixel(178, 256)
+      val edge = night.getPixel(179, 256)
+      val ink = night.getPixel(180, 256)
+      assertTrue(Color.red(plate) < 45 && Color.green(plate) < 45 && Color.blue(plate) < 45)
+      assertTrue(Color.blue(ink) > 190 && Color.red(ink) < 70)
+      assertEquals((Color.blue(plate) + Color.blue(ink)) / 2.0, Color.blue(edge).toDouble(), 2.0)
+      assertEquals((Color.red(plate) + Color.red(ink)) / 2.0, Color.red(edge).toDouble(), 2.0)
+      assertAlphaEqual(day, night)
+    }
+  }
+
   @Test fun backgroundGradientHasExactEndpointsAndWholeForegroundIsMultiplied() {
     val background = image(8, 8) { _, _ -> Color.rgb(220, 70, 30) }
     val foreground = image(8, 8) { x, y ->
@@ -327,7 +352,7 @@ class PerfectStaticNightRendererDeviceTest {
     layers.indices.forEach { assertArrayEquals(originals[it], layers[it]) }
     assertArrayEquals(first.day, second.day)
     assertArrayEquals(first.night, second.night)
-    assertEquals("perfect-static-night-14", PerfectStaticNightRenderer.REVISION)
+    assertEquals("perfect-static-night-15", PerfectStaticNightRenderer.REVISION)
     for (bytes in listOf(first.day, first.night)) {
       assertArrayEquals(PNG_SIGNATURE, bytes.copyOf(8))
       val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))

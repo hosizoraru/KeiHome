@@ -5,6 +5,7 @@ import os.kei.hyper.home.data.RecommendedIconMappings
 import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
 import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
 import os.kei.hyper.home.iconpack.IconBuildInventory
+import os.kei.hyper.home.iconpack.IconGenerationManifest
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntryIndex
@@ -40,9 +41,9 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if ((source.generation?.monetUnadaptedIcons ?: false) != monetUnadaptedIcons) return true
   if ((source.generation?.monetFullBleedIconPadding ?: false) !=
     monetFullBleedIconPadding) return true
-  if (monetUnadaptedIcons && source.generation?.schemaVersion?.let { it < 12 } == true) return true
-  if (monetUnadaptedIcons && pack.format in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS) &&
-    source.generation?.schemaVersion?.let { it < 16 } == true) return true
+  if (monetUnadaptedIcons && source.generation?.schemaVersion?.let {
+      it < IconGenerationManifest.LAYERED_MONET_SCHEMA
+    } == true) return true
   if ((pack.colorOsProfile != null || source.generation?.colorOsPackages?.isNotEmpty() == true) &&
     source.generation?.schemaVersion?.let { it < 14 } == true) return true
   val effectivePreserved = preservedPackages - customizedPackages

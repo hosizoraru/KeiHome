@@ -16,7 +16,7 @@ internal data class PerfectStaticPair(val day: ByteArray, val night: ByteArray)
 
 /** Optional static conversion only; callers own caching and decide when to use this fallback. */
 internal object PerfectStaticNightRenderer {
-  const val REVISION = "perfect-static-night-14"
+  const val REVISION = "perfect-static-night-15"
   const val EQUIVALENT_LAYER_POLICY = "centered-native-pixel-proof-4"
   private const val SIZE = 512
   private const val MAX_BYTES = 8 * 1024 * 1024
@@ -76,11 +76,13 @@ internal object PerfectStaticNightRenderer {
                 val underlay = IntArray(SIZE * SIZE)
                 night.getPixels(underlay, 0, SIZE, 0, 0, SIZE, SIZE)
                 // Native foregrounds may themselves contain an opaque baked plate.
-                val plate = PerfectNightPixels.bakedForegroundPlate(pixels, SIZE, SIZE, check)
-                if (plate != null) PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
-                else if (!PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check) &&
-                  !PerfectNightPixels.liftForegroundComponents(pixels, underlay, SIZE, SIZE, check))
-                  PerfectWordmarkPixels.lift(pixels, underlay, SIZE, SIZE, check)
+                if (!PerfectNightPixels.recolorFlatPlate(pixels, SIZE, check)) {
+                  val plate = PerfectNightPixels.bakedForegroundPlate(pixels, SIZE, SIZE, check)
+                  if (plate != null) PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, plate, check)
+                  else if (!PerfectNightPixels.liftForeground(pixels, underlay, SIZE, SIZE, check) &&
+                    !PerfectNightPixels.liftForegroundComponents(pixels, underlay, SIZE, SIZE, check))
+                    PerfectWordmarkPixels.lift(pixels, underlay, SIZE, SIZE, check)
+                }
                 foreground.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
                 nightCanvas.drawBitmap(foreground, 0f, 0f, paint)
               } finally {
@@ -109,7 +111,7 @@ internal object PerfectStaticNightRenderer {
                 pixels[i] = (pixels[i] and -0x1000000) or (proved[i] and 0xffffff)
               }
             }
-          } else {
+          } else if (!PerfectNightPixels.recolorFlatPlate(pixels, SIZE, check)) {
             PerfectNightPixels.plate(pixels, SIZE, SIZE, check)?.let {
               PerfectNightPixels.recolorPlate(pixels, SIZE, SIZE, it, check)
             }

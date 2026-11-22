@@ -92,7 +92,7 @@ internal object NativeTwoToneMask {
     colors[rgb] = (colors[rgb] ?: 0) + 1
   }
 
-  private fun palette(colors: Map<Int, Int>, size: Int, check: () -> Unit): Palette? {
+  private fun palette(colors: Map<Int, Int>, size: Int, check: () -> Unit): IconColorSegment? {
     var first = 0
     var second = 0
     var firstCount = 0
@@ -113,27 +113,8 @@ internal object NativeTwoToneMask {
       }
     }
     if (total < size / 4 || firstCount * 2 <= total || secondCount < (size + 99) / 100) return null
-    val shifts = intArrayOf(16, 8, 0)
-    val axis = shifts.maxBy { abs(channel(second, it) - channel(first, it)) }
-    if (abs(channel(second, axis) - channel(first, axis)) < 96) return null
-    return Palette(first, second, axis)
+    return IconColorSegment(first, second).takeIf { it.contrast >= 96 }
   }
-
-  private data class Palette(val background: Int, val foreground: Int, val axis: Int) {
-    fun coverage(pixel: Int): Double? {
-      // Use the strongest channel, avoiding instability in near-constant channels.
-      val fraction = ((channel(pixel, axis) - channel(background, axis)).toDouble() /
-        (channel(foreground, axis) - channel(background, axis))).coerceIn(0.0, 1.0)
-      for (shift in 16 downTo 0 step 8) {
-        val expected = channel(background, shift) +
-          fraction * (channel(foreground, shift) - channel(background, shift))
-        if (abs(channel(pixel, shift) - expected) > 2.0) return null
-      }
-      return fraction * 255.0
-    }
-  }
-
-  private fun channel(color: Int, shift: Int): Int = (color ushr shift) and 255
 
   private fun plausibleShape(
     width: Int,

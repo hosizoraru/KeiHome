@@ -5,6 +5,41 @@ import org.junit.Test
 import java.util.concurrent.CancellationException
 
 class GenericMonetMaskTest {
+  @Test fun flatStencilRecoversTheSameCoverageWithEitherColorOnThePlate() {
+    val size = 64
+    val white = 0xffffffff.toInt()
+    val blue = 0xff1464f4.toInt()
+    val half = 0xff8ab2fa.toInt()
+    fun mask(plate: Int, ink: Int): IntArray {
+      val pixels = IntArray(size * size) { plate }
+      for (y in 22..41) {
+        pixels[y * size + 21] = half
+        for (x in 22..41) pixels[y * size + x] = ink
+      }
+      return requireNotNull(GenericMonetMask.foreground(pixels, size))
+    }
+    val positive = mask(white, blue)
+    val negative = mask(blue, white)
+    assertEquals(0, positive[32 * size + 20] ushr 24)
+    assertEquals(255, positive[32 * size + 22] ushr 24)
+    assertTrue(positive[32 * size + 21] ushr 24 in 127..129)
+    assertTrue(negative[32 * size + 21] ushr 24 in 127..129)
+  }
+
+  @Test fun layeredCoveragePreservesFaintDetailsAndRejectsAnOpaqueOverlay() {
+    val size = 64
+    val pixels = IntArray(size * size)
+    val plate = IntArray(pixels.size) { -1 }
+    for (y in 20..43) for (x in 20..43) pixels[y * size + x] = 0xfff8f8f8.toInt()
+    pixels[19 * size + 31] = 0x20112233
+    plate[20 * size + 31] = 0x80ffffff.toInt()
+    val mask = requireNotNull(GenericMonetMask.layeredForeground(pixels, plate, size) {})
+    assertEquals(32, mask[19 * size + 31] ushr 24)
+    assertEquals(128, mask[20 * size + 31] ushr 24)
+    assertEquals(255, mask[21 * size + 31] ushr 24)
+    assertNull(GenericMonetMask.layeredForeground(plate, plate, size) {})
+    assertNull(GenericMonetMask.layeredForeground(IntArray(pixels.size), plate, size) {})
+  }
   @Test fun fullBleedArtworkGetsSymmetricSpaceOnItsCompletedCanvas() {
     val size = 100
     val original = IntArray(size * size) { 0xffffffff.toInt() }

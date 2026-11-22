@@ -1,5 +1,7 @@
 package os.kei.hyper.home.iconpack.perfect
 
+import os.kei.hyper.home.iconpack.FlatIconStencil
+
 /** Pixel-only operations shared by static icons and native animation textures. */
 internal object PerfectNightPixels {
   fun dim(pixel: Int): Int {
@@ -503,6 +505,71 @@ internal object PerfectNightPixels {
     return matching
   }
 
+  fun recolorFlatPlate(pixels: IntArray, size: Int, check: () -> Unit): Boolean {
+    val proof = FlatIconStencil.prove(pixels, size, check) ?: return false
+    val plate = proof.colors.background
+    val mark = proof.colors.foreground
+    val lightPlate = lightNeutral(plate)
+    // Move a saturated brand color onto a separable light glyph when it remains legible.
+    val brandPlate = chroma(plate) >= 48 && lightNeutral(mark) && proof.insetMark
+    if (!lightPlate && !brandPlate) return false
+    val underMark = nightPlateGray(proof.top, size)
+    val ink = when {
+      brandPlate -> readableBrandInk(plate, underMark) ?: return false
+      chroma(mark) <= 12 -> lift(mark)
+      else -> mark
+    }
+    for (y in 0 until size) {
+      check()
+      val gray = nightPlateGray(y, size)
+      for (x in 0 until size) {
+        val i = y * size + x
+        val pixel = pixels[i]
+        if (pixel ushr 24 < 32) continue
+        val coverage = proof.ink[i].toInt() and 255
+        fun blend(shift: Int) = (((ink ushr shift and 255) * coverage +
+          gray * (255 - coverage) + 127) / 255) shl shift
+        pixels[i] = (pixel and -0x1000000) or blend(16) or blend(8) or blend(0)
+      }
+    }
+    return true
+  }
+
+  private fun lightNeutral(rgb: Int): Boolean =
+    minOf(rgb ushr 16 and 255, rgb ushr 8 and 255, rgb and 255) >= 192 && chroma(rgb) <= 24
+
+  private fun chroma(rgb: Int): Int {
+    val r = rgb ushr 16 and 255
+    val g = rgb ushr 8 and 255
+    val b = rgb and 255
+    return maxOf(r, g, b) - minOf(r, g, b)
+  }
+
+  private fun nightPlateGray(y: Int, height: Int): Int =
+    56 - (35 * y + maxOf(1, height - 1) / 2) / maxOf(1, height - 1)
+
+  private fun readableBrandInk(rgb: Int, gray: Int): Int? {
+    val required = 3 * (linear(dim(gray) and 255) + .05)
+    // Limit color drift even when a large lift could make a dark color readable.
+    for (lift in 0..20 step 2) {
+      fun mix(shift: Int): Int {
+        val channel = rgb ushr shift and 255
+        return channel + ((255 - channel) * lift + 50) / 100
+      }
+      val ink = (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
+      val tuned = dim(ink)
+      val luminance = 0.2126 * linear(tuned ushr 16 and 255) +
+        0.7152 * linear(tuned ushr 8 and 255) + 0.0722 * linear(tuned and 255)
+      if (luminance + .05 >= required) return ink
+    }
+    return null
+  }
+
+  private fun linear(value: Int): Double {
+    val s = value / 255.0
+    return if (s <= .04045) s / 12.92 else Math.pow((s + .055) / 1.055, 2.4)
+  }
+
   fun recolorPlate(
     pixels: IntArray, width: Int, height: Int, background: BooleanArray, check: () -> Unit,
   ) {
@@ -511,7 +578,7 @@ internal object PerfectNightPixels {
     }
     for (y in 0 until height) {
       check()
-      val gray = 56 - (35 * y + maxOf(1, height - 1) / 2) / maxOf(1, height - 1)
+      val gray = nightPlateGray(y, height)
       for (x in 0 until width) {
         val i = y * width + x
         val pixel = pixels[i]

@@ -14,6 +14,7 @@ import os.kei.hyper.home.iconpack.*
 internal object PublishedGenericMonet {
   private const val MAX_IMAGE = 4 * 1024 * 1024
   private val flat = Regex("res/drawable(?:-[A-Za-z0-9]+)*/([^/]+)\\.png")
+  private data class NativePair(val image: ByteArray, val foreground: IntArray?)
 
   fun write(source: File, output: File, enabled: Boolean,
     excluded: PreservedIconResources, insetFullBleed: Boolean = false,
@@ -66,7 +67,7 @@ internal object PublishedGenericMonet {
           for (index in pixels.indices) pixels[index] = pixels[index] ushr 24
           return pixels.also { insetCoverage = size to it }
         }
-        fun nativePair(name: String, prefix: String): ByteArray? {
+        fun nativePair(name: String, prefix: String): NativePair? {
           val layers = mutableListOf<Bitmap>()
           try {
             for (index in 0..1) {
@@ -83,10 +84,16 @@ internal object PublishedGenericMonet {
               val layerBounds = NativeLayerViewport.bounds(bounds)
               val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
               layers.forEach { check(); canvas.drawBitmap(it, null, layerBounds, paint) }
-              return ByteArrayOutputStream().also {
+              val image = ByteArrayOutputStream().also {
                 check()
                 check(output.compress(Bitmap.CompressFormat.PNG, 100, it))
               }.toByteArray()
+              val foreground = if (prefix.isEmpty()) {
+                output.eraseColor(0)
+                canvas.drawBitmap(layers.last(), null, layerBounds, paint)
+                IntArray(size * size).also { output.getPixels(it, 0, size, 0, 0, size, size) }
+              } else null
+              return NativePair(image, foreground)
             } finally { output.recycle() }
           } finally { layers.forEach(Bitmap::recycle) }
         }
@@ -134,11 +141,12 @@ internal object PublishedGenericMonet {
           if (pair == null && nightGroups[name]?.any {
               it !in (0..1).map { index -> "nightmode/res/drawable-xxhdpi/$name/$index.png" }
             } == true) continue
-          val sourceDay = if (useNativePair) nativePair(name, "") ?: continue
-            else read(pair?.let { root + it.light } ?: path ?: continue, MAX_IMAGE) ?: continue
+          val nativeDay = if (useNativePair) nativePair(name, "") ?: continue else null
+          val sourceDay = nativeDay?.image
+            ?: read(pair?.let { root + it.light } ?: path ?: continue, MAX_IMAGE) ?: continue
           val nightPath = pair?.let { root + it.dark } ?: path?.let { "nightmode/$it" }
           val sourceNight = if (pair == null && name in nightGroups)
-            nativePair(name, "nightmode/") ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
+            nativePair(name, "nightmode/")?.image ?: nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
             else nightPath?.let { read(it, MAX_IMAGE) } ?: sourceDay
           val day = ImportedStaticPng.normalize(sourceDay, check) ?: continue
           val night = if (sourceNight === sourceDay) day
@@ -156,7 +164,9 @@ internal object PublishedGenericMonet {
             val size = bitmap.width
             val pixels = IntArray(size * size)
             bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-            val extracted = GenericMonetMask.foreground(pixels, size, check) ?: continue
+            val plate by lazy { GenericMonetMask.background(pixels, size, check) }
+            val extracted = nativeDay?.foreground?.let { GenericMonetMask.layeredForeground(it, plate, size, check) }
+              ?: GenericMonetMask.foreground(pixels, size, check) ?: continue
             val foreground = if (insetFullBleed)
               GenericMonetMask.insetFullBleed(extracted, size, paddingCoverage(size), check) else extracted
             fun png(colors: IntArray): ByteArray {
@@ -168,8 +178,7 @@ internal object PublishedGenericMonet {
                 }.toByteArray()
               } finally { mask.recycle() }
             }
-            val layers = NativePaletteIcon.entries(name, day, night, png(foreground),
-              png(GenericMonetMask.background(pixels, size, check)))
+            val layers = NativePaletteIcon.entries(name, day, night, png(foreground), png(plate))
               .filterKeys { it.startsWith(root) }.toMutableMap()
             // Keep alias-free native artwork alias-free. If either canonical flat
             // alias exists, publish both aliases from the same day/night pair.

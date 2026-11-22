@@ -62,7 +62,7 @@ becomes available after a five-second wait.
 Confirming acknowledges the advice; it does not initiate a reboot or count as
 proof of a completed system restart. The user restarts the device manually.
 API 102 automatic hot reload updates only the Java part and cannot replace
-native libraries already loaded in a process. The 1.11.0 and 1.13.0 entries
+native libraries already loaded in a process. The 1.11.0, 1.13.0, and 1.14.0 entries
 enable the restart recommendation for their native library updates.
 First activation independently requires a full system restart after module
 enablement and scope authorization, followed by unlocking to the home screen.
@@ -95,6 +95,9 @@ including MIUIX refinements already described in 1.10.0.
 icon-pack storage. [1.13.0](releases/1.13.0.md) covers the 0308 and 9261
 launcher updates, large icon packs, Recents and launch icons, the soft glass
 gesture handle, Bilibili home artwork, and Phone/Pad Glass refinements.
+[1.14.0](releases/1.14.0.md) compares the release with the public 1.13.0
+beta (`g89c8421.b0647.override`) and covers Dock spacing, icon preparation
+and application, and the reorganized pack and Monet tabs.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

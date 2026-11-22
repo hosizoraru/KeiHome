@@ -3,6 +3,7 @@ package os.kei.hyper.home.ui.main
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,8 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import top.yukonga.miuix.kmp.glass.GlassBottomSheetDefaults
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
@@ -96,11 +99,15 @@ internal fun PackHelpAction(
   // Keep the native sheet composed through its drag/back exit animation.
   Os4DetailsSheet(show = sheetVisible, title = title, scrollContent = false,
     modifier = Modifier.testTag("pack-guidance.sheet.${page.storageKey}"),
+    insideMargin = GlassBottomSheetDefaults.InsideMargin,
     onDismissRequest = { showing = false }) {
-    GuidanceNotes(guidance, Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)
-      .verticalScroll(rememberScrollState()))
+    GlassCard(modifier = Modifier.fillMaxWidth()
+      .heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp),
+      insideMargin = PaddingValues(12.dp)) {
+      GuidanceNotes(guidance, Modifier.fillMaxWidth().verticalScroll(rememberScrollState()))
+    }
     Os4DialogButton(stringResource(R.string.pack_guidance_done), onClick = { showing = false },
-      modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 16.dp),
       role = GlassDialogButtonRole.Primary)
   }
 }

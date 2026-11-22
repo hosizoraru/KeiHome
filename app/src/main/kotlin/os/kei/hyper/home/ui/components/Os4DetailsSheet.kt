@@ -18,9 +18,11 @@ import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import top.yukonga.miuix.kmp.glass.GlassBottomSheet
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.layout.BottomSheetDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Keep this composed while hidden so the native drag/back exit can finish. */
@@ -33,13 +35,14 @@ internal fun Os4DetailsSheet(
   summary: String? = null,
   scrollContent: Boolean = true,
   onDismissFinished: (() -> Unit)? = null,
+  insideMargin: DpSize = BottomSheetDefaults.insideMargin,
   content: @Composable ColumnScope.() -> Unit,
 ) {
   val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.8f).dp
   val backdrop = LocalKeiHomeBackdrop.current
   val locals = currentCompositionLocalContext
   GlassBottomSheet(show = show, onDismissRequest = onDismissRequest, backdrop = backdrop,
-    title = title, modifier = modifier.semantics {
+    title = title, insideMargin = insideMargin, modifier = modifier.semantics {
       dialog()
       title?.let { paneTitle = it }
       dismiss { onDismissRequest(); true }

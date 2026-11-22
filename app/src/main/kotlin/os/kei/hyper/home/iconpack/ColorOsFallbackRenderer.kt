@@ -186,7 +186,7 @@ internal class ColorOsFallbackRenderer(
         shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(),
           icon.top, icon.bottom, android.graphics.Shader.TileMode.CLAMP)
       })
-      if (adaptive != null && artwork != ExtraFlatArtwork.WALLET_CARD) {
+      if (adaptive != null && artwork?.isolatesAdaptiveForeground != true) {
         icon.tint?.let { foreground.setTint(it) }
         drawLayer(canvas, foreground, adaptiveBounds(size), false, check)
       } else {
@@ -197,7 +197,8 @@ internal class ColorOsFallbackRenderer(
             output.recycle()
             return null
           }
-          val bounds = if (adaptive != null) adaptiveBounds(size) else Rect(0, 0, size, size)
+          val bounds = if (adaptive != null && artwork == ExtraFlatArtwork.WALLET_CARD) adaptiveBounds(size)
+            else Rect(0, 0, size, size)
           canvas.drawBitmap(layer, null, bounds, Paint(Paint.FILTER_BITMAP_FLAG))
         } finally { layer.recycle() }
       }

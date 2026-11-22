@@ -16,5 +16,11 @@
     <string name="extra_icons_xiaomi_community">小米社区</string>
     <string name="extra_icons_services_feedback">服务与反馈</string>
     <string name="extra_icons_it_home">IT之家</string>
+    <string name="extra_icons_key_attestation">密钥认证</string>
+    <string name="extra_icons_vpn_hotspot">VPN 热点</string>
+    <string name="extra_icons_music">音乐</string>
+    <string name="extra_icons_low_level_detector">底层探测器</string>
+    <string name="extra_icons_fileyan">文件眼</string>
+    <string name="extra_icons_uu_remote">UU 远程</string>
     <string name="extra_icons_original">应用原图</string>
 </resources>

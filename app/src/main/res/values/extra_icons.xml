@@ -16,5 +16,11 @@
     <string name="extra_icons_xiaomi_community">Xiaomi Community</string>
     <string name="extra_icons_services_feedback">Services &amp; feedback</string>
     <string name="extra_icons_it_home">IT Home</string>
+    <string name="extra_icons_key_attestation">Key Attestation</string>
+    <string name="extra_icons_vpn_hotspot">VPN Hotspot</string>
+    <string name="extra_icons_music">Music</string>
+    <string name="extra_icons_low_level_detector">LowLevelDetector</string>
+    <string name="extra_icons_fileyan">Fileyan</string>
+    <string name="extra_icons_uu_remote">UU Remote</string>
     <string name="extra_icons_original">Original</string>
 </resources>

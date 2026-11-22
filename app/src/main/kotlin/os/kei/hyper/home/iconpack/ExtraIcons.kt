@@ -43,7 +43,27 @@ internal enum class ExtraIcon(
     labelRes = R.string.extra_icons_services_feedback, flatArtwork = ExtraFlatArtwork.BLUE_BUBBLE),
   IT_HOME("com.ruanmei.ithome", "IT Home", 0xff512c33.toInt(), 0xff2d1d25.toInt(),
     labelRes = R.string.extra_icons_it_home),
-  SHIZUKU("moe.shizuku.privileged.api", "Shizuku", 0xff2c3b5b.toInt(), 0xff1b2339.toInt());
+  SHIZUKU("moe.shizuku.privileged.api", "Shizuku", 0xff2c3b5b.toInt(), 0xff1b2339.toInt()),
+  KEYGUARD("com.artemchep.keyguard", "Keyguard", 0xff363758.toInt(), 0xff202135.toInt()),
+  KEY_ATTESTATION("io.github.vvb2060.keyattestation", "Key Attestation",
+    0xff34434e.toInt(), 0xff1e2833.toInt(), tint = 0xffd9e9f0.toInt(),
+    labelRes = R.string.extra_icons_key_attestation),
+  VPN_HOTSPOT("be.mygod.vpnhotspot", "VPN Hotspot", 0xff304551.toInt(), 0xff192832.toInt(),
+    labelRes = R.string.extra_icons_vpn_hotspot),
+  MUSIC("com.miui.player", "Music", 0xff243e3f.toInt(), 0xff162729.toInt(),
+    labelRes = R.string.extra_icons_music, flatArtwork = ExtraFlatArtwork.MUSIC_MARK),
+  SALT_PLAYER("com.salt.music", "Salt Player", 0xff40364c.toInt(), 0xff261f32.toInt()),
+  ANYWHERE("com.absinthe.anywhere_", "Anywhere-", 0xff343c4e.toInt(), 0xff1d2433.toInt(),
+    activity = "com.absinthe.anywhere_.MainAliasActivity"),
+  LOW_LEVEL_DETECTOR("net.imknown.android.forefrontinfo", "LowLevelDetector",
+    0xff304237.toInt(), 0xff192920.toInt(), labelRes = R.string.extra_icons_low_level_detector),
+  FILEYAN("com.mgenware.fileyan", "Fileyan", 0xff354355.toInt(), 0xff1e2939.toInt(),
+    labelRes = R.string.extra_icons_fileyan),
+  DEV_CHECK("flar2.devcheck", "DevCheck", 0xff32433c.toInt(), 0xff1b2926.toInt()),
+  UU_REMOTE("com.netease.uuremote", "UU Remote", 0xff352c51.toInt(), 0xff211a36.toInt(),
+    labelRes = R.string.extra_icons_uu_remote),
+  OPEN_DISPLAY("com.peetzweg.opendisplay", "OpenDisplay", 0xff35394b.toInt(), 0xff212535.toInt(),
+    flatArtwork = ExtraFlatArtwork.OPEN_DISPLAY);
 
   fun accepts(target: IconPackComponent): Boolean =
     target.packageName == packageName &&

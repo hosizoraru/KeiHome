@@ -16,5 +16,11 @@
     <string name="extra_icons_xiaomi_community">Xiaomi コミュニティ</string>
     <string name="extra_icons_services_feedback">サービスとフィードバック</string>
     <string name="extra_icons_it_home">IT之家</string>
+    <string name="extra_icons_key_attestation">キー認証</string>
+    <string name="extra_icons_vpn_hotspot">VPN ホットスポット</string>
+    <string name="extra_icons_music">ミュージック</string>
+    <string name="extra_icons_low_level_detector">LowLevelDetector</string>
+    <string name="extra_icons_fileyan">Fileyan</string>
+    <string name="extra_icons_uu_remote">UU Remote</string>
     <string name="extra_icons_original">元のアイコン</string>
 </resources>

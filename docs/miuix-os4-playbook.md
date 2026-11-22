@@ -34,9 +34,9 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-KeiHome 当前使用 `0.9.5-c83aacd8-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
-这一轮沿用现有 Glass 封装来接入顶栏折叠、标签淡出和模糊绘制改进。
-构件时间戳、上游提交与设备验收见 [c83aacd8 迁移记录](miuix-snapshot-c83aacd8.md)。
+KeiHome 当前使用 `0.9.5-2b226150-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
+现有 Glass 面板接收上游的底部描线修复。构件、调用链和验证范围见
+[2b226150 迁移记录](miuix-snapshot-2b226150.md)。
 
 Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
@@ -367,6 +367,10 @@ Apple 图标包与完美图标补全计划共用 `PackTabScaffold`。底栏固�
 直接写 `if (show) GlassBottomSheet(...)` 会让外层先消失，退出动画无法结束。
 KeiHome 的 `Os4DetailsSheet` 是自己的封装，并非可从 MIUIX 直接导入的类。
 
+需要无标题面板时，传 `title = null` 并省略两侧标题动作。`2b226150` 起上游会
+省去整行标题区，保留拖动把手。空字符串仍会占标题区高度。有可读标题的面板继续
+传入标题，并在封装中保留对应的无障碍语义。
+
 存在 `onDismissFinished` 时优先使用该回调。菜单等没有相应回调的入口，需要按其
 实际动画所有权保留宿主；当前图标菜单封装等待原生 `GlassMotion.transformCenter`
 对应的退出，而不是固定延迟几百毫秒。不要把某一组件的回收机制套给所有浮层。
@@ -591,6 +595,7 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [2b226150 迁移](miuix-snapshot-2b226150.md)记录面板标题区、Glass 底边描线和窗口浮层边界。
 - [c83aacd8 迁移](miuix-snapshot-c83aacd8.md)记录顶栏折叠、标签淡出和模糊渲染。
 - [f3829d3d 迁移](miuix-snapshot-f3829d3d.md)记录侧栏、标签栏和应用显示设置。
 - [66248bac 迁移](miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。

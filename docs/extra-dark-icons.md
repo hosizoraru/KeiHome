@@ -81,3 +81,49 @@ are in `.artifacts/research/extra-icons-batch2/`.
 [updater]: https://github.com/YuKongA/Updater-KMP/tree/f895e07e307ab48ad042a74cc60f831a08c5c2f0
 [meilox]: https://github.com/MeiloX/MeiloX/tree/9e85247d54e389002c9fdaf989b34838c4ec30bb
 [shizuku]: https://github.com/RikkaApps/Shizuku/blob/2650830c/manager/src/main/AndroidManifest.xml
+
+## Third batch
+
+The renderer reads the artwork from each installed APK. Open-source references
+identify the apps and their upstream projects. No app artwork is bundled.
+
+| App | Package | Reference build | Artwork |
+| --- | --- | --- | --- |
+| [Keyguard](https://github.com/AChep/keyguard-app) | `com.artemchep.keyguard` | `2.14.2` | Adaptive foreground |
+| [Key Attestation](https://github.com/vvb2060/KeyAttestation) | `io.github.vvb2060.keyattestation` | `1.8.4` | Tinted adaptive foreground |
+| [VPN Hotspot](https://github.com/mygod/vpnhotspot) | `be.mygod.vpnhotspot` | `3.0.8` | Adaptive foreground |
+| Music | `com.miui.player` | `4.48.0.1` | Colored mark isolated from the baked icon |
+| [Salt Player](https://github.com/Moriafly/SaltPlayerSource) | `com.salt.music` | `12.5.1` | Adaptive foreground |
+| [Anywhere-](https://github.com/zhaobozhen/anywhere-) | `com.absinthe.anywhere_` | `2.5.5` | Main launcher alias foreground |
+| [LowLevelDetector](https://github.com/imknown/AndroidLowLevelDetector) | `net.imknown.android.forefrontinfo` | `1.18.7` | Adaptive foreground |
+| Fileyan | `com.mgenware.fileyan` | `6.32.0` | Adaptive foreground |
+| DevCheck | `flar2.devcheck` | `6.67` | Adaptive foreground |
+| UU Remote | `com.netease.uuremote` | `4.48.1` | Adaptive foreground |
+| [OpenDisplay](https://github.com/peetzweg/opendisplay) | `com.peetzweg.opendisplay` | `1.30.2` | Remove the baked white field, lighten the screen frames, and retain the blue faces with dark eyes and smiles |
+
+OpenDisplay's frames and facial strokes share the original dark ink. The
+renderer uses the vertical span of the blue fill in each column to keep the eye
+and mouth strokes dark. It reconstructs antialiased edges against the new
+background from the installed raster. A substantially different foreground
+that fails the coverage check falls back to the pack artwork.
+
+The Xiaomi 17 Pro visual check used `114000723`. The compact preview and its
+enlargement show both smiles continuous, including the ends next to the
+frames. The Classic ART+ generation test used all 24 installed apps and
+compared all-off, all-on, a subset, and Always light output. Existing day
+resources were byte-identical and the enabled selections produced dark
+variants. The test generated and inspected the archive without applying it
+through Themes.
+
+## Weibo Lite recommended mapping
+
+Weibo Lite (`com.weico.international`) can use the current pack's Weibo
+(`com.sina.weibo`) artwork when the pack has no dedicated Lite entry. The switch
+is on by default. A dedicated Lite icon, a pinned custom choice, or a preserved
+original takes precedence. Weibo is never a target of this mapping.
+
+Generation metadata schema 18 records the new choice. Older metadata retains
+its original choices. Changing the Weibo Lite switch asks for a pack update
+when a current Lite target can use the donor. Device tests cover preview and
+archive output with the switch on and off for both day and night in static
+conversion and native theme imports.

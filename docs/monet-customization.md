@@ -73,6 +73,12 @@ and closes the editor. The background-family dropdown also changes only the draf
 choice. Only the separate Apply action submits the choice through the existing
 acknowledgement flow.
 
+The tonal-family and icon-role cards in Custom colors start expanded. Each
+card saves its own disclosure preference across tab changes and app restarts.
+Switching the icon color design invalidates the previous palette and clears
+its apply confirmation. While a known seed is being used to compute the new
+palette, Apply stays disabled and the missing-color notice stays hidden.
+
 `MainScreen.kt` hosts the Status, Monet and Settings forms in regular scrollable
 `Column`s under the per-tab `SaveableStateProvider`. This removes the single-item
 `LazyColumn`'s nested saveable owner that caused draft and expansion state to be

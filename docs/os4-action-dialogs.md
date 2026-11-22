@@ -23,7 +23,10 @@ information retain their content-oriented layouts.
 
 App log export has a dedicated confirmation before any ZIP creation or share
 intent. It distinguishes KeiHome UI/settings/crash reports from module-feature
-reports, which require LSPosed logs. Each presentation waits twenty seconds using
+reports, which require LSPosed logs. A bold error-colored paragraph asks users
+who are unsure to reproduce the issue, attach both logs to the same report,
+and include the time of the issue. The remaining guidance emphasizes the
+symptoms and log names in bold. Each presentation waits twenty seconds using
 elapsed realtime, displays the remaining seconds, and independently checks the
 deadline in its callback. Cancel/back/outside dismissal never exports; reopening
 or recreating the page starts a new wait. The selected time range is captured

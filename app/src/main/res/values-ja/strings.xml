@@ -32,7 +32,8 @@
     <string name="logs_lines">この期間の %1$d 行</string>
     <string name="logs_export">App ログをエクスポート</string>
     <string name="logs_export_confirm_title">App ログでよろしいですか？</string>
-    <string name="logs_export_confirm_summary">App ログは、KeiHome 自体の画面・設定の不具合やクラッシュを調査する場合にのみエクスポートしてください。\n\nアイコン・Dock・Monet など、モジュールの機能が正常に動作しない場合は、LSPosed ログをエクスポートしてください。App ログには、これらの調査に必要なフックの実行記録は含まれません。\n\n内容をご確認のうえ、エクスポートしてください。</string>
+    <string name="logs_export_confirm_both">どちらのログが必要か分からない場合は、問題を再現し、App ログと LSPosed ログの両方を同じ報告に添付してください。照合できるよう、問題が起きた時刻も記載してください。</string>
+    <string name="logs_export_confirm_summary">&lt;b&gt;KeiHome の画面や設定の不具合、アプリのクラッシュ&lt;/b&gt;の場合は、&lt;b&gt;App ログ&lt;/b&gt;をエクスポートしてください。&lt;br&gt;&lt;br&gt;&lt;b&gt;アイコン・Dock・Monet などのモジュール機能の不具合&lt;/b&gt;の場合は、&lt;b&gt;LSPosed ログ&lt;/b&gt;をエクスポートしてください。モジュールの調査に必要なフックの実行記録が含まれます。</string>
     <string name="logs_export_countdown">エクスポート（%1$d 秒）</string>
     <string name="logs_clear">この期間を削除</string>
     <string name="logs_clear_confirm">選択した期間のログを削除しますか？</string>

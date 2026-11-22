@@ -44,7 +44,7 @@ internal fun Os4ActionDialog(
   show: Boolean,
   onDismissRequest: () -> Unit,
   title: String,
-  summary: String,
+  summary: String? = null,
   modifier: Modifier = Modifier,
   icon: ImageVector? = null,
   actions: List<Os4DialogAction>,
@@ -73,7 +73,7 @@ internal fun Os4ActionDialog(
         }
         Text(title, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.title4,
           fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
-        Text(summary, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.body1,
+        if (summary != null) Text(summary, Modifier.fillMaxWidth(), style = MiuixTheme.textStyles.body1,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
         details()
       }

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.ui.main
 
 import android.os.SystemClock
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -8,12 +9,19 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.fromHtml
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Keep composed until dismissal finishes; a new presentation always starts a fresh wait. */
 @Composable
@@ -34,7 +42,6 @@ internal fun LogExportConfirmationDialog(onDismissed: () -> Unit, onExport: () -
   Os4ActionDialog(
     show = visible,
     title = stringResource(R.string.logs_export_confirm_title),
-    summary = stringResource(R.string.logs_export_confirm_summary),
     icon = actionIcon(PageActionIcon.EXPORT),
     verticalActions = true,
     onDismissRequest = { visible = false },
@@ -63,5 +70,21 @@ internal fun LogExportConfirmationDialog(onDismissed: () -> Unit, onExport: () -
         },
       ),
     ),
+    details = {
+      Text(
+        text = stringResource(R.string.logs_export_confirm_both),
+        modifier = Modifier.fillMaxWidth().testTag("logs.export.guidance"),
+        style = MiuixTheme.textStyles.body1,
+        color = MiuixTheme.colorScheme.error,
+        fontWeight = FontWeight.Bold,
+      )
+      val summary = stringResource(R.string.logs_export_confirm_summary)
+      Text(
+        text = remember(summary) { AnnotatedString.fromHtml(summary) },
+        modifier = Modifier.fillMaxWidth().testTag("logs.export.summary"),
+        style = MiuixTheme.textStyles.body1,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
+    },
   )
 }

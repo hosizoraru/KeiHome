@@ -4,12 +4,17 @@ import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -27,9 +32,11 @@ class LogExportConfirmationTest {
     var exports = 0
     var exportedAt = 0L
     val startedAt = SystemClock.elapsedRealtime()
+    var warningColor = Color.Unspecified
     rule.setContent {
       backHost.Provide {
         MiuixTheme {
+          warningColor = MiuixTheme.colorScheme.error
           KeiHomeScaffold {
             if (open) LogExportConfirmationDialog(
               onDismissed = { open = false },
@@ -41,6 +48,11 @@ class LogExportConfirmationTest {
     }
     val confirm = rule.onNodeWithTag("logs.export.confirm")
     confirm.assertIsNotEnabled()
+    val guidance = textLayout("logs.export.guidance")
+    assertEquals(warningColor, guidance.layoutInput.style.color)
+    assertEquals(FontWeight.Bold, guidance.layoutInput.style.fontWeight)
+    val summary = textLayout("logs.export.summary").layoutInput.text
+    assertEquals(4, summary.spanStyles.count { it.item.fontWeight == FontWeight.Bold })
     val click = confirm.fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
     rule.runOnIdle { click(); assertEquals(0, exports) }
     rule.waitUntil(timeoutMillis = 25_000) {
@@ -83,5 +95,12 @@ class LogExportConfirmationTest {
     rule.runOnIdle { backHost.completeBack() }
     rule.waitUntil(timeoutMillis = 5_000) { !open }
     rule.runOnIdle { assertEquals(0, exports) }
+  }
+
+  private fun textLayout(tag: String): TextLayoutResult {
+    val layouts = mutableListOf<TextLayoutResult>()
+    rule.onNodeWithTag(tag).performScrollTo()
+      .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+    return layouts.single()
   }
 }

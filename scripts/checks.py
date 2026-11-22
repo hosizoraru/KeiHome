@@ -123,7 +123,7 @@ GROUPS = {
         "IconPackArchiveTest", "IconPackValidationCacheTest", "ResourceOverlayCacheTest",
         "ProgressiveIconPackCatalogTest", "ApplePackLoadGateTest", "AppsBrowserDisplayTest")),
     "ui-pack-read": ("device", "Apple entry reuse, invalidation and asynchronous rows", (
-        UI + "ApplePackLoadingDeviceTest",)),
+        UI + "ApplePackLoadingDeviceTest", UI + "ApplePackNavigationTest")),
     "ui-pack-previews": ("device", "Compact actions, artwork alpha, published masks and preview invalidation", (
         UI + "CompactPackPreviewUiTest", UI + "AppliedPackThumbnailPolicyUiTest",
         UI + "MaskComparisonPreservationUiTest", UI + "IconPreviewShapeUiTest",

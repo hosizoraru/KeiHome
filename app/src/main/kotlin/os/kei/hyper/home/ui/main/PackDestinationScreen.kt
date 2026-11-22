@@ -79,8 +79,13 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     PerfectPackDestination(model, perfectTab, onBack)
     return
   }
-  if (section in setOf("apple", "apple-mappings", "apple-matched", "apple-search")) {
-    ApplePackScreen(model, section, onBack, onNavigate)
+  val appleTab = ApplePackTab.forSection(section)
+  if (appleTab != null) {
+    ApplePackDestination(model, appleTab, onBack) { onNavigate("apple-search") }
+    return
+  }
+  if (section == "apple-search") {
+    ApplePackSearchDestination(model, onBack)
     return
   }
   if (section == "monet") {

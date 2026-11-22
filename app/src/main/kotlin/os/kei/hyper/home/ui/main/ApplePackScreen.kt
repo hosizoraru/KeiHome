@@ -55,13 +55,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import androidx.lifecycle.repeatOnLifecycle
 import java.io.IOException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -69,7 +66,6 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import os.kei.hyper.home.BuildConfig
@@ -89,7 +85,6 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
-import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownEntry
@@ -98,6 +93,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -108,7 +104,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -> Unit,
-  onNavigate: (String) -> Unit) {
+  onOpenSearch: () -> Unit, localLoadRequested: Boolean, backdrop: LayerBackdrop?,
+  bottomBar: @Composable () -> Unit = {}, active: Boolean = true) {
   val controller = model.applePacks
   val state by controller.state.collectAsStateWithLifecycle()
   val currentPreviewProvider = if (section != "apple" && section != "apple-search")
@@ -119,7 +116,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val maskPolicy by produceState<IconMaskPolicy?>(null, model, maskRevision) {
     value = withContext(Dispatchers.IO) { model.packPreviews.maskSnapshot() }
   }
-  val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   val main = section == "apple"
   val search = section == "apple-search"
@@ -151,7 +147,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     }
   }
   val behavior = MiuixScrollBehavior()
-  val backdrop = rememberKeiHomeBlurBackdrop()
   var actionHeight by remember { mutableIntStateOf(0) }
   val context = LocalContext.current
   val resources = LocalResources.current
@@ -201,7 +196,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     }
   }
   val nativeBusy = packs.nativeImporting != null
-  var localLoadRequested by remember(controller) { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.rows.isEmpty() && state.pack == null)
   val enabled = !state.busy && !state.loading && !nativeBusy && !transferring
   var filter by rememberSaveable(section) { mutableStateOf("") }
@@ -285,9 +279,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val keyboard = LocalSoftwareKeyboardController.current
   fun searchNow() { focus.clearFocus(); keyboard?.hide(); controller.search(query) }
   val listState = rememberLazyListState()
+  val loadingListState = rememberLazyListState()
+  // A returning browser can reconstruct its projection after the layout has already measured.
+  val awaitingRows = browserResult != null && (localLoading || (browserResult.value == null && browserLoading))
   fun exitSelection() { selecting = false; selectedPackages = emptyList() }
   NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None),
-    isBackEnabled = selecting, onBackCompleted = { exitSelection() })
+    isBackEnabled = active && selecting, onBackCompleted = { exitSelection() })
   fun browserChanged(resetSelection: Boolean = false) {
     if (resetSelection) exitSelection()
     focus.clearFocus(); keyboard?.hide()
@@ -322,24 +319,10 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
       if (index >= 0) listState.animateScrollToItem(index)
     }
   }
-  LaunchedEffect(controller, section, locales) {
-    controller.ensureLoaded(locales)
-    localLoadRequested = true
-  }
-  LaunchedEffect(state.retryAtMillis) {
-    if (state.retryAtMillis > 0) {
-      kotlinx.coroutines.delay((state.retryAtMillis - System.currentTimeMillis()).coerceAtLeast(0))
-      controller.refreshCooldown()
-    }
-  }
   LaunchedEffect(search, state.editing) { if (search && state.editing == null) onBack() }
   DisposableEffect(controller, search) { onDispose { if (search) controller.closeSearch() } }
-  LaunchedEffect(model, lifecycle, locales) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      coroutineScope { launch { model.observePage(3, locales) } }
-    }
-  }
-  Scaffold(Modifier.fillMaxSize().imePadding().testTag("icon-packs.$section"), backdrop = backdrop, topBar = {
+  val modifier = Modifier.fillMaxSize().testTag("icon-packs.$section")
+  Scaffold(if (search) modifier.imePadding() else modifier, backdrop = backdrop, bottomBar = bottomBar, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = if (selecting) stringResource(R.string.apple_glass_selection_count, selectedVisible.size)
         else stringResource(if (main) R.string.apple_pack_title
@@ -460,7 +443,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp))
       val list: @Composable () -> Unit = {
       LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
-        .keiHomeTopBarScroll(behavior, overScrollEnabled = main || search || enabled && !selecting && !localLoading), state = listState,
+        .keiHomeTopBarScroll(behavior, overScrollEnabled = main || search || enabled && !selecting && !localLoading),
+        state = if (awaitingRows) loadingListState else listState,
         contentPadding = listPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (main && state.pack != null &&
@@ -513,16 +497,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           }
           item("appearance") { IconPackAppearancePreference(prefs.iconPackAppearance,
             model.preferences::setIconPackAppearance, enabled, compact = true) }
-          item("mappings") {
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.apple_matched_title),
-                summary = stringResource(R.string.apple_mapping_count, mappedCount, state.rows.size),
-                enabled = enabled, onClick = { onNavigate("apple-matched") })
-              BasicComponent(title = stringResource(R.string.apple_mappings),
-                summary = stringResource(R.string.apple_mapping_manage_summary),
-                enabled = enabled, onClick = { onNavigate("apple-mappings") })
-            }
-          }
           item("cache") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_download_cache),
@@ -590,7 +564,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           item("filter") {
             Column {
               Os4SearchField(query = filter, onQueryChange = { filter = it },
-                modifier = Modifier.fillMaxWidth(), label = stringResource(R.string.apple_browser_search),
+                modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("apple.browser.query"),
+                label = stringResource(R.string.apple_browser_search),
                 searching = browserResult?.status?.showProgress == true)
               browserResult?.status?.let { LocalSearchError(it) }
             }
@@ -614,7 +589,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 inspectionRow = row
                 showInspection = true
               } else {
-                controller.edit(row.target); onNavigate("apple-search")
+                controller.edit(row.target); onOpenSearch()
               }
             }
           }
@@ -731,17 +706,17 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     inspectionRow?.let { row ->
       key(row.target.packageName, state.options.platform, state.options.country) {
         AppleMappingInspection(row, state, controller, maskPolicy,
-          show = showInspection, enabled = enabled,
+          show = active && showInspection, enabled = enabled,
           onDismiss = { showInspection = false },
           onDismissFinished = { if (!showInspection) inspectionRow = null },
           onEdit = {
             showInspection = false
             controller.edit(row.target)
-            onNavigate("apple-search")
+            onOpenSearch()
           })
       }
     }
-    Os4ActionDialog(show = showClearDownloads, title = stringResource(R.string.apple_clear_downloads),
+    Os4ActionDialog(show = active && showClearDownloads, title = stringResource(R.string.apple_clear_downloads),
       summary = stringResource(R.string.apple_glass_clear_confirm),
       icon = actionIcon(PageActionIcon.CLEAR), onDismissRequest = { showClearDownloads = false },
       actions = listOf(
@@ -763,7 +738,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             controller.mapping(null, reset = resetMapping)
             onBack()
           })))
-    Os4ActionDialog(show = transferMessage != null, onDismissRequest = { transferMessage = null },
+    Os4ActionDialog(show = active && transferMessage != null, onDismissRequest = { transferMessage = null },
       title = stringResource(R.string.apple_mapping_transfer), summary = transferMessage.orEmpty(),
       icon = actionIcon(PageActionIcon.IMPORT), actions = listOf(
         Os4DialogAction(stringResource(R.string.apple_mapping_transfer_done),

@@ -37,6 +37,8 @@ class RecommendedMappingPipelineDeviceTest {
       preferences.setColorOsThemeStoreMapping(false)
       assertTrue(preferences.state.value.phoneCompanionMapping)
       preferences.setPhoneCompanionMapping(false)
+      assertTrue(preferences.state.value.weiboLiteMapping)
+      preferences.setWeiboLiteMapping(false)
       val reopened = AppPreferences(storage, listOf(SystemIconFallback.DEFAULT)).state.value
       assertFalse(reopened.systemAppNameMatching)
       assertEquals(RecommendedIconMappings.NONE, reopened.recommendedIconMappings)
@@ -50,9 +52,9 @@ class RecommendedMappingPipelineDeviceTest {
     } } finally { bitmap.recycle() }
   }
 
-  private fun input(folder: File, native: Boolean): IconPackDescriptor {
+  private fun input(folder: File, native: Boolean, component: IconPackComponent = targets.first()): IconPackDescriptor {
     val file = File(folder, "source.zip")
-    val donor = targets.first().packageName
+    val donor = nativeLauncherActivityName(component) ?: component.packageName
     val entries = if (native) mapOf("res/drawable-xxhdpi/$donor.png" to png(Color.RED),
       "nightmode/res/drawable-xxhdpi/$donor.png" to png(Color.BLUE)) +
       NativeDayNightIcon.entries(donor, png(Color.RED), png(Color.BLUE))
@@ -68,8 +70,42 @@ class RecommendedMappingPipelineDeviceTest {
     val qualifiers = IconResourceQualifiers("drawable-nodpi", densityDpi = 0)
     fun artwork(path: String) = IconPackArtwork.Archive(listOf(IconArchiveVariant(path, qualifiers)))
     return IconPackDescriptor("recommended-mapping-qa", "Mapping QA", IconPackFormat.APK,
-      IconPackSource.Generated(file, "a".repeat(64), 1), listOf(IconPackEntry("donor", targets.first(),
+      IconPackSource.Generated(file, "a".repeat(64), 1), listOf(IconPackEntry("donor", component,
         light = artwork("day.png"), dark = artwork("night.png"))))
+  }
+
+  @Test fun weiboLitePreviewAndBothArchiveFormatsUseTheSameDayNightMapping() {
+    val source = IconPackComponent("com.sina.weibo", "com.sina.weibo.SplashActivity")
+    val target = IconPackComponent("com.weico.international", "com.weico.international.appicon_white")
+    val name = requireNotNull(nativeLauncherActivityName(target))
+    for (native in listOf(false, true)) {
+      val folder = File.createTempFile("weibo-mapping-", "", context.cacheDir).apply { delete(); mkdirs() }
+      try {
+        val pack = input(folder, native, source)
+        for (dark in listOf(false, true)) for (enabled in listOf(false, true)) {
+          val options = RecommendedIconMappings.NONE.copy(weiboLite = enabled)
+          val color = if (dark) Color.BLUE else Color.RED
+          IconPackRenderer(context).open(pack, dark, clipOutput = false, recommendedMappings = options).use { renderer ->
+            val preview = renderer.renderTarget(null, target, 32) {}
+            assertEquals(enabled, preview != null)
+            if (preview != null) try { assertEquals(color, preview.getPixel(16, 16)) }
+            finally { preview.recycle() }
+          }
+          val result = IconPackExporter(context, IconPackLimits()).export(pack, listOf(source, target), dark, 32,
+            installedOnly = true, maskPolicy = IconMaskPolicy(false), preservedPackages = emptySet(),
+            recommendedMappings = options) {}
+          try { ZipFile(result.archive).use { zip ->
+            val prefix = if (native && dark) "nightmode/" else ""
+            val item = zip.getEntry("${prefix}res/drawable-xxhdpi/$name.png")
+            assertEquals(enabled, item != null)
+            if (item != null) {
+              val bitmap = zip.getInputStream(item).use { BitmapFactory.decodeStream(it) }!!
+              try { assertEquals(color, bitmap.getPixel(16, 16)) } finally { bitmap.recycle() }
+            }
+          } } finally { result.archive.delete() }
+        }
+      } finally { folder.deleteRecursively() }
+    }
   }
 
   @Test fun telegramOptOutAffectsBothStaticAndNativeArchivesWithoutChangingAuthoredResources() {

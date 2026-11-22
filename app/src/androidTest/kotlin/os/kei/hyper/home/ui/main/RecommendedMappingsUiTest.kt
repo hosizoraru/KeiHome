@@ -48,9 +48,10 @@ class RecommendedMappingsUiTest {
   private val nameTag = "icon-packs.system-name-matching"
   private val telegramTag = "recommended-mappings.telegram"
   private val phoneTag = "recommended-mappings.phone-companions"
+  private val weiboTag = "recommended-mappings.weibo-lite"
   private val colorOsTag = "recommended-mappings.coloros-theme-store"
 
-  @Test fun movedNameMatchingUsesSavedValueAndAllFourSwitchesPersistIndependently() {
+  @Test fun movedNameMatchingUsesSavedValueAndAllFiveSwitchesPersistIndependently() {
     val storageName = "recommended_mappings_${UUID.randomUUID()}"
     val storage = context.getSharedPreferences(storageName, Context.MODE_PRIVATE)
     storage.edit().putBoolean("system_app_name_matching", false).commit()
@@ -62,18 +63,20 @@ class RecommendedMappingsUiTest {
           KeiHomeTheme {
             val state by preferences.state.collectAsStateWithLifecycle()
             RecommendedMappingsPage(state.systemAppNameMatching, state.telegramChannelMapping,
-              state.phoneCompanionMapping, state.colorOsThemeStoreMapping, nativeImporting = false,
+              state.phoneCompanionMapping, state.weiboLiteMapping, state.colorOsThemeStoreMapping, nativeImporting = false,
               onSystemAppNameMatchingChange = preferences::setSystemAppNameMatching,
               onTelegramChannelMappingChange = preferences::setTelegramChannelMapping,
               onPhoneCompanionMappingChange = preferences::setPhoneCompanionMapping,
+              onWeiboLiteMappingChange = preferences::setWeiboLiteMapping,
               onColorOsThemeStoreMappingChange = preferences::setColorOsThemeStoreMapping, onBack = {})
           }
         }
       }
-      rule.onAllNodes(isToggleable(), useUnmergedTree = true).assertCountEquals(4)
+      rule.onAllNodes(isToggleable(), useUnmergedTree = true).assertCountEquals(5)
       toggle(nameTag).assertIsOff()
       toggle(telegramTag).assertIsOn()
       toggle(phoneTag).assertIsOn()
+      toggle(weiboTag).assertIsOn()
       toggle(colorOsTag).assertIsOn()
       rule.runOnIdle {
         assertEquals(true, AppPreferencesState().phoneCompanionMapping)
@@ -101,6 +104,7 @@ class RecommendedMappingsUiTest {
         assertEquals(true, restored.colorOsThemeStoreMapping)
       }
       toggle(colorOsTag).performScrollTo().performClick().assertIsOff()
+      toggle(weiboTag).performScrollTo().performClick().assertIsOff()
       toggle(nameTag).performScrollTo().performClick().assertIsOff()
       toggle(phoneTag).performScrollTo().performClick().assertIsOn()
       rule.runOnIdle {
@@ -111,6 +115,7 @@ class RecommendedMappingsUiTest {
         assertEquals(true, storage.getBoolean("phone_companion_mapping", false))
         assertEquals(true, restored.phoneCompanionMapping)
         assertEquals(true, restored.recommendedIconMappings.phoneCompanions)
+        assertEquals(false, restored.recommendedIconMappings.weiboLite)
         assertEquals(false, restored.colorOsThemeStoreMapping)
       }
     } finally {
@@ -123,49 +128,53 @@ class RecommendedMappingsUiTest {
     var name by mutableStateOf(false)
     var telegram by mutableStateOf(true)
     var phone by mutableStateOf(true)
+    var weibo by mutableStateOf(true)
     var colorOs by mutableStateOf(false)
     val changes = mutableListOf<String>()
     val host = Os4NavigationTestHost()
     rule.setContent {
       host.Provide {
         KeiHomeTheme {
-          RecommendedMappingsPage(name, telegram, phone, colorOs, importing,
+          RecommendedMappingsPage(name, telegram, phone, weibo, colorOs, importing,
             { name = it; changes += "name:$it" },
             { telegram = it; changes += "telegram:$it" },
             { phone = it; changes += "phone:$it" },
+            { weibo = it; changes += "weibo:$it" },
             { colorOs = it; changes += "coloros:$it" }, onBack = {})
         }
       }
     }
     rule.onNodeWithTag("recommended-mappings.importing").assertExists()
-    for (tag in listOf(nameTag, telegramTag, phoneTag, colorOsTag)) {
+    for (tag in listOf(nameTag, telegramTag, phoneTag, weiboTag, colorOsTag)) {
       toggle(tag).performScrollTo().assertIsNotEnabled().performTouchInput { click(center) }
     }
     toggle(nameTag).assertIsOff()
     toggle(telegramTag).assertIsOn()
     toggle(phoneTag).assertIsOn()
+    toggle(weiboTag).assertIsOn()
     toggle(colorOsTag).assertIsOff()
     rule.runOnIdle {
       assertEquals(emptyList<String>(), changes)
       importing = false
     }
     rule.onNodeWithTag("recommended-mappings.importing").assertDoesNotExist()
-    for (tag in listOf(nameTag, telegramTag, phoneTag, colorOsTag)) {
+    for (tag in listOf(nameTag, telegramTag, phoneTag, weiboTag, colorOsTag)) {
       toggle(tag).performScrollTo().assertIsEnabled().performClick()
     }
+    val expectedChanges = listOf("name:true", "telegram:false", "phone:false", "weibo:false", "coloros:true")
     rule.runOnIdle {
-      assertEquals(listOf("name:true", "telegram:false", "phone:false", "coloros:true"), changes)
+      assertEquals(expectedChanges, changes)
       importing = true
     }
     toggle(phoneTag).performScrollTo().assertIsNotEnabled().performTouchInput { click(center) }
     toggle(phoneTag).assertIsOff()
     rule.runOnIdle {
-      assertEquals(listOf("name:true", "telegram:false", "phone:false", "coloros:true"), changes)
+      assertEquals(expectedChanges, changes)
       importing = false
     }
     toggle(phoneTag).performScrollTo().assertIsEnabled().performClick().assertIsOn()
     rule.runOnIdle {
-      assertEquals(listOf("name:true", "telegram:false", "phone:false", "coloros:true", "phone:true"), changes)
+      assertEquals(expectedChanges + "phone:true", changes)
     }
     rule.onNodeWithTag("recommended-mappings.update-note").performScrollTo().assertExists()
   }
@@ -197,20 +206,22 @@ class RecommendedMappingsUiTest {
       val resources = context.createConfigurationContext(configuration).resources
       val queries = listOf(R.string.recommended_mappings_title, R.string.system_name_matching_title,
         R.string.recommended_mappings_telegram_title, R.string.recommended_mappings_phone_companions_title,
-        R.string.recommended_mappings_coloros_title)
+        R.string.recommended_mappings_coloros_title, R.string.recommended_mappings_weibo_lite_title)
         .map(resources::getString) + listOf("com.android.thememanager", "com.miui.themestore",
-          "com.android.server.telecom", "com.android.phone", "com.android.incallui")
+          "com.android.server.telecom", "com.android.phone", "com.android.incallui",
+          "com.weico.international", "com.sina.weibo")
       for (text in queries) {
         rule.runOnIdle { locale = tag; query = text }
         rule.onNodeWithTag("settings.entry.recommended-mappings").performScrollTo().performClick()
         rule.onNodeWithTag(nameTag).assertDoesNotExist()
         rule.onNodeWithTag(telegramTag).assertDoesNotExist()
         rule.onNodeWithTag(phoneTag).assertDoesNotExist()
+        rule.onNodeWithTag(weiboTag).assertDoesNotExist()
         rule.onNodeWithTag(colorOsTag).assertDoesNotExist()
         rule.onNodeWithText(resources.getString(R.string.settings_search_empty)).assertDoesNotExist()
       }
     }
-    rule.runOnIdle { assertEquals(30, navigations); query = "no-such-mapping-789" }
+    rule.runOnIdle { assertEquals(39, navigations); query = "no-such-mapping-789" }
     rule.onNodeWithTag("settings.entry.recommended-mappings").assertDoesNotExist()
   }
 

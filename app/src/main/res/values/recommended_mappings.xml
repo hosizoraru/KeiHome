@@ -11,5 +11,7 @@
     <string name="recommended_mappings_phone_companions_summary">Use Phone artwork for Call management and Phone services only when each lacks its own icon. Keep dedicated icons, including light-only designs, and apps set to keep their original icon.</string>
     <string name="recommended_mappings_coloros_title">Built-in ColorOS Theme Store mapping</string>
     <string name="recommended_mappings_coloros_summary">Use Theme Store artwork for Themes and Theme Store when the built-in ColorOS pack has no explicit mapping. Keep mappings provided by the pack.</string>
-    <string name="recommended_mappings_search_keywords">recommended mappings system app names Telegram TG Android Play Web Beta phone companions calls telecom com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap theme store com.android.thememanager com.miui.themestore</string>
+    <string name="recommended_mappings_search_keywords">recommended mappings system app names Telegram TG Android Play Web Beta phone companions calls telecom com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap theme store com.android.thememanager com.miui.themestore Weibo Lite com.weico.international com.sina.weibo</string>
+    <string name="recommended_mappings_weibo_lite_title">Weibo Lite</string>
+    <string name="recommended_mappings_weibo_lite_summary">Use Weibo artwork when Weibo Lite has no icon in the pack. Apps set to keep their original icon retain it.</string>
 </resources>

@@ -464,7 +464,7 @@ class PerfectCompletionExportDeviceTest {
         systemFallback = fallback, colorOsFallback = colorOs, installedOnly = installedOnly,
         maskPolicy = NO_MASK, preservedPackages = preserved,
         recommendedMappings = RecommendedIconMappings.NONE,
-        phoneCompanionExclusions = PhoneCompanionIcons.TARGETS.toSet()) {}
+        packageMappingExclusions = RecommendedPackageIcons.PHONE_TARGETS.toSet()) {}
       assertTrue("Export staging must stay under this test's private root",
         result.archive.canonicalPath.startsWith(root.canonicalPath + File.separator))
       return result

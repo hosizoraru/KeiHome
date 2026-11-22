@@ -7,7 +7,9 @@ import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackDescriptor
+import os.kei.hyper.home.iconpack.IconPackEntryIndex
 import os.kei.hyper.home.iconpack.IconPackFormat
+import os.kei.hyper.home.iconpack.RecommendedPackageIcons
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 
@@ -30,7 +32,9 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   extraIconPackages: Set<String> = emptySet(),
   canComplete: (IconPackComponent) -> Boolean = { true }): Boolean {
   val pack = BuiltinColorOsMappings.selected(pack, recommendedMappings.colorOsThemeStores)
-  if ((source.generation?.recommendedMappings ?: RecommendedIconMappings()) != recommendedMappings) return true
+  val previousMappings = source.generation?.recommendedMappings ?: RecommendedIconMappings()
+  if (previousMappings.copy(weiboLite = recommendedMappings.weiboLite) != recommendedMappings) return true
+  val packageMappings by lazy { RecommendedPackageIcons(pack.entries, recommendedMappings) }
   if (source.generation?.customIconIdentity != customIconIdentity) return true
   if (source.generation?.extraIconPackages.orEmpty() != extraIconPackages) return true
   if ((source.generation?.monetUnadaptedIcons ?: false) != monetUnadaptedIcons) return true
@@ -42,6 +46,13 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if ((pack.colorOsProfile != null || source.generation?.colorOsPackages?.isNotEmpty() == true) &&
     source.generation?.schemaVersion?.let { it < 14 } == true) return true
   val effectivePreserved = preservedPackages - customizedPackages
+  if (previousMappings.weiboLite != recommendedMappings.weiboLite &&
+    targets.any { it.packageName == RecommendedPackageIcons.WEIBO_LITE &&
+      it.packageName !in effectivePreserved && it.packageName !in customizedPackages }) {
+    val withWeibo = if (recommendedMappings.weiboLite) packageMappings
+      else RecommendedPackageIcons(pack.entries, previousMappings)
+    if (withWeibo.donor(IconPackComponent(RecommendedPackageIcons.WEIBO_LITE), null) != null) return true
+  }
   if (source.generation?.preservedIconPackages.orEmpty() != effectivePreserved) return true
   if (source.generation?.schemaVersion?.let { it < 3 } == true ||
     (source.generation?.completeSystemIconConfig ?: false) != completeSystemIconConfig ||
@@ -68,6 +79,7 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
       nativeAdaptations[target]?.let { it != fingerprint } == true } == true) return true
   val components = pack.entries.mapNotNull { it.component }.toSet()
   val channelFamily = os.kei.hyper.home.iconpack.TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
+  val index by lazy { IconPackEntryIndex(pack.entries) }
   return eligible.any { target ->
     if (target.packageName in customizedPackages) return@any false
     val aliases = nativeLauncherIconNames(target)
@@ -80,7 +92,10 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
         target.packageName != "com.xiaomi.calendar"
       val nativeFallback = target.packageName in systemPackages && aliases.any { it in source.entries }
       val channel = channelFamily.donor(target, true, null) != null
-      (mapped || channel || colorOs || nativeFallback || perfect || (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
+      val packageMapping = target.packageName in RecommendedPackageIcons.TARGETS &&
+        packageMappings.donor(target, index.find(target)) != null
+      (mapped || channel || packageMapping || colorOs || nativeFallback || perfect ||
+        (effectiveNameMatching && target.packageName in systemPackages)) && canComplete(target)
     }
   }
 }

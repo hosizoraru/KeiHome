@@ -5,6 +5,22 @@ import org.junit.Test
 import os.kei.hyper.home.data.RecommendedIconMappings
 
 class IconGenerationManifestTest {
+  @Test fun weiboChoiceRoundTripsWithoutOptingOlderGenerationsIn() {
+    val previous = IconGenerationManifest(schemaVersion = 17)
+    val legacy = IconGenerationManifest.decode(previous.encode())
+    assertFalse(legacy.recommendedMappings.weiboLite)
+    assertArrayEquals(previous.encode(), legacy.encode())
+    val current = IconGenerationManifest(schemaVersion = 18)
+    assertTrue(IconGenerationManifest.decode(current.encode()).recommendedMappings.weiboLite)
+    assertThrows(IllegalArgumentException::class.java) {
+      previous.copy(recommendedMappings = current.recommendedMappings).encode()
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      IconGenerationManifest.decode(previous.encode().decodeToString().replace("mappings\t7", "mappings\t15")
+        .encodeToByteArray())
+    }
+  }
+
   @Test fun extraIconsRoundTripAndDefaultToDisabledOnExistingPacks() {
     val previous = IconGenerationManifest(schemaVersion = 16)
     assertTrue(IconGenerationManifest.decode(previous.encode()).extraIconPackages.isEmpty())

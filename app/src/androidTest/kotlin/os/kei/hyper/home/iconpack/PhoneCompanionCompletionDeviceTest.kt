@@ -16,8 +16,8 @@ import os.kei.hyper.home.data.RecommendedIconMappings
 
 class PhoneCompanionCompletionDeviceTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
-  private val targets = PhoneCompanionIcons.TARGETS.map { IconPackComponent(it) }
-  private val on = RecommendedIconMappings(false, false, true)
+  private val targets = RecommendedPackageIcons.PHONE_TARGETS.map { IconPackComponent(it) }
+  private val on = RecommendedIconMappings.NONE.copy(phoneCompanions = true)
   private val off = RecommendedIconMappings.NONE
   private val dayColor = Color.rgb(211, 89, 19)
   private val nightColor = Color.rgb(19, 89, 211)
@@ -43,7 +43,7 @@ class PhoneCompanionCompletionDeviceTest {
     write(file, mapOf("phone-day.png" to png(dayColor), "phone-night.png" to png(nightColor),
       "own.png" to png(Color.GREEN)))
     return IconPackDescriptor("fixture:phone", "Phone fixture", IconPackFormat.CLASSIC_ZIP,
-      IconPackSource.Generated(file, "0".repeat(64), 0), listOf(entry(IconPackComponent(PhoneCompanionIcons.SOURCE),
+      IconPackSource.Generated(file, "0".repeat(64), 0), listOf(entry(IconPackComponent(RecommendedPackageIcons.PHONE),
         "phone-day.png", "phone-night.png")))
   }
   private fun assertColor(zip: ZipFile, path: String, color: Int) {
@@ -151,7 +151,7 @@ class PhoneCompanionCompletionDeviceTest {
   @Test fun nativeImportKeepsAuthoredBytesAndAddsOnlyMissingCompanion() {
     val folder = File(context.cacheDir, "phone-native-${System.nanoTime()}").apply { mkdirs() }
     try {
-      val donor = PhoneCompanionIcons.SOURCE
+      val donor = RecommendedPackageIcons.PHONE
       val own = targets.first().packageName
       val day = png(dayColor); val night = png(nightColor)
       val original = mapOf("res/drawable-xxhdpi/$donor.png" to day,
@@ -183,7 +183,7 @@ class PhoneCompanionCompletionDeviceTest {
 
   @Test fun bundledColorOsPhoneArtworkCompletesOnlyUncoveredServices() = kotlinx.coroutines.runBlocking {
     val pack = requireNotNull(IconPackRepository(context).runtimeFallback())
-    val policy = PhoneCompanionIcons(pack.entries)
+    val policy = RecommendedPackageIcons(pack.entries, on)
     val missing = targets.filterNot { it.packageName in policy.authoredTargets }
     assertTrue(missing.isNotEmpty())
     assertEquals(missing, policy.completionTargets())
@@ -191,8 +191,8 @@ class PhoneCompanionCompletionDeviceTest {
       IconPackRenderer(context).open(pack, night, preservedPackages = emptySet(),
         recommendedMappings = on).use { session ->
         val phone = requireNotNull(session.renderTarget(
-          pack.entries.first { it.component?.packageName == PhoneCompanionIcons.SOURCE },
-          IconPackComponent(PhoneCompanionIcons.SOURCE), 96) {})
+          pack.entries.first { it.component?.packageName == RecommendedPackageIcons.PHONE },
+          IconPackComponent(RecommendedPackageIcons.PHONE), 96) {})
         try { missing.forEach { target ->
           val service = requireNotNull(session.renderTarget(null, target, 96) {})
           try { assertTrue(phone.sameAs(service)) } finally { service.recycle() }

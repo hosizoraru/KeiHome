@@ -145,8 +145,8 @@ class CustomIconGeometryDeviceTest {
   @Test fun recommendedArtworkAndMonochromeBorrowTheSameSourceAndPreservedTargetsOptOut() = runBlocking {
     Fixture().use { f ->
       val builtin = IconPackRepository(f.context).listBuiltins().packs.first { it.colorOsProfile != null }
-      val source = IconPackComponent(PhoneCompanionIcons.SOURCE)
-      val target = IconPackComponent(PhoneCompanionIcons.TARGETS.first())
+      val source = IconPackComponent(RecommendedPackageIcons.PHONE)
+      val target = IconPackComponent(RecommendedPackageIcons.PHONE_TARGETS.first())
       val file = File(f.context.cacheDir, "supplied.zip")
       ZipOutputStream(file.outputStream()).use { zip ->
         for ((name, start) in listOf("donor.png" to 64, "target.png" to 84)) {

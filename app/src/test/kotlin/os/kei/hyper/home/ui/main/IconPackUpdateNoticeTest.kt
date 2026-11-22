@@ -7,6 +7,31 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.*
 
 class IconPackUpdateNoticeTest {
+  @Test fun weiboMappingRequestsAnUpdateOnlyForAnEligibleLiteIcon() {
+    val weibo = IconPackComponent(RecommendedPackageIcons.WEIBO)
+    val lite = IconPackComponent(RecommendedPackageIcons.WEIBO_LITE)
+    val donor = IconPackEntry("weibo", component = weibo,
+      light = IconPackArtwork.Resource(IconDrawableName("weibo", "drawable")))
+    val withDonor = pack.copy(entries = listOf(donor))
+    val previous = source.copy(generation = IconGenerationManifest(schemaVersion = 17,
+      considered = setOf(lite.flattened)))
+    fun needs(pack: IconPackDescriptor, targets: List<IconPackComponent>,
+      previous: IconBrowserSource, mappings: RecommendedIconMappings = RecommendedIconMappings(),
+      customized: Set<String> = emptySet()) =
+      iconPackNeedsUpdate(pack, previous, targets, SystemIconFallback.DEFAULT, emptySet(),
+        recommendedMappings = mappings, customizedPackages = customized)
+
+    assertTrue(needs(withDonor, listOf(lite), previous))
+    assertFalse(needs(withDonor, emptyList(), previous))
+    assertFalse(needs(withDonor, listOf(lite), previous, customized = setOf(lite.packageName)))
+    assertFalse(needs(withDonor.copy(entries = listOf(donor, entry.copy(component = lite))), listOf(lite), previous))
+    assertFalse(needs(withDonor, listOf(lite), previous, RecommendedIconMappings.BEFORE_WEIBO))
+    val current = previous.copy(generation = IconGenerationManifest(schemaVersion = 18,
+      considered = setOf(lite.flattened)))
+    assertFalse(needs(withDonor, listOf(lite), current))
+    assertTrue(needs(withDonor, listOf(lite), current, RecommendedIconMappings.BEFORE_WEIBO))
+  }
+
   @Test fun extraDarkChoiceRequiresApplyInBothDirections() {
     val chosen = setOf(ExtraIcon.SCENE.packageName)
     val applied = source.copy(generation = IconGenerationManifest(
@@ -149,7 +174,8 @@ class IconPackUpdateNoticeTest {
         assertFalse(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
           emptySet(), recommendedMappings =
             if (generation == null) RecommendedIconMappings() else RecommendedIconMappings.LEGACY))
-        for (bits in (0..7).filter { it != (generation?.recommendedMappings ?: RecommendedIconMappings()).bits }) {
+        val previous = generation?.recommendedMappings ?: RecommendedIconMappings()
+        for (bits in (0..7).filter { it != (previous.bits and 7) }) {
           val selected = RecommendedIconMappings.fromBits(bits)
           assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT,
             emptySet(), recommendedMappings = selected))

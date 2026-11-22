@@ -110,6 +110,7 @@ internal fun SettingsContent(
       R.string.system_name_matching_title, R.string.system_name_matching_summary,
       R.string.recommended_mappings_telegram_title, R.string.recommended_mappings_telegram_summary,
       R.string.recommended_mappings_phone_companions_title, R.string.recommended_mappings_phone_companions_summary,
+      R.string.recommended_mappings_weibo_lite_title, R.string.recommended_mappings_weibo_lite_summary,
       R.string.recommended_mappings_coloros_title, R.string.recommended_mappings_coloros_summary)
   val fallback = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,

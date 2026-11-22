@@ -5,29 +5,30 @@ import org.junit.Test
 import os.kei.hyper.home.data.RecommendedIconMappings
 
 class RecommendedIconMappingsTest {
-  @Test fun defaultsEnableAllThreeMappingsAndCopiesChangeEachSwitchIndependently() {
+  @Test fun defaultsEnableAllFourMappingsAndCopiesChangeEachSwitchIndependently() {
     val defaults = RecommendedIconMappings()
     assertTrue(defaults.telegramChannels)
     assertTrue(defaults.colorOsThemeStores)
     assertTrue(defaults.phoneCompanions)
-    assertEquals(7, defaults.bits)
+    assertTrue(defaults.weiboLite)
+    assertEquals(15, defaults.bits)
     val withoutTelegram = defaults.copy(telegramChannels = false)
     val withoutThemeStores = defaults.copy(colorOsThemeStores = false)
     val withoutPhone = defaults.copy(phoneCompanions = false)
     assertEquals(RecommendedIconMappings(false, true, true), withoutTelegram)
-    assertEquals(6, withoutTelegram.bits)
+    assertEquals(14, withoutTelegram.bits)
     assertEquals(RecommendedIconMappings(true, false, true), withoutThemeStores)
-    assertEquals(5, withoutThemeStores.bits)
-    assertEquals(RecommendedIconMappings.LEGACY, withoutPhone)
-    assertEquals(3, withoutPhone.bits)
+    assertEquals(13, withoutThemeStores.bits)
+    assertEquals(RecommendedIconMappings.LEGACY.copy(weiboLite = true), withoutPhone)
+    assertEquals(11, withoutPhone.bits)
     assertEquals(RecommendedIconMappings(false, false, true),
       withoutTelegram.copy(colorOsThemeStores = false))
-    assertEquals(RecommendedIconMappings.NONE,
+    assertEquals(RecommendedIconMappings.NONE.copy(weiboLite = true),
       withoutPhone.copy(telegramChannels = false, colorOsThemeStores = false))
     assertEquals(defaults, withoutTelegram.copy(telegramChannels = true))
     assertEquals(defaults, withoutThemeStores.copy(colorOsThemeStores = true))
     assertEquals(defaults, withoutPhone.copy(phoneCompanions = true))
-    assertEquals(7, defaults.bits)
+    assertEquals(RecommendedIconMappings.BEFORE_WEIBO, defaults.copy(weiboLite = false))
   }
 
   @Test fun everyBitCombinationRoundTripsWithoutCouplingTheSwitches() {
@@ -41,13 +42,14 @@ class RecommendedIconMappingsTest {
       RecommendedIconMappings(false, true, true),
       RecommendedIconMappings(true, true, true),
     )
-    expected.forEachIndexed { bits, mappings ->
+    for (bits in 0..15) {
+      val mappings = expected[bits and 7].copy(weiboLite = bits and 8 != 0)
       assertEquals(bits, mappings.bits)
       assertEquals(mappings, RecommendedIconMappings.fromBits(bits))
       assertEquals(bits, RecommendedIconMappings.fromBits(bits).bits)
     }
-    assertEquals(expected[0], RecommendedIconMappings.NONE)
-    assertEquals(expected[3], RecommendedIconMappings.LEGACY)
+    assertEquals(expected[0].copy(weiboLite = false), RecommendedIconMappings.NONE)
+    assertEquals(expected[3].copy(weiboLite = false), RecommendedIconMappings.LEGACY)
     assertEquals(expected[7], RecommendedIconMappings())
   }
 
@@ -64,7 +66,7 @@ class RecommendedIconMappingsTest {
   }
 
   @Test fun negativeAndUnknownBitsAreRejectedInsteadOfMaskedOrTruncated() {
-    for (bits in listOf(Int.MIN_VALUE, -4, -1, 8, 9, 15, 255, Int.MAX_VALUE)) {
+    for (bits in listOf(Int.MIN_VALUE, -4, -1, 16, 17, 255, Int.MAX_VALUE)) {
       assertThrows("bits=$bits", IllegalArgumentException::class.java) {
         RecommendedIconMappings.fromBits(bits)
       }

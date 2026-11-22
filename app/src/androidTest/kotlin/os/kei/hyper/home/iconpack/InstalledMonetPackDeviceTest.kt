@@ -140,10 +140,10 @@ class InstalledMonetPackDeviceTest {
           if (samples.isEmpty()) continue
           val selected = samples.map { it.target }
           val light = repository.exportNativeIcons(pack, selected, darkMode = false, sizePx = SIZE, installedOnly = true,
-            preservedPackages = PhoneCompanionIcons.TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
+            preservedPackages = RecommendedPackageIcons.PHONE_TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
           try {
             val dark = repository.exportNativeIcons(pack, selected, darkMode = true, sizePx = SIZE, installedOnly = true,
-              preservedPackages = PhoneCompanionIcons.TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
+              preservedPackages = RecommendedPackageIcons.PHONE_TARGETS.toSet(), recommendedMappings = os.kei.hyper.home.data.RecommendedIconMappings.NONE)
             try {
               assertExport(light, samples, false)
               assertExport(dark, samples, true)

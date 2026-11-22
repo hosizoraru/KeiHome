@@ -2,8 +2,27 @@ package os.kei.hyper.home.iconpack
 
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.data.RecommendedIconMappings
 
 class PhoneCompanionIconsTest {
+  @Test fun weiboSharesArtworkOnlyWithMissingLiteTargets() {
+    val weibo = RecommendedPackageIcons.WEIBO
+    val lite = RecommendedPackageIcons.WEIBO_LITE
+    val donor = nativeEntry("$weibo.SplashActivity")
+    val target = IconPackComponent(lite, "$lite.appicon_white")
+    val icons = RecommendedPackageIcons(listOf(donor), RecommendedIconMappings())
+    assertEquals(listOf(IconPackComponent(lite)), icons.completionTargets())
+    assertEquals(donor, icons.donor(target, null))
+    assertNull(icons.donor(IconPackComponent(weibo), null))
+    val authored = nativeEntry("$lite.appicon_black")
+    assertNull(RecommendedPackageIcons(listOf(donor, authored), RecommendedIconMappings()).donor(target, null))
+    assertNull(icons.donor(target, authored))
+    assertNull(RecommendedPackageIcons(listOf(donor),
+      RecommendedIconMappings(weiboLite = false)).donor(target, null))
+    assertNull(RecommendedPackageIcons(listOf(authored), RecommendedIconMappings())
+      .donor(IconPackComponent(weibo), null))
+  }
+
   private val source = "com.android.incallui"
   private val targets = listOf("com.android.server.telecom", "com.android.phone")
   private val day = art("incall_day")
@@ -11,7 +30,7 @@ class PhoneCompanionIconsTest {
 
   @Test fun enabledByDefaultCompletesBothMissingTargetsFromExactInCallPackage() {
     val donor = componentEntry(source)
-    val icons = PhoneCompanionIcons(listOf(donor))
+    val icons = RecommendedPackageIcons(listOf(donor), RecommendedIconMappings())
     assertTrue(icons.authoredTargets.isEmpty())
     assertEquals(targets.map(::IconPackComponent), icons.completionTargets())
     for (target in targets) {
@@ -23,7 +42,7 @@ class PhoneCompanionIconsTest {
   @Test fun disabledMappingHasNoDonorOrCompletionTargetsAndCanBeReEnabled() {
     val donor = componentEntry(source)
     for (enabled in listOf(true, false, true)) {
-      val icons = PhoneCompanionIcons(listOf(donor), enabled)
+      val icons = RecommendedPackageIcons(listOf(donor), RecommendedIconMappings(phoneCompanions = enabled))
       assertEquals(if (enabled) targets.map(::IconPackComponent) else emptyList(), icons.completionTargets())
       targets.forEach { target ->
         assertEquals(if (enabled) donor else null, icons.donor(IconPackComponent(target), null))
@@ -35,7 +54,7 @@ class PhoneCompanionIconsTest {
     for (entries in listOf(emptyList(), listOf(componentEntry("os.other.app")),
       listOf(componentEntry(source).copy(light = null, dark = null)),
       listOf(nativeEntry(source).copy(light = null, dark = null)))) {
-      val icons = PhoneCompanionIcons(entries)
+      val icons = RecommendedPackageIcons(entries, RecommendedIconMappings())
       assertTrue(icons.completionTargets().isEmpty())
       targets.forEach { assertNull(icons.donor(IconPackComponent(it), null)) }
     }
@@ -44,7 +63,7 @@ class PhoneCompanionIconsTest {
   @Test fun nearPrefixPackagesAndDottedNativeNamesCannotMasqueradeAsInCallDonors() {
     for (name in listOf("$source.beta", "${source}backup", "${source}_beta", "$source.Main")) {
       for (entry in listOf(componentEntry(name), nativeEntry(name))) {
-        val icons = PhoneCompanionIcons(listOf(entry))
+        val icons = RecommendedPackageIcons(listOf(entry), RecommendedIconMappings())
         assertTrue("Rejected source: $name", icons.completionTargets().isEmpty())
         targets.forEach { assertNull(icons.donor(IconPackComponent(it), null)) }
       }
@@ -53,11 +72,11 @@ class PhoneCompanionIconsTest {
 
   @Test fun sharingIsOneWayAndDoesNotExpandToDialersOrSimilarTargetPackages() {
     val ownTargets = targets.map { componentEntry(it) }
-    val reverse = PhoneCompanionIcons(ownTargets)
+    val reverse = RecommendedPackageIcons(ownTargets, RecommendedIconMappings())
     assertEquals(targets.toSet(), reverse.authoredTargets)
     assertTrue(reverse.completionTargets().isEmpty())
     assertNull(reverse.donor(IconPackComponent(source), null))
-    val forward = PhoneCompanionIcons(listOf(componentEntry(source)))
+    val forward = RecommendedPackageIcons(listOf(componentEntry(source)), RecommendedIconMappings())
     for (pkg in listOf(source, "com.android.dialer", "com.google.android.dialer",
       "com.android.phone.beta", "com.android.server.telecom.extra", "os.other.app")) {
       assertNull("Unexpected target: $pkg", forward.donor(IconPackComponent(pkg), null))
@@ -79,7 +98,7 @@ class PhoneCompanionIconsTest {
       )
       for (own in authoredEntries) {
         val entries = listOf(donor, own)
-        val icons = PhoneCompanionIcons(entries)
+        val icons = RecommendedPackageIcons(entries, RecommendedIconMappings())
         assertEquals("Authored entry: ${own.key}", setOf(target), icons.authoredTargets)
         assertEquals(listOf(IconPackComponent(other)), icons.completionTargets())
         assertNull(icons.donor(IconPackComponent(target), null))
@@ -96,7 +115,7 @@ class PhoneCompanionIconsTest {
       .copy(light = art("own_telecom"), dark = null)
     val entries = listOf(componentEntry(source), phone, telecom)
     for (enabled in listOf(false, true)) {
-      val icons = PhoneCompanionIcons(entries, enabled)
+      val icons = RecommendedPackageIcons(entries, RecommendedIconMappings(phoneCompanions = enabled))
       assertEquals(targets.toSet(), icons.authoredTargets)
       assertTrue(icons.completionTargets().isEmpty())
       targets.forEach { assertNull(icons.donor(IconPackComponent(it), null)) }
@@ -108,7 +127,7 @@ class PhoneCompanionIconsTest {
   }
 
   @Test fun explicitExistingTargetsBlockBorrowingEvenOutsideTheAuthoredEntryList() {
-    val icons = PhoneCompanionIcons(listOf(componentEntry(source)))
+    val icons = RecommendedPackageIcons(listOf(componentEntry(source)), RecommendedIconMappings())
     for (target in targets) {
       for (existing in listOf(
         componentEntry(target).copy(dark = null),
@@ -128,7 +147,7 @@ class PhoneCompanionIconsTest {
       .copy(light = art("second_day"), dark = art("second_night"))
     for (packageDonor in listOf(componentEntry(source, key = "z"), nativeEntry(source, key = "z"))) {
       for (entries in listOf(listOf(activityA, activityB, packageDonor), listOf(packageDonor, activityB, activityA))) {
-        val icons = PhoneCompanionIcons(entries)
+        val icons = RecommendedPackageIcons(entries, RecommendedIconMappings())
         assertEquals(targets.map(::IconPackComponent), icons.completionTargets())
         targets.forEach { assertEquals(packageDonor, icons.donor(IconPackComponent(it), null)) }
       }
@@ -141,7 +160,7 @@ class PhoneCompanionIconsTest {
     val activityC = nativeEntry("$source#os.foreign.Third", key = "c")
     for (entries in listOf(listOf(activityA), listOf(activityA, activityB, activityC),
       listOf(activityC, activityB, activityA))) {
-      val icons = PhoneCompanionIcons(entries)
+      val icons = RecommendedPackageIcons(entries, RecommendedIconMappings())
       assertEquals(targets.map(::IconPackComponent), icons.completionTargets())
       for (target in targets) {
         val donor = requireNotNull(icons.donor(IconPackComponent(target), null))
@@ -160,7 +179,7 @@ class PhoneCompanionIconsTest {
     )
     for (conflict in conflicts) {
       for (entries in listOf(listOf(first, conflict), listOf(conflict, first))) {
-        val icons = PhoneCompanionIcons(entries)
+        val icons = RecommendedPackageIcons(entries, RecommendedIconMappings())
         assertTrue(icons.completionTargets().isEmpty())
         targets.forEach { assertNull(icons.donor(IconPackComponent(it), null)) }
       }
@@ -175,7 +194,7 @@ class PhoneCompanionIconsTest {
       nativeEntry("$source#os.foreign.AnyActivity"),
     ).map { it.copy(dark = null) }
     for (entry in candidates) {
-      val icons = PhoneCompanionIcons(listOf(entry))
+      val icons = RecommendedPackageIcons(listOf(entry), RecommendedIconMappings())
       assertEquals(targets.map(::IconPackComponent), icons.completionTargets())
       for (target in targets) {
         val donor = requireNotNull(icons.donor(IconPackComponent(target), null))
@@ -184,7 +203,7 @@ class PhoneCompanionIconsTest {
       }
       assertNull(entry.dark)
     }
-    val agreeingActivities = PhoneCompanionIcons(listOf(candidates[2], candidates[3]))
+    val agreeingActivities = RecommendedPackageIcons(listOf(candidates[2], candidates[3]), RecommendedIconMappings())
     targets.forEach {
       val donor = requireNotNull(agreeingActivities.donor(IconPackComponent(it), null))
       assertEquals(day, donor.light)

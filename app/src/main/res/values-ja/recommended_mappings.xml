@@ -11,5 +11,7 @@
     <string name="recommended_mappings_phone_companions_summary">「通話管理」と「電話サービス」に個別のアイコンがない場合、「電話」のアイコンで補完します。明るい表示用のみの専用アイコンや、元のアイコンを保持するアプリは変更しません。</string>
     <string name="recommended_mappings_coloros_title">内蔵 ColorOS テーマストアのマッピング</string>
     <string name="recommended_mappings_coloros_summary">内蔵 ColorOS パックに明示的な指定がない場合、テーマとテーマストアにテーマストアのアイコンを使用します。パックの既存の指定は保持します。</string>
-    <string name="recommended_mappings_search_keywords">推奨マッピング システムアプリ 名前照合 Telegram TG Android Play Web Beta 電話 関連アイコン 通話 com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap テーマストア com.android.thememanager com.miui.themestore</string>
+    <string name="recommended_mappings_search_keywords">推奨マッピング システムアプリ 名前照合 Telegram TG Android Play Web Beta 電話 関連アイコン 通話 com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap テーマストア com.android.thememanager com.miui.themestore Weibo Lite com.weico.international com.sina.weibo</string>
+    <string name="recommended_mappings_weibo_lite_title">Weibo Lite</string>
+    <string name="recommended_mappings_weibo_lite_summary">アイコンパックに Weibo Lite のアイコンがない場合、Weibo のアイコンを使用します。元のアイコンを保持する設定が優先されます。</string>
 </resources>

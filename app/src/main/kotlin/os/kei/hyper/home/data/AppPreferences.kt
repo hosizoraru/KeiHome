@@ -75,6 +75,7 @@ internal data class AppPreferencesState(
   val systemAppNameMatching: Boolean = true,
   val telegramChannelMapping: Boolean = true,
   val phoneCompanionMapping: Boolean = true,
+  val weiboLiteMapping: Boolean = true,
   val colorOsThemeStoreMapping: Boolean = true,
   val colorOsForOtherPacks: Boolean = false,
   val colorOsStyle: ColorOsStyle = ColorOsStyle.CLASSIC,
@@ -87,7 +88,7 @@ internal data class AppPreferencesState(
 ) {
   val recommendedIconMappings: RecommendedIconMappings
     get() = RecommendedIconMappings(telegramChannelMapping, colorOsThemeStoreMapping,
-      phoneCompanions = phoneCompanionMapping)
+      phoneCompanions = phoneCompanionMapping, weiboLite = weiboLiteMapping)
 }
 
 internal class AppPreferences internal constructor(
@@ -157,6 +158,7 @@ internal class AppPreferences internal constructor(
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     telegramChannelMapping = preferences.getBoolean(RecommendedIconMappings.TELEGRAM_KEY, true),
     phoneCompanionMapping = preferences.getBoolean(RecommendedIconMappings.PHONE_COMPANION_KEY, true),
+    weiboLiteMapping = preferences.getBoolean(RecommendedIconMappings.WEIBO_LITE_KEY, true),
     colorOsThemeStoreMapping = preferences.getBoolean(RecommendedIconMappings.THEME_STORE_KEY, true),
     colorOsForOtherPacks = preferences.getBoolean("coloros_other_packs", false),
     colorOsStyle = ColorOsStyle.entries.firstOrNull {
@@ -374,6 +376,11 @@ internal class AppPreferences internal constructor(
   fun setPhoneCompanionMapping(value: Boolean) {
     preferences.edit().putBoolean(RecommendedIconMappings.PHONE_COMPANION_KEY, value).apply()
     state.update { it.copy(phoneCompanionMapping = value) }
+  }
+
+  fun setWeiboLiteMapping(value: Boolean) {
+    preferences.edit().putBoolean(RecommendedIconMappings.WEIBO_LITE_KEY, value).apply()
+    state.update { it.copy(weiboLiteMapping = value) }
   }
 
   fun setColorOsThemeStoreMapping(value: Boolean) {

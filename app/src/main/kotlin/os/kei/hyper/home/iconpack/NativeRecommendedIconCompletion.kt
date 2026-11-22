@@ -10,16 +10,17 @@ import java.io.File
 internal object NativeRecommendedIconCompletion {
   fun additions(context: Context, pack: IconPackDescriptor, targets: List<IconPackComponent>, size: Int,
     maskPolicy: IconMaskPolicy?, preserved: Set<String>, recommendedMappings: RecommendedIconMappings,
-    phoneCompanionExclusions: Set<String>, nativeArchive: File, limits: IconPackLimits,
+    packageMappingExclusions: Set<String>, nativeArchive: File, limits: IconPackLimits,
     check: () -> Unit): Map<String, ByteArray> {
-    if (!recommendedMappings.telegramChannels && !recommendedMappings.phoneCompanions) return emptyMap()
+    if (!recommendedMappings.telegramChannels && !recommendedMappings.phoneCompanions &&
+      !recommendedMappings.weiboLite) return emptyMap()
     val family = TelegramChannelIcons(pack.entries, recommendedMappings.telegramChannels)
-    val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
+    val packageMappings = RecommendedPackageIcons(pack.entries, recommendedMappings)
     val sourceEntries = IconPackEntryIndex(pack.entries)
     fun existing(target: IconPackComponent) = sourceEntries.find(target)
     val wanted = targets.filter { target ->
-      target.packageName !in preserved && ((target.packageName !in phoneCompanionExclusions &&
-        phone.donor(target, existing(target)) != null) ||
+      target.packageName !in preserved && ((target.packageName !in packageMappingExclusions &&
+        packageMappings.donor(target, existing(target)) != null) ||
         (TelegramChannelIcons.isDefaultTarget(target) &&
         existing(target) == null && family.donor(target, true, null) != null &&
         !(target.className == null && targets.any {
@@ -53,7 +54,7 @@ internal object NativeRecommendedIconCompletion {
           for (name in listOfNotNull(nativeLauncherActivityName(target), target.packageName).distinct()) {
             if (!written.add(name)) continue
             output.putAll(NativeDayNightIcon.artworkEntries(name, light, dark,
-              requiresNativeDescriptor = target.packageName in PhoneCompanionIcons.TARGETS))
+              requiresNativeDescriptor = target.packageName in RecommendedPackageIcons.PHONE_TARGETS))
           }
         }
       }

@@ -14,7 +14,11 @@ internal data class IconGenerationManifest(
   val activeLauncherTargets: Set<String> = emptySet(),
   val preservedIconPackages: Set<String> = emptySet(),
   val recommendedMappings: RecommendedIconMappings =
-    if (schemaVersion < 9) RecommendedIconMappings.LEGACY else RecommendedIconMappings(),
+    when {
+      schemaVersion < 9 -> RecommendedIconMappings.LEGACY
+      schemaVersion < 18 -> RecommendedIconMappings.BEFORE_WEIBO
+      else -> RecommendedIconMappings()
+    },
   val customIconIdentity: String? = null,
   val monetUnadaptedIcons: Boolean = false,
   val monetFullBleedIconPadding: Boolean = false,
@@ -32,6 +36,7 @@ internal data class IconGenerationManifest(
       preservedIconPackages.all(os.kei.hyper.home.data.PreservedIcons::isValidPackageName))
     require(schemaVersion >= 8 || recommendedMappings == RecommendedIconMappings.LEGACY)
     require(schemaVersion >= 9 || !recommendedMappings.phoneCompanions)
+    require(schemaVersion >= 18 || !recommendedMappings.weiboLite)
     require(customIconIdentity == null || schemaVersion >= 10 && customIconIdentity.matches(Regex("[0-9a-f]{64}")))
     require(schemaVersion >= 11 || !monetUnadaptedIcons)
     require(!monetFullBleedIconPadding || schemaVersion >= 15)
@@ -56,7 +61,7 @@ internal data class IconGenerationManifest(
   }
 
   companion object {
-    const val CURRENT_SCHEMA = 17
+    const val CURRENT_SCHEMA = 18
     const val PATH = "keihome-icon-generation.txt"
     const val MAX_BYTES = 2 * 1024 * 1024
     fun decode(bytes: ByteArray): IconGenerationManifest {
@@ -80,6 +85,7 @@ internal data class IconGenerationManifest(
         "KeiHomeIconGeneration15" -> 15
         "KeiHomeIconGeneration16" -> 16
         "KeiHomeIconGeneration17" -> 17
+        "KeiHomeIconGeneration18" -> 18
         else -> error("Unknown generation schema")
       }
       require(lines.last().isEmpty() && lines.size <= maxLines(schema))
@@ -111,9 +117,15 @@ internal data class IconGenerationManifest(
             custom = row[1]
           }
           "mappings" -> {
+            val bits = row.getOrNull(1)?.toIntOrNull()
+            val maxBits = when {
+              schema >= 18 -> 15
+              schema >= 9 -> 7
+              else -> 3
+            }
             require(schema >= 8 && row.size == 2 && mappings == null &&
-              row[1] in (if (schema >= 9) (0..7) else (0..3)).map(Int::toString))
-            mappings = RecommendedIconMappings.fromBits(row[1].toInt())
+              bits != null && bits in 0..maxBits && bits.toString() == row[1])
+            mappings = RecommendedIconMappings.fromBits(bits)
           }
           "scope" -> {
             require(schema >= 2 && row.size == 2 && scope == null && row[1] in setOf("all", "installed"))

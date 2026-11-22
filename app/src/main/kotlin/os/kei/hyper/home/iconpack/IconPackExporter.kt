@@ -128,7 +128,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     installedOnly: Boolean = false, maskPolicy: IconMaskPolicy? = null,
     preservedPackages: Set<String> = PreservedIcons.snapshot(context),
     recommendedMappings: RecommendedIconMappings = RecommendedIconMappings.snapshot(context),
-    phoneCompanionExclusions: Set<String> = emptySet(),
+    packageMappingExclusions: Set<String> = emptySet(),
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
     allowEmpty: Boolean = false,
     onProgress: ((Int, Int, String) -> Unit)? = null,
@@ -143,25 +143,25 @@ internal class IconPackExporter(private val context: Context, private val limits
       systemRenderer?.perfectSourceHash
       val alternateChannels = targets.filter { TelegramChannelIcons.isFamily(it.packageName) &&
         !TelegramChannelIcons.isDefaultTarget(it) }.mapTo(hashSetOf()) { it.packageName }
-      val phone = PhoneCompanionIcons(pack.entries, recommendedMappings.phoneCompanions)
-      fun authoredPhoneTargets(source: IconPackDescriptor) = source.entries.mapNotNull { entry ->
-        entry.component?.takeIf { it.packageName in PhoneCompanionIcons.TARGETS }
-          ?: entry.nativeName?.takeIf { it in PhoneCompanionIcons.TARGETS }?.let(::IconPackComponent)
+      val packageMappings = RecommendedPackageIcons(pack.entries, recommendedMappings)
+      fun authoredPackageTargets(source: IconPackDescriptor) = source.entries.mapNotNull { entry ->
+        entry.component?.takeIf { it.packageName in RecommendedPackageIcons.TARGETS }
+          ?: entry.nativeName?.takeIf { it in RecommendedPackageIcons.TARGETS }?.let(::IconPackComponent)
       }
-      val phonePresence = mutableMapOf<String, Boolean>()
-      val phoneTargets = (phone.completionTargets() + authoredPhoneTargets(pack) + colorOsFallback?.let {
-        (PhoneCompanionIcons(it.entries, recommendedMappings.phoneCompanions).completionTargets() +
-          authoredPhoneTargets(it))
-          .filterNot { target -> target.packageName in phone.authoredTargets }
-      }.orEmpty()).distinct().filterNot { it.packageName in phoneCompanionExclusions }.filter { target ->
-          !installedOnly || phonePresence.getOrPut(target.packageName) { try {
+      val packagePresence = mutableMapOf<String, Boolean>()
+      val packageTargets = (packageMappings.completionTargets() + authoredPackageTargets(pack) + colorOsFallback?.let {
+        (RecommendedPackageIcons(it.entries, recommendedMappings).completionTargets() +
+          authoredPackageTargets(it))
+          .filterNot { target -> target.packageName in packageMappings.authoredTargets }
+      }.orEmpty()).distinct().filterNot { it.packageName in packageMappingExclusions }.filter { target ->
+          !installedOnly || packagePresence.getOrPut(target.packageName) { try {
             context.packageManager.getApplicationInfo(target.packageName,
               android.content.pm.PackageManager.ApplicationInfoFlags.of(0))
             true
           } catch (_: android.content.pm.PackageManager.NameNotFoundException) { false
           } catch (_: SecurityException) { false } }
         }
-      val candidates = targets + phoneTargets + if (installedOnly) emptyList() else
+      val candidates = targets + packageTargets + if (installedOnly) emptyList() else
         (if (pack.colorOsProfile != null) pack.entries.mapNotNull { it.component }
         else colorOsFallback?.entries.orEmpty().mapNotNull { it.component }) +
           (if (recommendedMappings.telegramChannels) TelegramChannelIcons.offlineTargets() else emptyList())
@@ -177,7 +177,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }.distinct().filterNot { it.packageName in preservedPackages }
       if (pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS) {
         val result = exportNativeModule(pack, normalized, darkMode, sizePx, systemFallback, colorOsFallback, installedOnly,
-          maskPolicy, preservedPackages, recommendedMappings, phoneCompanionExclusions, check, onNativeProgress)
+          maskPolicy, preservedPackages, recommendedMappings, packageMappingExclusions, check, onNativeProgress)
         try {
           systemRenderer?.validateCompletionSource()
           return result
@@ -226,7 +226,7 @@ internal class IconPackExporter(private val context: Context, private val limits
         IconPackRenderer(context, colorOsSources).open(pack, darkMode, colorOsFallback,
           maskPolicy = maskPolicy, clipOutput = false, preservedPackages = preservedPackages,
           recommendedMappings = recommendedMappings,
-          phoneCompanionExclusions = phoneCompanionExclusions).use { renderer ->
+          packageMappingExclusions = packageMappingExclusions).use { renderer ->
           try {
           ZipOutputStream(LimitedOutput(archive.outputStream(), limits.maxInputBytes)).use { zip ->
             fun write(name: String, png: ByteArray) {
@@ -261,7 +261,7 @@ internal class IconPackExporter(private val context: Context, private val limits
                   continue
                 }
                 if (entry == null && fallback == null && systemFallback?.isPerfect != true &&
-                  systemRenderer?.isSystem(target) != true && !renderer.hasPhoneCompanion(target)) {
+                  systemRenderer?.isSystem(target) != true && !renderer.hasPackageMapping(target)) {
                   skipped += IconPackExportSkip(target, "No component mapping")
                   continue
                 }
@@ -374,7 +374,7 @@ internal class IconPackExporter(private val context: Context, private val limits
     pack: IconPackDescriptor, targets: List<IconPackComponent>, darkMode: Boolean, size: Int,
     systemFallback: SystemIconFallback?, colorOsFallback: IconPackDescriptor?, installedOnly: Boolean,
     maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>,
-    recommendedMappings: RecommendedIconMappings, phoneCompanionExclusions: Set<String>, check: () -> Unit,
+    recommendedMappings: RecommendedIconMappings, packageMappingExclusions: Set<String>, check: () -> Unit,
     onNativeProgress: ((ColorOsGenerationProgress) -> Unit)?,
   ): IconPackExportResult {
     val record = (pack.source as? IconPackSource.Imported)?.record ?: throw IconPackException("Missing native icon import")
@@ -425,7 +425,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       }
       val paletteNames = appendNativeMonet(archive, index.entries, targets, check)
       val family = NativeRecommendedIconCompletion.additions(context, pack, targets, size, maskPolicy,
-        preservedPackages, recommendedMappings, phoneCompanionExclusions, archive, limits, check)
+        preservedPackages, recommendedMappings, packageMappingExclusions, archive, limits, check)
       if (family.isNotEmpty()) {
         val completed = File.createTempFile("icons-recommended-", ".zip", directory)
         try {
@@ -439,7 +439,7 @@ internal class IconPackExporter(private val context: Context, private val limits
       val extra = if (colorOsFallback != null)
         appendColorOsFallbacks(archive, targets, originalNames, colorOsFallback,
           systemFallback ?: SystemIconFallback.DEFAULT, size, maskPolicy, preservedPackages, recommendedMappings,
-          phoneCompanionExclusions + PhoneCompanionIcons(pack.entries).authoredTargets, check)
+          packageMappingExclusions + RecommendedPackageIcons(pack.entries, RecommendedIconMappings.NONE).authoredTargets, check)
       else { if (systemFallback != null) appendNativeFallbacks(archive, targets, originalNames, systemFallback, size, maskPolicy, check); null }
       val aliases = appendNativeDefaultAliases(archive, targets, preservedPackages, check)
       val verified = if (systemFallback == null && colorOsFallback == null && paletteNames.isEmpty() && !aliases) index else IconPackArchive(limits).inspect(archive, nested,
@@ -595,7 +595,7 @@ internal class IconPackExporter(private val context: Context, private val limits
   private fun appendColorOsFallbacks(archive: File, targets: List<IconPackComponent>, covered: Set<String>,
     fallback: IconPackDescriptor, style: SystemIconFallback, size: Int,
     maskPolicy: IconMaskPolicy?, preservedPackages: Set<String>, recommendedMappings: RecommendedIconMappings,
-    phoneCompanionExclusions: Set<String>,
+    packageMappingExclusions: Set<String>,
     check: () -> Unit): Pair<Set<String>, Set<IconPackComponent>> {
     require(fallback.colorOsProfile != null && fallback.format == IconPackFormat.CLASSIC_ZIP)
     val protected = java.util.zip.ZipFile(archive).use { source ->
@@ -606,13 +606,13 @@ internal class IconPackExporter(private val context: Context, private val limits
     // The outer export already expanded offline targets and resolved their ownership.
     val day = export(fallback, missing, false, size, style, installedOnly = true,
       maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings,
-      phoneCompanionExclusions = phoneCompanionExclusions, check = check)
+      packageMappingExclusions = packageMappingExclusions, check = check)
     var night: IconPackExportResult? = null
     val copy = File.createTempFile("native-coloros-fallback-", ".zip", archive.parentFile)
     try {
       night = export(fallback, missing, true, size, style, installedOnly = true,
         maskPolicy = maskPolicy, preservedPackages = preservedPackages, recommendedMappings = recommendedMappings,
-        phoneCompanionExclusions = phoneCompanionExclusions, check = check)
+        packageMappingExclusions = packageMappingExclusions, check = check)
       val addedNames = linkedSetOf<String>()
       val systemNames = linkedSetOf<String>()
       var perfectSource: String? = null

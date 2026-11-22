@@ -159,6 +159,9 @@ internal object IconPackImportProtocol {
     .scheme("ViewLocalResource").authority("view.local.resource").fragment(localId).build())
     .setClassName("com.android.thememanager", "com.android.thememanager.module.detail.view.ThemeDetailActivity")
     .putExtra("REQUEST_RESOURCE_CODE", "icons")
+    // Themes falls back to group 0, item 0 when the requested local record no longer exists.
+    .putExtra("REQUEST_RES_GROUP", -1)
+    .putExtra("REQUEST_RES_INDEX", -1)
 
   fun takeAutoApply(context: Context, report: NativeIconImportReport): Intent? {
     val token = report.autoApplyToken ?: return null

@@ -23,14 +23,14 @@ class MainTabNavigationDeviceTest {
   @get:Rule(order = 1) val rule = createComposeRule()
   private lateinit var pager: PagerState
   private lateinit var scope: CoroutineScope
-  private lateinit var navigation: MainTabNavigation
+  private lateinit var navigation: TabPagerNavigation
 
   private fun start() {
     rule.mainClock.autoAdvance = true
     rule.setContent {
       pager = rememberPagerState { 5 }
       scope = rememberCoroutineScope()
-      navigation = remember { MainTabNavigation(pager, scope) }
+      navigation = remember { TabPagerNavigation(pager, scope) }
       HorizontalPager(pager, Modifier.fillMaxSize()) { BasicText("Page $it") }
     }
     rule.waitForIdle()

@@ -2,16 +2,10 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.pager.PagerDefaults
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.utils.pagerGestureOverride
-import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
-import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,17 +68,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Unit,
   onOpenSettingsSection: (String) -> Unit, onOpenDesktopSection: (String) -> Unit,
-  pager: PagerState, tabNavigation: MainTabNavigation, navigation: List<NavigationItem>,
+  pager: PagerState, tabNavigation: TabPagerNavigation, navigation: List<NavigationItem>,
   backdrop: LayerBackdrop?, wide: Boolean, overlay: @Composable () -> Unit) {
-  val (interactionFlow, initialInteraction) = remember(model) {
-    model.preferences.state.map { it.pageUserScroll to it.pagerGesture }.distinctUntilChanged() to
-      model.preferences.state.value.let { it.pageUserScroll to it.pagerGesture }
-  }
-  val interaction by interactionFlow.collectAsStateWithLifecycle(initialValue = initialInteraction)
-  val gestureMode = when (interaction.second) {
-    os.kei.hyper.home.data.AppPagerGesture.NATIVE -> PagerInterceptionMode.Native
-    os.kei.hyper.home.data.AppPagerGesture.CROSS_AXIS -> PagerInterceptionMode.CrossAxis
-  }
   val navigationScope = rememberCoroutineScope()
   var statusPackJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
   val focus = LocalFocusManager.current
@@ -144,14 +129,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
     // Glass dialogs register with the MIUIX popup host supplied by this scaffold.
     overlay()
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      val fling = PagerDefaults.flingBehavior(pager, snapAnimationSpec = PagerNavigationSpringSpec)
-      HorizontalPager(state = pager, userScrollEnabled = interaction.first && gestureMode != PagerInterceptionMode.CrossAxis,
-        modifier = Modifier.fillMaxSize().pagerGestureOverride(pagerState = pager,
-          flingBehavior = fling, mode = gestureMode, enabled = interaction.first),
-        flingBehavior = fling, verticalAlignment = Alignment.Top,
-        pageNestedScrollConnection = if (gestureMode == PagerInterceptionMode.CrossAxis)
-          top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
-        else PagerDefaults.pageNestedScrollConnection(pager, Orientation.Horizontal)) { tab ->
+      KeiHomeTabPager(model, pager, Modifier.fillMaxSize()) { tab ->
         val page = tabs[tab].page
         val padding = PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp,

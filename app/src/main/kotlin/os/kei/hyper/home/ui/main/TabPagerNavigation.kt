@@ -13,7 +13,7 @@ import top.yukonga.miuix.kmp.utils.springAnimateToPage
 
 /** A tab click owns selection until its scroll completes or a user gesture interrupts it. */
 @Stable
-internal class MainTabNavigation(
+internal class TabPagerNavigation(
   private val pager: PagerState,
   private val scope: CoroutineScope,
 ) {

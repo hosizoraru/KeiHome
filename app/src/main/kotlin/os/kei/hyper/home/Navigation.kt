@@ -42,7 +42,7 @@ import os.kei.hyper.home.ui.main.IconPackStep
 import os.kei.hyper.home.ui.main.MainScreen
 import os.kei.hyper.home.ui.main.MainShortcut
 import os.kei.hyper.home.ui.main.MainTab
-import os.kei.hyper.home.ui.main.MainTabNavigation
+import os.kei.hyper.home.ui.main.TabPagerNavigation
 import os.kei.hyper.home.ui.main.PackNavigationBadge
 import os.kei.hyper.home.ui.main.actionIcon
 import os.kei.hyper.home.ui.main.mainShortcutItems
@@ -94,7 +94,7 @@ internal fun MainNavigation(
   val tabs = MainTab.entries
   val pager = key("main-tabs-v3") { rememberPagerState { tabs.size } }
   val tabScope = rememberCoroutineScope()
-  val tabNavigation = remember(pager, tabScope) { MainTabNavigation(pager, tabScope) }
+  val tabNavigation = remember(pager, tabScope) { TabPagerNavigation(pager, tabScope) }
   val focus = LocalFocusManager.current
   LaunchedEffect(current) {
     if (current is OnboardingRoute && !current.replay) setup.visit(current.page)

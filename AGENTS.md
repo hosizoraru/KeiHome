@@ -10,6 +10,8 @@
 - Check the current checkout and relevant runtime evidence before relying on
   an earlier diagnosis. Use new feedback to update the affected acceptance
   criteria and carry forward the rest of the agreed scope.
+- Use the current branch and checkout for routine work. Create a new branch
+  or worktree when the user asks for one.
 
 ## Project conventions
 
@@ -47,6 +49,9 @@
   run artifacts and durable conclusions in `docs/`.
 - When asked for segmented commits, group by responsibility and preserve unrelated
   changes. Treat local commits, pushes, and publication as distinct operations.
+- When cleaning up after a merge, verify that the destination contains the
+  source commits. Preserve any local work and needed artifacts before removing
+  a branch or worktree, and retain experiments the user has asked to keep.
 
 ## Device work
 

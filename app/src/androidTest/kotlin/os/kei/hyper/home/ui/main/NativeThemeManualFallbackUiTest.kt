@@ -104,6 +104,8 @@ class NativeThemeManualFallbackUiTest {
       assertEquals("com.android.thememanager", detail.component?.packageName)
       assertEquals("local", detail.data?.fragment)
       assertEquals("icons", detail.getStringExtra("REQUEST_RESOURCE_CODE"))
+      assertEquals(-1, detail.getIntExtra("REQUEST_RES_GROUP", 0))
+      assertEquals(-1, detail.getIntExtra("REQUEST_RES_INDEX", 0))
       assertFalse(detail.hasExtra("keihome.AUTO_APPLY_TOKEN"))
       busy = true
     }

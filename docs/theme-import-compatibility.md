@@ -142,3 +142,17 @@ tests rather than by delaying the device import.
 
 Device receipts and the locally generated ZIP are retained under
 `.artifacts/research/perfect-system-import-20261122/`.
+
+## Opening a saved icon pack
+
+Themes 11.5.6.0 resolves `ViewLocalResource` using the local component ID
+in the URI fragment. If that ID is absent from its library, the detail
+activity tries the requested group and item indexes, which default to the
+first entry. This can open an unrelated icon pack after the user removes
+an older import from Themes.
+
+KeiHome sends `-1` for both indexes so the local ID alone selects the
+record. A missing ID closes the manual detail and invokes the existing
+reimport guidance. The same intent is used for automatic apply, which still
+requires a matching import authorization. Verified with a missing record,
+a manual HyperOS4 apply, and an automatic iOS apply on Themes 11.5.6.0.

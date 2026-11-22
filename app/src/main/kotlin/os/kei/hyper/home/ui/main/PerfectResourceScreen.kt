@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -23,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,13 +35,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -52,11 +47,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4FloatingToolbar
+import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
@@ -73,6 +68,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -118,29 +114,26 @@ internal class PerfectResourceStyleDialogState {
 }
 
 @Composable
-internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit, onPreview: (String) -> Unit = {}) {
+internal fun PerfectResourceScreen(vm: HomeViewModel, onBack: () -> Unit,
+  backdrop: LayerBackdrop?, bottomBar: @Composable () -> Unit, active: Boolean, onPreview: (String) -> Unit) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
-  ObservePerfectResources(vm.perfectPacks, ensureCatalog = true)
-  LaunchedEffect(state.retryAtMillis) {
-    val remaining = state.retryAtMillis - System.currentTimeMillis()
-    if (remaining > 0) delay(remaining)
-    vm.perfectPacks.updateCooldown()
-  }
   PerfectResourceContent(state,
     busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null,
     onBack = onBack, onCheck = vm.perfectPacks::checkUpdates,
     onDownload = vm.perfectPacks::downloadStyles, onRemove = vm.perfectPacks::removeStyles,
     onRepair = vm.perfectPacks::repairResources,
     onDelete = vm.perfectPacks::deleteResources, onClearCache = vm.perfectPacks::clearDownloads,
-    onPreview = onPreview)
+    onPreview = onPreview, backdrop = backdrop, bottomBar = bottomBar, active = active)
 }
 
 @Composable
 internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   onBack: () -> Unit, onCheck: () -> Unit, onDownload: (Set<String>) -> Unit,
   onRemove: (Set<String>) -> Unit, onRepair: () -> Unit,
-  onDelete: () -> Unit, onClearCache: () -> Unit, onPreview: (String) -> Unit = {}) {
+  onDelete: () -> Unit, onClearCache: () -> Unit, onPreview: (String) -> Unit = {},
+  backdrop: LayerBackdrop? = rememberKeiHomeBlurBackdrop(),
+  bottomBar: (@Composable () -> Unit)? = null, active: Boolean = true) {
   val context = LocalContext.current
   val uri = LocalUriHandler.current
   val cooling = state.retryAtMillis > System.currentTimeMillis()
@@ -180,7 +173,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
   }
   // A completed back gesture leaves selection before leaving the resource page.
   NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None),
-    isBackEnabled = selecting, onBackCompleted = { exitSelection() })
+    isBackEnabled = active && selecting, onBackCompleted = { exitSelection() })
   val styleDialog = remember { PerfectResourceStyleDialogState() }
   var removalTargets by remember { mutableStateOf(emptySet<String>()) }
   var showInfo by remember { mutableStateOf(false) }
@@ -319,11 +312,31 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
       }
     }
   }
-  val view = LocalView.current
-  var actionObstruction by remember { mutableIntStateOf(0) }
-  val actionInset = if (selecting) {
-    if (actionObstruction > 0) with(LocalDensity.current) { actionObstruction.toDp() } + 12.dp else 96.dp
-  } else 0.dp
+  val selectionToolbar: @Composable () -> Unit = {
+    if (selecting) {
+      Os4FloatingToolbar(Modifier.widthIn(max = 320.dp).fillMaxWidth()
+        .testTag("perfect.resources.toolbar")) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+          horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+          ResourceToolbarButton("all", stringResource(R.string.perfect_git_select_all),
+            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_checks),
+            enabled = !busy && selected.size < visible.size, onClick = { selection = visible })
+          ResourceToolbarButton("none", stringResource(R.string.perfect_resource_select_none),
+            ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square),
+            enabled = !busy && selected.isNotEmpty(), onClick = { selection = emptyList() })
+          ResourceToolbarButton("download", stringResource(R.string.action_label_download),
+            actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
+            onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
+          ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
+            actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
+            tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
+          ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
+            actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
+            tint = MiuixTheme.colorScheme.primary)
+        }
+      }
+    }
+  }
   PerfectSubpage(if (selecting) stringResource(R.string.perfect_git_selection_count, selected.size)
     else stringResource(R.string.perfect_git_resources),
     onBack = { if (selecting) exitSelection() else onBack() },
@@ -333,6 +346,18 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     refreshEnabled = !busy && !cooling && !selecting,
     refreshLabel = stringResource(R.string.perfect_git_check),
     listState = listState,
+    backdrop = backdrop,
+    bottomBar = {
+      if (selecting || bottomBar != null) {
+        val modifier = if (bottomBar == null) Modifier.navigationBarsPadding() else Modifier
+        Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+          if (selecting) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { selectionToolbar() }
+          }
+          bottomBar?.invoke()
+        }
+      }
+    },
     bottomContent = {
       Os4ViewTabs(items = filterLabels.mapIndexed { index, label ->
         stringResource(R.string.browser_view_count, stringResource(label), viewCounts[index])
@@ -368,36 +393,8 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
 
         )))) { Icon(MiuixIcons.Glass.More, stringResource(R.string.perfect_resource_manage),
           Modifier.testTag("perfect.resources.manage")) }
-    }, viewportBottomInset = actionInset,
-    floatingActionButton = { dialogs() },
-    floatingToolbar = {
-      if (selecting) {
-        Os4FloatingToolbar(Modifier.widthIn(max = 320.dp).fillMaxWidth()
-          .onGloballyPositioned { coordinates ->
-            actionObstruction = (view.height - coordinates.boundsInWindow().top.toInt()).coerceAtLeast(0)
-          }
-          .testTag("perfect.resources.toolbar")) {
-          Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            ResourceToolbarButton("all", stringResource(R.string.perfect_git_select_all),
-              ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_list_checks),
-              enabled = !busy && selected.size < visible.size, onClick = { selection = visible })
-            ResourceToolbarButton("none", stringResource(R.string.perfect_resource_select_none),
-              ImageVector.vectorResource(com.composables.icons.lucide.R.drawable.lucide_ic_square),
-              enabled = !busy && selected.isNotEmpty(), onClick = { selection = emptyList() })
-            ResourceToolbarButton("download", stringResource(R.string.action_label_download),
-              actionIcon(PageActionIcon.FETCH), enabled = !busy && !cooling && selected.isNotEmpty(),
-              onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
-            ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
-              actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
-              tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
-            ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
-              actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
-              tint = MiuixTheme.colorScheme.primary)
-          }
-        }
-      }
     },
+    floatingActionButton = { dialogs() },
   ) {
     item(key = "resource-status") {
       val tone = when {

@@ -36,6 +36,7 @@
   <string name="perfect_git_delete_failed">Could not delete resources. Check local storage and try again.</string>
   <string name="perfect_git_clear_cache_confirm">Clear approximately %1$s of extracted files, previews and derived caches. Downloaded source resources, generated ZIPs and imported or applied icon packs are kept. Caches are rebuilt when needed.</string>
   <string name="perfect_git_resources">Resource management</string>
+  <string name="perfect_resources_tab">Resources</string>
   <string name="perfect_git_resources_summary">Choose styles to download or remove; manage source and storage</string>
   <string name="perfect_git_resource_summary">%1$d downloaded / %2$d styles · %3$d local icons</string>
   <string name="perfect_git_download_count">Download (%1$d)</string>

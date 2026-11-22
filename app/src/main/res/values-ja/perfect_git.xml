@@ -36,6 +36,7 @@
   <string name="perfect_git_delete_failed">リソースを削除できませんでした。ローカルストレージを確認して再試行してください。</string>
   <string name="perfect_git_clear_cache_confirm">展開済みファイル、プレビューと派生キャッシュを約 %1$s 消去します。取得済みのソースリソース、生成済み ZIP とインポート済み・適用済みのアイコンパックは保持します。キャッシュは必要なときに再生成されます。</string>
   <string name="perfect_git_resources">リソース管理</string>
+  <string name="perfect_resources_tab">リソース</string>
   <string name="perfect_git_resources_summary">複数のスタイルを選んで取得・削除し、ソースとストレージを管理</string>
   <string name="perfect_git_resource_summary">%2$d スタイル中 %1$d 取得済み · ローカルアイコン %3$d 個</string>
   <string name="perfect_git_download_count">取得（%1$d）</string>

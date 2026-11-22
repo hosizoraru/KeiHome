@@ -36,6 +36,7 @@
   <string name="perfect_git_delete_failed">无法删除资源，请检查本地存储后重试。</string>
   <string name="perfect_git_clear_cache_confirm">将清理约 %1$s 的解压文件、预览和衍生缓存。保留已下载源资源、已生成的 ZIP，以及已导入或应用的图标包。缓存会在需要时重建。</string>
   <string name="perfect_git_resources">资源管理</string>
+  <string name="perfect_resources_tab">资源管理</string>
   <string name="perfect_git_resources_summary">多选下载或删除风格，管理来源与存储</string>
   <string name="perfect_git_resource_summary">已下载 %1$d / %2$d 种风格 · 本地 %3$d 个图标</string>
   <string name="perfect_git_download_count">下载（%1$d）</string>

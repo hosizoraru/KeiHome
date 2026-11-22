@@ -20,6 +20,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -71,6 +72,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
@@ -85,8 +87,8 @@ private val IconPackEntry.quietSnapshot: Boolean
     (dark as? IconPackArtwork.Archive)?.snapshot == true
 
 @Composable
-internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit = {}) {
-  ObservePerfectResources(vm.perfectPacks)
+internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit,
+  backdrop: LayerBackdrop?, bottomBar: @Composable () -> Unit, active: Boolean) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val preview by vm.perfectPacks.previewState.collectAsStateWithLifecycle()
   val maskRevision by vm.packPreviews.revision.collectAsStateWithLifecycle()
@@ -104,7 +106,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
       }
     }
   }
-  var query by rememberSaveable(state.options.style) { mutableStateOf("") }
+  var query by key(state.options.style) { rememberSaveable { mutableStateOf("") } }
   var filter by rememberSaveable { mutableIntStateOf(0) }
   var nightOnly by rememberSaveable { mutableStateOf(filter == 3) }
   var installedOnly by rememberSaveable { mutableStateOf(false) }
@@ -144,18 +146,23 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
   val groups = projection.value
   val view = filter.takeIf { it in 0..2 } ?: 0
   val visible = groups?.get(view).orEmpty()
-  val listState = rememberLazyListState()
+  val listState = key(state.options.style) { rememberLazyListState() }
+  val loadingListState = rememberLazyListState()
   val lifecycle = LocalLifecycleOwner.current.lifecycle
-  LaunchedEffect(vm, lifecycle, state.options, state.catalog?.sourceHash, state.busy) {
+  LaunchedEffect(vm, lifecycle, active, state.options, state.catalog?.sourceHash, state.busy) {
+    if (!active) return@LaunchedEffect
     lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
       if (!state.busy && state.ready) vm.perfectPacks.loadPreview()
       awaitCancellation()
     }
   }
   PerfectSubpage(stringResource(R.string.perfect_icons_preview_title), onBack,
+    backdrop = backdrop,
+    bottomBar = bottomBar,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
     refreshEnabled = !state.busy && state.ready,
-    listState = listState,
+    // Keep the saved position until the asynchronous projection has restored the icon rows.
+    listState = if (groups != null) listState else loadingListState,
     bottomContent = {
       if (pack != null) os.kei.hyper.home.ui.components.Os4ViewTabs(
         items = filters.take(3).mapIndexed { index, label ->
@@ -343,7 +350,7 @@ internal fun PerfectListSortMenu(labels: List<Int>, selected: Int, reverse: Bool
   }
 }
 
-/** Shared MIUIX chrome for the local preview and source/storage detail pages. */
+/** Shared MIUIX chrome for the local preview and resource browser. */
 @Composable
 internal fun PerfectSubpage(
   title: String,
@@ -356,14 +363,13 @@ internal fun PerfectSubpage(
   actions: @Composable RowScope.() -> Unit = {},
   bottomContent: @Composable () -> Unit = {},
   listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+  backdrop: LayerBackdrop? = rememberKeiHomeBlurBackdrop(),
+  bottomBar: @Composable () -> Unit = {},
   floatingActionButton: @Composable () -> Unit = {},
-  floatingToolbar: @Composable () -> Unit = {},
   bottomSpacing: androidx.compose.ui.unit.Dp = 24.dp,
-  viewportBottomInset: androidx.compose.ui.unit.Dp = 0.dp,
   content: LazyListScope.() -> Unit,
 ) {
   val behavior = MiuixScrollBehavior()
-  val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = title, scrollBehavior = behavior,
@@ -378,12 +384,11 @@ internal fun PerfectSubpage(
           }
         }, bottomContent = bottomContent)
     }
-  }, floatingActionButton = floatingActionButton, floatingToolbar = floatingToolbar) { padding ->
+  }, bottomBar = bottomBar, floatingActionButton = floatingActionButton) { padding ->
     val listPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp,
       bottom = padding.calculateBottomPadding() + bottomSpacing)
     val list: @Composable () -> Unit = {
     Os4LazyColumn(state = listState, modifier = Modifier.fillMaxSize()
-      .padding(bottom = viewportBottomInset)
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
       .keiHomeTopBarScroll(behavior, overScrollEnabled = !pullRefresh || refreshEnabled && !refreshing),
       contentPadding = listPadding,

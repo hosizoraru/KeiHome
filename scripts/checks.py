@@ -192,7 +192,8 @@ GROUPS = {
         "PerfectIconRepositoryTest", "PerfectIconTransportCancellationTest", "PerfectGitRepositoryTest",
         "PerfectIconGitTest", "PerfectPackStateTest", "PerfectIconStyleMetadataTest", "PerfectIconStylesTest")),
     "ui-perfect": ("device", "Perfect page options, style actions, transfer status and OS4 confirmations", (
-        UI + "PerfectGitUiTest", UI + "PerfectResourceNoticeUiTest", UI + "PerfectConnectionUiTest")),
+        UI + "PerfectGitUiTest", UI + "PerfectResourceNoticeUiTest", UI + "PerfectConnectionUiTest",
+        UI + "PerfectPackNavigationTest")),
     "perfect-network": ("jvm", "Git route, proxy policy, cancellation and direct-entry catalog recovery", (
         "PerfectGitNetworkOptionsTest", "PerfectIconGitHttpTest", "PerfectCatalogBootstrapTest")),
     "icon-completion": ("jvm", "Perfect completion, source sessions, native choice restoration and update detection", (

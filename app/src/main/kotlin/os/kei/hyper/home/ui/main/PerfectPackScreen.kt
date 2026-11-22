@@ -20,44 +20,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import java.util.Date
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.ui.components.BlurredBar
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.os4Clickable
-import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -68,33 +62,20 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate: (String) -> Unit) {
+internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit,
+  backdrop: LayerBackdrop?, bottomBar: @Composable () -> Unit) {
   val state by vm.perfectPacks.state.collectAsStateWithLifecycle()
   val packs by vm.iconPacks.collectAsStateWithLifecycle()
   val prefs by vm.preferences.state.collectAsStateWithLifecycle()
   val context = LocalContext.current
-  val lifecycle = LocalLifecycleOwner.current.lifecycle
-  val locales = LocalConfiguration.current.locales.toLanguageTags()
   val behavior = MiuixScrollBehavior()
-  val backdrop = rememberKeiHomeBlurBackdrop()
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionBottom = maxOf(104.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   val busy = state.busy || packs.preparing || packs.importing || packs.nativeImporting != null
-  var localLoadRequested by remember(vm) { mutableStateOf(false) }
+  var localLoadRequested by rememberSaveable { mutableStateOf(false) }
   val localLoading = state.loading || (!localLoadRequested && state.catalog == null)
   val cooling = state.retryAtMillis > System.currentTimeMillis()
-  ObservePerfectResources(vm.perfectPacks)
   LaunchedEffect(vm) { localLoadRequested = true }
-  LaunchedEffect(vm, lifecycle, locales) {
-    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      coroutineScope { launch { vm.observePage(3, locales) } }
-    }
-  }
-  LaunchedEffect(state.retryAtMillis) {
-    val remaining = state.retryAtMillis - System.currentTimeMillis()
-    if (remaining > 0) delay(remaining)
-    vm.perfectPacks.updateCooldown()
-  }
   Scaffold(backdrop = backdrop,
     modifier = Modifier.testTag("icon-packs.perfect"),
     topBar = {
@@ -122,6 +103,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
         )
       }
     },
+    bottomBar = bottomBar,
     floatingActionButton = {
       PageActionFab(stringResource(if (state.generating) R.string.action_label_processing
         else R.string.action_label_generate), actionIcon(PageActionIcon.GENERATE),
@@ -174,7 +156,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
             else -> StatusTone.READY
           },
           onRefresh = { if (!busy && !cooling) vm.perfectPacks.checkUpdates() },
-          onOpen = { onNavigate("perfect-sources") },
+          onOpen = onOpenResources.takeIf { !state.ready && !localLoading },
           actionLabel = stringResource(R.string.perfect_git_resources),
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
             .testTag("icon-packs.perfect.status"),
@@ -234,16 +216,8 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onNavigate
           }
         }
       }
-      item("pages") {
+      item("connection") {
         Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-          BasicComponent(title = stringResource(R.string.perfect_git_resources),
-            summary = stringResource(R.string.perfect_git_resources_summary),
-            enabled = !busy, onClick = { onNavigate("perfect-sources") },
-            modifier = Modifier.testTag("icon-packs.perfect.sources"))
-          BasicComponent(title = stringResource(R.string.perfect_icons_preview_title),
-            summary = stringResource(if (state.ready) R.string.perfect_git_preview_summary else R.string.perfect_preview_choose),
-            enabled = !busy, onClick = { onNavigate(if (state.ready) "perfect-preview" else "perfect-sources") },
-            modifier = Modifier.testTag("icon-packs.perfect.preview"))
           PerfectConnectionSettings(enabled = !busy, onSaved = { vm.perfectPacks.checkUpdates() })
         }
       }
@@ -364,11 +338,6 @@ internal fun perfectSyncTime(millis: Long): String {
 
 private fun copyPerfectRevision(context: android.content.Context, revision: String, label: String) {
   context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(label, revision))
-}
-
-@Composable
-internal fun PerfectPackSourcesScreen(vm: HomeViewModel, onBack: () -> Unit) {
-  PerfectResourceScreen(vm, onBack)
 }
 
 @Composable

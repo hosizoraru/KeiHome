@@ -74,18 +74,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     RecommendedMappingsScreen(model, onBack)
     return
   }
-  if (section == "perfect") {
-    PerfectPackScreen(model, onBack, onNavigate)
-    return
-  }
-  if (section == "perfect-preview") {
-    PerfectPackPreviewScreen(model, onBack) { onNavigate("perfect-sources") }
-    return
-  }
-  if (section == "perfect-sources" || section == "perfect-credits") {
-    PerfectResourceScreen(model, onBack) { style ->
-      model.perfectPacks.previewStyle(style) { onNavigate("perfect-preview") }
-    }
+  val perfectTab = PerfectPackTab.forSection(section)
+  if (perfectTab != null) {
+    PerfectPackDestination(model, perfectTab, onBack)
     return
   }
   if (section in setOf("apple", "apple-mappings", "apple-matched", "apple-search")) {

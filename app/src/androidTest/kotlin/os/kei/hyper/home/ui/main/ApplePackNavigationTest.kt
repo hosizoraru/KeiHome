@@ -76,6 +76,12 @@ class ApplePackNavigationTest {
     restoration.emulateSavedInstanceStateRestore()
     tab(ApplePackTab.MAPPINGS).assertIsSelected()
     query(ApplePackTab.MAPPINGS).assertTextContains("settings")
+    rule.onNodeWithTag("apple.selection-mode").performClick()
+    val toolbar = rule.onNodeWithTag("apple.selection.toolbar").assertIsDisplayed()
+    val restoredBar = rule.onNodeWithTag("icon-packs.apple.tabs").fetchSemanticsNode().boundsInRoot
+    assertTrue(toolbar.fetchSemanticsNode().boundsInRoot.bottom <= restoredBar.top)
+    rule.onNodeWithTag("apple.selection.done").assertIsDisplayed().performClick()
+    toolbar.assertDoesNotExist()
     rule.onNodeWithContentDescription(context.getString(R.string.pack_back)).performClick()
     rule.runOnIdle { assertEquals(1, exits) }
   }

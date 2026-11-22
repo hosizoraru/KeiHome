@@ -1,7 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.ui.layout.onSizeChanged
-
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -322,7 +320,22 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   LaunchedEffect(search, state.editing) { if (search && state.editing == null) onBack() }
   DisposableEffect(controller, search) { onDispose { if (search) controller.closeSearch() } }
   val modifier = Modifier.fillMaxSize().testTag("icon-packs.$section")
-  Scaffold(if (search) modifier.imePadding() else modifier, backdrop = backdrop, bottomBar = bottomBar, topBar = {
+  val selectionMode = !main && !search && selecting
+  Scaffold(if (search) modifier.imePadding() else modifier, backdrop = backdrop, bottomBar = {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+      if (selectionMode) {
+        Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+          AppleSelectionToolbar(selection, allowMatch = batchBrowser, enabled = enabled && !browserLoading,
+            matchingEnabled = state.retryAtMillis <= now,
+            onSelectAll = { selectedPackages = visibleEligible.toList() },
+            onClear = { selectedPackages = emptyList() },
+            onMatch = { val targets = selectedBatch; exitSelection(); controller.autoMatch(targets) },
+            onExport = { exportSelectedMappings() }, onDone = { exitSelection() })
+        }
+      }
+      bottomBar()
+    }
+  }, topBar = {
     BlurredBar(backdrop, backdrop != null) {
       TopAppBar(title = if (selecting) stringResource(R.string.apple_glass_selection_count, selectedVisible.size)
         else stringResource(if (main) R.string.apple_pack_title
@@ -426,21 +439,13 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         busy = actionBusy,
         onHeightChanged = { actionHeight = it })
     }
-  }, floatingToolbar = {
-    if (!main && !search && selecting) AppleSelectionToolbar(selection,
-      allowMatch = batchBrowser, enabled = enabled && !browserLoading,
-      matchingEnabled = state.retryAtMillis <= now,
-      onSelectAll = { selectedPackages = visibleEligible.toList() },
-      onClear = { selectedPackages = emptyList() },
-      onMatch = { val targets = selectedBatch; exitSelection(); controller.autoMatch(targets) },
-      onExport = { exportSelectedMappings() }, onDone = { exitSelection() },
-      modifier = Modifier.onSizeChanged { actionHeight = it.height })
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
+      val actionSpacing =
+        if (selectionMode) 16.dp else maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
       val listPadding = PaddingValues(start = 16.dp, end = 16.dp,
         top = insets.calculateTopPadding() + 4.dp,
-        bottom = insets.calculateBottomPadding() +
-          maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp))
+        bottom = insets.calculateBottomPadding() + actionSpacing)
       val list: @Composable () -> Unit = {
       LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
         .keiHomeTopBarScroll(behavior, overScrollEnabled = main || search || enabled && !selecting && !localLoading),

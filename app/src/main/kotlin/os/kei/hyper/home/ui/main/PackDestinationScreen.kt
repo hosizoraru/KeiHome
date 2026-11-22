@@ -53,7 +53,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun PackDestinationScreen(model: HomeViewModel, section: String,
-  onBack: () -> Unit, onNavigate: (String) -> Unit, onMonetNestedChanged: (Boolean) -> Unit = {}) {
+  onBack: () -> Unit, onNavigate: (String) -> Unit) {
   if (section == "custom-icons") {
     CustomIconsScreen(model, onBack, onNavigate)
     return
@@ -89,8 +89,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     return
   }
   if (section == "monet") {
-    MonetDestinationScreen(model, onBack, onOpenPacks = { onNavigate("library") },
-      onNestedChanged = onMonetNestedChanged)
+    MonetDestinationScreen(model, onBack, onOpenPacks = { onNavigate("library") })
     return
   }
   val prefs by model.preferences.state.collectAsStateWithLifecycle()

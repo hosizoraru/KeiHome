@@ -6,16 +6,17 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onLast
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -25,6 +26,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.MainActivity
@@ -79,22 +81,39 @@ class MonetColorEditorTest {
     compose.onNodeWithTag("monet.editor.hex").assertTextContains("#", substring = true)
   }
 
-  @Test fun overviewKeepsDetailsSeparateAndRetainsDraftAcrossCategories() {
+  @Test fun tabsShareOneDraftAndKeepApplyAboveNavigation() {
     val context = compose.activity
     val original = Settings.Secure.getString(context.contentResolver, "keihome_monet_customization")
     openMonet()
+    tab(R.string.monet_tab_overview).assertIsSelected()
+    compose.onNodeWithTag("monet.open.COLORS").assertDoesNotExist()
+    compose.onNodeWithTag("monet.open.DETAILS").assertDoesNotExist()
     compose.onNodeWithTag("monet.style.TONAL_SPOT").assertDoesNotExist()
     selectBasicColor()
     compose.onNodeWithTag("monet.custom.seed").performScrollTo().performClick()
     compose.onNodeWithTag("monet.editor.hex").performClick().performTextReplacement("087F8C")
     compose.onNodeWithTag("monet.editor.confirm").performClick()
     closeSource()
-    compose.onNodeWithTag("monet.open.DETAILS").performScrollTo().performClick()
+    tab(R.string.monet_page_colors).performClick().assertIsSelected()
+    compose.onNodeWithTag("monet.custom.palettes").assertExists()
+    tab(R.string.monet_page_details).performClick().assertIsSelected()
     compose.onNodeWithTag("monet.custom.seed").assertDoesNotExist()
-    compose.onNodeWithContentDescription(context.getString(R.string.pack_back)).performClick()
+    compose.onNodeWithTag("monet.details.seed").assertTextContains("#087F8C")
+    val apply = compose.onNodeWithTag("monet.apply").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+    val tabs = compose.onNodeWithTag("icon-packs.monet.tabs").fetchSemanticsNode().boundsInRoot
+    assertTrue(apply.bottom <= tabs.top)
+    compose.activityRule.scenario.recreate()
+    tab(R.string.monet_page_details).assertIsSelected()
+    compose.onNodeWithTag("monet.details.seed").assertTextContains("#087F8C")
+    tab(R.string.monet_tab_overview).performClick().assertIsSelected()
     compose.onNodeWithTag("monet.open.SOURCE").performScrollTo().performClick()
     compose.onNodeWithText("#087F8C").assertExists()
     assertEquals(original, Settings.Secure.getString(context.contentResolver, "keihome_monet_customization"))
+  }
+
+  private fun tab(label: Int) = compose.activity.getString(label).let { title ->
+    compose.onNode(isSelectable() and hasAnyAncestor(hasTestTag("icon-packs.monet.tabs")) and
+      (hasText(title) or hasContentDescription(title)))
   }
 
   @Test fun helpOpensDismissesAndReopensWithoutChangingSettings() {

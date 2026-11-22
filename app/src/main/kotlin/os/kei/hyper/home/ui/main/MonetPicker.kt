@@ -1,17 +1,8 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
@@ -84,38 +75,37 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class MonetSection(val title: Int) {
   OVERVIEW(R.string.navigation_monet),
-  DESIGN(R.string.monet_page_design),
   SOURCE(R.string.monet_page_source),
   STYLE(R.string.monet_page_style),
   COLORS(R.string.monet_page_colors),
   PREVIEW(R.string.monet_page_preview),
-  DETAILS(R.string.monet_page_details);
-
-  val isSheet get() = this in listOf(SOURCE, STYLE, PREVIEW)
-  val page get() = if (isSheet) OVERVIEW else this
+  DETAILS(R.string.monet_page_details),
 }
 
 internal data class MonetApplyUiState(
-  val choice: MonetCustomization? = null, val enabled: Boolean = false, val busy: Boolean = false,
-  val notice: Int? = null, val warning: Boolean = false,
+  val choice: MonetCustomization, val enabled: Boolean, val busy: Boolean,
+  val notice: Int?, val warning: Boolean,
 )
 
 @Composable
-internal fun MonetContent(
+internal fun MonetPicker(
   snapshot: MonetPaletteSnapshot?,
   readFailed: Boolean,
   actionAvailable: Boolean = false,
   actionStatus: MonetActionStatus = MonetActionStatus.IDLE,
   submittedChoice: MonetCustomization? = null,
-  applyState: MutableState<MonetApplyUiState>,
   preferredStyle: MonetSchemeStyle? = null,
   preferredAppearance: os.kei.hyper.home.data.IconPackAppearance? = null,
-  section: MonetSection = MonetSection.OVERVIEW,
-  onNavigate: (MonetSection) -> Unit = {},
-  onDismissPanel: () -> Unit = {},
+  content: @Composable (MonetApplyUiState, @Composable (MonetSection) -> Unit, @Composable () -> Unit) -> Unit,
 ) {
   var draft by rememberSaveable { mutableStateOf<String?>(null) }
-  val sectionState = rememberSaveableStateHolder()
+  val sheetState = rememberSaveableStateHolder()
+  var sheet by rememberSaveable { mutableStateOf(MonetSection.SOURCE) }
+  var sheetOpen by rememberSaveable { mutableStateOf(false) }
+  fun openSheet(section: MonetSection) {
+    sheet = section
+    sheetOpen = true
+  }
   var previewView by rememberSaveable { mutableIntStateOf(IconPreviewMode.COMPARE.ordinal) }
   val storedChoice = MonetCustomization.decode(draft) ?: snapshot?.customization ?: MonetCustomization()
   val choice = storedChoice.copy(style = preferredStyle ?: storedChoice.style.takeUnless {
@@ -195,14 +185,10 @@ internal fun MonetContent(
       if (snapshot?.monochrome?.enabled == true) R.string.monet_action_applied else R.string.monet_action_saved_off
     else -> null
   }
-  SideEffect { applyState.value = MonetApplyUiState(choice,
+  val applyState = MonetApplyUiState(choice,
     actionAvailable && !applying && legible && seed != null, applying, notice,
     notice == R.string.monet_action_failed || notice == R.string.monet_action_previous_failed ||
-      notice == R.string.monet_custom_low_contrast || notice == R.string.monet_unavailable) }
-  var lastSheet by rememberSaveable { mutableStateOf(MonetSection.SOURCE) }
-  if (section.isSheet) SideEffect { lastSheet = section }
-  val activeSheet = if (section.isSheet) section else lastSheet
-  val sheetScrollStates = MonetSection.entries.map { rememberScrollState() }
+      notice == R.string.monet_custom_low_contrast || notice == R.string.monet_unavailable)
   val renderSection: @Composable (MonetSection) -> Unit = { visibleSection ->
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     if (visibleSection == MonetSection.OVERVIEW) {
@@ -225,23 +211,20 @@ internal fun MonetContent(
     }
     if (visibleSection == MonetSection.OVERVIEW) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        val sections = listOf(MonetSection.SOURCE) +
-          (if (preferredStyle == null) listOf(MonetSection.STYLE) else emptyList()) +
-          listOf(MonetSection.COLORS, MonetSection.PREVIEW, MonetSection.DETAILS)
-        for (destination in sections) BasicComponent(
+        val panels = if (preferredStyle == null) listOf(MonetSection.SOURCE, MonetSection.STYLE, MonetSection.PREVIEW)
+          else listOf(MonetSection.SOURCE, MonetSection.PREVIEW)
+        for (destination in panels) BasicComponent(
           title = stringResource(destination.title),
           summary = when (destination) {
             MonetSection.SOURCE -> sourceNames[choice.source.ordinal]
             MonetSection.STYLE -> styleName(choice.style)
-            MonetSection.COLORS -> stringResource(R.string.monet_page_colors_summary)
             MonetSection.PREVIEW -> stringResource(R.string.monet_page_preview_summary)
-            MonetSection.DETAILS -> stringResource(R.string.monet_page_details_summary)
-            else -> stringResource(R.string.monet_page_design_summary)
+            else -> null
           },
           endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
           modifier = Modifier.testTag("monet.open.${destination.name}"),
           insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-          onClick = { onNavigate(destination) },
+          onClick = { openSheet(destination) },
         )
       }
     }
@@ -366,7 +349,7 @@ internal fun MonetContent(
     if (visibleSection == MonetSection.COLORS && seed == null) {
       Text(stringResource(if (readFailed) R.string.monet_unavailable else R.string.monet_seed_waiting),
         modifier = Modifier.padding(16.dp), style = MiuixTheme.textStyles.body2)
-      TextButton(stringResource(R.string.monet_page_source), onClick = { onNavigate(MonetSection.SOURCE) })
+      TextButton(stringResource(R.string.monet_page_source), onClick = { openSheet(MonetSection.SOURCE) })
     }
     if (visibleSection == MonetSection.PREVIEW && palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
@@ -399,18 +382,14 @@ internal fun MonetContent(
     }
     }
   }
-  AnimatedContent(section.page, transitionSpec = {
-    (fadeIn(tween(180, delayMillis = 50)) + slideInHorizontally(tween(230)) { it / 12 }) togetherWith
-      (fadeOut(tween(120)) + slideOutHorizontally(tween(180)) { -it / 18 }) using null
-  }, label = "monet.section") { visibleSection ->
-    sectionState.SaveableStateProvider("page.${visibleSection.name}") { renderSection(visibleSection) }
-  }
-  Os4DetailsSheet(show = section.isSheet, onDismissRequest = onDismissPanel,
-    title = stringResource(activeSheet.title), scrollContent = false,
-    modifier = Modifier.testTag("monet.panel.${activeSheet.name}")) {
-    sectionState.SaveableStateProvider("sheet.${activeSheet.name}") {
-      Column(Modifier.fillMaxWidth().verticalScroll(sheetScrollStates[activeSheet.ordinal])) {
-        renderSection(activeSheet)
+  content(applyState, renderSection) {
+    Os4DetailsSheet(show = sheetOpen, onDismissRequest = { sheetOpen = false },
+      title = stringResource(sheet.title), scrollContent = false,
+      modifier = Modifier.testTag("monet.panel.${sheet.name}")) {
+      sheetState.SaveableStateProvider(sheet.name) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+          renderSection(sheet)
+        }
       }
     }
   }

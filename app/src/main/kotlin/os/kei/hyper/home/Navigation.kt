@@ -112,7 +112,6 @@ internal fun MainNavigation(
     if (progress == OnboardingPreferences.COMPLETE && pendingVersion.isNotEmpty() &&
       backStack.size == 1 && current == Main) backStack.add(ReleaseNotesUpgradeRoute)
   }
-  var monetNested by remember { mutableStateOf(false) }
   val swipe = if (LocalLayoutDirection.current == LayoutDirection.Rtl)
     NavSwipeDirection.RightToLeft else NavSwipeDirection.LeftToRight
   fun open(section: String) {
@@ -222,11 +221,10 @@ internal fun MainNavigation(
       entry<OnboardingDesktop>(swipeDismiss = swipe) {
         OnboardingDesktopScreen(model, onBack = ::back, onOpenSection = ::openDesktop)
       }
-      entry<PackRoute>(swipeDismiss = if (monetNested && current == PackRoute("monet")) NavSwipeDirection.None else swipe) { route ->
+      entry<PackRoute>(swipeDismiss = swipe) { route ->
         PackDestinationScreen(model, route.section,
           onBack = { if (backStack.lastOrNull() == route && backStack.size > 1) backStack.removeLastOrNull() },
-          onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) },
-          onMonetNestedChanged = { monetNested = it })
+          onNavigate = { section -> if (backStack.lastOrNull() == route) open(section) })
       }
       entry<SettingsRoute>(swipeDismiss = swipe) { route ->
         SettingsDestinationScreen(model, route.section,

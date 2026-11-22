@@ -1,6 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,17 +8,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -40,62 +39,109 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.AppPreferencesState
+import os.kei.hyper.home.data.MonetActionStatus
+import os.kei.hyper.home.data.MonetCustomization
+import os.kei.hyper.home.data.MonetSchemeStyle
+import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
-import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Text
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+private val MonetTabs = listOf(MonetSection.OVERVIEW, MonetSection.COLORS, MonetSection.DETAILS)
+
 @Composable
-internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
-  onOpenPacks: () -> Unit, onNestedChanged: (Boolean) -> Unit = {}) {
+internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, onOpenPacks: () -> Unit) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales) {
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observePage(2, locales) }
   }
-  var pages by rememberSaveable { mutableStateOf(listOf(MonetSection.OVERVIEW.name)) }
-  LaunchedEffect(pages) {
-    if (pages.lastOrNull() == MonetSection.DESIGN.name) pages = listOf(MonetSection.OVERVIEW.name)
-  }
-  val section = MonetSection.valueOf(pages.last())
-  SideEffect { onNestedChanged(pages.size > 1) }
-  DisposableEffect(Unit) { onDispose { onNestedChanged(false) } }
-  val applyState = remember { mutableStateOf(MonetApplyUiState()) }
+  val monet by model.monet.collectAsStateWithLifecycle()
+  val framework by model.framework.collectAsStateWithLifecycle()
+  val runtime by model.runtime.collectAsStateWithLifecycle()
+  val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val browser by model.browserSource.collectAsStateWithLifecycle()
+  val colorOsComponents = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] }
+  val ordinary = colorOsComponents == false
+  val paletteNames = browser.takeIf { it?.revision == runtime.report?.iconTheme?.previewKey }?.paletteNames
+  val locked = colorOsPaletteLocked(ordinary, paletteNames)
+  val inspiration = preferences.monetInspiration ?:
+    (monet.snapshot?.customization?.style == MonetSchemeStyle.COLOROS_INSPIRATION || colorOsComponents == true)
+
+  val pager = rememberPagerState { MonetTabs.size }
+  val scope = rememberCoroutineScope()
+  val navigation = remember(pager, scope) { TabPagerNavigation(pager, scope) }
+  val items = listOf(
+    NavigationItem(label = stringResource(R.string.monet_tab_overview), icon = actionIcon(PageActionIcon.MONET)),
+    NavigationItem(label = stringResource(R.string.monet_page_colors), icon = actionIcon(PageActionIcon.CUSTOMIZE)),
+    NavigationItem(label = stringResource(R.string.monet_page_details), icon = MiuixIcons.Glass.Info),
+  )
+  var help by rememberSaveable { mutableStateOf(false) }
   var actionHeight by remember { mutableIntStateOf(0) }
   val actionClearance = with(LocalDensity.current) { actionHeight.toDp() }.coerceAtLeast(76.dp) + 24.dp
-  val navigate: (MonetSection) -> Unit = { if (it != section) pages = pages + it.name }
-  val back = { if (pages.size > 1) pages = pages.dropLast(1) else onBack() }
-  BackHandler(pages.size > 1) { back() }
-  var help by rememberSaveable { mutableStateOf(false) }
-  val scrollStates = MonetSection.entries.map { rememberScrollState() }
+  MonetPicker(snapshot = monet.snapshot, readFailed = monet.readFailed,
+    preferredStyle = if (inspiration) MonetSchemeStyle.COLOROS_INSPIRATION else null,
+    preferredAppearance = preferences.iconPackAppearance,
+    actionAvailable = !locked && framework.connected && !framework.readFailed &&
+      framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
+    actionStatus = monet.action, submittedChoice = monet.submittedChoice,
+  ) { applyState, renderSection, panels ->
+    PackTabScaffold(model, pager, navigation, items, "icon-packs.monet",
+      floatingActionButton = {
+        MonetApplyAction(applyState, model::applyMonet, Modifier.onSizeChanged { actionHeight = it.height })
+      }, overlays = {
+        panels()
+        MonetHelp(show = help, onDismiss = { help = false })
+      },
+    ) { index, backdrop, bottomInset ->
+      val section = MonetTabs[index]
+      MonetTabPage(model, section, backdrop, bottomInset, actionClearance, onBack, onHelp = { help = true }) {
+        if (section == MonetSection.OVERVIEW) {
+          MonetOverview(model, monet, framework, runtime, preferences, ordinary, locked, inspiration, onOpenPacks)
+        }
+        renderSection(section)
+        RefreshFeedback(model, 2)
+      }
+    }
+  }
+}
+
+@Composable
+private fun MonetTabPage(model: HomeViewModel, section: MonetSection, backdrop: LayerBackdrop?,
+  bottomBar: @Composable () -> Unit, actionClearance: Dp,
+  onBack: () -> Unit, onHelp: () -> Unit, content: @Composable () -> Unit) {
   val behavior = MiuixScrollBehavior()
-  val backdrop = rememberKeiHomeBlurBackdrop()
-  Scaffold(backdrop = backdrop,
-    modifier = Modifier.testTag("icon-packs.monet"),
+  val scrollState = rememberScrollState()
+  Scaffold(backdrop = backdrop, bottomBar = bottomBar,
+    modifier = Modifier.testTag("monet.page.${section.name}"),
     topBar = {
       BlurredBar(backdrop, backdrop != null) {
         TopAppBar(
-          title = stringResource(section.page.title),
+          title = stringResource(section.title),
           scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-          navigationIcon = { IconButton(onClick = back) {
+          navigationIcon = { IconButton(onClick = onBack) {
             Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
           } },
           actions = {
-            IconButton(onClick = { help = true }, modifier = Modifier.testTag("monet.help.open")) {
+            IconButton(onClick = onHelp, modifier = Modifier.testTag("monet.help.open")) {
               Icon(MiuixIcons.Glass.UsageHelp, stringResource(R.string.pack_guidance_title))
             }
             RefreshAction(model, 2, Modifier.testTag("monet.page.refresh"))
@@ -103,147 +149,134 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit,
         )
       }
     },
-    floatingActionButton = {
-      val state = applyState.value
-      Column(Modifier.onSizeChanged { actionHeight = it.height },
-        horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.notice?.let { notice ->
-          Card(Modifier.widthIn(max = 300.dp).testTag("monet.apply.status")
-            .semantics { liveRegion = LiveRegionMode.Polite },
-            insideMargin = PaddingValues(12.dp)) {
-            Text(stringResource(notice), style = MiuixTheme.textStyles.footnote1,
-              color = if (state.warning) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-        }
-        PageActionFab(stringResource(R.string.monet_apply_scheme), actionIcon(PageActionIcon.APPLY),
-          modifier = Modifier.testTag("monet.apply"), enabled = state.enabled, busy = state.busy,
-          onClick = { state.choice?.let(model::applyMonet) })
-      }
-    }) { insets ->
+  ) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       Column(
         modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
-          .verticalScroll(scrollStates[section.page.ordinal], overscrollEffect = null).padding(
+          .verticalScroll(scrollState, overscrollEffect = null).padding(
             start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
-          bottom = insets.calculateBottomPadding() + actionClearance),
+            bottom = insets.calculateBottomPadding() + actionClearance),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        MonetPage(model, section, navigate, back, applyState, onOpenPacks)
-        RefreshFeedback(model, 2)
-      }
-    }
-    Os4DetailsSheet(show = help, onDismissRequest = { help = false },
-      title = stringResource(R.string.monet_help_title), modifier = Modifier.testTag("monet.help"),
-    ) {
-      for (text in listOf(stringResource(R.string.monet_page_help), stringResource(R.string.monet_help_apply_note),
-        stringResource(R.string.monet_help_inspiration_note), stringResource(R.string.monet_scope_hint),
-        stringResource(R.string.monet_unadapted_help),
-        stringResource(R.string.monet_details_contrast_note))) {
-        Text(text, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      }
+      ) { content() }
     }
   }
 }
 
 @Composable
-private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (MonetSection) -> Unit,
-  onDismissPanel: () -> Unit, applyState: MutableState<MonetApplyUiState>, onOpenPacks: () -> Unit) {
-  val monet by model.monet.collectAsStateWithLifecycle()
-  val framework by model.framework.collectAsStateWithLifecycle()
-  val runtime by model.runtime.collectAsStateWithLifecycle()
-  val preferences by model.preferences.state.collectAsStateWithLifecycle()
+private fun MonetApplyAction(state: MonetApplyUiState, apply: (MonetCustomization) -> Unit,
+  modifier: Modifier = Modifier) {
+  Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    state.notice?.let { notice ->
+      Card(Modifier.widthIn(max = 300.dp).testTag("monet.apply.status")
+        .semantics { liveRegion = LiveRegionMode.Polite }, insideMargin = PaddingValues(12.dp)) {
+        Text(stringResource(notice), style = MiuixTheme.textStyles.footnote1,
+          color = if (state.warning) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
+    }
+    PageActionFab(stringResource(R.string.monet_apply_scheme), actionIcon(PageActionIcon.APPLY),
+      modifier = Modifier.testTag("monet.apply"), enabled = state.enabled, busy = state.busy,
+      onClick = { apply(state.choice) })
+  }
+}
+
+@Composable
+private fun MonetHelp(show: Boolean, onDismiss: () -> Unit) {
+  Os4DetailsSheet(show = show, onDismissRequest = onDismiss,
+    title = stringResource(R.string.monet_help_title), modifier = Modifier.testTag("monet.help"),
+  ) {
+    for (text in listOf(stringResource(R.string.monet_page_help), stringResource(R.string.monet_help_apply_note),
+      stringResource(R.string.monet_help_inspiration_note), stringResource(R.string.monet_scope_hint),
+      stringResource(R.string.monet_unadapted_help), stringResource(R.string.monet_details_contrast_note))) {
+      Text(text, style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    }
+  }
+}
+
+@Composable
+private fun MonetOverview(model: HomeViewModel, monet: MonetUiState, framework: FrameworkUiState,
+  runtime: RuntimeStatusUiState, preferences: AppPreferencesState, ordinary: Boolean, locked: Boolean,
+  inspiration: Boolean, onOpenPacks: () -> Unit) {
   val packs by model.iconPacks.collectAsStateWithLifecycle()
-  val browser by model.browserSource.collectAsStateWithLifecycle()
-  val ordinary = runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == false
-  val paletteNames = browser.takeIf { it?.revision == runtime.report?.iconTheme?.previewKey }?.paletteNames
-  val locked = colorOsPaletteLocked(ordinary, paletteNames)
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
-  if (section.page == MonetSection.OVERVIEW) {
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      top.yukonga.miuix.kmp.preference.SwitchPreference(
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    top.yukonga.miuix.kmp.preference.SwitchPreference(
       title = stringResource(R.string.pack_monet_toggle),
       summary = stringResource(if (locked) R.string.pack_monet_ordinary_locked
         else if (ordinary) R.string.pack_monet_fallback_summary else R.string.pack_monet_toggle_summary),
       checked = monet.snapshot?.monochrome?.enabled == true,
       enabled = !locked && framework.connected && monet.snapshot != null &&
         framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong() &&
-        monet.action != os.kei.hyper.home.data.MonetActionStatus.APPLYING,
+        monet.action != MonetActionStatus.APPLYING,
       onCheckedChange = model::setMonetEnabled)
-    }
   }
-  val inspiration = preferences.monetInspiration ?:
-    (monet.snapshot?.customization?.style == os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION ||
-      runtime.report?.iconTheme?.localId?.let { preferences.colorOsComponents[it] } == true)
-  if (section.page == MonetSection.OVERVIEW) {
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      os.kei.hyper.home.ui.components.OverlaySpinnerPreference(
+  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    os.kei.hyper.home.ui.components.OverlaySpinnerPreference(
       title = stringResource(R.string.pack_monet_design),
       items = listOf("Pixel / AOSP", stringResource(R.string.pack_style_inspiration)).map { DropdownItem(text = it) },
       selectedIndex = if (inspiration) 1 else 0,
       onSelectedIndexChange = { model.preferences.setMonetInspiration(it == 1) })
-      if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
-        model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
-      MonetArtworkPreferences(
-        enabled = preferences.monetUnadaptedIcons,
-        padding = preferences.monetFullBleedIconPadding,
-        editable = packs.nativeImporting == null,
-        onEnabledChange = model.preferences::setMonetUnadaptedIcons,
-        onPaddingChange = model.preferences::setMonetFullBleedIconPadding)
-    }
-    val theme = runtime.report?.iconTheme
-    val source = model.currentFallbackSource(theme, packs, preferences.colorOsComponents)
-    val sourceId = source?.let { preferences.systemIconFallback.sourceId(it.id) }
-    val pending = pendingNativeApplication(packs, theme?.localId)
-      ?.takeIf { it.sourceId == sourceId }
-    val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
-    val busy = packs.importing || packs.preparing || packs.nativeImporting != null || packs.removing != null
-    Card(Modifier.fillMaxWidth().testTag("monet.artwork.pack"),
-      insideMargin = PaddingValues(16.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.monet_artwork_pack_title), style = MiuixTheme.textStyles.body1)
-        Text(if (source != null) stringResource(R.string.monet_artwork_update_steps, source.displayName)
-          else stringResource(R.string.monet_artwork_choose_steps),
-          style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        if (source != null && updateNeeded && pending == null) {
-          MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary)
-        }
-        if (source != null) {
-          PackActionButton(stringResource(R.string.monet_artwork_update_pack),
-            onClick = model::updateCurrentSystemFallback,
-            modifier = Modifier.fillMaxWidth().testTag("monet.artwork.update"),
-            enabled = ready && !runtime.readFailed && !runtime.timedOut && !busy,
-            primary = true, operation = PageActionIcon.UPDATE)
-          if (framework.snapshot?.themesInScope == false) {
-            Text(stringResource(R.string.icon_pack_scope_needed), style = MiuixTheme.textStyles.footnote1,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          }
-        } else {
-          PackActionButton(stringResource(R.string.icon_pack_library), onClick = onOpenPacks,
-            modifier = Modifier.fillMaxWidth().testTag("monet.artwork.library"),
-            operation = PageActionIcon.OPEN_INTERNAL)
-        }
-        if (pending != null) {
-          Text(stringResource(R.string.pack_pending_apply_hint), style = MiuixTheme.textStyles.footnote1)
-          NativeThemeLink(pending, autoApply = false, enabled = !busy)
-        }
-        packs.nativeResult?.takeIf { it.sourceId == sourceId }?.let { result ->
-          if (result.imported && result.convertedReady == false) {
-            NativeThemeLink(result, autoApply = false, enabled = !busy,
-              manualFallback = preferences.manualThemeFallback)
-          } else if (!result.imported) {
-            Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote1,
-              color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
-            if (result.pending) PackInlineAction(stringResource(R.string.icon_pack_recheck),
-              onClick = model::recheckNativeIconImport)
-          }
-        }
-        packs.error?.takeIf { source != null }?.let { Text(it, style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.error) }
+    if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
+      model.preferences::setIconPackAppearance, packs.nativeImporting == null, compact = true)
+    MonetArtworkPreferences(
+      enabled = preferences.monetUnadaptedIcons,
+      padding = preferences.monetFullBleedIconPadding,
+      editable = packs.nativeImporting == null,
+      onEnabledChange = model.preferences::setMonetUnadaptedIcons,
+      onPaddingChange = model.preferences::setMonetFullBleedIconPadding)
+  }
+  val theme = runtime.report?.iconTheme
+  val source = model.currentFallbackSource(theme, packs, preferences.colorOsComponents)
+  val sourceId = source?.let { preferences.systemIconFallback.sourceId(it.id) }
+  val pending = pendingNativeApplication(packs, theme?.localId)
+    ?.takeIf { it.sourceId == sourceId }
+  val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+  val busy = packs.importing || packs.preparing || packs.nativeImporting != null || packs.removing != null
+  Card(Modifier.fillMaxWidth().testTag("monet.artwork.pack"),
+    insideMargin = PaddingValues(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(stringResource(R.string.monet_artwork_pack_title), style = MiuixTheme.textStyles.body1)
+      Text(if (source != null) stringResource(R.string.monet_artwork_update_steps, source.displayName)
+        else stringResource(R.string.monet_artwork_choose_steps),
+        style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      if (source != null && updateNeeded && pending == null) {
+        MetadataPill(stringResource(R.string.pack_update_available_short), MiuixTheme.colorScheme.primary)
       }
+      if (source != null) {
+        PackActionButton(stringResource(R.string.monet_artwork_update_pack),
+          onClick = model::updateCurrentSystemFallback,
+          modifier = Modifier.fillMaxWidth().testTag("monet.artwork.update"),
+          enabled = ready && !runtime.readFailed && !runtime.timedOut && !busy,
+          primary = true, operation = PageActionIcon.UPDATE)
+        if (framework.snapshot?.themesInScope == false) {
+          Text(stringResource(R.string.icon_pack_scope_needed), style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+      } else {
+        PackActionButton(stringResource(R.string.icon_pack_library), onClick = onOpenPacks,
+          modifier = Modifier.fillMaxWidth().testTag("monet.artwork.library"),
+          operation = PageActionIcon.OPEN_INTERNAL)
+      }
+      if (pending != null) {
+        Text(stringResource(R.string.pack_pending_apply_hint), style = MiuixTheme.textStyles.footnote1)
+        NativeThemeLink(pending, autoApply = false, enabled = !busy)
+      }
+      packs.nativeResult?.takeIf { it.sourceId == sourceId }?.let { result ->
+        if (result.imported && result.convertedReady == false) {
+          NativeThemeLink(result, autoApply = false, enabled = !busy,
+            manualFallback = preferences.manualThemeFallback)
+        } else if (!result.imported) {
+          Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote1,
+            color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+          if (result.pending) PackInlineAction(stringResource(R.string.icon_pack_recheck),
+            onClick = model::recheckNativeIconImport)
+        }
+      }
+      packs.error?.takeIf { source != null }?.let { Text(it, style = MiuixTheme.textStyles.footnote1,
+        color = MiuixTheme.colorScheme.error) }
     }
   }
-  if (section.page == MonetSection.OVERVIEW && inspiration) {
+  if (inspiration) {
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.pack_style_inspiration), style = MiuixTheme.textStyles.body1)
@@ -258,11 +291,4 @@ private fun MonetPage(model: HomeViewModel, section: MonetSection, onNavigate: (
     }
     ColorOsSettings(model, ready, inspiration = true)
   }
-  MonetContent(snapshot = monet.snapshot, readFailed = monet.readFailed,
-    preferredStyle = if (inspiration) os.kei.hyper.home.data.MonetSchemeStyle.COLOROS_INSPIRATION else null,
-    preferredAppearance = preferences.iconPackAppearance,
-    actionAvailable = !locked && framework.connected && !framework.readFailed &&
-      framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
-    actionStatus = monet.action, submittedChoice = monet.submittedChoice, applyState = applyState,
-    section = section, onNavigate = onNavigate, onDismissPanel = onDismissPanel)
 }

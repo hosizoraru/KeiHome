@@ -70,7 +70,8 @@ internal fun MonetPaletteDetails(
       modifier = Modifier.padding(horizontal = 16.dp),
       style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      MonetCopyableColor(stringResource(R.string.monet_details_seed), seed)
+      MonetCopyableColor(stringResource(R.string.monet_details_seed), seed,
+        modifier = Modifier.testTag("monet.details.seed"))
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       Text(stringResource(R.string.monet_details_roles), modifier = Modifier.padding(16.dp),

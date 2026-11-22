@@ -160,13 +160,13 @@ class PackSettingsNavigationTest {
     }
 
     selectShortcut(MainShortcut.LIBRARY, "icon-packs.library")
-    selectShortcut(MainShortcut.MONET, "icon-packs.monet")
+    selectShortcut(MainShortcut.MONET, "icon-packs.monet.destination")
 
     rule.runOnIdle { width = 744.dp }
     rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
     rule.runOnIdle { width = 520.dp }
     rule.onNodeWithTag("adaptive.rail").assertDoesNotExist()
-    rule.onNodeWithTag("icon-packs.monet").assertIsDisplayed()
+    rule.onNodeWithTag("icon-packs.monet.destination").assertIsDisplayed()
     back()
     rule.onNode(hasText(context.getString(R.string.navigation_icon_packs)) and isSelectable())
       .assertIsSelected()

@@ -95,11 +95,12 @@ internal class ColorOsFallbackRenderer(
 
   fun renderExtra(
     icon: ExtraIcon, target: IconPackComponent, sizePx: Int,
-    mask: NativeAdaptiveIconMask? = null, check: () -> Unit = {},
+    mask: NativeAdaptiveIconMask? = null, original: Boolean = false, check: () -> Unit = {},
   ): Bitmap? {
     if (!icon.accepts(target)) return null
     val resolved = target.copy(className = target.className ?: icon.activity)
-    val flat = load(resolved, false, sizePx, null, false, check, extra = icon) ?: return null
+    val flat = load(resolved, false, sizePx, null, false, check,
+      extra = icon.takeUnless { original }, applicationIconOnly = icon.applicationIconOnly) ?: return null
     return try {
       IconMaskPolicy.clip(flat, mask).also { if (it !== flat) flat.recycle() }
     } catch (failure: Throwable) {
@@ -126,23 +127,24 @@ internal class ColorOsFallbackRenderer(
   private fun load(
     target: IconPackComponent, dark: Boolean, sizePx: Int, mask: Bitmap?,
     monochrome: Boolean, check: () -> Unit, dimAtNight: Boolean = true, extra: ExtraIcon? = null,
+    applicationIconOnly: Boolean = false,
   ): Bitmap? {
     require(sizePx in 1..512)
     check()
     val reason = try {
       val pm = context.packageManager
-      val activity = sources.activity(target) { activity(target, pm) }
-      dynamicReason(target.packageName, activity.metaData)?.let { throw Unavailable(it) }
+      val activity = if (applicationIconOnly) null else sources.activity(target) { activity(target, pm) }
+      activity?.let { dynamicReason(target.packageName, it.metaData) }?.let { throw Unavailable(it) }
       // ActivityInfo.applicationInfo does not promise application-level GET_META_DATA contents.
       val app = sources.app(target.packageName)
       dynamicReason(target.packageName, app.metaData)?.let { throw Unavailable(it) }
-      val id = activity.iconResource
+      val id = activity?.iconResource ?: app.icon
       if (id == 0) throw Unavailable(SkipReason.MISSING_ICON)
       val configuration = Configuration(context.resources.configuration).apply {
         uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
           if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
       }
-      val resources = sources.resources(activity.applicationInfo, configuration, dark)
+      val resources = sources.resources(activity?.applicationInfo ?: app, configuration, dark)
       validate(resources, id, ResourceBudget(), 0, check)
       check()
       val drawable = resources.getDrawable(id, null).mutate().apply {
@@ -170,7 +172,10 @@ internal class ColorOsFallbackRenderer(
   private fun renderExtraLayer(
     drawable: Drawable, icon: ExtraIcon, size: Int, check: () -> Unit,
   ): Bitmap? {
-    val foreground = (drawable as? AdaptiveIconDrawable)?.foreground ?: return null
+    val adaptive = drawable as? AdaptiveIconDrawable
+    val foreground = if (adaptive != null) adaptive.foreground ?: return null else drawable
+    val artwork = icon.flatArtwork
+    if (adaptive == null && artwork == null) return null
     visit(foreground, check) {
       if (it is Animatable) throw Unavailable(SkipReason.ANIMATED_DRAWABLE)
     }
@@ -181,8 +186,21 @@ internal class ColorOsFallbackRenderer(
         shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(),
           icon.top, icon.bottom, android.graphics.Shader.TileMode.CLAMP)
       })
-      icon.tint?.let { foreground.setTint(it) }
-      drawLayer(canvas, foreground, adaptiveBounds(size), false, check)
+      if (adaptive != null && artwork != ExtraFlatArtwork.WALLET_CARD) {
+        icon.tint?.let { foreground.setTint(it) }
+        drawLayer(canvas, foreground, adaptiveBounds(size), false, check)
+      } else {
+        val layer = createBitmap(size, size)
+        try {
+          drawLayer(Canvas(layer), foreground, Rect(0, 0, size, size), false, check)
+          if (!checkNotNull(artwork).isolate(layer, icon.tint, check)) {
+            output.recycle()
+            return null
+          }
+          val bounds = if (adaptive != null) adaptiveBounds(size) else Rect(0, 0, size, size)
+          canvas.drawBitmap(layer, null, bounds, Paint(Paint.FILTER_BITMAP_FLAG))
+        } finally { layer.recycle() }
+      }
       return output
     } catch (failure: Throwable) {
       output.recycle()

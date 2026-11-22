@@ -64,13 +64,21 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
   val masks by model.iconMasks.state.collectAsStateWithLifecycle()
   val context = LocalContext.current.applicationContext
   val current = rememberAppleCurrentThemePreviewProvider(model)
-  val currentArtwork = remember(current) { mutableStateMapOf<ExtraIcon, Bitmap?>() }
+  val currentArtwork = remember(current) { mutableStateMapOf<ExtraIcon, ExtraCurrentArtwork>() }
   val extraArtwork = remember(context, installed.previewGeneration, prefs.completeSystemIconConfig,
     masks.custom?.digest) { mutableStateMapOf<ExtraIcon, Bitmap?>() }
-  LaunchedEffect(currentArtwork) {
+  LaunchedEffect(currentArtwork, extraArtwork) {
+    val mask = withContext(Dispatchers.IO) { IconMaskPolicy.snapshot(context).resolve(null) }
+    val renderer = ColorOsFallbackRenderer(context)
     for (icon in ExtraIcon.entries) {
       val preview = current.load(icon.packageName)
-      currentArtwork[icon] = preview?.dark ?: preview?.light
+      val packed = preview?.dark ?: preview?.light
+      val original = if (packed == null) withContext(Dispatchers.IO) {
+        val caller = currentCoroutineContext()
+        renderer.renderExtra(icon, IconPackComponent(icon.packageName, icon.activity),
+          192, mask, original = true) { caller.ensureActive() }
+      } else null
+      currentArtwork[icon] = ExtraCurrentArtwork(packed ?: original, original != null)
     }
   }
   LaunchedEffect(extraArtwork) {
@@ -87,11 +95,13 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
   }
 
   var query by rememberSaveable { mutableStateOf("") }
-  val mtLabel = stringResource(R.string.extra_icons_mt)
+  val names = ExtraIcon.entries.associateWith { icon ->
+    if (icon.labelRes != 0) stringResource(icon.labelRes) else icon.label
+  }
   val term = query.trim()
   val visible = ExtraIcon.entries.filter { icon ->
     icon.label.contains(term, ignoreCase = true) || icon.packageName.contains(term, ignoreCase = true) ||
-      (icon == ExtraIcon.MT && mtLabel.contains(term, ignoreCase = true))
+      names.getValue(icon).contains(term, ignoreCase = true)
   }
   Column(modifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
     horizontalAlignment = Alignment.CenterHorizontally) {
@@ -111,7 +121,7 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
           visible.forEach { icon ->
             key(icon) {
               HorizontalDivider(Modifier.padding(horizontal = 12.dp))
-              val name = if (icon == ExtraIcon.MT) mtLabel else icon.label
+              val name = names.getValue(icon)
               val overridden = icon.packageName in prefs.preservedIconPackages ||
                 custom.selections.any { it.packageName == icon.packageName }
               ExtraIconsRow(Modifier.testTag("extra-icons.row.${icon.packageName}").heightIn(min = 64.dp)
@@ -120,7 +130,13 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
                   if (overridden) Text(stringResource(R.string.extra_icons_override),
                     style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
                 }, current = {
-                  ExtraArtwork(R.string.extra_icons_current, currentArtwork[icon], icon !in currentArtwork)
+                  val artwork = currentArtwork[icon]
+                  Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ExtraArtwork(
+                      if (artwork?.original == true) R.string.extra_icons_original else R.string.extra_icons_current,
+                      artwork?.bitmap, artwork == null)
+                    if (artwork?.original == true) ExtraColumnTitle(R.string.extra_icons_original)
+                  }
                 }, extra = {
                   ExtraArtwork(R.string.extra_icons_title, extraArtwork[icon], icon !in extraArtwork)
                 }, toggle = {
@@ -138,6 +154,8 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
     }
   }
 }
+
+private data class ExtraCurrentArtwork(val bitmap: Bitmap?, val original: Boolean)
 
 @Composable
 private fun ExtraIconsRow(

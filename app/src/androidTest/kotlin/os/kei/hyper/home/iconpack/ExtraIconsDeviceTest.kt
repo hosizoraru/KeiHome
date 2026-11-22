@@ -30,8 +30,10 @@ class ExtraIconsDeviceTest {
     val context = instrumentation.targetContext
     val targets = iconPackTargets(context)
     val selected = ExtraIcon.entries.mapTo(hashSetOf()) { it.packageName }
-    assumeTrue("This check uses the six installed APKs",
+    assumeTrue("This check uses all supported installed APKs",
       ExtraIcon.entries.all { icon -> targets.any(icon::accepts) })
+    assertEquals(listOf(IconPackComponent(ExtraIcon.DOWNLOAD_PROVIDER.packageName)),
+      targets.filter(ExtraIcon.DOWNLOAD_PROVIDER::accepts))
     fun sample(mask: Boolean) = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888).let { bitmap ->
       try {
         bitmap.eraseColor(Color.WHITE)
@@ -91,7 +93,7 @@ class ExtraIconsDeviceTest {
   @Test fun classicArtPublicationUsesOnlyEnabledChoicesAndKeepsLightArtwork() = runBlocking {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val targets = iconPackTargets(context).filter { target -> ExtraIcon.entries.any { it.accepts(target) } }
-    assumeTrue("This check uses the six installed APKs",
+    assumeTrue("This check uses all supported installed APKs",
       ExtraIcon.entries.all { icon -> targets.any(icon::accepts) })
     val repository = IconPackRepository(context)
     val previews = IconPackPreviewRepository(context)
@@ -126,7 +128,7 @@ class ExtraIconsDeviceTest {
     }
     try {
       val before = publish(emptySet())
-      val enabled = selected - ExtraIcon.MEILOX.packageName
+      val enabled = selected - setOf(ExtraIcon.MEILOX.packageName, ExtraIcon.DOWNLOAD_PROVIDER.packageName)
       val after = publish(enabled)
       val all = publish(selected)
       val alwaysLight = publish(selected, IconPackAppearance.LIGHT)
@@ -134,11 +136,14 @@ class ExtraIconsDeviceTest {
       for (name in selected) {
         val path = "res/drawable-xxhdpi/$name.png"
         val night = "nightmode/$path"
-        assertArrayEquals(name, before.getValue(path), after.getValue(path))
-        assertEquals(name, name !in enabled, before.getValue(night).contentEquals(after.getValue(night)))
-        assertArrayEquals(name, before.getValue(path), all.getValue(path))
-        assertFalse(name, before.getValue(night).contentEquals(all.getValue(night)))
-        assertArrayEquals(name, alwaysLight.getValue(path), alwaysLight.getValue(night))
+        val originalDay = before[path]
+        val originalNight = before[night]
+        if (originalDay != null) assertArrayEquals(name, originalDay, all.getValue(path))
+        assertFalse(name, originalNight.contentEquals(all.getValue(night)))
+        assertFalse(name, all.getValue(path).contentEquals(all.getValue(night)))
+        assertArrayEquals(name, if (name in enabled) all[path] else originalDay, after[path])
+        assertArrayEquals(name, if (name in enabled) all[night] else originalNight, after[night])
+        assertArrayEquals(name, alwaysLight[path], alwaysLight[night])
       }
     } finally {
       settings.edit().apply {

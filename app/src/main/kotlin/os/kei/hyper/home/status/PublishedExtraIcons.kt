@@ -10,7 +10,6 @@ import os.kei.hyper.home.iconpack.ExtraIcon
 import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.IconPackException
-import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeMamlPair
@@ -50,14 +49,14 @@ internal object PublishedExtraIcons {
           val rendered = mutableMapOf<Int, ByteArray?>()
           val plans = names.map { name ->
             plan(archive, name, byOwner[name].orEmpty(), check) {
-              renderer.render(target, false, 192, check = check)?.clipped(shape)?.toPng()
+              renderer.renderExtra(icon, target, 192, shape, original = true, check = check)?.toPng()
             }
           }
           // A component must keep authored programs reachable through all of its aliases.
           if (plans.any { it == null }) continue
           for (plan in plans.filterNotNull()) {
             if (plan.size !in rendered) {
-              rendered[plan.size] = renderer.renderExtra(icon, target, plan.size, shape, check)?.toPng()
+              rendered[plan.size] = renderer.renderExtra(icon, target, plan.size, shape, check = check)?.toPng()
             }
             val dark = rendered[plan.size] ?: continue
             val entries = when {
@@ -118,13 +117,6 @@ internal object PublishedExtraIcons {
     val entry = getEntry(path) ?: return null
     if (entry.size !in 1..limit.toLong()) return null
     return getInputStream(entry).use { it.readNBytes(limit + 1) }.takeIf { it.size <= limit }
-  }
-
-  private fun Bitmap.clipped(mask: NativeAdaptiveIconMask?): Bitmap = try {
-    IconMaskPolicy.clip(this, mask).also { if (it !== this) recycle() }
-  } catch (failure: Throwable) {
-    recycle()
-    throw failure
   }
 
   private fun Bitmap.toPng(): ByteArray = try {

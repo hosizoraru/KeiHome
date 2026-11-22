@@ -10,4 +10,11 @@
     <string name="extra_icons_current">現在のアイコンパック</string>
     <string name="extra_icons_loading">%1$s を読み込み中</string>
     <string name="extra_icons_unavailable">%1$s のプレビューを表示できません</string>
+    <string name="extra_icons_downloads">ダウンロード</string>
+    <string name="extra_icons_download_provider">ダウンロードマネージャー</string>
+    <string name="extra_icons_wallet">ウォレット</string>
+    <string name="extra_icons_xiaomi_community">Xiaomi コミュニティ</string>
+    <string name="extra_icons_services_feedback">サービスとフィードバック</string>
+    <string name="extra_icons_it_home">IT之家</string>
+    <string name="extra_icons_original">元のアイコン</string>
 </resources>

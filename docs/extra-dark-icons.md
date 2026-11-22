@@ -4,12 +4,14 @@ In **Icon packs > Icon completion and fallback > KeiHome extra icons**,
 compare the current pack and KeiHome dark artwork in each app row. The search
 field matches app names and package names. Each switch defaults off, and the
 help button explains when the selection takes effect.
+When the current pack has no preview for an app, the comparison uses a
+labeled original from the installed APK.
 Update the current icon pack after changing the switches, then apply it
 through the existing Themes import flow.
 
-The first six adaptations were designed against these installed adaptive
-foregrounds. KeiHome draws them from the installed APK at runtime. The
-APK copies, upstream artwork, and reference theme are local test fixtures.
+KeiHome renders the artwork from the installed APK while preparing a preview
+or icon pack. The APK copies, upstream artwork, and reference theme are local
+test fixtures.
 
 | App | APK version checked | Dark treatment |
 | --- | --- | --- |
@@ -19,6 +21,17 @@ APK copies, upstream artwork, and reference theme are local test fixtures.
 | [KernelSU][kernelsu] | `v3.3.1-54-gff70c90d` | Charcoal gradient and a light version of its geometric mark. |
 | [Updater][updater] | `1.7.0` | Navy gradient with a pale-blue arrow. |
 | [MeiloX][meilox] | `1.55.1` | Muted rose gradient with the original artwork colors. |
+| Downloads | `126.10.08.806002` | Pale green arrow on a dark olive background. |
+| Download Manager | `137.26.07.800040` | Green arrow on a dark forest background. Uses the package icon because the provider has no launcher activity. |
+| Wallet | `6.115.2.5777.2755` | Original cards on a dark violet background. Removes the blue plate baked into the adaptive foreground. |
+| Xiaomi Community | `6.7.20260410` | Original white mark on a dark red background. |
+| Services & feedback | `18.0.2.0` | Blue speech bubble on a dark blue-gray background. |
+| IT Home | `9.38` | Original adaptive foreground on a dark burgundy background. |
+| [Shizuku][shizuku] | `13.6.0.r1086.2650830c` | Original adaptive foreground on a dark navy background. |
+
+For icons with baked backgrounds in the second batch, the renderer isolates the
+foreground from the installed artwork and checks its coverage and margins.
+An icon that fails those checks retains the pack's existing artwork.
 
 Archive preparation retains light artwork and recognized palette masks.
 Pinned icons, preserved originals, and authored live icon programs retain
@@ -52,7 +65,19 @@ landscape, scrolling exposed all six switches clear of the update button.
 The toolbar help opened and dismissed in place. See
 `.artifacts/research/extra-icons-inline/` for screenshots and UI checks.
 
+The second batch was verified on the same phone with the KeiOS-signed Debug
+`114000719`. The publication check
+compared all-off, selective, all-on, and Always light archives. In the
+Classic ART+ fixture, Download Manager was absent before enabling its
+completion. Enabling it added the original day artwork and its dark variant.
+All seven comparisons were visible, including the labeled original fallback.
+Searching by package name and toggling Shizuku left the other selections
+intact. The original-preservation regression suite also passed. The applied
+theme archive hash matched the pre-test hash. Device receipts and comparisons
+are in `.artifacts/research/extra-icons-batch2/`.
+
 [libchecker]: https://github.com/LibChecker/LibChecker/tree/dbe030504bbb3a449a426940bbda9b76de6017b3
 [kernelsu]: https://github.com/tiann/KernelSU/tree/2a60b2893b8d0d885d1ceff2287d8ad854f0e0f4
 [updater]: https://github.com/YuKongA/Updater-KMP/tree/f895e07e307ab48ad042a74cc60f831a08c5c2f0
 [meilox]: https://github.com/MeiloX/MeiloX/tree/9e85247d54e389002c9fdaf989b34838c4ec30bb
+[shizuku]: https://github.com/RikkaApps/Shizuku/blob/2650830c/manager/src/main/AndroidManifest.xml

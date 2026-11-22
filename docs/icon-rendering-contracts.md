@@ -78,6 +78,21 @@ gets a palette tree, while any native flat aliases already present use the same
 day/night snapshots. Older native packs with static coloring enabled can use
 the existing update action to pick up the added coverage.
 
+Generation schema 19 uses original foreground coverage for a qualifying native
+layer pair after geometry normalization. Author-supplied palette masks still
+have priority. For a flat two-color icon, the shared stencil can recover the
+coverage of anti-aliased edges. Ambiguous flat images continue through the
+existing generic fallback. The pack update action offers regeneration when
+static coloring was enabled on an older generation.
+
+Perfect static night revision 15 uses the same stencil to replace a proven
+light plate and rebuild mixed edge pixels. For a saturated plate and inset
+light mark, it can move the plate color to the mark if sufficient contrast
+is possible with a limited color adjustment. The day PNG and the verified
+native-layer paths retain their existing ownership. See the
+[iOS appearance experiments](ios-icon-appearances-research.md) for the inputs
+that motivated these cases.
+
 The Monet page can update a current pack whose source KeiHome can resolve, or
 open the pack library to select its original source. The normal import and
 application receipts govern this shortcut. Artwork changes reach the desktop

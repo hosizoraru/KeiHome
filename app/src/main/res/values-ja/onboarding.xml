@@ -25,7 +25,7 @@
     <string name="setup_icons_body">標準アイコン、Perfect、Apple、インポートしたパックから選べます。対応するシステム画面でも適用済み画像を使用できますが、対応範囲はホストとアプリによって異なります。</string>
     <string name="setup_native_icons_title">対応する標準アイコンは明暗へ自動追従</string>
     <string name="setup_library_body">内蔵パックやインストール済みの APK パックを選べます。ファイルから APK・MTZ・ZIP のアイコンパックも取り込めます。</string>
-    <string name="setup_monet_body">色の取得元と配色スタイルを選び、明暗をプレビューして「配色を適用」を押します。色のカスタマイズとパレット詳細は個別の画面で確認できます。適用してもオン・オフは変わらず、専用スイッチで切り替えます。</string>
+    <string name="setup_monet_body">色の取得元と配色スタイルを選び、明暗をプレビューして「配色を適用」を押します。下部のタブから色のカスタマイズ、パレットの詳細、アイコンの導入と更新を開けます。適用してもオン・オフは変わらず、専用スイッチで切り替えます。</string>
     <string name="setup_fallback_body">ColorOS と Perfect で未対応アプリのアイコンを補完できます。Perfect のスタイルを先にダウンロードしてください。HyperOS4 がおすすめです。Perfect 補完中はシステムの代替アイコンを使わず、オフにすると元の選択に戻ります。元のアイコンを使う指定のアプリは対象外です。</string>
     <string name="setup_mask_body">同じアイコンで元の形状、HyperOS4、カスタムマスクを比較。適応がオンの場合、カスタム、パック付属、HyperOS4 の順に優先します。</string>
     <string name="setup_icon_tip_title">プレビューして適用し、効果を確認</string>

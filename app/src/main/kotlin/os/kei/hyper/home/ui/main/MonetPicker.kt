@@ -97,6 +97,10 @@ internal fun MonetPicker(
   submittedChoice: MonetCustomization? = null,
   preferredStyle: MonetSchemeStyle? = null,
   preferredAppearance: os.kei.hyper.home.data.IconPackAppearance? = null,
+  familiesExpanded: Boolean,
+  onFamiliesExpandedChange: (Boolean) -> Unit,
+  iconsExpanded: Boolean,
+  onIconsExpandedChange: (Boolean) -> Unit,
   content: @Composable (MonetApplyUiState, @Composable (MonetSection) -> Unit, @Composable () -> Unit) -> Unit,
 ) {
   var draft by rememberSaveable { mutableStateOf<String?>(null) }
@@ -344,8 +348,9 @@ internal fun MonetPicker(
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     if (visibleSection == MonetSection.COLORS && seed != null) {
-      // Keep editor expansion state while the new palette is generated off the UI thread.
-      MonetAdvancedColors(choice, seed, palette.orEmpty(), enabled = !applying && palette != null, onChange = change)
+      MonetAdvancedColors(choice, seed, palette.orEmpty(), enabled = !applying && palette != null,
+        familiesExpanded = familiesExpanded, onFamiliesExpandedChange = onFamiliesExpandedChange,
+        iconsExpanded = iconsExpanded, onIconsExpandedChange = onIconsExpandedChange, onChange = change)
     }
     if (visibleSection == MonetSection.COLORS && seed == null) {
       Text(stringResource(if (readFailed) R.string.monet_unavailable else R.string.monet_seed_waiting),

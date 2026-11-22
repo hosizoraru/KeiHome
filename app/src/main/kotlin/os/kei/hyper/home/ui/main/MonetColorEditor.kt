@@ -79,17 +79,17 @@ internal fun MonetSeedColorField(color: Int, enabled: Boolean, onColorChange: (I
 @Composable
 internal fun MonetAdvancedColors(
   choice: MonetCustomization, seed: Int, palette: Map<String, Int>, enabled: Boolean,
+  familiesExpanded: Boolean, onFamiliesExpandedChange: (Boolean) -> Unit,
+  iconsExpanded: Boolean, onIconsExpandedChange: (Boolean) -> Unit,
   onChange: (MonetCustomization) -> Unit,
 ) {
-  var familiesExpanded by rememberSaveable { mutableStateOf(false) }
-  var iconsExpanded by rememberSaveable { mutableStateOf(false) }
   var editingFamily by rememberSaveable { mutableStateOf<String?>(null) }
   var editingRole by rememberSaveable { mutableStateOf<String?>(null) }
   val defaults = remember(seed, choice.style) { MonetSchemes.familySpecs(seed, choice.style) }
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     ColorSectionHeader(stringResource(R.string.monet_custom_palettes), familiesExpanded,
       stringResource(R.string.monet_custom_palette_count, choice.paletteOverrides.size),
-      "monet.custom.palettes") { familiesExpanded = !familiesExpanded }
+      "monet.custom.palettes") { onFamiliesExpandedChange(!familiesExpanded) }
     Os4DisclosureContent(familiesExpanded) {
       Text(stringResource(R.string.monet_custom_palette_hint), Modifier.padding(horizontal = 16.dp),
         style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -106,7 +106,7 @@ internal fun MonetAdvancedColors(
     ColorSectionHeader(stringResource(R.string.monet_custom_icon_colors), iconsExpanded,
       if (choice.iconOverrides.isNotEmpty()) stringResource(R.string.monet_custom_override)
         else choice.backgroundFamily?.let { familyName(it) } ?: stringResource(R.string.monet_custom_aosp_roles),
-      "monet.custom.icons") { iconsExpanded = !iconsExpanded }
+      "monet.custom.icons") { onIconsExpandedChange(!iconsExpanded) }
     Os4DisclosureContent(iconsExpanded) {
       OverlaySpinnerPreference(
         title = stringResource(R.string.monet_custom_background_family),

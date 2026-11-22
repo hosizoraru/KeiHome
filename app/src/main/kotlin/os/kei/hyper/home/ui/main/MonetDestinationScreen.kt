@@ -100,6 +100,10 @@ internal fun MonetDestinationScreen(model: HomeViewModel, onBack: () -> Unit, on
   MonetPicker(snapshot = monet.snapshot, readFailed = monet.readFailed,
     preferredStyle = if (inspiration) MonetSchemeStyle.COLOROS_INSPIRATION else null,
     preferredAppearance = preferences.iconPackAppearance,
+    familiesExpanded = preferences.monetPalettesExpanded,
+    onFamiliesExpandedChange = model.preferences::setMonetPalettesExpanded,
+    iconsExpanded = preferences.monetIconColorsExpanded,
+    onIconsExpandedChange = model.preferences::setMonetIconColorsExpanded,
     actionAvailable = !locked && framework.connected && !framework.readFailed &&
       framework.snapshot?.target?.loadedVersionCode == BuildConfig.VERSION_CODE.toLong(),
     actionStatus = monet.action, submittedChoice = monet.submittedChoice,

@@ -69,6 +69,8 @@ class GlassInteractionsUiTest {
   }
 
   @Test fun expandedMonetFamiliesAndRolesNeverOverlapAtLargeFont() {
+    var familiesExpanded by mutableStateOf(true)
+    var iconsExpanded by mutableStateOf(true)
     val palette = MonetPaletteFamily.entries.flatMap { family ->
       (0..100).map { tone -> "${family.key}$tone" to 0xff445577.toInt() }
     }.toMap()
@@ -77,20 +79,24 @@ class GlassInteractionsUiTest {
         KeiHomeTheme {
           KeiHomeScaffold(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-              MonetAdvancedColors(MonetCustomization(), 0xff445577.toInt(), palette, true, {})
+              MonetAdvancedColors(MonetCustomization(), 0xff445577.toInt(), palette, enabled = true,
+                familiesExpanded = familiesExpanded, onFamiliesExpandedChange = { familiesExpanded = it },
+                iconsExpanded = iconsExpanded, onIconsExpandedChange = { iconsExpanded = it }, onChange = {})
             }
           }
         }
       }
     }
-    compose.onNodeWithTag("monet.custom.palettes").performClick()
     assertOrdered(MonetPaletteFamily.entries.map { "monet.custom.family.${it.name}" })
-    compose.onNodeWithTag("monet.custom.palettes").performClick()
-    compose.onNodeWithTag("monet.custom.icons").performScrollTo().performClick()
     assertOrdered(listOf("monet.custom.backgroundFamily") +
       MonetIconRole.entries.map { "monet.custom.role.${it.name}" })
+    compose.onNodeWithTag("monet.custom.palettes").performClick()
+    compose.onNodeWithTag("monet.custom.family.PRIMARY").assertDoesNotExist()
     compose.onNodeWithTag("monet.custom.icons").performScrollTo().performClick()
     compose.onNodeWithTag("monet.custom.backgroundFamily").assertDoesNotExist()
+    compose.onNodeWithTag("monet.custom.icons").performScrollTo().performClick()
+    compose.onNodeWithTag("monet.custom.backgroundFamily").assertExists()
+    compose.onNodeWithTag("monet.custom.family.PRIMARY").assertDoesNotExist()
   }
 
   @Test fun sheetTabsPreserveSelectionAndBackDismissesWithoutInvokingAnAction() {

@@ -66,6 +66,8 @@ internal data class AppPreferencesState(
   val completeSystemIconConfig: Boolean = true,
   val monetUnadaptedIcons: Boolean = false,
   val monetFullBleedIconPadding: Boolean = false,
+  val monetPalettesExpanded: Boolean = true,
+  val monetIconColorsExpanded: Boolean = true,
   val perfectFallbackExpanded: Boolean = false,
   val systemAppNameMatching: Boolean = true,
   val telegramChannelMapping: Boolean = true,
@@ -145,6 +147,8 @@ internal class AppPreferences internal constructor(
     completeSystemIconConfig = preferences.getBoolean("complete_system_icon_config", true),
     monetUnadaptedIcons = preferences.getBoolean("monet_unadapted_icons", false),
     monetFullBleedIconPadding = preferences.getBoolean("monet_full_bleed_icon_padding", false),
+    monetPalettesExpanded = preferences.getBoolean("monet_palettes_expanded", true),
+    monetIconColorsExpanded = preferences.getBoolean("monet_icon_colors_expanded", true),
     perfectFallbackExpanded = preferences.getBoolean("perfect_fallback_expanded", false),
     systemAppNameMatching = preferences.getBoolean("system_app_name_matching", true),
     telegramChannelMapping = preferences.getBoolean(RecommendedIconMappings.TELEGRAM_KEY, true),
@@ -329,6 +333,16 @@ internal class AppPreferences internal constructor(
   fun setMonetFullBleedIconPadding(value: Boolean) {
     preferences.edit().putBoolean("monet_full_bleed_icon_padding", value).apply()
     state.update { it.copy(monetFullBleedIconPadding = value) }
+  }
+
+  fun setMonetPalettesExpanded(value: Boolean) {
+    preferences.edit().putBoolean("monet_palettes_expanded", value).apply()
+    state.update { it.copy(monetPalettesExpanded = value) }
+  }
+
+  fun setMonetIconColorsExpanded(value: Boolean) {
+    preferences.edit().putBoolean("monet_icon_colors_expanded", value).apply()
+    state.update { it.copy(monetIconColorsExpanded = value) }
   }
 
   fun setPerfectFallbackExpanded(value: Boolean) {

@@ -7,6 +7,29 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AppDisplayPreferencesTest {
+  @Test fun monetDisclosuresDefaultToExpandedAndRestoreIndependently() {
+    val store = Store(legacyValues())
+    val originalValues = store.values.toMap()
+    val preferences = store.open()
+    val defaults = preferences.state.value
+    assertEquals(true, defaults.monetPalettesExpanded)
+    assertEquals(true, defaults.monetIconColorsExpanded)
+    assertEquals(originalValues, store.values)
+
+    preferences.setMonetPalettesExpanded(false)
+    val palettesCollapsed = defaults.copy(monetPalettesExpanded = false)
+    assertEquals(palettesCollapsed, preferences.state.value)
+    assertEquals(palettesCollapsed, store.open().state.value)
+
+    preferences.setMonetIconColorsExpanded(false)
+    preferences.setMonetPalettesExpanded(true)
+    val iconColorsCollapsed = defaults.copy(monetIconColorsExpanded = false)
+    assertEquals(iconColorsCollapsed, preferences.state.value)
+    assertEquals(iconColorsCollapsed, store.open().state.value)
+    assertEquals(originalValues + mapOf("monet_palettes_expanded" to true,
+      "monet_icon_colors_expanded" to false), store.values)
+  }
+
   @Test fun displayControlsUseDefaultsWithoutMigratingExistingChoices() {
     val store = Store(legacyValues())
     val before = store.values.toMap()

@@ -13,6 +13,26 @@ An explicitly supplied full version or build identity takes precedence.
 Later development builds retaining the 1.9.0 prefix do not replace this baseline
 without a further explicit public-release confirmation.
 
+## 1.13.0+g89c8421.b0647.override
+
+This is the confirmed public beta baseline for 1.13.0. Use it when feedback
+identifies only the 1.13.0 beta, and when comparing public changes for 1.14.0.
+Use the full reported build identity when available.
+
+| Field | Recorded identity |
+| --- | --- |
+| versionCode | `113000647` |
+| Source commit | `89c8421883011f1e578073d0b096a99580c2b979` |
+| Source committer timestamp | `2026-11-20T19:14:10+08:00` |
+| APK SHA-256 | `ac0a130d46aef0fae9c23dcd65c97dd70806d2a0824292424c55bd955380f650` |
+| Signing certificate SHA-256 | `c5c4c43ba6d03268773122bc99d1e870908609ae5251c7c8ad4b6029b573c82a` |
+| Build receipt | `.artifacts/releases/113000647/release.json` |
+
+The `v1.13.0` tag points to `458e2126e1747c7a1b705caca178cbae56390db0`, an
+earlier preparation commit. Its timestamp remains the App catalog anchor.
+Later development builds with the same prefix do not replace the public
+beta baseline.
+
 ## 1.9.0+g70ea216.b0394
 
 Public release was explicitly confirmed by the user on **2026-11-13,

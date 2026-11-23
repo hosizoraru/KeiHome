@@ -606,6 +606,7 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [07d48590 迁移](miuix-snapshot-07d48590.md)记录搜索清除按钮、底部面板动效和滑块点按。
 - [84ce2a0a 迁移](miuix-snapshot-84ce2a0a.md)记录主题设置、App 配色与 About 页的 Glass 更新。
 - [44f1d315 迁移](miuix-snapshot-44f1d315.md)记录对话框动效、退出期间的触摸释放和面板内 GlassCard。
 - [2b226150 迁移](miuix-snapshot-2b226150.md)记录面板标题区、Glass 底边描线和窗口浮层边界。

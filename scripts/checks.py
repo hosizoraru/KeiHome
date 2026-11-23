@@ -43,7 +43,8 @@ GROUPS = {
         "os.kei.hyper.home.iconpack.NativeDefaultAliasCompletionDeviceTest",)),
     "native-artwork-import": ("jvm", "Raster headers, archive bounds, Perfect resources and local native admission", (
         "IconPackArchiveTest", "PerfectIconFormatTest", "PerfectLayeredIconTest",
-        "LocalNativeIconValidatorTest", "LocalLayerTimeVisualValidatorTest", "ConvertedIconArchiveTest")),
+        "LocalNativeIconValidatorTest", "LocalLayerTimeVisualValidatorTest", "LocalLottieIconValidatorTest",
+        "ConvertedIconArchiveTest")),
     "native-artwork-import-device": ("device", "Local publication, mixed image previews and native layer rendering", (
         "os.kei.hyper.home.iconpack.PerfectPublicationDeviceTest",
         "os.kei.hyper.home.iconpack.ArchiveLayerRendererTest",

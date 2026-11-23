@@ -6,7 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Admission only: a bounded, self-contained vector subset, with no expressions or asset loading.
+ * Admission only: bounded, self-contained vector graphics, including inline precompositions.
  * Property names follow https://lottie.github.io/lottie-spec/dev/specs/schema/.
  * A strict bounded reader runs before creating containers; JSONTokener's lenient/unbounded
  * recursive parsing must not process untrusted icon resources.
@@ -20,16 +20,22 @@ internal object LocalLottieIconValidator {
   private const val MAX_ARRAY_ITEMS = 4096
   private const val MAX_STRING = 4096
   private const val MAX_FRAMES = 36_000.0
+  private const val MAX_RENDER_NODES = 4096
+  private const val MAX_COMPOSITION_DEPTH = 8
+  private const val MAX_COMPOSITION_PIXELS = 16L * 1024 * 1024
   private val version = Regex("[0-9]{1,3}(?:\\.[0-9]{1,3}){1,3}")
-  private val topKeys = setOf("v", "fr", "ip", "op", "w", "h", "nm", "ddd", "assets", "layers", "markers")
+  private val assetId = Regex("[A-Za-z0-9_][A-Za-z0-9_-]{0,63}")
+  private val topKeys = setOf("v", "fr", "ip", "op", "w", "h", "nm", "ddd", "assets", "layers", "markers", "props")
+  private val inlineAssetKeys = setOf("id", "nm", "fr", "layers")
+  private val markerKeys = setOf("tm", "cm", "dr")
+  private val precompositionKeys = setOf("refId", "w", "h", "tm")
   private val layerKeys = setOf("ddd", "ind", "ty", "nm", "sr", "ks", "ao", "shapes", "ip", "op",
-    "st", "bm", "hd", "parent", "cl", "ln")
-  // No repeaters, procedural stars, merge paths, text, effects, slots or asset references.
+    "st", "bm", "hd", "parent", "cl", "ln", "ct", "td", "tt", "tp")
   private val shapeTypes = setOf("gr", "sh", "rc", "el", "fl", "st", "gf", "gs", "tr", "tm", "rd")
   private val shapeKeys = setOf("ty", "nm", "mn", "hd", "bm", "ix", "ind", "it", "np", "cix",
     "ks", "p", "s", "r", "d", "c", "o", "g", "t", "e", "h", "a", "sk", "sa", "rz",
-    "rx", "ry", "lc", "lj", "ml", "w", "m")
-  private val dataKeys = topKeys + layerKeys + shapeKeys + setOf(
+    "rx", "ry", "lc", "lj", "ml", "ml2", "w", "m")
+  private val dataKeys = (topKeys - setOf("assets", "layers", "props")) + layerKeys + shapeKeys + setOf(
     "k", "i", "x", "y", "z", "l", "v", "to", "ti", "n", "c", "ro", "os", "is",
     "cm", "dr", "tm", "s", "a", "h", "t",
   )
@@ -37,6 +43,9 @@ internal object LocalLottieIconValidator {
     "filename", "file", "script", "scripts", "expression", "expressions", "expr", "code", "js",
     "fonts", "chars", "fpath", "fontpath", "ef", "effects", "slots")
   private val labelKeys = setOf("v", "nm", "mn", "ty", "cl", "ln")
+  private data class CompositionReference(val id: String, val pixels: Long)
+  private data class Composition(val nodes: Int, val shapes: Int, val mattes: Int, val uses: List<CompositionReference>)
+  private data class RenderCost(val nodes: Int, val hasShapes: Boolean, val mattes: Int, val pixels: Long, val depth: Int)
 
   internal fun validate(bytes: ByteArray) {
     require(bytes.size in 2..MAX_BYTES) { "Lottie JSON exceeds the 1 MiB admission limit" }
@@ -45,20 +54,79 @@ internal object LocalLottieIconValidator {
     val root = Reader(text).read() as? JSONObject ?: error("Lottie content must be a JSON object")
     keys(root, topKeys)
     require((root.opt("v") as? String)?.matches(version) == true) { "Unsupported Lottie version" }
-    integer(root, "w", 1..4096)
-    integer(root, "h", 1..4096)
+    val rootPixels = integer(root, "w", 1..4096).toLong() * integer(root, "h", 1..4096)
     if (root.has("ddd")) integer(root, "ddd", 0..1)
-    require(number(root, "fr") > 0 && number(root, "fr") <= 120) { "Unsupported Lottie frame rate" }
+    frameRate(root)
     timeline(root)
-    if (root.has("assets")) require(root.get("assets") is JSONArray && root.getJSONArray("assets").length() == 0) {
-      "Lottie assets are not admitted"
+    if (root.has("props")) require(root.get("props") is JSONObject && root.getJSONObject("props").length() == 0) {
+      "Only empty Lottie props are supported"
     }
-    if (root.has("markers")) require(root.get("markers") is JSONArray && root.getJSONArray("markers").length() == 0) {
-      "Lottie markers are not admitted"
+    if (root.has("markers")) {
+      val markers = root.getJSONArray("markers")
+      require(markers.length() <= 64) { "Lottie marker limit exceeded" }
+      for (index in 0 until markers.length()) {
+        val marker = markers.getJSONObject(index)
+        keys(marker, markerKeys)
+        require(number(marker, "tm") in -MAX_FRAMES..MAX_FRAMES && number(marker, "dr") in 0.0..MAX_FRAMES &&
+          (marker.opt("cm") as? String)?.length in 0..128) { "Invalid Lottie marker" }
+      }
     }
-    val layers = root.get("layers") as? JSONArray ?: error("Missing vector layers")
+    inspectObject(root, setOf("assets", "layers", "props", "markers"))
+    val assets = linkedMapOf<String, Composition>()
+    if (root.has("assets")) {
+      val array = root.get("assets") as? JSONArray ?: error("Invalid Lottie asset list")
+      require(array.length() <= 32) { "Lottie precomposition limit exceeded" }
+      for (index in 0 until array.length()) {
+        val asset = array.getJSONObject(index)
+        keys(asset, inlineAssetKeys)
+        val id = referenceId(asset, "id")
+        require(id !in assets) { "Duplicate Lottie precomposition: $id" }
+        if (asset.has("fr")) frameRate(asset)
+        inspectObject(asset, setOf("id", "layers"))
+        assets[id] = composition(asset.getJSONArray("layers"))
+      }
+    }
+    val scene = composition(root.getJSONArray("layers"))
+    val validated = mutableMapOf<String, RenderCost>()
+    val active = mutableSetOf<String>()
+    fun cost(composition: Composition, depth: Int): RenderCost {
+      require(depth <= MAX_COMPOSITION_DEPTH) { "Lottie precomposition depth exceeded" }
+      var result = RenderCost(composition.nodes, composition.shapes > 0, composition.mattes, 0, 1)
+      for (reference in composition.uses) {
+        val child = validated[reference.id] ?: run {
+          require(active.add(reference.id)) { "Cyclic Lottie precomposition: ${reference.id}" }
+          val asset = requireNotNull(assets[reference.id]) { "Missing Lottie precomposition: ${reference.id}" }
+          cost(asset, depth + 1).also {
+            active.remove(reference.id)
+            validated[reference.id] = it
+          }
+        }
+        result = RenderCost(result.nodes + child.nodes, result.hasShapes || child.hasShapes,
+          result.mattes + child.mattes,
+          result.pixels + child.pixels + reference.pixels * (1 + assets.getValue(reference.id).mattes),
+          maxOf(result.depth, child.depth + 1))
+        require(result.nodes <= MAX_RENDER_NODES && result.mattes <= 32 &&
+          result.pixels <= MAX_COMPOSITION_PIXELS && result.depth <= MAX_COMPOSITION_DEPTH) {
+          "Lottie expanded rendering budget exceeded"
+        }
+      }
+      return result
+    }
+    val render = cost(scene, 1)
+    for (id in assets.keys - validated.keys) cost(assets.getValue(id), 1)
+    require(render.hasShapes) { "Lottie has no vector shapes" }
+    require(rootPixels * (1 + scene.mattes) + render.pixels <= MAX_COMPOSITION_PIXELS) {
+      "Lottie composition pixel budget exceeded"
+    }
+  }
+
+  private fun composition(layers: JSONArray): Composition {
     require(layers.length() in 1..128) { "Lottie layer limit exceeded" }
     val indexed = linkedMapOf<Int, JSONObject>()
+    val mattes = mutableSetOf<Int>()
+    val usedMattes = mutableSetOf<Int>()
+    val uses = mutableListOf<CompositionReference>()
+    var previousId: Int? = null
     var shapes = 0
     fun shapeList(array: JSONArray, depth: Int) {
       require(depth <= 16)
@@ -68,6 +136,13 @@ internal object LocalLottieIconValidator {
         keys(shape, shapeKeys)
         val type = shape.get("ty") as? String ?: error("Invalid Lottie shape type")
         require(type in shapeTypes) { "Unsupported vector shape: $type" }
+        if (shape.has("ml2")) {
+          require(type == "gs") { "Only gradient strokes can declare a miter limit" }
+          val limit = shape.getJSONObject("ml2")
+          keys(limit, setOf("a", "k", "ix"))
+          integer(limit, "a", 0..0)
+          require(number(limit, "k") in 0.0..100.0) { "Invalid gradient stroke miter limit" }
+        }
         when (type) {
           "gr" -> shapeList(shape.get("it") as? JSONArray ?: error("Missing vector group"), depth + 1)
           "sh" -> require(shape.get("ks") is JSONObject)
@@ -80,19 +155,39 @@ internal object LocalLottieIconValidator {
       }
     }
     for (index in 0 until layers.length()) {
-      val layer = layers.get(index) as? JSONObject ?: error("Invalid Lottie layer")
-      keys(layer, layerKeys)
-      val type = integer(layer, "ty", 3..4)
+      val layer = layers.getJSONObject(index)
+      val type = integer(layer, "ty", 0..4)
+      require(type in setOf(0, 3, 4)) { "Unsupported vector layer: $type" }
+      keys(layer, if (type == 0) layerKeys + precompositionKeys else layerKeys)
+      inspectObject(layer, if (type == 0) setOf("refId") else emptySet())
       if (layer.has("ddd")) integer(layer, "ddd", 0..1)
       val id = integer(layer, "ind", 0..1_000_000)
       require(indexed.put(id, layer) == null) { "Duplicate Lottie layer index" }
       timeline(layer)
       require(layer.get("ks") is JSONObject) { "Missing vector transform" }
       if (layer.has("sr")) require(number(layer, "sr") in 0.001..1000.0) { "Unsafe time stretch" }
+      if (layer.has("ct")) integer(layer, "ct", 0..1)
+      val matte = if (layer.has("tt")) integer(layer, "tt", 0..2) else 0
+      val providesMatte = layer.has("td") && integer(layer, "td", 0..1) == 1
+      if (matte != 0) {
+        val source = if (layer.has("tp")) integer(layer, "tp", 0..1_000_000) else previousId
+        require(!providesMatte && source != null && source in mattes && usedMattes.add(source) &&
+          usedMattes.size <= 32) { "Invalid or excessive Lottie track mattes" }
+      } else require(!layer.has("tp")) { "Lottie matte reference has no matte mode" }
+      if (providesMatte) {
+        require(type != 3) { "Lottie track matte needs a drawing layer" }
+        mattes += id
+      }
+      previousId = id
       if (type == 4) shapeList(layer.get("shapes") as? JSONArray ?: error("Missing vector shapes"), 1)
-      else require(!layer.has("shapes")) { "Null layers cannot contain shapes" }
+      else require(!layer.has("shapes")) { "Only shape layers can contain shapes" }
+      if (type == 0) {
+        val width = integer(layer, "w", 1..4096)
+        val height = integer(layer, "h", 1..4096)
+        uses += CompositionReference(referenceId(layer, "refId"), width.toLong() * height)
+        if (layer.has("tm")) require(layer.get("tm") is JSONObject) { "Invalid Lottie time remap" }
+      }
     }
-    require(shapes > 0) { "Lottie has no vector shapes" }
     // Parent chains must terminate; even a tiny JSON can encode a cyclic renderer traversal.
     for (id in indexed.keys) {
       val visited = hashSetOf<Int>()
@@ -104,11 +199,33 @@ internal object LocalLottieIconValidator {
         current = integer(layer, "parent", 0..1_000_000)
       }
     }
-    inspect(root)
+    return Composition(layers.length() + shapes, shapes, usedMattes.size, uses)
   }
 
   private fun keys(value: JSONObject, allowed: Set<String>) {
-    require(value.keys().asSequence().all { it in allowed }) { "Unsupported Lottie property" }
+    val unknown = value.keys().asSequence().firstOrNull { it !in allowed }
+    require(unknown == null) { "Unsupported Lottie property: $unknown" }
+  }
+
+  private fun frameRate(value: JSONObject) {
+    val rate = number(value, "fr")
+    require(rate > 0 && rate <= 120) { "Unsupported Lottie frame rate" }
+  }
+
+  private fun referenceId(value: JSONObject, key: String): String =
+    (value.opt(key) as? String)?.takeIf(assetId::matches) ?: error("Invalid Lottie $key")
+
+  private fun inspectObject(value: JSONObject, skip: Set<String>) {
+    value.keys().forEach { key ->
+      if (key in skip) return@forEach
+      require(key.lowercase(java.util.Locale.ROOT) !in forbidden && key in dataKeys) {
+        "Unsupported Lottie data property: $key"
+      }
+      val child = value.get(key)
+      require(child !is String || key in labelKeys) { "Strings are only admitted as inert Lottie labels" }
+      if (key == "t" && child is Number) require(child.toDouble() in -MAX_FRAMES..MAX_FRAMES)
+      inspect(child, label = key in labelKeys)
+    }
   }
 
   private fun number(value: JSONObject, key: String): Double {
@@ -134,16 +251,7 @@ internal object LocalLottieIconValidator {
 
   private fun inspect(value: Any, label: Boolean = false) {
     when (value) {
-      is JSONObject -> value.keys().forEach { key ->
-        require(key.lowercase(java.util.Locale.ROOT) !in forbidden && key in dataKeys) {
-          "Lottie resource, script or unknown property is forbidden"
-        }
-        val child = value.get(key)
-        require(!(key in setOf("x", "p") && child is String)) { "Lottie expressions and paths are forbidden" }
-        require(child !is String || key in labelKeys) { "Strings are only admitted as inert Lottie labels" }
-        if (key == "t" && child is Number) require(child.toDouble() in -MAX_FRAMES..MAX_FRAMES)
-        inspect(child, label = key in labelKeys)
-      }
+      is JSONObject -> inspectObject(value, emptySet())
       is JSONArray -> for (index in 0 until value.length()) inspect(value.get(index))
       is Number -> require(value.toDouble().isFinite() && kotlin.math.abs(value.toDouble()) <= 1_000_000)
       is String -> require(label && value.length <= MAX_STRING)

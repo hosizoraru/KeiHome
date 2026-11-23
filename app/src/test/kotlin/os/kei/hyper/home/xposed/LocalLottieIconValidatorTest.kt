@@ -47,7 +47,7 @@ class LocalLottieIconValidatorTest {
     }
   }
 
-  @Test fun rejectsEveryAssetIncludingEmbeddedImagesAndVectorPrecompositions() {
+  @Test fun rejectsImageAssetsAndMalformedPrecompositions() {
     for (asset in listOf(
       JSONObject().put("id", "image").put("u", "https://example.invalid/").put("p", "icon.png"),
       JSONObject().put("id", "image").put("u", "").put("p", "../icon.png"),
@@ -55,6 +55,42 @@ class LocalLottieIconValidatorTest {
       JSONObject().put("id", "precomp").put("layers", JSONArray()),
     )) reject(vector().put("assets", JSONArray().put(asset)))
     reject(vector().put("assets", JSONObject()))
+  }
+
+  @Test fun admitsInlineVectorCompositionsAndLocalTrackMattes() {
+    val source = layer(vector()).put("td", 1)
+    val destination = layer(vector()).put("ind", 2).put("tt", 2).put("tp", 1).put("ct", 1)
+    val document = vector().put("props", JSONObject()).put("assets", JSONArray().put(
+      asset("comp_0", source, destination),
+    )).put("layers", JSONArray().put(composition("comp_0")))
+    accept(document)
+    destination.remove("tp")
+    accept(document)
+    destination.put("tp", 3)
+    reject(document)
+    destination.put("tp", 2)
+    reject(document)
+    destination.put("tp", 1)
+    document.put("props", JSONObject().put("custom", "value"))
+    reject(document)
+  }
+
+  @Test fun rejectsMissingDuplicateCyclicAndOverBudgetPrecompositions() {
+    fun withAssets(vararg assets: JSONObject) =
+      vector().put("layers", JSONArray().put(composition("entry"))).put("assets", JSONArray(assets.toList()))
+    reject(withAssets())
+    reject(withAssets(asset("entry", layer(vector())), asset("entry", layer(vector()))))
+    reject(withAssets(asset("entry", composition("entry"))))
+    reject(withAssets(asset("entry", composition("child")), asset("child", composition("entry"))))
+    reject(withAssets(asset("entry", layer(vector()).put("ty", 2))))
+    reject(withAssets(asset("entry", layer(vector())).put("p", "https://example.invalid/image.png")))
+    val depth = (0..8).map { index ->
+      val id = if (index == 0) "entry" else "comp_$index"
+      asset(id, if (index == 8) layer(vector()) else composition("comp_${index + 1}"))
+    }
+    reject(withAssets(*depth.toTypedArray()))
+    val large = composition("child").put("w", 4096).put("h", 4096)
+    reject(withAssets(asset("entry", large), asset("child", layer(vector()))))
   }
 
   @Test fun rejectsReferencesPathsAndUrlsInResourceFieldsAtAnyDepth() {
@@ -176,6 +212,12 @@ class LocalLottieIconValidatorTest {
   }""")
 
   private fun layer(document: JSONObject): JSONObject = document.getJSONArray("layers").getJSONObject(0)
+  private fun asset(id: String, vararg layers: JSONObject): JSONObject =
+    JSONObject().put("id", id).put("fr", 60).put("layers", JSONArray(layers.toList()))
+
+  private fun composition(id: String): JSONObject =
+    layer(vector()).apply { remove("shapes") }.put("ty", 0).put("refId", id).put("w", 351).put("h", 351)
+
   private fun accept(document: JSONObject) = LocalLottieIconValidator.validate(document.toString().toByteArray())
   private fun reject(document: JSONObject) = reject(document.toString())
   private fun reject(text: String) = reject(text.toByteArray(Charsets.UTF_8))

@@ -1,4 +1,7 @@
 <resources>
+    <string name="settings_app_theme_title">Theme settings</string>
+    <string name="settings_app_theme_summary">Light and dark appearance, App colors, and display effects</string>
+    <string name="settings_theme_display">Display effects</string>
     <string name="app_squircle_title">Smooth corners</string>
     <string name="app_squircle_summary">Use smoother corner curves on supported cards, buttons, and other controls.</string>
     <string name="app_squircle_unsupported">Smooth corners require graphics shader support.</string>

@@ -1,4 +1,7 @@
 <resources>
+    <string name="settings_app_theme_title">テーマ設定</string>
+    <string name="settings_app_theme_summary">ライトとダークの外観、アプリの配色、表示効果</string>
+    <string name="settings_theme_display">表示効果</string>
     <string name="app_squircle_title">なめらかな角丸</string>
     <string name="app_squircle_summary">対応するカードやボタンなどの角をなめらかに描画します。</string>
     <string name="app_squircle_unsupported">なめらかな角丸にはグラフィックスシェーダーの対応が必要です。</string>

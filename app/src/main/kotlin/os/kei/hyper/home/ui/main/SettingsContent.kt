@@ -21,8 +21,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
-import os.kei.hyper.home.data.AppAppearance
-import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferencesState
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -32,15 +30,12 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
-import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SettingsContent(
   preferences: AppPreferencesState,
-  onAppearanceChange: (AppAppearance) -> Unit,
-  onColorModeChange: (os.kei.hyper.home.data.AppColorMode) -> Unit,
   onPreviewsChange: (Boolean) -> Unit,
   onClearIconCache: () -> Unit,
   onPageUserScrollChange: (Boolean) -> Unit,
@@ -48,7 +43,6 @@ internal fun SettingsContent(
   onAutoApplyChange: (Boolean) -> Unit,
   onInstalledIconsOnlyChange: (Boolean) -> Unit,
   onRememberMenusChange: (Boolean) -> Unit,
-  onTopBarBlurChange: (os.kei.hyper.home.data.AppTopBarBlur) -> Unit,
   splash: ThemeEffectsUiState,
   splashInScope: Boolean,
   onSplashChange: (Boolean) -> Unit,
@@ -68,10 +62,7 @@ internal fun SettingsContent(
   staticScopeContent: @Composable () -> Unit = {},
   onKeepLatestGeneratedPacksChange: (Boolean) -> Unit = {},
   onManualThemeFallbackChange: ((Boolean) -> Unit)? = null,
-  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit,
-  onSquircleShapesChange: (Boolean) -> Unit = {},
-  onAppScaleChange: (Int) -> Unit = {},
-  onScrollEndHapticChange: (Boolean) -> Unit = {},
+  onOpenAppTheme: (() -> Unit)? = null,
   onOpenRecommendedMappings: (() -> Unit)? = null,
   fallbackContent: @Composable () -> Unit,
 ) {
@@ -84,24 +75,10 @@ internal fun SettingsContent(
     val text = (listOf(title, group.title) + labels.asList()).joinToString(" ") { resources.getString(it) } + " " + extra
     return settingsQueryMatches(query, text)
   }
-  val colorMode = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.browser_ui_palette,
-    R.string.browser_ui_palette_hint, R.string.polish_appearance_title, extra = "Monet")
-  val appearance = preferences.colorMode == os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS &&
-    matches(SettingsSection.APP, R.string.polish_settings_display, R.string.polish_appearance_title, R.string.polish_appearance_summary)
-  val language = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.settings_language,
+  val appTheme = section == null && query.isNotBlank() && onOpenAppTheme != null &&
+    appThemeSearchMatches(query, resources)
+  val language = matches(SettingsSection.APP, R.string.settings_language,
     R.string.language_system, R.string.language_chinese, R.string.language_english, R.string.language_japanese)
-  val blur = matches(SettingsSection.APP, R.string.polish_settings_display, R.string.top_bar_blur, R.string.top_bar_blur_summary,
-    R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
-  val squircle = matches(SettingsSection.APP, R.string.polish_settings_display,
-    R.string.app_squircle_title, R.string.app_squircle_summary, extra = "Squircle")
-  val scale = matches(SettingsSection.APP, R.string.polish_settings_display,
-    R.string.app_scale_title, R.string.app_scale_summary, extra = "Global Scale")
-  val scrollEndHaptic = matches(SettingsSection.APP, R.string.app_interaction_title,
-    R.string.app_scroll_haptic_title, R.string.app_scroll_haptic_summary, extra = "Scroll End Haptic")
-  val navigationBarStyle = matches(SettingsSection.APP, R.string.polish_settings_display,
-    R.string.navigation_bar_style_title, R.string.navigation_bar_style_summary,
-    R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass,
-    R.string.navigation_bar_style_search_keywords)
   val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
@@ -169,7 +146,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, wallpaperDimming, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (listOf(appTheme, language, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, wallpaperDimming, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -194,65 +171,24 @@ internal fun SettingsContent(
           onClick = onOpenRecommendedMappings)
       }
     }
-    if (colorMode || appearance || language || blur || squircle || scale || navigationBarStyle) {
-      SmallTitle(
-        stringResource(R.string.polish_settings_display),
-        modifier = Modifier.semantics { heading() },
-      )
+    if (appTheme) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        val labels = listOf(R.string.language_system, R.string.polish_appearance_light, R.string.polish_appearance_dark,
-          R.string.browser_ui_monet_system, R.string.browser_ui_monet_light, R.string.browser_ui_monet_dark,
-          R.string.browser_ui_follow)
-        val selected = when (preferences.colorMode) {
-          os.kei.hyper.home.data.AppColorMode.DEFAULT -> preferences.appearance.ordinal
-          os.kei.hyper.home.data.AppColorMode.MONET -> preferences.appearance.ordinal + 3
-          os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS -> 6
-        }
-        if (colorMode) Os4DropdownPreference(title = stringResource(R.string.browser_ui_palette),
-          summary = stringResource(R.string.browser_ui_palette_hint),
-          items = labels.map { stringResource(it) }, selectedIndex = selected,
-          onSelectedIndexChange = { index ->
-            if (index == 6) onColorModeChange(os.kei.hyper.home.data.AppColorMode.FOLLOW_ICONS)
-            else {
-              onAppearanceChange(AppAppearance.entries[index % 3])
-              onColorModeChange(if (index < 3) os.kei.hyper.home.data.AppColorMode.DEFAULT else os.kei.hyper.home.data.AppColorMode.MONET)
-            }
-          })
-        if (appearance)
-          AppearancePreference(preferences.appearance, onAppearanceChange)
-        if (language) LanguagePreference()
-        if (navigationBarStyle) Os4DropdownPreference(
-          title = stringResource(R.string.navigation_bar_style_title),
-          summary = stringResource(R.string.navigation_bar_style_summary),
-          items = listOf(R.string.navigation_bar_style_ios_like, R.string.navigation_bar_style_os4_glass)
-            .map { stringResource(it) },
-          selectedIndex = preferences.navigationBarStyle.ordinal,
-          onSelectedIndexChange = { onNavigationBarStyleChange(AppNavigationBarStyle.entries[it]) },
-          modifier = Modifier.testTag("settings.navigation-bar-style"),
-        )
-        if (blur) Os4DropdownPreference(title = stringResource(R.string.top_bar_blur),
-          summary = stringResource(R.string.top_bar_blur_summary),
-          items = listOf(R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive)
-            .map { stringResource(it) }, selectedIndex = preferences.topBarBlur.ordinal,
-          onSelectedIndexChange = { onTopBarBlurChange(os.kei.hyper.home.data.AppTopBarBlur.entries[it]) })
-        if (squircle) {
-          val supported = isRuntimeShaderSupported()
-          SwitchPreference(title = stringResource(R.string.app_squircle_title),
-            summary = stringResource(if (supported) R.string.app_squircle_summary else R.string.app_squircle_unsupported),
-            checked = supported && preferences.squircleShapes,
-            enabled = supported, onCheckedChange = onSquircleShapesChange,
-            modifier = Modifier.testTag("settings.squircle-shapes"))
-        }
-        if (scale) AppScalePreference(preferences.appScalePercent, onAppScaleChange)
+        BasicComponent(title = stringResource(SettingsSection.THEME.title),
+          summary = stringResource(SettingsSection.THEME.summary), onClick = onOpenAppTheme,
+          modifier = Modifier.testTag("settings.entry.theme"),
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
       }
+    }
+    if (language) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) { LanguagePreference() }
     }
     if (launcherGlass || labels || dockGlass || wallpaperDimming) desktopStatusObserver()
     if (effects || launcherGlass) {
       SmallTitle(stringResource(R.string.settings_system_appearance), modifier = Modifier.semantics { heading() })
       if (effects) ThemeEffectsCard(themeEffects, framework, onThemeEffectsChange)
-    if (launcherGlass) launcherGlassContent()
-    if (searchGlass) searchGlassContent()
+      if (launcherGlass) launcherGlassContent()
     }
+    if (searchGlass) searchGlassContent()
     if (labels || dockGlass) {
       SmallTitle(stringResource(R.string.launcher_labels_section), modifier = Modifier.semantics { heading() })
       if (labels) launcherLabelsContent()
@@ -270,7 +206,7 @@ internal fun SettingsContent(
         onManualThemeFallback = onManualThemeFallbackChange.takeIf { manualThemeFallback },
         onKeepLatestGeneratedPacks = onKeepLatestGeneratedPacksChange.takeIf { keepLatestGeneratedPacks })
     }
-    if (pageScroll || pagerMode || scrollEndHaptic) {
+    if (pageScroll || pagerMode) {
       SmallTitle(stringResource(R.string.app_interaction_title), modifier = Modifier.semantics { heading() })
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         if (pageScroll) SwitchPreference(title = stringResource(R.string.browser_page_scroll),
@@ -281,10 +217,6 @@ internal fun SettingsContent(
             .map { stringResource(it) }, selectedIndex = preferences.pagerGesture.ordinal,
           enabled = preferences.pageUserScroll,
           onSelectedIndexChange = { onPagerGestureChange(os.kei.hyper.home.data.AppPagerGesture.entries[it]) })
-        if (scrollEndHaptic) SwitchPreference(title = stringResource(R.string.app_scroll_haptic_title),
-          summary = stringResource(R.string.app_scroll_haptic_summary),
-          checked = preferences.scrollEndHaptic, onCheckedChange = onScrollEndHapticChange,
-          modifier = Modifier.testTag("settings.scroll-end-haptic"))
       }
     }
     if (clear && section != SettingsSection.CACHE) {
@@ -309,23 +241,6 @@ private val settingsWhitespace = Regex("\\s+")
 
 internal fun settingsQueryMatches(query: String, text: String): Boolean =
   query.trim().split(settingsWhitespace).filter { it.isNotEmpty() }.all { text.contains(it, ignoreCase = true) }
-
-@Composable
-private fun AppearancePreference(appearance: AppAppearance, onChange: (AppAppearance) -> Unit) {
-  val system = stringResource(R.string.language_system)
-  val light = stringResource(R.string.polish_appearance_light)
-  val dark = stringResource(R.string.polish_appearance_dark)
-  val items = remember(system, light, dark) {
-    listOf(system, light, dark)
-  }
-  Os4DropdownPreference(
-    title = stringResource(R.string.polish_appearance_title),
-    summary = stringResource(R.string.polish_appearance_summary),
-    items = items,
-    selectedIndex = appearance.ordinal,
-    onSelectedIndexChange = { onChange(AppAppearance.entries[it]) },
-  )
-}
 
 @Composable
 private fun LanguagePreference() {

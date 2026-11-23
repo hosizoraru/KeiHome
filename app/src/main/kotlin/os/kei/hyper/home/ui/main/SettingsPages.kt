@@ -22,7 +22,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
-import os.kei.hyper.home.data.AppNavigationBarStyle
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -37,6 +36,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
   APP("app", R.string.settings_app_section, R.string.settings_app_summary),
+  THEME("theme", R.string.settings_app_theme_title, R.string.settings_app_theme_summary),
   PACKS("pack-actions", R.string.pack_action_settings, R.string.pack_action_settings_summary),
   GUIDE("setup", R.string.setup_title, R.string.setup_replay_summary),
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
@@ -48,8 +48,7 @@ internal enum class SettingsSection(val route: String, @param:StringRes val titl
 
 @Composable
 internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit,
-  onOpenPerfectIcons: ((String) -> Unit)? = null,
-  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
+  onOpenPerfectIcons: ((String) -> Unit)? = null) {
   var query by rememberSaveable { mutableStateOf("") }
   Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Os4SearchField(query = query, onQueryChange = { query = it },
@@ -60,6 +59,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         SettingsSection.entries.filter { it != SettingsSection.PACKS }.forEach { section ->
           val icon = when (section) {
             SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
+            SettingsSection.THEME -> actionIcon(PageActionIcon.MONET)
             SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
             SettingsSection.GUIDE -> MiuixIcons.Glass.UsageHelp
             SettingsSection.HOOK -> MiuixIcons.Glass.Link
@@ -104,15 +104,14 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
-        onOpenPerfectIcons = onOpenPerfectIcons, onNavigationBarStyleChange = onNavigationBarStyleChange)
+        onOpenPerfectIcons = onOpenPerfectIcons)
     }
   }
 }
 
 @Composable
 internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSection?, query: String = "",
-  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null,
-  onNavigationBarStyleChange: (AppNavigationBarStyle) -> Unit = model.preferences::setNavigationBarStyle) {
+  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
   val splashIcons by model.splashIcons.state.collectAsStateWithLifecycle()
@@ -122,16 +121,16 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
   var cacheRefresh by rememberSaveable { mutableIntStateOf(0) }
   if (section == SettingsSection.CACHE) CacheOverview(model, cacheRefreshKey + cacheRefresh,
     onOpenPerfectIcons ?: {}, onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
-  SettingsContent(preferences, model.preferences::setAppearance, model.preferences::setColorMode,
-    model.preferences::setShowIconPreviews, { model.clearPreviewCache(); cacheRefresh++ }, model.preferences::setPageUserScroll,
+  SettingsContent(preferences, model.preferences::setShowIconPreviews, { model.clearPreviewCache(); cacheRefresh++ }, model.preferences::setPageUserScroll,
     model.preferences::setPagerGesture, model.preferences::setAutoApplyIconPack,
     model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
-    model.preferences::setTopBarBlur, splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
+    splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
     themeEffects, framework, model::setPreserveSystemMaterials, query, section,
     onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     searchGlassContent = { SearchGlassSettingsCard(model) },
+    wallpaperDimmingContent = { WallpaperDimmingSettingsCard(model) },
     splashIconsContent = { SplashIconSettingsCard(splashIcons, framework.splashAppearanceInScope(),
       model.splashIcons::save, scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed) },
     staticScopeContent = {
@@ -144,12 +143,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     },
     onKeepLatestGeneratedPacksChange = model.preferences::setKeepLatestGeneratedPacks,
     onManualThemeFallbackChange = model.preferences::setManualThemeFallback,
-    onNavigationBarStyleChange = onNavigationBarStyleChange,
-    onSquircleShapesChange = model.preferences::setSquircleShapes,
-    onAppScaleChange = model.preferences::setAppScalePercent,
-    onScrollEndHapticChange = model.preferences::setScrollEndHaptic,
+    onOpenAppTheme = { onNavigate(SettingsSection.THEME.route) },
     onOpenRecommendedMappings = onOpenPerfectIcons?.let { open -> { open("recommended-mappings") } },
-    wallpaperDimmingContent = { WallpaperDimmingSettingsCard(model) },
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

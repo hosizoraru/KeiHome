@@ -86,6 +86,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val locales = LocalConfiguration.current.locales.toLanguageTags()
   LaunchedEffect(model, lifecycle, locales, section) {
+    if (section == SettingsSection.THEME) return@LaunchedEffect
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
       if (section == SettingsSection.HOOK) model.observeScopeStatus()
       else model.observePage(4, locales)
@@ -131,9 +132,9 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
         when {
           section == SettingsSection.CACHE -> CacheOverview(model, cacheRefresh, onOpenPackSection,
             onOpenLogs = { onNavigate(SettingsSection.LOG.route) })
+          section == SettingsSection.THEME -> AppThemeSettingsContent(model.preferences)
           else -> SettingsSectionContent(model, section, onNavigate = onNavigate, cacheRefreshKey = cacheRefresh,
-            onOpenPerfectIcons = onOpenPackSection,
-            onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
+            onOpenPerfectIcons = onOpenPackSection)
         }
       }
     }

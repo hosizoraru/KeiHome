@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,11 +19,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -40,10 +45,14 @@ import org.junit.Test
 import java.util.UUID
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.AppAppearance
+import os.kei.hyper.home.data.AppColorMode
 import os.kei.hyper.home.data.AppPreferencesState
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.data.SystemIconFallback
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
+import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
@@ -52,8 +61,9 @@ class SettingsSearchUiTest {
   companion object {
     @BeforeClass @JvmStatic fun bringTargetToForeground() {
       val instrumentation = InstrumentationRegistry.getInstrumentation()
+      val target = instrumentation.targetContext.packageName
       android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
-        "am start -n os.kei.hyper.home/.MainActivity",
+        "am start -n $target/.MainActivity",
       )).use { it.readBytes() }
       instrumentation.waitForIdleSync()
     }
@@ -75,11 +85,10 @@ class SettingsSearchUiTest {
           var query by remember { mutableStateOf("") }
           LocalizedInputField(query = query, onQueryChange = { query = it }, onSearch = {}, expanded = false,
             onExpandedChange = {}, label = context.getString(R.string.settings_search))
-          SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+          SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {},
             ThemeEffectsUiState(savedChoice = true), true, {},
             ThemeEffectsUiState(savedChoice = false), framework, { requested = it }, query, null,
-            onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
-            onNavigationBarStyleChange = {}) {}
+            onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {}) {}
         }
       }
     }
@@ -109,13 +118,12 @@ class SettingsSearchUiTest {
       CompositionLocalProvider(LocalContext provides localizedContext, LocalConfiguration provides configuration) {
         KeiHomeTheme {
           Column(Modifier.verticalScroll(rememberScrollState())) {
-            SettingsContent(preferences.value, {}, {}, {}, {}, {}, {}, {},
+            SettingsContent(preferences.value, {}, {}, {}, {}, {},
               { enabled ->
                 changes += enabled
                 preferences.value = preferences.value.copy(installedIconsOnly = enabled)
-              }, {}, {}, ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
-              query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
-              onNavigationBarStyleChange = {}) {}
+              }, {}, ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
+              query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {}) {}
           }
         }
       }
@@ -151,6 +159,66 @@ class SettingsSearchUiTest {
     rule.runOnIdle { assertEquals(listOf(true, false, true, false, true, false), changes) }
   }
 
+  @Test fun themeSettingsKeepAppearanceAndPaletteIndependent() {
+    val name = "app_theme_${UUID.randomUUID()}"
+    val storage = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+    val preferences = AppPreferences(storage, SystemIconFallback.entries)
+    preferences.setAppearance(AppAppearance.SYSTEM)
+    preferences.setColorMode(AppColorMode.FOLLOW_ICONS)
+    val backHost = Os4NavigationTestHost()
+    try {
+      rule.setContent {
+        val state by preferences.state.collectAsStateWithLifecycle()
+        backHost.Provide {
+          KeiHomeTheme {
+            CompositionLocalProvider(LocalKeiHomeDarkTheme provides (state.appearance == AppAppearance.DARK)) {
+              KeiHomeScaffold(Modifier.fillMaxSize()) { padding ->
+                Column(Modifier.padding(padding).verticalScroll(rememberScrollState())) {
+                  AppThemeSettingsContent(preferences)
+                }
+              }
+            }
+          }
+        }
+      }
+      val follow = rule.onNode(
+        isToggleable() and hasAnyAncestor(hasTestTag("settings.theme.follow-system")), useUnmergedTree = true,
+      )
+      follow.assertIsOn()
+      rule.onNodeWithTag("settings.theme.dark").performClick().assertIsSelected()
+      follow.assertIsOff()
+      rule.runOnIdle {
+        assertEquals(AppAppearance.DARK, preferences.state.value.appearance)
+        assertEquals(AppColorMode.FOLLOW_ICONS, preferences.state.value.colorMode)
+      }
+      follow.performClick().assertIsOn()
+      follow.performClick().assertIsOff()
+      rule.onNodeWithTag("settings.theme.light").assertIsSelected()
+      rule.onNodeWithTag("settings.theme.palette").performClick()
+      rule.onNodeWithText(context.getString(R.string.browser_ui_monet)).performClick()
+      rule.runOnIdle {
+        val restored = AppPreferences(storage, SystemIconFallback.entries).state.value
+        assertEquals(AppAppearance.LIGHT, restored.appearance)
+        assertEquals(AppColorMode.MONET, restored.colorMode)
+      }
+    } finally {
+      context.deleteSharedPreferences(name)
+    }
+  }
+
+  @Test fun themeSettingsAreSearchableUsingExistingDisplayLabels() {
+    for (tag in listOf("en", "zh-CN", "ja")) {
+      val configuration = Configuration(context.resources.configuration).apply {
+        setLocales(LocaleList.forLanguageTags(tag))
+      }
+      val resources = context.createConfigurationContext(configuration).resources
+      for (label in listOf(R.string.browser_ui_palette, R.string.polish_appearance_title,
+        R.string.app_scale_title, R.string.navigation_bar_style_title)) {
+        assertTrue(appThemeSearchMatches(resources.getString(label), resources))
+      }
+    }
+  }
+
   @Test fun iconPreviewsBelongToPacksAndRemainSearchableWithTheSameSavedPreference() {
     val locale = mutableStateOf("en")
     val query = mutableStateOf("")
@@ -169,10 +237,10 @@ class SettingsSearchUiTest {
           KeiHomeTheme {
             val state by preferences.state.collectAsStateWithLifecycle()
             Column(Modifier.verticalScroll(rememberScrollState())) {
-              SettingsContent(state, {}, {}, preferences::setShowIconPreviews, {}, {}, {}, {}, {}, {}, {},
+              SettingsContent(state, preferences::setShowIconPreviews, {}, {}, {}, {}, {}, {},
                 ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
                 query.value, section.value, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
-                onNavigationBarStyleChange = {}) {}
+                ) {}
             }
           }
         }
@@ -224,10 +292,10 @@ class SettingsSearchUiTest {
     rule.setContent {
       KeiHomeTheme {
         Column(Modifier.verticalScroll(rememberScrollState())) {
-          SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+          SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {},
             ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
             context.getString(R.string.app_name), null, onOpenNotices = {}, launcherLabelsContent = {},
-            dockGlassContent = {}, onNavigationBarStyleChange = {}) {}
+            dockGlassContent = {}) {}
         }
       }
     }

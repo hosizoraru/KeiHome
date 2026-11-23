@@ -1,4 +1,7 @@
 <resources>
+    <string name="settings_app_theme_title">主题设置</string>
+    <string name="settings_app_theme_summary">深浅色外观、App 配色和显示效果</string>
+    <string name="settings_theme_display">显示效果</string>
     <string name="app_squircle_title">平滑圆角</string>
     <string name="app_squircle_summary">让支持的卡片、按钮等控件使用过渡更平滑的圆角。</string>
     <string name="app_squircle_unsupported">平滑圆角需要设备支持图形着色器。</string>

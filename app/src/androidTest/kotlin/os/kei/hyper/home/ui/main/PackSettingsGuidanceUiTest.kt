@@ -90,14 +90,14 @@ class PackSettingsGuidanceUiTest {
       KeiHomeTheme {
         Column(Modifier.verticalScroll(rememberScrollState())) {
           SettingsContent(
-            preferences = state.value, onAppearanceChange = {}, onColorModeChange = {},
+            preferences = state.value,
             onPreviewsChange = {}, onClearIconCache = {}, onPageUserScrollChange = {},
             onPagerGestureChange = {}, onAutoApplyChange = {}, onInstalledIconsOnlyChange = {},
-            onRememberMenusChange = {}, onTopBarBlurChange = {},
+            onRememberMenusChange = {},
             splash = ThemeEffectsUiState(), splashInScope = false, onSplashChange = {},
             themeEffects = ThemeEffectsUiState(), framework = FrameworkUiState(),
             onThemeEffectsChange = {}, onOpenNotices = {}, launcherLabelsContent = {},
-            dockGlassContent = {}, onNavigationBarStyleChange = {}, fallbackContent = {},
+            dockGlassContent = {}, fallbackContent = {},
             query = query.value, section = section.value,
             onKeepLatestGeneratedPacksChange = {
               changes += it

@@ -191,10 +191,10 @@ class RecommendedMappingsUiTest {
       CompositionLocalProvider(LocalContext provides localizedContext, LocalConfiguration provides configuration) {
         KeiHomeTheme {
           Column(Modifier.verticalScroll(rememberScrollState())) {
-            SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+            SettingsContent(AppPreferencesState(), {}, {}, {}, {}, {}, {}, {},
               ThemeEffectsUiState(), false, {}, ThemeEffectsUiState(), FrameworkUiState(), {},
               query, null, onOpenNotices = {}, launcherLabelsContent = {}, dockGlassContent = {},
-              onNavigationBarStyleChange = {}, onOpenRecommendedMappings = { navigations++ }) {}
+              onOpenRecommendedMappings = { navigations++ }) {}
           }
         }
       }

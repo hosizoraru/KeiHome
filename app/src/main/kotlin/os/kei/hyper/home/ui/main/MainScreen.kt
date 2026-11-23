@@ -188,8 +188,7 @@ internal fun MainScreen(model: HomeViewModel, onOpenPackSection: (String) -> Uni
                 DesktopPage(model, onOpenDesktopSection)
                 RefreshFeedback(model, 5)
               }
-              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection,
-                onNavigationBarStyleChange = model.preferences::setNavigationBarStyle)
+              4 -> SettingsRootPage(model, onOpenSettingsSection, onOpenPerfectIcons = onOpenPackSection)
             }
           }
         }

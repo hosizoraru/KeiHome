@@ -375,8 +375,17 @@ class PerfectGitUiTest {
     val initial = options
     compose.onNodeWithTag("perfect.options.dynamic").performClick()
     compose.runOnIdle { assertEquals(!initial.dynamic, options.dynamic) }
+    val fixed = compose.onNodeWithTag("perfect.options.fixed-dark")
+    fixed.assertDoesNotExist()
     compose.onNodeWithTag("perfect.options.night").performClick()
     compose.runOnIdle { assertEquals(!initial.staticNight, options.staticNight) }
+    fixed.performClick()
+    compose.runOnIdle { assertTrue(options.fixedDark) }
+    compose.onNodeWithTag("perfect.options.night").performClick()
+    fixed.assertDoesNotExist()
+    compose.onNodeWithTag("perfect.options.night").performClick()
+    fixed.assertIsDisplayed()
+    compose.runOnIdle { assertTrue(options.fixedDark) }
   }
 
   private fun setResourceContent(state: PerfectPackState, onDownload: (Set<String>) -> Unit = {},

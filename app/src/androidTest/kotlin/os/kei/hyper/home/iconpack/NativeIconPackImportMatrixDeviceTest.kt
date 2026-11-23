@@ -82,14 +82,19 @@ class NativeIconPackImportMatrixDeviceTest {
       }
 
       val repository = IconPackRepository(context)
+      val arguments = InstrumentationRegistry.getArguments()
+      val sourceIds = arguments.getString("sourceIds")?.split(',')?.toSet()
+      val originPrefix = arguments.getString("originPrefix")
       val candidates = linkedMapOf<String, Candidate>()
       fun add(pack: IconPackDescriptor, origin: String) {
+        if (sourceIds != null && pack.id !in sourceIds) return
         val previous = candidates[pack.id]
         if (previous == null) candidates[pack.id] = Candidate(pack, linkedSetOf(origin))
         else previous.origins += origin
       }
 
       suspend fun scan(origin: String, load: suspend () -> IconPackScanResult) {
+        if (originPrefix != null && !origin.startsWith(originPrefix)) return
         val began = SystemClock.elapsedRealtime()
         try {
           val result = load()
@@ -111,14 +116,17 @@ class NativeIconPackImportMatrixDeviceTest {
 
       save()
       try {
-        val requestedStyle = InstrumentationRegistry.getArguments().getString("perfectStyle")
+        val requestedStyle = arguments.getString("perfectStyle")
         val generatedDigest = if (requestedStyle != null) {
           report.put("coverage", "Explicit Perfect Icons style only; other inventories are context")
           check(requestedStyle == "iOS") { "Unsupported explicit style acceptance request" }
           val perfect = os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(context)
           check(requestedStyle in requireNotNull(perfect.catalog()).downloadedStyles) { "The requested style is not downloaded" }
           val options = os.kei.hyper.home.iconpack.perfect.PerfectIconOptions(
-            style = requestedStyle, installedOnly = false, dynamic = true, staticNight = true)
+            style = requestedStyle, installedOnly = arguments.getString("perfectInstalledOnly") == "1",
+            dynamic = arguments.getString("perfectDynamic") != "0",
+            staticNight = arguments.getString("perfectStaticNight") != "0",
+            fixedDark = arguments.getString("perfectFixedDark") == "1")
           val began = SystemClock.elapsedRealtime()
           val existing = InstrumentationRegistry.getArguments().getString("existingPerfectArchive")?.let { name ->
             check(name.matches(Regex("perfect-[a-f0-9]{12}-[a-f0-9]{24}\\.zip"))) { "Expected a publication filename" }
@@ -126,7 +134,9 @@ class NativeIconPackImportMatrixDeviceTest {
               check(Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS))
             }
           }
-          val generated = if (existing == null) perfect.generate(options, emptySet()) {} else null
+          val generated = if (existing == null) perfect.generate(options,
+            if (options.installedOnly) iconPackTargets(context) {}.mapTo(hashSetOf()) { it.packageName }
+            else emptySet()) {} else null
           report.put("generatedStyle", requestedStyle).put("generationMs", SystemClock.elapsedRealtime() - began)
             .put("generatedArchive", (generated?.file ?: existing!!).absolutePath)
             .put("reusedExistingPublication", existing != null)
@@ -181,7 +191,10 @@ class NativeIconPackImportMatrixDeviceTest {
           }
         }
         if (generatedDigest != null) candidates.keys.retainAll(setOf(generatedDigest))
-        val arguments = InstrumentationRegistry.getArguments()
+        check(sourceIds == null || candidates.keys == sourceIds) { "Requested sources are missing from the inventory" }
+        if (sourceIds != null || originPrefix != null) {
+          report.put("coverage", "Explicit import subset")
+        }
         val minimumMappings = arguments.getString("minimumMappings")?.toIntOrNull() ?: 0
         if (minimumMappings > 0) {
           candidates.values.removeAll { it.pack.entries.size < minimumMappings }

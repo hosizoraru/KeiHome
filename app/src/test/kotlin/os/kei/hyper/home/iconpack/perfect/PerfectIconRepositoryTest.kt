@@ -436,6 +436,55 @@ class PerfectIconRepositoryTest {
     }
   }
 
+  @Test fun fixedDarkPublishesOrdinaryBitmapsAndKeepsDynamicPrograms() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    f.bitmapDynamic("test.dynamic")
+    val night = png(40)
+    val repo = PerfectIconRepository(f.root, f.http, f.settings, now = { f.time },
+      staticRenderer = { _, _, _ -> PerfectStaticPair(png(30), night) },
+      dynamicNightRenderer = { _, _, _ -> night })
+    repo.catalog(true)
+    val automatic = PerfectIconOptions("default", staticNight = true)
+    val fixed = automatic.copy(fixedDark = true)
+    repo.setOptions(fixed)
+    assertEquals(fixed, repo.options())
+
+    val ids = setOf("third.party", "test.dynamic")
+    val ordinary = "res/drawable-xxhdpi/third.party"
+    val manifest = "fancy_icons/third.party/manifest.xml"
+    val live = "layer_animating_icons/test.dynamic/"
+    val automaticPack = repo.generate(automatic, ids) {}
+    val fixedPack = repo.generate(fixed, ids) {}
+    assertNotEquals(automaticPack.file, fixedPack.file)
+    assertTrue(automaticPack.needsContractUpdate(fixed))
+    assertFalse(fixedPack.needsContractUpdate(fixed))
+
+    ZipFile(automaticPack.file).use { auto ->
+      assertNotNull(auto.getEntry(manifest))
+      ZipFile(fixedPack.file).use { zip ->
+        assertArrayEquals(night, zip.getInputStream(zip.getEntry("$ordinary.png")).use { it.readBytes() })
+        for (path in listOf(manifest, "$ordinary/0.png", "$ordinary/1.png", "nightmode/$ordinary.png")) {
+          assertNull(path, zip.getEntry(path))
+        }
+        val dynamicPaths = auto.entries().asSequence()
+          .map { it.name }.filter { it.startsWith(live) || it.startsWith("nightmode/$live") }.toList()
+        assertTrue(dynamicPaths.any { it.endsWith("manifest.xml") })
+        for (path in dynamicPaths) {
+          assertArrayEquals(auto.getInputStream(auto.getEntry(path)).use { it.readBytes() },
+            zip.getInputStream(zip.getEntry(path)).use { it.readBytes() })
+        }
+      }
+    }
+    assertNotEquals(repo.previewArchive(automatic), repo.previewArchive(fixed))
+    ZipFile(repo.previewArchive(fixed)).use { zip ->
+      assertArrayEquals(night, zip.getInputStream(zip.getEntry("$ordinary.png")).use { it.readBytes() })
+      assertNull(zip.getEntry(manifest))
+    }
+    val original = fixed.copy(staticNight = false)
+    assertEquals(repo.generate(original, ids) {}.file,
+      repo.generate(original.copy(fixedDark = false), ids) {}.file)
+  }
+
   @Test fun staticNightNeverRewritesConfiguredNativeResources() = runBlocking {
     val f = Fixture(temporary.newFolder())
     f.dynamic("third.party", style = "common")

@@ -193,6 +193,26 @@ previously downloaded real archive. It does not silently download 567 MiB
 during routine suites. Snapshot transfer, extraction and preview counters in
 the receipt are distinct from installed-app and mapping counts.
 
+For the 1.14.0 Hyper and HyperOSClassic packaging regression, pass the retained
+snapshot as `perfectHyperSourcePath` to
+`PerfectSnapshotDeviceTest.retainedHyperSnapshotImportsAndPackagesOriginalAnimationsOffline`.
+The test enables dynamic and additional dark artwork, imports each generated
+ZIP into an isolated library, and prepares the final MTZ. It verifies both
+calendar manifests and compares the native vector JSON against the source.
+Set `perfectHyperAll=true` to include the full static set. Keep the fixture in
+the app's files directory so it stays available during Android cache trimming.
+The local run records are under
+`.artifacts/research/perfect-hyper-native-20261124/`.
+
+With KeiHome b0738 on the HyperOS Phone AVD, the retained `fb8b5c9` snapshot
+produced a Hyper ZIP of 837,265,373 bytes with 2,428 static icons and a
+HyperOSClassic ZIP of 842,817,152 bytes with 2,434 static icons. Both passed
+local import and final MTZ validation with 31 dynamic icons, 13 additional
+dark adaptations, and 12 byte-identical vector files per style. The weather
+group declares a fancy-only slot 2 without a corresponding `layer2` and is
+skipped by the existing generation rule. This check ends at the completed
+theme handoff.
+
 The 2026-11-09 UI acceptance checkpoint is recorded separately in
 `.artifacts/research/perfect-preview-20261109/acceptance.json`, including the
 exact signed build, AVD screenshots, menu/search behavior, font-scale restoration
@@ -237,6 +257,14 @@ Weather has a separate structural contract shared by generation and native admis
 When the original foreground omits its updater or leaves it blank, the selector explicitly retains `DateTime.Minute` before appending `DarkMode`. This preserves the default documented in [Xiaomi's MAML grammar](https://zhuti.designer.xiaomi.com/docs/grammar/), rather than silently replacing it with only `DarkMode`. An explicit `none` remains free of a time updater. This distinction is necessary for the unmodified upstream HyperOS4 Music program; selector admission and real-source tests cover it. Changes to this contract invalidate derived publications through the renderer revision while retaining the downloaded snapshot.
 
 Native local application has a separate admission step after generation. Its layer validator accepts only a literal local `src` paired with the exact `ifelse(#__darkmode,'keihome_night/<src>','<src>')` selector, a declared `DarkMode` updater and a complete validated texture pair. Date-frame selectors additionally retain the bounded original `srcid` frame family; Weather uses the separate canonical contract above. Other expressions, external URIs, missing files, mutable appearance state and arbitrary updater combinations remain rejected. This gate must be tested on the complete emitted archive, not just on individual converted textures.
+
+The 1.14.0 admission fix preserves the original fractional weekday font size and
+the bundled localized weekday expression in both calendar variants. It also
+supports the clock's minute trigger, simple Folme callbacks and local hand
+geometry. Vector admission validates inline precompositions and alpha track
+mattes with cycle, depth, node and surface budgets. Referenced vector files and
+an icon's same-name vector export beside a Folme manifest pass the same checks
+and keep their source bytes. Errors name the failing resource.
 
 The current derivation keys are `perfect-static-night-9` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
 

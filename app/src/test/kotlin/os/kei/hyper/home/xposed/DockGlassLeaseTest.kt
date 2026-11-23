@@ -30,6 +30,20 @@ class DockGlassLeaseTest {
     assertTrue(lease.synchronize(true, 0, { 300 }, { true }) { process })
   }
 
+  @Test fun restartedLauncherReconcilesUnchangedDockSettingsOnce() {
+    val lease = DockGlassLease()
+    val restarted = process.copy(startTicks = process.startTicks + 1)
+    fun sync(target: NativeMonetProcessIdentity, at: Long) =
+      lease.synchronize(true, 0, { at }, { true }, 10_240, 1) { target }
+
+    assertTrue(sync(process, 100))
+    assertNull(lease.acknowledgedEnabled(restarted, 0, 200))
+    assertTrue(sync(restarted, 200))
+    assertEquals(true, lease.acknowledgedEnabled(restarted, 0, 200))
+    assertNull(lease.acknowledgedEnabled(process, 0, 200))
+    assertFalse(sync(restarted, 300))
+  }
+
   @Test fun userProcessAndClockChangesCannotReuseOldAck() {
     val lease = DockGlassLease()
     assertTrue(lease.synchronize(true, 0, { 100 }, { true }) { process })

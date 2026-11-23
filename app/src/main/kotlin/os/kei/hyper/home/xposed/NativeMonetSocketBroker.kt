@@ -45,6 +45,7 @@ internal object NativeMonetSocketBroker {
   private var generation = 0L
   private var allocating: Any? = null
   private var current: Lease? = null
+  private var lastPublishedProcess: NativeMonetProcessIdentity? = null
   private var worker: NativeMonetBrokerWorker? = null
   private val owned = mutableSetOf<Lease>()
 
@@ -72,6 +73,7 @@ internal object NativeMonetSocketBroker {
     // Construction starts no thread and performs no socket/identity work under the lifecycle lock.
     worker = NativeMonetBrokerWorker()
     generation += 1
+    lastPublishedProcess = null
     context = owner
     accepting = true
     lock.notifyAll()
@@ -79,7 +81,7 @@ internal object NativeMonetSocketBroker {
   }
 
   /** Invoked only for TRANSACTION on the generated package Stub, never for normal PM calls. */
-  fun onTransact(data: Parcel, reply: Parcel?, flags: Int): Boolean {
+  fun onTransact(data: Parcel, reply: Parcel?, flags: Int, onLauncherReady: () -> Unit): Boolean {
     if (!NativeMonetBrokerRequest.isSynchronous(reply != null, flags)) {
       lastFailure = "broker: a synchronous transaction is required"
       return true
@@ -126,7 +128,7 @@ internal object NativeMonetSocketBroker {
         if (admission != 0) return replyStatus(reply, admission)
         try {
           previous?.close()
-          return allocate(owner, ticket, target, process, reply)
+          return allocate(owner, ticket, target, process, reply, onLauncherReady)
         } finally {
           val retiring = synchronized(lock) {
             if (allocating === ticket) allocating = null
@@ -155,7 +157,7 @@ internal object NativeMonetSocketBroker {
 
   private fun allocate(
     owner: Owner, ticket: Any, target: NativeMonetLauncherIdentity,
-    process: NativeMonetProcessIdentity, reply: Parcel,
+    process: NativeMonetProcessIdentity, reply: Parcel, onLauncherReady: () -> Unit,
   ): Boolean {
     // Authentication and a bounded reservation precede allocation. A stop can invalidate that
     // reservation while this slow work runs; publication checks the generation again below.
@@ -182,17 +184,22 @@ internal object NativeMonetSocketBroker {
       replyStatus(reply, 0)
       // NDK reads optional<ParcelFileDescriptor>, including both presence and PFD comm markers.
       reply.writeTypedObject(pair[1], 0)
-      published = synchronized(lock) {
+      val newProcess = synchronized(lock) {
         if (matchesOwner(owner) && allocating === ticket && !candidate.closed &&
           System.nanoTime() < candidate.expiresAt
         ) {
           current = candidate
+          val changed = lastPublishedProcess != process
+          lastPublishedProcess = process
           lock.notifyAll()
-          true
-        } else false
-      }
-      if (!published) return replyStatus(reply, STATUS_INACTIVE)
+          changed
+        } else null
+      } ?: return replyStatus(reply, STATUS_INACTIVE)
+      published = true
       lastFailure = null
+      // A launcher requests another channel after each exchange. Only the first
+      // successful publication for a process should wake the material monitor.
+      if (newProcess) onLauncherReady()
       return true
     } finally {
       try {

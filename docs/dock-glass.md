@@ -94,6 +94,13 @@ preferences intentionally remain framework APIs rather than app-local MMKV.
 Native capability/command 8 has an independent 45-second policy lease. Display
 changes and settings reuse the existing worker; no new timer or thread is added.
 
+The first authenticated policy connection from a new launcher process also
+queues material replay on that worker. Subsequent connections from the same
+PID and start time continue to use the existing preference and lease renewal
+paths. If a scoped material acknowledgement arrives before the launcher
+listener registers, the refresh worker retries the scoped notification up to
+three times at 250 ms intervals.
+
 An enable/style change, or an enabled display-radius change, requests one scoped
 package callback. It does not enumerate installed apps or regenerate icon
 artwork. Unchanged renewals leave the native revision unchanged. Native
@@ -198,6 +205,25 @@ these are separate from the normal-settings result above.
 Performance receipts and the final artifact/process identities are recorded in
 `acceptance.json` in that directory. Measurements are HyperOS AVD observations,
 not physical-device energy or frame-time guarantees.
+
+### Force-stop recovery on Phone
+
+The 2026-11-23 user log shows SystemUI starting Home through
+`TouchInteractionService` after a force-stop. KeiHome's native module loaded
+in the new process. Its Dock acknowledgement arrived 13.17 seconds after the
+process started. The log contains no screenshot or render event confirming
+when the glass became visible.
+
+On Xiaomi 17 Pro (`pandora`, `OS4.0.8.0.XBLCNXM`, Home `801030308`),
+the b0726 baseline recovered after force-stop. The b0728 candidate showed
+the configured Dock glass on the first captured Home frame in three
+foreground restarts and one SystemUI service restart. In the service case,
+the Dock acknowledgement arrived before returning to Home. Glass remained
+visible past the 45-second lease window in the third foreground run.
+SystemUI and system_server kept their PIDs throughout. The reporter's
+`pudding` build and module combination were unavailable for visual retesting.
+Timelines and shots are in
+`.artifacts/research/dock-cold-recovery-20261123/`.
 
 ### Bounded AVD performance sample
 

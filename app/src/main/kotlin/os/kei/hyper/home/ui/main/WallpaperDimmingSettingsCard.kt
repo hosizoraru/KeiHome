@@ -1,10 +1,16 @@
 package os.kei.hyper.home.ui.main
 
 import android.app.WallpaperManager
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,13 +18,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,19 +41,26 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import os.kei.hyper.home.R
+import os.kei.hyper.home.data.WallpaperDimStrengths
 import os.kei.hyper.home.status.WallpaperPreviewProtocol
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.preference.SliderPreference
@@ -79,9 +96,8 @@ private fun WallpaperDimmingStrengthSheet(
   val context = LocalContext.current
   var selected by rememberSaveable { mutableIntStateOf(0) }
   var attempt by remember { mutableIntStateOf(0) }
-  var previews by remember { mutableStateOf<Map<Int, WallpaperPreviewProtocol.Preview>>(emptyMap()) }
+  var previews by remember { mutableStateOf<Map<Int, WallpaperPreviewProtocol.Preview?>>(emptyMap()) }
   var separate by remember { mutableStateOf<Boolean?>(null) }
-  var previewFailed by remember { mutableStateOf(false) }
   val screen = if (selected == 0) WallpaperManager.FLAG_SYSTEM else WallpaperManager.FLAG_LOCK
   LaunchedEffect(show, attempt, state.strengths == null) { if (show) settings.read() }
   DisposableEffect(context, show) {
@@ -98,16 +114,23 @@ private fun WallpaperDimmingStrengthSheet(
       onDispose { context.unregisterReceiver(receiver) }
     }
   }
-  LaunchedEffect(show, screen, attempt) {
-    if (show && screen !in previews) {
-      previewFailed = false
-      val preview = WallpaperPreviewProtocol.read(context, screen)
-      if (preview == null) {
-        previewFailed = true
-      } else {
-        previews = previews + (screen to preview)
-        separate = preview.separateDimming
-        if (!preview.separateDimming) selected = 0
+  LaunchedEffect(show, attempt) {
+    if (!show) return@LaunchedEffect
+    // Start with the selected screen, then prefetch the other. Switching tabs
+    // while either request is pending should not cancel or restart the read.
+    val other = if (screen == WallpaperManager.FLAG_SYSTEM) WallpaperManager.FLAG_LOCK
+      else WallpaperManager.FLAG_SYSTEM
+    coroutineScope {
+      for (requested in listOf(screen, other)) {
+        if (requested in previews || (requested == WallpaperManager.FLAG_LOCK && separate == false)) continue
+        launch {
+          val preview = WallpaperPreviewProtocol.read(context, requested)
+          previews = previews + (requested to preview)
+          if (preview != null) {
+            separate = preview.separateDimming
+            if (!preview.separateDimming) selected = 0
+          }
+        }
       }
     }
   }
@@ -116,7 +139,6 @@ private fun WallpaperDimmingStrengthSheet(
       if (!show) {
         previews = emptyMap()
         separate = null
-        previewFailed = false
       }
     }) {
     if (separate != false) {
@@ -125,38 +147,30 @@ private fun WallpaperDimmingStrengthSheet(
         selected, { selected = it },
       )
     }
-    val preview = previews[screen]
     val strengths = state.strengths
     val percent = strengths?.forScreen(selected == 1) ?: 0
-    val image = remember(preview?.image) { preview?.image?.asImageBitmap() }
-    if (preview != null) {
-      Row(Modifier.align(Alignment.CenterHorizontally).widthIn(max = 380.dp).fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        WallpaperPreviewTile(Modifier.weight(1f), R.string.wallpaper_dimming_before, image, 0)
-        WallpaperPreviewTile(Modifier.weight(1f), R.string.wallpaper_dimming_after, image, percent)
-      }
-    }
-    val hint = when {
-      previewFailed -> R.string.wallpaper_dimming_preview_failed
-      preview == null -> R.string.wallpaper_dimming_preview_loading
-      separate == false -> R.string.wallpaper_dimming_shared
-      image == null -> R.string.wallpaper_dimming_preview_sample
-      else -> R.string.wallpaper_dimming_live
-    }
-    Text(stringResource(hint), style = MiuixTheme.textStyles.body2,
+    WallpaperPreviewComparison(
+      Modifier.align(Alignment.CenterHorizontally).widthIn(max = 380.dp).fillMaxWidth(),
+      previews, screen, strengths ?: WallpaperDimStrengths.Off, show,
+      onRetry = {
+        previews = previews.filterValues { it != null }
+        attempt++
+      },
+    )
+    Text(stringResource(if (separate == false) R.string.wallpaper_dimming_shared else R.string.wallpaper_dimming_live),
+      style = MiuixTheme.textStyles.body2,
       color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    if (strengths != null && separate != null) {
-      SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
-        title = stringResource(R.string.wallpaper_dimming_strength),
-        valueText = stringResource(R.string.wallpaper_dimming_percent, percent),
-        onValueChange = { settings.set(selected == 1, it.roundToInt().coerceIn(0, 100), separate == true) },
-        modifier = Modifier.testTag("wallpaper-dimming.percent"))
-    }
-    if (state.failed || previewFailed) {
-      if (state.failed) Text(stringResource(if (strengths == null) R.string.theme_effects_read_failed
+    SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
+      title = stringResource(R.string.wallpaper_dimming_strength),
+      valueText = stringResource(R.string.wallpaper_dimming_percent, percent),
+      enabled = strengths != null && separate != null,
+      onValueChange = { settings.set(selected == 1, it.roundToInt().coerceIn(0, 100), separate == true) },
+      modifier = Modifier.testTag("wallpaper-dimming.percent"))
+    if (state.failed) {
+      Text(stringResource(if (strengths == null) R.string.theme_effects_read_failed
         else R.string.theme_effects_save_failed), color = MiuixTheme.colorScheme.error)
       BasicComponent(title = stringResource(R.string.launcher_labels_retry), onClick = {
-        if (state.failed) settings.retry()
+        settings.retry()
         attempt++
       })
     }
@@ -164,18 +178,129 @@ private fun WallpaperDimmingStrengthSheet(
 }
 
 @Composable
-private fun WallpaperPreviewTile(modifier: Modifier, label: Int, image: ImageBitmap?, percent: Int) {
-  Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Box(Modifier.fillMaxWidth().aspectRatio(0.8f).clip(RoundedCornerShape(14.dp))) {
-      if (image != null) {
-        Image(image, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-      } else {
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(
-          listOf(Color(0xff9cbbcf), Color(0xffe5d2bd), Color(0xff4f6874)))))
+private fun WallpaperPreviewComparison(
+  modifier: Modifier,
+  previews: Map<Int, WallpaperPreviewProtocol.Preview?>,
+  screen: Int,
+  strengths: WallpaperDimStrengths,
+  show: Boolean,
+  onRetry: () -> Unit,
+) {
+  val home = previews[WallpaperManager.FLAG_SYSTEM]
+  val lock = previews[WallpaperManager.FLAG_LOCK]
+  val requestPending = screen !in previews
+  val selected = previews[screen]
+  var showLoading by remember(screen, requestPending, show) { mutableStateOf(false) }
+  LaunchedEffect(screen, requestPending, show) {
+    if (show && requestPending) {
+      delay(150)
+      showLoading = true
+    }
+  }
+  var firstScreen by remember { mutableStateOf<Int?>(null) }
+  var visibleScreen by remember { mutableIntStateOf(screen) }
+  var showedHome by remember { mutableStateOf(false) }
+  LaunchedEffect(screen, selected, previews.isEmpty(), show) {
+    if (previews.isEmpty()) {
+      firstScreen = null
+      showedHome = false
+    }
+    if (show && selected != null) {
+      if (firstScreen == null) firstScreen = screen
+      visibleScreen = screen
+      if (screen == WallpaperManager.FLAG_SYSTEM) showedHome = true
+    }
+  }
+  // The lock preview fades over an opaque home preview. A single alpha also
+  // lets a second tap reverse the blend from its current frame.
+  val lockAlpha = key(firstScreen) {
+    animateFloatAsState(if (visibleScreen == WallpaperManager.FLAG_LOCK) 1f else 0f,
+      tween(220), label = "lock wallpaper blend")
+  }
+  val baseIsHome = home != null && showedHome
+  val base = if (baseIsHome) home else lock.takeIf { firstScreen != null }
+  val baseImage = remember(base?.image) { base?.image?.asImageBitmap() }
+  val lockImage = remember(lock?.image) { lock?.image?.asImageBitmap() }
+  val visible = if (visibleScreen == WallpaperManager.FLAG_LOCK) lock else home
+  val reveal = animateFloatAsState(if (base == null) 0f else 1f, tween(180), label = "wallpaper preview reveal")
+  Box(modifier) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+      WallpaperPreviewTile(Modifier.weight(1f), R.string.wallpaper_dimming_before,
+        base != null, baseImage, 0, baseIsHome && lock != null, lockImage, 0, reveal, lockAlpha)
+      WallpaperPreviewTile(Modifier.weight(1f), R.string.wallpaper_dimming_after,
+        base != null, baseImage, if (baseIsHome) strengths.home else strengths.lock,
+        baseIsHome && lock != null, lockImage, strengths.lock, reveal, lockAlpha)
+    }
+    val status = when {
+      !requestPending && selected == null -> R.string.wallpaper_dimming_preview_failed
+      showLoading -> R.string.wallpaper_dimming_preview_loading
+      visible != null && visible.image == null -> R.string.wallpaper_dimming_preview_sample
+      else -> null
+    }
+    // The status is measured inside the preview bounds and never moves the slider.
+    Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+      AnimatedContent(status, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(120)) },
+        label = "wallpaper preview status") { message ->
+        if (message != null) WallpaperPreviewStatus(message, onRetry)
       }
-      Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = percent / 100f)))
+    }
+  }
+}
+
+@Composable
+private fun WallpaperPreviewStatus(message: Int, onRetry: () -> Unit) {
+  Column(Modifier.widthIn(max = 250.dp).padding(12.dp).clip(RoundedCornerShape(14.dp))
+    .background(MiuixTheme.colorScheme.surfaceContainer)
+    .padding(horizontal = 14.dp, vertical = 10.dp),
+    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    if (message == R.string.wallpaper_dimming_preview_loading) {
+      CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+    }
+    Text(stringResource(message), style = MiuixTheme.textStyles.body2)
+    if (message == R.string.wallpaper_dimming_preview_failed) {
+      TextButton(stringResource(R.string.launcher_labels_retry), onClick = onRetry)
+    }
+  }
+}
+
+@Composable
+private fun WallpaperPreviewTile(
+  modifier: Modifier,
+  label: Int,
+  hasBase: Boolean,
+  baseImage: ImageBitmap?,
+  basePercent: Int,
+  hasLock: Boolean,
+  lockImage: ImageBitmap?,
+  lockPercent: Int,
+  reveal: State<Float>,
+  lockAlpha: State<Float>,
+) {
+  Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(0.8f).clip(RoundedCornerShape(14.dp))
+      .background(MiuixTheme.colorScheme.surfaceContainerHigh)) {
+      if (hasBase) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal.value }) {
+          WallpaperPreviewArtwork(Modifier.matchParentSize(), baseImage, basePercent)
+          if (hasLock) WallpaperPreviewArtwork(Modifier.matchParentSize().graphicsLayer { alpha = lockAlpha.value },
+            lockImage, lockPercent)
+        }
+      }
     }
     Text(stringResource(label), Modifier.align(Alignment.CenterHorizontally),
       style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+  }
+}
+
+@Composable
+private fun WallpaperPreviewArtwork(modifier: Modifier, image: ImageBitmap?, percent: Int) {
+  Box(modifier) {
+    if (image != null) {
+      Image(image, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+    } else {
+      val sample = remember { Brush.verticalGradient(listOf(Color(0xff9cbbcf), Color(0xffe5d2bd), Color(0xff4f6874))) }
+      Box(Modifier.matchParentSize().background(sample))
+    }
+    Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = percent / 100f)))
   }
 }

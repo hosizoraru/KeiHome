@@ -317,7 +317,7 @@ original result.
 The caller must be an app UID in the selected user, and PackageManager must
 confirm that the UID owns the requested package. Own app, SystemUI and Home are
 excluded. Unselected calls return before package lookup or JSON parsing.
-Preferences use the existing API 102 listener. A dedicated status worker
+Preferences use the existing API 102 listener. The launcher control worker
 publishes the latest choice fingerprint and backend availability. It
 coalesces queued notifications, suppresses duplicate receipts after successful
 delivery, and republishes on user unlock when credential-protected storage is
@@ -347,6 +347,8 @@ artwork pill still follows the separate home-window drawing receipt.
 
 The baseline and fixed-build timing, UI snapshots, and APK identity are in
 `.artifacts/research/navigation-backdrop-ack-20261123/`.
+The [shared control acceptance](status-dashboard.md#receipts-during-an-appearance-change)
+covers the later b0736 build, including both directions of this switch test.
 
 ### Bilibili theme artwork
 

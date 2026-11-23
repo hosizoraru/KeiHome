@@ -157,3 +157,49 @@ the actual native capability. Legacy reports are recognized without changing
 their wire format. See [the physical diagnosis](physical-launcher-connection.md)
 for the old Home 8602 selection-contract rejection, current successful dynamic
 resolution, one-time native activation and subsequent process-stable acceptance.
+
+## Receipts during an appearance change
+
+The launcher control worker handles navigation preference receipts, scoped
+desktop appearance callbacks and framework-manager broadcasts. The material
+and status monitor continues to read settings and native replies. Icon sweeps
+still own the completion receipt for refreshed artwork. Import results and
+Bilibili artwork drawing continue to report from their respective operations.
+
+On 2026-11-23, signed Release b0736 (`114000736`) was installed over b0734
+on Xiaomi 17 Pro (`pandora`, HyperOS `OS4.0.8.0.XBLCNXM`, Home `801030308`).
+The installed APK SHA-256 matched the candidate, and all three packaged native
+libraries matched b0734. The build included the pending local MIUIX UI changes.
+The new Java runtime installed its system-server hooks, and the dashboard
+subsequently showed the current native connection. During package replacement,
+one status publication encountered an unavailable provider. The first settled
+dashboard showed a query timeout. Reopening only KeiHome restored status
+queries; this run leaves first-open continuity across replacement unverified.
+
+Each appearance change started a `RESOURCE_CHANGE` sweep across 202 packages.
+The following results were observed before the corresponding generation's
+completion log. UI timings are upper bounds from the hierarchy samples.
+
+| Operation | Observed result | Sweep duration |
+| --- | --- | ---: |
+| Match bottom bar color, light to dark and dark to light | Matching preference fingerprints observed within 0.37 s and 0.68 s of the taps. The status card confirmed the new switch state in both directions. | 44.55 s in each direction |
+| Dock glass switch | System receipt in 0.36 s, scoped Home callback in 0.46 s, settings confirmed within 3.12 s. Captured Home with the glass turned off. | 44.54 s |
+| Search bar material | Scoped Home callback in 0.20 s, new choice confirmed within 5.22 s. | 44.57 s |
+| App name display | Scoped Home callback in 1.75 s, new choice confirmed within 5.21 s. | Same generation as search |
+| Dashboard manual refresh | Fresh status timestamp and ready state observed within 5.20 s. | 44.54 s |
+| Open LSPosed logs | Activity start requested in 0.09 s. Shell warning reproduced the existing [cold-launch limitation](framework-manager.md#known-cold-launch-limitation). | 44.57 s |
+
+The search and label checks cover setting acknowledgement and callback delivery.
+The manager check covers dispatch timing. Import, Bilibili drawing and
+manager warm launch were outside this run. Launcher, SystemUI and
+system_server retained their PIDs throughout, and the applied icon-pack hash
+remained the same. The original light mode, navigation switch, Dock switch,
+search material and label mode were restored.
+
+The Release build and lint completed with zero lint errors. The JVM suite
+passed 2,123 tests with 8 skipped.
+
+The signed APK, build and install records, screenshots, hierarchy dumps and
+generation timelines are under
+`.artifacts/research/runtime-receipts-20261123/`. The [navigation evidence](gesture-navigation-backdrop.md#status-acknowledgement-during-an-icon-refresh)
+also retains the per-direction b0736 hierarchy dumps.

@@ -53,10 +53,11 @@ request has a 1.5-second elapsed-time deadline, checked again after package
 resolution. The client stops waiting after two seconds. No arbitrary component,
 shell command, or URI can cross this bridge.
 
-The receiver uses the existing icon-refresh worker, participates in the runtime
-retirement gate, and unregisters before that worker stops. It adds no polling,
-new worker thread, persistent service, or native payload change. API 102 Java
-reload is sufficient.
+The receiver uses the launcher control worker shared with navigation receipts
+and desktop appearance notifications. It participates in the runtime
+retirement gate and unregisters before that worker stops. This keeps the
+ordered broadcast responsive during icon sweeps without a separate manager
+thread or polling. API 102 Java reload updates the bridge.
 
 Parasitic launch is currently an owner-user route, matching the native daemon.
 An unavailable `system_server` scope falls through to the installed manager or
@@ -85,6 +86,12 @@ The bridge currently acknowledges that Android accepted the Activity start.
 That acknowledgement does not prove manager injection, so this failure does not
 automatically show the manual-entry dialog. The device bridge tests likewise
 verify transport and intent acceptance, not cold-start injection.
+
+On 2026-11-23, b0736 on Xiaomi 17 Pro reproduced this limitation during a
+44.57-second icon sweep. The control worker called the host Activity within
+0.09 seconds of the tap. Android displayed the Shell warning, and the
+test returned to KeiHome without generating a bugreport. See the
+[shared control acceptance](status-dashboard.md#receipts-during-an-appearance-change).
 
 The user explicitly chose to retain the current implementation and defer
 further cold-launch work. The workaround is to first open the genuine manager

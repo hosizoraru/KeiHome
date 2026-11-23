@@ -255,8 +255,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
               Text(style, style = MiuixTheme.textStyles.subtitle)
               Text(stringResource(R.string.perfect_icons_preview_count, visible.size, pack?.entries?.size ?: 0),
                 style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              MetadataPill(stringResource(if (state.options.staticNight) R.string.perfect_icons_night_mode_derived
-                else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
+              MetadataPill(stringResource(perfectNightModeLabel(state.options)), MiuixTheme.colorScheme.onSurfaceSecondary)
             }
             pack?.let { current ->
               (visible.firstOrNull { !it.quietSnapshot && it.dark != null && it.dark != it.light }

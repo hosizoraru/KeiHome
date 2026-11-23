@@ -5,6 +5,8 @@
     <string name="perfect_icons_static_night_note">优先保留作者已有的深色行为。可可靠识别底板时派生深色背景，并保持中性文字或图案清晰；无法安全识别时保守调暗或保留原样。支持的动态组保留分层、动画时序和事件，复杂 Lottie 与程序化绘制保持不变。这是派生外观，并非 Monet。结果缓存复用，更改后需重新生成并应用。“动态深色”数量不包含静态图标。</string>
     <string name="perfect_icons_night_mode_original">原始资源</string>
     <string name="perfect_icons_night_mode_derived">额外深色适配</string>
+    <string name="perfect_icons_fixed_dark">普通图标固定深色</string>
+    <string name="perfect_icons_fixed_dark_summary">为可适配的普通图标生成一张深色图片，减轻桌面启动动画的负担。切到浅色模式后这些图标仍为深色，日历和时钟保留各自的外观切换与动画。更改后需重新生成并应用。</string>
     <string name="perfect_icons_night_disabled">关闭时保留原始分层、原版动画及已有深色行为，不额外生成派生深色外观。</string>
     <string name="perfect_icons_night_enabled">适配可识别的底板、文字及日历、时钟等分层图标，保留原有动态。优先使用作者已有的深色资源；无法可靠处理的图案保持原样或保守调暗。结果会占用额外资源和缓存，更改后需重新生成并应用。</string>
     <string name="perfect_icons_preview_options_scope">预览仅展示当前选项下的静态画面，不播放实时动画，也不代表已生成或桌面已应用的效果。修改后需重新生成并应用。</string>

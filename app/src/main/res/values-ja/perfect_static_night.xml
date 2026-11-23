@@ -7,6 +7,8 @@
     <string name="perfect_icons_night_mode_derived">追加のダーク対応</string>
     <string name="perfect_icons_night_disabled">元のレイヤー、アニメーション、既存のダーク表示を保持します。派生ダーク画像は追加生成しません。</string>
     <string name="perfect_icons_night_enabled">判別できる背景や文字、カレンダー・時計などのレイヤーアイコンに対応し、元の動きを維持します。既存のダーク素材を優先し、判別が難しい図柄は保持するか控えめに減光します。追加のリソースとキャッシュを使うため、変更後は再生成して適用してください。</string>
+    <string name="perfect_icons_fixed_dark">通常アイコンをダークに固定</string>
+    <string name="perfect_icons_fixed_dark_summary">対応する通常アイコンをダーク画像に固定し、ホーム画面の起動アニメーションの負荷を軽減します。ライトモードでも同じ画像が表示されます。カレンダーや時計の外観切り替えとアニメーションは維持されます。変更後は再生成して適用してください。</string>
     <string name="perfect_icons_preview_options_scope">プレビューは現在の設定の静止画像です。リアルタイムのアニメーションや、最後に生成または適用したパックの状態は示しません。変更後は再生成して適用してください。</string>
     <string name="perfect_icons_result_dynamic_night">動的ダーク · %1$d</string>
 </resources>

@@ -8,7 +8,10 @@ data class PerfectIconOptions(
   val installedOnly: Boolean = true,
   val dynamic: Boolean = true,
   val staticNight: Boolean = false,
-)
+  val fixedDark: Boolean = false,
+) {
+  internal val useFixedDark: Boolean get() = staticNight && fixedDark
+}
 
 data class PerfectIconCatalog(
   val revision: String,
@@ -64,7 +67,11 @@ data class PerfectIconResult(
 }
 
 internal fun PerfectIconOptions.nightContract(): String =
-  if (staticNight) "${PerfectStaticNightRenderer.REVISION}:${if (dynamic) PerfectDynamicNight.REVISION else "static"}:selector-2"
+  if (staticNight) {
+    val dynamicRevision = if (dynamic) PerfectDynamicNight.REVISION else "static"
+    val ordinary = if (useFixedDark) "fixed-dark-1" else "selector-2"
+    "${PerfectStaticNightRenderer.REVISION}:$dynamicRevision:$ordinary"
+  }
   else ""
 
 class PerfectIconCooldownException(val retryAt: Long) :

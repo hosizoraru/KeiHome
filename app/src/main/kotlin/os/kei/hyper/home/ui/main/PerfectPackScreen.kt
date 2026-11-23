@@ -248,8 +248,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
               manualThemeFallback = prefs.manualThemeFallback,
               metadataContent = {
                 state.generatedOptions?.let { generated ->
-                  MetadataPill(stringResource(if (generated.staticNight) R.string.perfect_icons_night_mode_derived
-                    else R.string.perfect_icons_night_mode_original), MiuixTheme.colorScheme.onSurfaceSecondary)
+                  MetadataPill(stringResource(perfectNightModeLabel(generated)), MiuixTheme.colorScheme.onSurfaceSecondary)
                 }
                 state.result?.let { result ->
                   listOf(
@@ -320,11 +319,24 @@ internal fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List
       checked = options.staticNight, enabled = enabled,
       modifier = Modifier.testTag("perfect.options.night"),
       onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) })
+    if (options.staticNight) {
+      SwitchPreference(title = stringResource(R.string.perfect_icons_fixed_dark),
+        summary = stringResource(R.string.perfect_icons_fixed_dark_summary),
+        checked = options.fixedDark, enabled = enabled,
+        modifier = Modifier.testTag("perfect.options.fixed-dark"),
+        onCheckedChange = { onOptionsChange(options.copy(fixedDark = it)) })
+    }
     SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
       summary = stringResource(R.string.perfect_icons_installed_summary),
       checked = options.installedOnly, enabled = enabled,
       onCheckedChange = { onOptionsChange(options.copy(installedOnly = it)) })
   }
+}
+
+internal fun perfectNightModeLabel(options: PerfectIconOptions): Int = when {
+  options.useFixedDark -> R.string.perfect_icons_fixed_dark
+  options.staticNight -> R.string.perfect_icons_night_mode_derived
+  else -> R.string.perfect_icons_night_mode_original
 }
 
 @Composable

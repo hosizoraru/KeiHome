@@ -378,7 +378,7 @@ class PerfectIconRepository internal constructor(
   fun options(): PerfectIconOptions = runCatching {
     val json = JSONObject(settings.read("options") ?: return PerfectIconStyles.initialOptions)
     PerfectIconOptions(json.getString("style"), json.getBoolean("installedOnly"), json.getBoolean("dynamic"),
-      json.optBoolean("staticNight", false))
+      json.optBoolean("staticNight", false), json.optBoolean("fixedDark", false))
       .also { PerfectIconFormat.style(it.style) }
   }.getOrDefault(PerfectIconStyles.initialOptions)
 
@@ -386,7 +386,7 @@ class PerfectIconRepository internal constructor(
     PerfectIconFormat.style(options.style)
     settings.write("options", JSONObject().put("style", options.style)
       .put("installedOnly", options.installedOnly).put("dynamic", options.dynamic)
-      .put("staticNight", options.staticNight).toString())
+      .put("staticNight", options.staticNight).put("fixedDark", options.fixedDark).toString())
   }
 
   // Old REST API cooldowns do not block the independent codeload source.
@@ -607,7 +607,7 @@ class PerfectIconRepository internal constructor(
       require(style in snapshot.downloadedStyles) { "Download the Perfect Icons style first: $style" }
       val mask = nativeMask()
       val identity = "$LAYER_CONTRACT\n${HyperOs4IconModule.cacheIdentity(mask)}\npreview\n${snapshot.sourceHash}\n$style\n${options.dynamic}\n$sampleLimit" +
-        if (options.staticNight) "\n${PerfectStaticNightRenderer.REVISION}:${PerfectDynamicNight.REVISION}" else ""
+        if (options.staticNight) "\n${options.nightContract()}" else ""
       val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
       val destination = File(previewDir, "preview-${snapshot.sourceHash.take(12)}-$key.zip")
       val proof = File(previewDir, "${destination.name}.sha256")
@@ -1353,7 +1353,16 @@ class PerfectIconRepository internal constructor(
     )
     val nightInputs = if (options.staticNight) staticNightInputs(plan) else emptyMap()
     val dynamicNight = options.staticNight && dynamicNightRenderer != null
-    val replaced = nightInputs.keys.mapTo(hashSetOf()) { "res/drawable-xxhdpi/$it.png" }
+    val replaced = buildSet {
+      for (name in nightInputs.keys) {
+        val root = "res/drawable-xxhdpi/$name"
+        add("$root.png")
+        if (options.useFixedDark) {
+          add("$root/0.png")
+          add("$root/1.png")
+        }
+      }
+    }
     val expected = linkedMapOf<String, Pair<Long, String>>()
     try {
       FileOutputStream(temporary).use { output ->
@@ -1384,7 +1393,13 @@ class PerfectIconRepository internal constructor(
           nightInputs.entries.forEachIndexed { index, (name, inputs) ->
             coroutine.ensureActive()
             val pair = staticPair(inputs, mask, { coroutine.ensureActive() }, read)
-            NativeDayNightIcon.artworkEntries(name, pair.day, pair.night).forEach { (path, bytes) -> entry(path, bytes) }
+            if (options.useFixedDark) {
+              entry("res/drawable-xxhdpi/$name.png", pair.night)
+            } else {
+              NativeDayNightIcon.artworkEntries(name, pair.day, pair.night).forEach { (path, bytes) ->
+                entry(path, bytes)
+              }
+            }
             renderProgress(index + 1, nightInputs.size)
             if (index % 32 == 31) trimRendered()
           }

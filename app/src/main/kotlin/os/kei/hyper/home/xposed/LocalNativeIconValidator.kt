@@ -57,12 +57,12 @@ internal object LocalNativeIconValidator {
         }
         return bytes
       }
-      val layered = LocalLayerIconValidator.validate(paths, ::read, ::image)
+      val layered = LocalLayerIconValidator.validate(paths, ::read, ::validateStaticImage)
       val templates = PairTemplates()
       val validatedImages = mutableSetOf<String>()
       fun bitmap(path: String) {
         if (path !in validatedImages) {
-          image(read(path, IMAGE_LIMIT))
+          validateStaticImage(read(path, IMAGE_LIMIT))
           validatedImages += path
         }
       }
@@ -249,7 +249,7 @@ internal object LocalNativeIconValidator {
       .all { it.groupValues[1] in pureFunctions }) { "Unsupported local expression function" }
   }
 
-  private fun image(bytes: ByteArray) {
+  internal fun validateStaticImage(bytes: ByteArray) {
     require(bytes.size.toLong() in 1..IMAGE_LIMIT) { "Local icon image size limit" }
     fun u(i: Int) = bytes[i].toInt() and 255
     fun le(i: Int, count: Int): Long = (0 until count).fold(0L) { v, n -> v or (u(i + n).toLong() shl (8 * n)) }

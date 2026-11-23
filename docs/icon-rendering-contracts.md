@@ -78,6 +78,20 @@ gets a palette tree, while any native flat aliases already present use the same
 day/night snapshots. Older native packs with static coloring enabled can use
 the existing update action to pick up the added coverage.
 
+Converted APK and classic ZIP handoffs can include native static layers from
+saved per-app icons. Admission requires `0.png` and `1.png` together under
+each `res/drawable-xxhdpi/<native-name>/` directory and each supplied
+`nightmode/` directory. Daytime layers supply the dark appearance when the
+icon has no night override. The native bitmap validator checks the actual
+image format and bounds, and packaging keeps the original bytes.
+
+The 1.14.0 beta report for `com.nowcoder.app.florida/0.png` reproduced at
+converted MTZ admission. The b0725 Phone AVD regression ran the full handoff
+with and without a flat icon from the base pack and compared the resulting
+layer bytes. A separate admission check used both original Nowcoder layers
+from the retained physical-device publication. Results are under
+`.artifacts/research/classic-zip-native-static-pair-20261124/`.
+
 Generation schema 19 uses original foreground coverage for a qualifying native
 layer pair after geometry normalization. Author-supplied palette masks still
 have priority. For a flat two-color icon, the shared stencil can recover the

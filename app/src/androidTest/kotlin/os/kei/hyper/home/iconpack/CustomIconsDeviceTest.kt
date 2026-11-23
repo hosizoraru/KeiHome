@@ -84,6 +84,44 @@ class CustomIconsDeviceTest {
     }
   }
 
+  @Test fun classicZipHandoffPreservesTheSavedPerfectIconStaticLayers() = runBlocking {
+    Fixture().use { f ->
+      val app = IconPackComponent("com.nowcoder.app.florida")
+      val prefix = "res/drawable-xxhdpi/${app.packageName}/"
+      val layers = mapOf(
+        "${prefix}0.png" to png(Color.RED),
+        "${prefix}1.png" to png(Color.BLUE),
+      )
+      val native = f.pack(layers)
+      assertEquals(IconPackFormat.MIUI_ICONS, native.format)
+      val captured = CustomIconResources.select(f.resources(native), listOf(app.packageName))
+      CustomIconStore.save(f.context, app.packageName, "Nowcoder", native, native.entries.single(), captured)
+
+      val classic = f.pack(mapOf(
+        "appfilter.xml" to """
+          <resources><item component="ComponentInfo{${target.flattened}}" drawable="art"/></resources>
+        """.trimIndent().toByteArray(),
+        "res/drawable-nodpi/art.png" to png(Color.GREEN),
+      ))
+      assertEquals(IconPackFormat.CLASSIC_ZIP, classic.format)
+      for (targets in listOf(listOf(app, target), listOf(app))) {
+        val handoff = IconPackHandoffs.prepare(f.context, f.repository, f.previews, classic, targets,
+          IconPackAppearance.SYSTEM, includePalette = false, completeSystemIconConfig = false)
+        try {
+          assertEquals("CONVERTED_CLASSIC_ZIP", handoff.convertedOrigin)
+          val resources = f.handoffResources(handoff.file)
+          layers.forEach { (path, bytes) -> assertArrayEquals(path, bytes, resources.getValue(path)) }
+          assertFalse("res/drawable-xxhdpi/${app.packageName}.png" in resources)
+          if (target in targets) {
+            val path = "res/drawable-xxhdpi/${nativeLauncherActivityName(target)}.png"
+            assertTrue(path, path in resources)
+            assertTrue("nightmode/$path", "nightmode/$path" in resources)
+          }
+        } finally { handoff.file.delete() }
+      }
+    }
+  }
+
   @Test fun cancelledReplacementKeepsThePreviousChoiceAndItsResources() {
     Fixture().use { f ->
       val pack = f.pack(NativeDayNightIcon.entries(source.packageName, png(Color.RED), png(Color.BLUE)))

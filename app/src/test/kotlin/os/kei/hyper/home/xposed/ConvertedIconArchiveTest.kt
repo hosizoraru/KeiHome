@@ -84,6 +84,62 @@ class ConvertedIconArchiveTest {
     }
   }
 
+  @Test fun acceptsCompleteNativeStaticLayersAlongsideConvertedIcons() {
+    val prefix = "res/drawable-xxhdpi/com.nowcoder.app.florida/"
+    val layers = mapOf(
+      "${prefix}0.png" to png(4),
+      "${prefix}1.png" to png(4, pixel = 1),
+      "nightmode/${prefix}0.png" to png(4, pixel = 2),
+      "nightmode/${prefix}1.png" to png(4, pixel = 3),
+    )
+    val module = zip(generatedPair() + layers)
+    withArchive(module) { file ->
+      for (origin in listOf("CONVERTED_CLASSIC_ZIP", "CONVERTED_APK")) {
+        assertEquals(hash(module, "SHA-256"), ConvertedIconArchive.inspect(file, origin).icons.sha256)
+      }
+    }
+  }
+
+  @Test fun completeDaytimeNativeLayersCanSupplyBothAppearances() {
+    val prefix = "res/drawable-xxhdpi/com.nowcoder.app.florida/"
+    val layers = mapOf("${prefix}0.png" to png(4), "${prefix}1.png" to png(4, pixel = 1))
+    withArchive(zip(layers)) { file ->
+      ConvertedIconArchive.inspect(file, "CONVERTED_CLASSIC_ZIP")
+    }
+    rejects(zip(layers.mapKeys { (path, _) -> "nightmode/$path" }))
+  }
+
+  @Test fun preservesWebpNamedPngInANativeLayerPairForAComponentAlias() {
+    val prefix = "res/drawable-xxhdpi/com.nowcoder.app.florida#com.example.Main/"
+    val webp = java.util.Base64.getDecoder().decode("UklGRh4AAABXRUJQVlA4TBEAAAAvAUAAAAdQwMIUvP+BiOh/AAA=")
+    val module = zip(generatedPair() + mapOf("${prefix}0.png" to png(4), "${prefix}1.png" to webp))
+    withArchive(module) { file ->
+      assertEquals(hash(module, "SHA-256"), ConvertedIconArchive.inspect(file, "CONVERTED_CLASSIC_ZIP").icons.sha256)
+    }
+  }
+
+  @Test fun rejectsIncompleteCorruptOrUnexpectedNativeStaticLayers() {
+    val prefix = "res/drawable-xxhdpi/com.nowcoder.app.florida/"
+    val pair = mapOf("${prefix}0.png" to png(4), "${prefix}1.png" to png(4, pixel = 1))
+    val invalid = listOf(
+      pair - "${prefix}1.png",
+      mapOf("${prefix}0.png" to png(4), "nightmode/${prefix}1.png" to png(4)),
+      pair + ("nightmode/${prefix}1.png" to png(4)),
+      pair + ("${prefix}1.png" to byteArrayOf(1, 2, 3)),
+      pair + ("${prefix}2.png" to png(4)),
+    )
+    for (layers in invalid) withArchive(zip(generatedPair() + layers)) { file ->
+      val failure = assertThrows(IllegalArgumentException::class.java) {
+        ConvertedIconArchive.inspect(file, "CONVERTED_CLASSIC_ZIP")
+      }
+      assertTrue(failure.message.orEmpty(), failure.message.orEmpty().contains(prefix))
+    }
+    rejects(zip(generatedPair() + mapOf(
+      "res/drawable-xxhdpi/com.example.png/0.png" to png(4),
+      "res/drawable-xxhdpi/com.example.png/1.png" to png(4),
+    )))
+  }
+
   @Test fun fallbackPaletteRequiresExplicitGenericColoringAndCompleteNightResources() {
     val fallback = os.kei.hyper.home.iconpack.SystemIconFallbackManifest(
       os.kei.hyper.home.data.SystemIconFallback.DEFAULT, setOf("com.example")).encode()

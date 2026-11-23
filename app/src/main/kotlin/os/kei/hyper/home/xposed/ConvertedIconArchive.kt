@@ -25,6 +25,7 @@ internal object ConvertedIconArchive {
   private const val DOTTED_NAME = "[\\p{L}\\p{N}_$]+(?:\\.[\\p{L}\\p{N}_$]+)+"
   private const val NATIVE_NAME = "$DOTTED_NAME(?:#$DOTTED_NAME)?"
   private val iconName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$NATIVE_NAME\\.png")
+  private val staticLayerName = Regex("(?:nightmode/)?res/drawable-xxhdpi/$NATIVE_NAME/[01]\\.png")
   private val fancyIconName = Regex("fancy_icons/($NATIVE_NAME)/(manifest\\.xml|day\\.png|night\\.png|mask\\.png|bg\\.png|" +
     "(?:night_)?(?:hour|minute|second)\\.png|fallback(?:-night)?\\.png|" +
     "clock_day_bg\\.png|clock_day_hour_rectangle\\.png|clock_day_minute_rectangle\\.png|" +
@@ -119,6 +120,9 @@ internal object ConvertedIconArchive {
     val entryLimit = IconPackLimits().maxEntries
     val names = HashSet<String>()
     val fancyPaths = HashMap<String, MutableSet<String>>()
+    val staticLayerDirectories = HashSet<String>()
+    var hasDayRaster = false
+    var hasNightRaster = false
     var total = 0L
     var fallback: SystemIconFallbackManifest? = null
     var genericMonet = false
@@ -127,14 +131,17 @@ internal object ConvertedIconArchive {
       zip.entries().asSequence().forEach { entry ->
         checkInterrupted()
         val fancy = fancyIconName.matchEntire(entry.name)
+        val raster = iconName.matches(entry.name)
+        val staticLayer = staticLayerName.matches(entry.name)
         val buildSource = entry.name == os.kei.hyper.home.iconpack.IconBuildInventory.SOURCE_PATH
         val provenance = entry.name == SystemIconFallbackManifest.PATH
         val generation = entry.name == os.kei.hyper.home.iconpack.IconGenerationManifest.PATH
         val metadata = entry.name == os.kei.hyper.home.iconpack.IconThemeMetadata.PATH
         val shape = entry.name == os.kei.hyper.home.iconpack.NativeIconShapeConfig.PATH
-        require(!entry.isDirectory && (iconName.matches(entry.name) || fancy != null || provenance || buildSource || generation || metadata || shape) &&
+        require(!entry.isDirectory &&
+          (raster || staticLayer || fancy != null || provenance || buildSource || generation || metadata || shape) &&
           entry.name.length <= 300 && names.add(entry.name)) {
-          "Not a generated static icon pair or canonical local MAML entry: ${entry.name}"
+          "Unsupported converted icon resource: ${entry.name}"
         }
         val manifest = fancy?.groupValues?.get(2) == "manifest.xml"
         val limit = minOf(if (shape) os.kei.hyper.home.iconpack.NativeIconShapeConfig.MAX_BYTES.toLong()
@@ -147,8 +154,27 @@ internal object ConvertedIconArchive {
           os.kei.hyper.home.iconpack.IconGenerationManifest.decode(bytes).monetUnadaptedIcons
         else if (metadata) requireNotNull(os.kei.hyper.home.iconpack.IconThemeMetadata.decode(bytes))
         else if (provenance) fallback = SystemIconFallbackManifest.decode(bytes)
-        else if (!manifest) validatePng(bytes, 512)
+        else if (staticLayer) {
+          try {
+            LocalNativeIconValidator.validateStaticImage(bytes)
+          } catch (failure: Exception) {
+            if (failure is InterruptedException) throw failure
+            throw IllegalArgumentException("Invalid native static layer: ${entry.name} (${failure.message})", failure)
+          }
+          staticLayerDirectories += entry.name.substringBeforeLast('/')
+        } else if (!manifest) validatePng(bytes, 512)
+        if (raster) {
+          if (entry.name.startsWith("nightmode/")) hasNightRaster = true else hasDayRaster = true
+        }
         fancy?.let { fancyPaths.getOrPut(it.groupValues[1]) { HashSet() }.add(entry.name) }
+      }
+      for (directory in staticLayerDirectories) {
+        checkInterrupted()
+        require(directory !in names) { "Native static layer directory conflicts with an icon file: $directory" }
+        for (layer in 0..1) {
+          val path = "$directory/$layer.png"
+          require(path in names) { "Incomplete native static layer pair, missing $path" }
+        }
       }
       // Regenerate the fixed selector, palette, calendar and clock templates without interpreting XML.
       for ((name, resources) in fancyPaths) {
@@ -162,9 +188,11 @@ internal object ConvertedIconArchive {
           ("fancy_icons/$name/mask.png" !in names || genericMonet)
       }) { "Fallback provenance must reference complete icon pairs; palette layers require explicit generic coloring" }
     }
-    require(names.any { it.startsWith("res/drawable-xxhdpi/") } &&
-      names.any { it.startsWith("nightmode/res/drawable-xxhdpi/") }) {
-      "Converted output must contain day and native nightmode PNG artwork"
+    val hasDayLayers = staticLayerDirectories.any { !it.startsWith("nightmode/") }
+    val hasNightLayers = staticLayerDirectories.any { it.startsWith("nightmode/") }
+    // A native daytime pair remains usable in dark mode when it has no night override.
+    require((hasDayRaster || hasDayLayers) && (hasNightRaster || hasNightLayers || (hasDayLayers && !hasDayRaster))) {
+      "Converted output is missing artwork for the day or night appearance"
     }
   }
 

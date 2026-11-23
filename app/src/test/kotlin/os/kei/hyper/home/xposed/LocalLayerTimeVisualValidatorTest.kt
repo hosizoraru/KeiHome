@@ -245,6 +245,42 @@ class LocalLayerTimeVisualValidatorTest {
     reject(text.replace("mipro-semibold", "file:/font.ttf"))
   }
 
+  @Test fun hyperCalendarKeepsFractionalWeekdayTextAndLocalizedCase() {
+    val text = """
+      <Text name="weekSize" pivotX="#weekSize.text_width/2" pivotY="#weekSize.text_height/2"
+        scale="min(1,190/#weekSize.text_width)" x="351/2" y="351/2+31" align="center"
+        size="43.83" fontFamily="mipro-demibold" color="#000000"
+        textExp="strToUpperCase(ifelse(strContains(formatDate('EEEE',#time_sys),'星期'),formatDate('EEEE',#time_sys),formatDate('E',#time_sys)))"
+        alpha="255*0.75"/>
+    """.trimIndent()
+    admit(text, includeImage = false)
+    for (invalid in listOf("0.99", "256.01", "1e2", "#size", "43.8300001")) {
+      reject(text.replace("43.83", invalid))
+    }
+    reject(text.replace("'EEEE'", "@format"))
+  }
+
+  @Test fun clockKeepsLocalGeometryAndBoundsPerFrameCallbacks() {
+    val clock = """
+      <Var expression="#minute" threshold="1">
+        <Trigger><FunctionCommand target="begin"/></Trigger>
+      </Var>
+      <Rectangle name="hand" w="6.44" h="68.11" fillColor="#A7A7A7" strokeColor="#00000000"
+        weight="0" strokeAlign="inner" cornerRadius="3.22" folmeMode="true"/>
+      <FolmeConfig name="motion" property="rotation" ease="6,1000" onUpdate="'update'"/>
+      <Function name="begin"><MultiCommand delay="50"><FrameRateCommand rate="60"/></MultiCommand></Function>
+      <Function name="update">
+        <VariableCommand name="status" expression="'更新'" type="string"/>
+        <FrameRateCommand rate="60"/>
+      </Function>
+    """.trimIndent()
+    admit(clock, includeImage = false)
+    reject(clock.replace("threshold=\"1\"", "threshold=\"0.1\""))
+    reject(clock.replace("<FrameRateCommand rate=\"60\"/>\n</Function>", "<FrameRateCommand rate=\"60\" delay=\"50\"/>\n</Function>"))
+    reject(clock.replace("onUpdate=\"'update'\"", "onUpdate=\"'begin'\""))
+    reject(clock.replace("'更新'", "@status"))
+  }
+
   @Test fun localFunctionsMayCallAcyclicFunctionsAndFolmeCallbacks() {
     val body = """
       <FolmeState name="shown" alpha="255"/>
@@ -300,7 +336,7 @@ class LocalLayerTimeVisualValidatorTest {
     val doublingFailure = assertThrows(Exception::class.java) {
       admit(graph(12, 2) + trigger("<FunctionCommand target='f11'/>"))
     }
-    assertEquals("Local visual function expansion limit", doublingFailure.message)
+    assertEquals("Local visual function expansion limit", doublingFailure.cause?.message)
     reject(graph(18, 1))
     reject(graph(14, 2))
     reject((0..32).joinToString("") { "<Function name='f$it'><FrameRateCommand rate='0'/></Function>" })
@@ -341,6 +377,13 @@ class LocalLayerTimeVisualValidatorTest {
     val realBrowserBefore = realBrowser.readBytes()
     LocalNativeIconValidator.validate(realBrowser)
     assertArrayEquals(realBrowserBefore, realBrowser.readBytes())
+    val vectorBesideFolme = resources(image, "", emptyMap(), false) +
+      ("layer_animating_icons/com.example/0/fancy/com.example.json" to originalVector)
+    LocalNativeIconValidator.validate(archive(vectorBesideFolme))
+    assertThrows(Exception::class.java) {
+      LocalNativeIconValidator.validate(archive(vectorBesideFolme +
+        ("layer_animating_icons/com.example/0/fancy/unrelated.json" to originalVector)))
+    }
     fun completion(command: String, declarations: String = "") = xml
       .replace("<FrameRateCommand rate=\"0\" />", command)
       .replace("</Icon>", "$declarations</Icon>")

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import os.kei.hyper.home.iconpack.BoundedPackXml
+import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.IconPackLimits
 import os.kei.hyper.home.iconpack.NativeLayerConfig
 import os.kei.hyper.home.iconpack.validNativeIconName
@@ -18,6 +19,12 @@ internal object LocalLayerIconValidator {
   private val imagePath = Regex("[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\\.(?:png|webp)")
   private val functions = setOf("ifelse", "eq", "ne", "gt", "ge", "lt", "le",
     "and", "or", "not", "min", "max", "abs", "int", "round", "floor", "ceil")
+  private val weekdayExpressions = setOf(
+    "formatDate('E',#time_sys)",
+    "strToUpperCase(ifelse(strContains(formatDate('EEEE',#time_sys),'星期')," +
+      "formatDate('EEEE',#time_sys),formatDate('E',#time_sys)))",
+  )
+  private val textSize = Regex("[0-9]{1,3}(?:\\.[0-9]{1,6})?")
 
   fun validate(
     paths: Set<String>,
@@ -43,6 +50,7 @@ internal object LocalLayerIconValidator {
       val config = NativeLayerConfig.parse(read(configPath, limits.maxXmlBytes.toLong()), limits)
       consumed += configPath
       val base = configPath.removeSuffix("config.xml")
+      val iconName = base.trimEnd('/').substringAfterLast('/')
       val rootQuiet = base + "quiet/quietImage.png"
       if (rootQuiet in paths) bitmap(rootQuiet)
       for (layer in config.layers) {
@@ -55,14 +63,24 @@ internal object LocalLayerIconValidator {
         if (layer in config.fancyOnly) require(manifest in paths) { "Missing fancy-only layer" }
         if (manifest in paths) {
           val program = read(manifest, limits.maxXmlBytes.toLong())
-          val weatherImages = LocalWeatherLayerProgram.resources(program, prefix + "fancy/", paths)
-          if (weatherImages != null) weatherImages.forEach(::bitmap)
-          else {
-            val calendarImages = LocalCalendarLayerProgram.resources(program, prefix + "fancy/", paths)
-            if (calendarImages != null) calendarImages.forEach(::bitmap)
+          try {
+            val specializedImages = LocalWeatherLayerProgram.resources(program, prefix + "fancy/", paths)
+              ?: LocalCalendarLayerProgram.resources(program, prefix + "fancy/", paths)
+            if (specializedImages != null) specializedImages.forEach(::bitmap)
             else consumed += visual(program, prefix + "fancy/", paths, read)
+          } catch (failure: Exception) {
+            if (failure is InterruptedException || failure is java.util.concurrent.CancellationException) throw failure
+            val message = "Invalid native layer program: $manifest (${failure.message})"
+            if (failure is IconPackException) throw IconPackException(message, failure)
+            throw IllegalArgumentException(message, failure)
           }
           consumed += manifest
+          // Some styles retain the icon's vector export beside a manifest that uses Folme instead.
+          val vector = "${prefix}fancy/$iconName.json"
+          if (vector in paths && vector !in consumed) {
+            validateLottie(vector, read)
+            consumed += vector
+          }
         }
         fancyResources[prefix + "fancy/"].orEmpty().filter {
           it !in consumed && imagePath.matches(it.removePrefix(prefix + "fancy/"))
@@ -70,7 +88,8 @@ internal object LocalLayerIconValidator {
           .forEach(::bitmap)
       }
     }
-    require(consumed.containsAll(dynamic)) { "Undeclared or unsupported dynamic layer resource" }
+    val unclaimed = dynamic.firstOrNull { it !in consumed }
+    require(unclaimed == null) { "Undeclared or unsupported dynamic layer resource: $unclaimed" }
     // Nested drawable folders are native static pairs. Flat legacy resources retain their policy.
     val static = paths.filter {
       val pieces = it.removePrefix("nightmode/").split('/')
@@ -91,6 +110,15 @@ internal object LocalLayerIconValidator {
   private val systemNumbers = setOf("date", "month", "year", "day_of_week", "hour12", "hour24",
     "minute", "second", "time_sys", "ratio", "__darkmode")
   private val numberToken = Regex("#[A-Za-z_][A-Za-z0-9_]*(?:\\.(?:text_width|text_height))?|[A-Za-z_][A-Za-z0-9_]*")
+
+  private fun validateLottie(path: String, read: (String, Long) -> ByteArray) {
+    try {
+      LocalLottieIconValidator.validate(read(path, 1024 * 1024))
+    } catch (failure: Exception) {
+      if (failure is InterruptedException || failure is java.util.concurrent.CancellationException) throw failure
+      throw IllegalArgumentException("Invalid local Lottie animation: $path (${failure.message})", failure)
+    }
+  }
 
   private fun numeric(value: String, references: MutableSet<String>) {
     require(value.isNotBlank() && value.matches(Regex("[\\s0-9A-Za-z_#()+*/%<>{}=!&|?:,\\-\\.]+")) &&
@@ -127,6 +155,8 @@ internal object LocalLayerIconValidator {
     val states = mutableSetOf<String>()
     val configs = mutableSetOf<String>()
     val callable = mutableSetOf<String>()
+    val updateCallbacks = mutableSetOf<String>()
+    val updateCommandChecks = mutableMapOf<String, MutableList<Boolean>>()
     val references = mutableListOf<Pair<String, String>>()
     // Include Folme callback edges: a nonrecursive FunctionCommand graph alone is insufficient.
     // Keep repeated edges: calling one function twice must charge its expanded work twice.
@@ -145,8 +175,8 @@ internal object LocalLayerIconValidator {
       require(visualIdentifier.matches(it)) { "Unsafe visual target identifier" }
     }
     fun names(value: String): List<String> {
-      require(value.matches(Regex("'[A-Za-z_][A-Za-z0-9_]*'(?:,'[A-Za-z_][A-Za-z0-9_]*')*")))
-      return value.split(',').map { name(it.removeSurrounding("'")) }
+      require(value.matches(Regex("'[A-Za-z_][A-Za-z0-9_]*'(?:, *'[A-Za-z_][A-Za-z0-9_]*')*")))
+      return value.split(',').map { name(it.trim().removeSurrounding("'")) }
     }
     fun edge(from: String, to: String) { edges.getOrPut(from) { mutableListOf() } += to }
     fun boundedInt(value: String, range: IntRange) { require(value.toIntOrNull() in range) }
@@ -162,12 +192,14 @@ internal object LocalLayerIconValidator {
         "Icon"
       } else rawTag
       val parent = stack.lastOrNull()
-      val owner = stack.lastOrNull { it.tag == "Function" }?.name?.let { "function:$it" } ?: "entry"
+      val function = stack.lastOrNull { it.tag == "Function" }?.name
+      val owner = function?.let { "function:$it" } ?: "entry"
       val command = tag in setOf("FolmeCommand", "FrameRateCommand", "FunctionCommand", "LottieCommand", "AnimationCommand",
-        "IfCommand", "VariableCommand", "ExternCommand")
+        "IfCommand", "VariableCommand", "ExternCommand", "MultiCommand")
+      val statusLabel = tag == "VariableCommand" && attrs["type"] == "string"
       val inLottieCompletion = stack.any { it.tag == "Triggers" }
       require(if (depth == 1) tag == "Icon" else when {
-        command -> parent?.tag in setOf("Trigger", "Function", "Consequent") &&
+        command -> parent?.tag in setOf("Trigger", "Function", "Consequent", "MultiCommand") &&
           (!inLottieCompletion ||
             (tag == "FrameRateCommand" && attrs == mapOf("rate" to "0")) ||
             (inLottieCompletion && tag == "VariableCommand" &&
@@ -175,29 +207,36 @@ internal object LocalLayerIconValidator {
         tag == "Consequent" -> parent?.tag == "IfCommand"
         tag == "VariableBinders" -> parent?.tag == "Icon"
         tag == "BroadcastBinder" -> parent?.tag == "VariableBinders"
-        tag == "Trigger" -> parent?.tag in setOf("ExternalCommands", "Triggers")
+        tag == "Trigger" -> parent?.tag in setOf("ExternalCommands", "Triggers") || (parent?.tag == "Var" && parent.name == null)
         tag == "Triggers" -> parent?.tag == "Lottie"
         tag == "Function" -> parent?.tag == "Icon"
         tag in setOf("PositionAnimation", "AlphaAnimation") -> parent?.tag == "Image"
         tag == "Item" -> parent?.tag in setOf("PositionAnimation", "AlphaAnimation")
-        tag in setOf("Group", "Image", "Lottie", "Text", "Var", "FolmeState", "FolmeConfig", "ExternalCommands") ->
+        tag in setOf("Group", "Image", "Rectangle", "Lottie", "Text", "Var", "FolmeState", "FolmeConfig", "ExternalCommands") ->
           parent?.tag in setOf("Icon", "Group")
         else -> false
       }) { "Unsupported layered visual element: $tag" }
       if (command) costs[owner] = (costs[owner] ?: 0) + 1
+      if (command && function != null) {
+        val simpleUpdate = statusLabel || (tag == "FrameRateCommand" && attrs.keys == setOf("rate"))
+        updateCommandChecks.getOrPut(function) { mutableListOf() } += simpleUpdate
+      }
       val allowed = when (tag) {
         "Icon" -> setOf("version", "frameRate", "width", "height", "screenWidth", "resDensity", "useVariableUpdater")
         "Group" -> geometry + setOf("name", "align", "alignV", "visibility", "layered")
-        "Image" -> geometry + setOf("name", "src", "srcid", "srcExp", "cornerRadius", "align", "alignV", "visibility", "folmeMode", "xfermode")
+        "Image" -> geometry + setOf("name", "src", "srcid", "srcExp", "cornerRadius", "align", "alignV", "visibility",
+          "folmeMode", "xfermode", "centerX", "centerY")
+        "Rectangle" -> geometry + setOf("name", "align", "alignV", "folmeMode", "cornerRadius", "fillColor",
+          "strokeColor", "weight", "strokeAlign")
         "Lottie" -> setOf("name", "src", "x", "y", "w", "h", "align", "alignV", "autoplay", "loop")
         "LottieCommand" -> setOf("target", "command", "params")
         "AnimationCommand" -> setOf("target", "command")
         "PositionAnimation", "AlphaAnimation" -> emptySet()
         "Item" -> if (parent?.tag == "PositionAnimation") setOf("x", "y", "time") else setOf("value", "time")
         "Text" -> geometry + setOf("name", "scale", "align", "alignV", "size", "fontFamily", "color", "textExp")
-        "Var" -> setOf("name", "expression", "type", "const")
+        "Var" -> setOf("name", "expression", "type", "const", "threshold")
         "FolmeState" -> geometry + "name"
-        "FolmeConfig" -> setOf("name", "property", "ease", "fromSpeed", "onBegin", "onComplete")
+        "FolmeConfig" -> setOf("name", "property", "ease", "fromSpeed", "onBegin", "onUpdate", "onComplete")
         "ExternalCommands", "Triggers", "Consequent" -> emptySet()
         "Trigger" -> setOf("action")
         "VariableBinders" -> emptySet()
@@ -205,20 +244,22 @@ internal object LocalLayerIconValidator {
         "Function" -> setOf("name")
         "FunctionCommand" -> setOf("target")
         "IfCommand" -> setOf("ifCondition")
+        "MultiCommand" -> setOf("delay")
         "VariableCommand" -> setOf("name", "type", "expression")
         "ExternCommand" -> setOf("command", "strPara")
         "FolmeCommand" -> setOf("target", "states", "command", "config")
         "FrameRateCommand" -> setOf("rate", "delay")
         else -> error("Unsupported visual tag")
       }
-      require(attrs.keys.all { it in allowed }) { "Unsupported layered visual attribute" }
+      val unsupported = attrs.keys.firstOrNull { it !in allowed }
+      require(unsupported == null) { "Unsupported $tag attribute: $unsupported" }
       attrs.forEach { (key, value) ->
         when (key) {
           "name" -> {
-            if (tag in setOf("Image", "Group", "Text", "Lottie")) visualName(value) else name(value)
+            if (tag in setOf("Image", "Rectangle", "Group", "Text", "Lottie")) visualName(value) else name(value)
             if (tag == "VariableCommand") {
               require(value !in systemNumbers) { "Cannot assign a system variable" }
-              localNumbers += value
+              if (!statusLabel) localNumbers += value
             } else {
               require(declared.add(value)) { "Duplicate visual identifier" }
               when (tag) {
@@ -239,10 +280,17 @@ internal object LocalLayerIconValidator {
               !value.contains("..") && base + value in paths) { "Missing or nonlocal Lottie JSON" }
           } else require(imagePath.matches(value)) { "Nonlocal layer image" }
           "srcid" -> require(value == "#date" && attrs["src"] == "num.png") { "Unsupported date image selector" }
-          "type" -> require(if (tag == "VariableCommand") value == "number" else value in setOf("number", "float", "int"))
+          "type" -> require(if (tag == "VariableCommand") value in setOf("number", "string") else value in setOf("number", "float", "int"))
+          "expression" -> if (!statusLabel) numeric(value, numericReferences) else {
+            require(function != null && attrs["name"] == "status" && value in setOf("'开始'", "'更新'", "'结束'")) {
+              "Unsupported clock status label"
+            }
+          }
+          "threshold" -> require(tag == "Var" && attrs == mapOf("expression" to "#minute", "threshold" to "1"))
           "align" -> require(value in setOf("left", "center", "right"))
           "alignV" -> require(value in setOf("top", "center", "bottom"))
           "folmeMode" -> require(value in setOf("true", "false"))
+          "strokeAlign" -> require(value in setOf("inner", "center", "outer"))
           "layered" -> require(value in setOf("true", "false"))
           "xfermode" -> require(value in blendModes && stack.any { it.layered }) {
             "Unsupported or unisolated layer blend mode"
@@ -269,6 +317,7 @@ internal object LocalLayerIconValidator {
           "action" -> require(when {
             tag == "BroadcastBinder" -> LocalNativeIconValidator.validClockBinding(attrs)
             parent?.tag == "Triggers" -> value == "complete"
+            parent?.tag == "Var" -> false
             else -> value.split(',').all { it in lifecycle }
           }) { "Unsupported layer trigger or clock binding action" }
           "target" -> {
@@ -288,8 +337,9 @@ internal object LocalLayerIconValidator {
             require(it.size in 1..4)
             it.forEach { config -> references += "config" to config; edge(owner, "config:$config") }
           }
-          "onBegin", "onComplete" -> {
-            val callback = names(value).single()
+          "onBegin", "onUpdate", "onComplete" -> {
+            val callback = if (identifier.matches(value)) value else names(value).single()
+            if (key == "onUpdate") updateCallbacks += callback
             val config = attrs["name"] ?: error("Unnamed Folme callback config")
             references += "function" to callback
             edge("config:$config", "function:$callback")
@@ -308,12 +358,13 @@ internal object LocalLayerIconValidator {
           }
           "strPara" -> require(value in setOf("'DateTime.Second'", "'DateTime.Minute'")) { "Unsupported external parameter" }
           "property" -> require(value.split(',').all { it.trim().removeSurrounding("'") in geometry })
-          "fontFamily" -> require(value == "mipro-semibold")
+          "fontFamily" -> require(value in setOf("mipro-semibold", "mipro-demibold")) { "Unsupported date font" }
           "const" -> require(tag == "Var" && value in setOf("true", "false"))
           "color" -> require(os.kei.hyper.home.iconpack.perfect.PerfectDynamicIconValidator
             .validLiveTextColor(value, tag == "Text" && observesDarkMode))
-          "textExp" -> require(value == "formatDate('E',#time_sys)") { "Unsupported date text expression" }
-          "size" -> boundedInt(value, 1..256)
+          "fillColor", "strokeColor" -> require(value.matches(Regex("#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})")))
+          "textExp" -> require(value in weekdayExpressions) { "Unsupported date text expression" }
+          "size" -> require(textSize.matches(value) && value.toDouble() in 1.0..256.0) { "Invalid date text size" }
           "delay" -> boundedInt(value, 0..60_000)
           "time" -> boundedInt(value, 0..60_000)
           "value" -> boundedInt(value, 0..255)
@@ -357,7 +408,11 @@ internal object LocalLayerIconValidator {
         "Lottie" -> {
           require(attrs.keys.containsAll(setOf("name", "src")))
           val json = base + requireNotNull(attrs["src"])
-          if (jsonResources.add(json)) LocalLottieIconValidator.validate(read(json, 1024 * 1024))
+          if (jsonResources.add(json)) validateLottie(json, read)
+          visuals++
+        }
+        "Rectangle" -> {
+          require(attrs.keys.containsAll(setOf("w", "h", "fillColor")))
           visuals++
         }
         "LottieCommand" -> {
@@ -389,12 +444,13 @@ internal object LocalLayerIconValidator {
           require(attrs.keys.containsAll(setOf("name", "textExp", "size", "fontFamily", "color")))
           visuals++
         }
-        "Var", "VariableCommand" -> require(attrs.keys.containsAll(setOf("name", "expression")) &&
-          (tag != "VariableCommand" || attrs["type"] == "number"))
-        "Trigger" -> require(!attrs["action"].isNullOrBlank())
+        "Var" -> require(attrs.keys.containsAll(setOf("name", "expression")) || attrs.keys == setOf("expression", "threshold"))
+        "VariableCommand" -> require(attrs.keys == setOf("name", "expression", "type"))
+        "Trigger" -> require(if (parent?.tag == "Var") attrs.isEmpty() else !attrs["action"].isNullOrBlank())
         "Function" -> require(attrs["name"] != null && callable.size <= 32) { "Function declaration limit" }
         "FunctionCommand" -> require(attrs["target"] != null)
         "IfCommand" -> require(attrs["ifCondition"] != null && stack.count { it.tag == "IfCommand" } < 2)
+        "MultiCommand" -> require(attrs.keys == setOf("delay") && stack.none { it.tag == "MultiCommand" })
         "Consequent" -> require(requireNotNull(parent).let { ++it.branches } <= 2) { "Too many conditional branches" }
         "ExternCommand" -> require(attrs.keys == setOf("command", "strPara"))
         "FolmeCommand" -> require(attrs.keys.containsAll(setOf("target", "states", "command")))
@@ -410,6 +466,10 @@ internal object LocalLayerIconValidator {
       }
     }, text = { text, _ -> require(text.isBlank()) })
     require(visuals in 1..128 && texts.size <= 16 && states.size <= 64 && configs.size <= 64)
+    require(updateCallbacks.all { callback ->
+      val commands = updateCommandChecks[callback].orEmpty()
+      commands.size in 1..2 && commands.all { it }
+    }) { "Unsupported Folme update callback" }
     require(keyframeTargets.containsAll(keyframeReferences)) { "Missing keyframe target" }
     require(localNumbers.none { it in targets || it in lotties || it in callable || it in states || it in configs })
     numericReferences.forEach { value ->

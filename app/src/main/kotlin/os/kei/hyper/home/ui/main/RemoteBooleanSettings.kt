@@ -8,11 +8,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import os.kei.hyper.home.data.SplashAppearancePreferences
+import io.github.libxposed.service.XposedService
 import os.kei.hyper.home.status.FrameworkConnection
 
-internal class SplashIconSettings(
+internal class RemoteBooleanSettings(
   private val scope: CoroutineScope,
+  private val readChoice: suspend (XposedService) -> Boolean,
+  private val saveChoice: suspend (XposedService, Boolean) -> Unit,
   private val inScope: () -> Boolean,
 ) {
   val state: StateFlow<ThemeEffectsUiState>
@@ -29,7 +31,7 @@ internal class SplashIconSettings(
         update(it) else it }
     }
     try {
-      val choice = SplashAppearancePreferences.readIcons(service)
+      val choice = readChoice(service)
       publish { ThemeEffectsUiState(savedChoice = choice) }
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (_: UnsupportedOperationException) { publish { it.copy(loading = false, unavailable = true) } }
@@ -45,8 +47,8 @@ internal class SplashIconSettings(
       mutex.withLock {
         try {
           if (FrameworkConnection.service.value !== service || !inScope()) return@withLock
-          SplashAppearancePreferences.saveIcons(service, enabled)
-          val saved = SplashAppearancePreferences.readIcons(service)
+          saveChoice(service, enabled)
+          val saved = readChoice(service)
           if (FrameworkConnection.service.value === service && inScope())
             state.value = ThemeEffectsUiState(savedChoice = saved, saving = true)
         } catch (cancelled: CancellationException) { throw cancelled }

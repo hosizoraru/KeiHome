@@ -245,7 +245,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
 
   fun readLauncherLabelSettings() { viewModelScope.launch { launcherLabels.read() } }
   suspend fun refreshHomeScreenStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
-  val splashIcons = SplashIconSettings(viewModelScope) { framework.value.splashAppearanceInScope() }
+  val splashIcons = RemoteBooleanSettings(viewModelScope, SplashAppearancePreferences::readIcons,
+    SplashAppearancePreferences::saveIcons) { framework.value.splashAppearanceInScope() }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>

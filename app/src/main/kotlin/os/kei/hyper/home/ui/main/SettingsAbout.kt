@@ -7,12 +7,15 @@ import android.os.Build
 import android.os.UserManager
 import java.io.File
 import java.util.zip.ZipFile
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,14 +32,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -67,7 +74,7 @@ import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -84,6 +91,11 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   focusEnvironment: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val aboutScroll = rememberScrollState()
+  var heroHeightPx by remember { mutableIntStateOf(0) }
+  val titleVisible by remember {
+    derivedStateOf { heroHeightPx > 0 && aboutScroll.value >= heroHeightPx * 0.45f }
+  }
+  val titleAlpha = animateFloatAsState(if (titleVisible) 1f else 0f, tween(200), label = "About title")
   LaunchedEffect(focusEnvironment) {
     if (focusEnvironment) {
       snapshotFlow { aboutScroll.maxValue }.first { it != Int.MAX_VALUE }
@@ -107,7 +119,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   val backdrop = rememberKeiHomeBlurBackdrop()
   Scaffold(containerColor = Color.Transparent, backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
-      TopAppBar(title = "", expandable = false, color = Color.Transparent,
+      TopAppBar(title = appName, titleAlpha = { titleAlpha.value }, expandable = false, color = Color.Transparent,
         navigationIcon = { IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp) {
           Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
         } }, actions = {
@@ -124,7 +136,8 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
       AboutBackground {
         Column(Modifier.fillMaxSize().testTag("about.scroll").verticalScroll(aboutScroll)
           .navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding())) {
-          Box(Modifier.fillMaxWidth().height(heroHeight), contentAlignment = Alignment.Center) { AboutHero(model) }
+          Box(Modifier.fillMaxWidth().height(heroHeight).onSizeChanged { heroHeightPx = it.height },
+            contentAlignment = Alignment.Center) { AboutHero(model) }
           AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices,
             onOpenProjectLicense = onOpenProjectLicense, onBackground = true)
           Spacer(Modifier.height(12.dp))
@@ -181,17 +194,10 @@ private fun AboutAppIcon(model: HomeViewModel) {
 }
 
 @Composable
-private fun aboutCardColors() = CardDefaults.defaultColors(
-  color = if (LocalKeiHomeDarkTheme.current) Color(0xff283757).copy(alpha = 0.76f) else Color.White.copy(alpha = 0.72f),
-  contentColor = MiuixTheme.colorScheme.onSurface,
-)
-
-@Composable
 internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit,
   onBackground: Boolean = false, showChannel: Boolean = true, onOpenProjectLicense: (() -> Unit)? = null) {
   val context = LocalContext.current
-  val colors = if (onBackground) aboutCardColors() else CardDefaults.defaultColors()
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = colors) {
+  val links: @Composable ColumnScope.() -> Unit = {
     if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
       endActions = { AboutDetailValue(stringResource(R.string.settings_source_private)) })
     if (onOpenProjectLicense != null) ProjectLicenseEntry(onOpenProjectLicense)
@@ -205,6 +211,8 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
       endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
   }
+  if (onBackground) GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
+  else Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
 }
 
 @Composable
@@ -213,7 +221,7 @@ private fun AboutDetails() {
   val details by produceState(AboutDeviceDetails(Build.MODEL, null, null, null), context) {
     value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
   }
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), colors = aboutCardColors()) {
+  GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = stringResource(R.string.polish_about_device), endActions = {
       Column(horizontalAlignment = Alignment.End) {
         AboutDetailValue(details.marketName)

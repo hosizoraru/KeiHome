@@ -97,11 +97,13 @@ internal fun KeiHomeTopAppBar(
   scrollBehavior: ScrollBehavior? = null,
   bottomContent: @Composable () -> Unit = {},
   expandable: Boolean = true,
+  titleAlpha: () -> Float = { 1f },
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
   val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
   GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
     expandable = expandable,
+    titleAlpha = titleAlpha,
     progressiveBlur = progressive && backdrop != null,
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
     navigationIcon = { CompositionLocalProvider(LocalGlassToolbar provides true, content = navigationIcon) },

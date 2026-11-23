@@ -52,6 +52,10 @@ internal class MonetColorMonitor(
 
   fun request() = lifecycle.withWorker { (it as Watch).request() }
 
+  fun requestLauncherMaterials() = lifecycle.withWorker {
+    (it as Watch).requestMaterialsFromLauncher()
+  }
+
   fun stop() {
     lifecycle.stop()
     synchronizer.stop()
@@ -293,6 +297,10 @@ internal class MonetColorMonitor(
       }
     }
     private val heartbeat = Runnable { request() }
+
+    fun requestMaterialsFromLauncher() {
+      if (!closed) handler.post { requestMaterials() }
+    }
     private val observer by lazy {
       object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean, uri: Uri?) = request()

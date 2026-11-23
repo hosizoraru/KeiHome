@@ -270,7 +270,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               startMonetMonitor()
               NativeMonetSocketBroker.onTransact(
                 chain.getArg(1) as Parcel, chain.getArg(2) as? Parcel, chain.getArg(3) as Int,
-              )
+              ) {
+                try {
+                  monetColorMonitor.requestLauncherMaterials()
+                } catch (failure: Exception) {
+                  logFailure("could not queue launcher material replay", failure)
+                }
+              }
             }
           },
         )

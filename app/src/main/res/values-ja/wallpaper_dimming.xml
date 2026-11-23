@@ -1,0 +1,17 @@
+<resources>
+    <string name="wallpaper_dimming_title">ダークモードで壁紙を暗くする</string>
+    <string name="wallpaper_dimming_summary">システムがダークモードに切り替わると、ホーム画面とロック画面の壁紙を暗くします。</string>
+    <string name="wallpaper_dimming_scope">壁紙を暗くするには、システムフレームワークのスコープを有効にしてください。</string>
+    <string name="wallpaper_dimming_strength">暗くする強さ</string>
+    <string name="wallpaper_dimming_strength_entry">ホーム画面とロック画面を調整</string>
+    <string name="wallpaper_dimming_home">ホーム画面</string>
+    <string name="wallpaper_dimming_lock">ロック画面</string>
+    <string name="wallpaper_dimming_before">元の画像</string>
+    <string name="wallpaper_dimming_after">調整後</string>
+    <string name="wallpaper_dimming_percent">%1$d%%</string>
+    <string name="wallpaper_dimming_preview_loading">壁紙を読み込み中…</string>
+    <string name="wallpaper_dimming_preview_failed">壁紙のプレビューを読み込めませんでした。</string>
+    <string name="wallpaper_dimming_preview_sample">現在の壁紙の静止画を取得できないため、サンプルを表示しています。</string>
+    <string name="wallpaper_dimming_live">壁紙を暗くする設定がオンの場合、ダークモードで即時反映されます。</string>
+    <string name="wallpaper_dimming_shared">このシステムでは両方の画面に同じ強さが適用されます。</string>
+</resources>

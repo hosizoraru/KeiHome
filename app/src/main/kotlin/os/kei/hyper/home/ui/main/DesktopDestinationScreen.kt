@@ -84,6 +84,7 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
             else -> DesktopIconSettings(model, feature)
           }
         }
+        if (section == DesktopSection.APPEARANCE) WallpaperDimmingSettingsCard(model)
       }
     }
   }

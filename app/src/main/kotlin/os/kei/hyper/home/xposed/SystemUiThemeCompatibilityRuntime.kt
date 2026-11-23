@@ -20,6 +20,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.data.ThemeEffectsPreferences
+import os.kei.hyper.home.data.WallpaperDimmingPreferences
 import os.kei.hyper.home.data.SplashAppearancePreferences
 
 /**
@@ -72,6 +73,7 @@ internal class SystemUiThemeCompatibilityRuntime(
   @Volatile private var preferences: SharedPreferences? = null
   @Volatile private var splashPreferences: SharedPreferences? = null
   private var gestureTint: SystemUiGestureTint? = null
+  @Volatile private var depthDimming: KeyguardDepthDimming? = null
   @Volatile private var hostContext: Context? = null
   private var appIconRuntime: SystemUiAppIconRuntime? = null
   @Volatile private var splashIconRuntime: SplashIconFallbackRuntime? = null
@@ -121,6 +123,7 @@ internal class SystemUiThemeCompatibilityRuntime(
     initializationWork.submit(bootstrapKey) {
       neutralizeRetiredHooks()
       initializeGestureTint()
+      initializeDepthDimming()
       val existing = synchronized(plugins) { plugins.entries.map { it.key to it.value.apkPath } }
       hostInitialization.run("plugin loader hook") {
         val factory = Class.forName(FACTORY_CLASS, false, classLoader)
@@ -219,16 +222,51 @@ internal class SystemUiThemeCompatibilityRuntime(
     }
   }
 
+  private fun initializeDepthDimming() {
+    hostInitialization.run("keyguard depth dimming") {
+      val context = hostContext ?: Class.forName("android.app.ActivityThread")
+        .getDeclaredMethod("currentApplication").invoke(null) as? Application ?: return@run false
+      val controller = Class.forName("com.android.keyguard.panel.KeyguardPanelViewController", false, classLoader)
+      val bindView = controller.declaredMethods.single {
+        it.name == "onKeyguardViewBind" && it.parameterCount == 1 &&
+          android.view.View::class.java.isAssignableFrom(it.parameterTypes[0])
+      }
+      val guard = optionalGuard("keyguard depth dimming")
+      replace(bindView, "keihome.systemui.keyguard-depth-dimming", XposedInterface.Hooker { chain ->
+        val result = chain.proceed()
+        guard.run(Unit) { depthDimming?.bind(chain.getArg(0) as android.view.View) }
+        result
+      })
+      // The template's coroutine can bind its subject after the initial keyguard view bind.
+      guard.run(Unit) {
+        val template = Class.forName("com.android.keyguard.tinyPanel.templates.BaseTinyTemplateView", false, classLoader)
+        val setImage = template.getDeclaredMethod("setImageIfImageView", android.view.View::class.java,
+          android.graphics.Bitmap::class.java)
+        replace(setImage, "keihome.systemui.keyguard-depth-image", XposedInterface.Hooker { chain ->
+          val result = chain.proceed()
+          guard.run(Unit) { (chain.getArg(0) as? android.view.View)?.let { depthDimming?.bindSubject(it) } }
+          result
+        })
+      }
+      val runtime = KeyguardDepthDimming(context, xposed.getRemotePreferences(WallpaperDimmingPreferences.GROUP), guard)
+      depthDimming = runtime
+      runtime.start()
+      true
+    }
+  }
+
   private fun scheduleProfile(loader: ClassLoader, apkPath: String) {
     val initialization = synchronized(plugins) {
       plugins.getOrPut(loader) {
         PluginInitialization(apkPath, SystemUiInitialization(::reportInitializationFailure))
       }
     }
-    if (!initialization.needsWork() && !hostInitialization.canRun("notification icons") &&
+    if (!initialization.needsWork() && !hostInitialization.canRun("keyguard depth dimming") &&
+      !hostInitialization.canRun("notification icons") &&
       !hostInitialization.canRun("material preferences") && !hostInitialization.canRun("gesture handle tint")) return
     initializationWork.submit(initialization.workKey) {
       initializeGestureTint()
+      initializeDepthDimming()
       initializeMaterialPreferences()
       hostInitialization.run("host context") context@{
         val threadClass = Class.forName("android.app.ActivityThread")
@@ -550,6 +588,8 @@ internal class SystemUiThemeCompatibilityRuntime(
         splashPreferences?.unregisterOnSharedPreferenceChangeListener(splashPreferenceListener)
         check(gestureTint?.closeBefore(deadline) != false) { "Gesture material cleanup pending" }
         gestureTint = null
+        check(depthDimming?.closeBefore(deadline) != false) { "Keyguard depth dimming cleanup pending" }
+        depthDimming = null
         saveState()
         splashIconRuntime?.close()
         splashIconRuntime = null

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
@@ -11,6 +12,8 @@ import os.kei.hyper.home.status.NavigationBackdropInbox
 internal class LauncherControlMonitor(
   private val navigationStatus: () -> Pair<Boolean, String>,
   private val notifyLauncher: (Context, () -> Boolean) -> Int,
+  private val wallpaperPreferences: () -> SharedPreferences,
+  private val wallpaperSurfaces: () -> WallpaperSurfaceDimming?,
   private val onReady: (Context, Handler) -> Unit,
   private val onFailure: (Throwable) -> Unit,
 ) {
@@ -19,6 +22,7 @@ internal class LauncherControlMonitor(
   fun start(context: Context) = lifecycle.start(context)
   fun requestNavigationStatus() = lifecycle.withWorker { (it as Watch).requestNavigationStatus() }
   fun requestLauncherUpdate() = lifecycle.withWorker { (it as Watch).requestLauncherUpdate() }
+  fun requestWallpaperRefresh() = lifecycle.withWorker { (it as Watch).requestWallpaperRefresh() }
   fun stop() = lifecycle.stop()
   fun awaitStopped(deadline: Long) = lifecycle.awaitStopped(deadline)
 
@@ -27,8 +31,16 @@ internal class LauncherControlMonitor(
     private val handler by lazy { Handler(thread.looper) }
     @Volatile override var closed = false
       private set
+    private val registrations = MonitorRegistrations()
+    override val cleanupComplete: Boolean get() = closed && registrations.complete
+    private var cleanupQueued = false
     private var published: Pair<Boolean, String>? = null
     private var updateAttempts = 0
+    @Volatile private var dimming: WallpaperDimmingControl? = null
+
+    fun requestWallpaperRefresh() {
+      dimming?.request(force = true)
+    }
 
     private val publish = Runnable {
       if (closed) return@Runnable
@@ -87,14 +99,40 @@ internal class LauncherControlMonitor(
         } catch (failure: Exception) {
           if (!closed) onFailure(failure)
         }
+        try {
+          val surfaces = wallpaperSurfaces()
+          WallpaperDimmingControl(context, handler, registrations, wallpaperPreferences,
+            surfaces, { !closed }, onFailure).also {
+            dimming = it
+            it.start()
+          }
+          registerWallpaperPreview(context, handler, registrations, surfaces != null) { !closed }
+        } catch (failure: Exception) {
+          if (!closed) onFailure(failure)
+        }
       }
       requestNavigationStatus()
     }
 
     @Synchronized override fun stop() {
+      if (cleanupQueued || closed && registrations.complete) return
       closed = true
       handler.removeCallbacksAndMessages(null)
-      thread.quitSafely()
+      cleanupQueued = true
+      val posted = handler.post {
+        try {
+          registrations.release(onFailure)
+        } finally {
+          synchronized(this@Watch) {
+            cleanupQueued = false
+            if (registrations.complete) thread.quitSafely()
+          }
+        }
+      }
+      if (!posted) {
+        cleanupQueued = false
+        onFailure(IllegalStateException("Launcher control cleanup queue is unavailable"))
+      }
       thread.interrupt()
     }
   }

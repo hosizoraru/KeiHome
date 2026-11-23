@@ -62,6 +62,7 @@ internal fun SettingsContent(
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
   splashIconsContent: @Composable () -> Unit = {},
+  wallpaperDimmingContent: @Composable () -> Unit = {},
   searchGlassContent: @Composable () -> Unit = {},
   desktopStatusObserver: @Composable () -> Unit = {},
   staticScopeContent: @Composable () -> Unit = {},
@@ -104,6 +105,8 @@ internal fun SettingsContent(
   val hideIcon = matches(SettingsSection.APP, R.string.app_entry_settings,
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
+  val wallpaperDimming = migratedSearch && matches(SettingsSection.HOOK, R.string.wallpaper_dimming_title,
+    R.string.wallpaper_dimming_summary, R.string.desktop_display_title)
   val recommendedMappings = migratedSearch && onOpenRecommendedMappings != null &&
     matches(SettingsSection.PACKS, R.string.recommended_mappings_title,
       R.string.recommended_mappings_entry, R.string.recommended_mappings_search_keywords,
@@ -166,7 +169,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (listOf(colorMode, appearance, language, blur, squircle, scale, scrollEndHaptic, navigationBarStyle, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, wallpaperDimming, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,
@@ -243,10 +246,10 @@ internal fun SettingsContent(
         if (scale) AppScalePreference(preferences.appScalePercent, onAppScaleChange)
       }
     }
+    if (launcherGlass || labels || dockGlass || wallpaperDimming) desktopStatusObserver()
     if (effects || launcherGlass) {
       SmallTitle(stringResource(R.string.settings_system_appearance), modifier = Modifier.semantics { heading() })
       if (effects) ThemeEffectsCard(themeEffects, framework, onThemeEffectsChange)
-    if (launcherGlass || labels || dockGlass) desktopStatusObserver()
     if (launcherGlass) launcherGlassContent()
     if (searchGlass) searchGlassContent()
     }
@@ -256,6 +259,7 @@ internal fun SettingsContent(
       if (dockGlass) dockGlassContent()
     }
     if (splashIconsVisible) splashIconsContent()
+    if (wallpaperDimming) wallpaperDimmingContent()
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     if (autoApply || manualThemeFallback || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {

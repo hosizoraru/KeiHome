@@ -1,0 +1,17 @@
+<resources>
+    <string name="wallpaper_dimming_title">深色模式下调暗壁纸</string>
+    <string name="wallpaper_dimming_summary">系统切换到深色模式时，自动调暗桌面和锁屏壁纸。</string>
+    <string name="wallpaper_dimming_scope">启用系统框架作用域后即可调暗壁纸。</string>
+    <string name="wallpaper_dimming_strength">调暗强度</string>
+    <string name="wallpaper_dimming_strength_entry">分别调整桌面和锁屏</string>
+    <string name="wallpaper_dimming_home">桌面</string>
+    <string name="wallpaper_dimming_lock">锁屏</string>
+    <string name="wallpaper_dimming_before">原图</string>
+    <string name="wallpaper_dimming_after">调暗后</string>
+    <string name="wallpaper_dimming_percent">%1$d%%</string>
+    <string name="wallpaper_dimming_preview_loading">正在读取壁纸…</string>
+    <string name="wallpaper_dimming_preview_failed">暂时无法加载壁纸预览。</string>
+    <string name="wallpaper_dimming_preview_sample">当前壁纸无法提供静态预览，此处显示示例。</string>
+    <string name="wallpaper_dimming_live">开启壁纸调暗后，深色模式下实时生效。</string>
+    <string name="wallpaper_dimming_shared">当前系统的桌面和锁屏共用同一个强度。</string>
+</resources>

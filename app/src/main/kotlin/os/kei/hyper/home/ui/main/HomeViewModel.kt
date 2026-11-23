@@ -52,6 +52,7 @@ import os.kei.hyper.home.data.MonetPaletteReader
 import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.data.SplashAppearancePreferences
+import os.kei.hyper.home.data.WallpaperDimmingPreferences
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -87,6 +88,9 @@ internal fun FrameworkUiState.themeEffectsInScope(): Boolean =
 
 internal fun FrameworkUiState.splashAppearanceInScope(): Boolean =
   connected && !readFailed && snapshot?.systemUiInScope == true
+
+internal fun FrameworkUiState.wallpaperDimmingInScope(): Boolean =
+  connected && !readFailed && snapshot?.systemInScope == true
 
 internal fun FrameworkUiState.dockGlassInScope(): Boolean =
   launcherScopeGranted()
@@ -247,6 +251,11 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   suspend fun refreshHomeScreenStatus() { readRuntimeStatus(includeIconTheme = false, force = true) }
   val splashIcons = RemoteBooleanSettings(viewModelScope, SplashAppearancePreferences::readIcons,
     SplashAppearancePreferences::saveIcons) { framework.value.splashAppearanceInScope() }
+  val wallpaperDimming = RemoteBooleanSettings(viewModelScope, WallpaperDimmingPreferences::read,
+    WallpaperDimmingPreferences::save) { framework.value.wallpaperDimmingInScope() }
+  val wallpaperDimmingStrength = WallpaperDimmingStrengthSettings(viewModelScope) {
+    framework.value.wallpaperDimmingInScope()
+  }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())
   val apps: StateFlow<AppsUiState>
@@ -446,6 +455,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         launcherGlass.reset()
         splashAppearance.value = ThemeEffectsUiState()
         splashIcons.reset()
+        wallpaperDimming.reset()
+        wallpaperDimmingStrength.reset()
         if (service == null && !binding.waiting) initialActivation.observe(null)
         if (service != null) coroutineScope {
           if (visiblePage != null && visiblePage != 4)
@@ -543,6 +554,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private suspend fun readDesktopSettings(section: DesktopSection?) {
     if (section == null || section == DesktopSection.APPEARANCE) {
       launcherLabels.read()
+      wallpaperDimming.read()
     }
     if (section == null || section == DesktopSection.APPEARANCE || section == DesktopSection.DOCK) launcherGlass.read()
     if (section == null || section == DesktopSection.DOCK) dockGlass.read()
@@ -574,7 +586,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             else -> homeScreenRuntime.value.readFailed || homeScreenRuntime.value.timedOut ||
               when (desktopSection) {
                 DesktopSection.DOCK -> dockGlass.state.value.failed || launcherGlass.state.value.failed
-                DesktopSection.APPEARANCE -> launcherLabels.state.value.failed || launcherGlass.state.value.failed
+                DesktopSection.APPEARANCE -> launcherLabels.state.value.failed || launcherGlass.state.value.failed ||
+                  wallpaperDimming.state.value.readFailed
                 else -> false
               }
           }

@@ -2,10 +2,12 @@ package os.kei.hyper.home.xposed
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.os.Handler
+import android.os.Looper
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.IInterface
@@ -27,6 +29,7 @@ import java.util.concurrent.locks.ReentrantLock
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.ThemeEffectsPreferences
+import os.kei.hyper.home.data.WallpaperDimmingPreferences
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.IconPackImportProtocol
@@ -51,6 +54,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val launcherControl = LauncherControlMonitor(
     navigationStatus = { navigationBackdropReady to navigationBackdrop.fingerprint() },
     notifyLauncher = ::notifyLauncherOfAppearanceChange,
+    wallpaperPreferences = { xposed.getRemotePreferences(WallpaperDimmingPreferences.GROUP) },
+    wallpaperSurfaces = { wallpaperSurfaces },
     onReady = { context, handler ->
       synchronized(lock) {
         if (hooksReady && !lifecycle.retiring && !lifecycle.retired) {
@@ -60,6 +65,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     },
     onFailure = { logFailure("launcher control operation failed", it) },
   )
+  @Volatile private var wallpaperSurfaces: WallpaperSurfaceDimming? = null
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme) { recentTaskLoader }
   private val iconPackImportMonitor = IconPackImportMonitor(
@@ -348,6 +354,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                 try { schedule(previous, current) } finally { android.os.Trace.endSection() }
               }
             }
+            if (changes and ActivityInfo.CONFIG_UI_MODE != 0) launcherControl.requestWallpaperRefresh()
           } catch (failure: Throwable) {
             logFailure("could not schedule icon refresh", failure)
           }
@@ -362,6 +369,40 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       handles += configuration.first
       require(configuration.first.id == CONFIGURATION_HOOK_ID &&
         configuration.first.executable == resolved.updateConfiguration)
+      try {
+        val wallpaper = Class.forName("com.android.server.wallpaper.WallpaperManagerService", false, loader)
+        val setDim = wallpaper.getMethod("setWallpaperDimAmountForUid", Int::class.javaPrimitiveType,
+          Float::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+        val wallpaperContext = wallpaper.getDeclaredField("mContext").apply { isAccessible = true }
+        val signal = Handler(Looper.getMainLooper())
+        val guard = SystemUiHookGuard { logFailure("wallpaper dim change notification unavailable", it) }
+        val dim = installOrReplaceIconHook(xposed,
+          findMatchingIconHook(oldHooks, WALLPAPER_DIM_HOOK_ID, setDim), WALLPAPER_DIM_HOOK_ID, setDim,
+          XposedInterface.Hooker { chain ->
+            val result = chain.proceed()
+            val service = chain.thisObject
+            signal.post {
+              guard.run(Unit) {
+                val context = wallpaperContext.get(service) as Context
+                context.sendBroadcast(Intent(WALLPAPER_DIM_CHANGED).setPackage("com.android.systemui"),
+                  WALLPAPER_DIM_PERMISSION)
+              }
+            }
+            result
+          })
+        dim.second?.let(replaced::add)
+        handles += dim.first
+        val surfaces = WallpaperSurfaceDimming(loader)
+        surfaces.install({ id, executable, hooker ->
+          val hook = installOrReplaceIconHook(xposed, findMatchingIconHook(oldHooks, id, executable),
+            id, executable, hooker)
+          hook.second?.let(replaced::add)
+          handles += hook.first
+        }, { launcherControl.requestWallpaperRefresh() }, guard)
+        wallpaperSurfaces = surfaces
+      } catch (failure: Throwable) {
+        logFailure("wallpaper dim integration unavailable", recoverableSystemUiFailure(failure))
+      }
       check(removeOldHooks(oldHooks, replaced))
       synchronized(lock) {
         hooksReady = true
@@ -391,6 +432,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       return false
     }
   }
+
 
   fun retire(saveState: () -> Unit): Boolean {
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RETIRE_TIMEOUT_MS)
@@ -1008,6 +1050,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   }
 
   private companion object {
+    const val WALLPAPER_DIM_HOOK_ID = "keihome.wallpaper-dim-change"
     const val TAG = "KeiHomeIconRefresh"
     const val LAUNCHER_PACKAGE = "com.miui.home"
     const val LISTENER_HOOK_ID = "keihome_launcher_listener"

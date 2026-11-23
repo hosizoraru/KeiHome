@@ -34,8 +34,10 @@ internal fun SplashAppearanceSettingsCard(
   title: Int = R.string.splash_adapt,
   summary: Int = R.string.splash_adapt_summary,
   tag: String = "splash-appearance",
-  feature: DesktopFeature = DesktopFeature.SPLASH,
+  feature: DesktopFeature? = DesktopFeature.SPLASH,
+  scopeMessage: Int = R.string.splash_scope,
   titleAction: (@Composable () -> Unit)? = null,
+  content: @Composable () -> Unit = {},
 ) {
   val issue = when {
     state.saving -> R.string.theme_effects_saving
@@ -43,7 +45,7 @@ internal fun SplashAppearanceSettingsCard(
     state.readFailed -> R.string.theme_effects_read_failed
     scopeReadFailed -> R.string.theme_effects_framework_failed
     scopeChecking -> R.string.theme_effects_loading
-    !inScope -> R.string.splash_scope
+    !inScope -> scopeMessage
     state.unavailable -> R.string.theme_effects_unavailable
     state.loading || state.savedChoice == null -> R.string.theme_effects_loading
     else -> null
@@ -81,7 +83,8 @@ internal fun SplashAppearanceSettingsCard(
       BasicComponent(title = stringResource(R.string.theme_effects_resave_off),
         enabled = !scopeChecking && !scopeReadFailed && state.canSaveThemeEffects(false), onClick = { onChange(false) })
     }
+    content()
     DesktopSettingProgress(if (state.saving) DesktopFeatureStatus.SAVING else DesktopFeatureStatus.ACCEPTED,
-      Modifier.testTag("desktop.feature.${feature.name.lowercase()}.progress"))
+      Modifier.testTag(feature?.let { "desktop.feature.${it.name.lowercase()}.progress" } ?: "$tag.progress"))
   }
 }

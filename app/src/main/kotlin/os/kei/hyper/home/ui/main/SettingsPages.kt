@@ -149,6 +149,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     onAppScaleChange = model.preferences::setAppScalePercent,
     onScrollEndHapticChange = model.preferences::setScrollEndHaptic,
     onOpenRecommendedMappings = onOpenPerfectIcons?.let { open -> { open("recommended-mappings") } },
+    wallpaperDimmingContent = { WallpaperDimmingSettingsCard(model) },
     desktopStatusObserver = {
       LaunchedEffect(model, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { model.observeDesktopStatus() }

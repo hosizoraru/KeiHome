@@ -144,6 +144,51 @@ archives, not a measured frame-time improvement for the signed candidate.
 
 ## Remaining acceptance
 
+## Static ordinary-icon pilot on the Phone AVD
+
+The attached HyperOS 4 KSU archive was inspected as a reference. Its ordinary
+icon tree contains 2,443 pairs under `res/drawable-xxhdpi/<entry>/{0,1}.png`,
+and its dynamic archive contains the calendar program. It does not contain the
+reported two-second mode-switch service or a `fancy_icons` tree. The archive
+supports the resource-level finding that a flat ordinary pair can avoid MAML
+admission. Its mode-switch and cache-refresh behavior remains unverified.
+
+KeiHome now exposes a separate, default-off **Fixed dark for ordinary icons**
+option inside Perfect Icons' existing light/dark adaptation settings. With this
+option, eligible ordinary entries publish the generated dark PNG at the
+standard native path and omit the ordinary `fancy_icons` descriptor. Authored
+clock, calendar, weather and other admitted dynamic programs remain in the
+archive. The option is opt-in because a fixed dark image cannot follow a later
+light-mode switch. The existing automatic option keeps system selection
+behavior and its MAML compatibility resources.
+
+The Phone AVD is HyperOS `OS4.0.31.0.XFRCNXM`, Home `801030308`, resolution
+1120×2436. Validation used KeiHome `114000739`. The AVD imported all 22
+discovered sources after the initial all-at-once run hit its 192 MiB Java heap
+limit. The remaining coverage ran as one-source batches. All 22 then passed
+import validation, followed by 24 real applications and a return to the
+Default icon style. The restored night mode, user icon preference digest and
+stock resource state matched the baseline.
+
+The two generated Perfect variants both imported and applied. The fixed-dark
+archive contained 34 ordinary MAML descriptors and the automatic archive
+contained 98. Their 204 retained dynamic-layer paths were byte-identical.
+The fixed archive was 6.8 MiB and the automatic archive was 22.1 MiB for this
+51-mapping AVD generation. The launcher screenshots show the applied artwork
+and the restored screenshot shows the Default style after cleanup.
+
+The icon settings UI check covered the dynamic switch, the light/dark switch,
+the conditional fixed-dark switch, and persistence while the conditional option
+is hidden and shown again. The Monet suite passed 21 tests. The runtime release
+gate passed for Arcticons Material You, Lawnicons and the HyperOS Monet icon
+pack while toggling both palette seeds and day/night modes. The AVD returned to
+`Night mode: no` with the stock icon style selected.
+
+These AVD checks validate packaging, import, application and restoration. They
+do not establish a universal launcher frame-time improvement or prove that a
+standalone archive should enable fixed-dark by default. Reporter-device
+FrameTimeline comparison remains required before changing the default.
+
 Removing all descriptors is a diagnostic control. On 0308 it changed some
 dark icons to the regular light PNG despite the preserved night PNG tree. It
 also removes the live palette, date and clock program for affected icons.

@@ -294,6 +294,14 @@ and keep their source bytes. Errors name the failing resource.
 
 The current derivation keys are `perfect-static-night-9` and `perfect-dynamic-night-7`. Older generated publications need regeneration and application; downloaded Git objects remain reusable. A generated pack's **Dark layered** count describes dynamic groups only, not total static dark coverage. The retained HyperOS4 audit and current acceptance evidence are under `.artifacts/research/perfect-night-statusbar-20261113/`.
 
+The default-off fixed-dark mode is an explicit performance tradeoff for
+ordinary launcher entries. It removes the ordinary MAML descriptor from the
+published archive and writes the selected dark raster at the native fallback
+path. It does not flatten authored dynamic programs or Monet layers. Use it
+when launcher transition cost matters more than automatic light-mode artwork.
+The AVD acceptance and archive comparison are recorded in
+`docs/maml-launcher-performance.md`.
+
 The [November 14 wordmark refinement](brand-dark-wordmarks-20261114.md) admits
 multiple substantial sparse ink shapes in a shared row. It preserves alpha and
 can include complete warm stems and underlines touching a colored illustration,

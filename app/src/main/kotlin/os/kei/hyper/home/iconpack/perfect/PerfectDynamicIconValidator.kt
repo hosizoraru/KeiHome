@@ -43,7 +43,7 @@ internal object PerfectDynamicIconValidator {
     val configBytes = bytes("config.xml")
     val config = PerfectIconFormat.xml(configBytes)
     val mode = try {
-      layerConfig(configBytes)
+      layerConfig(configBytes, resources.keys)
     } catch (failure: Exception) {
       if (failure is CancellationException || failure is InterruptedException) throw failure
       throw IOException("config.xml (source ${resources.getValue("config.xml").source}): " +
@@ -96,7 +96,7 @@ internal object PerfectDynamicIconValidator {
     return animated
   }
 
-  private fun layerConfig(bytes: ByteArray): NativeLayerConfig {
+  private fun layerConfig(bytes: ByteArray, resources: Set<String>): NativeLayerConfig {
     val limits = IconPackLimits(maxXmlBytes = PerfectIconFormat.MAX_XML)
     val variables = linkedMapOf<String, String>()
     var wrapped = false
@@ -130,7 +130,8 @@ internal object PerfectDynamicIconValidator {
     val parserBytes = ("<Config><Variables>" + variables.entries.joinToString("") { (name, value) ->
       "<Variable name=\"${escape(name)}\" value=\"${escape(value)}\" type=\"string\"/>"
     } + "</Variables></Config>").toByteArray(StandardCharsets.UTF_8)
-    return NativeLayerConfig.parse(parserBytes, limits, check)
+    val availableLayers = NativeLayerConfig.availableLayerDirectories("", resources)
+    return NativeLayerConfig.parse(parserBytes, limits, check, availableLayers)
   }
 
   private fun image(path: String, blob: PerfectIconBlob, read: (PerfectIconBlob) -> ByteArray) {

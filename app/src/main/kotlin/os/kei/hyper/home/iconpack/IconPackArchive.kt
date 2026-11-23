@@ -310,7 +310,14 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
         if (pieces.size == 3 && pieces[0] == "layer_animating_icons" &&
           pieces[2] == "config.xml" && nativeName(pieces[1])) {
           val config = try {
-            NativeLayerConfig.parse(readEntry(zip, path, 64 * 1024, check), limits, check)
+            val base = path.removeSuffix("config.xml")
+            val availableLayers = NativeLayerConfig.availableLayerDirectories(base, paths)
+            NativeLayerConfig.parse(
+              readEntry(zip, path, 64 * 1024, check),
+              limits,
+              check,
+              availableLayers,
+            )
           } catch (_: IconPackException) { continue }
           val base = path.removeSuffix("config.xml")
           val qualifiers = IconResourceQualifiers("drawable-nodpi",

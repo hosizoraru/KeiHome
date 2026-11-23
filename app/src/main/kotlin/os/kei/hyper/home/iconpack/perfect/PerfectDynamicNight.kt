@@ -6,7 +6,7 @@ import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 
 /** Resource roles, not package names or filenames such as "bg", determine the tint operation. */
 internal object PerfectDynamicNight {
-  const val REVISION = "perfect-dynamic-night-9"
+  const val REVISION = "perfect-dynamic-night-10"
 
   data class Group(
     val files: Map<String, PerfectIconBlob>,
@@ -28,7 +28,8 @@ internal object PerfectDynamicNight {
     check()
     if (files.size > 256 || files.values.sumOf { it.size } > 32L * 1024 * 1024) return null
     val config = files["config.xml"] ?: return null
-    val layers = NativeLayerConfig.parse(read(config), IconPackLimits(), check)
+    val availableLayers = NativeLayerConfig.availableLayerDirectories("", files.keys)
+    val layers = NativeLayerConfig.parse(read(config), IconPackLimits(), check, availableLayers)
     if (layers.layers.size !in 2..4) return null
     val backgroundDirectory = layers.layers.first()
     val backgroundQuiet = "$backgroundDirectory/quiet/quietImage.png"

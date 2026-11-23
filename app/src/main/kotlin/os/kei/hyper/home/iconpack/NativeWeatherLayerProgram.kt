@@ -59,6 +59,9 @@ internal object NativeWeatherLayerProgram {
       )),
     ),
   )
+  private val numericProgram = program.copy(
+    children = program.children.filterNot { it.tag == "Image" },
+  )
 
   private data class Boundary(val tag: String, val attributes: Map<String, String>?, val depth: Int)
 
@@ -71,6 +74,85 @@ internal object NativeWeatherLayerProgram {
     append(root, 1)
   }
   private val expected = boundaries(program)
+  private val numericExpected = boundaries(numericProgram)
+
+  private val weatherGlobalProgram = element(
+    "Icon",
+    "version" to "1", "frameRate" to "0", "width" to "351", "height" to "351",
+    "screenWidth" to "1080", "useVariableUpdater" to "DateTime.Minute",
+    children = listOf(
+      element("VariableBinders", children = listOf(
+        weatherGlobalBinder(
+          "weather_provider", "content://weather/actualWeatherData/1",
+        ),
+        weatherGlobalBinder("weather_provider2", "content://weather/weather"),
+      )),
+      element(
+        "Var", "name" to "weather_temperature",
+        "expression" to "ifelse(#weather_publish_time1,#weather_temperature1,#weather_temperature2)",
+      ),
+      element(
+        "Var", "name" to "weather_publish_time",
+        "expression" to "max(#weather_publish_time1,#weather_publish_time2)",
+      ),
+      element("ExternalCommands", children = listOf(
+        element("Trigger", "action" to "init,resume", children = listOf(
+          element("BinderCommand", "name" to "weather_provider", "command" to "refresh"),
+          element("BinderCommand", "name" to "weather_provider2", "command" to "refresh"),
+        )),
+      )),
+      element(
+        "Group", "visibility" to "#weather_publish_time!=0",
+        children = listOf(element(
+          "ImageChars",
+          "x" to "351/2-84", "y" to "351/2-102",
+          "src" to "num.png", "string" to "#weather_temperature+'°'",
+        )),
+      ),
+    ),
+  )
+
+  private fun weatherGlobalBinder(name: String, uri: String) = element(
+    "ContentProviderBinder",
+    "name" to name,
+    "uri" to uri,
+    "columns" to "city_name,weather_type,temperature,city_id,aqilevel,publish_time",
+    "countName" to "hasweather",
+    children = listOf(
+      element("Variable", "name" to "${if (name.endsWith("2")) "weather_location2" else "weather_location"}",
+        "type" to "string", "column" to "city_name"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "weather_id2" else "weather_id"}",
+        "type" to "int", "column" to "weather_type"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "weather_temperature2" else "weather_temperature1"}",
+        "type" to "int", "column" to "temperature"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "weather_temperature_str2" else "weather_temperature_str"}",
+        "type" to "string", "column" to "temperature"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "temperature_unit2" else "temperature_unit"}",
+        "type" to "int", "column" to "temperature_unit"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "city_id2" else "city_id"}",
+        "type" to "string", "column" to "city_id"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "aqi2" else "aqi"}",
+        "type" to "int", "column" to "aqilevel"),
+      element("Variable", "name" to "${if (name.endsWith("2")) "weather_publish_time2" else "weather_publish_time1"}",
+        "type" to "int", "column" to "publish_time"),
+    ),
+  )
+
+  private fun matches(bytes: ByteArray, expected: List<Boundary>): Boolean {
+    var cursor = 0
+    return try {
+      BoundedPackXml.read(bytes, limits, start = { tag, attributes, depth ->
+        require(expected.getOrNull(cursor++) == Boundary(tag, attributes, depth))
+      }, text = { value, _ ->
+        require(value.all { it == ' ' || it == '\t' || it == '\r' || it == '\n' })
+      }, end = { tag, depth ->
+        require(expected.getOrNull(cursor++) == Boundary(tag, null, depth))
+      })
+      cursor == expected.size
+    } catch (_: IconPackException) {
+      false
+    }
+  }
 
   private fun visibility(node: Element, dark: Boolean) = node.copy(
     attributes = node.attributes + ("visibility" to if (dark) "#__darkmode" else "!#__darkmode"))
@@ -91,7 +173,33 @@ internal object NativeWeatherLayerProgram {
       }
     },
   )
+  private val darkNumericProgram = numericProgram.copy(
+    attributes = numericProgram.attributes + ("useVariableUpdater" to "DateTime.Minute,DarkMode"),
+    children = numericProgram.children.flatMap { node ->
+      if (node.tag != "Group") return@flatMap listOf(node)
+      listOf(node.copy(children = listOf(
+        visibility(element("Group", children = node.children), false),
+        visibility(element("Group", children = node.children.map {
+          it.copy(attributes = it.attributes + ("src" to "keihome_night/num.png"))
+        }), true),
+      )))
+    },
+  )
+  private val darkNumericExpected = boundaries(darkNumericProgram)
   private val darkExpected = boundaries(darkProgram)
+  private val globalExpected = boundaries(weatherGlobalProgram)
+  private val darkGlobalProgram = weatherGlobalProgram.copy(
+    attributes = weatherGlobalProgram.attributes + ("useVariableUpdater" to "DateTime.Minute,DarkMode"),
+    children = weatherGlobalProgram.children.map { node ->
+      if (node.tag != "Group") node else node.copy(children = listOf(
+        visibility(element("Group", children = node.children), false),
+        visibility(element("Group", children = node.children.map {
+          it.copy(attributes = it.attributes + ("src" to "keihome_night/num.png"))
+        }), true),
+      ))
+    },
+  )
+  private val darkGlobalExpected = boundaries(darkGlobalProgram)
 
   /**
    * Returns the complete image closure for this exact program, or null on any mismatch.
@@ -101,7 +209,19 @@ internal object NativeWeatherLayerProgram {
     if (base.length > 1024 || !localBase.matches(base) || ".." in base ||
       bytes.isEmpty() || bytes.size > limits.maxXmlBytes) return null
     val required = images.mapTo(linkedSetOf()) { base + it }
-    if (!paths.containsAll(required)) return null
+    val numericRequired = required - (base + "bg.png")
+    val sourceResources: Set<String>
+    val sourceSchemas: List<List<Boundary>>
+    val darkSchemas: List<List<Boundary>>
+    if (paths.containsAll(required)) {
+      sourceResources = required
+      sourceSchemas = listOf(expected)
+      darkSchemas = listOf(darkExpected)
+    } else if (paths.containsAll(numericRequired)) {
+      sourceResources = numericRequired
+      sourceSchemas = listOf(numericExpected, globalExpected)
+      darkSchemas = listOf(darkNumericExpected, darkGlobalExpected)
+    } else return null
 
     // BoundedPackXml ignores processing instructions. Only the XML declaration is permitted here.
     // Its strict decoder and XML parser subsequently validate encoding and declaration syntax.
@@ -114,30 +234,23 @@ internal object NativeWeatherLayerProgram {
       .replace(declaration, "")
     if ("<?" in markup) return null
 
-    fun matches(expected: List<Boundary>): Boolean {
-      var cursor = 0
-      return try {
-        BoundedPackXml.read(bytes, limits, start = { tag, attributes, depth ->
-          require(expected.getOrNull(cursor++) == Boundary(tag, attributes, depth))
-        }, text = { value, _ ->
-          require(value.all { it == ' ' || it == '\t' || it == '\r' || it == '\n' })
-        }, end = { tag, depth ->
-          require(expected.getOrNull(cursor++) == Boundary(tag, null, depth))
-        })
-        cursor == expected.size
-      } catch (_: IconPackException) {
-        false
-      }
+    val isSource = sourceSchemas.any { matches(bytes, it) }
+    val isDark = darkSchemas.any { matches(bytes, it) }
+    if (!isSource && !isDark) return null
+    val darkResources = sourceResources.mapTo(linkedSetOf()) {
+      base + "keihome_night/" + it.removePrefix(base)
     }
-    if (matches(expected)) return required
-    val darkResources = images.mapTo(linkedSetOf()) { base + "keihome_night/" + it }
-    return if (paths.containsAll(darkResources) && matches(darkExpected)) required + darkResources else null
+    return if (isDark && paths.containsAll(darkResources)) {
+      sourceResources + darkResources
+    } else if (isDark) null else sourceResources
   }
 
   /** Rewrites only the exact original display tree; provider queries and event timing are unchanged. */
   fun darkVariant(bytes: ByteArray, base: String, paths: Set<String>): ByteArray? {
     val required = resources(bytes, base, paths) ?: return null
     if (required.any { it.startsWith(base + "keihome_night/") }) return null
+    val numeric = base + "bg.png" !in required
+    val global = numeric && matches(bytes, globalExpected)
     fun escape(value: String) = value.replace("&", "&amp;").replace("\"", "&quot;")
       .replace("<", "&lt;").replace(">", "&gt;")
     val xml = buildString {
@@ -153,7 +266,7 @@ internal object NativeWeatherLayerProgram {
           append("</").append(node.tag).append('>')
         }
       }
-      appendElement(darkProgram)
+      appendElement(if (global) darkGlobalProgram else if (numeric) darkNumericProgram else darkProgram)
     }
     return xml.toByteArray(Charsets.UTF_8)
   }

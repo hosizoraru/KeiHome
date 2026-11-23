@@ -47,10 +47,15 @@ internal object LocalLayerIconValidator {
       pieces.size == 3 && pieces[2] == "config.xml" && validNativeIconName(pieces[1]) && '.' in pieces[1]
     }
     for (configPath in configs) {
-      val config = NativeLayerConfig.parse(read(configPath, limits.maxXmlBytes.toLong()), limits)
       consumed += configPath
       val base = configPath.removeSuffix("config.xml")
       val iconName = base.trimEnd('/').substringAfterLast('/')
+      val availableLayers = NativeLayerConfig.availableLayerDirectories(base, paths)
+      val config = NativeLayerConfig.parse(
+        read(configPath, limits.maxXmlBytes.toLong()),
+        limits,
+        availableLayers = availableLayers,
+      )
       val rootQuiet = base + "quiet/quietImage.png"
       if (rootQuiet in paths) bitmap(rootQuiet)
       for (layer in config.layers) {

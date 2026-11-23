@@ -9,7 +9,19 @@ internal data class NativeLayerConfig(
   companion object {
     const val MAX_LAYERS = 8
 
-    fun parse(bytes: ByteArray, limits: IconPackLimits, check: () -> Unit = {}): NativeLayerConfig {
+    fun availableLayerDirectories(base: String, paths: Set<String>): Set<String> =
+      paths.mapNotNull { path ->
+        if (!path.startsWith(base)) return@mapNotNull null
+        val relative = path.removePrefix(base)
+        relative.substringBefore('/').takeIf { '/' in relative && it.isNotEmpty() }
+      }.toSet()
+
+    fun parse(
+      bytes: ByteArray,
+      limits: IconPackLimits,
+      check: () -> Unit = {},
+      availableLayers: Set<String> = emptySet(),
+    ): NativeLayerConfig {
       val variables = linkedMapOf<String, String>()
       var containers = 0
       BoundedPackXml.read(bytes, limits, check, start = { tag, attrs, depth ->
@@ -32,6 +44,7 @@ internal data class NativeLayerConfig(
       val slots = sortedMapOf<Int, String>()
       val quietSlots = mutableSetOf<Int>()
       val fancySlots = mutableSetOf<Int>()
+      val exclusiveSlots = mutableSetOf<Int>()
       variables.forEach { (name, value) ->
         when {
           name.matches(Regex("layer[0-7]")) -> {
@@ -49,12 +62,21 @@ internal data class NativeLayerConfig(
           name.matches(Regex("layer_only_(quiet|fancy)[0-7]")) -> {
             if (value !in setOf("true", "false")) throw IconPackException("Invalid quiet-layer flag")
             if (value == "true") {
-              if (name.startsWith("layer_only_quiet")) quietSlots += name.last().digitToInt()
-              else fancySlots += name.last().digitToInt()
+              val slot = name.last().digitToInt()
+              exclusiveSlots += slot
+              if (name.startsWith("layer_only_quiet")) quietSlots += slot
+              else fancySlots += slot
             }
           }
           else -> throw IconPackException("Unsupported native layer variable: $name")
         }
+      }
+      // A small set of HyperOS 4 source packages omitted a numeric layerN
+      // variable while retaining layer_only_*N and the matching directory.
+      // Recover only when the resource tree proves that the omitted slot exists.
+      exclusiveSlots.filter { it !in slots }.forEach { slot ->
+        if (slot.toString() !in availableLayers) throw IconPackException("Invalid native layer declarations")
+        slots[slot] = slot.toString()
       }
       if (slots.isEmpty() || slots.keys.toList() != (0 until slots.size).toList() ||
         slots.values.distinct().size != slots.size ||

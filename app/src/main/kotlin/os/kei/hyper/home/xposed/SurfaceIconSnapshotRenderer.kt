@@ -206,7 +206,16 @@ internal object SurfaceIconSnapshotRenderer {
       val base = "${prefix}layer_animating_icons/$name/"
       bytes(base + "config.xml", 64 * 1024)?.let { config ->
         val layers = try {
-          NativeLayerConfig.parse(config, IconPackLimits(maxXmlBytes = 64 * 1024), check).layers
+          val availableLayers = NativeLayerConfig.availableLayerDirectories(
+            base,
+            zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet(),
+          )
+          NativeLayerConfig.parse(
+            config,
+            IconPackLimits(maxXmlBytes = 64 * 1024),
+            check,
+            availableLayers,
+          ).layers
         } catch (_: Exception) { null }
         if (layers != null) {
           // Quiet assets are completed snapshots, independent of native texture bounds.

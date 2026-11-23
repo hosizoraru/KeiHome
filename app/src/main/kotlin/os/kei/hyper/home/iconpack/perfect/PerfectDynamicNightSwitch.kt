@@ -62,7 +62,12 @@ internal object PerfectDynamicNightSwitch {
       admitted.bgAssets != group.bgAssets || admitted.compositeQuiet != group.compositeQuiet ||
       admitted.compositeQuietLayers != group.compositeQuietLayers ||
       admitted.compositeQuietProofLayers != group.compositeQuietProofLayers) return null
-    val layers = NativeLayerConfig.parse(originals.getValue("config.xml"), IconPackLimits())
+    val availableLayers = NativeLayerConfig.availableLayerDirectories("", originals.keys)
+    val layers = NativeLayerConfig.parse(
+      originals.getValue("config.xml"),
+      IconPackLimits(),
+      availableLayers = availableLayers,
+    )
     val backgroundDirectory = layers.layers.first()
     for (path in group.nightPaths) {
       PerfectIconFormat.raster(originals.getValue(path))
@@ -184,7 +189,11 @@ internal object PerfectDynamicNightSwitch {
       }
     }
     val configBytes = serialize(config)
-    val updatedLayers = NativeLayerConfig.parse(configBytes, IconPackLimits())
+    val updatedLayers = NativeLayerConfig.parse(
+      configBytes,
+      IconPackLimits(),
+      availableLayers = availableLayers,
+    )
     if (backgroundDirectory !in updatedLayers.fancyOnly ||
       backgroundDirectory in updatedLayers.quietOnly) return null
     output["config.xml"] = configBytes

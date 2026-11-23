@@ -145,7 +145,13 @@ internal object PublishedIconCompositeMask {
           if ("${root}quiet/quietImage.png" !in entries || "/layer_animating_icons/" !in "/$root") continue
           val configBytes = read("${root}config.xml", MAX_XML_BYTES) ?: continue
           val config = try {
-            NativeLayerConfig.parse(configBytes, IconPackLimits(maxXmlBytes = MAX_XML_BYTES), check)
+            val availableLayers = NativeLayerConfig.availableLayerDirectories("", paths)
+            NativeLayerConfig.parse(
+              configBytes,
+              IconPackLimits(maxXmlBytes = MAX_XML_BYTES),
+              check,
+              availableLayers,
+            )
           } catch (_: IconPackException) { continue }
           if (config.layers.size != 2) continue
           // Only the exact weather display/provider schema identifies this root quiet as a

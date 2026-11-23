@@ -209,9 +209,35 @@ produced a Hyper ZIP of 837,265,373 bytes with 2,428 static icons and a
 HyperOSClassic ZIP of 842,817,152 bytes with 2,434 static icons. Both passed
 local import and final MTZ validation with 31 dynamic icons, 13 additional
 dark adaptations, and 12 byte-identical vector files per style. The weather
-group declares a fancy-only slot 2 without a corresponding `layer2` and is
-skipped by the existing generation rule. This check ends at the completed
-theme handoff.
+group declares a fancy-only slot 2 without a corresponding `layer2`. The
+retained source was used as a compatibility fixture for the follow-up repair
+below. This check ends at the completed theme handoff.
+
+### Hyper source compatibility follow-up, 2026-11-24
+
+The retained Hyper and HyperOSClassic source modules were rescanned after the
+1.14.0 import report. The scan covered 36 real ZIPs, including both styles,
+the full dynamic-original archive, and the original per-package layer modules.
+All 36 passed the current local native admission path. The receipts are in
+`.artifacts/research/perfect-hyper-native-20261124/current-scan-results.txt`.
+
+Two source conventions were responsible for the remaining false rejections.
+Hyper weather keeps `layer_only_fancy2` and the `2/fancy` resource directory
+while omitting `layer2` from `config.xml`. The bounded config reader now
+recovers that slot only when the matching numeric resource directory exists.
+HyperOSClassic weather uses the fixed `actualWeatherData/4` provider schema,
+while Hyper weather uses the two-provider `actualWeatherData/1` and
+`weather` schema. Both are now recognized by the existing weather-only
+structural validator. The resource closure, provider names, refresh behavior,
+temperature expression, image set, and XML bounds remain checked. No general
+provider or external-script admission was added.
+
+The change increments the derived dynamic revision to
+`perfect-dynamic-night-10`, so already generated packs are regenerated when
+the dynamic dark-artwork option is enabled. The complete import, generator,
+MTZ preparation, and native admission checks remain separate. This scan did
+not claim Theme application or visual animation acceptance on a physical
+device.
 
 The 2026-11-09 UI acceptance checkpoint is recorded separately in
 `.artifacts/research/perfect-preview-20261109/acceptance.json`, including the
@@ -313,7 +339,16 @@ foreground over the derived plate preserves those lines and the translucent
 pencil glow. Downloaded artwork is reused; an already applied older generated
 pack still requires regeneration and application to receive the corrected PNGs.
 
-The retained source weather program also has a separate exact structural admission, shared by generation and local validation: its sole temperature query, existing ten-minute refresh condition, delayed refresh command and complete 13-image glyph closure must all match. Its paired dark form must preserve that same provider contract and declare the complete local day/night image closure. Extra binders, queries, attributes, commands, text or faster refresh timing are rejected. This supports the recognized weather artwork without enabling general-purpose provider binders.
+The retained source weather programs have a separate exact structural admission,
+shared by generation and local validation. The Classic variant keeps its sole
+temperature query, ten-minute refresh condition, delayed refresh command and
+complete 13-image glyph closure. The Hyper variant keeps its two fixed provider
+queries, temperature selection expressions and refresh commands with the same
+13-image closure. Their paired dark forms preserve the selected provider
+contract and declare the complete local day/night image closure. Extra binders,
+queries, attributes, commands, text or faster refresh timing are rejected.
+This supports the recognized weather artwork without enabling general-purpose
+provider binders.
 
 Source image position/alpha keyframes retain their original timing. Admission limits these tracks to local images, literal bounded values, ordered times within 60 seconds, at most 64 items per track, 32 tracks and 256 items per program. Only the two-integer `play(start,end)` command is accepted for a resolved image with keyframes; additional loop parameters, expression-driven playback, duplicate tracks and external actions remain rejected.
 

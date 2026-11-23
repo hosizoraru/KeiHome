@@ -19,7 +19,6 @@ internal fun isNightModeTransition(previous: Int, current: Int): Boolean {
 internal enum class IconRefreshCause(val initialDelayMs: Long, val packageIntervalMs: Long) {
   RESOURCE_CHANGE(1500L, 220L),
   PALETTE_ACK(100L, 60L),
-  LAUNCHER_LABEL_ACK(100L, 0L),
   PACKAGE_CHANGE(500L, 60L),
 }
 
@@ -31,21 +30,10 @@ internal class IconRefreshGeneration {
   // cannot turn its unfinished work into a fast palette-only sweep.
   private var resourceChangePending = false
   private val changedPackages = linkedSetOf<String>()
-  private var packageChangesPending = false
 
   @Synchronized
   fun nextPackageRefresh(packageName: String): Long? {
-    return nextScopedRefresh(packageName, packageChange = true)
-  }
-
-  @Synchronized
-  fun nextLauncherLabelRefresh(packageName: String): Long? {
-    return nextScopedRefresh(packageName, packageChange = false)
-  }
-
-  private fun nextScopedRefresh(packageName: String, packageChange: Boolean): Long? {
     if (retired) return null
-    packageChangesPending = packageChangesPending || packageChange
     changedPackages += packageName
     value += 1
     return value
@@ -68,10 +56,8 @@ internal class IconRefreshGeneration {
   @Synchronized
   fun cause(generation: Long): IconRefreshCause =
     if (packages(generation) != null) {
-      if (packageChangesPending) IconRefreshCause.PACKAGE_CHANGE
-      else IconRefreshCause.LAUNCHER_LABEL_ACK
-    }
-    else if (!retired && generation == value && fullRefreshRequired && !resourceChangePending) {
+      IconRefreshCause.PACKAGE_CHANGE
+    } else if (!retired && generation == value && fullRefreshRequired && !resourceChangePending) {
       IconRefreshCause.PALETTE_ACK
     } else {
       IconRefreshCause.RESOURCE_CHANGE
@@ -87,7 +73,6 @@ internal class IconRefreshGeneration {
       fullRefreshRequired = false
       resourceChangePending = false
       changedPackages.clear()
-      packageChangesPending = false
     }
   }
 
@@ -108,7 +93,6 @@ internal class IconRefreshGeneration {
     fullRefreshRequired = false
     resourceChangePending = false
     changedPackages.clear()
-    packageChangesPending = false
     value += 1
   }
 }

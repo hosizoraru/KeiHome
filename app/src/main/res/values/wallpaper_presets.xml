@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wallpaper_presets_title">Wallpaper presets by appearance</string>
+    <string name="wallpaper_presets_summary">Choose a System Personalization preset for light and dark mode.</string>
+    <string name="wallpaper_presets_scope">Enable the System Framework scope to switch wallpaper presets.</string>
+    <string name="wallpaper_presets_refresh">Refresh wallpaper presets</string>
+    <string name="wallpaper_presets_light">Light mode</string>
+    <string name="wallpaper_presets_dark">Dark mode</string>
+    <string name="wallpaper_presets_keep">Keep the current wallpaper preset</string>
+    <string name="wallpaper_presets_current">In use</string>
+    <string name="wallpaper_presets_number">Preset %1$d</string>
+    <string name="wallpaper_presets_selected">Selected for this mode</string>
+    <string name="wallpaper_presets_loading">Reading System Personalization presets…</string>
+    <string name="wallpaper_presets_unavailable">Could not read wallpaper presets. Refresh to try again.</string>
+    <string name="wallpaper_presets_empty">Create a wallpaper preset in System Personalization to get started.</string>
+    <string name="wallpaper_presets_missing">The saved preset is unavailable. Choose a preset again.</string>
+    <string name="wallpaper_presets_save_failed">Could not confirm the save. Refresh to check your selection.</string>
+    <string name="wallpaper_presets_apply_failed">HyperOS could not apply this preset.</string>
+</resources>

@@ -30,6 +30,7 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.MonetAction
 import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.data.WallpaperDimmingPreferences
+import os.kei.hyper.home.data.WallpaperPresetPreferences
 import os.kei.hyper.home.status.IconRefreshReceipt
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.IconPackImportProtocol
@@ -51,6 +52,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private val navigationBackdrop: NativeNavigationBackdropRuntime =
     NativeNavigationBackdropRuntime(xposed) { launcherControl.requestNavigationStatus() }
   @Volatile private var navigationBackdropReady = false
+  private val wallpaperPresets = WallpaperPresetMonitor(
+    openPreferences = { xposed.getRemotePreferences(WallpaperPresetPreferences.GROUP) },
+    onFailure = { logFailure("Wallpaper preset operation failed", it) },
+  )
   private val launcherControl = LauncherControlMonitor(
     navigationStatus = { navigationBackdropReady to navigationBackdrop.fingerprint() },
     notifyLauncher = ::notifyLauncherOfAppearanceChange,
@@ -417,6 +422,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       monetColorMonitor.stop()
       navigationBackdrop.stop()
       launcherControl.stop()
+      wallpaperPresets.stop()
       iconPackImportMonitor.stop()
       frameworkManager.stop()
       stopRefreshWorker()
@@ -447,6 +453,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         monetColorMonitor.stop()
         navigationBackdrop.stop()
         launcherControl.stop()
+        wallpaperPresets.stop()
         iconPackImportMonitor.stop()
         true
       },
@@ -472,6 +479,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       frameworkManager.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
       launcherControl.awaitStopped(deadline) &&
+      wallpaperPresets.awaitStopped(deadline) &&
       iconPackImportMonitor.awaitStopped(deadline) &&
       NativeMonetSocketBroker.awaitStopped(deadline) &&
       IconResourceProbeClient.awaitOwnedReplyThreadsStopped(deadline)
@@ -484,6 +492,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         service?.let { profile.context.get(it) } as? Context
       } ?: return
       launcherControl.start(context)
+      wallpaperPresets.start(context)
       synchronized(lock) {
         if (!lifecycle.retiring && !lifecycle.retired && recentTaskIcons == null) {
           recentTaskLoader?.let { loader ->

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wallpaper_presets_title">外観モード別の壁紙セット</string>
+    <string name="wallpaper_presets_summary">ライトモードとダークモードで使うシステムの壁紙セットを選びます。</string>
+    <string name="wallpaper_presets_scope">システムフレームワークを対象に追加すると、外観に合わせて壁紙セットを切り替えられます。</string>
+    <string name="wallpaper_presets_refresh">壁紙セットを更新</string>
+    <string name="wallpaper_presets_light">ライトモード</string>
+    <string name="wallpaper_presets_dark">ダークモード</string>
+    <string name="wallpaper_presets_keep">現在の壁紙セットを維持</string>
+    <string name="wallpaper_presets_current">使用中</string>
+    <string name="wallpaper_presets_number">壁紙セット %1$d</string>
+    <string name="wallpaper_presets_selected">このモードで選択済み</string>
+    <string name="wallpaper_presets_loading">システムの壁紙セットを読み込み中…</string>
+    <string name="wallpaper_presets_unavailable">壁紙セットを読み込めませんでした。更新して再試行してください。</string>
+    <string name="wallpaper_presets_empty">システムのパーソナライズで壁紙セットを作成してください。</string>
+    <string name="wallpaper_presets_missing">選択済みの壁紙セットを利用できません。もう一度選択してください。</string>
+    <string name="wallpaper_presets_save_failed">保存を確認できませんでした。更新して現在の選択を確認してください。</string>
+    <string name="wallpaper_presets_apply_failed">HyperOS でこの壁紙セットを適用できませんでした。</string>
+</resources>

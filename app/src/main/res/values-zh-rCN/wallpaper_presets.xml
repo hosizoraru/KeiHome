@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wallpaper_presets_title">深浅色壁纸搭配</string>
+    <string name="wallpaper_presets_summary">为浅色和深色模式分别选择一套系统个性化搭配。</string>
+    <string name="wallpaper_presets_scope">启用系统框架作用域后即可按深浅色切换壁纸搭配。</string>
+    <string name="wallpaper_presets_refresh">刷新壁纸搭配</string>
+    <string name="wallpaper_presets_light">浅色模式</string>
+    <string name="wallpaper_presets_dark">深色模式</string>
+    <string name="wallpaper_presets_keep">保持当前壁纸搭配</string>
+    <string name="wallpaper_presets_current">正在使用</string>
+    <string name="wallpaper_presets_number">搭配 %1$d</string>
+    <string name="wallpaper_presets_selected">已为此模式选用</string>
+    <string name="wallpaper_presets_loading">正在读取系统个性化搭配…</string>
+    <string name="wallpaper_presets_unavailable">暂时无法读取系统搭配，点按刷新重试。</string>
+    <string name="wallpaper_presets_empty">请先在系统个性化中创建壁纸搭配。</string>
+    <string name="wallpaper_presets_missing">已选搭配暂不可用，请重新选择。</string>
+    <string name="wallpaper_presets_save_failed">暂时无法确认保存结果，刷新后可查看当前选择。</string>
+    <string name="wallpaper_presets_apply_failed">HyperOS 暂时无法应用这套搭配。</string>
+</resources>

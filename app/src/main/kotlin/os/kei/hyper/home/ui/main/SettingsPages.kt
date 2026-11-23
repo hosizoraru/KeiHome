@@ -131,6 +131,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     searchGlassContent = { SearchGlassSettingsCard(model) },
     wallpaperDimmingContent = { WallpaperDimmingSettingsCard(model) },
+    wallpaperPresetsContent = { WallpaperPresetSettingsCard(model) },
     splashIconsContent = { SplashIconSettingsCard(splashIcons, framework.splashAppearanceInScope(),
       model.splashIcons::save, scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed) },
     staticScopeContent = {

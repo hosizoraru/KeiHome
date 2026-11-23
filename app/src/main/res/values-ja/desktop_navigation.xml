@@ -4,8 +4,8 @@
     <string name="desktop_connection_title">ホーム接続</string>
     <string name="desktop_overview_summary">カテゴリ別に設定と同期状態を確認できます。</string>
     <string name="desktop_dock_summary">素材、角丸、レイアウト</string>
-    <string name="desktop_display_title">検索とラベル</string>
-    <string name="desktop_display_summary">検索バーの質感とアプリ名</string>
+    <string name="desktop_display_title">外観</string>
+    <string name="desktop_display_summary">検索バーの質感、アプリ名、壁紙</string>
     <string name="desktop_icons_title">アイコンと起動画面</string>
     <string name="desktop_icons_summary">アイコン効果、起動アイコンと背景</string>
 </resources>

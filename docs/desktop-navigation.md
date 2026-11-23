@@ -6,7 +6,7 @@ Desktop is a category overview rather than a full settings form:
 | --- | --- | --- |
 | Overview | Category navigation | Launcher connection only |
 | Dock | Material, corners, height, spacing and offsets | Dock acknowledgement and capability only |
-| Search and labels | Search-bar material and label display | Search material and label acknowledgements and capabilities |
+| Appearance | Search-bar material, label display, light/dark wallpaper presets and dark-mode wallpaper dimming | Search material and label acknowledgements and capabilities |
 | Icons and launch screens | Icon mask/effects, launch-background adaptation | Each control's saved value, availability and read/write failures |
 
 The last two controls moved from Settings > System and Hook. Their persisted

@@ -46,11 +46,19 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private var nativeBrokerInstallFailure: String? = null
   private var convertedIconRuntime: ConvertedIconRuntime? = null
   private val navigationBackdrop: NativeNavigationBackdropRuntime =
-    NativeNavigationBackdropRuntime(xposed) { navigationStatus.request() }
+    NativeNavigationBackdropRuntime(xposed) { launcherControl.requestNavigationStatus() }
   @Volatile private var navigationBackdropReady = false
-  private val navigationStatus = NavigationBackdropStatusMonitor(
-    current = { navigationBackdropReady to navigationBackdrop.fingerprint() },
-    onFailure = { logFailure("could not publish navigation compatibility status", it) },
+  private val launcherControl = LauncherControlMonitor(
+    navigationStatus = { navigationBackdropReady to navigationBackdrop.fingerprint() },
+    notifyLauncher = ::notifyLauncherOfAppearanceChange,
+    onReady = { context, handler ->
+      synchronized(lock) {
+        if (hooksReady && !lifecycle.retiring && !lifecycle.retired) {
+          frameworkManager.start(context, handler)
+        }
+      }
+    },
+    onFailure = { logFailure("launcher control operation failed", it) },
   )
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme) { recentTaskLoader }
@@ -103,7 +111,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     statusPreferences = { xposed.getRemotePreferences(RuntimeStatusProtocol.GROUP) },
     onStatusDiagnostic = { message -> xposed.log(Log.INFO, TAG, "Runtime status: $message") },
     onUserUnlocked = {
-      navigationStatus.request()
+      launcherControl.requestNavigationStatus()
       iconPackImportMonitor.request()
     },
     refreshReceipt = { lastRefreshReceipt },
@@ -114,36 +122,15 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     },
     onLauncherLabelsChanged = {
       xposed.log(Log.INFO, TAG, "Launcher label mode acknowledged; notifying mounted titles")
-      synchronized(lock) {
-        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
-          generations.nextLauncherLabelRefresh(BuildConfig.APPLICATION_ID)?.let {
-            pending.replace(IconRefreshRequest(it, 0))
-          }
-          postPendingLocked()
-        }
-      }
+      launcherControl.requestLauncherUpdate()
     },
     onDockGlassChanged = {
       xposed.log(Log.INFO, TAG, "Dock glass choice acknowledged; notifying native home screen")
-      synchronized(lock) {
-        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
-          generations.nextLauncherLabelRefresh(BuildConfig.APPLICATION_ID)?.let {
-            pending.replace(IconRefreshRequest(it, 0))
-          }
-          postPendingLocked()
-        }
-      }
+      launcherControl.requestLauncherUpdate()
     },
     onLauncherGlassChanged = {
       xposed.log(Log.INFO, TAG, "Launcher wallpaper glass material accepted; notifying native home screen")
-      synchronized(lock) {
-        if (!lifecycle.retiring && !lifecycle.retired && hooksReady) {
-          generations.nextLauncherLabelRefresh(BuildConfig.APPLICATION_ID)?.let {
-            pending.replace(IconRefreshRequest(it, 0))
-          }
-          postPendingLocked()
-        }
-      }
+      launcherControl.requestLauncherUpdate()
     },
     onPackageResourcesChanged = { name ->
       synchronized(lock) {
@@ -382,7 +369,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       NativeMonetSocketBroker.stop()
       monetColorMonitor.stop()
       navigationBackdrop.stop()
-      navigationStatus.stop()
+      launcherControl.stop()
       iconPackImportMonitor.stop()
       frameworkManager.stop()
       stopRefreshWorker()
@@ -411,7 +398,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         NativeMonetSocketBroker.stop()
         monetColorMonitor.stop()
         navigationBackdrop.stop()
-        navigationStatus.stop()
+        launcherControl.stop()
         iconPackImportMonitor.stop()
         true
       },
@@ -436,7 +423,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     return closingWorkers.awaitStopped(deadline) &&
       frameworkManager.awaitStopped(deadline) &&
       monetColorMonitor.awaitStopped(deadline) &&
-      navigationStatus.awaitStopped(deadline) &&
+      launcherControl.awaitStopped(deadline) &&
       iconPackImportMonitor.awaitStopped(deadline) &&
       NativeMonetSocketBroker.awaitStopped(deadline) &&
       IconResourceProbeClient.awaitOwnedReplyThreadsStopped(deadline)
@@ -448,7 +435,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
         service?.let { profile.context.get(it) } as? Context
       } ?: return
-      navigationStatus.start(context)
+      launcherControl.start(context)
       synchronized(lock) {
         if (!lifecycle.retiring && !lifecycle.retired && recentTaskIcons == null) {
           recentTaskLoader?.let { loader ->
@@ -456,13 +443,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           }
         }
       }
-      try {
-        handler?.let { frameworkManager.start(context, it) }
-      } catch (failure: Exception) { logFailure("could not register framework entry", failure) }
       if (nativeBrokerReady) NativeMonetSocketBroker.start(context)
       iconPackImportMonitor.start(context)
       monetColorMonitor.start(context)
-      navigationStatus.request()
+      launcherControl.requestNavigationStatus()
     } catch (failure: Throwable) {
       logFailure("could not observe Monet colors", failure)
     }
@@ -587,6 +571,15 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun refreshCurrent(generation: Long): Boolean = !Thread.currentThread().isInterrupted &&
     !lifecycle.retiring && !lifecycle.retired && generations.isCurrent(generation)
 
+  private fun retryRefresh(request: IconRefreshRequest): Boolean = synchronized(lock) {
+    if (!refreshCurrent(request.generation) || request.attempt >= MAX_SNAPSHOT_RETRIES) {
+      return@synchronized false
+    }
+    pending.replace(request.copy(attempt = request.attempt + 1))
+    postPendingLocked()
+    true
+  }
+
   private fun refresh(request: IconRefreshRequest, ticket: Long) {
     val generation = request.generation
     val cause = synchronized(lock) {
@@ -595,26 +588,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       lifecycle.activeJobs += 1
       generations.cause(generation)
     }
+    val isCurrent = { refreshCurrent(generation) }
     var sent = 0
     var completed = false
     try {
       val launcherService = service ?: return
       val listeners = snapshotListeners(launcherService)
       if (listeners == null) {
-        val exhausted = synchronized(lock) {
-          if (!lifecycle.retired && refreshCurrent(generation) &&
-            request.attempt < MAX_SNAPSHOT_RETRIES
-          ) {
-            pending.replace(IconRefreshRequest(generation, request.attempt + 1))
-            postPendingLocked()
-            false
-          } else if (!lifecycle.retired && refreshCurrent(generation)) {
-            true
-          } else {
-            false
-          }
-        }
-        if (exhausted) {
+        if (!retryRefresh(request) && refreshCurrent(generation)) {
           xposed.log(Log.WARN, TAG, "Registered launcher listener snapshot unavailable")
         }
         return
@@ -637,21 +618,6 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             ) != true
           ) continue
           try {
-            // One normal item-change event enters the native title-cache refresh bridge.
-            // It already notifies every mounted title, across the launcher's profiles.
-            // Do not enumerate apps, probe icons, read theme archives or load shortcuts
-            // for a label-only change. Coalesced package/resource changes keep the full
-            // path and their original pacing, so this cannot discard real icon work.
-            if (cause == IconRefreshCause.LAUNCHER_LABEL_ACK) {
-              val name = BuildConfig.APPLICATION_ID
-              val installed = try { launcherApps.getApplicationInfo(name, 0, user) != null }
-                catch (_: android.content.pm.PackageManager.NameNotFoundException) { false }
-                catch (_: SecurityException) { false }
-              if (installed && listener.callback.asBinder().isBinderAlive &&
-                dispatchIfRegistered(launcherService, listener, user, name, generation)
-              ) sent += 1
-              continue
-            }
             val requestedPackages = generations.packages(generation)
             val activities = launcherApps.getActivityList(null, user).filter {
               requestedPackages == null || it.componentName.packageName in requestedPackages
@@ -697,7 +663,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               }
               try {
                 if (dispatchIfRegistered(
-                    launcherService, listener, user, packageName, generation,
+                    launcherService, listener, user, packageName, isCurrent,
                   )
                 ) {
                   sent += 1
@@ -755,12 +721,41 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     }
   }
 
+  private fun notifyLauncherOfAppearanceChange(context: Context, active: () -> Boolean): Int {
+    val isCurrent = { active() && !lifecycle.retiring && !lifecycle.retired }
+    if (!isCurrent()) return 0
+    val launcherService = service ?: return 0
+    val listeners = snapshotListeners(launcherService) ?: return 0
+    val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return 0
+    val users = context.getSystemService(UserManager::class.java) ?: return 0
+    val packageName = BuildConfig.APPLICATION_ID
+    var sent = 0
+    for (listener in listeners) {
+      for (user in enabledProfiles(users, listener.owner).orEmpty()) {
+        if (!isCurrent()) return sent
+        // The native item-change bridge updates the mounted titles and materials.
+        val installed = try { launcherApps.getApplicationInfo(packageName, 0, user) != null }
+          catch (_: android.content.pm.PackageManager.NameNotFoundException) { false }
+          catch (_: SecurityException) { false }
+        try {
+          if (installed && dispatchIfRegistered(launcherService, listener, user, packageName, isCurrent)) {
+            sent++
+          }
+        } catch (failure: Exception) {
+          if (isCurrent()) logFailure("could not notify launcher of appearance change", failure)
+        }
+      }
+    }
+    if (sent > 0) xposed.log(Log.INFO, TAG, "Launcher appearance notification callbacks=$sent")
+    return sent
+  }
+
   private fun dispatchIfRegistered(
     launcherService: Any,
     listener: LauncherListener,
     user: UserHandle,
     packageName: String,
-    generation: Long,
+    isCurrent: () -> Boolean,
   ): Boolean {
     @Suppress("UNCHECKED_CAST")
     val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
@@ -769,7 +764,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       entry is IInterface && profile.callbackClass.isInstance(entry) &&
         entry.asBinder() == listener.callback.asBinder()
     } as? IInterface ?: return false
-    if (!refreshCurrent(generation)) return false
+    if (!isCurrent()) return false
     if (profile.isEnabledProfile.invoke(
         launcherService, listener.cookie, user, "KeiHome icon refresh",
       ) != true ||
@@ -778,6 +773,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       ) != true ||
       !callback.asBinder().isBinderAlive
     ) return false
+    if (!isCurrent()) return false
     profile.onPackageChanged.invoke(callback, user, packageName)
     return true
   }

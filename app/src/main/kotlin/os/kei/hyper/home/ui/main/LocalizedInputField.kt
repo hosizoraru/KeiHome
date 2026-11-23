@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -40,6 +41,7 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.components.os4Clickable
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SearchBarDefaults
+import top.yukonga.miuix.kmp.basic.SearchClearButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Search
@@ -111,15 +113,21 @@ internal fun LocalizedInputField(
           visible = query.isNotEmpty(), enter = fadeIn(), exit = fadeOut(),
         ) {
           val clear = stringResource(R.string.search_clear_text)
-          Icon(
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp).clip(CircleShape)
-              .os4Clickable(enabled = enabled, role = Role.Button, onClickLabel = clear) {
-                onQueryChange("")
-              }.padding(12.dp),
-            imageVector = MiuixIcons.Glass.Close,
-            tint = MiuixTheme.colorScheme.onSurfaceContainerHighest,
-            contentDescription = clear,
-          )
+          val clearBounds = Modifier.padding(horizontal = 4.dp).size(48.dp)
+          if (enabled) {
+            SearchClearButton(onClick = { onQueryChange("") }, modifier = clearBounds,
+              contentDescription = clear)
+          } else {
+            // MIUIX's clear button does not expose a disabled state.
+            Icon(
+              modifier = clearBounds.clip(CircleShape)
+                .os4Clickable(enabled = false, role = Role.Button, onClickLabel = clear) {}
+                .padding(12.dp),
+              imageVector = MiuixIcons.Glass.Close,
+              tint = MiuixTheme.colorScheme.onSurfaceContainerHighest,
+              contentDescription = clear,
+            )
+          }
         }
       }
     },

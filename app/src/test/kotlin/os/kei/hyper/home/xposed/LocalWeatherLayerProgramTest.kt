@@ -36,6 +36,44 @@ class LocalWeatherLayerProgramTest {
       </Group>
     </Icon>
   """.trimIndent()
+  private val globalFixture = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <Icon version="1" frameRate="0" width="351" height="351" screenWidth="1080" useVariableUpdater="DateTime.Minute">
+      <VariableBinders>
+        <ContentProviderBinder name="weather_provider" uri="content://weather/actualWeatherData/1" columns="city_name,weather_type,temperature,city_id,aqilevel,publish_time" countName="hasweather">
+          <Variable name="weather_location" type="string" column="city_name"/>
+          <Variable name="weather_id" type="int" column="weather_type"/>
+          <Variable name="weather_temperature1" type="int" column="temperature"/>
+          <Variable name="weather_temperature_str" type="string" column="temperature"/>
+          <Variable name="temperature_unit" type="int" column="temperature_unit"/>
+          <Variable name="city_id" type="string" column="city_id"/>
+          <Variable name="aqi" type="int" column="aqilevel"/>
+          <Variable name="weather_publish_time1" type="int" column="publish_time"/>
+        </ContentProviderBinder>
+        <ContentProviderBinder name="weather_provider2" uri="content://weather/weather" columns="city_name,weather_type,temperature,city_id,aqilevel,publish_time" countName="hasweather">
+          <Variable name="weather_location2" type="string" column="city_name"/>
+          <Variable name="weather_id2" type="int" column="weather_type"/>
+          <Variable name="weather_temperature2" type="int" column="temperature"/>
+          <Variable name="weather_temperature_str2" type="string" column="temperature"/>
+          <Variable name="temperature_unit2" type="int" column="temperature_unit"/>
+          <Variable name="city_id2" type="string" column="city_id"/>
+          <Variable name="aqi2" type="int" column="aqilevel"/>
+          <Variable name="weather_publish_time2" type="int" column="publish_time"/>
+        </ContentProviderBinder>
+      </VariableBinders>
+      <Var name="weather_temperature" expression="ifelse(#weather_publish_time1,#weather_temperature1,#weather_temperature2)" />
+      <Var name="weather_publish_time" expression="max(#weather_publish_time1,#weather_publish_time2)" />
+      <ExternalCommands>
+        <Trigger action="init,resume">
+          <BinderCommand name="weather_provider" command="refresh" />
+          <BinderCommand name="weather_provider2" command="refresh" />
+        </Trigger>
+      </ExternalCommands>
+      <Group visibility="#weather_publish_time!=0">
+        <ImageChars x="351/2-84" y="351/2-102" src="num.png" string="#weather_temperature+'°'"/>
+      </Group>
+    </Icon>
+  """.trimIndent()
 
   private fun resources(xml: String = fixture, available: Set<String> = paths, directory: String = base) =
     LocalWeatherLayerProgram.resources(xml.toByteArray(), directory, available)
@@ -103,6 +141,42 @@ class LocalWeatherLayerProgramTest {
     val night = "nightmode/$base"
     assertEquals(paths.mapTo(linkedSetOf()) { "nightmode/$it" },
       resources(directory = night, available = paths.mapTo(linkedSetOf()) { "nightmode/$it" }))
+  }
+
+  @Test fun admitsHyperSourceVariantThatUsesTheQuietImageAsItsBackground() {
+    val numericFixture = fixture.replace(
+      Regex("""\s*<Image x="351 / 2" y="351 / 2" align="center" alignV="center" src="bg\.png" />"""),
+      "",
+    )
+    val numericPaths = paths - "${base}bg.png"
+    val original = numericFixture.toByteArray()
+    assertFalse("${base}bg.png" in numericPaths)
+    assertEquals(numericPaths, resources(numericFixture, numericPaths))
+    assertArrayEquals(original, numericFixture.toByteArray())
+    val derived = requireNotNull(os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+      .darkVariant(original, base, numericPaths))
+    val nightPaths = numericPaths.mapTo(linkedSetOf()) {
+      base + "keihome_night/" + it.removePrefix(base)
+    }
+    assertEquals(numericPaths + nightPaths,
+      LocalWeatherLayerProgram.resources(derived, base, numericPaths + nightPaths))
+    assertTrue(derived.toString(Charsets.UTF_8).contains("keihome_night/num.png"))
+  }
+
+  @Test fun admitsHyperGlobalProviderVariantAndDerivesItsDarkTextureSelector() {
+    val base = "layer_animating_icons/com.miui.weather2/2/fancy/"
+    val available = paths.filterNot { it.endsWith("/bg.png") }
+      .mapTo(linkedSetOf()) { it.replace(this.base, base) }
+    val source = globalFixture.toByteArray()
+    assertEquals(available, LocalWeatherLayerProgram.resources(source, base, available))
+    val derived = requireNotNull(os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+      .darkVariant(source, base, available))
+    val night = available.mapTo(linkedSetOf()) {
+      base + "keihome_night/" + it.removePrefix(base)
+    }
+    assertEquals(available + night,
+      LocalWeatherLayerProgram.resources(derived, base, available + night))
+    assertTrue(derived.toString(Charsets.UTF_8).contains("DateTime.Minute,DarkMode"))
   }
 
   @Test fun permitsXmlFormattingAttributeOrderCommentsAndEquivalentEscaping() {

@@ -149,10 +149,8 @@ class PerfectDynamicIconValidatorTest {
         }
       }
       // These are defects in the pinned source, not validator compatibility exceptions:
-      // two flags target an undeclared layer, one manifest and fifteen dependencies are absent.
-      val undeclaredFlags = setOf("Hyper", "HyperOSClassic").map {
-        "$it/layer_animating_icons/com.miui.weather2/"
-      }.toSet()
+      // one manifest and fifteen dependencies are absent. Hyper weather's omitted
+      // layer2 is a supported source convention when its numeric directory exists.
       val missingManifest = setOf("lrone/layer_animating_icons/com.miui.weather2/")
       val missingDependencies = setOf(
         "com.android.browser", "com.android.calendar", "com.android.fileexplorer",
@@ -160,10 +158,9 @@ class PerfectDynamicIconValidatorTest {
         "com.miui.compass", "com.miui.gallery", "com.miui.notes", "com.miui.securitycenter",
         "com.tencent.mm", "com.tencent.mobileqq", "com.xiaomi.market", "com.xiaomi.shop", "tv.danmaku.bili",
       ).map { "luck7/layer_animating_icons/$it/" }.toSet()
-      assertEquals(undeclaredFlags + missingManifest + missingDependencies, rejected.keys)
+      assertEquals(missingManifest + missingDependencies, rejected.keys)
       rejected.forEach { (path, message) ->
         val expected = when (path) {
-          in undeclaredFlags -> "Invalid native layer declarations"
           in missingManifest -> "Missing fancy manifest"
           else -> "Missing fancy dependency"
         }

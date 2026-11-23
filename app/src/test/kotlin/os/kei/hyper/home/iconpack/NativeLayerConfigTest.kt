@@ -20,6 +20,37 @@ class NativeLayerConfigTest {
     assertTrue(c.fancyOnly.isEmpty())
   }
 
+  @Test fun recoversAnOmittedExclusiveSlotOnlyFromItsRealResourceDirectory() {
+    val c = NativeLayerConfig.parse(
+      """
+        <Config><Variables>
+          <Variable name="layer0" value="background"/>
+          <Variable name="layer1" value="foreground"/>
+          <Variable name="layer_only_fancy2" value="true"/>
+        </Variables></Config>
+      """.trimIndent().toByteArray(),
+      IconPackLimits(),
+      availableLayers = setOf("0", "1", "2"),
+    )
+    assertEquals(listOf("background", "foreground", "2"), c.layers)
+    assertEquals(setOf("2"), c.fancyOnly)
+  }
+
+  @Test fun anOmittedExclusiveSlotWithoutAResourceDirectoryIsRejected() {
+    assertThrows(IconPackException::class.java) {
+      NativeLayerConfig.parse(
+        """
+          <Config><Variables>
+            <Variable name="layer0" value="background"/>
+            <Variable name="layer_only_fancy2" value="true"/>
+          </Variables></Config>
+        """.trimIndent().toByteArray(),
+        IconPackLimits(),
+        availableLayers = setOf("0"),
+      )
+    }
+  }
+
   @Test fun missingLayerAndNonBooleanLegacySelectorsAreRejected() {
     for (extra in listOf(
       "<Variable name='use_quiet_when_anim_layer1' value='true'/>",

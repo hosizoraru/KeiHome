@@ -322,8 +322,6 @@ class PerfectIconFormatTest {
         "com.miui.gallery", "com.miui.notes", "com.miui.securitycenter", "com.tencent.mm", "com.tencent.mobileqq",
         "com.xiaomi.market", "com.xiaomi.shop", "tv.danmaku.bili")
       val expectedRejections = mapOf(
-        "Hyper" to setOf("com.miui.weather2"),
-        "HyperOSClassic" to setOf("com.miui.weather2"),
         "lrone" to setOf("com.miui.weather2"),
         "luck7" to knownMissingLuck7Images,
       )

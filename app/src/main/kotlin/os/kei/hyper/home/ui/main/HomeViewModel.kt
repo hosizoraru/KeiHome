@@ -60,6 +60,7 @@ import os.kei.hyper.home.status.reloadStaleJavaTargets
 import os.kei.hyper.home.status.RuntimeStatusProtocol
 import os.kei.hyper.home.status.RuntimeStatusReport
 import os.kei.hyper.home.status.RuntimeStatusUiState
+import os.kei.hyper.home.status.WallpaperPreviewProtocol
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
 import os.kei.hyper.home.iconpack.IconPackImportResult
@@ -255,6 +256,9 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     WallpaperDimmingPreferences::save) { framework.value.wallpaperDimmingInScope() }
   val wallpaperDimmingStrength = WallpaperDimmingStrengthSettings(viewModelScope) {
     framework.value.wallpaperDimmingInScope()
+  }
+  val wallpaperPreviews = WallpaperPreviewCache { screen, cached, force ->
+    WallpaperPreviewProtocol.read(application, screen, cached, force)
   }
   val splashAppearance: StateFlow<ThemeEffectsUiState>
     field = MutableStateFlow(ThemeEffectsUiState())

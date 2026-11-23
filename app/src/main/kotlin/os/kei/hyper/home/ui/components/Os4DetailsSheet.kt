@@ -36,6 +36,7 @@ internal fun Os4DetailsSheet(
   scrollContent: Boolean = true,
   onDismissFinished: (() -> Unit)? = null,
   insideMargin: DpSize = BottomSheetDefaults.insideMargin,
+  endAction: (@Composable () -> Unit)? = null,
   content: @Composable ColumnScope.() -> Unit,
 ) {
   val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.8f).dp
@@ -47,7 +48,8 @@ internal fun Os4DetailsSheet(
       title?.let { paneTitle = it }
       dismiss { onDismissRequest(); true }
     },
-    onDismissFinished = onDismissFinished) {
+    onDismissFinished = onDismissFinished,
+    endAction = endAction) {
     CompositionLocalProvider(locals) {
       Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
         .then(if (scrollContent) Modifier.verticalScroll(rememberScrollState()) else Modifier)

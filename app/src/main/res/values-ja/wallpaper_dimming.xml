@@ -10,6 +10,7 @@
     <string name="wallpaper_dimming_after">調整後</string>
     <string name="wallpaper_dimming_percent">%1$d%%</string>
     <string name="wallpaper_dimming_preview_loading">壁紙を読み込み中…</string>
+    <string name="wallpaper_dimming_preview_refresh">壁紙のプレビューを更新</string>
     <string name="wallpaper_dimming_preview_failed">壁紙のプレビューを読み込めませんでした。</string>
     <string name="wallpaper_dimming_preview_sample">現在の壁紙の静止画を取得できないため、サンプルを表示しています。</string>
     <string name="wallpaper_dimming_live">壁紙を暗くする設定がオンの場合、ダークモードで即時反映されます。</string>

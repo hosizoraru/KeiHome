@@ -10,6 +10,7 @@
     <string name="wallpaper_dimming_after">Dimmed</string>
     <string name="wallpaper_dimming_percent">%1$d%%</string>
     <string name="wallpaper_dimming_preview_loading">Reading wallpaper…</string>
+    <string name="wallpaper_dimming_preview_refresh">Refresh wallpaper preview</string>
     <string name="wallpaper_dimming_preview_failed">Couldn\'t load the wallpaper preview.</string>
     <string name="wallpaper_dimming_preview_sample">Example preview. This wallpaper has no static preview.</string>
     <string name="wallpaper_dimming_live">Changes apply in dark mode when wallpaper dimming is on.</string>

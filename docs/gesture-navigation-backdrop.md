@@ -317,9 +317,36 @@ original result.
 The caller must be an app UID in the selected user, and PackageManager must
 confirm that the UID owns the requested package. Own app, SystemUI and Home are
 excluded. Unselected calls return before package lookup or JSON parsing.
-Preferences use the existing API 102 listener. Acknowledgement shares the
-existing refresh worker. Native color compatibility runs in the existing
-system scope and leaves the OEM controller map and cloud rules intact.
+Preferences use the existing API 102 listener. A dedicated status worker
+publishes the latest choice fingerprint and backend availability. It
+coalesces queued notifications, suppresses duplicate receipts after successful
+delivery, and republishes on user unlock when credential-protected storage is
+available. API 102 retirement stops and joins the worker.
+Native color compatibility runs in the existing system scope and leaves the
+OEM controller map and cloud rules intact.
+
+### Status acknowledgement during an icon refresh
+
+On the Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and Home `801030308`,
+switching system appearance triggered a `RESOURCE_CHANGE` sweep across 202
+packages. The report at 16:02 coincided with a 44.6-second sweep. On b0730,
+the system observed the idle switch change within 0.4 seconds. Enabling it
+after switching from dark to light took about 41 seconds. The receipt waited
+behind the per-package sweep on the same worker. On signed Release b0732
+(`114000732`), the card confirmed the new choice during both appearance
+transitions. The matching receipt was observed within 0.4 seconds of the
+tap, over 41 seconds before the sweep finished in each direction.
+
+For regression verification, wait for the `Icon probe` line with
+`cause=RESOURCE_CHANGE` after each system appearance change, then toggle
+**Match bottom bar color** while the sweep is active. Check the matching
+choice fingerprint before the same generation's `Icon refresh` completion
+line and confirm that the settings card returns to **System interface ready**
+with the new switch state. Exercise both appearance directions. The Bilibili
+artwork pill still follows the separate home-window drawing receipt.
+
+The baseline and fixed-build timing, UI snapshots, and APK identity are in
+`.artifacts/research/navigation-backdrop-ack-20261123/`.
 
 ### Bilibili theme artwork
 

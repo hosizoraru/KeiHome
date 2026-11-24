@@ -355,6 +355,38 @@ Two Security Center targets returned status `4`. All 16 focused JVM tests
 passed. Device logs, screenshots, APK identity and the transition recording
 are in `.artifacts/research/navigation-subpages-20261125/`.
 
+### Douyin
+
+On Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and Douyin `41.3.0`,
+the focused window stayed in `SplashActivity` when the recommendation feed
+opened and closed comments. Search videos used `DetailActivity` for playback
+and comments. On baseline `115000747`, the recommendation feed's white comment
+footer sat above a gesture area that retained the feed's `#1E1E1E` background.
+Both activity rules were neutral OEM entries and the runtime reported sampling
+mode `0`.
+
+For selected Douyin installations, the existing overlay prefers native
+rendered-content sampling for those two neutral rules. The captured framework
+maps `sf_sampling_mode=1` to the native SurfaceFlinger sampling path. The
+existing package, UID and rule checks apply.
+
+After an in-place upgrade to `115000748` and a cold start of Douyin, both
+activities reported sampling mode `1`. The sampled edge of the recommendation
+feed was `#1E1E1E` on both sides of the boundary. In the feed and video detail
+comment panels, the footer was `#FFFFFF` and the gesture area was `#FFFFFE`.
+Closing the keyboard returned to the light comment background. Closing the
+panel restored the feed background. Search, search results, article detail,
+personal tab and settings were also exercised. Settings retained OEM mode `2`.
+One recorded comment opening showed a dark gesture area for about 0.27 seconds
+after the light footer appeared. The elapsed time comes from frame analysis of
+that recording.
+
+All 17 focused JVM tests passed. The installed APK hash matched the candidate,
+and API 102 reported success for all six observed processes, including
+`system` and SystemUI. The OEM table dump matched before and after the test.
+The dark-system-mode run, including screenshots and the transition recording,
+is in `.artifacts/research/navigation-douyin-20261125/`.
+
 ### Status acknowledgement during an icon refresh
 
 On the Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and Home `801030308`,

@@ -24,6 +24,22 @@ class PerfectDynamicIconValidatorTest {
     rejects(mapOf("0/quiet/quietImage.png" to quiet))
   }
 
+  @Test fun providerBackedManifestIsLaunchSensitive() {
+    val source = resources(
+      ordinary,
+      "0/quiet/quietImage.png" to quiet,
+      "0/fancy/manifest.xml" to
+        """<Icon><VariableBinders><ContentProviderBinder name="weather_provider"
+          uri="content://weather/actualWeatherData/4"/></VariableBinders></Icon>""".toByteArray(),
+    )
+    val blobs = source.map { (path, bytes) ->
+      PerfectIconBlob(path, path, bytes.size.toLong())
+    }
+    assertTrue(PerfectDynamicIconValidator.usesExternalContentProvider(blobs.associateBy { it.path }) {
+      source.getValue(it.path)
+    })
+  }
+
   @Test fun anOrdinaryFancyLayerStillNeedsQuiet() {
     rejects(resources(ordinary, "0/fancy/manifest.xml" to manifest, "0/fancy/image.png" to quiet))
   }

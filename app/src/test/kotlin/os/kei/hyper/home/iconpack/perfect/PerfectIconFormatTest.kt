@@ -70,6 +70,26 @@ class PerfectIconFormatTest {
     assertTrue("${prefix}0/quiet/quietImage.png" in checked.files)
   }
 
+  @Test fun providerBackedDynamicIconKeepsItsStaticFallback() {
+    val checked = checked(
+      base() + dynamic(
+        manifest = """
+          <VariableBinders>
+            <ContentProviderBinder name="weather_provider"
+              uri="content://weather/actualWeatherData/4"/>
+          </VariableBinders>
+        """.trimIndent(),
+      ),
+    )
+    assertEquals(setOf(id), checked.staticIds)
+    assertTrue(checked.dynamicIds.isEmpty())
+    assertTrue(checked.files.keys.none { it.startsWith(prefix) })
+    assertEquals(
+      "external content provider is launch-sensitive; kept static fallback",
+      checked.rejectedDynamic.getValue(id),
+    )
+  }
+
   @Test fun rootQuietSnapshotIsValidWithoutPerLayerQuietOrFancyResources() {
     val source = mapOf(
       "themes/default/${prefix}config.xml" to config("layer0" to "background", "layer1" to "foreground").toByteArray(),

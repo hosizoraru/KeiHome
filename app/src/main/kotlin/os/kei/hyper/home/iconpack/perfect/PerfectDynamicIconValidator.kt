@@ -37,6 +37,20 @@ internal object PerfectDynamicIconValidator {
     return match.groupValues[1].toInt() <= 255 && match.groupValues[2].toInt() <= 32
   }
 
+  /**
+   * A provider-backed MAML icon can synchronously query an OEM provider while
+   * Launcher constructs its first frame. Keep this separate from ordinary
+   * local-variable animations so callers can choose a static fallback.
+   */
+  fun usesExternalContentProvider(
+    resources: Map<String, PerfectIconBlob>,
+    read: (PerfectIconBlob) -> ByteArray,
+  ): Boolean = resources
+    .filterKeys { it.endsWith("/manifest.xml") }
+    .any { (_, blob) ->
+      String(read(blob), StandardCharsets.UTF_8).contains("<ContentProviderBinder")
+    }
+
   /** True means at least one declared layer uses fancy resources; quiet-only layers are static. */
   fun validate(resources: Map<String, PerfectIconBlob>, read: (PerfectIconBlob) -> ByteArray): Boolean {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })

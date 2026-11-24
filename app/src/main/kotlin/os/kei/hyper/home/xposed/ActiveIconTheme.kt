@@ -19,7 +19,7 @@ import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
 import os.kei.hyper.home.iconpack.IconThemeMetadata
 import os.kei.hyper.home.iconpack.IconPackComponent
-import os.kei.hyper.home.iconpack.nativeLauncherActivityName
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 import os.kei.hyper.home.iconpack.validDottedName
 import os.kei.hyper.home.iconpack.validNativeIconName
 import os.kei.hyper.home.status.SystemIconThemeReport
@@ -156,9 +156,7 @@ internal class ActiveIconTheme(
   private fun exactNames(pkg: String, component: String): List<String> {
     val cls = if (component.startsWith('.')) pkg + component else component
     if (!validDottedName(pkg) || !validDottedName(cls)) return emptyList()
-    val canonical = nativeLauncherActivityName(IconPackComponent(pkg, cls)) ?: return emptyList()
-    // The native static reader tries the bare foreign class after its qualified canonical name.
-    return if (cls.startsWith(pkg)) listOf(canonical) else listOf(canonical, cls)
+    return nativeLauncherIconNames(IconPackComponent(pkg, cls)).filterNot { it == pkg }
   }
 
   private fun index(file: File, directory: Boolean, generation: Long): Index {

@@ -36,7 +36,8 @@ internal class SystemAppNameMatcher(private val context: Context, entries: List<
   }
 
   fun match(target: IconPackComponent): IconPackEntry? {
-    if (!enabled || target.packageName in excludedPackages) return null
+    if (!enabled || target.packageName in excludedPackages ||
+      TelegramChannelIcons.foreignLauncherClass(target) != null) return null
     val label = labels.getOrPut(target) {
       val app = try { pm.getApplicationInfo(target.packageName, PackageManager.ApplicationInfoFlags.of(0)) }
         catch (_: PackageManager.NameNotFoundException) { return@getOrPut null }

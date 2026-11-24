@@ -335,6 +335,14 @@ internal class IconPackRenderer(
 
     private fun renderTargetArtwork(entry: IconPackEntry?, target: IconPackComponent?, sizePx: Int,
       check: () -> Unit, adaptiveMask: NativeAdaptiveIconMask?): Bitmap? {
+      if (target != null) {
+        val foreign = TelegramChannelIcons.foreignLauncherClass(target)
+        if (foreign != null && (entry == null || entry.nativeName == foreign)) {
+          val owned = matching(target)
+          if (owned == null) return OriginalAppIcons.render(context, target, sizePx, dark, check)
+          return renderArtwork(owned, sizePx, check, adaptiveMask)
+        }
+      }
       if (target != null) completionDonor(target, entry)?.let { donor ->
         val selected = if (dark && donor.dark == null) donor.copy(dark = donor.light) else donor
         return renderArtwork(selected, sizePx, check, adaptiveMask)

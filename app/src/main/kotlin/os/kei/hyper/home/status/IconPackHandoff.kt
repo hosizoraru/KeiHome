@@ -23,7 +23,10 @@ import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.iconpack.IconPackPreviewRepository
+import os.kei.hyper.home.iconpack.ForeignTelegramAliases
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
+import os.kei.hyper.home.iconpack.OriginalAppIcons
+import os.kei.hyper.home.iconpack.TelegramChannelIcons
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 import os.kei.hyper.home.iconpack.ImageArchiveZip
 import os.kei.hyper.home.iconpack.RawIconArchive
@@ -260,6 +263,21 @@ internal object IconPackHandoffs {
               metadata(pack.description.author ?: pack.description.designer, 120),
             ).encode(),
           )
+          if (targets.any { TelegramChannelIcons.foreignLauncherClass(it) != null }) {
+            ZipFile(icons).use { source ->
+              stamps.putAll(ForeignTelegramAliases.additions(source, targets, light.preservesNativeResources,
+                { caller.ensureActive() }) { component, dark ->
+                OriginalAppIcons.render(context, component, 144, dark) { caller.ensureActive() }?.let { bitmap ->
+                  try {
+                    java.io.ByteArrayOutputStream().use { buffer ->
+                      check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, buffer))
+                      buffer.toByteArray()
+                    }
+                  } finally { bitmap.recycle() }
+                }
+              })
+            }
+          }
           if (completeSystemIconConfig) {
             run {
               ZipFile(icons).use { source ->

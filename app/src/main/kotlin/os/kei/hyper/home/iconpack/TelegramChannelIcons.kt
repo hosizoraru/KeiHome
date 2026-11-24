@@ -166,6 +166,11 @@ internal class TelegramChannelIcons(entries: List<IconPackEntry>, private val en
 
     fun isFamily(packageName: String): Boolean = packageName in FAMILIES
 
+    fun foreignLauncherClass(target: IconPackComponent): String? =
+      target.className?.takeIf {
+        it.startsWith("org.telegram.") && !isFamily(target.packageName) && !it.startsWith("${target.packageName}.")
+      }
+
     /** Named alternate icons stay excluded even when they launch the same activity. */
     fun isDefaultTarget(target: IconPackComponent): Boolean = aliasPriority(target) != null
 

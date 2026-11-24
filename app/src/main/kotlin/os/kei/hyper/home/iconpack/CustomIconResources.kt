@@ -35,6 +35,9 @@ internal object CustomIconResources {
     }
   }
 
+  fun rekey(path: String, bytes: ByteArray, source: String, target: String): Pair<String, ByteArray> =
+    rename(path, source, target) to rewriteReferences(path, bytes, source, target)
+
   private fun rename(path: String, source: String, target: String): String {
     require(path.isNotEmpty() && !path.startsWith('/') &&
       path.split('/').none { it.isEmpty() || it == "." || it == ".." || '\\' in it })

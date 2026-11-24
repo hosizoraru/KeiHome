@@ -12,6 +12,7 @@ import os.kei.hyper.home.iconpack.IconPackDescriptor
 import os.kei.hyper.home.iconpack.IconPackEntryIndex
 import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.RecommendedPackageIcons
+import os.kei.hyper.home.iconpack.TelegramChannelIcons
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 
@@ -78,6 +79,11 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if (pack.format != IconPackFormat.MIUI_MTZ && pack.format != IconPackFormat.MIUI_ICONS &&
     source.systemFallback != null && source.systemFallback.nameMatching != effectiveNameMatching) return true
   val names = source.nativeNames ?: return false
+  if (targets.any { target ->
+      TelegramChannelIcons.foreignLauncherClass(target) != null &&
+        ((source.generation?.schemaVersion ?: 0) < IconGenerationManifest.TELEGRAM_COMPONENT_SCHEMA ||
+          nativeLauncherActivityName(target) !in names)
+    }) return true
   val converted = pack.format !in setOf(IconPackFormat.MIUI_MTZ, IconPackFormat.MIUI_ICONS)
   if (converted && source.generation?.schemaVersion?.let { it < 7 } == true) return true
   val eligible = targets.filterNot { it.packageName in effectivePreserved }

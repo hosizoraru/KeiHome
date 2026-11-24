@@ -17,6 +17,8 @@ import os.kei.hyper.home.status.SystemIconThemeReport
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconPackArchive
 import os.kei.hyper.home.iconpack.IconPackLimits
+import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.nativeLauncherIconNames
 import os.kei.hyper.home.iconpack.nativeFallbackProtectedNames
 
 /** Worker-only copy; neither a launcher hook nor the UI reads protected theme files. */
@@ -31,7 +33,9 @@ internal object CurrentIconSnapshotPublisher {
     val user = UserHandle.getUserHandleForUid(Math.multiplyExact(userId, 100_000))
     val apps = context.getSystemService(LauncherApps::class.java).getActivityList(null, user)
     checkCurrent()
-    val names = apps.flatMap { listOf(it.componentName.packageName, it.componentName.className) }.toSet()
+    val names = apps.flatMap {
+      nativeLauncherIconNames(IconPackComponent(it.componentName.packageName, it.componentName.className))
+    }.toSet()
     if (names.isEmpty()) return null
     val selection = CurrentIconSnapshotSelection(names)
     val key = MessageDigest.getInstance("SHA-256").digest(

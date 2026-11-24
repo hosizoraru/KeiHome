@@ -26,6 +26,31 @@ import org.junit.Test
 
 /** Real worker/ZIP/Bitmap work; no privileged hooks, remote services or user theme changes. */
 class CrossSurfaceIconCacheWorkloadTest {
+  @Test fun atomicReplacementAndRemovalRefreshRetainedArtworkWithoutABroadcast() = fixture { file ->
+    val ready = java.util.concurrent.LinkedBlockingQueue<Unit>()
+    val cache = CrossSurfaceIconCache(RecordingContext(), themeFile = file, paletteState = { 0L },
+      notifyOnMiss = true, watchThemeArchive = true, onReady = { ready.offer(Unit) })
+    try {
+      cache.start()
+      assertNull(cache.get(name(0)))
+      awaitSettled(cache)
+      val original = requireNotNull(cache.get(name(0)))
+      ready.clear()
+      fixture { replacement ->
+        java.nio.file.Files.move(replacement.toPath(), file.toPath(),
+          java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+          java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      }
+      assertNotNull("The rename must refresh a warm cache", ready.poll(5, TimeUnit.SECONDS))
+      assertNotSame(original, cache.get(name(0)))
+
+      assertTrue(file.delete())
+      assertNotNull("Removing the archive must publish the miss", ready.poll(5, TimeUnit.SECONDS))
+      assertTrue(cache.isMissing(name(0)))
+      assertNull(cache.get(name(0)))
+    } finally { assertTrue(cache.stop()) }
+  }
+
   @Test fun committedPaletteObserverRefreshesRetainedIconsWithoutABroadcast() = fixture { file ->
     val context = RecordingContext()
     val palette = AtomicLong(0L)

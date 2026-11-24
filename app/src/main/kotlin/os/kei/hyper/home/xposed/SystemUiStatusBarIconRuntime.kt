@@ -137,6 +137,7 @@ internal class SystemUiStatusBarIconBindings(private val limit: Int = 64) {
   class Binding(
     val view: WeakReference<ImageView>, val icon: WeakReference<Icon>, val name: String,
     val applied: WeakReference<Bitmap>,
+    val usedSnapshot: Boolean,
   )
   private val sources = ArrayList<Source>()
   private val views = ArrayList<Binding>()
@@ -155,9 +156,13 @@ internal class SystemUiStatusBarIconBindings(private val limit: Int = 64) {
     views.removeAll { it.view.get() == null || it.view.get() === view }
   }
   @Synchronized fun bind(view: ImageView, icon: Icon, applied: Bitmap?) {
+    val retainedSnapshot = views.firstOrNull {
+      it.view.get() === view && it.name == (name(icon) ?: "")
+    }?.usedSnapshot == true
     forget(view)
     val name = name(icon) ?: return
-    views += Binding(WeakReference(view), WeakReference(icon), name, WeakReference(applied))
+    views += Binding(WeakReference(view), WeakReference(icon), name, WeakReference(applied),
+      applied != null || retainedSnapshot)
     while (views.size > limit) views.removeAt(0)
   }
   @Synchronized fun snapshot(): List<Binding> {
@@ -187,6 +192,7 @@ internal class SystemUiStatusBarIconRuntime(
   private val ready: () -> Unit = {},
   private val nativeManagerInstance: Any? = null,
   private val onBootstrap: (String) -> Unit = {},
+  private val snapshotMissing: (String) -> Boolean = { false },
 ) {
   class BitmapOverride(val bitmap: Bitmap?)
   private data class HeldBitmap(
@@ -204,6 +210,7 @@ internal class SystemUiStatusBarIconRuntime(
     var loaded = false
   }
   private val requests = ThreadLocal<Request>()
+  fun buildingDescriptor(): Boolean = requests.get() != null
   private val userHandle = UserHandle.getUserHandleForUid(currentUser * 100_000)
   private val recomputing = ThreadLocal<Boolean>()
   private val overrides = ThreadLocal<HeldBitmap>()
@@ -440,8 +447,10 @@ internal class SystemUiStatusBarIconRuntime(
           val view = bindings.current(binding) ?: continue
           val icon = binding.icon.get() ?: continue
           if (!owns(view, icon)) { bindings.forget(view); continue }
-          val bitmap = snapshot(binding.name)?.takeUnless { it.isRecycled } ?: continue
-          if (binding.applied.get() === bitmap) continue
+          val bitmap = snapshot(binding.name)?.takeUnless { it.isRecycled }
+          if (bitmap == null) {
+            if (!binding.usedSnapshot || !snapshotMissing(binding.name)) continue
+          } else if (binding.applied.get() === bitmap) continue
           // This re-enters drawable(), then preserves native scaling, tint and animation setup.
           profile.update.invoke(view, false)
           refreshed++

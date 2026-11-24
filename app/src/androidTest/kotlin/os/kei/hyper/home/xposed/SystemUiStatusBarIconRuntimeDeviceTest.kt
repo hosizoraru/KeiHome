@@ -130,6 +130,7 @@ class SystemUiStatusBarIconRuntimeDeviceTest {
     val bitmaps = ArrayList<Bitmap>()
     val failures = ArrayList<Throwable>()
     val cache = HashMap<String, Bitmap>()
+    val missingSnapshots = HashSet<String>()
     val nativeCache = NativeCache()
     var nativeProducerCalls = 0
     var onReady: () -> Unit = {}
@@ -177,7 +178,7 @@ class SystemUiStatusBarIconRuntimeDeviceTest {
         ready = { onReady() }, onBootstrap = {
           synchronized(bootstrapLogs) { bootstrapLogs += it }
           onBootstrap(it)
-        })
+        }, snapshotMissing = { it in missingSnapshots })
       manager.nativeConsume = { entry, people -> descriptor(entry, people) }
     }
     fun bitmap(color: Int = Color.BLUE, clipped: Boolean = false, mutable: Boolean = false): Bitmap {
@@ -326,6 +327,31 @@ class SystemUiStatusBarIconRuntimeDeviceTest {
     runtime.replay()
     assertEquals(3, view.refreshes)
     assertSame(cache["os.kei"], (view.drawable as BitmapDrawable).bitmap)
+  }
+
+  @Test fun missingArtworkRestoresNativeDrawableOnlyAfterTheReplacementHasBeenResolved() = fixture {
+    val native = bitmap(Color.BLUE)
+    manager.make = { app(native) }
+    val view = view(requireNotNull(descriptor(Entry())))
+    val themed = bitmap(Color.RED)
+    cache["os.kei"] = themed
+    runtime.replay()
+    assertSame(themed, (view.drawable as BitmapDrawable).bitmap)
+    cache.clear()
+    runtime.replay()
+    assertSame(themed, (view.drawable as BitmapDrawable).bitmap)
+    assertEquals(2, view.refreshes)
+
+    missingSnapshots += "os.kei"
+    runtime.replay()
+    assertEquals(Color.BLUE, (view.drawable as BitmapDrawable).bitmap.getPixel(0, 0))
+    assertEquals(3, view.refreshes)
+    runtime.replay()
+    assertEquals(3, view.refreshes)
+    cache["os.kei"] = bitmap(Color.GREEN)
+    runtime.replay()
+    assertEquals(Color.GREEN, (view.drawable as BitmapDrawable).bitmap.getPixel(0, 0))
+    assertEquals(4, view.refreshes)
   }
 
   @Test fun mutableProducerIconCopyIsAuthenticatedByExactFactoryResultAndReplaysWithoutAnotherCopy() = fixture {

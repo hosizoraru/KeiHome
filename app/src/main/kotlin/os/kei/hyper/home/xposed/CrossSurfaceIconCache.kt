@@ -11,6 +11,7 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.FileObserver
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -44,6 +45,7 @@ internal class CrossSurfaceIconCache(
   private val acceptsComponent: ((IconPackComponent) -> Boolean)? = null,
   private val originalOnMiss: Set<String> = emptySet(),
   private val maxIdentities: Int = maxEntries,
+  private val watchThemeArchive: Boolean = false,
   private val onReady: (() -> Unit)? = null,
 ) {
   init {
@@ -67,6 +69,9 @@ internal class CrossSurfaceIconCache(
   private var receiverRegistered = false
   private var paletteReceiverRegistered = false
   private var settingsObserver: ContentObserver? = null
+  private var themeObserver: FileObserver? = null
+  private val refreshAppearance = Runnable { invalidate() }
+  private var appearanceRefreshQueued = false
   private var observedPalette: Long? = null
   private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)
   private val pending = linkedSetOf<Key>()
@@ -77,6 +82,7 @@ internal class CrossSurfaceIconCache(
     override fun sizeOf(key: Key, value: Bitmap) = value.allocationByteCount
   }
   private var stamp = ""
+  private var stampGeneration = -1L
   // Worker-owned for one drain batch; closing the batch avoids retaining obsolete theme files.
   private var archive: ZipFile? = null
   private var archiveGeneration = -1L
@@ -96,7 +102,7 @@ internal class CrossSurfaceIconCache(
         return
       }
       if (active) {
-        if (intent.action == CrossSurfaceIconEvents.PALETTE_CHANGED) paletteChanged() else invalidate()
+        if (intent.action == CrossSurfaceIconEvents.PALETTE_CHANGED) paletteChanged() else appearanceChanged()
       }
     }
   }
@@ -113,7 +119,7 @@ internal class CrossSurfaceIconCache(
         val next = configurationKey(config)
         if (next == configurationKey) return
         configurationKey = next
-        invalidate()
+        appearanceChanged()
       }
     }
     override fun onLowMemory() {
@@ -150,13 +156,22 @@ internal class CrossSurfaceIconCache(
       context.registerComponentCallbacks(configuration)
       componentRegistered = true
     }
+    if (watchThemeArchive) register {
+      // Watch the directory so replacing the archive by rename keeps the watch alive.
+      themeObserver = object : FileObserver(requireNotNull(themeFile.parentFile),
+        CLOSE_WRITE or MOVED_TO or MOVED_FROM or DELETE) {
+        override fun onEvent(event: Int, path: String?) {
+          if (path == themeFile.name) appearanceChanged()
+        }
+      }.also { it.startWatching() }
+    }
     register {
       val paletteUri = Settings.System.getUriFor(NativePaletteIcon.STATE_KEY)
       val nightUri = Settings.Secure.getUriFor("ui_night_mode")
       val observer = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean, uri: Uri?) {
           if (!active) return
-          if (uri == nightUri) invalidate() else paletteChanged()
+          if (uri == nightUri) appearanceChanged() else paletteChanged()
         }
         override fun onChange(selfChange: Boolean) {
           if (active) paletteChanged()
@@ -244,9 +259,23 @@ internal class CrossSurfaceIconCache(
     key != null && key in misses
   }
 
+  private fun appearanceChanged() {
+    if (!watchThemeArchive) {
+      invalidate()
+      return
+    }
+    synchronized(lock) {
+      if (!active || appearanceRefreshQueued) return
+      // A theme apply can deliver a file event, a broadcast and a configuration change.
+      appearanceRefreshQueued = handler.postDelayed(refreshAppearance, 64L)
+    }
+  }
+
   fun invalidate() {
     synchronized(lock) {
       if (!active) return
+      if (appearanceRefreshQueued) handler.removeCallbacks(refreshAppearance)
+      appearanceRefreshQueued = false
       revision.incrementAndGet()
       clearSnapshotsLocked()
       if (eagerReload) wanted.keys.forEach { enqueueLocked(it) }
@@ -329,13 +358,13 @@ internal class CrossSurfaceIconCache(
     try {
       val file = themeFile
       val currentStamp = "${file.length()}:${file.lastModified()}"
-      if (stamp.isNotEmpty() && currentStamp != stamp) {
-        stamp = currentStamp
+      if (stampGeneration == generation && currentStamp != stamp) {
         closeArchive()
         invalidate()
         return false
       }
       stamp = currentStamp
+      stampGeneration = generation
       val hasArchive = file.length() in 1..(1024L * 1024 * 1024)
       val canUseOriginal = key.name in originalOnMiss
       if (!hasArchive && !canUseOriginal) return publish(key, generation, null, false, now)
@@ -359,8 +388,9 @@ internal class CrossSurfaceIconCache(
           UiModeManager.MODE_NIGHT_NO -> false
           else -> {
             val global = Resources.getSystem().configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-            val effective = if (global == Configuration.UI_MODE_NIGHT_UNDEFINED)
-              config.uiMode and Configuration.UI_MODE_NIGHT_MASK else global
+            val delivered = config.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            val effective = if (global == Configuration.UI_MODE_NIGHT_UNDEFINED ||
+              (watchThemeArchive && delivered != Configuration.UI_MODE_NIGHT_UNDEFINED)) delivered else global
             effective == Configuration.UI_MODE_NIGHT_YES
           }
         }
@@ -497,6 +527,11 @@ internal class CrossSurfaceIconCache(
       }
     }
     try {
+      themeObserver?.let { observer -> unregister {
+        cleanupStage = "stop theme archive observer"
+        observer.stopWatching()
+        themeObserver = null
+      } }
       if (componentRegistered) unregister {
         cleanupStage = "unregister component callbacks"
         context.unregisterComponentCallbacks(configuration)

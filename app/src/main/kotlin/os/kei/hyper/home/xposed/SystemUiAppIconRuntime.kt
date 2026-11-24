@@ -89,7 +89,7 @@ internal class SystemUiAppIconRuntime(
     val profile = resolveProfile()
     // Match the tracked-view bound so replay cannot churn a smaller wanted set.
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
-      refreshOnMinute = true, onReady = ::queueReplay)
+      refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true, onReady = ::queueReplay)
     cache = iconCache
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     foldGuard.run(Unit) {
@@ -183,7 +183,8 @@ internal class SystemUiAppIconRuntime(
       val runtime = SystemUiStatusBarIconRuntime(context, statusProfile, lifecycle, currentUser,
         { name -> cache?.get(name) }, { failure -> reportFailure("status-bar app icon", failure) },
         ready = ::queueReplay, nativeManagerInstance = nativeManager,
-        onBootstrap = { message -> report(Log.INFO, TAG, message) })
+        onBootstrap = { message -> report(Log.INFO, TAG, message) },
+        snapshotMissing = { name -> cache?.isMissing(name) == true })
       statusBar = runtime
       replace(statusProfile.consumer, "$HOOK_ID.statusbar-descriptor.v1") { chain ->
         val owner = chain.thisObject ?: return@replace chain.proceed()
@@ -431,7 +432,9 @@ internal class SystemUiAppIconRuntime(
         if (stopped || userId != currentUser || !validDottedName(packageName) ||
           packageName.length > 240) return@run null
         request.get()?.name = packageName
-        cache?.get(packageName)?.takeUnless { it.isRecycled }
+        // The descriptor may outlive the theme. Keep its fallback sourced by SystemUI.
+        if (status?.buildingDescriptor() == true) null
+        else cache?.get(packageName)?.takeUnless { it.isRecycled }
       }
       // The declared return type is Bitmap. Native failures must escape unchanged.
       val result = bitmap ?: chain.proceed()

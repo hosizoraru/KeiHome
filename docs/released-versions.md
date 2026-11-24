@@ -48,7 +48,7 @@ was supplied.
 | Source committer timestamp | `2026-11-13T09:05:32+08:00` |
 | Source commit subject | `Default the app navigation bar to OS4 Glass` |
 | Build-time worktree | Clean, as recorded in the receipt |
-| APK | `.artifacts/releases/109000394/KeiHome-1.9.0+g70ea216.b0394.apk` |
+| APK | Historical APK binary retired during the 2026-11-24 artifact cleanup. The release receipt, mapping and native library remain under `.artifacts/releases/109000394/`. |
 | APK size | `76932974` bytes |
 | APK SHA-256 | `4f437842b595dd6859338c582bab4c0ea368a0bf6ce635cf6f00fd1ed1c25346` |
 | Signing certificate SHA-256 | `c5c4c43ba6d03268773122bc99d1e870908609ae5251c7c8ad4b6029b573c82a` |

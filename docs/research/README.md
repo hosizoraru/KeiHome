@@ -51,8 +51,7 @@ ignored: proprietary APKs, device data and large binaries do not belong in Git.
 | `.artifacts/inputs/framework/` | Framework resources/JAR and system-partition native readers |
 | `.artifacts/inputs/icon-packs/` | Arcticons and Lawnicons test APKs; no artwork is bundled in KeiHome |
 | `.artifacts/inputs/icon-samples/` | Original malformed-monochrome sample APKs |
-| `.artifacts/research/2026-11-01/evidence.tar.gz` | Deduplicated reports, traces, logcat, screenshots, fixtures and one-off analysis sources |
-| `.artifacts/research/2026-11-01/manifest.json.gz` | Per-file retention/deletion decisions, hashes and duplicate-member mapping |
+| `.artifacts/research/2026-11-01/` | Historical report directory retained where report files remain. The large evidence archive and manifest were retired in the 2026-11-24 artifact cleanup after the report conclusions were carried forward. |
 | `.artifacts/releases/1793454007/diagnostics.tar.gz` | Exact R8 mapping, native symbols and saved build/test reports |
 | `.artifacts/releases/1793454007/manifest.json` | Release APK hash and hashes of retained diagnostic files |
 | `.artifacts/releases/101000181/` | November 4 accepted APK and verified compressed R8/native diagnostics |
@@ -66,23 +65,9 @@ under `keihome-tint-abi/venv` was regenerable.
 
 ## Reading an old evidence path
 
-Archive members retain the original path beneath `tmp/`. For example:
-
-```sh
-tar -xOf .artifacts/research/2026-11-01/evidence.tar.gz \
-  tmp/keihome-theme-research/anr-ownership.md
-
-tar -xOf .artifacts/research/2026-11-01/evidence.tar.gz \
-  tmp/keihome-runtime-status/private-cycle.log
-```
-
-Identical files are stored once. If a member is absent, look up its original
-`source` in `manifest.json.gz`: `duplicate-evidence` points to the retained member,
-and `duplicate-input` points to the retained input. `regenerable` entries are
-APK/JAR extractions or compiled scratch output, not archived evidence.
-
-For a binary trace, extract just its listed member into a new working directory.
-Avoid unpacking the whole archive back into `/tmp`.
+The historical compressed evidence archive was retired after its report
+conclusions were carried forward. Recreate derived analysis from the retained
+APK or framework input instead of unpacking an old archive.
 
 ## Recreating derived analysis
 

@@ -72,8 +72,9 @@ Equivalent-layer policy: `centered-native-pixel-proof-4`.
 Existing generated ZIPs must be regenerated and applied to receive new pixels;
 installing or hot reloading the module alone does not rewrite an applied pack.
 
-Retained upstream archive:
-`.artifacts/research/perfect-icons-20261108/source/repository-complete.zip`.
+The upstream source archive was retired during the 2026-11-24 artifact cleanup.
+The accepted derived assets, hashes and visual evidence remain in this report's
+evidence directory.
 The KFC assets use the default `icons/com.yek.android.kfc.activitys/{0,1}.png`;
 HyperOS4 has no override. Game Center uses
 `themes/HyperOS4/icons/com.xiaomi.gamecenter{.png,/0.png,/1.png}`.

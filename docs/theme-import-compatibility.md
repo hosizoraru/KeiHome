@@ -7,7 +7,7 @@ production does not select a contract by an OEM version number.
 | Fixture | Local APK | SHA-256 | Resolved and reflected roles |
 | --- | --- | --- | --- |
 | 11.5.4.0 / 11540 | `.artifacts/inputs/themes/thememanager.apk` | `089429477c7b33784e306a419e8684651bcad86f480e060cfb9bb8ed389a8659` | 11 / 11 |
-| 11.5.4.1 / 11541 | `.artifacts/research/via-night-20261103/Themes-11541.apk` | `65db2e6521e3059a36e2e4fab3a97f31ab711a0dbd483235088079ace1f44fc3` | 11 / 11 |
+| 11.5.4.1 / 11541 | `.artifacts/inputs/themes/Themes-11541.apk` | `65db2e6521e3059a36e2e4fab3a97f31ab711a0dbd483235088079ace1f44fc3` | 11 / 11 |
 | 11.5.6.0 / 11560 | `.artifacts/inputs/themes/Themes-11560.apk` | `cbae7d380763a4d7844c33a53852ac4b4e77bee7b70a86646e142b79fca047fa` | 11 / 11 |
 
 The user-provided 11.5.6.0 APK was moved from Downloads to the path above,
@@ -51,7 +51,7 @@ older APKs as read-only files and run:
 ```bash
 adb -s emulator-5580 shell mkdir -p /data/local/tmp/keihome-theme-profile-fixtures
 adb -s emulator-5580 push .artifacts/inputs/themes/thememanager.apk /data/local/tmp/keihome-theme-profile-fixtures/11540.apk
-adb -s emulator-5580 push .artifacts/research/via-night-20261103/Themes-11541.apk /data/local/tmp/keihome-theme-profile-fixtures/11541.apk
+adb -s emulator-5580 push .artifacts/inputs/themes/Themes-11541.apk /data/local/tmp/keihome-theme-profile-fixtures/11541.apk
 adb -s emulator-5580 shell chmod 0444 /data/local/tmp/keihome-theme-profile-fixtures/11540.apk /data/local/tmp/keihome-theme-profile-fixtures/11541.apk
 adb -s emulator-5580 shell am instrument -w -r \
   -e class os.kei.hyper.home.xposed.ThemeImportProfileDeviceTest \

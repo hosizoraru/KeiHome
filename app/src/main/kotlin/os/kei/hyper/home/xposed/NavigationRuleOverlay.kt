@@ -8,9 +8,16 @@ internal object NavigationRuleOverlay {
   const val MAX_RULE_BYTES = 128 * 1024
   const val MAX_ACTIVITIES = 512
 
-  private const val PHOENIX_PACKAGE = "com.phoenix.read"
-  private const val PHOENIX_MAIN = "com.dragon.read.pages.main.MainFragmentActivity"
-  private const val PHOENIX_SHORT_SERIES = "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity"
+  private val renderedSamplingActivities = mapOf(
+    "com.phoenix.read" to setOf(
+      "com.dragon.read.pages.main.MainFragmentActivity",
+      "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity",
+    ),
+    "com.ss.android.ugc.aweme" to setOf(
+      "com.ss.android.ugc.aweme.splash.SplashActivity",
+      "com.ss.android.ugc.aweme.detail.ui.DetailActivity",
+    ),
+  )
 
   fun apply(original: Bundle?, launchActivity: String? = null, packageName: String? = null): Bundle? {
     @Suppress("DEPRECATION")
@@ -52,14 +59,14 @@ internal object NavigationRuleOverlay {
     val rules = if (raw.isEmpty()) JSONObject() else try { JSONObject(raw) }
       catch (_: Exception) { return null }
     if (rules.length() > MAX_ACTIVITIES) return null
+    val samplingActivities = renderedSamplingActivities[packageName].orEmpty()
     val keys = rules.keys()
     while (keys.hasNext()) {
       val name = keys.next()
       val activity = rules.optJSONObject(name) ?: return null
       if (activity.opt("mode") == 0) {
         activity.put("mode", -1)
-        val samplesRenderedContent = name == launchActivity ||
-          (packageName == PHOENIX_PACKAGE && (name == PHOENIX_MAIN || name == PHOENIX_SHORT_SERIES))
+        val samplesRenderedContent = name == launchActivity || name in samplingActivities
         if (samplesRenderedContent && activity.isNull("color") &&
           (!activity.has("viewRules") || activity.optJSONArray("viewRules")?.length() == 0) &&
           (!activity.has("sf_sampling_mode") || activity.opt("sf_sampling_mode") == 0)

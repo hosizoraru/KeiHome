@@ -140,6 +140,29 @@ class NavigationRuleOverlayTest {
     }
   }
 
+  @Test fun douyinCommentHostsUseRenderedSamplingEvenWhenLaunchResolutionIsMissing() {
+    val owner = "com.ss.android.ugc.aweme"
+    val feed = "$owner.splash.SplashActivity"
+    val video = "$owner.detail.ui.DetailActivity"
+    val settings = "$owner.setting.ui.DouYinSettingNewVersionActivity"
+    val search = "$owner.search.activity.SearchResultActivity"
+    val neutralRule = """{"mode":0,"sf_sampling_mode":0}"""
+    val explicitRule = """{"mode":2,"sf_sampling_mode":0}"""
+    val raw = """{"$feed":$neutralRule,"$video":$neutralRule,"$settings":$explicitRule}"""
+
+    val result = JSONObject(NavigationRuleOverlay.rewriteActivityRules(raw, packageName = owner)!!)
+    for (host in listOf(feed, video)) {
+      assertEquals(1, result.getJSONObject(host).getInt("sf_sampling_mode"))
+    }
+    assertEquals(2, result.getJSONObject(settings).getInt("mode"))
+    assertEquals(0, result.getJSONObject(settings).getInt("sf_sampling_mode"))
+    assertFalse(result.has(search))
+
+    val otherPackage = JSONObject(NavigationRuleOverlay.rewriteActivityRules(raw, packageName = "other.app")!!)
+    assertEquals(0, otherPackage.getJSONObject(feed).getInt("sf_sampling_mode"))
+    assertEquals(0, otherPackage.getJSONObject(video).getInt("sf_sampling_mode"))
+  }
+
   @Test fun footerColorsDistinguishArtworkTransparencyAndHandleContrast() {
     fun strip(rgb: Int) = IntArray(33) { 0xff000000.toInt() or rgb }
     fun paint(rgb: Int, previous: Boolean? = null) = FooterPalette.handlePaint(strip(rgb), previous)!!

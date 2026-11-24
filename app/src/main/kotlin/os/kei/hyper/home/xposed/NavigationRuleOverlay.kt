@@ -8,19 +8,27 @@ internal object NavigationRuleOverlay {
   const val MAX_RULE_BYTES = 128 * 1024
   const val MAX_ACTIVITIES = 512
 
-  fun apply(original: Bundle?, launchActivity: String? = null): Bundle? {
+  private const val PHOENIX_PACKAGE = "com.phoenix.read"
+  private const val PHOENIX_MAIN = "com.dragon.read.pages.main.MainFragmentActivity"
+  private const val PHOENIX_SHORT_SERIES = "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity"
+
+  fun apply(original: Bundle?, launchActivity: String? = null, packageName: String? = null): Bundle? {
     @Suppress("DEPRECATION")
     if (original?.containsKey("activityRules") == true &&
       original.get("activityRules") !is String) return original
     val raw = original?.getString("activityRules").orEmpty()
-    val rewritten = rewriteActivityRules(raw, launchActivity) ?: return original
+    val rewritten = rewriteActivityRules(raw, launchActivity, packageName) ?: return original
     return Bundle(original ?: Bundle()).apply {
       putBoolean("enable", true)
       putString("activityRules", rewritten)
     }
   }
 
-  fun rewriteActivityRules(raw: String, launchActivity: String? = null): String? {
+  fun rewriteActivityRules(
+    raw: String,
+    launchActivity: String? = null,
+    packageName: String? = null,
+  ): String? {
     if (raw.isEmpty() && launchActivity == null) return ""
     if (raw.length > MAX_RULE_BYTES || raw.toByteArray(Charsets.UTF_8).size > MAX_RULE_BYTES) return null
     if (raw.isNotEmpty() && raw.firstOrNull { !it.isWhitespace() } != '{') return null
@@ -50,7 +58,9 @@ internal object NavigationRuleOverlay {
       val activity = rules.optJSONObject(name) ?: return null
       if (activity.opt("mode") == 0) {
         activity.put("mode", -1)
-        if (name == launchActivity && activity.isNull("color") &&
+        val samplesRenderedContent = name == launchActivity ||
+          (packageName == PHOENIX_PACKAGE && (name == PHOENIX_MAIN || name == PHOENIX_SHORT_SERIES))
+        if (samplesRenderedContent && activity.isNull("color") &&
           (!activity.has("viewRules") || activity.optJSONArray("viewRules")?.length() == 0) &&
           (!activity.has("sf_sampling_mode") || activity.opt("sf_sampling_mode") == 0)
         ) activity.put("sf_sampling_mode", 1)

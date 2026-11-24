@@ -105,6 +105,41 @@ class NavigationRuleOverlayTest {
     }
   }
 
+  @Test fun phoenixTabsAndPlaybackUseRenderedSamplingOnlyForExistingNeutralRules() {
+    val main = "com.dragon.read.pages.main.MainFragmentActivity"
+    val playback = "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity"
+    val splash = "com.dragon.read.pages.splash.SplashActivity"
+    val raw = """{"$playback":{"mode":0,"sf_sampling_mode":0,"viewRules":[],"dialogMode":0},
+      "$main":{"mode":0,"sf_sampling_mode":0},
+      "Other":{"mode":0,"sf_sampling_mode":0}}"""
+    fun rewrite(input: String, owner: String = "com.phoenix.read") =
+      JSONObject(NavigationRuleOverlay.rewriteActivityRules(input, splash, packageName = owner)!!)
+
+    val result = rewrite(raw)
+    val rule = result.getJSONObject(playback)
+    assertEquals(-1, rule.getInt("mode"))
+    assertEquals(1, rule.getInt("sf_sampling_mode"))
+    assertEquals(0, rule.getInt("dialogMode"))
+    assertEquals(1, result.getJSONObject(main).getInt("sf_sampling_mode"))
+    assertEquals(0, result.getJSONObject("Other").getInt("sf_sampling_mode"))
+    assertEquals(result.toString(), rewrite(result.toString()).toString())
+    val otherApp = rewrite(raw, "other.app")
+    assertEquals(0, otherApp.getJSONObject(playback).getInt("sf_sampling_mode"))
+    assertEquals(0, otherApp.getJSONObject(main).getInt("sf_sampling_mode"))
+    assertFalse(rewrite("{}").has(playback))
+    assertFalse(rewrite("{}").has(main))
+    for (policy in listOf(
+      """"mode":1,"sf_sampling_mode":0""",
+      """"mode":0,"sf_sampling_mode":-1""",
+      """"mode":0,"sf_sampling_mode":0,"color":"#000000"""",
+      """"mode":0,"sf_sampling_mode":0,"viewRules":[{"id":"footer"}]""",
+    )) {
+      val original = JSONObject("{$policy}")
+      val updated = rewrite("""{"$playback":$original}""").getJSONObject(playback)
+      assertEquals(original.getInt("sf_sampling_mode"), updated.getInt("sf_sampling_mode"))
+    }
+  }
+
   @Test fun footerColorsDistinguishArtworkTransparencyAndHandleContrast() {
     fun strip(rgb: Int) = IntArray(33) { 0xff000000.toInt() or rgb }
     fun paint(rgb: Int, previous: Boolean? = null) = FooterPalette.handlePaint(strip(rgb), previous)!!

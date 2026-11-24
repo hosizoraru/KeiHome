@@ -57,7 +57,7 @@ internal class NativeNavigationBackdropRuntime(
                   it.targetActivity ?: it.name
                 }
               }.getOrNull()
-              NavigationRuleOverlay.apply(original as? Bundle, launchActivity).also {
+              NavigationRuleOverlay.apply(original as? Bundle, launchActivity, packageName = packageName).also {
                 if (it !== original && reported.add(packageName))
                   xposed.log(Log.INFO, TAG, "Native rule delivery enabled for $packageName; OEM table unchanged")
               }

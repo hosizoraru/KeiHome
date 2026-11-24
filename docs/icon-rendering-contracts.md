@@ -13,6 +13,33 @@ Borrowing colored artwork must not leave monochrome lookup pointed at a
 different application's mask. Mapping opt-outs and authored native resources
 retain their existing protection.
 
+An installed Telegram fork can reuse an upstream launcher class, including an
+alternate icon alias. The fork's package owns the qualified component and its
+package-wide mapping. Bare upstream class resources remain available to the
+official channels. Lookups for installed-only Perfect generation, previews,
+and runtime snapshots follow the same component names.
+
+HyperOS 4 launcher 0308 can select a bare-class MAML program even when a
+qualified static resource exists. The shared handoff adds both the qualified
+static entry and, for a single active launcher component, a package-owned
+MAML program. It uses the icon pack's component or package artwork when
+available and falls back to the installed APK's artwork in both modes.
+Native and converted packs use the resource formats supported by their
+respective import paths. Reapplying an existing pack in KeiHome republishes
+its icon module with these entries.
+
+The Xiaomi 17 Pro check on `OS4.0.8.0.XBLCNXM`, launcher `801030308`, used
+Nnngram `v13.2.2-01f3cd9` and KeiHome `115000745`. Manual application covered
+Perfect HyperOS4 and iOS with original dynamics, static and dark adaptation,
+installed-only generation, and fixed dark artwork. It also covered ColorOS
+Classic light and dark, generated Apple iOS, Arcticons Day & Night, and an
+imported MTZ. The MTZ's own Nnngram artwork appeared on the launcher. The
+other tested packs showed the APK's blue N. Automatic application through
+the normal Perfect and ColorOS screens changed the active native archive.
+The original archive, night mode and custom icon preferences were verified
+after restoration. Screenshots and import receipts are in
+`.artifacts/research/perfect-nnngram-20261124/shared-745/`.
+
 ## Convert raw layers once
 
 Raw native numbered textures and raw supplied ColorOS monochrome images are

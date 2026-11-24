@@ -3,6 +3,8 @@ package os.kei.hyper.home.iconpack
 import android.os.Process
 import android.os.SystemClock
 import android.util.AtomicFile
+import android.content.pm.LauncherApps
+import android.content.pm.PackageManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import os.kei.hyper.home.withForegroundDeviceCheck
@@ -27,8 +29,13 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.data.AppPreferences
+import os.kei.hyper.home.data.ColorOsStyle
+import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.data.iconPackTargets
+import os.kei.hyper.home.iconpack.apple.AppleCorners
+import os.kei.hyper.home.iconpack.apple.AppleIconOptions
 import os.kei.hyper.home.iconpack.apple.AppleIconRepository
+import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.IconPackHandoff
 import os.kei.hyper.home.status.IconPackHandoffs
@@ -62,7 +69,6 @@ class NativeIconPackImportMatrixDeviceTest {
         .put("schema", 1)
         .put("startedAt", System.currentTimeMillis())
         .put("userId", Process.myUid() / 100_000)
-        .put("autoApply", false)
         .put("applicationVerified", false)
         .put("coverage", "All repository-discovered packs and existing local publications")
         .put("inventories", inventories).put("inventoryIssues", issues).put("packs", rows)
@@ -83,8 +89,13 @@ class NativeIconPackImportMatrixDeviceTest {
 
       val repository = IconPackRepository(context)
       val arguments = InstrumentationRegistry.getArguments()
+      val autoApply = arguments.getString("autoApply") == "1"
+      report.put("autoApply", autoApply)
       val sourceIds = arguments.getString("sourceIds")?.split(',')?.toSet()
       val originPrefix = arguments.getString("originPrefix")
+      val appearance = arguments.getString("packAppearance")?.let(IconPackAppearance::valueOf)
+      val inspiration = arguments.getString("colorOsInspiration") == "1"
+      require(!inspiration || appearance != null)
       val candidates = linkedMapOf<String, Candidate>()
       fun add(pack: IconPackDescriptor, origin: String) {
         if (sourceIds != null && pack.id !in sourceIds) return
@@ -119,7 +130,6 @@ class NativeIconPackImportMatrixDeviceTest {
         val requestedStyle = arguments.getString("perfectStyle")
         val generatedDigest = if (requestedStyle != null) {
           report.put("coverage", "Explicit Perfect Icons style only; other inventories are context")
-          check(requestedStyle == "iOS") { "Unsupported explicit style acceptance request" }
           val perfect = os.kei.hyper.home.iconpack.perfect.PerfectIconRepository(context)
           check(requestedStyle in requireNotNull(perfect.catalog()).downloadedStyles) { "The requested style is not downloaded" }
           val options = os.kei.hyper.home.iconpack.perfect.PerfectIconOptions(
@@ -134,9 +144,17 @@ class NativeIconPackImportMatrixDeviceTest {
               check(Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS))
             }
           }
-          val generated = if (existing == null) perfect.generate(options,
-            if (options.installedOnly) iconPackTargets(context) {}.mapTo(hashSetOf()) { it.packageName }
-            else emptySet()) {} else null
+          val installed = if (options.installedOnly) buildSet {
+            val launcher = requireNotNull(context.getSystemService(LauncherApps::class.java))
+            launcher.getActivityList(null, Process.myUserHandle()).forEach { activity ->
+              add(activity.componentName.packageName)
+              add(activity.componentName.className)
+              add(activity.componentName.flattenToString())
+            }
+            context.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
+              .forEach { add(it.packageName) }
+          } else emptySet()
+          val generated = if (existing == null) perfect.generate(options, installed) {} else null
           report.put("generatedStyle", requestedStyle).put("generationMs", SystemClock.elapsedRealtime() - began)
             .put("generatedArchive", (generated?.file ?: existing!!).absolutePath)
             .put("reusedExistingPublication", existing != null)
@@ -154,6 +172,17 @@ class NativeIconPackImportMatrixDeviceTest {
             "An Apple publication exists but its descriptor could not be read"
           }
           IconPackScanResult(listOfNotNull(apple))
+        }
+        arguments.getString("generateApple")?.split(',')?.forEach { value ->
+          scan("GeneratedAppleOptions:$value") {
+            val (platform, resolution, corners) = value.split(':')
+            val apple = AppleIconRepository(context,
+              directory = File(context.cacheDir, "apple-matrix"), namespace = "apple_matrix")
+            val options = AppleIconOptions(ApplePlatform.valueOf(platform),
+              resolution.toInt(), AppleCorners.valueOf(corners))
+            val result = apple.generate(apple.targets().filter { it.system }, options, keepLatest = false) {}
+            IconPackScanResult(listOf(result.pack.copy(id = "apple:$value", displayName = "Apple · $value")))
+          }
         }
 
         // Read existing Perfect publications without importing/pruning the local
@@ -239,6 +268,9 @@ class NativeIconPackImportMatrixDeviceTest {
         }
 
         val selected = AppPreferences.get(context).state.value
+        val mode = appearance ?: selected.iconPackAppearance
+        report.put("appearance", mode.name).put("colorOsInspiration", inspiration)
+        report.put("autoApply", autoApply)
         val caller = currentCoroutineContext()
         val targets = iconPackTargets(context) { caller.ensureActive() }
         val previews = IconPackPreviewRepository(context)
@@ -260,11 +292,17 @@ class NativeIconPackImportMatrixDeviceTest {
             check(IconPackImportProtocol.pendingSource(context) == null) {
               "A different import is pending"
             }
-            val pack = candidate.pack.copy(id = selected.systemIconFallback.sourceId(candidate.pack.id))
+            val original = candidate.pack
+            val style = if (appearance == null) null else original.colorOsProfile?.let { profile ->
+              if (inspiration) ColorOsStyle.INSPIRATION
+              else ColorOsStyle.entries.first { it.key == profile.style }
+            }
+            val source = style?.importSourceId(original.id, mode) ?: original.id
+            val pack = original.copy(id = selected.systemIconFallback.sourceId(source))
             row.put("status", "preparing").put("preparedSourceId", pack.id)
             save()
             val prepared = IconPackHandoffs.prepare(context, repository, previews, pack, targets,
-              selected.iconPackAppearance, includePalette = true,
+              mode, includePalette = style == null || inspiration,
               systemFallback = selected.systemIconFallback,
               systemAppNameMatching = selected.systemAppNameMatching,
               colorOsForOtherPacks = selected.colorOsForOtherPacks,
@@ -288,7 +326,7 @@ class NativeIconPackImportMatrixDeviceTest {
             }
             val importStarted = SystemClock.elapsedRealtime()
             submitted = true
-            var result = IconPackImportProtocol.submit(context, service, prepared, autoApply = false)
+            var result = IconPackImportProtocol.submit(context, service, prepared, autoApply = autoApply)
             // A large pack can outlive submit's normal receipt timeout. Recheck only
             // this request, retaining its handoff and never replacing a pending owner.
             val deadline = SystemClock.elapsedRealtime() + 180_000L
@@ -326,7 +364,11 @@ class NativeIconPackImportMatrixDeviceTest {
             check(result != null && result.token == prepared.token &&
               result.sourceId == prepared.sourceId && result.userId == Process.myUid() / 100_000 &&
               result.imported && (prepared.convertedOrigin == null || result.convertedReady == true) &&
-              result.status != "APPLIED" && result.autoApplyToken == null) {
+              if (autoApply) {
+                result.status == "APPLIED" || result.autoApplyToken == prepared.token
+              } else {
+                result.status != "APPLIED" && result.autoApplyToken == null
+              }) {
               "Import/conversion was not confirmed: ${result?.status}, ${result?.message}"
             }
             row.put("status", "passed")
@@ -348,10 +390,21 @@ class NativeIconPackImportMatrixDeviceTest {
           }
         }
         val passed = (0 until rows.length()).count { rows.getJSONObject(it).optString("status") == "passed" }
-        val unchanged = AppPreferences.get(context).state.value == selected
+        val importedIds = (0 until rows.length()).mapNotNull { index ->
+          rows.getJSONObject(index).takeIf { it.getString("status") == "passed" }?.getString("localId")
+        }.toSet()
+        val current = AppPreferences.get(context).state.value
+        // The foreground host records the palette capability of confirmed imports.
+        // The association is receipt metadata, separate from the user's choices.
+        val unchanged = current.copy(colorOsComponents = current.colorOsComponents - importedIds) ==
+          selected.copy(colorOsComponents = selected.colorOsComponents - importedIds)
         report.put("passed", passed).put("userPreferencesUnchanged", unchanged)
-          .put("status", if (passed == candidates.size && issues.length() == 0 && unchanged)
-            "imports_passed_application_not_tested" else "failed")
+          .put("applicationVerified", autoApply && passed == candidates.size)
+          .put("status", when {
+            passed != candidates.size || issues.length() != 0 || !unchanged -> "failed"
+            autoApply -> "imports_and_auto_application_passed"
+            else -> "imports_passed_application_not_tested"
+          })
         save()
         assertTrue("Import matrix incomplete; inspect ${destination.absolutePath}",
           passed == candidates.size && issues.length() == 0 && unchanged)

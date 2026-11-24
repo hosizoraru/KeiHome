@@ -22,9 +22,40 @@ import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.data.RecommendedIconMappings
 import os.kei.hyper.home.data.iconPackTargets
 import os.kei.hyper.home.xposed.ConvertedIconArchive
+import os.kei.hyper.home.xposed.GeneratedNativeIconValidator
 
 @RunWith(AndroidJUnit4::class)
 class ExtraIconsDeviceTest {
+  @Test fun darkExtraExpandsCompactNativeSelectorWithoutOverwritingDay() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val icon = ExtraIcon.SERVICES_FEEDBACK
+    val target = iconPackTargets(context).firstOrNull(icon::accepts)
+    assumeTrue("Install Services & feedback", target != null)
+    val name = icon.packageName
+    val root = "fancy_icons/$name"
+    val day = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888).let { bitmap ->
+      try {
+        bitmap.eraseColor(Color.WHITE)
+        ByteArrayOutputStream().also { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }.toByteArray()
+      } finally { bitmap.recycle() }
+    }
+    val compact = NativeDayNightIcon.entries(name, day, day)
+    val file = File.createTempFile("compact-extra", ".zip", context.cacheDir)
+    try {
+      ZipOutputStream(file.outputStream()).use { archive ->
+        for ((path, bytes) in compact) ImageArchiveZip.writeBytes(archive, path, bytes) {}
+      }
+      val published = ZipFile(file).use { archive ->
+        compact + PublishedExtraIcons.replacements(context, archive, listOf(requireNotNull(target)), setOf(name)) {}
+      }
+      assertArrayEquals(day, published.getValue("$root/day.png"))
+      val night = published.getValue("$root/night.png")
+      assertFalse(day.contentEquals(night))
+      assertArrayEquals(night, published.getValue("nightmode/res/drawable-xxhdpi/$name.png"))
+      GeneratedNativeIconValidator.validate(name, published.keys) { path, _ -> published.getValue(path) }
+    } finally { file.delete() }
+  }
+
   @Test fun layeredDarkMarksSurvivePreviewAndPublication() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val installed = iconPackTargets(context)

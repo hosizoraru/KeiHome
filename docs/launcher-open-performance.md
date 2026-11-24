@@ -243,3 +243,70 @@ Clean-release acceptance additionally checks byte identity with the tested
 native payload and a normal Java/API 102 update without another Launcher
 restart. Final artifacts, identities, preference restoration and remaining
 measurement limits are recorded in the follow-up `acceptance.json`.
+
+## Horizontal Home swipes on 2026-11-24
+
+The report concerns 1.14.0 beta on a slower physical device. Local sampling
+compared KeiHome builds `115000758` and `115000759` on HyperOS Phone AVD
+`OS4.0.31.0.XFRCNXM` and Xiaomi 17 Pro `OS4.0.8.0.XBLCNXM`. Both devices
+ran Home `801030308`. The AVD used the stock icon pack and the phone used
+its existing Classic pack. The reporting device, layout, icon pack and
+beta frame trace were unavailable.
+
+Perfetto samples show Home's Flutter layout, paint, compositing and raster
+work, including `MamlDragSnapshot` slices. The candidate AVD trace reached
+65.8 ms in one raster slice. The corresponding phone trace reached 9.1 ms.
+These are separate environments. The samples leave the relative
+contribution of individual icons, materials and native launcher work open.
+
+App installation and update can run icon refresh code while Home is
+visible. A single-package refresh previously fetched the profile's full
+activity and shortcut lists, filtered them locally, and looked up
+application metadata even for owners already found in those lists.
+It now scopes both queries to the package and uses the application lookup
+only to cover a package with no activity or shortcut. Full and targeted
+refreshes also skip the archive coverage calculation, since every possible
+match is already in their activity owner set. Resource-selective refreshes
+still combine resource probes, theme coverage and shortcuts. This reduces
+event-driven work in `system_server` without adding a persistent cache or
+changing gesture timing, refresh pacing or callback scope.
+
+Each build captured four left and four right swipes on the same two pages
+on each device. Each gesture lasted 340 ms. The query uses marker windows
+and de-duplicates Home's surface frame tokens. P95 is the median of the
+eight per-swipe P95s from the Perfetto Actual Timeline.
+
+| Device | Home frame P95 | App deadline misses | Longest Home frame |
+| --- | ---: | ---: | ---: |
+| Phone AVD | 52.61 → 47.65 ms | 89/311 → 87/328 | 115.15 → 101.26 ms |
+| Xiaomi 17 Pro | 13.83 → 13.35 ms | 9/659 → 6/668 | 30.60 → 44.30 ms |
+
+These are single runs of ordinary swipes without a controlled concurrent
+package refresh. The differences are within the scope of a regression
+check. A causal improvement to steady-state swiping or performance on the
+reporting phone remains unmeasured.
+
+An archive-only experiment replaced paired light/dark image nodes with a
+single source expression in matching generated MAML descriptors. It changed
+925 manifests in the phone pack and two in the AVD pack. Six common phone
+swipe windows yielded P95s of 12.51, 12.26 and 12.15 ms in the original,
+experiment and repeat-original runs. App deadline misses were 3, 0 and 3.
+The AVD had five common windows and high run-to-run variation. The overlap
+with both phone controls offers little justification for changing the
+selector on every compatible host. The checked-in renderer retains the
+existing descriptor format and authored animations.
+
+The Debug build passed and six focused JVM suites passed all 80 tests.
+AVD API 102 receipts verified critical Java reloads. The physical install
+was verified separately, and the native libraries matched the preceding
+build byte for byte. On the AVD a temporary package with no launcher entry
+produced one package callback. A light-to-dark switch still completed the
+selective resource refresh with 90 callbacks. Motion recordings on both
+devices show page one to page two and back with the Dock and icons
+rendering during the gesture. The original icon packs and light mode were
+restored, and the temporary package was removed.
+
+Local evidence is in `.artifacts/research/launcher-page-swipe-20261124/`.
+`frame-summary.json` contains the comparable marker windows and
+`swipe.sql` the frame query. The directory also contains the deployment
+receipt, AVD refresh logs, motion recordings and full traces.

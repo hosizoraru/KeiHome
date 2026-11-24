@@ -676,40 +676,52 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           ) continue
           try {
             val requestedPackages = generations.packages(generation)
-            val activities = launcherApps.getActivityList(null, user).filter {
-              requestedPackages == null || it.componentName.packageName in requestedPackages
-            }
             val fullRefresh = generations.needsFullRefresh(generation)
-            // A palette refresh already includes every entry; probing first only adds AMS work.
-            val probedPackages = if (fullRefresh || requestedPackages != null)
-              activities.map { it.componentName.packageName }.toSet()
-            else probe.packagesToRefresh(activities) { refreshCurrent(generation) }
-            if (!refreshCurrent(generation)) return
-            val theme = iconTheme.snapshot(
-              activities.map { it.componentName.packageName }.toSet(),
-              activities.groupBy { it.componentName.packageName }
-                .mapValues { (_, entries) -> entries.map { it.componentName.className }.toSet() },
-              modEnabled = true,
-            )
-            val shortcutsByPackage = (shortcutsByPackage(launcherApps, user) ?: emptyMap()).filterKeys {
-              requestedPackages == null || it in requestedPackages
+            val singlePackage = requestedPackages?.singleOrNull()
+            val activities = launcherApps.getActivityList(singlePackage, user).let { entries ->
+              if (requestedPackages == null || singlePackage != null) entries
+              else entries.filter { it.componentName.packageName in requestedPackages }
             }
-            val shortcutPackages = shortcutsByPackage.keys
-            val themePackages = if (theme.complete) theme.coveredPackages
-            else activities.map { it.componentName.packageName }.toSet()
+            val activityPackages = activities.mapTo(hashSetOf()) { it.componentName.packageName }
+            // Full and targeted refreshes already include every activity owner in scope.
+            val activityOwners = if (fullRefresh || requestedPackages != null) {
+              activityPackages
+            } else {
+              val probed = probe.packagesToRefresh(activities, isCurrent)
+              if (!isCurrent()) return
+              val theme = iconTheme.snapshot(
+                activityPackages,
+                activities.groupBy { it.componentName.packageName }
+                  .mapValues { (_, entries) -> entries.mapTo(hashSetOf()) { it.componentName.className } },
+                modEnabled = true,
+              )
+              if (theme.complete) probed + theme.coveredPackages else activityPackages
+            }
+            if (!refreshCurrent(generation)) return
+            val shortcutsByPackage = shortcutsByPackage(launcherApps, user, singlePackage).let { shortcuts ->
+              if (requestedPackages == null || singlePackage != null) shortcuts
+              else shortcuts.filterKeys { it in requestedPackages }
+            }
             // Native HyperOS frontends can own icon resources without an Android
             // MAIN/LAUNCHER activity. A targeted update must still reach their owner.
-            val installedOwners = requestedPackages.orEmpty().filterTo(hashSetOf()) { name ->
-              try { launcherApps.getApplicationInfo(name, 0, user) != null }
-              catch (_: android.content.pm.PackageManager.NameNotFoundException) { false }
-              catch (_: SecurityException) { false }
+            val packages = (activityOwners + shortcutsByPackage.keys).toSortedSet()
+            for (name in requestedPackages.orEmpty()) {
+              if (!isCurrent()) return
+              if (name in packages) continue
+              val installed = try {
+                launcherApps.getApplicationInfo(name, 0, user) != null
+              } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                false
+              } catch (_: SecurityException) {
+                false
+              }
+              if (installed) packages.add(name)
             }
-            val packages = (probedPackages + themePackages + shortcutPackages + installedOwners).toSortedSet()
             xposed.log(
               Log.INFO, TAG,
               "Icon probe generation=$generation user=${profile.userId.invoke(user)} " +
                 "activities=${activities.size} packages=${packages.size} " +
-                "shortcuts=${shortcutPackages.size} cause=$cause intervalMs=${cause.packageIntervalMs}",
+                "shortcuts=${shortcutsByPackage.size} cause=$cause intervalMs=${cause.packageIntervalMs}",
             )
             for (packageName in packages) {
               if (!refreshCurrent(generation)) {
@@ -899,15 +911,18 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   private fun shortcutsByPackage(
     launcherApps: LauncherApps,
     user: UserHandle,
-  ): Map<String, List<*>>? =
+    packageName: String?,
+  ): Map<String, List<*>> =
     try {
+      val query = LauncherApps.ShortcutQuery().setQueryFlags(
+        LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+          LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+          LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED or
+          LauncherApps.ShortcutQuery.FLAG_MATCH_CACHED,
+      )
+      if (packageName != null) query.setPackage(packageName)
       launcherApps.getShortcuts(
-        LauncherApps.ShortcutQuery().setQueryFlags(
-          LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
-            LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
-            LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED or
-            LauncherApps.ShortcutQuery.FLAG_MATCH_CACHED,
-        ),
+        query,
         user,
       ).orEmpty().groupBy { it.`package` }
     } catch (failure: Throwable) {
@@ -916,7 +931,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         "Shortcut enumeration unavailable for user=${profile.userId.invoke(user)}",
         failure,
       )
-      null
+      emptyMap()
     }
 
   private fun logFailure(message: String, failure: Throwable) {

@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.database.ContentObserver
 import android.graphics.Color
 import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.Animatable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -30,15 +31,17 @@ import java.util.zip.ZipFile
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import os.kei.hyper.home.iconpack.IconPackComponent
+import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.iconpack.OriginalAppIcons
+import os.kei.hyper.home.iconpack.OriginalIconShape
 import os.kei.hyper.home.iconpack.nativeLauncherActivityName
 
-/** Uses the same published icon archive and renderer as other SystemUI icon surfaces. */
+/** Prepares starting-window artwork from the active icon archive or the stock HyperOS producer. */
 internal class SplashIconArtwork(private val maintenance: () -> Unit) {
   data class Snapshot(val bitmap: Bitmap, val source: String)
   data class Result(val snapshot: Snapshot?, val cache: String)
-  private data class Source(val fileKey: Any?, val size: Long, val modified: FileTime)
+  private data class Source(val fileKey: Any?, val size: Long, val modified: FileTime, val regular: Boolean)
   private data class Key(
     val component: IconPackComponent, val uid: Int, val apk: String?,
     val icon: Int, val theme: Int, val dark: Boolean, val locale: Locale, val palette: Long, val timeZone: String,
@@ -77,8 +80,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
     val attrs = try {
       Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
     } catch (_: java.nio.file.NoSuchFileException) { return null }
-    return if (attrs.isRegularFile && attrs.size() in 1..(1024L * 1024 * 1024))
-      Source(attrs.fileKey(), attrs.size(), attrs.lastModifiedTime()) else null
+    return Source(attrs.fileKey(), attrs.size(), attrs.lastModifiedTime(), attrs.isRegularFile)
   }
 
   private fun archive(now: Long): ZipFile? {
@@ -87,7 +89,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
       clearLocked()
       source = stamp
     }
-    if (stamp == null || now < retryAt) return null
+    if (stamp == null || !stamp.regular || stamp.size !in 1..(1024L * 1024 * 1024) || now < retryAt) return null
     return archive ?: traced("KeiHomeSplash/archive") {
       ZipFile(file).also { archive = it }
     }
@@ -190,18 +192,20 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
         snapshots.get(key, now, minute)?.let { return@safely Result(it.value, "hit") }
         var dynamic = false
         val snapshot = traced("KeiHomeSplash/render") {
+          if (zip == null) return@traced stockSnapshot(context, activity, dark)
+
           val original by lazy(LazyThreadSafetyMode.NONE) {
             OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark)
               ?.let { Snapshot(it, "original-apk") }
           }
           var preserved = false
-          val themed = zip?.let { SurfaceIconSnapshotRenderer.render(it,
+          val themed = SurfaceIconSnapshotRenderer.render(zip,
             nativeLauncherActivityName(component) ?: activity.packageName,
             dark, locale, wallTime, palette, packageName = activity.packageName,
             onDynamic = { dynamic = true }, originalIcon = {
               preserved = true
               original?.bitmap
-            }) }
+            })
           if (themed != null && !preserved) Snapshot(themed, "applied-theme") else original
         }
         // The archive or resource configuration can change during decoding.
@@ -220,6 +224,16 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
     }
   }
 
+  private fun stockSnapshot(context: Context, activity: ActivityInfo, dark: Boolean): Snapshot? {
+    val size = SurfaceIconSnapshotRenderer.SIZE
+    val native = SplashStockIcons.load(callbackContext ?: context, activity)
+    if (native is Animatable) return null
+    if (native != null) return Snapshot(OriginalAppIcons.rasterize(native, size), "stock-hyperos")
+    return OriginalAppIcons.renderLaunchIcon(context, activity, size, dark)?.let {
+      Snapshot(shapeStockFallback(it), "stock-apk")
+    }
+  }
+
   private inline fun <T> safely(block: () -> T): T? = try {
     block()
   } catch (failure: Exception) {
@@ -233,6 +247,12 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
   }
 
   companion object {
+    internal fun shapeStockFallback(bitmap: Bitmap): Bitmap = try {
+      IconMaskPolicy.clip(bitmap, OriginalIconShape.mask)
+    } finally {
+      bitmap.recycle()
+    }
+
     fun completedDrawable(context: Context, bitmap: Bitmap) =
       BitmapDrawable(context.resources, bitmap).apply {
         gravity = android.view.Gravity.FILL

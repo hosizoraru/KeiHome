@@ -17,6 +17,19 @@ import os.kei.hyper.home.iconpack.OriginalAppIcons
 
 @RunWith(AndroidJUnit4::class)
 class OriginalAppIconGeometryDeviceTest {
+  @Test fun stockApkFallbackRemovesSquareCornersWithoutChangingArtwork() {
+    val source = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
+    source.eraseColor(Color.BLUE)
+    val snapshot = SplashIconArtwork.shapeStockFallback(source)
+    try {
+      assertEquals(Color.TRANSPARENT, snapshot.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, snapshot.getPixel(191, 191))
+      assertEquals(Color.BLUE, snapshot.getPixel(96, 96))
+    } finally {
+      snapshot.recycle()
+    }
+  }
+
   @Test fun completedSplashPreservesCornerArtworkAndTransparentPixelsAtWindowSize() {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val source = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)

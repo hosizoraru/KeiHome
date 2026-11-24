@@ -1,4 +1,15 @@
 <resources>
+    <string name="release_notes_1_15_0_introduction">Choose wallpaper presets for light and dark mode, dim wallpapers in dark mode, and find new options for icon packs and app appearance.</string>
+    <string-array name="release_notes_1_15_0_changes">
+        <item>Different wallpapers for light and dark mode\nIn Home → Appearance → Wallpaper presets by appearance, choose a System Personalization preset for each mode. HyperOS applies its Home and Lock screen appearance when the system switches modes. Either mode can keep the current preset.</item>
+        <item>Separate dimming for the Home and Lock screens\nTurn on Dim wallpaper in Dark mode to set each strength separately. Compare the original and dimmed previews, then tap the slider track or drag to adjust. A live wallpaper shared by both screens switches strength when you lock or unlock.</item>
+        <item>Separate app appearance and palette settings\nIn Settings → Theme settings, choose a light or dark appearance and an app palette independently. Display effects are on the same page. About now uses Glass cards and reveals the title as you scroll.</item>
+        <item>Preserve the original icon layers\nConverting supported Hyper icon packs preserves more layered artwork and keeps the original behavior of supported clock, calendar and weather icons.</item>
+        <item>Clearer dark icons\nIn KeiHome extra icons, Key Attestation keeps its keyhole and checkmark, VPN Hotspot keeps its signal arcs and key shading, and Fileyan’s ring stands out against its dark background.</item>
+        <item>Glass sheets and search controls\nBottom sheets use updated Glass motion on open, close and settle. Search fields use a consistent clear button so you can start a new query right away.</item>
+    </string-array>
+    <string name="release_notes_1_15_0_footnote">Wallpaper features require the System Framework scope. Presets depend on HyperOS support. Update or regenerate and apply your icon pack to use the icon improvements.</string>
+
     <string name="release_notes_1_14_0_introduction">Adjust the Dock glass spacing, generate leaner icon packs, and find previews, updates, and application controls more easily.</string>
     <string-array name="release_notes_1_14_0_changes" formatted="false">
         <item>Dock side padding and icon centering\nWith Dock glass enabled, adjust the gap between the outer icons and the glass edges. 0 dp keeps the default side spacing. The glass fits the available width while icons and touch targets stay in place. Icons are vertically centered in the glass with launcher labels shown or hidden.</item>

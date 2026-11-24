@@ -219,11 +219,12 @@ private fun ReleaseNotesCard(
   onRead: () -> Unit,
 ) {
   val date = remember(release.committedAt) {
-    runCatching {
-      // Keep the target commit's own calendar date; the tag creation date is unrelated.
-      OffsetDateTime.parse(release.committedAt).toLocalDate()
-        .format(DateTimeFormatter.ISO_LOCAL_DATE)
-    }.getOrNull()
+    release.committedAt?.let { timestamp ->
+      runCatching {
+        // Keep the target commit's own calendar date; the tag creation date is unrelated.
+        OffsetDateTime.parse(timestamp).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+      }.getOrNull()
+    }
   }
   Card(Modifier.fillMaxWidth().testTag("release-notes.release.${release.version}"),
     insideMargin = PaddingValues(0.dp)) {
@@ -245,9 +246,11 @@ private fun ReleaseNotesCard(
           verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
           Text(release.version, style = MiuixTheme.textStyles.headline1,
             modifier = Modifier.testTag("release-notes.version.${release.version}"))
-          MetadataPill(date ?: stringResource(R.string.release_notes_ui_date_unavailable),
-            MiuixTheme.colorScheme.onSurfaceSecondary,
-            Modifier.testTag("release-notes.date.${release.version}"))
+          if (release.committedAt != null) {
+            MetadataPill(date ?: stringResource(R.string.release_notes_ui_date_unavailable),
+              MiuixTheme.colorScheme.onSurfaceSecondary,
+              Modifier.testTag("release-notes.date.${release.version}"))
+          }
           if (highlighted) {
             MetadataPill(stringResource(R.string.release_notes_ui_unread),
               MiuixTheme.colorScheme.primary)

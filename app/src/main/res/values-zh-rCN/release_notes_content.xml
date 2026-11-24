@@ -1,4 +1,15 @@
 <resources>
+    <string name="release_notes_1_15_0_introduction">新增深浅色壁纸搭配，恢复深色模式下调暗壁纸，并改进图标包和 App 外观设置。</string>
+    <string-array name="release_notes_1_15_0_changes">
+        <item>为浅色和深色选择不同壁纸\n在「桌面 → 桌面外观 → 深浅色壁纸搭配」为两种模式分别选择一套系统个性化搭配。切换系统深浅色时，HyperOS 会应用对应的桌面、壁纸和锁屏样式。也可以为任一模式选择保持当前搭配。</item>
+        <item>分别调暗桌面与锁屏壁纸\n打开「深色模式下调暗壁纸」后，可分别设定强度，对照原图和调暗效果，点按滑块轨道或拖动调整。桌面和锁屏共用动态壁纸时，锁屏和解锁也会按各自强度切换。</item>
+        <item>App 外观和配色独立设置\n在「设置 → 主题设置」单独选深浅色外观和 App 配色，同页调整显示效果。「关于」页换用 Glass 卡片，滚动时会在顶栏显示标题。</item>
+        <item>保留图标的原有分层\n转换支持的 Hyper 图标包时，可保留更多分层图标，以及原版时钟、日历和天气的变化效果。</item>
+        <item>改善三款深色图标\nKeiHome 额外补全中的密钥认证保留了钥匙孔和对勾，VPN 热点保留了信号弧线和钥匙的光影，文件眼的圆环在深色底上更清晰。</item>
+        <item>Glass 面板和搜索操作\n底部面板开合与回弹采用更新后的 Glass 动效。搜索框有统一的清除按钮，清空关键词后可以继续输入。</item>
+    </string-array>
+    <string name="release_notes_1_15_0_footnote">壁纸功能需要启用系统框架作用域，搭配可用性取决于 HyperOS。要应用图标改进，请更新或重新生成图标包后应用。</string>
+
     <string name="release_notes_1_14_0_introduction">调整 Dock 玻璃留白，减少生成图标包的多余开销，并让图标包和 Monet 的预览、更新与应用更好找。</string>
     <string-array name="release_notes_1_14_0_changes" formatted="false">
         <item>Dock 左右边距与图标居中\n开启 Dock 玻璃背景后，可调整两端图标到玻璃边缘的间距，0 dp 保持原来的左右边距。玻璃随可用宽度调整，图标和点击区域留在原位。开启或关闭桌面无字模式时，图标都能在玻璃底板内垂直居中。</item>

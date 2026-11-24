@@ -11,7 +11,8 @@ saved-state restoration.
 
 Dates are derived from each release tag's **target commit committer timestamp**,
 preserving the recorded offset. They are unrelated to annotated-tag creation
-times or APK build dates. Runtime uses the bundled catalog without Git,
+times or APK build dates. The current version can show its authored notes
+before tagging, with the date omitted. Runtime uses the bundled catalog without Git,
 network requests, APK inspection or native hooks.
 
 ## Startup
@@ -98,6 +99,9 @@ gesture handle, Bilibili home artwork, and Phone/Pad Glass refinements.
 [1.14.0](releases/1.14.0.md) compares the release with the public 1.13.0
 beta (`g89c8421.b0647.override`) and covers Dock spacing, icon preparation
 and application, and the reorganized pack and Monet tabs.
+The 1.15.0 card covers appearance-based wallpaper presets, separate wallpaper
+dimming strengths, app appearance and palette, icon preservation, Glass controls,
+and clearer extra dark icons for Key Attestation, VPN Hotspot, and Fileyan.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 
@@ -108,8 +112,9 @@ override that default. The local `v1.9.0` tag points to an older preparation
 commit and remains the catalog date anchor. Published 1.9.0 notes stay scoped
 to the public build, excluding pending features from later development.
 
-For a subsequent release, add localized content, its exact tag and target
-committer timestamp, and the desired upgrade expansion list. The catalog stores
+When preparing the next version, add localized content and the desired upgrade
+expansion list. When tagging that version, add the exact tag and its target
+committer timestamp. The catalog stores
 the tag rather than redundantly embedding its own commit hash: a release commit
 cannot contain its own final hash. The focused checker resolves each tag and
 checks its target timestamp. Set the release commit timestamp to the recorded

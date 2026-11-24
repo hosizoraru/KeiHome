@@ -63,6 +63,7 @@ internal object PublishedExtraIcons {
               plan.palette != null -> {
                 val (mask, background) = plan.palette
                 NativePaletteIcon.entries(plan.name, plan.day, dark, mask, background,
+                  legacyExpanded = "fancy_icons/${plan.name}/night.png" in paths,
                   legacyScalarBinders = plan.legacyScalarBinders)
               }
               plan.nightPath != null -> mapOf("nightmode/$DRAWABLE${plan.name}.png" to dark, plan.nightPath to dark)
@@ -109,7 +110,10 @@ internal object PublishedExtraIcons {
     val compactResources = compact && fancy.all { it.removePrefix(root) in setOf("day.png", "manifest.xml") }
     if (fancy.isNotEmpty() && palette == null && !compactResources &&
       (pair == null || fancy.any { it.removePrefix(root) !in setOf("manifest.xml", pair.light, pair.dark) })) return null
-    return Plan(name, day, size, flat, pair?.let { root + it.dark }, palette,
+    // Compact selectors share one image. Adding a dark override needs a new
+    // selector and night image, while the existing day image stays intact.
+    val nightPath = pair?.takeIf { it.light != it.dark }?.let { root + it.dark }
+    return Plan(name, day, size, flat, nightPath, palette,
       palette != null && manifest!!.decodeToString().contains("#palette_enabled"))
   }
 

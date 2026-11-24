@@ -3,8 +3,7 @@ package os.kei.hyper.home.iconpack
 import android.os.Process
 import android.os.SystemClock
 import android.util.AtomicFile
-import android.content.pm.LauncherApps
-import android.content.pm.PackageManager
+import os.kei.hyper.home.iconpack.perfect.perfectInstalledIconNames
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import os.kei.hyper.home.withForegroundDeviceCheck
@@ -144,16 +143,7 @@ class NativeIconPackImportMatrixDeviceTest {
               check(Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS))
             }
           }
-          val installed = if (options.installedOnly) buildSet {
-            val launcher = requireNotNull(context.getSystemService(LauncherApps::class.java))
-            launcher.getActivityList(null, Process.myUserHandle()).forEach { activity ->
-              add(activity.componentName.packageName)
-              add(activity.componentName.className)
-              add(activity.componentName.flattenToString())
-            }
-            context.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
-              .forEach { add(it.packageName) }
-          } else emptySet()
+          val installed = if (options.installedOnly) perfectInstalledIconNames(context) else emptySet()
           val generated = if (existing == null) perfect.generate(options, installed) {} else null
           report.put("generatedStyle", requestedStyle).put("generationMs", SystemClock.elapsedRealtime() - began)
             .put("generatedArchive", (generated?.file ?: existing!!).absolutePath)

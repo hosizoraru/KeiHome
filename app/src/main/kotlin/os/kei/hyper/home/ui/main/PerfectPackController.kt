@@ -2,9 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import android.content.Context
 import android.os.SystemClock
-import android.content.pm.LauncherApps
-import android.content.pm.PackageManager
-import android.os.Process
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
@@ -40,6 +37,7 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconResult
 import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
 import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
+import os.kei.hyper.home.iconpack.perfect.perfectInstalledIconNames
 
 internal const val PERFECT_PACK_UI_STORAGE_ID = "perfect_icons_ui_v1"
 
@@ -453,7 +451,7 @@ internal class PerfectPackController(
       var failure = PerfectPackError.INSTALLED
       try {
         withContext(Dispatchers.IO) {
-          val installed = installedNames()
+          val installed = perfectInstalledIconNames(app)
           failure = PerfectPackError.GENERATE
           val result = repository.generate(options, installed) { progress ->
             mutableState.update { it.copy(progress = progress) }
@@ -526,18 +524,6 @@ internal class PerfectPackController(
       } catch (_: Exception) {
         mutableState.update { if (expected != null && it !== expected) it else it.copy(error = it.error ?: PerfectPackError.LOCAL) }
       }
-    }
-  }
-
-  private fun installedNames(): Set<String> = buildSet {
-    val launcher = requireNotNull(app.getSystemService(LauncherApps::class.java))
-    launcher.getActivityList(null, Process.myUserHandle()).forEach { activity ->
-      add(activity.componentName.packageName)
-      add(activity.componentName.className)
-      add(activity.componentName.flattenToString())
-    }
-    app.packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0)).forEach {
-      add(it.packageName)
     }
   }
 

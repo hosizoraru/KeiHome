@@ -237,6 +237,8 @@ internal class CrossSurfaceIconCache(
     return null
   }
 
+  fun isActive(): Boolean = active && !stopping
+
   private fun retainWantedLocked(packageName: String, activity: String?): Key {
     val key = keys.retain(packageName, activity)
     // Bound cold requests and the active working set; never recycle host-owned bitmaps.

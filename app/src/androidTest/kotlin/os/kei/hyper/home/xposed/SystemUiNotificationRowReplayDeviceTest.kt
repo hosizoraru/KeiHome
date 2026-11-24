@@ -39,13 +39,11 @@ class SystemUiNotificationRowReplayDeviceTest {
 
   private class Fixture(val user: Int = 0) {
     val context = InstrumentationRegistry.getInstrumentation().targetContext
-    var time = 100000L
     var ready = false
     var readyReads = 0
-    var clockReads = 0
     val replay = SystemUiNotificationRowReplay(
       FakeRow::class.java, FakeRow::class.java.getDeclaredMethod("reInflateViews"), user,
-      { readyReads++; ready }, { clockReads++; time })
+      { readyReads++; ready })
 
     fun binding(depth: Int = 1, row: FakeRow = FakeRow(context)): Binding {
       var parent: FrameLayout = row
@@ -63,7 +61,7 @@ class SystemUiNotificationRowReplayDeviceTest {
       pkg: String = "android",
       uid: Int = user * 100000 + 1000,
       notificationUser: Int = user,
-      postTime: Long = time,
+      postTime: Long = System.currentTimeMillis(),
     ) = StatusBarNotification(pkg, pkg, 1, null, uid, 0, 0, Notification(),
       UserHandle.getUserHandleForUid(notificationUser * 100000), postTime)
 
@@ -129,46 +127,23 @@ class SystemUiNotificationRowReplayDeviceTest {
     assertEquals(0, f.replay.replay())
   }
 
-  @Test fun limitsFrameworkProvenanceFreshnessAndAdmissionToInitialThirtySeconds() = onMain {
+  @Test fun acceptsApplicationRowsForTheCurrentUserAndRejectsOtherUsers() = onMain {
     val f = Fixture(user = 1)
-    val rejected = listOf(
-      f.notification(pkg = "com.android.systemui"),
-      f.notification(uid = 101001),
-      f.notification(uid = 1000),
-      f.notification(notificationUser = 0),
-      f.notification(postTime = f.time - 30001),
-      f.notification(postTime = f.time + 1001),
-    ).map { notification -> f.binding().also { assertFalse(f.remember(it, notification)) } }
-    val stale = f.binding()
-    assertTrue(f.remember(stale, f.notification(postTime = f.time - 30000)))
-    val future = f.binding()
-    assertTrue(f.remember(future, f.notification(postTime = f.time + 1000)))
-    val recycled = f.binding()
-    assertTrue(f.remember(recycled))
-    assertFalse(f.remember(recycled, f.notification(pkg = "os.kei")))
-    f.time++
+    val application = f.binding()
+    assertTrue(f.remember(application, f.notification(pkg = "com.example.mail")))
+    val otherUser = f.binding()
+    assertFalse(f.remember(otherUser, f.notification(
+      uid = 1000,
+      notificationUser = 0,
+    )))
     f.ready = true
     assertEquals(1, f.replay.replay())
-    assertEquals(1, future.row.reinflations)
-    assertEquals(0, stale.row.reinflations)
-    assertEquals(0, recycled.row.reinflations)
-    rejected.forEach { assertEquals(0, it.row.reinflations) }
-
-    val boundary = Fixture()
-    val pending = boundary.binding()
-    assertTrue(boundary.remember(pending))
-    boundary.time += 30000
-    val atBoundary = boundary.binding()
-    assertTrue(boundary.remember(atBoundary))
-    boundary.time++
-    val lateFresh = boundary.binding()
-    assertFalse(boundary.remember(lateFresh))
-    assertFalse(weakRows(boundary.replay).isEmpty())
-    assertEquals(0, boundary.replay.replay())
-    assertTrue(weakRows(boundary.replay).isEmpty())
-    boundary.ready = true
-    assertEquals(0, boundary.replay.replay())
-    listOf(pending, atBoundary, lateFresh).forEach { assertEquals(0, it.row.reinflations) }
+    assertEquals(1, application.row.reinflations)
+    assertEquals(0, otherUser.row.reinflations)
+    f.replay.markPending()
+    assertFalse(f.remember(application, f.notification(pkg = "com.example.mail")))
+    assertEquals(1, f.replay.replay())
+    assertEquals(2, application.row.reinflations)
   }
 
   @Test fun capsWeakStorageAtEightRetainsConsumedRowsAndReclaimsClearedReferences() = onMain {
@@ -216,12 +191,10 @@ class SystemUiNotificationRowReplayDeviceTest {
     assertEquals(0, second.row.reinflations)
     assertTrue(weakRows(f.replay).isEmpty())
     val readyReads = f.readyReads
-    val clockReads = f.clockReads
     assertFalse(f.remember(second))
     assertEquals(0, f.replay.replay())
     f.replay.clear()
     assertEquals(readyReads, f.readyReads)
-    assertEquals(clockReads, f.clockReads)
   }
 
   @Test fun propagatesNativeExceptionAndDoesNotRetryConsumedFailure() = onMain {

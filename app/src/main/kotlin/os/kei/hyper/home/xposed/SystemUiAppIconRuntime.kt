@@ -89,7 +89,8 @@ internal class SystemUiAppIconRuntime(
     val profile = resolveProfile()
     // Match the tracked-view bound so replay cannot churn a smaller wanted set.
     val iconCache = CrossSurfaceIconCache(context, maxEntries = 64,
-      refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true, onReady = ::queueReplay)
+      refreshOnMinute = true, notifyOnMiss = true, watchThemeArchive = true,
+      onReady = { queueReplay(refreshRows = true) })
     cache = iconCache
     replace(profile.bitmap, HOOK_ID) { chain -> intercept(chain) }
     foldGuard.run(Unit) {
@@ -154,7 +155,7 @@ internal class SystemUiAppIconRuntime(
         val rebind = row.getDeclaredMethod("reInflateViews")
         check(!Modifier.isStatic(rebind.modifiers) && rebind.returnType == Void.TYPE)
         SystemUiNotificationRowReplay(row.asSubclass(android.view.View::class.java), rebind,
-          currentUser, { cache?.get("android")?.isRecycled == false })
+          currentUser, { cache?.isActive() == true })
       }
       cachedProfile.customMethod?.let { custom -> replace(custom, "$HOOK_ID.native-custom-header.v1") { chain ->
         val result = chain.proceed()
@@ -508,7 +509,7 @@ internal class SystemUiAppIconRuntime(
           return@run
         }
         val frameworkNotice = notification as? android.service.notification.StatusBarNotification
-        if (frameworkNotice?.packageName == "android" &&
+        if (frameworkNotice != null &&
           notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
         bindings.bindNative(view, cached, name)?.let(::boundReady)
       }
@@ -565,12 +566,16 @@ internal class SystemUiAppIconRuntime(
     }
   }
 
-  private fun queueReplay() {
+  private fun queueReplay(refreshRows: Boolean = false) {
+    if (refreshRows) notificationRows?.markPending()
     if (!stopped && replayQueued.compareAndSet(false, true) && !main.post(replay))
       replayQueued.set(false)
   }
 
-  fun invalidate() = cache?.invalidate()
+  fun invalidate() {
+    notificationRows?.markPending()
+    cache?.invalidate()
+  }
 
   fun retirementStatus(): String =
     "cache=${cache?.retirementStatus() ?: "released"}, statusbar=${statusBar?.retirementStatus() ?: "released"}"

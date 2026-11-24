@@ -13,15 +13,14 @@ internal class SystemUiNotificationRowReplay(
   private val rebind: Method,
   private val currentUser: Int,
   private val ready: () -> Boolean,
-  private val now: () -> Long = System::currentTimeMillis,
 ) {
-  private class Row(view: View, var postTime: Long) {
+  private class Row(view: View) {
     val view = WeakReference(view)
-    var consumed = false
+    var pending = true
+    var rebinding = false
   }
 
   private val lock = Any()
-  private val startedAt = now()
   private val rows = ArrayList<Row>(8)
   @Volatile private var stopped = false
 
@@ -32,29 +31,27 @@ internal class SystemUiNotificationRowReplay(
   }
 
   fun remember(authenticatedImageView: View, notification: StatusBarNotification): Boolean = synchronized(lock) {
-    if (stopped || !withinWindow()) return@synchronized false
+    if (stopped) return@synchronized false
     val view = rowFor(authenticatedImageView) ?: return@synchronized false
     rows.removeAll { it.view.get() == null }
     val existing = rows.firstOrNull { it.view.get() === view }
-    if (notification.packageName != "android" || notification.uid < 0 ||
-      notification.uid % 100000 != 1000 || notification.uid / 100000 != currentUser ||
-      notification.user != UserHandle.getUserHandleForUid(notification.uid) || !fresh(notification.postTime)) {
-      existing?.consumed = true
+    if (notification.uid < 0 || notification.uid / 100000 != currentUser ||
+      notification.user != UserHandle.getUserHandleForUid(notification.uid)) {
+      rows.removeAll { it === existing }
       return@synchronized false
     }
     if (existing != null) {
-      if (!existing.consumed) existing.postTime = notification.postTime
+      if (existing.rebinding) return@synchronized false
       return@synchronized false
     }
     if (rows.size == 8) return@synchronized false
-    rows.add(Row(view, notification.postTime))
+    rows.add(Row(view))
     true
   }
 
   fun replay(): Int {
     val snapshot = synchronized(lock) {
       if (stopped) return 0
-      if (!withinWindow()) { rows.clear(); return 0 }
       rows.toList()
     }
     if (!ready()) return 0
@@ -62,34 +59,37 @@ internal class SystemUiNotificationRowReplay(
     for (entry in snapshot) {
       val row = synchronized(lock) {
         if (stopped) return count
-        if (!withinWindow()) { rows.clear(); return count }
-        if (entry.consumed) return@synchronized null
+        if (!entry.pending || entry.rebinding) return@synchronized null
         val view = entry.view.get() ?: return@synchronized null
-        if (!fresh(entry.postTime)) {
-          entry.consumed = true
-          return@synchronized null
-        }
         if (!view.isAttachedToWindow) return@synchronized null
-        entry.consumed = true
+        entry.pending = false
+        entry.rebinding = true
         view
       } ?: continue
       try {
         rebind.invoke(row)
       } catch (error: InvocationTargetException) {
+        synchronized(lock) {
+          entry.rebinding = false
+        }
         throw error.targetException
       }
+      synchronized(lock) { entry.rebinding = false }
       count++
     }
     return count
+  }
+
+  fun markPending() = synchronized(lock) {
+    if (stopped) return@synchronized
+    rows.removeAll { it.view.get() == null }
+    rows.forEach { if (!it.rebinding) it.pending = true }
   }
 
   fun clear() = synchronized(lock) {
     stopped = true
     rows.clear()
   }
-
-  private fun fresh(postTime: Long): Boolean = now() - postTime in -1000L..30000L
-  private fun withinWindow(): Boolean = now() - startedAt in 0L..30000L
 
   private fun rowFor(view: View): View? {
     var parent = view.parent

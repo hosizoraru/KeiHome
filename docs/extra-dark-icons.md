@@ -90,13 +90,13 @@ identify the apps and their upstream projects. No app artwork is bundled.
 | App | Package | Reference build | Artwork |
 | --- | --- | --- | --- |
 | [Keyguard](https://github.com/AChep/keyguard-app) | `com.artemchep.keyguard` | `2.14.2` | Adaptive foreground |
-| [Key Attestation](https://github.com/vvb2060/KeyAttestation) | `io.github.vvb2060.keyattestation` | `1.8.4` | Tinted adaptive foreground |
-| [VPN Hotspot](https://github.com/mygod/vpnhotspot) | `be.mygod.vpnhotspot` | `3.0.8` | Adaptive foreground |
+| [Key Attestation](https://github.com/vvb2060/KeyAttestation/tree/b223a9be86cb2a747625d8e47f3456646d55bd7a) | `io.github.vvb2060.keyattestation` | `1.8.4` | Blue-gray adaptive background with the original checkmark, keyhole and shadow |
+| [VPN Hotspot](https://github.com/Mygod/VPNHotspot/tree/20ed65762517c801f87cb87e17e70316c072b444) | `be.mygod.vpnhotspot` | `3.0.8` | Forest-green adaptive background with the radio mark and a softer shaded key |
 | Music | `com.miui.player` | `4.48.0.1` | Colored mark isolated from the baked icon |
 | [Salt Player](https://github.com/Moriafly/SaltPlayerSource) | `com.salt.music` | `12.5.1` | Adaptive foreground |
 | [Anywhere-](https://github.com/zhaobozhen/anywhere-) | `com.absinthe.anywhere_` | `2.5.5` | Main launcher alias foreground |
 | [LowLevelDetector](https://github.com/imknown/AndroidLowLevelDetector) | `net.imknown.android.forefrontinfo` | `1.18.7` | Adaptive foreground |
-| Fileyan | `com.mgenware.fileyan` | `6.32.0` | Adaptive foreground |
+| Fileyan | `com.mgenware.fileyan` | `6.32.0` | Blue-gray ring with the green gradient center on a dark background |
 | DevCheck | `flar2.devcheck` | `6.67` | Adaptive foreground |
 | UU Remote | `com.netease.uuremote` | `4.48.1` | Adaptive foreground |
 | [OpenDisplay](https://github.com/peetzweg/opendisplay) | `com.peetzweg.opendisplay` | `1.30.2` | Remove the baked white field, lighten the screen frames, and retain the blue faces with dark eyes and smiles |
@@ -114,6 +114,26 @@ compared all-off, all-on, a subset, and Always light output. Existing day
 resources were byte-identical and the enabled selections produced dark
 variants. The test generated and inspected the archive without applying it
 through Themes.
+
+## Dark artwork refinements in 1.15.0
+
+Key Attestation and VPN Hotspot draw details on the adaptive background.
+KeiHome recolors that layer and draws the original foreground over it.
+This keeps the checkmark and radio mark in the same position as on the light
+icon. Key Attestation retains its cutout and shadow. VPN Hotspot uses lower
+saturation for the key while retaining its cutout and long shadow. Fileyan
+uses a foreground color filter that lifts the neutral ring and preserves the
+green gradient in the center.
+
+Generation schema 20 prompts for a pack update when an older pack has a
+matching installed app selected for extra dark artwork. Original-icon
+preservation and pinned custom choices retain priority.
+
+Xiaomi 17 Pro on OS4.0.8.0 and Home 8.01.03.308 showed all three changes in
+the extra-icons list on build `115000755`. The focused publication test
+compared the 192 px night PNGs with the renderer output and checked the
+original day PNG bytes. Screenshots and receipts are in
+`.artifacts/research/extra-dark-icons-20261124/`.
 
 ## Weibo Lite recommended mapping
 

@@ -182,12 +182,24 @@ internal class ColorOsFallbackRenderer(
     val output = createBitmap(size, size)
     try {
       val canvas = Canvas(output)
-      canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint().apply {
-        shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(),
-          icon.top, icon.bottom, android.graphics.Shader.TileMode.CLAMP)
-      })
+      val background = adaptive?.background
+      val backgroundFilter = icon.adaptiveArtwork?.backgroundFilter
+      if (backgroundFilter != null && background != null) {
+        visit(background, check) {
+          if (it is Animatable) throw Unavailable(SkipReason.ANIMATED_DRAWABLE)
+        }
+        background.colorFilter = backgroundFilter
+        drawLayer(canvas, background, adaptiveBounds(size), false, check)
+      } else {
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint().apply {
+          shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(),
+            icon.top, icon.bottom, android.graphics.Shader.TileMode.CLAMP)
+        })
+      }
       if (adaptive != null && artwork?.isolatesAdaptiveForeground != true) {
-        icon.tint?.let { foreground.setTint(it) }
+        val foregroundFilter = icon.adaptiveArtwork?.foregroundFilter
+        if (foregroundFilter != null) foreground.colorFilter = foregroundFilter
+        else if (backgroundFilter == null || background == null) icon.tint?.let { foreground.setTint(it) }
         drawLayer(canvas, foreground, adaptiveBounds(size), false, check)
       } else {
         val layer = createBitmap(size, size)

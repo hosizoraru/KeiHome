@@ -44,6 +44,28 @@ class IconPackUpdateNoticeTest {
     assertTrue(iconPackNeedsUpdate(pack, applied, listOf(target), SystemIconFallback.DEFAULT, emptySet()))
   }
 
+  @Test fun layeredExtraArtworkRequestsAnUpdateOnlyForSelectedEligibleApps() {
+    fun needs(icon: ExtraIcon, schema: Int, installed: Boolean = true,
+      preserved: Boolean = false, custom: Boolean = false): Boolean {
+      val component = IconPackComponent(icon.packageName)
+      val selected = setOf(icon.packageName)
+      val originals = if (preserved) selected else emptySet()
+      val applied = source.copy(generation = IconGenerationManifest(schemaVersion = schema,
+        considered = setOf(component.flattened), extraIconPackages = selected, preservedIconPackages = originals))
+      return iconPackNeedsUpdate(pack, applied, if (installed) listOf(component) else emptyList(),
+        SystemIconFallback.DEFAULT, emptySet(), extraIconPackages = selected, preservedPackages = originals,
+        customizedPackages = if (custom) selected else emptySet())
+    }
+    for (icon in listOf(ExtraIcon.KEY_ATTESTATION, ExtraIcon.VPN_HOTSPOT, ExtraIcon.FILEYAN)) {
+      assertTrue(needs(icon, 19))
+      assertFalse(needs(icon, IconGenerationManifest.CURRENT_SCHEMA))
+      assertFalse(needs(icon, 19, installed = false))
+      assertFalse(needs(icon, 19, preserved = true))
+      assertFalse(needs(icon, 19, custom = true))
+    }
+    assertFalse(needs(ExtraIcon.MT, 19))
+  }
+
   @Test fun fullBleedPaddingRequiresRegenerationIndependentlyOfGenericColoring() {
     fun applied(generic: Boolean, inset: Boolean) = source.copy(generation =
       IconGenerationManifest(schemaVersion = IconGenerationManifest.CURRENT_SCHEMA, considered = setOf(target.flattened),

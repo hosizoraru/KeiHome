@@ -25,6 +25,68 @@ import os.kei.hyper.home.xposed.ConvertedIconArchive
 
 @RunWith(AndroidJUnit4::class)
 class ExtraIconsDeviceTest {
+  @Test fun layeredDarkMarksSurvivePreviewAndPublication() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val installed = iconPackTargets(context)
+    val icons = listOf(ExtraIcon.KEY_ATTESTATION, ExtraIcon.VPN_HOTSPOT, ExtraIcon.FILEYAN)
+    assumeTrue("Install Key Attestation, VPN Hotspot, and Fileyan", icons.all { icon -> installed.any(icon::accepts) })
+    val targets = icons.associateWith { icon -> installed.first(icon::accepts) }
+    val renderer = ColorOsFallbackRenderer(context)
+    val shape = IconMaskPolicy.hyperOs4Preview().resolve(null)
+    val archiveFile = File.createTempFile("layered-dark-marks", ".zip", context.cacheDir)
+    try {
+      val dayImages = icons.associateWith { icon ->
+        val original = requireNotNull(renderer.renderExtra(icon, targets.getValue(icon), 192, shape, original = true))
+        try {
+          ByteArrayOutputStream().also { original.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        } finally { original.recycle() }
+      }
+      ZipOutputStream(archiveFile.outputStream()).use { archive ->
+        for ((icon, day) in dayImages) {
+          val path = "res/drawable-xxhdpi/${icon.packageName}.png"
+          archive.putNextEntry(ZipEntry(path))
+          archive.write(day)
+          archive.closeEntry()
+        }
+      }
+      ZipFile(archiveFile).use { archive ->
+        val selected = icons.mapTo(hashSetOf()) { it.packageName }
+        val published = PublishedExtraIcons.replacements(context, archive, targets.values.toList(), selected) {}
+        val root = "fancy_icons/"
+        for ((icon, target) in targets) {
+          val preview = requireNotNull(renderer.renderExtra(icon, target, 192, shape))
+          val night = published.getValue("$root${icon.packageName}/night.png")
+          val exported = BitmapFactory.decodeByteArray(night, 0, night.size)
+          try {
+            assertArrayEquals(dayImages.getValue(icon), published.getValue("$root${icon.packageName}/day.png"))
+            assertTrue(icon.label, preview.sameAs(exported))
+            fun green(x: Int, y: Int) = Color.green(preview.getPixel(x, y))
+            when (icon) {
+              ExtraIcon.KEY_ATTESTATION -> {
+                assertTrue("Checkmark", green(96, 152) > green(64, 152) + 70)
+                assertTrue("Keyhole", green(68, 77) + 30 < green(82, 77))
+              }
+              ExtraIcon.VPN_HOTSPOT -> {
+                assertTrue("Outer signal arc", green(85, 48) > green(85, 58) + 45)
+                assertTrue("Signal dot inside the keyhole", green(80, 96) > green(80, 58) + 70)
+                assertTrue("Keyhole remains visible", green(96, 96) > green(80, 96) + 35)
+              }
+              ExtraIcon.FILEYAN -> {
+                assertTrue("Ring contrast", green(130, 126) > green(96, 24) + 70)
+                val center = preview.getPixel(83, 75)
+                assertTrue("Green center", Color.green(center) > Color.red(center) + 60)
+              }
+              else -> error("Unexpected icon $icon")
+            }
+          } finally {
+            preview.recycle()
+            exported.recycle()
+          }
+        }
+      }
+    } finally { archiveFile.delete() }
+  }
+
   @Test fun installedArtworkProducesDistinctDarkIconsAndPreservesDayAndLiveResources() {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val context = instrumentation.targetContext

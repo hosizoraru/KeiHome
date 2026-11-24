@@ -4,6 +4,7 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.data.RecommendedIconMappings
 import os.kei.hyper.home.iconpack.BuiltinColorOsMappings
 import os.kei.hyper.home.iconpack.ColorOsFallbackRenderer
+import os.kei.hyper.home.iconpack.ExtraIcon
 import os.kei.hyper.home.iconpack.IconBuildInventory
 import os.kei.hyper.home.iconpack.IconGenerationManifest
 import os.kei.hyper.home.iconpack.IconPackComponent
@@ -47,6 +48,12 @@ internal fun iconPackNeedsUpdate(pack: IconPackDescriptor, source: IconBrowserSo
   if ((pack.colorOsProfile != null || source.generation?.colorOsPackages?.isNotEmpty() == true) &&
     source.generation?.schemaVersion?.let { it < 14 } == true) return true
   val effectivePreserved = preservedPackages - customizedPackages
+  if (source.generation?.schemaVersion?.let { it < IconGenerationManifest.LAYERED_EXTRA_ARTWORK_SCHEMA } == true &&
+    ExtraIcon.entries.any { icon ->
+      icon.adaptiveArtwork != null && icon.packageName in extraIconPackages &&
+        icon.packageName !in effectivePreserved && icon.packageName !in customizedPackages &&
+        targets.any(icon::accepts)
+    }) return true
   if (previousMappings.weiboLite != recommendedMappings.weiboLite &&
     targets.any { it.packageName == RecommendedPackageIcons.WEIBO_LITE &&
       it.packageName !in effectivePreserved && it.packageName !in customizedPackages }) {

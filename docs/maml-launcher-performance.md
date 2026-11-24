@@ -7,6 +7,21 @@ KeiHome Apple icon pack, including outside KeiHome. The reporter removed
 591 `fancy_icons/*/manifest.xml` entries and measured 17 versus 2 launcher
 timeouts during app launch. The exact reported artifact is still needed.
 
+The November 24 report supplied a screen recording and an LSPosed capture.
+Perfetto comparison on the Phone AVD measured the weather launch phase at
+about 885 ms with the stock dynamic archive and about 647 ms with the complete
+imported archive. The recording therefore does not prove that KeiHome added
+the stall. The imported archive still made Launcher parse the weather
+descriptor repeatedly.
+
+The HyperOS 4 weather descriptor is the only scanned dynamic group that
+declares `ContentProviderBinder`. Its `DateTime.Minute` updater refreshes
+`content://weather/actualWeatherData/4`. The generator now keeps the static
+weather counterpart and omits that animated descriptor when both are present.
+Calendar, clock, music and other local animation descriptors remain dynamic.
+The static fallback keeps a useful weather image without a synchronous
+provider query during Launcher construction.
+
 Local testing used a Xiaomi 17 Pro, HyperOS `OS4.0.8.0.XBLCNXM`, Home
 `801030308`, and the installed KeiHome `113000646`. The display was set to
 120 Hz and system dark mode was on. Each group ran four launches/returns and
@@ -208,3 +223,29 @@ version. Check the first launch after switching themes, repeated launch and
 return, folders with mixed ordinary and animated icons, and live light/dark
 and Monet changes. Compare both displayed artwork and FrameTimeline with the
 same app, folder, refresh setting and applied module in each pair.
+
+## Weather-specific follow-up
+
+The stock HyperOS 4 Weather entry contains a quiet static plate and a fancy
+layer. The fancy manifest uses `DateTime.Minute` and a
+`ContentProviderBinder` for `content://weather/actualWeatherData/4`. The
+Perfect archive preserves both stock numbered PNGs and the weather manifest,
+with only the layer config adding `layer_only_quiet0=true` and
+`layer_only_fancy1=true`. The visible weather artwork is therefore still the
+original animated design. The new admission rule changes only the generated
+archive when a static pair and a provider-backed descriptor coexist.
+
+The supplied LSPosed log records the desktop launch handoff to
+`com.miui.weather2` but contains no frame-drop or crash entry. On the Phone
+AVD, repeated Perfetto runs measured the weather launch slice at approximately
+885 ms for the stock archive, 647 ms for the complete Perfect archive, and
+454 ms for a weather-only control. These numbers vary with cold-start state,
+so they are used to compare the archive path rather than claim a universal
+launch time. The provider-backed descriptor is still removed from generated
+Perfect output because its synchronous external query is avoidable while the
+static weather image remains available.
+
+The current HyperOS 4 source snapshot contains 20 dynamic package groups and 28
+fancy manifests. Only `com.miui.weather2` contains a
+`ContentProviderBinder`. The other 19 groups use local variables, triggers,
+or animation commands and stay on the dynamic path.

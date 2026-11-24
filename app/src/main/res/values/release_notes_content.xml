@@ -6,6 +6,7 @@
         <item>Separate app appearance and palette settings\nIn Settings → Theme settings, choose a light or dark appearance and an app palette independently. Display effects are on the same page. About now uses Glass cards and reveals the title as you scroll.</item>
         <item>Preserve the original icon layers\nConverting supported Hyper icon packs preserves more layered artwork and keeps the original behavior of supported clock, calendar and weather icons.</item>
         <item>Clearer dark icons\nIn KeiHome extra icons, Key Attestation keeps its keyhole and checkmark, VPN Hotspot keeps its signal arcs and key shading, and Fileyan’s ring stands out against its dark background.</item>
+        <item>A safer weather icon fallback\nPerfect Icons keeps the original static weather image when the animated descriptor asks an external weather provider for data. Local calendar, clock, and other animations remain available.</item>
         <item>Glass sheets and search controls\nBottom sheets use updated Glass motion on open, close and settle. Search fields use a consistent clear button so you can start a new query right away.</item>
     </string-array>
     <string name="release_notes_1_15_0_footnote">Wallpaper features require the System Framework scope. Presets depend on HyperOS support. Update or regenerate and apply your icon pack to use the icon improvements.</string>

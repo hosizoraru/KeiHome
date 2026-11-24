@@ -102,6 +102,8 @@ and application, and the reorganized pack and Monet tabs.
 The 1.15.0 card covers appearance-based wallpaper presets, separate wallpaper
 dimming strengths, app appearance and palette, icon preservation, Glass controls,
 and clearer extra dark icons for Key Attestation, VPN Hotspot, and Fileyan.
+Provider-backed animated weather icons now keep a static fallback so Launcher
+does not synchronously wait for the weather provider during icon construction.
 The 1.7.0 placeholder is now replaced with authored notes. Chinese, English
 and Japanese use matching version entries and feature groupings.
 

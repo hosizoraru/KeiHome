@@ -229,23 +229,100 @@ same app, folder, refresh setting and applied module in each pair.
 The stock HyperOS 4 Weather entry contains a quiet static plate and a fancy
 layer. The fancy manifest uses `DateTime.Minute` and a
 `ContentProviderBinder` for `content://weather/actualWeatherData/4`. The
-Perfect archive preserves both stock numbered PNGs and the weather manifest,
-with only the layer config adding `layer_only_quiet0=true` and
-`layer_only_fancy1=true`. The visible weather artwork is therefore still the
-original animated design. The new admission rule changes only the generated
-archive when a static pair and a provider-backed descriptor coexist.
+pre-fix Perfect archive preserves both stock numbered PNGs and the weather
+manifest, with the layer config adding `layer_only_quiet0=true` and
+`layer_only_fancy1=true`. The current generator keeps the authored static
+artwork when a validated static fallback and an enabled provider-backed fancy
+layer coexist. Validation classifies the fancy layer from the XML it already
+parsed. XML comments and fancy manifests belonging to quiet-only layers have
+no effect on the decision. The publication identity was bumped so previously
+generated archives are rebuilt on generation.
 
 The supplied LSPosed log records the desktop launch handoff to
 `com.miui.weather2` but contains no frame-drop or crash entry. On the Phone
 AVD, repeated Perfetto runs measured the weather launch slice at approximately
 885 ms for the stock archive, 647 ms for the complete Perfect archive, and
 454 ms for a weather-only control. These numbers vary with cold-start state,
-so they are used to compare the archive path rather than claim a universal
-launch time. The provider-backed descriptor is still removed from generated
-Perfect output because its synchronous external query is avoidable while the
-static weather image remains available.
+so they are used to compare the archive path. The current Perfect output
+omits the external weather provider and its live temperature and condition
+artwork. The weather app and the separate launcher widget still display
+their weather data.
 
 The current HyperOS 4 source snapshot contains 20 dynamic package groups and 28
 fancy manifests. Only `com.miui.weather2` contains a
 `ContentProviderBinder`. The other 19 groups use local variables, triggers,
 or animation commands and stay on the dynamic path.
+
+### HyperOS Phone AVD and Xiaomi 17 Pro acceptance on 2026-11-24
+
+Both devices ran the same debug QA APK (`115000758`), Home `801030308` and
+Weather `18.0.1.4-R`. The HyperOS Phone AVD ran `OS4.0.31.0.XFRCNXM` and the
+Xiaomi 17 Pro ran `OS4.0.8.0.XBLCNXM`. Both APK updates used the existing
+signing identity and byte-identical native libraries. On the AVD, the
+deployment receipts recorded ten successful Java API 102 hot reloads among
+observed processes. Physical-device evidence covers the installed APK and
+visible behavior. Native initialization was outside this gate.
+
+Both devices generated the full HyperOS4 pack through the Perfect Icons UI
+from the cached `fb8b5c9` snapshot with original dynamic icons enabled,
+derived dark artwork disabled and the installed-app filter off. Both output
+ZIPs were 84.35 MiB with SHA-256
+`1f79f06df1eeefa182629e6d4705d3f0c05ddc7b42757128fdc52afb74ac08dc`.
+The generated pack was imported and applied through the system theme route
+on each device. The active archive's source marker matched that ZIP and its
+hash matched the theme manager's local component.
+
+| Timing | Phone AVD | Xiaomi 17 Pro |
+| --- | ---: | ---: |
+| Generate tap to output ZIP observed | 8.31 s | 5.82 s |
+| Generate tap to UI ready observed | 13.94 s | 8.79 s |
+| Theme Apply tap to active component hash observed | 2.26 s | 0.80 s |
+
+Each generation figure is one observation with the source already cached.
+The apply figure measures a local, already imported theme component.
+Fresh import also performs native validation, completion and theme export.
+
+For the frame comparison, the control added the original 20 weather paths
+to each device's actual applied component. Every candidate path was
+byte-identical in its control. Home was restarted and allowed to settle at
+the start of each variant. Each variant used two process-cold and two warm
+Weather launches from the same launcher icon. Cold trials stopped Weather
+before tapping, and warm trials reopened it after pressing Home. The table
+shows control to optimized, in milliseconds, for the median of the two
+trials in each cell. First frame measures from the input marker to the end
+of the first matching actual surface frame. P95 uses unique presented
+surface frames starting in the first 1.25 s after the marker.
+
+| Device | Weather start | Weather first frame | Weather launch P95 | Home launch P95 | Home first frame on return | Home return P95 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Phone AVD | Cold | 539.0 → 487.3 | 272.2 → 238.3 | 232.6 → 166.2 | 505.2 → 355.2 | 274.7 → 247.8 |
+| Phone AVD | Warm | 222.8 → 234.8 | 84.6 → 99.0 | 155.6 → 180.1 | 319.9 → 423.3 | 179.8 → 225.5 |
+| Xiaomi 17 Pro | Cold | 167.7 → 156.4 | 12.2 → 12.1 | 11.2 → 9.4 | 39.5 → 37.7 | 7.3 → 7.1 |
+| Xiaomi 17 Pro | Warm | 79.3 → 81.0 | 10.2 → 10.3 | 10.1 → 10.3 | 50.3 → 47.7 | 7.8 → 7.5 |
+
+The physical cold-start samples show an 11.3 ms earlier first Weather frame
+and a median maximum Weather frame duration of 42.0 → 33.2 ms. Weather app
+deadline misses in those samples went from two to four. Home recorded zero
+app deadline misses in both variants on the physical device. The AVD was
+heavily deadline-limited and the warm samples went in the opposite direction
+to the cold samples. The data supports retaining the scoped fallback based
+on the removed provider work and the physical-device experience. The
+sample size and AVD variance limit claims about general speedup.
+
+Both generated and both applied archives preserved all 187 original files
+across the other 19 dynamic groups byte for byte. The AVD recording shows
+the clock hands moving, the launcher calendar showing the current date and
+the clock and Weather launch transitions. The Xiaomi 17 Pro recording shows
+Apple Music opening and animating back into its dock icon. These are visual
+spot checks. The remaining groups were covered by resource comparison.
+The AVD's theme completion also emitted Weather palette manifests that read
+KeiHome's palette setting. Those manifests are separate from the removed
+live weather-data layer and were present in both AVD variants.
+
+The AVD returned to the stock icon pack and the phone to the original
+component hash. Generation options changed for the run were restored.
+The Debug build succeeded. The eight focused JVM suites passed 235 tests.
+Six cases skipped because their optional local fixtures were absent.
+The artifact directory `.artifacts/research/weather-acceptance-20261124/`
+contains the frame traces, SQL, summary, archive comparisons, deployment
+and apply receipts, and motion recordings.

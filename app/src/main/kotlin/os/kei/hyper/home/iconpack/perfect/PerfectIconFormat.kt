@@ -306,15 +306,15 @@ internal object PerfectIconFormat {
       val prefix = "layer_animating_icons/$name/"
       val resources = plan.files.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }
       try {
-        if (PerfectDynamicIconValidator.validate(resources, read)) {
-          if (name in staticIds &&
-            PerfectDynamicIconValidator.usesExternalContentProvider(resources, read)) {
+        val rendering = PerfectDynamicIconValidator.validate(resources, read)
+        when {
+          rendering == PerfectDynamicIconValidator.Rendering.QUIET -> staticIds += name
+          rendering == PerfectDynamicIconValidator.Rendering.PROVIDER_BACKED_FANCY && name in staticIds -> {
             files.keys.removeAll { it.startsWith(prefix) }
             rejected[name] = "external content provider is launch-sensitive; kept static fallback"
-          } else {
-            dynamicIds += name
           }
-        } else staticIds += name
+          else -> dynamicIds += name
+        }
       } catch (failure: Exception) {
         if (failure is CancellationException || failure is InterruptedException) throw failure
         if (name !in staticIds) throw IOException("Invalid dynamic icon $name: ${failure.message}", failure)

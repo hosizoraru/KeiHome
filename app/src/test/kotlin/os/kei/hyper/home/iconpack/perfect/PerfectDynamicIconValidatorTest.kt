@@ -25,19 +25,19 @@ class PerfectDynamicIconValidatorTest {
   }
 
   @Test fun providerBackedManifestIsLaunchSensitive() {
+    val provider = """<Icon><VariableBinders><ContentProviderBinder name="weather_provider"
+      uri="content://weather/actualWeatherData/4"/></VariableBinders></Icon>""".toByteArray()
     val source = resources(
-      ordinary,
-      "0/quiet/quietImage.png" to quiet,
-      "0/fancy/manifest.xml" to
-        """<Icon><VariableBinders><ContentProviderBinder name="weather_provider"
-          uri="content://weather/actualWeatherData/4"/></VariableBinders></Icon>""".toByteArray(),
+      """<Config><Variable name="layer0" value="0"/><Variable name="layer1" value="1"/>
+        <Variable name="layer_only_quiet0" value="true"/></Config>""",
+      "quiet/quietImage.png" to quiet,
+      "0/fancy/manifest.xml" to provider,
+      "1/fancy/manifest.xml" to
+        """<Icon><!-- <ContentProviderBinder uri="content://example"/> --></Icon>""".toByteArray(),
     )
-    val blobs = source.map { (path, bytes) ->
-      PerfectIconBlob(path, path, bytes.size.toLong())
-    }
-    assertTrue(PerfectDynamicIconValidator.usesExternalContentProvider(blobs.associateBy { it.path }) {
-      source.getValue(it.path)
-    })
+    assertEquals(PerfectDynamicIconValidator.Rendering.FANCY, rendering(source))
+    assertEquals(PerfectDynamicIconValidator.Rendering.PROVIDER_BACKED_FANCY,
+      rendering(source + ("1/fancy/manifest.xml" to provider)))
   }
 
   @Test fun anOrdinaryFancyLayerStillNeedsQuiet() {
@@ -188,7 +188,10 @@ class PerfectDynamicIconValidatorTest {
   private fun resources(config: String, vararg files: Pair<String, ByteArray>) =
     linkedMapOf("config.xml" to config.toByteArray()).apply { putAll(files) }
 
-  private fun validate(input: Map<String, ByteArray>): Boolean {
+  private fun validate(input: Map<String, ByteArray>): Boolean =
+    rendering(input) != PerfectDynamicIconValidator.Rendering.QUIET
+
+  private fun rendering(input: Map<String, ByteArray>): PerfectDynamicIconValidator.Rendering {
     val blobs = input.mapValues { (path, bytes) ->
       PerfectIconBlob(path, path, bytes.size.toLong(), "validator-fixture/$path")
     }

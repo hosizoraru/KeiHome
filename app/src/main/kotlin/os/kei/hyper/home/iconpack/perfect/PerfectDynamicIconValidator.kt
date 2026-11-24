@@ -37,22 +37,9 @@ internal object PerfectDynamicIconValidator {
     return match.groupValues[1].toInt() <= 255 && match.groupValues[2].toInt() <= 32
   }
 
-  /**
-   * A provider-backed MAML icon can synchronously query an OEM provider while
-   * Launcher constructs its first frame. Keep this separate from ordinary
-   * local-variable animations so callers can choose a static fallback.
-   */
-  fun usesExternalContentProvider(
-    resources: Map<String, PerfectIconBlob>,
-    read: (PerfectIconBlob) -> ByteArray,
-  ): Boolean = resources
-    .filterKeys { it.endsWith("/manifest.xml") }
-    .any { (_, blob) ->
-      String(read(blob), StandardCharsets.UTF_8).contains("<ContentProviderBinder")
-    }
+  enum class Rendering { QUIET, FANCY, PROVIDER_BACKED_FANCY }
 
-  /** True means at least one declared layer uses fancy resources; quiet-only layers are static. */
-  fun validate(resources: Map<String, PerfectIconBlob>, read: (PerfectIconBlob) -> ByteArray): Boolean {
+  fun validate(resources: Map<String, PerfectIconBlob>, read: (PerfectIconBlob) -> ByteArray): Rendering {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })
     val configBytes = bytes("config.xml")
     val config = PerfectIconFormat.xml(configBytes)
@@ -71,7 +58,7 @@ internal object PerfectDynamicIconValidator {
     resources.keys.forEach(PerfectIconFormat::safePath)
     val rootQuiet = resources["quiet/quietImage.png"]
     var rootQuietChecked = false
-    var animated = false
+    var rendering = Rendering.QUIET
     mode.layers.forEachIndexed { index, layer ->
       // Legacy use_* fields are preserved, without inferring an only-mode from their names.
       val quietOnly = layer in mode.quietOnly
@@ -99,15 +86,16 @@ internal object PerfectDynamicIconValidator {
       // fancy_work is retained as source metadata; it does not replace per-layer mode flags.
       if (!quietOnly && fancy) {
         try {
-          manifest(bytes(manifestPath), "$layer/fancy/", resources, read)
+          val usesProvider = manifest(bytes(manifestPath), "$layer/fancy/", resources, read)
+          if (usesProvider) rendering = Rendering.PROVIDER_BACKED_FANCY
+          else if (rendering == Rendering.QUIET) rendering = Rendering.FANCY
         } catch (failure: Exception) {
           if (failure is CancellationException || failure is InterruptedException) throw failure
           throw IOException("$manifestPath (source ${resources.getValue(manifestPath).source}): ${failure.message}", failure)
         }
       }
-      if (!quietOnly && fancy) animated = true
     }
-    return animated
+    return rendering
   }
 
   private fun layerConfig(bytes: ByteArray, resources: Set<String>): NativeLayerConfig {
@@ -162,7 +150,7 @@ internal object PerfectDynamicIconValidator {
     base: String,
     resources: Map<String, PerfectIconBlob>,
     read: (PerfectIconBlob) -> ByteArray,
-  ) {
+  ): Boolean {
     val xml = PerfectIconFormat.xml(bytes)
     require(xml.root in setOf("Icon", "bg", "fg")) { "Invalid fancy root: ${xml.root}" }
     val root = xml.elements.first().attributes
@@ -235,6 +223,7 @@ internal object PerfectDynamicIconValidator {
       }
       attrs["fontPath"]?.let { resolve(it) }
     }
+    return xml.elements.any { it.name == "ContentProviderBinder" }
   }
 
   private fun suffixed(source: String, suffix: String): String {

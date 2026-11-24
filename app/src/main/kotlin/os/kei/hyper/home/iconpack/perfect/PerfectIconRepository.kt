@@ -1611,7 +1611,7 @@ class PerfectIconRepository internal constructor(
   }
 
   companion object {
-    const val LAYER_CONTRACT = "keihome-perfect-layers-3"
+    const val LAYER_CONTRACT = "keihome-perfect-layers-4"
     private const val MAX_PREVIEW_BYTES = 32L * 1024 * 1024
     private const val MAX_PREVIEW_FILE = MAX_PREVIEW_BYTES + 1024 * 1024
     private const val MAX_META = 32 * 1024 * 1024

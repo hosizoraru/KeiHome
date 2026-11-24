@@ -222,7 +222,9 @@ in place. Evidence is under `summary-card/` in the research directory.
 The general switch asks HyperOS to sample rendered content for a selected app's
 resolved launcher activity. A missing launch rule can be added to the delivered
 copy. Existing positive modes, explicit colors, view selectors, nonzero sampling
-policies and unrelated activities retain their own sampling choices. Apps that
+policies and unrelated activities retain their own sampling choices. The overlay
+can also enable sampling on existing neutral rules for verified secondary
+activities of a selected package. Apps that
 opt out of the OEM controller can still have a discontinuous bottom edge.
 
 Bilibili's separate home-tabs setting follows the active footer. A validated
@@ -324,6 +326,34 @@ delivery, and republishes on user unlock when credential-protected storage is
 available. API 102 retirement stops and joins the worker.
 Native color compatibility runs in the existing system scope and leaves the
 OEM controller map and cloud rules intact.
+
+### Hongguo Short Drama
+
+Hongguo (`com.phoenix.read`) uses `MainFragmentActivity` for Home, Theater,
+Store and Profile. Its launcher entry can resolve to `SplashActivity`, so
+launcher resolution alone does not identify the tab host. Playback opens
+`ShortSeriesActivity`, which has its own OEM rule. The overlay prefers native
+rendered-content sampling for the tab host and player when their existing rules
+have `mode=0`, no color or view rules, and zero or absent sampling mode. The
+existing selected-app and caller UID checks apply. HyperOS handles sampling
+through its normal per-window path.
+
+On Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM`, launcher
+`RELEASE-8.01.03.308-261102-11171006-R` and Hongguo `7.4.5.32`, the theater
+footer already matched the gesture area with baseline `115000745` in dark mode.
+The tester could not reproduce the reporter's persistent Theater seam on this
+build. The player did reproduce the rule gap in logs with sampling mode `0`.
+With `115000747`, both activities received sampling mode `1` after reopening
+Hongguo. Home, Theater, Store, Profile and the return from playback matched the
+gesture area at `#222222` on the sampled edge. The sampled player edge matched
+at `#181B1C` in its resting frame. The entry recording still showed a brief
+dark area as the player opened.
+
+The candidate APK was updated in place with the same signature and a higher
+version code. API 102 reported success for PID `4013` (`system`) and SystemUI.
+Two Security Center targets returned status `4`. All 16 focused JVM tests
+passed. Device logs, screenshots, APK identity and the transition recording
+are in `.artifacts/research/navigation-subpages-20261125/`.
 
 ### Status acknowledgement during an icon refresh
 

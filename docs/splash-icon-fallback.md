@@ -2,7 +2,7 @@
 
 The opt-in **启动图标补全** setting is under **桌面 > 图标与启动**.
 It fills eligible opaque, neutral system starting windows using the currently
-applied theme archive or the activity's original APK icon. Existing app-authored
+applied theme archive or the stock HyperOS icon producer. Existing app-authored
 splash icons, branding, custom backgrounds and task snapshots remain owned by
 the platform.
 
@@ -36,11 +36,15 @@ See `b0655-cold-{1,2}-wechat.mp4` and the matching logs under
   dedicated persistent splash-cache thread.
 - A first eligible lookup renders on the Shell worker. Main-thread lookups use
   the original starting window.
-- The shared surface renderer resolves applied artwork first and respects
-  original-icon preservation. On a miss, the activity's original resource is
-  rendered at the effective light or dark appearance. Fixed-size layers
-  compose in the resource's intrinsic viewport before scaling into a square
-  snapshot. The splash renderer receives completed artwork in both cases.
+- With an active archive, the shared surface renderer resolves applied artwork
+  and respects original-icon preservation. On a miss, the activity's original
+  resource is rendered at the effective light or dark appearance. Fixed-size
+  layers compose in the resource's intrinsic viewport before scaling.
+- With the stock theme, identified by the absence of the active archive, the
+  splash worker queries HyperOS `IconCustomizer.getIcon` for the resolved
+  activity and uses its completed artwork. If the producer is unavailable, it
+  renders the activity's APK artwork with the shared stock shape. Animated
+  drawables are left to the Shell starting-window path.
 - Switching to the icon window and setting its drawable are one operation.
   A missing snapshot leaves the Shell request intact. This avoids Shell's
   legacy white-backed wrapping of raw layer-list resources when the theme
@@ -67,6 +71,39 @@ See `b0655-cold-{1,2}-wechat.mp4` and the matching logs under
   are bounded; archive failures do not create an unbounded per-launch log stream.
 
 The cache is memory-only. It creates no persistent icon copies.
+
+## Stock theme and Phone AVD verification (2026-11-24)
+
+On `emulator-5580` (`OS4.0.31.0.XFRCNXM`, Home `801030308`), the
+11:12 logs recorded `source=original-apk` for GetApps and Calculator.
+With no active icon archive, that path drew the APK resource directly into
+the splash. The framework's `MiuiThemeHelper.getDrawable` routes through
+`IconCustomizer.getIcon`, which selects HyperOS's default icon treatment.
+Build `115000754` recorded `source=stock-hyperos`. Recordings show the
+rounded orange GetApps plate on the light splash and the rounded Calculator
+artwork on both light and dark splashes. The AVD was returned to light mode.
+
+Before deployment, the Phone AVD launcher had no KeiHome APK or native library
+mapping. The maintained deploy script with `--reload-native` verified the
+installed APK and replaced the owning launcher spawner. The new launcher
+mapped the candidate and logged `Two-tone native profile ready`. The same Dock
+layout showed its glass background again. SystemUI and system_server kept
+their process identities during deployment. The root cause of the earlier
+missing mapping was not established.
+
+Debug and AndroidTest assembly passed, along with 16 splash JVM tests,
+103 desktop-material JVM tests and the Dock geometry sweep. The three
+`OriginalAppIconGeometryDeviceTest` cases
+passed on both the Phone AVD and the Xiaomi 17 Pro (`OS4.0.8.0.XBLCNXM`,
+Home `801030308`). The physical phone retained its applied icon pack and a
+Calculator cold launch recorded `source=applied-theme`. It provided an
+applied-theme regression check. Stock-theme visuals and native Dock recovery
+were verified on the Phone AVD.
+
+The four-launch Settings debug sample reported 54.6 ms of module preparation for
+the first render and 0.4–7.4 ms for the three cache hits. This is a timing sample
+within one build. The deployment receipts, selected logs and recordings are
+under `.artifacts/research/avd-dock-splash-20261124/`.
 
 ## Measuring
 

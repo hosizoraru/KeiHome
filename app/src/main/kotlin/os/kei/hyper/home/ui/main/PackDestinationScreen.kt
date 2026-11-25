@@ -122,7 +122,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
       }
     }
   }
-  val behavior = MiuixScrollBehavior()
+  val defaultBehavior = MiuixScrollBehavior()
+  val colorOsBehavior = MiuixScrollBehavior()
+  val behavior = if (contentSection == "coloros") colorOsBehavior else defaultBehavior
   val list = rememberLazyListState()
   val hyperOsList = rememberLazyListState()
   val colorOsList = rememberLazyListState()
@@ -169,6 +171,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
               }
             }
             if (!fileImport) RefreshAction(model, 3)
+          }, bottomContent = {
+            if (builtin) Os4ViewTabs(listOf("HyperOS", "ColorOS"), builtinTab, { builtinTab = it },
+              Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("icon-packs.builtin.tabs"))
           })
       }
     }, floatingActionButton = {
@@ -182,16 +187,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           if (contentSection == "coloros" || fallback || fallbackSettings || extraIcons || fileImport)
             actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
-      if (builtin) {
-        Column(contentModifier.padding(top = insets.calculateTopPadding() + 4.dp)) {
-          Os4ViewTabs(listOf("HyperOS", "ColorOS"), builtinTab, { builtinTab = it },
-            Modifier.padding(horizontal = 16.dp).testTag("icon-packs.builtin.tabs"))
-          IconPacksPage(model, if (builtinTab == 1) colorOsList else hyperOsList,
-            PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp,
-              bottom = padding.calculateBottomPadding()),
-            Modifier.fillMaxWidth().weight(1f), contentSection, onNavigate)
-        }
-      } else if (extraIcons) {
+      if (extraIcons) {
         ExtraIconsPage(model, contentModifier, padding)
       } else if (fallbackSettings) {
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
@@ -235,8 +231,15 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
             Modifier.fillMaxSize().keiHomeTopBarScroll(behavior, overScrollEnabled = !busy), section, onNavigate,
             filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
         }
-      } else IconPacksPage(model, list, padding, contentModifier, section, onNavigate,
+      } else {
+        val activeList = when (contentSection) {
+          "builtin" -> hyperOsList
+          "coloros" -> colorOsList
+          else -> list
+        }
+        IconPacksPage(model, activeList, padding, contentModifier, contentSection, onNavigate,
           filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
+      }
     }
   }
 }

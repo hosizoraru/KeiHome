@@ -108,7 +108,8 @@ internal class IconImportLocalStore(
     put("request", state.request?.let { request -> JSONObject().put("token", request.token)
       .put("user", request.userId).put("start", request.startedAt).put("source", request.sourceId)
       .put("origin", request.convertedOrigin ?: JSONObject.NULL).put("auto", request.autoApply)
-      .put("palette", request.preparedPalette ?: JSONObject.NULL) } ?: JSONObject.NULL)
+      .put("palette", request.preparedPalette ?: JSONObject.NULL)
+      .put("staticAppearance", request.staticAppearance) } ?: JSONObject.NULL)
     put("componentPalette", JSONObject(state.componentPalette))
   }.toString().also { check(it.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Import receipt storage limit exceeded" } }
 
@@ -129,7 +130,8 @@ internal class IconImportLocalStore(
     val request = if (root.isNull("request")) null else root.getJSONObject("request").let { value ->
       IconPackImportRequest(value.getString("token"), value.getInt("user"), value.getLong("start"), value.getString("source"),
         convertedOrigin = if (value.isNull("origin")) null else value.getString("origin"), autoApply = value.getBoolean("auto"),
-        preparedPalette = if (value.isNull("palette")) null else value.getBoolean("palette"))
+        preparedPalette = if (value.isNull("palette")) null else value.getBoolean("palette"),
+        staticAppearance = value.optBoolean("staticAppearance", false))
     }
     check(request == null || (request.token == token && request.sourceId == source))
     return IconImportLocalState(mapping("associations"), mapping("sources"), token, source, result,

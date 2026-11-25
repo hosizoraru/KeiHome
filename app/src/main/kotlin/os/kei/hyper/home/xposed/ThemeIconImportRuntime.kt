@@ -34,6 +34,16 @@ internal class ThemeIconImportRuntime(
   @Volatile private var initializationThread: Thread? = null
   @Volatile private var grantsReady = false
   @Volatile private var convertedGuard: ThemeConvertedGuard? = null
+  @Volatile private var appearanceVariants: ThemeAppearanceVariants? = null
+
+  private fun appearance(context: Context): ThemeAppearanceVariants =
+    appearanceVariants ?: synchronized(this) {
+      appearanceVariants ?: ThemeAppearanceVariants(context).also { store ->
+        appearanceVariants = store
+        grants.appearanceSiblings = store::siblings
+        convertedGuard?.appearanceSiblings = store::siblings
+      }
+    }
 
   fun install(oldHooks: List<XposedInterface.HookHandle> = emptyList()) {
     val attach = Application::class.java.getDeclaredMethod("attach", Context::class.java)
@@ -186,6 +196,7 @@ internal class ThemeIconImportRuntime(
     val info = application.applicationInfo
     if (info.packageName != PACKAGE_NAME || info.uid != Process.myUid()) return
     if (convertedGuard == null) convertedGuard = ThemeConvertedGuard(application, classLoader, profile)
+    appearance(application).let { store -> convertedGuard?.appearanceSiblings = store::siblings }
     if (initializationThread?.isAlive == true) return
     if (!initializationScheduled.compareAndSet(false, true)) return
     if (!gate.enter()) { initializationScheduled.set(false); return }
@@ -316,6 +327,60 @@ internal class ThemeIconImportRuntime(
           reply.writeInt(if (accepted) 1 else 0)
           return true
         }
+        if (code == REGISTER_APPEARANCE_VARIANTS) {
+          require(flags and IBinder.FLAG_ONEWAY == 0 && reply != null)
+          data.enforceInterface(GRANT_DESCRIPTOR)
+          fun read() = requireNotNull(data.readString()).also { require(it.length in 1..4096) }
+          val localId = read()
+          val primary = ConvertedIconArchive.Digests(read(), read())
+          val lightPath = read()
+          val light = ConvertedIconArchive.Digests(read(), read())
+          val darkPath = read()
+          val dark = ConvertedIconArchive.Digests(read(), read())
+          val paletteFlattened = data.readInt() == 1
+          require(data.dataAvail() == 0)
+          try {
+            check(grantsReady) { "Converted approval hooks unavailable" }
+            val content = grants.registeredContent(context, localId, primary)
+            appearance(context).register(localId, primary, content, java.io.File(lightPath), light,
+              java.io.File(darkPath), dark, paletteFlattened)
+            xposed.log(Log.INFO, TAG, "Registered fixed-appearance icons for $localId")
+            reply.writeNoException()
+            reply.writeInt(1)
+          } catch (failure: Exception) {
+            if (failure is InterruptedException) Thread.currentThread().interrupt()
+            reply.writeNoException()
+            reply.writeInt(0)
+            reply.writeString("${failure.javaClass.simpleName}: ${failure.message}".take(512))
+          }
+          return true
+        }
+        if (code == SYNC_APPEARANCE_VARIANT) {
+          require(flags and IBinder.FLAG_ONEWAY == 0 && reply != null)
+          data.enforceInterface(GRANT_DESCRIPTOR)
+          val night = data.readInt() == 1
+          val palette = data.readInt() == 1
+          require(data.dataAvail() == 0)
+          val result = try {
+            appearance(context).sync(night, palette)
+          } catch (failure: Exception) {
+            if (failure is InterruptedException) Thread.currentThread().interrupt()
+            xposed.log(Log.WARN, TAG, "Fixed-appearance icon swap failed", failure)
+            ThemeAppearanceVariants.SyncResult("failed ${failure.javaClass.simpleName}", null)
+          }
+          reply.writeNoException()
+          reply.writeString(result.status)
+          val prepared = result.prepared
+          reply.writeInt(if (prepared == null) 0 else 1)
+          if (prepared != null) {
+            reply.writeInt(if (prepared.activeNight) 1 else 0)
+            reply.writeLongArray(prepared.activeKey.toLongArray())
+            reply.writeString(prepared.stagedPath)
+            reply.writeInt(if (prepared.stagedNight) 1 else 0)
+            reply.writeLongArray(prepared.stagedKey.toLongArray())
+          }
+          return true
+        }
         if (code != 2 && code != 5) throw SecurityException("Unsupported Themes import bridge transaction")
         return native.transact(code, data, reply, flags)
       } finally { gate.leave() }
@@ -332,6 +397,8 @@ internal class ThemeIconImportRuntime(
     const val GRANT_DESCRIPTOR = "os.kei.hyper.home.IConvertedIconGrant.v1"
     const val REGISTER_CONVERTED = 0x004b4801
     const val AUTHORIZE_AUTO_APPLY = 0x004b4802
+    const val REGISTER_APPEARANCE_VARIANTS = 0x004b4803
+    const val SYNC_APPEARANCE_VARIANT = 0x004b4804
     private const val AUTO_APPLY_HOOK_ID = "keihome.theme.icon.auto_apply.v1"
     private const val RIGHTS_HOOK_ID = "keihome.theme.converted_icon.rights.v1"
     private const val DOWNLOAD_RIGHTS_HOOK_ID = "keihome.theme.converted_icon.download_rights.v1"

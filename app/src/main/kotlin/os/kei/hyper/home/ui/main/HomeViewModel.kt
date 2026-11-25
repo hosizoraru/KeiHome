@@ -825,7 +825,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
             extraIconPreparation = handoff.token to selected.extraIconPackages)
         }
         val result = IconPackImportProtocol.submit(getApplication(), service, handoff, selected.autoApplyIconPack,
-          preparedPalette = if (pack.builtinKey != null) includePalette else null)
+          preparedPalette = if (pack.builtinKey != null) includePalette else null,
+          staticAppearance = selected.staticAppearanceIcons && appearance == IconPackAppearance.SYSTEM)
           ?: NativeIconImportReport(handoff.token, Process.myUid() / 100_000, pack.id, "UNCERTAIN")
         readIconPacks()
         if (generation == nativeImportGeneration && result.imported && result.autoApplyToken == null) {

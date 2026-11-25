@@ -77,7 +77,8 @@ internal class ThemeConvertedContent(
     }
   }
 
-  fun matchesIcons(path: String, grant: ConvertedIconGrant): Boolean {
+  fun matchesIcons(path: String, grant: ConvertedIconGrant,
+    alternatives: Set<ConvertedIconArchive.Digests> = emptySet()): Boolean {
     val sha1 = MessageDigest.getInstance("SHA-1")
     val sha256 = MessageDigest.getInstance("SHA-256")
     open(path).use { input ->
@@ -87,8 +88,8 @@ internal class ThemeConvertedContent(
       }
     }
     fun ByteArray.hex() = joinToString("") { "%02x".format(it) }
-    return sha1.digest().hex() == grant.proof.icons.sha1 &&
-      sha256.digest().hex() == grant.proof.icons.sha256
+    val actual = ConvertedIconArchive.Digests(sha1.digest().hex(), sha256.digest().hex())
+    return actual == grant.proof.icons || actual in alternatives
   }
 
   fun open(path: String): InputStream {

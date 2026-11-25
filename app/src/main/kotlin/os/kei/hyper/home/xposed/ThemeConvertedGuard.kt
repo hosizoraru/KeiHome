@@ -14,6 +14,8 @@ internal class ThemeConvertedGuard(
   private val resourceContext = Class.forName("$PKG.ResourceContext", false, loader)
   private val resourceType = Class.forName("$PKG.basemodule.resource.model.Resource", false, loader)
   private val storage = ThemeConvertedGrantFile(context)
+  /** Fixed-appearance copies that may stand in for a granted icons archive at the active path. */
+  @Volatile var appearanceSiblings: (ConvertedIconArchive.Digests) -> Set<ConvertedIconArchive.Digests> = { emptySet() }
   private val content = ThemeConvertedContent(java.io.File(context.cacheDir, "keihome-rights")) { path ->
     // Read only the provider window, independently of a cached regular FD's cursor.
     val descriptor = context.contentResolver.openAssetFileDescriptor(Uri.parse(path), "r")
@@ -48,7 +50,7 @@ internal class ThemeConvertedGuard(
     }.any { grant ->
       val native = lookup(nativeContext, grant.localId) ?: return@any false
       val current = subject(native, nativeContext) ?: return@any false
-      approvals.approve(current) && content.matchesIcons(path, grant)
+      approvals.approve(current) && content.matchesIcons(path, grant, appearanceSiblings(grant.proof.icons))
     }
   }
 

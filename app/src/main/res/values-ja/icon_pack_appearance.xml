@@ -8,6 +8,8 @@
     <string name="icon_pack_appearance_dark">常にダーク</string>
     <string name="icon_pack_appearance_dim">夜間に暗くする</string>
     <string name="icon_pack_appearance_update_note">次回の取り込み・更新後に反映。再適用が必要です。</string>
+    <string name="icon_pack_static_appearance">静的な明暗切り替え</string>
+    <string name="icon_pack_static_appearance_summary">システムの明暗が変わると、アイコンごとの動的設定の代わりに用意済みのライト／ダーク版へ切り替えます。アプリの起動が滑らかになり、ホームの表示中ページと開いているアプリはそのまま保たれます。次回の取り込みから反映します。</string>
     <string name="icon_pack_appearance_scope_note">明暗の選択は APK・従来形式 ZIP の変換のみ。ネイティブの MTZ・icons ZIP は元の動作を維持します。</string>
     <string name="icon_pack_appearance_system_note">システムへの追従にはパックの明暗リソースとホーム側の対応が必要です。一部はライトのままになる場合があります。</string>
     <string name="icon_pack_appearance_dim_note">ライト素材を夜間に 214/255 へ減光します（ColorOS の標準スタイル相当）。ダーク素材とは別です。切り替えにはホーム側の対応が必要です。</string>

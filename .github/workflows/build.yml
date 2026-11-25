@@ -27,9 +27,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Validate wrapper
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6
 
   resources:
     name: Check resources
@@ -37,9 +37,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
       - name: Check localization resources
@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Android build
         uses: ./.github/actions/setup-android
         with:
@@ -69,7 +69,7 @@ jobs:
       - build-logic
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Android build
         uses: ./.github/actions/setup-android
       - name: Run app JVM tests
@@ -84,7 +84,7 @@ jobs:
       - build-logic
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Android build
         uses: ./.github/actions/setup-android
       - name: Run Debug lint and build
@@ -95,7 +95,7 @@ jobs:
           :app:assembleDebugAndroidTest
           --no-daemon --stacktrace
       - name: Upload Debug APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keihome-debug-${{ github.sha }}
           if-no-files-found: error
@@ -117,13 +117,13 @@ jobs:
       - debug
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Android build
         uses: ./.github/actions/setup-android
       - name: Build Release APK
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
       - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keihome-release-${{ github.sha }}
           if-no-files-found: error

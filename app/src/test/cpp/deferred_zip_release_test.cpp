@@ -11,8 +11,8 @@
 #include <vector>
 
 namespace {
-constexpr size_t kCapacity = 64;
-constexpr size_t kWrapBase = 67;
+constexpr size_t kCapacity = kDeferredZipReleaseCapacity;
+constexpr size_t kWrapBase = kCapacity + 3;
 constexpr size_t kWrapCount = 1024;
 constexpr size_t kPublishBase = kWrapBase + kWrapCount;
 constexpr size_t kContentionBase = kPublishBase + 2;
@@ -67,8 +67,8 @@ void Release(void* raw) {
     if (allocation->id == 0) {
         entered = true;
         Await([] { return unblock.load(); });
-        auto* child = new Allocation{66};
-        // This remains reentrant even with all 64 pending slots occupied.
+        auto* child = new Allocation{kCapacity + 2};
+        // This remains reentrant even with every pending slot occupied.
         assert(!TryDeferZipMetadata(child, Release));
         Release(child);
     }
@@ -330,7 +330,7 @@ void CheckSaturation() {
     assert(active.queued == 1 && active.pending == 0 && active.completed == 0);
     for (size_t id = 1; id <= kCapacity; ++id)
         assert(TryDeferZipMetadata(new Allocation{id}, Release));
-    auto* full = new Allocation{65};
+    auto* full = new Allocation{kCapacity + 1};
     assert(!TryDeferZipMetadata(full, Release));
     Release(full);
     const auto saturated = ReadDeferredZipReleaseStats();
@@ -342,7 +342,7 @@ void CheckSaturation() {
     unblock = true;
     AwaitDrained();
     const auto drained = ReadDeferredZipReleaseStats();
-    assert(drained.queued == 65 && drained.completed == 65);
+    assert(drained.queued == kCapacity + 1 && drained.completed == kCapacity + 1);
     assert(drained.fallback_reentrant == 1);
     assert(drained.fallback_capacity == 1);
     assert(freed == kWrapBase);
@@ -480,7 +480,8 @@ int main() {
     assert(stats.fallback_unavailable == 3 && stats.fallback_reentrant == 1);
     CheckReasons(stats);
     printf("%zu allocations released exactly once; initialization failures, "
-           "64 pending + 1 active, ticket wraparound, FIFO publication credits, "
+           "%zu pending + 1 active, ticket wraparound, FIFO publication credits, "
            "reservation contention and eight concurrent producers covered; "
-           "adaptive priority thresholds, gate, failure latch and idle behavior covered\n", kTotal);
+           "adaptive priority thresholds, gate, failure latch and idle behavior covered\n",
+           kTotal, kCapacity);
 }

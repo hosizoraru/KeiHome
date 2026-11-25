@@ -34,8 +34,8 @@ baseline and final evidence is under
 `.artifacts/research/launcher-9248-20261114/labels-highlight/`.
 No production pattern or role admission was broadened.
 
-The bounded queue uses one worker, 64 pending slots and a semaphore-backed MPSC
-ring. The host test covers 9,095 exactly-once releases, initialization failures,
+The bounded queue uses one worker, 256 pending slots and a semaphore-backed MPSC
+ring. The host test covers 9,287 exactly-once releases, initialization failures,
 out-of-order publication, single-attempt reservation races, ticket wraparound,
 saturation, worker recursion and eight concurrent producers. Run the same test
 under ASan/UBSan and TSan using the commands below. It also runs nine injected

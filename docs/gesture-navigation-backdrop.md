@@ -531,6 +531,32 @@ The flag is limited to the test process; no device-wide hidden-API policy is
 changed. Compact and wide-constraint navigation tests exercise the entry and
 return path. Wide constraints are not a substitute for actual Pad acceptance.
 
+### Candysign on physical HyperOS (November 25)
+
+Tested Candysign (`com.candysign.iot` 0.9.22, build 26, target SDK 36) on the
+Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and KeiHome release
+`115000803`. The login page belonged to `DCUniMPTopActivity0`, after the
+launcher entry `WelcomeActivity`. With Candysign selected, `MiuiNBIManagerImpl`
+reported `mIsNBIEnable=true` and one activity rule. Both activities then logged
+`already set forced E2E by app`. DexSQL inspection of the installed
+`miui-framework.jar` confirms that `DecorViewImmersiveImpl` returns on
+`PhoneWindow.mEdgeToEdgeEnforced` before applying its navigation color policy.
+
+On the 1220 × 2656 display in dark mode, the login page had a 65 px navigation
+region. Selecting, deselecting, and restoring Candysign in KeiHome, with an
+app cold launch for each capture, produced identical pixel samples at x=100.
+The content just above the inset was `#FDF3DD` at y=2589 and the navigation
+background was `#333333` at y=2592 and y=2650. The user selection was restored.
+Extending the rule to the login activity would still hit the same framework
+gate. The run did not establish which app view paints the bottom background.
+A fix within the existing scopes would need a separate source for the
+foreground window's footer and a way to update the navigation backdrop and
+handle together.
+
+Screenshots, focused-window state, APK identities, framework disassembly and
+rule-delivery logs are under
+`.artifacts/research/navigation-candysign-20261125/`.
+
 ## November 18 acceptance
 
 Phone AVD launcher 9259 was validated with Debug b0666 and the original native

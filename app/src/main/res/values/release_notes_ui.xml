@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="release_notes_title">Release notes</string>
-    <string name="release_notes_summary">See new features and improvements in each version</string>
+    <string name="release_notes_summary">Version history and setup guide</string>
     <string name="release_notes_search_keywords">release changelog history versions</string>
     <string name="release_notes_ui_title">@string/release_notes_title</string>
     <string name="release_notes_ui_continue">Continue</string>

@@ -137,8 +137,6 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
           if (route == "notices" || category != null) {
             OverlayIconCascadingDropdownMenu(
               entries = listOf(DropdownEntry(items = listOf(
-                DropdownItem(text = stringResource(R.string.project_license_title),
-                  onClick = { onNavigate("license/keihome") }),
                 DropdownItem(text = stringResource(R.string.notices_full),
                   onClick = { onNavigate("license/notices") }),
               ))),
@@ -211,6 +209,9 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
     }
   }
   val terms = remember(query) { query.trim().split(Regex("\\s+")).filter(String::isNotBlank) }
+  val projectLicenseTitle = stringResource(R.string.project_license_title)
+  val showProjectLicense = category == null &&
+    terms.all { "$projectLicenseTitle Apache License 2.0".contains(it, ignoreCase = true) }
   val filtered = included.filter { component ->
     val searchable = listOf(component.name, resources.getString(component.description), component.source,
       component.licenseKeys.joinToString(" ") { key -> bundledLicenses.first { it.key == key }.title },
@@ -222,8 +223,16 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
     Os4SearchField(query = query, onQueryChange = { query = it },
       label = stringResource(R.string.notices_search),
       inputModifier = Modifier.testTag("notices.search"))
+    if (showProjectLicense) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        BasicComponent(title = projectLicenseTitle, summary = "Apache License 2.0",
+          modifier = Modifier.testTag("notices.project-license"),
+          onClick = { onNavigate("license/keihome") },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+      }
+    }
     if (dependencies == null) NoticePlaceholder(state.failed || state.text != null) { retry++ }
-    if (filtered.isEmpty() && dependencies != null) {
+    if (filtered.isEmpty() && dependencies != null && !showProjectLicense) {
       Text(stringResource(R.string.notices_search_empty), style = MiuixTheme.textStyles.body2,
         color = MiuixTheme.colorScheme.onSurfaceSecondary,
         modifier = Modifier.testTag("notices.empty").padding(16.dp))
@@ -318,14 +327,6 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
       }
     }
   }
-}
-
-@Composable
-internal fun ProjectLicenseEntry(onClick: () -> Unit) {
-  BasicComponent(title = stringResource(R.string.project_license_title),
-    modifier = Modifier.testTag("about.project-license"),
-    onClick = onClick,
-    endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
 }
 
 @Composable

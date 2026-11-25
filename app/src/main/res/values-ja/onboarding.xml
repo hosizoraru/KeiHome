@@ -35,7 +35,7 @@
     <string name="setup_open_desktop">デスクトップ設定を開く</string>
     <string name="setup_open_desktop_body">Dock、外観とラベル、アイコンと起動画面をカテゴリ別に開きます。</string>
     <string name="setup_finish_title">KeiHome を使ってみましょう</string>
-    <string name="setup_finish_body">ガイドはここまでです。未完了の設定はあとでも行えます。「設定」からいつでもこのガイドを開けます。</string>
+    <string name="setup_finish_body">未完了の設定はあとでも行えます。「設定 → リリースノート」からこのガイドを開き直せます。</string>
     <string name="setup_finish_note_body">「状態」には報告された対象とランチャー接続が表示されます。スコープの許可だけでは、すべてのホストの読み込みは確認できません。普段使う共有画面、設定、サイドバーを開いてアイコンを確認してください。利用可否はシステムのバージョンやアプリによって異なります。</string>
     <string name="setup_logs_title">モジュール機能の問題には LSPosed ログを</string>
     <string name="setup_logs_body">アイコン、Dock、通知、サイドバーなどのモジュール機能やホームの動作に問題がある場合は、LSPosed ログを出力してください。App ログは KeiHome 自体の画面、設定、クラッシュ専用で、出力には確認と 20 秒の待機が必要です。スクリーンショットと「このアプリについて」の完全なバージョン・環境情報も添えてください。</string>

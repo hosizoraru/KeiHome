@@ -31,14 +31,12 @@ import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Link
 import top.yukonga.miuix.kmp.icon.glass.Log
-import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
   APP("app", R.string.settings_app_section, R.string.settings_app_summary),
   THEME("theme", R.string.settings_app_theme_title, R.string.settings_app_theme_summary),
   PACKS("pack-actions", R.string.pack_action_settings, R.string.pack_action_settings_summary),
-  GUIDE("setup", R.string.setup_title, R.string.setup_replay_summary),
   HOOK("hook", R.string.settings_hook_section, R.string.settings_hook_summary),
   CACHE("cache", R.string.settings_cache_section, R.string.settings_cache_summary),
   LOG("log", R.string.settings_log_section, R.string.settings_log_summary),
@@ -61,7 +59,6 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
             SettingsSection.THEME -> actionIcon(PageActionIcon.MONET)
             SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
-            SettingsSection.GUIDE -> MiuixIcons.Glass.UsageHelp
             SettingsSection.HOOK -> MiuixIcons.Glass.Link
             SettingsSection.CACHE -> MiuixIcons.Glass.AppData
             SettingsSection.LOG -> MiuixIcons.Glass.Log
@@ -75,9 +72,14 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         }
       }
     } else {
-      if (listOf(stringResource(R.string.release_notes_title), stringResource(R.string.release_notes_summary),
-          stringResource(R.string.release_notes_search_keywords))
-          .any { it.contains(query.trim(), ignoreCase = true) }) {
+      val releaseNotes = settingsQueryMatches(query, listOf(
+        stringResource(R.string.release_notes_title), stringResource(R.string.release_notes_summary),
+        stringResource(R.string.release_notes_search_keywords), stringResource(R.string.setup_title),
+        stringResource(R.string.setup_replay_summary), stringResource(R.string.setup_search_keywords),
+      ).joinToString(" "))
+      val logs = settingsQueryMatches(query, listOf(stringResource(R.string.settings_log_section),
+        stringResource(R.string.settings_log_summary)).joinToString(" "))
+      if (releaseNotes) {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.release_notes_title),
             summary = stringResource(R.string.release_notes_summary),
@@ -86,17 +88,7 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
         }
       }
-      if (listOf(stringResource(R.string.setup_title), stringResource(R.string.setup_replay_summary),
-          stringResource(R.string.setup_search_keywords))
-          .any { it.contains(query.trim(), ignoreCase = true) }) {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          BasicComponent(title = stringResource(R.string.setup_title),
-            summary = stringResource(R.string.setup_replay_summary), onClick = { onNavigate("setup") },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
-        }
-      }
-      if (listOf(stringResource(R.string.settings_log_section), stringResource(R.string.settings_log_summary))
-          .any { it.contains(query.trim(), ignoreCase = true) }) {
+      if (logs) {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.settings_log_section),
             summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
@@ -104,14 +96,15 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
-        onOpenPerfectIcons = onOpenPerfectIcons)
+        onOpenPerfectIcons = onOpenPerfectIcons, showEmptySearch = !releaseNotes && !logs)
     }
   }
 }
 
 @Composable
 internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSection?, query: String = "",
-  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null) {
+  onNavigate: (String) -> Unit, cacheRefreshKey: Int = 0, onOpenPerfectIcons: ((String) -> Unit)? = null,
+  showEmptySearch: Boolean = true) {
   val preferences by model.preferences.state.collectAsStateWithLifecycle()
   val splash by model.splashAppearance.collectAsStateWithLifecycle()
   val splashIcons by model.splashIcons.state.collectAsStateWithLifecycle()
@@ -126,7 +119,8 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     model.preferences::setInstalledIconsOnly, model::setRememberMenuSelections,
     splash, framework.splashAppearanceInScope(), model::setSplashAppearance,
     themeEffects, framework, model::setPreserveSystemMaterials, query, section,
-    onOpenNotices = { onNavigate("notices") }, launcherLabelsContent = { LauncherLabelSettingsCard(model) },
+    onOpenNotices = { onNavigate("notices") }, showEmptySearch = showEmptySearch,
+    launcherLabelsContent = { LauncherLabelSettingsCard(model) },
     dockGlassContent = { DockGlassSettingsCard(model) },
     launcherGlassContent = { LauncherGlassSettingsCard(model) },
     searchGlassContent = { SearchGlassSettingsCard(model) },

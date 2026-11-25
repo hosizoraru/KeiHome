@@ -1,0 +1,5 @@
+<resources>
+    <string name="about_contributors_title">贡献者致谢</string>
+    <string name="about_contributors_jizizr_thanks">感谢贡献静态明暗图标和桌面图标批量刷新。</string>
+    <string name="about_contributors_open_profile">打开 GitHub 个人主页</string>
+</resources>

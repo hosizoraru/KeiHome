@@ -1,0 +1,5 @@
+<resources>
+    <string name="about_contributors_title">Contributor acknowledgments</string>
+    <string name="about_contributors_jizizr_thanks">Thank you for contributing static light and dark icons and batched launcher icon refreshes.</string>
+    <string name="about_contributors_open_profile">Open GitHub profile</string>
+</resources>

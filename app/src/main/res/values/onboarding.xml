@@ -35,7 +35,7 @@
     <string name="setup_open_desktop">Open desktop settings</string>
     <string name="setup_open_desktop_body">Dock, appearance and labels, icons and launch screens.</string>
     <string name="setup_finish_title">Ready to explore</string>
-    <string name="setup_finish_body">You have reached the end of the guide. Optional setup can be completed later, and this guide is always available in Settings.</string>
+    <string name="setup_finish_body">You can finish optional setup later. To revisit this guide, open Settings → Release notes.</string>
     <string name="setup_finish_note_body">Status shows the targets and launcher connection that were reported. Scope grants do not confirm that every host is loaded. Open the share sheet, Settings or Sidebar to check the icons you use; availability depends on the system version and app.</string>
     <string name="setup_logs_title">Module feature issues need LSPosed logs</string>
     <string name="setup_logs_body">For module issues affecting icons, Dock, notifications, sidebar or launcher performance, export LSPosed logs. App logs are only for KeiHome UI, settings or crashes, and require confirmation with a 20-second wait. Include screenshots and the full version and environment from About.</string>

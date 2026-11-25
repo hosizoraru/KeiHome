@@ -57,8 +57,12 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
   }
   if (route == SettingsSection.ABOUT.route || route == "about/environment") {
     AboutScreen(model, onBack = onBack, onOpenNotices = { onNavigate("notices") },
-      onOpenProjectLicense = { onNavigate("license/keihome") },
+      onOpenContributors = { onNavigate("about/contributors") },
       focusEnvironment = route == "about/environment")
+    return
+  }
+  if (route == "about/contributors") {
+    ContributorsScreen(onBack)
     return
   }
   if (route == SettingsSection.LOG.route) {
@@ -70,7 +74,8 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
     ReleaseNotesScreen(onBack, currentVersion = state?.observedVersion?.takeIf { it.isNotEmpty() }
       ?: os.kei.hyper.home.BuildConfig.VERSION_NAME.substringBefore('+'),
       unreadVersions = state?.unreadVersions.orEmpty().toSet(),
-      onReadVersions = { releaseNotesPreferences?.markRead(it) }, onViewedVersionsChanged = onReleaseNotesViewed)
+      onReadVersions = { releaseNotesPreferences?.markRead(it) }, onViewedVersionsChanged = onReleaseNotesViewed,
+      onOpenGuide = { onNavigate("setup") })
     return
   }
   if (route == "notices" || noticeCategoryForRoute(route) != null ||

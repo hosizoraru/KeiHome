@@ -88,7 +88,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices: () -> Unit,
-  onOpenProjectLicense: () -> Unit,
+  onOpenContributors: () -> Unit,
   focusEnvironment: Boolean = false) {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   val aboutScroll = rememberScrollState()
@@ -140,7 +140,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
           Box(Modifier.fillMaxWidth().height(heroHeight).onSizeChanged { heroHeightPx = it.height },
             contentAlignment = Alignment.Center) { AboutHero(model) }
           AboutLinks(showSource = true, showNotices = true, onOpenNotices = onOpenNotices,
-            onOpenProjectLicense = onOpenProjectLicense, onBackground = true)
+            onOpenContributors = onOpenContributors, onBackground = true)
           Spacer(Modifier.height(12.dp))
           AboutDetails()
           Spacer(Modifier.height(if (focusEnvironment) 96.dp else 32.dp))
@@ -196,7 +196,7 @@ private fun AboutAppIcon(model: HomeViewModel) {
 
 @Composable
 internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit,
-  onBackground: Boolean = false, showChannel: Boolean = true, onOpenProjectLicense: (() -> Unit)? = null) {
+  onBackground: Boolean = false, showChannel: Boolean = true, onOpenContributors: (() -> Unit)? = null) {
   val context = LocalContext.current
   val uriHandler = LocalUriHandler.current
   val links: @Composable ColumnScope.() -> Unit = {
@@ -208,7 +208,6 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
           stringResource(R.string.settings_source_open),
           tint = MiuixTheme.colorScheme.onSurfaceSecondary)
       })
-    if (onOpenProjectLicense != null) ProjectLicenseEntry(onOpenProjectLicense)
     if (showChannel) BasicComponent(title = stringResource(R.string.update_channel),
       summary = stringResource(R.string.update_channel_summary), onClick = {
         if (!UpdateChannel.open(context))
@@ -217,6 +216,10 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
         Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
       })
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
+      modifier = Modifier.testTag("about.notices"),
+      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+    if (onOpenContributors != null) BasicComponent(title = stringResource(R.string.about_contributors_title),
+      onClick = onOpenContributors, modifier = Modifier.testTag("about.contributors"),
       endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
   }
   if (onBackground) GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)

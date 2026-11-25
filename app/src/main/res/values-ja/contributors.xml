@@ -1,0 +1,5 @@
+<resources>
+    <string name="about_contributors_title">コントリビューターへの謝辞</string>
+    <string name="about_contributors_jizizr_thanks">ライト・ダーク用の静的アイコンと、ホーム画面のアイコンの一括更新への貢献に感謝します。</string>
+    <string name="about_contributors_open_profile">GitHub プロフィールを開く</string>
+</resources>

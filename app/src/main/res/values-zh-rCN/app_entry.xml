@@ -5,6 +5,6 @@
     <string name="hide_launcher_icon_summary">隐藏后可从 LSPosed 打开 KeiHome，在此关闭即可恢复桌面图标。</string>
     <string name="hide_launcher_icon_failed">未能更改桌面图标显示状态，请重试。</string>
     <string name="update_channel">Telegram 更新频道</string>
-    <string name="update_channel_summary">@VoyagerMIUIUpdate · 追踪后续更新发布</string>
+    <string name="update_channel_summary">@VoyagerMIUIUpdate · 订阅 KeiHome 版本发布公告</string>
     <string name="update_channel_failed">请安装 Telegram 或浏览器后打开更新频道。</string>
 </resources>

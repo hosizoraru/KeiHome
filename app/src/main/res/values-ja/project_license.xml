@@ -10,5 +10,5 @@
     <string name="project_license_title">KeiHome のライセンス</string>
     <string name="project_license_copyright">Copyright 2026 KeiHome contributors</string>
     <string name="project_license_scope">KeiHome のプロジェクトライセンスは Apache License, Version 2.0 です。サードパーティのコード、ライブラリ、アイコン、その他のリソースには、それぞれのライセンスと著作権表示が適用されます。本ライセンスはこれらの許諾条件を変更しません。詳細はオープンソースの声明をご覧ください。</string>
-    <string name="project_license_source_status">KeiHome のソースリポジトリはまだ公開されていません。ライセンスの宣言だけではソースへのアクセスは提供されません。サードパーティのソース提供と再ビルドに関する情報は、すべての声明と各コンポーネントの詳細に記載されています。</string>
+    <string name="project_license_source_status">KeiHome のソースコードは GitHub で公開されています。サードパーティのソースの入手方法と再ビルド手順は、完全な声明と各コンポーネントの詳細で確認できます。</string>
 </resources>

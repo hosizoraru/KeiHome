@@ -56,6 +56,7 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
@@ -65,6 +66,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.SelectAll
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -76,6 +78,7 @@ internal fun ReleaseNotesScreen(
   unreadVersions: Set<String> = highlightedVersions,
   onReadVersions: (Set<String>) -> Unit = {},
   onViewedVersionsChanged: (Set<String>) -> Unit = {},
+  onOpenGuide: (() -> Unit)? = null,
 ) {
   val parsedCurrent = remember(currentVersion) { ReleaseVersion.parse(currentVersion) }
   val releases = remember(parsedCurrent) {
@@ -180,6 +183,15 @@ internal fun ReleaseNotesScreen(
           ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
+        if (onOpenGuide != null) {
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            BasicComponent(title = stringResource(R.string.setup_title),
+              summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
+              startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+              modifier = Modifier.testTag("release-notes.guide"))
+          }
+        }
         visible.forEach { release ->
           key(release.version) {
             ReleaseNotesCard(

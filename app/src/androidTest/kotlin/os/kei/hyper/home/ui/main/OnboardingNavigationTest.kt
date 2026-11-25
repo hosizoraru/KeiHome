@@ -258,11 +258,13 @@ class OnboardingNavigationTest {
     rule.waitForIdle()
     rule.runOnIdle { assertEquals(OnboardingPreferences.COMPLETE, store.state.value) }
     rule.onNode(hasText(context.getString(R.string.navigation_settings)) and hasClickAction()).performClick()
-    rule.onNode(hasText(context.getString(R.string.setup_title)) and hasClickAction())
-      .performScrollTo().performClick()
+    rule.onNodeWithText(context.getString(R.string.setup_title)).assertDoesNotExist()
+    rule.onNodeWithTag("settings.entry.release-notes").performScrollTo().performClick()
+    destination("release-notes.guide")
+    rule.onNodeWithTag("release-notes.guide").performScrollTo().performClick()
     page(0)
     action("exit").performClick()
-    rule.waitForIdle()
+    destination("release-notes.guide")
     rule.runOnIdle {
       val after = AppPreferences.get(context).state.value
       assertEquals(preferencesBefore, after)

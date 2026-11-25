@@ -45,7 +45,7 @@ class NoticesUiTest {
   private val navigation = Os4NavigationTestHost()
   private val openedSources = mutableListOf<String>()
 
-  @Test fun overviewShowsCategoriesAndOpensDocumentsFromAnchoredMenu() {
+  @Test fun overviewShowsCategoriesAndOpensProjectLicenseAndCompleteNotices() {
     start()
     awaitCategories()
     rule.onNodeWithTag("notices.search").assertIsDisplayed()
@@ -56,11 +56,8 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.component.miuix").assertDoesNotExist()
     rule.onNodeWithTag("notices.component.androidx").assertDoesNotExist()
     rule.onNodeWithText(context.getString(R.string.notices_thanks)).assertDoesNotExist()
-    rule.onNodeWithTag("about.project-license").assertDoesNotExist()
     rule.onNodeWithTag("notices.full").assertDoesNotExist()
-    rule.onNodeWithContentDescription(context.getString(R.string.project_license_documents_menu))
-      .assertIsDisplayed().performClick()
-    rule.onNodeWithText(context.getString(R.string.project_license_title)).performClick()
+    rule.onNodeWithTag("notices.project-license").assertIsDisplayed().performClick()
     awaitDocument()
     rule.onNodeWithTag("notices.document").assertTextEquals(asset("licenses/KeiHome-Apache-2.0.txt"))
     rule.onNodeWithTag("notices.back").performClick()
@@ -116,19 +113,37 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.component.dexkit").assertDoesNotExist()
   }
 
-  @Test fun aboutProjectEntryOpensPublicSourceAndKeepsLicenseEntry() {
+  @Test fun aboutOpensPublicSourceAndLicenseLivesUnderNotices() {
     start("about")
     rule.onNodeWithText(context.getString(R.string.settings_source))
       .performScrollTo().performClick()
     assertEquals(listOf(ProjectLinks.SOURCE_URL), openedSources)
-    rule.onNodeWithTag("about.project-license").performScrollTo().performClick()
+    rule.onNodeWithText(context.getString(R.string.project_license_title)).assertDoesNotExist()
+    rule.onNodeWithTag("about.notices").performScrollTo().performClick()
+    val search = rule.onNodeWithTag("notices.search").performClick()
+    search.performTextReplacement(context.getString(R.string.project_license_title))
+    search.performImeAction()
+    rule.onNodeWithTag("notices.project-license").performScrollTo().performClick()
     awaitDocument()
     rule.onNodeWithText(context.getString(R.string.project_license_scope)).assertExists()
     rule.onNodeWithText(context.getString(R.string.project_license_source_status)).assertExists()
     rule.onNodeWithTag("notices.copy").assertIsEnabled()
     rule.onNodeWithTag("notices.back").performClick()
+    rule.onNodeWithTag("notices.project-license").assertExists()
+    rule.onNodeWithTag("notices.back").performClick()
     rule.onNodeWithText(context.getString(R.string.settings_source)).assertExists()
-    rule.onNodeWithTag("about.project-license").assertExists()
+    rule.onNodeWithTag("notices.project-license").assertDoesNotExist()
+  }
+
+  @Test fun acknowledgmentsOpenContributorProfileAndReturnToAbout() {
+    start("about")
+    rule.onNodeWithTag("about.contributors").performScrollTo().performClick()
+    rule.onNodeWithText("@jizizr").assertExists()
+    rule.onNodeWithText(context.getString(R.string.about_contributors_jizizr_thanks)).assertExists()
+    rule.onNodeWithTag("contributors.jizizr").assertIsDisplayed().performClick()
+    rule.runOnIdle { assertEquals(listOf("https://github.com/jizizr"), openedSources) }
+    rule.onNodeWithTag("contributors.back").performClick()
+    rule.onNodeWithTag("about.contributors").assertExists()
   }
 
   @Test fun authorSearchKeepsReferenceSourceAndRestoresOnReturn() {
@@ -239,13 +254,14 @@ class NoticesUiTest {
     val route = routes.last()
     val open: (String) -> Unit = { routes = routes + it }
     pages.SaveableStateProvider(route) {
-      if (route == "about") {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+      val back = { routes = routes.dropLast(1) }
+      when (route) {
+        "about" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
           AboutLinks(showSource = true, showNotices = true, onOpenNotices = { open("notices") },
-            showChannel = false, onOpenProjectLicense = { open("license/keihome") })
+            showChannel = false, onOpenContributors = { open("about/contributors") })
         }
-      } else {
-        NoticesDestinationScreen(route, onBack = { routes = routes.dropLast(1) }, onNavigate = open)
+        "about/contributors" -> ContributorsScreen(onBack = back)
+        else -> NoticesDestinationScreen(route, onBack = back, onNavigate = open)
       }
     }
   }

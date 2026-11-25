@@ -35,7 +35,7 @@
     <string name="setup_open_desktop">打开桌面个性化</string>
     <string name="setup_open_desktop_body">Dock、外观与文字、图标与启动，按分类进入。</string>
     <string name="setup_finish_title">开始探索 KeiHome</string>
-    <string name="setup_finish_body">向导已结束，未完成的配置可以稍后继续。需要回顾时，随时到设置里重新打开使用向导。</string>
+    <string name="setup_finish_body">未完成的配置可以稍后继续。需要回顾时，可从「设置 → 更新日志」重新打开使用向导。</string>
     <string name="setup_finish_note_body">状态页显示已上报的目标与桌面连接情况。作用域授权不代表每个宿主均已加载；请打开常用的分享面板、设置或侧边栏确认图标，实际可用情况取决于系统版本与应用。</string>
     <string name="setup_logs_title">模块功能异常，请提供 LSPosed 日志</string>
     <string name="setup_logs_body">图标、Dock、通知、侧边栏等模块功能异常或桌面卡顿，请导出 LSPosed 日志。App 日志仅用于 KeiHome 自身的界面、设置与崩溃问题，导出前需确认并等待 20 秒。反馈时请附上异常截图与关于页的完整版本、环境信息。</string>

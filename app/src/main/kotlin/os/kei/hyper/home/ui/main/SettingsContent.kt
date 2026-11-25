@@ -52,6 +52,7 @@ internal fun SettingsContent(
   query: String,
   section: SettingsSection?,
   onOpenNotices: () -> Unit,
+  showEmptySearch: Boolean = true,
   launcherLabelsContent: @Composable () -> Unit,
   dockGlassContent: @Composable () -> Unit,
   launcherGlassContent: @Composable () -> Unit = {},
@@ -149,7 +150,7 @@ internal fun SettingsContent(
   val channel = matches(SettingsSection.ABOUT, R.string.polish_settings_about,
     R.string.update_channel, R.string.update_channel_summary, extra = "Telegram TG @${UpdateChannel.USERNAME}")
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    if (listOf(appTheme, language, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, wallpaperDimming, wallpaperPresets, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
+    if (showEmptySearch && listOf(appTheme, language, fallback, recommendedMappings, effects, staticScope, launcherGlass, labels, dockGlass, splashVisible, splashIconsVisible, wallpaperDimming, wallpaperPresets, autoApply, manualThemeFallback, installedIconsOnly, rememberMenus, keepLatestGeneratedPacks,
         pageScroll, pagerMode, previews, clear, about, aboutPackage, aboutApi, source, notices, hideIcon, channel).none { it }) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
         Text(stringResource(R.string.settings_search_empty), style = MiuixTheme.textStyles.body2,

@@ -2,18 +2,27 @@ package os.kei.hyper.home.xposed
 
 import os.kei.hyper.home.iconpack.IconPackBudgets
 import android.app.ActivityManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.FileObserver
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.PowerManager
 import android.os.SystemClock
 import android.os.UserHandle
 import android.os.UserManager
+import android.provider.Settings
 import android.util.AtomicFile
 import java.io.File
 import java.io.IOException
 import org.json.JSONObject
+import os.kei.hyper.home.iconpack.NativeAppearanceVariants
+import os.kei.hyper.home.iconpack.NativePaletteIcon
 import os.kei.hyper.home.status.IconPackImportProtocol
 import os.kei.hyper.home.status.IconPackImportRequest
 import os.kei.hyper.home.status.NativeIconImportReport
@@ -24,10 +33,28 @@ internal class IconPackImportMonitor(
   private val preferences: () -> SharedPreferences?,
   private val onFailure: (Throwable) -> Unit,
   private val onConvertedImport: (NativeIconImportReport, ConvertedIconArchive.Proof) -> Unit,
+  /** Persists fixed-appearance digests for the framework validator before Themes receives the copies. */
+  private val onAppearanceVariants: (ConvertedAppearanceVariants) -> Unit = {},
+  /** Themes removed every copy of this primary SHA-256; the validator may forget them. */
+  private val onAppearanceVariantsRemoved: (String) -> Unit = {},
+  private val hasAppearanceVariants: () -> Boolean = { false },
+  private val onAppearanceStatus: (String) -> Unit = {},
+  /** Latest Themes-verified staging for the pre-dispatch swap; null disables it. */
+  private val onAppearancePrepared: (AppearanceFastSwap.State?) -> Unit = {},
+  /** Themes replaced the archive after the transition; Home must reload icons in place. */
+  private val onAppearanceReplaced: () -> Unit = {},
+  /** Ends Home's process for a user so a new engine reads every icon; returns a status. */
+  private val onLauncherRebuild: (userId: Int) -> String = { "unavailable" },
 ) {
   private val lifecycle = RestartableMonitor<Context>(::Watch, onFailure)
   fun start(context: Context) = lifecycle.start(context)
   fun request() = lifecycle.withWorker { (it as Watch).request() }
+  /** Coalesced; runs on the import worker, so it never overlaps a native import. */
+  fun requestAppearanceSync() {
+    if (hasAppearanceVariants()) lifecycle.withWorker { (it as Watch).requestAppearanceSync() }
+  }
+  /** The active icons archive changed; rebuild Home at the next screen-off ([LauncherRebuildSchedule]). */
+  fun requestLauncherRebuild() = lifecycle.withWorker { (it as Watch).requestLauncherRebuild(urgent = false) }
   fun stop() = lifecycle.stop()
   fun awaitStopped(deadline: Long) = lifecycle.awaitStopped(deadline)
 
@@ -42,11 +69,169 @@ internal class IconPackImportMonitor(
     private var handled: IconPackImportRequest? = null
     private var authorization: IconAutoApplyAuthorization? = null
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> request() }
+    private val rebuild = LauncherRebuildSchedule()
+
+    private fun interactive(): Boolean = base.getSystemService(PowerManager::class.java)?.isInteractive != false
+
+    fun requestLauncherRebuild(urgent: Boolean) {
+      if (closed) return
+      handler.post {
+        if (closed) return@post
+        rebuild.archiveReplaced(interactive(), urgent)?.let(::scheduleRebuild)
+      }
+    }
+
+    private fun scheduleRebuild(delayMs: Long) {
+      handler.removeCallbacks(rebuildLauncher)
+      handler.postDelayed(rebuildLauncher, delayMs)
+    }
+
+    private val rebuildLauncher = Runnable {
+      if (closed || !rebuild.due(interactive())) return@Runnable
+      try {
+        val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
+        val status = onLauncherRebuild(user)
+        if (!status.startsWith("restarted")) rebuild.retry()
+        onAppearanceStatus("Launcher rebuild after the icon archive change: $status")
+      } catch (failure: Exception) {
+        rebuild.retry()
+        if (failure is InterruptedException) Thread.currentThread().interrupt()
+        else if (!closed) onAppearanceStatus("Launcher rebuild deferred: $failure".take(512))
+      }
+    }
+
+    /**
+     * Themes writes the applied archive before it sends its theme change. Swapping the copy in
+     * as soon as the write lands lets Home's own reload open the copy instead of the original.
+     */
+    private val themeDirectory = object : FileObserver(File(ThemeAppearanceVariants.ACTIVE).parentFile!!,
+      CLOSE_WRITE or MOVED_TO) {
+      override fun onEvent(event: Int, path: String?) {
+        if (closed || path != File(ThemeAppearanceVariants.ACTIVE).name) return
+        handler.post {
+          if (closed || !hasAppearanceVariants()) return@post
+          // Our own swaps (pre-dispatch rename, Themes sync) land on a key we already know. A
+          // sync now could still read the old night bit and swap back.
+          val key = try {
+            android.system.Os.lstat(ThemeAppearanceVariants.ACTIVE).let(AppearanceFileKey::of)
+          } catch (_: android.system.ErrnoException) { null }
+          if (key != null && key in ownKeys) return@post
+          requestAppearanceSync(APPLIED_ARCHIVE_SYNC_DELAY_MS)
+        }
+      }
+    }
+
+    /** Active and staged identities from the latest sync; the watcher ignores them. */
+    private var ownKeys: Set<AppearanceFileKey> = emptySet()
+
+    private val screenReceiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context, intent: Intent) {
+        if (closed) return
+        when (intent.action) {
+          Intent.ACTION_SCREEN_OFF -> rebuild.screenOff()?.let(::scheduleRebuild)
+          // Never rebuild in front of the user; the change waits for the next screen-off.
+          Intent.ACTION_SCREEN_ON -> {
+            handler.removeCallbacks(rebuildLauncher)
+            rebuild.screenOn()
+          }
+        }
+      }
+    }
 
     fun request() {
       if (closed) return
       handler.removeCallbacks(import)
       handler.postDelayed(import, 100)
+    }
+
+    fun requestAppearanceSync(delayMs: Long = APPEARANCE_SYNC_DELAY_MS, retry: Boolean = false) {
+      if (closed) return
+      if (!retry) appearanceRetries = 0
+      handler.removeCallbacks(appearanceSync)
+      handler.postDelayed(appearanceSync, delayMs)
+    }
+
+    /** Consecutive syncs that found Themes still writing the archive; reset by every new request. */
+    private var appearanceRetries = 0
+
+    private val appearanceSync = Runnable {
+      if (closed || !hasAppearanceVariants()) return@Runnable
+      try {
+        val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
+        val context = userContext(user)
+        if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return@Runnable
+        val night = currentNightMode() ?: return@Runnable
+        val palette = paletteEnabled(context)
+        val result = NativeIconPackManager.syncAppearanceVariant(context, night, palette)
+        ownKeys = result.prepared?.let { setOf(it.activeKey, it.stagedKey) } ?: emptySet()
+        onAppearancePrepared(result.prepared)
+        if (result.replaced) {
+          onAppearanceReplaced()
+          requestLauncherRebuild(urgent = result.afterApply)
+        }
+        // Themes replaced the archive while the copy was written, typically during its own apply.
+        // Its configuration change may already have been coalesced into this run, so try again.
+        if (result.status.startsWith("theme-changed") && appearanceRetries < APPEARANCE_MAX_RETRIES) {
+          appearanceRetries++
+          requestAppearanceSync(APPEARANCE_RETRY_DELAY_MS, retry = true)
+        }
+        if (!result.status.startsWith("unmanaged") && !result.status.startsWith("unchanged")) {
+          onAppearanceStatus("Fixed-appearance icons: ${result.status} (night=$night, palette=$palette)")
+        }
+      } catch (failure: Exception) {
+        onAppearancePrepared(null)
+        if (failure is InterruptedException) Thread.currentThread().interrupt()
+        else if (!closed) onAppearanceStatus("Fixed-appearance icon sync failed: $failure".take(512))
+      }
+    }
+
+    private fun userContext(user: Int): Context =
+      Context::class.java.getMethod("createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType)
+        .invoke(base, UserHandle.getUserHandleForUid(user * 100_000), 0) as Context
+
+    /**
+     * Registration failure keeps the imported, system-following archive. An import made without
+     * the option removes copies an earlier import of the same archive registered.
+     */
+    private fun registerAppearanceVariants(context: Context, input: File, request: IconPackImportRequest,
+      result: NativeIconPackManager.ImportResult) {
+      if (request.convertedOrigin == null || result.convertedReady != true) return
+      val proof = result.convertedProof ?: return
+      val localId = result.localId ?: return
+      if (!request.staticAppearance) {
+        if (hasAppearanceVariants()) unregisterAppearanceVariants(context, proof, localId)
+        return
+      }
+      try {
+        val variants = NativeIconPackManager.registerAppearanceVariants(context, input.path, localId, proof,
+          onAppearanceVariants)
+        onAppearanceStatus("Fixed-appearance icons registered for $localId: " +
+          "${variants.flattened} selectors flattened, ${variants.paletteFlattened} with palette")
+        requestAppearanceSync()
+      } catch (unsupported: NativeAppearanceVariants.NothingToFlatten) {
+        onAppearanceStatus("Fixed-appearance icons skipped for $localId: no generated selectors")
+      } catch (failure: Exception) {
+        if (failure is InterruptedException) Thread.currentThread().interrupt()
+        else if (!closed) onAppearanceStatus("Fixed-appearance icons unavailable for $localId: $failure".take(512))
+      }
+    }
+
+    private fun unregisterAppearanceVariants(context: Context, proof: ConvertedIconArchive.Proof, localId: String) {
+      try {
+        val result = NativeIconPackManager.unregisterAppearanceVariants(context, proof.icons)
+        if (result.status == "absent") return
+        if (result.status.endsWith("unregistered")) onAppearanceVariantsRemoved(proof.icons.sha256)
+        onAppearanceStatus("Fixed-appearance icons removed for $localId: ${result.status}")
+        if (result.replaced) {
+          onAppearanceReplaced()
+          requestLauncherRebuild(urgent = result.afterApply)
+        }
+        // Publish the staging state of whatever archive is applied now.
+        requestAppearanceSync()
+      } catch (failure: Exception) {
+        if (failure is InterruptedException) Thread.currentThread().interrupt()
+        else if (!closed) onAppearanceStatus("Fixed-appearance icons not removed for $localId: $failure".take(512))
+      }
     }
 
     private val import = Runnable {
@@ -99,8 +284,7 @@ internal class IconPackImportMonitor(
       try {
         val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
         if (user != request.userId) return@Runnable
-        val context = Context::class.java.getMethod("createContextAsUser", UserHandle::class.java, Int::class.javaPrimitiveType)
-          .invoke(base, UserHandle.getUserHandleForUid(user * 100_000), 0) as Context
+        val context = userContext(user)
         if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return@Runnable
         sendReport = { notification ->
           context.contentResolver.call(RuntimeStatusInbox.AUTHORITY, IconPackImportProtocol.REPORT_METHOD,
@@ -186,6 +370,8 @@ internal class IconPackImportMonitor(
           result.localId, result.title, result.message, result.convertedReady)
         outcome = report
         persist(report, result.mayHaveImported, retainedStage)
+        // Before delivery: automatic application then finds the copies already registered.
+        if (report.imported && isCurrent()) registerAppearanceVariants(context, input, request, result)
         if (deliver(report)) handled = request
       } catch (failure: Exception) {
         if (failure is InterruptedException) Thread.currentThread().interrupt()
@@ -222,6 +408,19 @@ internal class IconPackImportMonitor(
             current.registerOnSharedPreferenceChangeListener(listener)
           }
           request()
+          // Startup, hot reload and reboot: reconcile the active archive with registered copies.
+          requestAppearanceSync()
+        } catch (failure: Exception) { if (!closed) onFailure(failure) }
+        try {
+          base.registerReceiver(screenReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+          }, null, handler, Context.RECEIVER_NOT_EXPORTED)
+          registrations.own { base.unregisterReceiver(screenReceiver) }
+        } catch (failure: Exception) { if (!closed) onFailure(failure) }
+        try {
+          themeDirectory.startWatching()
+          registrations.own { themeDirectory.stopWatching() }
         } catch (failure: Exception) { if (!closed) onFailure(failure) }
       }
     }
@@ -420,4 +619,29 @@ internal object ConvertedImportProofReceipt {
       listOf(proof.archive, proof.icons).all {
         it.sha1.matches(Regex("[0-9a-f]{40}")) && it.sha256.matches(Regex("[0-9a-f]{64}"))
       }
+}
+
+private const val APPEARANCE_SYNC_DELAY_MS = 300L
+/** Coalesces Themes' write with our own rename events; a sync that changes nothing is cheap. */
+private const val APPLIED_ARCHIVE_SYNC_DELAY_MS = 50L
+private const val APPEARANCE_RETRY_DELAY_MS = 1_500L
+private const val APPEARANCE_MAX_RETRIES = 3
+
+/** The global configuration as committed by system_server, not this worker's possibly stale resources. */
+private fun currentNightMode(): Boolean? {
+  val manager = Class.forName("android.app.ActivityManager").getMethod("getService").invoke(null)
+  val configuration = Class.forName("android.app.IActivityManager").getMethod("getConfiguration")
+    .invoke(manager) as? Configuration ?: return null
+  return when (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+    Configuration.UI_MODE_NIGHT_YES -> true
+    Configuration.UI_MODE_NIGHT_NO -> false
+    else -> null
+  }
+}
+
+/** Generated palette selectors read the packed state; older archives read the scalar enable key. */
+private fun paletteEnabled(context: Context): Boolean {
+  val resolver = context.contentResolver
+  val packed = Settings.System.getString(resolver, NativePaletteIcon.STATE_KEY)?.toDoubleOrNull()?.toLong() ?: 0L
+  return (packed ushr 48) and 1L == 1L || Settings.System.getString(resolver, NativePaletteIcon.ENABLED_KEY) == "1"
 }

@@ -26,6 +26,8 @@ internal data class IconPackImportRequest(
   val convertedOrigin: String? = null,
   val autoApply: Boolean = false,
   val preparedPalette: Boolean? = null,
+  /** Opt-in: also derive fixed light/dark copies and swap them on appearance changes. */
+  val staticAppearance: Boolean = false,
 ) {
   fun pending(now: Long) = now >= startedAt && now - startedAt <= 600_000L &&
     userId >= 0 && token.matches(Regex("[0-9a-f-]{36}")) && sourceId.isNotBlank()
@@ -81,13 +83,15 @@ internal object IconPackImportProtocol {
   private const val SOURCE = "request_source"
   private const val RECHECK = "recheck"
   private const val ORIGIN = "converted_origin"
+  private const val STATIC_APPEARANCE = "static_appearance"
   private val remoteWrites = Mutex()
 
   fun read(preferences: SharedPreferences?): IconPackImportRequest? {
     val values = preferences?.all ?: return null
     return IconPackImportRequest(values[TOKEN] as? String ?: return null, values[USER] as? Int ?: return null,
       values[START] as? Long ?: return null, values[SOURCE] as? String ?: return null,
-      values[RECHECK] as? Long ?: 0, values[ORIGIN] as? String, values["auto_apply"] as? Boolean ?: false)
+      values[RECHECK] as? Long ?: 0, values[ORIGIN] as? String, values["auto_apply"] as? Boolean ?: false,
+      staticAppearance = values[STATIC_APPEARANCE] as? Boolean ?: false)
   }
 
   @Volatile private var appStore: IconImportLocalStore? = null
@@ -142,12 +146,14 @@ internal object IconPackImportProtocol {
     service.getRemotePreferences(GROUP).edit().putString(TOKEN, request.token)
       .putInt(USER, request.userId).putLong(START, request.startedAt)
       .putLong(RECHECK, recheck).putString(SOURCE, request.sourceId).putString(ORIGIN, request.convertedOrigin)
-      .putBoolean("auto_apply", request.autoApply).commit()
+      .putBoolean("auto_apply", request.autoApply).putBoolean(STATIC_APPEARANCE, request.staticAppearance).commit()
 
   suspend fun submit(context: Context, service: XposedService, handoff: IconPackHandoff,
-    autoApply: Boolean = false, preparedPalette: Boolean? = null): NativeIconImportReport? = withContext(Dispatchers.IO) {
+    autoApply: Boolean = false, preparedPalette: Boolean? = null,
+    staticAppearance: Boolean = false): NativeIconImportReport? = withContext(Dispatchers.IO) {
     val request = IconPackImportRequest(handoff.token, Process.myUid() / 100_000,
-      SystemClock.elapsedRealtime(), handoff.sourceId, convertedOrigin = handoff.convertedOrigin, autoApply = autoApply, preparedPalette = preparedPalette)
+      SystemClock.elapsedRealtime(), handoff.sourceId, convertedOrigin = handoff.convertedOrigin, autoApply = autoApply,
+      preparedPalette = preparedPalette, staticAppearance = staticAppearance && handoff.convertedOrigin != null)
     submitNativeImport(local(context), request, local(context).states.map { it?.result },
       publicationMutex = remoteWrites) { publishRequest(service, request) }.also { report ->
       if (report?.status == "UNCERTAIN") AppLogStore.record(context, AppLogStore.Level.WARN,

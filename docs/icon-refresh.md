@@ -97,6 +97,30 @@ packages are refreshed instead of risking missed icons.
 The solution uses launcher package callbacks and does not depend on whether
 `libhyper_os_flutter.so` comes from the launcher APK or the system partition.
 
+### Batched resource refresh
+
+For a full or night-mode (`RESOURCE_CHANGE`) refresh, KeiHome first sends
+`onPackagesUnsuspended(user, packages)` once for every eligible package.
+Eligible packages have a single launcher entry and are not suspended.
+
+- HyperOS Home's Rust model handles this callback in
+  `AllAppsList.update_disabled_flags`. It rewrites only the suspended word of
+  each package's first entry, which is 0 for an unsuspended package, and marks
+  the entry modified.
+- Dart's `ItemChangeProcessor._handleAppUpdate` then evicts and reloads all of
+  those icons in a single model update.
+- Suspended and multi-entry packages, shortcut callbacks and targeted package
+  refreshes keep the paced `onPackageChanged` path.
+- Home ignores a batch identical to its previous one for about five seconds, so
+  consecutive batches alternate the package order. Each user profile alternates
+  on its own, because one refresh sends a batch per enabled profile.
+- A batch needs at least two packages. If the framework has no such callback, or
+  the callback fails, every package of that profile uses the paced path.
+
+On phone `82411d42` (Home 9239), 307 entries changed in one update, and icon
+loading finished in about 5 s instead of about 70 s of paced callbacks. See
+[static-appearance-icons.md](static-appearance-icons.md#device-evidence).
+
 ## Runtime-resolved two-tone Monet
 
 ### Official icon styles and theme-owned artwork

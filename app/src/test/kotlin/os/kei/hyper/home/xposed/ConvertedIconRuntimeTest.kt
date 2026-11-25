@@ -87,6 +87,24 @@ class ConvertedIconRuntimeTest {
     assertTrue(runtime.retire())
   }
 
+  @Test fun archiveReplacedDuringHashingIsHashedOnceMore() {
+    var hashes = 0
+    val runtime = runtime(hash = {
+      // A fixed-appearance rename swaps the archive while the first read is open.
+      if (hashes++ == 0) throw IllegalArgumentException("Converted icons were replaced during validation")
+      proof.icons.sha256
+    })
+    runtime.register(report, proof)
+    assertApproved(runtime)
+    assertEquals(2, hashes)
+
+    hashes = 0
+    val unreadable = runtime(hash = { hashes++; throw IOException("read failed") })
+    unreadable.register(report, proof)
+    assertOriginal(unreadable)
+    assertEquals(1, hashes)
+  }
+
   @Test fun originalFrameworkExceptionsPropagateWithoutRetry() {
     val runtime = runtime(hash = { throw IOException("module cannot read") })
     runtime.register(report, proof)
@@ -387,7 +405,8 @@ class ConvertedIconRuntimeTest {
     runtime.register(report, approvedProof)
     assertOriginal(runtime)
     val after = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
-    assertEquals(2, lengthCalls)
+    // The replaced read is retried once; it hashes the unregistered replacement, not the old bytes.
+    assertEquals(4, lengthCalls)
     assertEquals(before.size(), after.size())
     assertEquals(before.lastModifiedTime(), after.lastModifiedTime())
     assertNotEquals(before.fileKey(), after.fileKey())

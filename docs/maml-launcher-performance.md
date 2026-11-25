@@ -218,6 +218,11 @@ descriptors on disk and prove a launcher-side static path with narrow
 recognition and invalidation on appearance, palette and icon theme changes.
 An optimization that requires the KeiHome hook cannot fix standalone export.
 
+An opt-in implementation of the system-following static path now swaps
+derived fixed light/dark copies on appearance changes; see
+[static-appearance-icons.md](static-appearance-icons.md). It has been checked on
+one phone; FrameTimeline acceptance is still open.
+
 Before changing defaults, repeat the same test on the reporter's ZIP and Home
 version. Check the first launch after switching themes, repeated launch and
 return, folders with mixed ordinary and animated icons, and live light/dark

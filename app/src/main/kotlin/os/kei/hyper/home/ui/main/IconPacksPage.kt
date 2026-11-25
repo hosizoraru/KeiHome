@@ -189,7 +189,9 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
           }
         }
         item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,
-          model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true) }
+          model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true,
+          staticAppearance = preferences.staticAppearanceIcons,
+          onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons) }
         if (!state.importing && state.importName != null) item("import-status") {
           PackInfoCard(stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
             Modifier.testTag("packs.file-import.status"))
@@ -257,10 +259,19 @@ internal fun IconPackAppearancePreference(
   enabled: Boolean,
   modifier: Modifier = Modifier,
   compact: Boolean = false,
+  staticAppearance: Boolean = false,
+  onStaticAppearanceChange: ((Boolean) -> Unit)? = null,
 ) {
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     Column {
       IconPackAppearanceControl(appearance, onChange, enabled, compact, compactNote = compact)
+      if (appearance == IconPackAppearance.SYSTEM && onStaticAppearanceChange != null) {
+        SwitchPreference(title = stringResource(R.string.icon_pack_static_appearance),
+          summary = stringResource(R.string.icon_pack_static_appearance_summary),
+          checked = staticAppearance, enabled = enabled,
+          modifier = Modifier.testTag("icon-packs.static-appearance"),
+          onCheckedChange = onStaticAppearanceChange)
+      }
       if (!compact) Text(stringResource(R.string.icon_pack_appearance_update_note),
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)

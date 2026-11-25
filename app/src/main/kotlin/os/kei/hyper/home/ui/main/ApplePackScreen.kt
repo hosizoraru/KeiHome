@@ -508,7 +508,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             }
           }
           item("appearance") { IconPackAppearancePreference(prefs.iconPackAppearance,
-            model.preferences::setIconPackAppearance, enabled, compact = true) }
+            model.preferences::setIconPackAppearance, enabled, compact = true,
+            staticAppearance = prefs.staticAppearanceIcons,
+            onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons) }
           item("cache") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_download_cache),

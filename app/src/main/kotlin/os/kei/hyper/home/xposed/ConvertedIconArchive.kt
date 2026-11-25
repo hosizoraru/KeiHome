@@ -88,6 +88,13 @@ internal object ConvertedIconArchive {
     return Proof(origin, archive, requireNotNull(icons))
   }
 
+  /** Applies the origin's icons-module admission to a bare icons archive, such as a fixed-appearance copy. */
+  fun validateIconsFile(file: File, origin: String) {
+    require(origin in origins) { "Unapproved conversion origin" }
+    require(file.isFile && file.length() in 1..MAX_BYTES) { "Converted icons size limit" }
+    if (origin == LOCAL_NATIVE) LocalNativeIconValidator.validate(file) else validateIcons(file)
+  }
+
   internal fun removeValidationCopy(file: File) {
     // Another cleanup may already have removed it; genuine I/O failures still reject approval.
     Files.deleteIfExists(file.toPath())

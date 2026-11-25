@@ -125,6 +125,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           .registerAppearanceVariants(variants)
       }
     },
+    onAppearanceVariantsRemoved = { primary ->
+      lifecycle.withActiveRuntime { convertedIconRuntime?.unregisterAppearanceVariants(primary) }
+    },
     hasAppearanceVariants = { convertedIconRuntime?.hasAppearanceVariants() == true },
     onAppearanceStatus = { message -> xposed.log(Log.INFO, TAG, message) },
     onAppearancePrepared = { prepared -> appearanceFastSwap.publish(prepared) },

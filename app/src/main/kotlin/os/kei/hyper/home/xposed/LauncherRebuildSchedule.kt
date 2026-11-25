@@ -22,7 +22,7 @@ internal class LauncherRebuildSchedule(val delayMs: Long = DELAY_MS) {
     private set
 
   /** Returns the delay to wait, or null to wait for the next screen-off. */
-  fun archiveReplaced(interactive: Boolean, urgent: Boolean = false, launcherVisible: Boolean = true): Long? {
+  fun archiveReplaced(interactive: Boolean, urgent: Boolean = false): Long? {
     pending = true
     if (urgent) {
       urgentPending = true
@@ -37,7 +37,7 @@ internal class LauncherRebuildSchedule(val delayMs: Long = DELAY_MS) {
   fun screenOff(): Long? = if (pending) delayMs else null
 
   /** True only once per pending change, and only while the screen is still off. */
-  fun due(interactive: Boolean, launcherVisible: Boolean = true): Boolean {
+  fun due(interactive: Boolean): Boolean {
     if (!pending) return false
     if (interactive && !urgentPending) return false
     pending = false
@@ -48,6 +48,11 @@ internal class LauncherRebuildSchedule(val delayMs: Long = DELAY_MS) {
   /** The rebuild did not happen; try again at the next screen-off. */
   fun retry() {
     pending = true
+  }
+
+  /** The user is back; anything still pending waits for the next screen-off. */
+  fun screenOn() {
+    urgentPending = false
   }
 
   companion object {

@@ -106,6 +106,22 @@ internal class ConvertedIconRuntime(
     }
   }
 
+  /** Called after Themes removed the copies and no copy of [primary] remains applied. */
+  fun unregisterAppearanceVariants(primary: String) {
+    check(gate.enter()) { "Converted icon validation is retired" }
+    try {
+      synchronized(registrationLock) {
+        val current = appearanceVariants.get()
+        val updated = current.filterNot { it.primary == primary }
+        if (updated.size == current.size) return
+        appearanceStorage.write(updated)
+        appearanceVariants.set(updated)
+      }
+    } finally {
+      gate.leave()
+    }
+  }
+
   fun hasAppearanceVariants(): Boolean = appearanceVariants.get().isNotEmpty()
 
   internal fun loadAppearanceVariants() = synchronized(registrationLock) {

@@ -82,6 +82,25 @@ class ConvertedAppearanceVariantsTest {
     assertSame(success, validate(reloaded))
   }
 
+  @Test fun removedCopiesLoseApprovalButThePrimaryKeepsIt() {
+    var digest = variants.light
+    val store = Variants()
+    val runtime = runtime(store) { digest }
+    runtime.register(report, proof)
+    runtime.registerAppearanceVariants(variants)
+    assertSame(success, validate(runtime))
+    runtime.unregisterAppearanceVariants(variants.primary)
+    assertFalse(runtime.hasAppearanceVariants())
+    assertTrue(store.rows.isEmpty())
+    assertSame(original, validate(runtime))
+    digest = variants.primary
+    assertSame(success, validate(runtime))
+    // Removing an unknown primary writes nothing.
+    val writes = store.writes
+    runtime.unregisterAppearanceVariants("9".repeat(64))
+    assertEquals(writes, store.writes)
+  }
+
   @Test fun rejectsMalformedOrDegenerateDigests() {
     val runtime = runtime(Variants()) { variants.primary }
     for (bad in listOf(variants.copy(light = "XYZ"), variants.copy(dark = variants.light),

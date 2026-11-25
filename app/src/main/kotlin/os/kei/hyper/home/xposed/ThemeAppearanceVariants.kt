@@ -139,13 +139,18 @@ internal class ThemeAppearanceVariants(private val context: Context) {
       val source = sourceFor(record, role)
       if (!source.isFile) return clearStaging("missing ${role.label}")
       if (!replaceActive(source, expected, active, before)) return clearStaging("theme-changed")
-      // From the primary: Themes has just applied the archive and Home reloaded the original.
-      if (current == record.primary) "applied ${role.label} $FROM_PRIMARY" else "applied ${role.label}"
+      // Themes has just applied the primary and Home reloaded it, unless this store itself
+      // restored the primary for the live palette (that file keeps its identity until now).
+      if (current == record.primary && before != paletteKey()) "applied ${role.label} $FROM_PRIMARY"
+      else "applied ${role.label}"
     }
     val activeKey = statKey(active) ?: return clearStaging("unmanaged")
     known[activeKey] = expected
     // A palette-backed original changes through this slower path only.
-    if (role == NativeAppearanceVariants.Role.PRIMARY) return clearStaging(status)
+    if (role == NativeAppearanceVariants.Role.PRIMARY) {
+      savePaletteKey(activeKey)
+      return clearStaging(status)
+    }
     val next = if (role == NativeAppearanceVariants.Role.DARK) NativeAppearanceVariants.Role.LIGHT
       else NativeAppearanceVariants.Role.DARK
     val stagedKey = try {
@@ -156,6 +161,16 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     }
     SyncResult(status, Prepared(activeKey, role == NativeAppearanceVariants.Role.DARK,
       stagedFile(next).path, stagedKey, next == NativeAppearanceVariants.Role.DARK))
+  }
+
+  /** Identity of the primary this store placed for the live palette; survives a Themes restart. */
+  private fun paletteKey(): AppearanceFileKey? = try {
+    AppearanceFileKey.of(File(root(), PALETTE_KEY).readText().split(',').map(String::toLong).toLongArray())
+  } catch (_: Exception) { null }
+
+  private fun savePaletteKey(key: AppearanceFileKey) {
+    try { File(root(), PALETTE_KEY).writeText(key.toLongArray().joinToString(",")) }
+    catch (_: IOException) { /* Only weakens the after-apply distinction. */ }
   }
 
   private fun currentDigest(active: File, key: AppearanceFileKey): ConvertedIconArchive.Digests =
@@ -395,6 +410,7 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     private const val STAGE_ROOT = "/data/system/theme/.keihome-import"
     private const val DIRECTORY = "keihome_appearance_variants"
     private const val RECORDS = "variants-v1.json"
+    private const val PALETTE_KEY = "palette-primary-key"
     private const val LIGHT = "light.icons"
     private const val DARK = "dark.icons"
     private const val MAX_RECORDS = 2

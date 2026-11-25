@@ -50,20 +50,29 @@ class LauncherRebuildScheduleTest {
 
   @Test fun anAppliedImportRebuildsAtOnceWhileHomeIsInTheBackground() {
     val schedule = LauncherRebuildSchedule(delayMs = 100)
-    assertEquals(0L, schedule.archiveReplaced(interactive = true, urgent = true, launcherVisible = false))
-    assertTrue(schedule.due(interactive = true, launcherVisible = false))
+    assertEquals(0L, schedule.archiveReplaced(interactive = true, urgent = true))
+    assertTrue(schedule.due(interactive = true))
   }
 
   @Test fun anAppliedImportRebuildsAtOnceEvenWhileHomeIsInView() {
     // Themes' apply has just reloaded Home; completing it now is part of the same apply.
     val schedule = LauncherRebuildSchedule(delayMs = 100)
-    assertEquals(0L, schedule.archiveReplaced(interactive = true, urgent = true, launcherVisible = true))
-    assertTrue(schedule.due(interactive = true, launcherVisible = true))
+    assertEquals(0L, schedule.archiveReplaced(interactive = true, urgent = true))
+    assertTrue(schedule.due(interactive = true))
   }
 
   @Test fun aDarkModeSwitchNeverRebuildsWhileTheScreenIsOn() {
     val schedule = LauncherRebuildSchedule(delayMs = 100)
-    assertNull(schedule.archiveReplaced(interactive = true, urgent = false, launcherVisible = false))
-    assertFalse(schedule.due(interactive = true, launcherVisible = false))
+    assertNull(schedule.archiveReplaced(interactive = true, urgent = false))
+    assertFalse(schedule.due(interactive = true))
+  }
+
+  @Test fun anUrgentRebuildCanceledByTheScreenWaitsForTheNextScreenOff() {
+    val schedule = LauncherRebuildSchedule(delayMs = 100)
+    schedule.archiveReplaced(interactive = true, urgent = true)
+    schedule.screenOn()
+    assertFalse(schedule.due(interactive = true))
+    assertEquals(100L, schedule.screenOff())
+    assertTrue(schedule.due(interactive = false))
   }
 }

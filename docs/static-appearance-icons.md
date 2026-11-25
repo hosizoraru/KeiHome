@@ -148,7 +148,14 @@ and lets the system start Home again:
   with the system-following original. A sync that replaces that original
   (`applied … after apply`) or restores it during an opt-out reimport is urgent.
 - system_server watches `/data/system/theme` (`CLOSE_WRITE`, `MOVED_TO` on `icons`) and syncs
-  50 ms after Themes writes the archive, instead of waiting for a later event.
+  50 ms after Themes writes the archive, instead of waiting for a later event. Events whose
+  archive identity matches the last sync's active or staged copy are our own swaps and are
+  ignored; a sync then could still read the old night bit.
+- A primary that the store placed for the live palette is remembered by identity in Themes'
+  private directory. Turning the palette off is an ordinary switch, not an applied import.
+- A failed rebuild (no launcher uid or service) is retried at the next screen-off.
+- An import without the option that removes a pack's copies also removes them from the
+  framework validator, so syncs stop once no pack uses copies.
 - After a real theme change, Home was observed to ignore later pokes until it restarted. The
   rebuild also recovers from that state.
 
@@ -218,7 +225,8 @@ its first page, and the foreground app, which appears to exit
   --tests 'os.kei.hyper.home.xposed.AppearanceFastSwapTest' \
   --tests 'os.kei.hyper.home.xposed.LauncherIconBatchTest' \
   --tests 'os.kei.hyper.home.xposed.ThemeAppearanceVariantsTest' \
-  --tests 'os.kei.hyper.home.xposed.ConvertedIconRuntimeTest'
+  --tests 'os.kei.hyper.home.xposed.ConvertedIconRuntimeTest' \
+  --tests 'os.kei.hyper.home.xposed.LauncherRebuildScheduleTest'
 ```
 
 They cover selector recognition, exclusions (phone companions and names another

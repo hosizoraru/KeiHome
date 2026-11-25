@@ -35,6 +35,8 @@ internal class IconPackImportMonitor(
   private val onConvertedImport: (NativeIconImportReport, ConvertedIconArchive.Proof) -> Unit,
   /** Persists fixed-appearance digests for the framework validator before Themes receives the copies. */
   private val onAppearanceVariants: (ConvertedAppearanceVariants) -> Unit = {},
+  /** Themes removed every copy of this primary SHA-256; the validator may forget them. */
+  private val onAppearanceVariantsRemoved: (String) -> Unit = {},
   private val hasAppearanceVariants: () -> Boolean = { false },
   private val onAppearanceStatus: (String) -> Unit = {},
   /** Latest Themes-verified staging for the pre-dispatch swap; null disables it. */
@@ -75,16 +77,9 @@ internal class IconPackImportMonitor(
       if (closed) return
       handler.post {
         if (closed) return@post
-        rebuild.archiveReplaced(interactive(), urgent, launcherVisible())?.let(::scheduleRebuild)
+        rebuild.archiveReplaced(interactive(), urgent)?.let(::scheduleRebuild)
       }
     }
-
-    /** Home is the app the user sees. Unknown counts as visible, so nothing is rebuilt in view. */
-    private fun launcherVisible(): Boolean = try {
-      base.getSystemService(ActivityManager::class.java)?.runningAppProcesses
-        ?.firstOrNull { it.processName == LauncherThemePoke.LAUNCHER }
-        ?.let { it.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND } ?: false
-    } catch (_: Exception) { true }
 
     private fun scheduleRebuild(delayMs: Long) {
       handler.removeCallbacks(rebuildLauncher)
@@ -92,10 +87,12 @@ internal class IconPackImportMonitor(
     }
 
     private val rebuildLauncher = Runnable {
-      if (closed || !rebuild.due(interactive(), launcherVisible())) return@Runnable
+      if (closed || !rebuild.due(interactive())) return@Runnable
       try {
         val user = ActivityManager::class.java.getMethod("getCurrentUser").invoke(null) as Int
-        onAppearanceStatus("Launcher rebuilt after the icon archive change: ${onLauncherRebuild(user)}")
+        val status = onLauncherRebuild(user)
+        if (!status.startsWith("restarted")) rebuild.retry()
+        onAppearanceStatus("Launcher rebuild after the icon archive change: $status")
       } catch (failure: Exception) {
         rebuild.retry()
         if (failure is InterruptedException) Thread.currentThread().interrupt()
@@ -110,10 +107,22 @@ internal class IconPackImportMonitor(
     private val themeDirectory = object : FileObserver(File(ThemeAppearanceVariants.ACTIVE).parentFile!!,
       CLOSE_WRITE or MOVED_TO) {
       override fun onEvent(event: Int, path: String?) {
-        if (closed || path != File(ThemeAppearanceVariants.ACTIVE).name || !hasAppearanceVariants()) return
-        requestAppearanceSync(APPLIED_ARCHIVE_SYNC_DELAY_MS)
+        if (closed || path != File(ThemeAppearanceVariants.ACTIVE).name) return
+        handler.post {
+          if (closed || !hasAppearanceVariants()) return@post
+          // Our own swaps (pre-dispatch rename, Themes sync) land on a key we already know. A
+          // sync now could still read the old night bit and swap back.
+          val key = try {
+            android.system.Os.lstat(ThemeAppearanceVariants.ACTIVE).let(AppearanceFileKey::of)
+          } catch (_: android.system.ErrnoException) { null }
+          if (key != null && key in ownKeys) return@post
+          requestAppearanceSync(APPLIED_ARCHIVE_SYNC_DELAY_MS)
+        }
       }
     }
+
+    /** Active and staged identities from the latest sync; the watcher ignores them. */
+    private var ownKeys: Set<AppearanceFileKey> = emptySet()
 
     private val screenReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context, intent: Intent) {
@@ -121,7 +130,10 @@ internal class IconPackImportMonitor(
         when (intent.action) {
           Intent.ACTION_SCREEN_OFF -> rebuild.screenOff()?.let(::scheduleRebuild)
           // Never rebuild in front of the user; the change waits for the next screen-off.
-          Intent.ACTION_SCREEN_ON -> handler.removeCallbacks(rebuildLauncher)
+          Intent.ACTION_SCREEN_ON -> {
+            handler.removeCallbacks(rebuildLauncher)
+            rebuild.screenOn()
+          }
         }
       }
     }
@@ -151,6 +163,7 @@ internal class IconPackImportMonitor(
         val night = currentNightMode() ?: return@Runnable
         val palette = paletteEnabled(context)
         val result = NativeIconPackManager.syncAppearanceVariant(context, night, palette)
+        ownKeys = result.prepared?.let { setOf(it.activeKey, it.stagedKey) } ?: emptySet()
         onAppearancePrepared(result.prepared)
         if (result.replaced) {
           onAppearanceReplaced()
@@ -207,6 +220,7 @@ internal class IconPackImportMonitor(
       try {
         val result = NativeIconPackManager.unregisterAppearanceVariants(context, proof.icons)
         if (result.status == "absent") return
+        if (result.status.endsWith("unregistered")) onAppearanceVariantsRemoved(proof.icons.sha256)
         onAppearanceStatus("Fixed-appearance icons removed for $localId: ${result.status}")
         if (result.replaced) {
           onAppearanceReplaced()

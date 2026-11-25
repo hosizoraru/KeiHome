@@ -110,6 +110,46 @@ Font-scale and orientation-only changes retain the fixed-pixel snapshots;
 night/locale changes still invalidate them. Status-bar notification glyphs,
 custom/conversation artwork, badges and animation ownership stay native.
 
+### Xiaomi Weather snapshots
+
+On `OS4.0.8.0.XBLCNXM`, `AppIconsManager.loadAppIcon` takes the OEM themed
+drawable and can flatten its MAML layers through `DrawableUtils.drawable2Bitmap`.
+The flattening path can substitute each fancy layer's quiet drawable. Notification
+headers also have an app-resource fallback, and `IconManager.getIconDescriptor`
+can take the small icon posted by the app. The active Weather archive's
+root `quietImage.png` contains different artwork from its native layers. The
+weather push used for validation posts `com.miui.weather2:mipmap/launch_icon`
+as its small icon.
+
+The shared snapshot renderer recognizes the bounded Weather display schema
+used by the exporter, composes the authored layers in the native adaptive
+viewport, then applies the archive mask. It reads the current temperature
+from Xiaomi Weather's provider and draws the pack's own glyphs. Day/night
+resources use the same schema as publication. A missing weather reading keeps
+the authored base artwork visible, and an unrecognized schema takes the
+existing static fallback. Provider and ZIP work stay off the UI thread.
+The snapshot owners use the same minute boundary as other dynamic icons.
+
+SystemUI's notification header may recover the snapshot from the verified
+weather notification and its row, including rows already attached during hot
+reload. Notification-provided custom icons still have their own paths. For
+the status bar, require that the posted small icon matches the installed
+Weather application's launcher resource. Accept the native app bitmap or
+the matching resource descriptor, then give the shared bitmap to the OEM
+renderer through a copy of its descriptor. This covers both its preloaded
+and resource-loading paths while keeping its layout and scaling. Dedicated
+small icons keep their original resource.
+
+On the physical Xiaomi 17 Pro with LSPosed 7953, KeiOS-signed build
+`115000800` updated in place. The notification header, status bar and recent
+tasks showed the authored clouds and `10°`. The active archive SHA-256 and
+the launcher, SystemUI and system-server PIDs matched the pre-install values.
+The renderer regression passed on the same device with negative temperature,
+missing weather data, day/night assets and final-mask assertions. Sharing and
+sidebar hosts were traced to the shared cache, and the splash fallback was
+traced to the shared renderer. Those three views lacked a visual acceptance
+case in this run. Evidence is in `.artifacts/weather-surfaces-20261125/`.
+
 Real-worker device tests cover 100 invalidations with one shared palette read
 for 32 retained icons, eight-item yielding, memory-only cache hits, replacement
 across 160 names without recycling an externally held bitmap, configuration

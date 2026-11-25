@@ -173,7 +173,7 @@ class PackSettingsNavigationTest {
 
     rule.runOnIdle { width = 900.dp }
     rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
-    selectShortcut(MainShortcut.TOOLS, "desktop.page.tools")
+    selectShortcut(MainShortcut.DARK_MODE, "desktop.page.dark-mode")
     back()
     rule.onNode(hasText(context.getString(R.string.navigation_desktop)) and isSelectable())
       .assertIsSelected()

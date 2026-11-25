@@ -1,6 +1,8 @@
 <resources>
     <string name="desktop_dark_mode_title">Dark mode settings</string>
     <string name="desktop_dark_mode_summary">Dark styles, wallpapers, and status bar contrast</string>
+    <string name="desktop_dark_mode_wallpaper_group">Wallpaper</string>
+    <string name="desktop_dark_mode_apps_and_statusbar_group">Apps and status bar</string>
     <string name="desktop_dark_mode_statusbar">Status bar color inversion</string>
     <string name="dark_mode_style_title">KeiHome dark style</string>
     <string name="dark_mode_style_summary">Choose the shade of dark surfaces in KeiHome.</string>

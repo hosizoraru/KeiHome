@@ -1,6 +1,8 @@
 <resources>
     <string name="desktop_dark_mode_title">ダークモード設定</string>
     <string name="desktop_dark_mode_summary">ダークスタイル、壁紙、ステータスバーのコントラスト</string>
+    <string name="desktop_dark_mode_wallpaper_group">壁紙</string>
+    <string name="desktop_dark_mode_apps_and_statusbar_group">アプリとステータスバー</string>
     <string name="desktop_dark_mode_statusbar">ステータスバーの色反転</string>
     <string name="dark_mode_style_title">KeiHome のダークスタイル</string>
     <string name="dark_mode_style_summary">KeiHome のダークモードで使う背景の明るさを選びます。</string>

@@ -1,6 +1,8 @@
 <resources>
     <string name="desktop_dark_mode_title">深色模式设置</string>
     <string name="desktop_dark_mode_summary">暗色风格、壁纸和状态栏对比度</string>
+    <string name="desktop_dark_mode_wallpaper_group">壁纸</string>
+    <string name="desktop_dark_mode_apps_and_statusbar_group">应用与状态栏</string>
     <string name="desktop_dark_mode_statusbar">状态栏反色</string>
     <string name="dark_mode_style_title">KeiHome 暗色风格</string>
     <string name="dark_mode_style_summary">选择 KeiHome 界面在深色模式下的底色深浅。</string>

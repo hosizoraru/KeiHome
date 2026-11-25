@@ -19,7 +19,6 @@ runs:
       with:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
-        cache: gradle
 
     - name: Set up Android SDK
       if: inputs.install-android == 'true'
@@ -40,3 +39,8 @@ runs:
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v6
+      with:
+        # setup-gradle owns the Gradle User Home cache. Keeping setup-java's
+        # dependency cache disabled avoids storing the same files twice.
+        cache-cleanup: on-success
+        cache-read-only: ${{ github.ref != 'refs/heads/main' }}

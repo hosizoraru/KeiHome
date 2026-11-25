@@ -21,7 +21,7 @@ texture, Dart and animation ownership on their original threads. Its old
 producer used `pthread_mutex_trylock`; even a momentary consumer lock could
 send a large cleanup back to the UI thread.
 
-The replacement keeps one worker and 64 pending slots plus one active release.
+The replacement initially used one worker and 64 pending slots plus one active release.
 Each slot has a publication sequence. A producer attempts one reservation CAS,
 publishes an immutable cleanup item, and posts a semaphore. It does not wait
 for a queue lock, allocate a queue node, or spin on a reservation. The consumer
@@ -200,8 +200,8 @@ is validated separately from the baseline table above.
 
 ### Adaptive cleanup scheduling
 
-The queue still has exactly one worker, 64 pending slots and one active
-release. Its producer path is unchanged. The worker normally uses nice 10.
+At this checkpoint the queue had one worker, 64 pending slots and one active
+release. The worker normally uses nice 10.
 At 32 pending items it requests ordinary nice 0, then restores nice 10 when
 the backlog falls to eight. Hysteresis keeps priority syscalls out of the
 per-item steady state; there is no timer, polling thread, extra graphics
@@ -295,6 +295,38 @@ The AVD had five common windows and high run-to-run variation. The overlap
 with both phone controls offers little justification for changing the
 selector on every compatible host. The checked-in renderer retains the
 existing descriptor format and authored animations.
+
+## Selecting an app in Home edit mode
+
+On Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and Home `801030308`,
+selecting an app on a dense page changes the bottom tray to page thumbnails.
+The trace showed launcher UI and raster work alongside MAML initialization
+and ZIP metadata cleanup. The selection window had no recorded KeiHome
+icon refresh sweep. With the 64-slot queue, capacity fallbacks were recorded
+in the launcher process. In a separate five-cycle run at fixed nice 10,
+the queue logged 216 additional capacity fallbacks.
+
+The queue now accepts up to 256 pending metadata releases and one active
+release. The extra slots add 4,608 bytes of fixed ring storage on arm64.
+They can temporarily retain more metadata until the worker catches up.
+The worker retains its existing priority thresholds. The thumbnail renderer
+keeps its normal icon content.
+
+The four common selection windows in the baseline and candidate traces had
+median longest launcher frames of 155.8 ms and 86.2 ms, respectively. The
+respective maxima were 168.6 ms and 95.5 ms. The fixed-priority comparison
+peaked at 443.2 ms. The expanded queue reached 69 pending entries and
+completed all 973 queued releases since the candidate process started,
+with zero synchronous fallbacks recorded. The remaining frame stalls include
+work outside the release queue. These figures describe this page and device.
+
+The candidate `115000749` was installed in place and the replacement
+launcher process loaded the new native image and initialized the release
+hook. The edit recording covers selection, multi-selection, deselection
+and exit. The theme icon archive hash matched before and after the run.
+ASan/UBSan and TSan each covered 9,287 exactly-once releases, including
+saturation, ticket wraparound and concurrent producers. Traces, counters
+and the recording are in `.artifacts/research/launcher-edit-douyin-20261125/`.
 
 The Debug build passed and six focused JVM suites passed all 80 tests.
 AVD API 102 receipts verified critical Java reloads. The physical install

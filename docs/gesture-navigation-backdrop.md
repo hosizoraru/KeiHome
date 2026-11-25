@@ -387,6 +387,29 @@ and API 102 reported success for all six observed processes, including
 The dark-system-mode run, including screenshots and the transition recording,
 is in `.artifacts/research/navigation-douyin-20261125/`.
 
+#### Comment transition follow-up
+
+With the rendered-content rule, four consecutive openings of comments on
+the same video showed a dark gesture area for approximately 100–333 ms
+after the white footer appeared. These durations come from comparing the
+left edges of the footer and gesture area in the recording. The dark area
+cleared when the new sampled color was presented.
+
+HyperOS also exposes a forced immersive rule (`mode=2`). A temporary rule
+under the existing system scope demonstrated that this mode changes the
+window insets. On the feed, the gesture handle overlapped the bottom of the
+publish button. In comments, it overlapped the rounded input field. The
+production rule continues to use rendered-content sampling.
+
+On the final in-place build `115000751`, both recorded comment openings
+settled to a light gesture area, with measured dark intervals of about
+33 ms and 133 ms. Closing comments restored the feed's dark bottom edge.
+The same recording covers keyboard show and hide, confirmed with
+`dumpsys input_method`. The existing rule remained in sampling mode `1`.
+The timings vary between runs and establish no speedup from a rule change.
+Recordings and frame comparisons are in
+`.artifacts/research/launcher-edit-douyin-20261125/`.
+
 ### Status acknowledgement during an icon refresh
 
 On the Xiaomi 17 Pro with HyperOS `OS4.0.8.0.XBLCNXM` and Home `801030308`,

@@ -6,6 +6,9 @@
 
 using ZipMetadataRelease = void (*)(void*);
 
+// Page-thumbnail construction can destroy a burst of MAML icon readers.
+inline constexpr size_t kDeferredZipReleaseCapacity = 256;
+
 // Private root-reader diagnostic gate; use atomic loads/stores in process.
 // Zero requests fixed nice 10 on the next active iteration, unless a previous
 // priority failure has permanently disabled transitions. Never wakes an idle worker.
@@ -26,7 +29,8 @@ bool StartDeferredZipRelease();
 // Transfers an already final-owned ZIP metadata allocation, never a MAML view
 // or a reference to the caller's stack. False leaves ownership with the caller.
 // One reservation attempt, without blocking, retrying or allocating. At most
-// 64 pending releases plus one active worker callback; worker recursion is sync.
+// kDeferredZipReleaseCapacity pending releases plus one active callback.
+// Worker recursion is synchronous.
 bool TryDeferZipMetadata(void* allocation, ZipMetadataRelease release);
 
 struct DeferredZipReleaseStats {

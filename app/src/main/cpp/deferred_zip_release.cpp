@@ -37,7 +37,7 @@ int32_t kh_zip_release_worker_nice = INT32_MIN;
 }
 
 namespace {
-constexpr size_t kCapacity = 64;
+constexpr size_t kCapacity = kDeferredZipReleaseCapacity;
 static_assert(std::atomic<size_t>::is_always_lock_free);
 static_assert(__atomic_always_lock_free(sizeof(uint64_t), nullptr));
 struct Item { void* allocation; ZipMetadataRelease release; };
@@ -206,8 +206,8 @@ void* Run(void*) {
         const Item item = slot.item;
         slot.item = {};
         const size_t backlog = pending.fetch_sub(1, std::memory_order_relaxed) - 1;
-        // Free the slot before invoking the callback: exactly 64 pending plus
-        // one active release. Acquire/release protects the non-atomic Item.
+        // Free the slot before invoking the callback to keep the active release
+        // outside the pending bound. Acquire/release protects the non-atomic Item.
         slot.sequence.store(head + kCapacity, std::memory_order_release);
         ++head;
         --credits;

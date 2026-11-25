@@ -116,16 +116,18 @@ class NoticesUiTest {
     rule.onNodeWithTag("notices.component.dexkit").assertDoesNotExist()
   }
 
-  @Test fun aboutProjectEntryShowsScopeAndKeepsPrivateSourceStatus() {
+  @Test fun aboutProjectEntryOpensPublicSourceAndKeepsLicenseEntry() {
     start("about")
-    rule.onNodeWithText(context.getString(R.string.settings_source_private)).assertExists()
+    rule.onNodeWithText(context.getString(R.string.settings_source))
+      .performScrollTo().performClick()
+    assertEquals(listOf(ProjectLinks.SOURCE_URL), openedSources)
     rule.onNodeWithTag("about.project-license").performScrollTo().performClick()
     awaitDocument()
     rule.onNodeWithText(context.getString(R.string.project_license_scope)).assertExists()
     rule.onNodeWithText(context.getString(R.string.project_license_source_status)).assertExists()
     rule.onNodeWithTag("notices.copy").assertIsEnabled()
     rule.onNodeWithTag("notices.back").performClick()
-    rule.onNodeWithText(context.getString(R.string.settings_source_private)).assertExists()
+    rule.onNodeWithText(context.getString(R.string.settings_source)).assertExists()
     rule.onNodeWithTag("about.project-license").assertExists()
   }
 

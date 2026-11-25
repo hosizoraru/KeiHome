@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -197,9 +198,16 @@ private fun AboutAppIcon(model: HomeViewModel) {
 internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices: () -> Unit,
   onBackground: Boolean = false, showChannel: Boolean = true, onOpenProjectLicense: (() -> Unit)? = null) {
   val context = LocalContext.current
+  val uriHandler = LocalUriHandler.current
   val links: @Composable ColumnScope.() -> Unit = {
     if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
-      endActions = { AboutDetailValue(stringResource(R.string.settings_source_private)) })
+      onClick = { uriHandler.openUri(ProjectLinks.SOURCE_URL) },
+      onClickLabel = stringResource(R.string.settings_source_open),
+      endActions = {
+        Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL),
+          stringResource(R.string.settings_source_open),
+          tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      })
     if (onOpenProjectLicense != null) ProjectLicenseEntry(onOpenProjectLicense)
     if (showChannel) BasicComponent(title = stringResource(R.string.update_channel),
       summary = stringResource(R.string.update_channel_summary), onClick = {

@@ -14,7 +14,7 @@
     <string name="settings_cache_summary">キャッシュ使用量とリソース管理</string>
     <string name="settings_about_summary">バージョン、ソースとオープンソース表記</string>
     <string name="settings_source">プロジェクトのソース</string>
-    <string name="settings_source_private">開発中 · 今後公開予定</string>
+    <string name="settings_source_open">GitHub でプロジェクトソースを開く</string>
     <string name="settings_notices">オープンソース表記</string>
     <string name="settings_license_files">同梱ライセンス</string>
     <string name="settings_notice_loading">表記を読み込み中…</string>

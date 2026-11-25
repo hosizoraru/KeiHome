@@ -14,7 +14,7 @@
     <string name="settings_cache_summary">缓存用量与清理</string>
     <string name="settings_about_summary">版本、源码与开源组件声明</string>
     <string name="settings_source">项目源码</string>
-    <string name="settings_source_private">开发中，后续开源</string>
+    <string name="settings_source_open">在 GitHub 打开项目源码</string>
     <string name="settings_notices">开源组件声明</string>
     <string name="settings_license_files">随附许可文本</string>
     <string name="settings_notice_loading">正在读取声明…</string>

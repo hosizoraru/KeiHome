@@ -14,7 +14,7 @@
     <string name="settings_cache_summary">Storage usage and cache cleanup</string>
     <string name="settings_about_summary">Version, source code and open-source notices</string>
     <string name="settings_source">Project source</string>
-    <string name="settings_source_private">In development · open source planned</string>
+    <string name="settings_source_open">Open project source on GitHub</string>
     <string name="settings_notices">Open-source notices</string>
     <string name="settings_license_files">Bundled license texts</string>
     <string name="settings_notice_loading">Reading notice…</string>

@@ -1,0 +1,108 @@
+name: Pull request checks
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: keihome-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_ACTOR: ${{ github.actor }}
+  GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+
+jobs:
+  wrapper:
+    name: Validate Gradle wrapper
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Validate wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+  resources:
+    name: Check resources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - name: Check localization resources
+        run: python3 scripts/checks.py i18n --run
+
+  build-logic:
+    name: Test build-logic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android
+        with:
+          java-version: '17'
+          install-android: 'false'
+      - name: Test and validate build-logic
+        run: ./gradlew :build-logic:check --no-daemon --stacktrace
+
+  jvm:
+    name: Run JVM tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    needs:
+      - resources
+      - build-logic
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android
+      - name: Run app JVM tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+  debug:
+    name: Lint and build Debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs:
+      - resources
+      - build-logic
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Android build
+        uses: ./.github/actions/setup-android
+      - name: Run Debug lint and build
+        run: >
+          ./gradlew
+          :app:lintDebug
+          :app:assembleDebug
+          :app:assembleDebugAndroidTest
+          --no-daemon --stacktrace
+      - name: Upload Debug APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: keihome-debug-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+

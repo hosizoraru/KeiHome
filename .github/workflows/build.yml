@@ -1,7 +1,6 @@
-name: Build KeiHome
+name: Main build
 
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -106,7 +105,7 @@ jobs:
 
   release:
     name: Build Release on main
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     needs:

@@ -23,6 +23,13 @@ smallest relevant check group with `python3 scripts/checks.py --list`. The
 checks runner previews commands unless `--run` is passed. Include the actual
 validation performed and any remaining limitation in the pull request.
 
+Pull requests use the repository template to keep scope, localization,
+verification, visual checks, and compatibility notes visible to reviewers.
+Every pull request runs the debug test, lint, and APK build workflow. Pushes to
+`main` also publish debug and release APK artifacts for maintainers to inspect.
+The workflow needs read access to the public MIUIX GitHub Packages snapshot
+repository so dependency resolution matches local builds.
+
 ## Codex guidance
 
 Keep project-wide requirements in [AGENTS.md](AGENTS.md) and recurring device

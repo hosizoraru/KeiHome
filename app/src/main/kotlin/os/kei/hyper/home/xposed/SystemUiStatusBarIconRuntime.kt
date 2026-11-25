@@ -4,9 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
+import android.service.notification.StatusBarNotification
 import android.util.SparseArray
 import android.widget.ImageView
 import android.view.View
@@ -193,6 +195,9 @@ internal class SystemUiStatusBarIconRuntime(
   private val nativeManagerInstance: Any? = null,
   private val onBootstrap: (String) -> Unit = {},
   private val snapshotMissing: (String) -> Boolean = { false },
+  private val onExistingImage: (ImageView) -> Unit = {},
+  private val isWeatherLauncherIcon: (StatusBarNotification, Icon) -> Boolean = { _, _ -> false },
+  private val withWeatherPreload: ((Any, Drawable) -> Any)? = null,
 ) {
   class BitmapOverride(val bitmap: Bitmap?)
   private data class HeldBitmap(
@@ -255,9 +260,12 @@ internal class SystemUiStatusBarIconRuntime(
     if (user != userHandle || name.length > 240 || !validDottedName(name)) return null
     // The authenticated reader only inspects SparseArray/Map/WeakReference caches.
     overrides.get()?.takeIf { it.name == name && it.user == currentUser }?.let { return it }
-    val manager = if (sharedOnly) null else nativeManagerInstance
+    // The OEM quiet cache has no weather update clock. The app-icon descriptor
+    // still needs to consume and return the shared frame through its own factory.
+    val useShared = sharedOnly || name == WeatherIconTemperature.PACKAGE
+    val manager = if (useShared) null else nativeManagerInstance
     val reader = profile.cacheReader
-    val bitmap = if (!sharedOnly && manager != null && reader != null) {
+    val bitmap = if (manager != null && reader != null) {
       reader.invoke(manager, name, currentUser, true) as? Bitmap
     } else null
     if (bitmap != null && !bitmap.isRecycled) return HeldBitmap(name, currentUser, bitmap)
@@ -378,8 +386,8 @@ internal class SystemUiStatusBarIconRuntime(
     return true
   }
 
-  fun drawable(view: ImageView, descriptor: Any, native: () -> Any?): Any? {
-    if (stopped || !lifecycle.enter()) return native()
+  fun drawable(view: ImageView, descriptor: Any, native: (Any) -> Any?): Any? {
+    if (stopped || !lifecycle.enter()) return native(descriptor)
     val previous = nativeDraws.get()
     try {
       // Clear an old association even if native binding subsequently fails.
@@ -388,18 +396,23 @@ internal class SystemUiStatusBarIconRuntime(
         if (stopped || !isMain()) return@run null
         val icon = profile.descriptorIcon.get(descriptor) as? Icon ?: return@run null
         if (!owns(view, icon)) return@run null
-        restoreProof(view, icon)
+        restoreIdentity(view, icon)
         val name = bindings.name(icon) ?: return@run null
         NativeDraw(view, icon, snapshot(name)?.takeUnless { it.isRecycled })
       }
       if (frame == null) nativeDraws.remove() else nativeDraws.set(frame)
-      val result = native()
+      val preload = drawableGuard.run<Any?>(null) {
+        val bitmap = frame?.bitmap ?: return@run null
+        if (bindings.name(frame.icon) != WeatherIconTemperature.PACKAGE) return@run null
+        withWeatherPreload?.invoke(descriptor, BitmapDrawable(context.resources, bitmap))
+      }
+      val result = native(preload ?: descriptor)
       return drawableGuard.run(result) {
         if (stopped || !isMain()) return@run result
         val icon = profile.descriptorIcon.get(descriptor) as? Icon ?: return@run result
         if (!owns(view, icon)) return@run result
         val name = bindings.name(icon) ?: return@run result
-        bindings.bind(view, icon, frame?.bitmap?.takeIf { frame.loaded })
+        bindings.bind(view, icon, frame?.bitmap?.takeIf { frame.loaded || preload != null })
         SystemUiStatusBarIconProof.write(view, icon, currentUser, name)
         result
       }
@@ -428,9 +441,12 @@ internal class SystemUiStatusBarIconRuntime(
     return profile.descriptorIcon.get(current) === icon
   }
 
-  private fun restoreProof(view: ImageView, icon: Icon): Boolean {
+  private fun restoreIdentity(view: ImageView, icon: Icon): Boolean {
     if (!owns(view, icon)) return false
-    val name = SystemUiStatusBarIconProof.read(view, icon, currentUser) ?: return false
+    val notice = profile.bootstrap?.viewNotification?.get(view) as? StatusBarNotification
+    val name = if (notice != null && isWeatherLauncherIcon(notice, icon)) {
+      WeatherIconTemperature.PACKAGE
+    } else SystemUiStatusBarIconProof.read(view, icon, currentUser) ?: return false
     bindings.remember(icon, name)
     return true
   }
@@ -509,6 +525,7 @@ internal class SystemUiStatusBarIconRuntime(
     while (queue.isNotEmpty() && count < 2_048 && batch++ < 128 && found.size < 64) {
       val view = queue.removeFirst()
       count++
+      if (view is ImageView) onExistingImage(view)
       if (rows.size < 64) profile.bootstrap?.rowEntries?.forEach { path ->
         if (path.first().declaringClass.isInstance(view)) {
           var entry: Any? = view
@@ -519,12 +536,13 @@ internal class SystemUiStatusBarIconRuntime(
       if (view is ImageView && profile.drawable.declaringClass.isInstance(view)) {
         val descriptor = profile.viewDescriptor.get(view)
         val icon = descriptor?.let { profile.descriptorIcon.get(it) as? Icon }
-        if (icon != null && icon.type == Icon.TYPE_BITMAP) {
+        if (icon != null && (icon.type == Icon.TYPE_BITMAP || icon.type == Icon.TYPE_RESOURCE &&
+            icon.resPackage == WeatherIconTemperature.PACKAGE)) {
           found += Existing(WeakReference(view), WeakReference(icon))
-          if (restoreProof(view, icon)) {
-            bindings.bind(view, icon, null)
-            proofs++
-          }
+        }
+        if (icon != null && restoreIdentity(view, icon)) {
+          bindings.bind(view, icon, null)
+          proofs++
         }
       }
       if (view is ViewGroup && queue.size + view.childCount <= 2_048) {
@@ -588,6 +606,7 @@ internal class SystemUiStatusBarIconRuntime(
           }
           val matches = existing.mapNotNull { candidate ->
             val icon = candidate.icon.get() ?: return@mapNotNull null
+            if (icon.type != Icon.TYPE_BITMAP) return@mapNotNull null
             val bitmap = profile.bitmap.invoke(icon) as? Bitmap ?: return@mapNotNull null
             if (bitmap.isRecycled) return@mapNotNull null
             SystemUiStatusBarBitmapIdentity.match(bitmap, entries)?.let { candidate to it }
@@ -633,7 +652,7 @@ internal class SystemUiStatusBarIconRuntime(
     for (candidate in views) {
       val view = candidate.view.get() ?: continue
       val icon = candidate.icon.get() ?: continue
-      if (icon.type != Icon.TYPE_BITMAP || !owns(view, icon)) continue
+      if (!owns(view, icon)) continue
       val notification = entryProfile.viewNotification.get(view) as?
         android.service.notification.StatusBarNotification ?: continue
       val byKey = entryProfile.entryMaps.mapNotNull { path ->
@@ -645,6 +664,12 @@ internal class SystemUiStatusBarIconRuntime(
         linked(owner, entry, view, notification, entryProfile)
       }
       val entry = matches.singleOrNull() ?: continue
+      if (isWeatherLauncherIcon(notification, icon)) {
+        bindings.remember(icon, WeatherIconTemperature.PACKAGE)
+        bindings.bind(view, icon, null)
+        snapshot(WeatherIconTemperature.PACKAGE)
+      }
+      if (icon.type != Icon.TYPE_BITMAP) continue
       val pack = profile.entryPack.get(entry) ?: continue
       if (existingEntries.size < 64 && existingEntries.none { it.view.get() === view }) {
         existingEntries += ExistingEntry(WeakReference(owner), WeakReference(entry), WeakReference(pack),

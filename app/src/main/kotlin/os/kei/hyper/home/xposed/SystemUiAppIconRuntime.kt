@@ -35,6 +35,7 @@ internal class SystemUiAppIconRuntime(
   private val loader: ClassLoader,
   private val lifecycle: ThemeCompatibilityLifecycle,
   private val replace: (Method, String, XposedInterface.Hooker) -> Unit,
+  private val deoptimize: (Method) -> Unit,
   private val reportFailure: (String, Throwable) -> Unit,
   private val report: (Int, String, String) -> Unit = { priority, tag, message ->
     Log.println(priority, tag, message)
@@ -147,6 +148,7 @@ internal class SystemUiAppIconRuntime(
       SystemUiNotificationAppIconProfile.resolve(context, loader)
     }
     if (cachedProfile != null) {
+      cachedProfile.callers.forEach(deoptimize)
       notificationRows = rowGuard.run<SystemUiNotificationRowReplay?>(null) {
         val row = Class.forName(
           "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow", false,
@@ -181,11 +183,32 @@ internal class SystemUiAppIconRuntime(
       val statusProfile = SystemUiStatusBarIconProfile.resolve(context, statusLoader)
       val nativeManager = requireNotNull(statusProfile.nativeManager).invoke(null,
         statusProfile.nativeCaches.first().declaringClass)
+      val descriptorType = statusProfile.descriptorIcon.declaringClass
+      val preload = guard.run<((Any, Drawable) -> Any)?>(null) {
+        val method = descriptorType.getMethod("clone")
+        val field = descriptorType.getField("preloadedIcon")
+        check(method.returnType === descriptorType && field.type == Drawable::class.java &&
+          !Modifier.isStatic(field.modifiers) && !Modifier.isFinal(field.modifiers))
+        val copy: (Any, Drawable) -> Any = { descriptor, icon ->
+          requireNotNull(method.invoke(descriptor)).also { field.set(it, icon) }
+        }
+        copy
+      }
       val runtime = SystemUiStatusBarIconRuntime(context, statusProfile, lifecycle, currentUser,
         { name -> cache?.get(name) }, { failure -> reportFailure("status-bar app icon", failure) },
         ready = ::queueReplay, nativeManagerInstance = nativeManager,
         onBootstrap = { message -> report(Log.INFO, TAG, message) },
-        snapshotMissing = { name -> cache?.isMissing(name) == true })
+        snapshotMissing = { name -> cache?.isMissing(name) == true },
+        withWeatherPreload = preload,
+        isWeatherLauncherIcon = { notice, icon ->
+          cachedProfile?.weatherLauncherIcon(notice, icon, currentUser) == true
+        },
+        onExistingImage = { view ->
+          if (cachedProfile != null) rowGuard.run(Unit) {
+            val notification = cachedProfile.existingNotification(view) ?: return@run
+            bindWeatherHeader(view, notification, cachedProfile)
+          }
+        })
       statusBar = runtime
       replace(statusProfile.consumer, "$HOOK_ID.statusbar-descriptor.v1") { chain ->
         val owner = chain.thisObject ?: return@replace chain.proceed()
@@ -195,7 +218,9 @@ internal class SystemUiAppIconRuntime(
       replace(statusProfile.drawable, "$HOOK_ID.statusbar-drawable.v1") { chain ->
         val view = chain.thisObject as? ImageView ?: return@replace chain.proceed()
         val descriptor = chain.getArg(0) ?: return@replace chain.proceed()
-        runtime.drawable(view, descriptor) { chain.proceed() }
+        runtime.drawable(view, descriptor) {
+          if (it === descriptor) chain.proceed() else chain.proceed(arrayOf(it))
+        }
       }
       logOnce(statusBarLogged, "Status-bar app-icon descriptor and native refresh boundaries enabled")
     } catch (failure: Throwable) {
@@ -502,13 +527,14 @@ internal class SystemUiAppIconRuntime(
         if (stopped) return@run
         val notification = chain.getArg(1) ?: return@run
         val view = chain.getArg(2) as? ImageView ?: return@run
+        val frameworkNotice = notification as? android.service.notification.StatusBarNotification
+        if (frameworkNotice != null && bindWeatherHeader(view, frameworkNotice, profile)) return@run
         val name = profile.identity(notification, currentUser) ?: return@run
         val cached = profile.cached(notification) ?: return@run
         if (view.drawable !== cached) {
           if (!bindings.associated(view, name)) bindings.clear(view)
           return@run
         }
-        val frameworkNotice = notification as? android.service.notification.StatusBarNotification
         if (frameworkNotice != null &&
           notificationRows?.remember(view, frameworkNotice) == true) queueReplay()
         bindings.bindNative(view, cached, name)?.let(::boundReady)
@@ -518,6 +544,17 @@ internal class SystemUiAppIconRuntime(
       if (previous == null) nativeRequest.remove() else nativeRequest.set(previous)
       lifecycle.leave()
     }
+  }
+
+  private fun bindWeatherHeader(
+    view: ImageView, notification: android.service.notification.StatusBarNotification,
+    profile: SystemUiNotificationAppIconProfile,
+  ): Boolean {
+    if (!profile.weatherHeader(notification, currentUser)) return false
+    val original = view.drawable ?: return false
+    val bound = bindings.bindNative(view, original, WeatherIconTemperature.PACKAGE) ?: return false
+    boundReady(bound)
+    return true
   }
 
   private fun bind(chain: XposedInterface.Chain, async: Boolean): Any? {

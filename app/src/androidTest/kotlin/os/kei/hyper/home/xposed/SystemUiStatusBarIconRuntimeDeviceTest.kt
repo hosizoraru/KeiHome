@@ -109,7 +109,7 @@ class SystemUiStatusBarIconRuntimeDeviceTest {
     @JvmField var notification: StatusBarNotification? = null
     @JvmField var selected: Descriptor? = null
     var refreshes = 0
-    var bridge: ((View, Descriptor, () -> Any?) -> Any?)? = null
+    var bridge: ((View, Descriptor, (Any) -> Any?) -> Any?)? = null
     var nativeLoaded: ((Icon, Any?) -> Any?)? = null
     fun icon(value: Descriptor): Drawable? {
       val native = value.icon.loadDrawable(context)
@@ -118,8 +118,8 @@ class SystemUiStatusBarIconRuntimeDeviceTest {
     fun refresh(force: Boolean): Boolean {
       val value = selected ?: return false
       refreshes++
-      val load = { icon(value) as Any? }
-      setImageDrawable((bridge?.invoke(this, value, load) ?: load()) as? Drawable)
+      val load = { descriptor: Any -> icon(descriptor as Descriptor) }
+      setImageDrawable((bridge?.invoke(this, value, load) ?: load(value)) as? Drawable)
       return !force
     }
   }

@@ -291,7 +291,7 @@ internal class SystemUiThemeCompatibilityRuntime(
           }
           appIconRuntime = null
         }
-        SystemUiAppIconRuntime(context, loader, lifecycle, ::replace,
+        SystemUiAppIconRuntime(context, loader, lifecycle, ::replace, { xposed.deoptimize(it) },
           ::reportOptionalFailure,
           report = { priority, tag, message -> xposed.log(priority, tag, message) },
         ).also { appIconRuntime = it }.start()

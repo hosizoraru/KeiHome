@@ -2,8 +2,11 @@ package os.kei.hyper.home.xposed
 
 import android.content.Context
 import android.app.Notification
+import android.content.pm.ApplicationInfo
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
+import android.view.View
 import android.widget.ImageView
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -26,11 +29,33 @@ internal fun notificationAppIconPackage(
 internal class SystemUiNotificationAppIconProfile private constructor(
   val method: Method,
   val customMethod: Method?,
+  val callers: List<Method>,
   private val owner: Class<*>,
   private val packageField: Field,
   private val uidField: Field,
   private val iconField: Field,
+  private val rowEntry: Method,
+  private val privateLayout: Method,
+  private val entryNotification: Field,
+  private val headerId: Int,
 ) {
+  fun existingNotification(view: ImageView): StatusBarNotification? {
+    if (view.id != headerId || !view.isAttachedToWindow) return null
+    var parent = view.parent as? View
+    var layout: View? = null
+    repeat(12) {
+      val current = parent ?: return null
+      if (rowEntry.declaringClass.isInstance(current)) {
+        if (layout == null || privateLayout.invoke(current) !== layout) return null
+        val entry = rowEntry.invoke(current) ?: return null
+        return entryNotification.get(entry) as? StatusBarNotification
+      }
+      layout = current
+      parent = current.parent as? View
+    }
+    return null
+  }
+
   fun identity(sbn: Any, currentUser: Int): String? {
     if (!owner.isInstance(sbn) || sbn !is StatusBarNotification) return null
     return try {
@@ -43,6 +68,36 @@ internal class SystemUiNotificationAppIconProfile private constructor(
     if (!owner.isInstance(sbn)) return null
     return try { iconField.get(sbn) as? Drawable }
     catch (_: ReflectiveOperationException) { null }
+  }
+
+  /** The OEM header can fall back to the app's own resource after its drawable cache. */
+  fun weatherHeader(sbn: StatusBarNotification, currentUser: Int): Boolean {
+    val name = WeatherIconTemperature.PACKAGE
+    if (sbn.packageName != name || sbn.userId != currentUser ||
+      sbn.uid / 100000 != currentUser ||
+      (sbn.opPkg != name && sbn.opPkg != "com.xiaomi.xmsf")) return false
+    val notification = sbn.notification
+    val extras = notification.extras
+    val icon = notification.smallIcon ?: return false
+    return icon.type == Icon.TYPE_RESOURCE && icon.resPackage == name &&
+      extras.get("custom_app_icon") == null && extras.get("miui.appIcon") == null &&
+      notification.getLargeIcon() == null && notification.largeIcon == null &&
+      extras.getString("miui.opPkg").let { it == null || it == name || it == "com.xiaomi.xmsf" }
+  }
+
+  fun weatherLauncherIcon(sbn: StatusBarNotification, icon: Icon, currentUser: Int): Boolean {
+    if (!weatherHeader(sbn, currentUser)) return false
+    val notification = sbn.notification
+    val small = notification.smallIcon ?: return false
+    val info = notification.extras.getParcelable("android.appInfo",
+      ApplicationInfo::class.java) ?: return false
+    if (info.uid != sbn.uid || info.packageName != sbn.packageName ||
+      small.resId != info.icon || notification.shortcutId != null) return false
+    return when (icon.type) {
+      Icon.TYPE_BITMAP -> true
+      Icon.TYPE_RESOURCE -> icon.resPackage == sbn.packageName && icon.resId == small.resId
+      else -> false
+    }
   }
 
   fun customIdentity(value: Any, currentUser: Int): String? {
@@ -144,7 +199,21 @@ internal class SystemUiNotificationAppIconProfile private constructor(
           check(it.declaringClass === utility && Modifier.isStatic(it.modifiers))
           it.isAccessible = true
         }
-        SystemUiNotificationAppIconProfile(method, custom, expanded, pkg, uid, icon)
+        val callers = (candidate.callers.filter { it.isMethod } + writer + candidate)
+          .distinctBy { it.descriptor }
+        check(callers.size <= 16) { "Notification app-icon caller budget exceeded" }
+        val row = Class.forName("com.android.systemui.statusbar.notification.row.ExpandableNotificationRow",
+          false, actualLoader).asSubclass(View::class.java)
+        val rowEntry = row.getMethod("getEntry")
+        val privateLayout = row.getMethod("getPrivateLayout")
+        check(View::class.java.isAssignableFrom(privateLayout.returnType))
+        val entryNotification = rowEntry.returnType.declaredFields.single {
+          it.type === expanded && !Modifier.isStatic(it.modifiers)
+        }.apply { isAccessible = true }
+        val headerId = context.resources.getIdentifier("app_icon", "id", context.packageName)
+        check(headerId != 0)
+        SystemUiNotificationAppIconProfile(method, custom, callers.map { it.getMethodInstance(actualLoader) },
+          expanded, pkg, uid, icon, rowEntry, privateLayout, entryNotification, headerId)
       }
     }
   }

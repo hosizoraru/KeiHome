@@ -99,7 +99,7 @@ jobs:
       - name: Upload Debug APKs
         uses: actions/upload-artifact@v7
         with:
-          name: keihome-debug-${{ github.sha }}
+          name: keihome-pr-${{ github.event.pull_request.number || 'manual' }}-debug-run-${{ github.run_number }}
           if-no-files-found: error
           retention-days: 7
           path: |

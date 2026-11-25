@@ -27,7 +27,9 @@ branches read the cache without writing a new entry. `main` may refresh the
 shared cache after a successful job. A failed build keeps the restored state
 available for diagnosis and retry.
 
-Debug APK artifacts are retained for seven days. Release APK artifacts from
+Debug APK artifacts are retained for seven days. Their names identify whether
+they came from `main`, a pull request, or a manual branch run, and include the
+Actions run number instead of an opaque commit hash. Release APK artifacts from
 `main` are retained for thirty days. The runner workspace is disposable, so no
 workflow step needs to preserve `build/` or a second local Gradle cache.
 

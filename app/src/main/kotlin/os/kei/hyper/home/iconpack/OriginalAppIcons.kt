@@ -7,9 +7,11 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Animatable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import kotlinx.coroutines.CancellationException
 
@@ -45,7 +47,13 @@ internal object OriginalAppIcons {
   }
 
   /** Shell supplies the resolved activity and the context for its starting window. */
-  fun renderLaunchIcon(context: Context, activity: ActivityInfo, sizePx: Int, dark: Boolean): Bitmap? {
+  fun renderLaunchIcon(
+    context: Context,
+    activity: ActivityInfo,
+    sizePx: Int,
+    dark: Boolean,
+    legacyBitmapMask: NativeAdaptiveIconMask? = null,
+  ): Bitmap? {
     val icon = activity.iconResource
     if (icon == 0) return null
     return try {
@@ -54,9 +62,26 @@ internal object OriginalAppIcons {
       val owner = withAppearance(packageContext, dark)
       if (owner !== context) owner.setTheme(activity.themeResource)
       val drawable = owner.getDrawable(icon)?.mutate() ?: return null
-      if (drawable is Animatable) null else rasterize(drawable, sizePx)
+      if (drawable is Animatable) null else rasterizeLaunchIcon(drawable, sizePx, legacyBitmapMask)
     } catch (_: PackageManager.NameNotFoundException) { null }
     catch (_: android.content.res.Resources.NotFoundException) { null }
+  }
+
+  internal fun rasterizeLaunchIcon(drawable: Drawable, sizePx: Int, legacyBitmapMask: NativeAdaptiveIconMask?): Bitmap {
+    val bitmap = rasterize(drawable, sizePx)
+    if (legacyBitmapMask == null || drawable !is BitmapDrawable || drawable.bitmap.width != drawable.bitmap.height) {
+      return bitmap
+    }
+    val last = sizePx - 1
+    if (Color.alpha(bitmap.getPixel(0, 0)) != 255 || Color.alpha(bitmap.getPixel(last, 0)) != 255 ||
+      Color.alpha(bitmap.getPixel(0, last)) != 255 || Color.alpha(bitmap.getPixel(last, last)) != 255) {
+      return bitmap
+    }
+    return try {
+      IconMaskPolicy.clip(bitmap, legacyBitmapMask)
+    } finally {
+      bitmap.recycle()
+    }
   }
 
   private fun withAppearance(context: Context, dark: Boolean): Context {

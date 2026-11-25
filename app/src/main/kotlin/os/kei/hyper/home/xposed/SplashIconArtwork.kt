@@ -208,7 +208,13 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
               preserved = true
               original?.bitmap
             })
-          if (themed != null && !preserved) Snapshot(themed, "applied-theme") else original
+          when {
+            preserved -> original
+            themed != null -> Snapshot(themed, "applied-theme")
+            else -> OriginalAppIcons.renderLaunchIcon(context, activity, SurfaceIconSnapshotRenderer.SIZE, dark,
+              legacyBitmapMask = SurfaceIconSnapshotRenderer.resolveMask(zip) ?: OriginalIconShape.mask)
+              ?.let { Snapshot(it, "original-apk") }
+          }
         }
         // The archive or resource configuration can change during decoding.
         val themeChanged = source() != source

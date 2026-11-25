@@ -38,8 +38,11 @@ See `b0655-cold-{1,2}-wechat.mp4` and the matching logs under
   the original starting window.
 - With an active archive, the shared surface renderer resolves applied artwork
   and respects original-icon preservation. On a miss, the activity's original
-  resource is rendered at the effective light or dark appearance. Fixed-size
-  layers compose in the resource's intrinsic viewport before scaling.
+  resource is rendered at the effective light or dark appearance. Legacy square
+  bitmap icons with four opaque corners are clipped to the active archive's
+  mask, or the stock mask when the archive has none. Explicitly preserved icons
+  keep their original artwork. Fixed-size layers compose in the resource's
+  intrinsic viewport before scaling.
 - With the stock theme, identified by the absence of the active archive, the
   splash worker queries HyperOS `IconCustomizer.getIcon` for the resolved
   activity and uses its completed artwork. If the producer is unavailable, it

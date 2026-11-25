@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
@@ -14,9 +15,46 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.iconpack.OriginalAppIcons
+import os.kei.hyper.home.iconpack.OriginalIconShape
 
 @RunWith(AndroidJUnit4::class)
 class OriginalAppIconGeometryDeviceTest {
+  @Test fun archiveMissShapesOpaqueSquareBitmapAndKeepsItsCenter() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    source.eraseColor(Color.WHITE)
+    source.setPixel(32, 32, Color.RED)
+    val drawable = BitmapDrawable(context.resources, source)
+    val fallback = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, OriginalIconShape.mask)
+    val preserved = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, null)
+    try {
+      assertEquals(Color.TRANSPARENT, fallback.getPixel(0, 0))
+      assertEquals(Color.TRANSPARENT, fallback.getPixel(63, 63))
+      assertEquals(Color.RED, fallback.getPixel(32, 32))
+      assertEquals(Color.WHITE, preserved.getPixel(0, 0))
+    } finally {
+      fallback.recycle()
+      preserved.recycle()
+      source.recycle()
+    }
+  }
+
+  @Test fun archiveMissKeepsLegacyBitmapWithAuthoredCornerTransparency() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    val source = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+    source.eraseColor(Color.BLUE)
+    source.setPixel(0, 0, Color.TRANSPARENT)
+    val drawable = BitmapDrawable(context.resources, source)
+    val fallback = OriginalAppIcons.rasterizeLaunchIcon(drawable, 64, OriginalIconShape.mask)
+    try {
+      assertEquals(Color.TRANSPARENT, fallback.getPixel(0, 0))
+      assertEquals(Color.BLUE, fallback.getPixel(63, 63))
+    } finally {
+      fallback.recycle()
+      source.recycle()
+    }
+  }
+
   @Test fun stockApkFallbackRemovesSquareCornersWithoutChangingArtwork() {
     val source = Bitmap.createBitmap(192, 192, Bitmap.Config.ARGB_8888)
     source.eraseColor(Color.BLUE)
@@ -60,7 +98,7 @@ class OriginalAppIconGeometryDeviceTest {
     icon.setLayerGravity(1, Gravity.CENTER)
     val originalBounds = Rect(4, 5, 112, 113)
     icon.bounds = originalBounds
-    val snapshot = OriginalAppIcons.rasterize(icon, 192)
+    val snapshot = OriginalAppIcons.rasterizeLaunchIcon(icon, 192, OriginalIconShape.mask)
     try {
       assertEquals(originalBounds, icon.bounds)
       assertEquals(Color.BLUE, snapshot.getPixel(180, 96))

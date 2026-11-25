@@ -6,7 +6,7 @@ internal class PreservedIconResources(
   components: List<IconPackComponent>,
 ) {
   private val names = packages + components.filter { it.packageName in packages }
-    .mapNotNull(::nativeLauncherActivityName)
+    .flatMapTo(linkedSetOf(), ::nativeLauncherIconNames)
 
   fun containsName(name: String): Boolean =
     name in names || '#' in name && name.substringBefore('#') in packages

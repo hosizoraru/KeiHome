@@ -34,4 +34,20 @@ class PreservedIconResourcesTest {
       assertFalse(path, resources.containsPath(path))
     }
   }
+
+  @Test fun customPackageAlsoBlocksDynamicAliasesDuringPairing() {
+    val custom = PreservedIconResources(
+      setOf("com.taobao.taobao"),
+      listOf(IconPackComponent("com.taobao.taobao", "com.taobao.tao.welcome.Welcome")),
+    )
+    for (path in listOf(
+      "fancy_icons/com.taobao.taobao/manifest.xml",
+      "fancy_icons/com.taobao.tao.welcome.Welcome/manifest.xml",
+      "res/drawable-xxhdpi/com.taobao.taobao.png",
+      "nightmode/fancy_icons/com.taobao.tao.welcome.Welcome/day.png",
+    )) {
+      assertTrue(path, custom.containsPath(path))
+    }
+    assertFalse(custom.containsPath("fancy_icons/com.taobao.taobao.beta/manifest.xml"))
+  }
 }

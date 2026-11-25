@@ -144,7 +144,11 @@ internal object IconPackHandoffs {
         onProgress(ColorOsGenerationProgress(ColorOsGenerationStage.PAIRING))
         withContext(Dispatchers.IO) {
           val current = currentCoroutineContext()
-          val exclusions = os.kei.hyper.home.iconpack.PreservedIconResources(preserved, targets)
+          // A custom selection owns the complete package namespace. Keep dynamic
+          // ColorOS/Apple additions out as well, otherwise Home can resolve the
+          // generated dynamic alias before the custom.icon resource below.
+          val exclusions = os.kei.hyper.home.iconpack.PreservedIconResources(
+            preserved + custom.packages, targets)
           val dynamic = (colorOsDynamicEntries(pack, exportTargets, sourceAppearance) { current.ensureActive() } +
             AppleDynamicIconArchive.entries(pack, exportTargets, installedOnly, sourceAppearance) { current.ensureActive() })
             .filterKeys { !exclusions.containsPath(it) }

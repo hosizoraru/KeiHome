@@ -27,7 +27,8 @@ import top.yukonga.miuix.kmp.basic.NavigationItem
 internal enum class PerfectPackTab(val label: Int, val icon: PageActionIcon) {
   GENERATE(R.string.action_label_generate, PageActionIcon.GENERATE),
   RESOURCES(R.string.perfect_resources_tab, PageActionIcon.PACKS),
-  PREVIEW(R.string.perfect_icons_preview_title, PageActionIcon.APPS);
+  PREVIEW(R.string.perfect_icons_preview_title, PageActionIcon.APPS),
+  CUSTOM(R.string.perfect_custom_tab, PageActionIcon.CUSTOMIZE);
 
   companion object {
     fun forSection(section: String): PerfectPackTab? = when (section) {
@@ -83,6 +84,8 @@ internal fun PerfectPackDestination(vm: HomeViewModel, initialTab: PerfectPackTa
       }
       PerfectPackTab.PREVIEW -> PerfectPackPreviewScreen(vm, onBack, openResources, pageBackdrop,
         bottomInset, active = tab == page)
+      PerfectPackTab.CUSTOM -> PerfectCustomStaticScreen(vm.perfectPacks, pageBackdrop, bottomInset,
+        onBack, active = tab == page, onGenerate = { selectTab(PerfectPackTab.GENERATE) })
     }
   }
 }

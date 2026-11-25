@@ -30,6 +30,7 @@ import os.kei.hyper.home.iconpack.sha256
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCooldownException
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
+import os.kei.hyper.home.iconpack.perfect.PerfectCustomStatic
 import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
@@ -80,6 +81,8 @@ internal data class PerfectPackState(
   val syncIssue: PerfectSyncIssue? = null,
   val syncIssueAtMillis: Long = 0,
   val lastSuccessfulSyncAtMillis: Long = 0,
+  val customStaticIds: List<String> = emptyList(),
+  val customStaticRevision: Long = 0,
 ) {
   val busy: Boolean get() = loading || checking || refreshing || generating || clearingCache ||
     deletingResources || previewLoading
@@ -87,6 +90,7 @@ internal data class PerfectPackState(
   val ready: Boolean get() = catalog?.downloadedStyles?.any {
     it.ifEmpty { "default" } == selectedStyle
   } == true
+  val canGenerate: Boolean get() = ready || customStaticIds.isNotEmpty()
   val updateAvailable: Boolean get() = remote?.let { latest ->
     catalog?.let { it.revision != latest.revision }
   } == true
@@ -108,6 +112,18 @@ internal class PerfectPackController(
   val state = mutableState.asStateFlow()
   private val mutablePreview = MutableStateFlow(PerfectPackPreviewState())
   val previewState = mutablePreview.asStateFlow()
+  suspend fun readCustomStatic(id: String) = repository.readCustomStatic(id)
+
+  suspend fun saveCustomStatic(id: String, pair: PerfectCustomStatic, create: Boolean) {
+    val ids = repository.saveCustomStatic(id, pair, create)
+    mutableState.update { it.copy(customStaticIds = ids, customStaticRevision = it.customStaticRevision + 1,
+      error = null) }
+  }
+
+  suspend fun deleteCustomStatic(id: String) {
+    val ids = repository.deleteCustomStatic(id)
+    mutableState.update { it.copy(customStaticIds = ids, customStaticRevision = it.customStaticRevision + 1) }
+  }
   @Volatile private var loaded = false
   private var loadJob: Job? = null
   private var checkJob: Job? = null
@@ -204,6 +220,8 @@ internal class PerfectPackController(
       try {
         loaded = withContext(Dispatchers.IO) {
           val options = repository.options()
+          val customIds = repository.listCustomStatic()
+          mutableState.update { it.copy(customStaticIds = customIds) }
           val remote = repository.remoteStatus()
           mutableState.update { it.copy(options = options,
             remote = retainPerfectCatalogMetadata(it.remote, remote, it.catalog)) }
@@ -224,7 +242,7 @@ internal class PerfectPackController(
             val pack = packs.listImported().packs.firstOrNull { it.id == id } ?: if (result.file.isFile) {
               failure = PerfectPackError.IMPORT
               val keepLatest = keepLatestGeneratedPacks()
-              importGenerated(result.file, generatedOptions, keepLatest).also {
+              importGenerated(result, generatedOptions, keepLatest).also {
                 remember(result, generatedOptions, it.id)
                 if (keepLatest) prunePrevious(it, result.file)
                 withContext(Dispatchers.Main.immediate) { onGenerated() }
@@ -438,9 +456,9 @@ internal class PerfectPackController(
   }
 
   fun generate() {
-    // Only explicitly downloaded styles can generate; this path stays offline.
+    // Use downloaded source data and/or saved custom layers. Generation stays offline.
     if (state.value.busy) return
-    if (!state.value.ready) {
+    if (!state.value.canGenerate) {
       mutableState.update { it.copy(error = PerfectPackError.STYLE_NEEDED) }
       return
     }
@@ -452,6 +470,11 @@ internal class PerfectPackController(
       try {
         withContext(Dispatchers.IO) {
           val installed = perfectInstalledIconNames(app)
+          if (!state.value.ready && options.installedOnly &&
+            state.value.customStaticIds.none { it in installed }) {
+            mutableState.update { it.copy(error = PerfectPackError.EMPTY) }
+            return@withContext
+          }
           failure = PerfectPackError.GENERATE
           val result = repository.generate(options, installed) { progress ->
             mutableState.update { it.copy(progress = progress) }
@@ -467,7 +490,7 @@ internal class PerfectPackController(
           loaded = false
           mutableState.update { it.copy(result = result, generatedOptions = options, pack = null) }
           failure = PerfectPackError.IMPORT
-          val pack = importGenerated(result.file, options, keepLatest)
+          val pack = importGenerated(result, options, keepLatest)
           remember(result, options, pack.id)
           if (keepLatest) prunePrevious(pack, result.file)
           withContext(Dispatchers.Main.immediate) { onGenerated() }
@@ -527,11 +550,12 @@ internal class PerfectPackController(
     }
   }
 
-  private suspend fun importGenerated(file: File, options: PerfectIconOptions,
+  private suspend fun importGenerated(result: PerfectIconResult, options: PerfectIconOptions,
     keepLatest: Boolean = keepLatestGeneratedPacks()): IconPackDescriptor =
-    when (val imported = packs.importPerfectPublication(file,
+    when (val imported = packs.importPerfectPublication(result.file,
       app.getString(os.kei.hyper.home.R.string.perfect_icons_title) + " · " +
-        (options.style.ifEmpty { app.getString(os.kei.hyper.home.R.string.perfect_icons_style_default) })
+        (if (result.revision == "custom-static") app.getString(os.kei.hyper.home.R.string.perfect_custom_tab)
+        else options.style.ifEmpty { app.getString(os.kei.hyper.home.R.string.perfect_icons_style_default) })
           .take(96) + ".zip", keepLatest)) {
       is IconPackImportResult.Success -> imported.pack
       is IconPackImportResult.Failure ->

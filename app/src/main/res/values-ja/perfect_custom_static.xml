@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_custom_tab">カスタム</string>
+  <string name="perfect_custom_static">静的カスタムアイコン</string>
+  <string name="perfect_custom_add">レイヤーアイコンを追加</string>
+  <string name="perfect_custom_edit">レイヤーアイコンを編集</string>
+  <string name="perfect_custom_pair_help">アイコンごとに正方形の PNG を 2 枚選びます。</string>
+  <string name="perfect_custom_id">アイコン識別子</string>
+  <string name="perfect_custom_id_help">パッケージ名、完全修飾アクティビティ名、または パッケージ名#アクティビティ名を入力します。</string>
+  <string name="perfect_custom_background">背景</string>
+  <string name="perfect_custom_foreground">前景</string>
+  <string name="perfect_custom_save">保存</string>
+  <string name="perfect_custom_delete">カスタムアイコンを削除</string>
+  <string name="perfect_custom_png_error">32 MB、8192 × 8192 ピクセル以下の有効な正方形 PNG を選んでください。</string>
+  <string name="perfect_custom_id_error">有効なアイコン識別子を入力してください。</string>
+  <string name="perfect_custom_duplicate">このアイコンは登録済みです。一覧から開いて編集してください。</string>
+  <string name="perfect_custom_io_error">カスタムアイコンを更新できませんでした。もう一度お試しください。</string>
+  <string name="perfect_custom_choose_app">インストール済みアプリを選択</string>
+  <string name="perfect_custom_search_apps">アプリを検索</string>
+  <string name="perfect_custom_loading_apps">アプリを読み込み中…</string>
+  <string name="perfect_custom_no_apps">一致するアプリがありません</string>
+  <string name="perfect_custom_apps_error">インストール済みアプリを読み込めませんでした。</string>
+  <string name="perfect_custom_composite">合成プレビュー</string>
+  <string name="perfect_custom_ready">カスタムアイコンを利用可能</string>
+  <string name="perfect_custom_only_help">保存したカスタムレイヤーからパックを生成できます。</string>
+</resources>

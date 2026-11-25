@@ -7,6 +7,14 @@ completion and the custom picker. It resolves exact components, package entries,
 qualified native activity names, legacy activity names, then package stems.
 It does not guess from application labels or package substrings.
 
+Perfect Icons static customization stores each launcher identifier as a pair
+of square PNGs. `0.png` is the background and `1.png` is the foreground.
+Generation keeps the PNG bytes and replaces the upstream static entry for
+the same identifier. Original dynamic resources retain their precedence
+when included. Saved pairs can generate a pack on their own when the selected
+upstream style is unavailable. Resource and generated cache cleanup preserve
+the saved pairs.
+
 `IconPackRenderer.Session.completionDonor` selects permitted phone/Telegram donors.
 Both colored artwork and ColorOS monochrome lookup use that selection.
 Borrowing colored artwork must not leave monochrome lookup pointed at a

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_custom_tab">Custom</string>
+  <string name="perfect_custom_static">Static custom icons</string>
+  <string name="perfect_custom_add">Add layered icon</string>
+  <string name="perfect_custom_edit">Edit layered icon</string>
+  <string name="perfect_custom_pair_help">Choose two square PNGs for each icon.</string>
+  <string name="perfect_custom_id">Icon identifier</string>
+  <string name="perfect_custom_id_help">Use a package name, full activity name, or package#activity.</string>
+  <string name="perfect_custom_background">Background</string>
+  <string name="perfect_custom_foreground">Foreground</string>
+  <string name="perfect_custom_save">Save</string>
+  <string name="perfect_custom_delete">Delete custom icon</string>
+  <string name="perfect_custom_png_error">Choose a valid square PNG up to 32 MB and 8192 × 8192 px.</string>
+  <string name="perfect_custom_id_error">Enter a valid icon identifier.</string>
+  <string name="perfect_custom_duplicate">This icon already exists. Open its entry to edit it.</string>
+  <string name="perfect_custom_io_error">Could not update the custom icon. Try again.</string>
+  <string name="perfect_custom_choose_app">Choose installed app</string>
+  <string name="perfect_custom_search_apps">Search apps</string>
+  <string name="perfect_custom_loading_apps">Loading apps…</string>
+  <string name="perfect_custom_no_apps">No matching apps</string>
+  <string name="perfect_custom_apps_error">Could not load installed apps.</string>
+  <string name="perfect_custom_composite">Combined preview</string>
+  <string name="perfect_custom_ready">Custom icons ready</string>
+  <string name="perfect_custom_only_help">Generate a pack from saved custom layers.</string>
+</resources>

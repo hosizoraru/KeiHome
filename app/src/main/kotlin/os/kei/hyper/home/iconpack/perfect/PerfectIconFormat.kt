@@ -85,9 +85,14 @@ internal object PerfectIconFormat {
     themedDynamic: List<PerfectIconBlob>,
     options: PerfectIconOptions,
     installed: Set<String>,
+    custom: List<PerfectIconBlob> = emptyList(),
   ): PerfectIconPlan {
     fun selected(name: String) = !options.installedOnly || name in installed
-    val pairs = staticGroups(base).toMutableMap().apply { putAll(staticGroups(themed)) }
+    val customPairs = staticGroups(custom)
+    val pairs = staticGroups(base).toMutableMap().apply {
+      putAll(staticGroups(themed))
+      putAll(customPairs)
+    }
     val files = sortedMapOf<String, PerfectIconBlob>()
     val staticIds = sortedSetOf<String>()
     pairs.filterKeys(::selected).forEach { (name, layers) ->
@@ -97,7 +102,7 @@ internal object PerfectIconFormat {
     // Single-image style resources are independent of the static-layer chain.
     themed.filter { '/' !in it.path && it.path.endsWith(".png") }.forEach {
       val name = it.path.removeSuffix(".png")
-      if (id(name) && selected(name)) {
+      if (id(name) && selected(name) && name !in customPairs) {
         files["res/drawable-xxhdpi/$name.png"] = it
         staticIds += name
       }

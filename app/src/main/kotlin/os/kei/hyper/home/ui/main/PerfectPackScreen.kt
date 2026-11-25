@@ -108,7 +108,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
       PageActionFab(stringResource(if (state.generating) R.string.action_label_processing
         else R.string.action_label_generate), actionIcon(PageActionIcon.GENERATE),
         description = stringResource(R.string.perfect_icons_generate),
-        onClick = vm.perfectPacks::generate, enabled = !busy && state.ready,
+        onClick = vm.perfectPacks::generate, enabled = !busy && state.canGenerate,
         busy = state.generating, onHeightChanged = { actionHeight = it },
         modifier = Modifier.testTag("icon-packs.perfect.generate"))
     },
@@ -132,6 +132,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
             state.deletingResources -> R.string.perfect_git_deleting
             localLoading -> R.string.perfect_icons_loading
             state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> R.string.perfect_icons_attention
+            !state.ready && state.canGenerate -> R.string.perfect_custom_ready
             state.updateAvailable -> R.string.perfect_git_update_available
             downloadedCount > 0 && !state.ready -> R.string.perfect_local_available
             catalog != null && !state.ready -> R.string.perfect_git_style_missing
@@ -144,6 +145,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
           }),
           summary = when {
             localLoading -> stringResource(R.string.pack_local_catalog_loading)
+            !state.ready && state.canGenerate -> stringResource(R.string.perfect_custom_only_help)
             downloadedCount > 0 && !state.ready -> stringResource(R.string.perfect_local_selection_missing, downloadedCount, style)
             !state.ready -> stringResource(R.string.perfect_git_overview_summary)
             else -> stringResource(R.string.perfect_icons_preview_style, style)
@@ -151,6 +153,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
           details = emptyList(),
           tone = when {
             state.error != null || state.syncIssue == PerfectSyncIssue.CORRUPT -> StatusTone.ERROR
+            !state.ready && state.canGenerate -> StatusTone.READY
             state.syncIssue != null -> StatusTone.WARNING
             !state.ready || state.updateAvailable || busy -> StatusTone.WARNING
             else -> StatusTone.READY

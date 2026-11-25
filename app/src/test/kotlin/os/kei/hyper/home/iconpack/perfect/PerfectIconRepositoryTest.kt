@@ -24,6 +24,48 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class PerfectIconRepositoryTest {
+  @Test fun customPairPersistsAndGeneratesOfflineWithOriginalBytes() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val id = "third.party#other.Main"
+    val layers = PerfectCustomStatic(png(6), png(7))
+    val options = PerfectIconOptions(installedOnly = true, dynamic = false, staticNight = false)
+    assertEquals(listOf(id), f.repo.saveCustomStatic(id, layers, create = true))
+    assertArrayEquals(layers.foreground, f.repo.readCustomStatic(id).foreground)
+    val result = f.repo.generate(options, setOf(id)) {}
+    ZipFile(result.file).use { zip ->
+      layers.layers().forEachIndexed { index, bytes ->
+        val entry = zip.entries().asSequence().single { it.name.endsWith("/$id/$index.png") }
+        assertArrayEquals(bytes, zip.getInputStream(entry).use { it.readBytes() })
+      }
+    }
+    assertTrue(f.http.calls.isEmpty())
+    assertTrue(f.repo.deleteCustomStatic(id).isEmpty())
+    assertTrue(f.repo.listCustomStatic().isEmpty())
+  }
+
+  @Test fun customPairOverridesOnlyStaticAndSkipsGeneratedNightLayers() = runBlocking {
+    val f = Fixture(temporary.newFolder())
+    val id = "third.party"
+    f.dynamic(id)
+    f.update()
+    f.repo.catalog(refresh = true)
+    val layers = PerfectCustomStatic(png(6), png(7))
+    f.repo.saveCustomStatic(id, layers, create = true)
+    val static = f.repo.generate(PerfectIconOptions(installedOnly = true, dynamic = false, staticNight = true),
+      setOf(id)) {}
+    ZipFile(static.file).use { zip ->
+      layers.layers().forEachIndexed { index, bytes ->
+        val entry = zip.entries().asSequence().single { it.name.endsWith("/$id/$index.png") }
+        assertArrayEquals(bytes, zip.getInputStream(entry).use { it.readBytes() })
+      }
+      assertFalse(zip.entries().asSequence().any { it.name.contains("layer_animating_icons/$id/") })
+    }
+    val dynamic = f.repo.generate(PerfectIconOptions(installedOnly = false, dynamic = true), emptySet()) {}
+    ZipFile(dynamic.file).use { zip ->
+      assertTrue(zip.entries().asSequence().any { it.name.contains("layer_animating_icons/$id/") })
+    }
+  }
+
   @Test fun completedPublicationIsReusedWithoutRewritingAndChangedBytesAreRebuilt() = runBlocking {
     val f = Fixture(temporary.newFolder())
     f.repo.catalog(refresh = true)

@@ -116,6 +116,7 @@ class PerfectIconRepository internal constructor(
   private val previewDir get() = File(root, "previews")
   private val publicationProofDir get() = File(root, "publication-proofs")
   private val renderedDir get() = File(root, "rendered-static-night")
+  private val customStaticDir get() = File(root, "custom-static")
   // Cache metadata from the atomic source pointer, not decoded bitmaps or open ZIP handles.
   private var fallbackIndex: FallbackIndex? = null
   private var styleSizeCache: Pair<String, Map<String, PerfectIconStyleDetails>>? = null
@@ -535,6 +536,39 @@ class PerfectIconRepository internal constructor(
     generateSequence(failure) { it.cause?.takeUnless { cause -> cause === it } }.take(16)
       .filterIsInstance<PerfectIconCooldownException>().firstOrNull()
 
+  private fun customStaticFile(id: String): File {
+    require(PerfectCustomStatic.validId(id))
+    return File(customStaticDir, "$id.zip")
+  }
+
+  private fun customStaticIds() = customStaticDir.listFiles().orEmpty().asSequence()
+    .filter { it.isFile && it.extension == "zip" && PerfectCustomStatic.validId(it.nameWithoutExtension) }
+    .map { it.nameWithoutExtension }.sorted().toList()
+
+  internal suspend fun listCustomStatic() = withContext(ioDispatcher) { mutex.withLock { customStaticIds() } }
+
+  internal suspend fun readCustomStatic(id: String) = withContext(ioDispatcher) {
+    mutex.withLock { PerfectCustomStatic.read(customStaticFile(id)) }
+  }
+
+  internal suspend fun saveCustomStatic(id: String, pair: PerfectCustomStatic, create: Boolean) =
+    withContext(ioDispatcher) {
+      val coroutine = currentCoroutineContext()
+      mutex.withLock {
+        val file = customStaticFile(id)
+        require(file.exists() != create)
+        atomic(file, pair.archive()) { coroutine.ensureActive() }
+        customStaticIds()
+      }
+    }
+
+  internal suspend fun deleteCustomStatic(id: String) = withContext(ioDispatcher) {
+    mutex.withLock {
+      Files.deleteIfExists(customStaticFile(id).toPath())
+      customStaticIds()
+    }
+  }
+
   suspend fun generate(
     options: PerfectIconOptions,
     installedNames: Set<String>,
@@ -545,29 +579,48 @@ class PerfectIconRepository internal constructor(
     val installed = installedNames.toSet()
     mutex.withLock {
       progress(PerfectIconProgress(0, 0, "Reading local repository snapshot"))
-      val snapshot = localSnapshot() ?: throw IOException("Refresh the Perfect Icons repository before generating")
       val style = options.style.ifEmpty { "default" }
-      require(style in snapshot.downloadedStyles) { "Download the Perfect Icons style first: $style" }
-      fun branch(prefix: String) = snapshot.entries.filter { it.path.startsWith("$prefix/") }.map {
+      val snapshot = localSnapshot()?.takeIf { style in it.downloadedStyles }
+      val coroutine = currentCoroutineContext()
+      val custom = buildList {
+        var size = 0L
+        for (id in customStaticIds()) {
+          if (options.installedOnly && id !in installed) continue
+          coroutine.ensureActive()
+          val pair = PerfectCustomStatic.read(customStaticFile(id))
+          pair.layers().forEachIndexed { index, bytes ->
+            size += bytes.size
+            require(size <= PerfectIconFormat.MAX_PACK && this.size < PerfectIconFormat.MAX_FILES)
+            val path = "$id/$index.png"
+            val blob = PerfectIconBlob(path, PerfectIconFormat.sha(bytes), bytes.size.toLong(),
+              PerfectCustomStatic.SOURCE_PREFIX + path)
+            if (!cachedBlob(blob)) atomic(blobFile(blob.sha), bytes) { coroutine.ensureActive() }
+            add(blob)
+          }
+        }
+      }
+      require(snapshot != null || custom.isNotEmpty()) { "Download the Perfect Icons style first: $style" }
+      fun branch(prefix: String) = snapshot?.entries.orEmpty().filter { it.path.startsWith("$prefix/") }.map {
         PerfectIconBlob(it.path.removePrefix("$prefix/"), it.sha, it.size, it.path)
       }
       val plan = PerfectIconFormat.plan(branch("icons"), branch("themes/$style/icons"),
         if (options.dynamic) branch("themes/common/layer_animating_icons") else emptyList(),
-        if (options.dynamic) branch("themes/$style/layer_animating_icons") else emptyList(), options, installed)
+        if (options.dynamic) branch("themes/$style/layer_animating_icons") else emptyList(), options, installed,
+        custom)
       require(plan.files.isNotEmpty()) { "No Perfect Icons match the supplied installed IDs" }
       require(plan.files.values.groupBy { it.sha }.values.all { it.map { blob -> blob.size }.distinct().size == 1 })
       val unique = plan.files.values.distinctBy { it.sha }
       var extracted = 0
       var reused = 0
-      val coroutine = currentCoroutineContext()
-      val indexed = snapshot.entries.associateBy { it.path }
-      openSource(snapshot).use { zip ->
+      val indexed = snapshot?.entries.orEmpty().associateBy { it.path }
+      val source = snapshot?.let { openSource(it) }
+      source.use { zip ->
         unique.forEachIndexed { index, blob ->
           coroutine.ensureActive()
           if (cachedBlob(blob)) {
             reused++
           } else {
-            val bytes = sourceBytes(zip, blob, requireNotNull(indexed[blob.source]))
+            val bytes = sourceBytes(requireNotNull(zip), blob, requireNotNull(indexed[blob.source]))
             atomic(blobFile(blob.sha), bytes) { coroutine.ensureActive() }
             extracted++
           }
@@ -580,7 +633,7 @@ class PerfectIconRepository internal constructor(
       val mask = nativeMask()
       val transform = HyperOs4IconModule.transform(usesLayerDirectory(validated) ||
         (options.staticNight && staticNightInputs(validated).isNotEmpty()), mask)
-      val file = publish(snapshot, options, validated, transform, mask) { done, total ->
+      val file = publish(snapshot?.sourceHash ?: "custom-static", options, validated, transform, mask) { done, total ->
         progress(PerfectIconProgress(done, total, "source.static-night"))
       }
       trimBlobs(unique.map { it.sha }.toSet())
@@ -590,7 +643,7 @@ class PerfectIconRepository internal constructor(
         }
       } else 0
       PerfectIconResult(file, (validated.staticIds + validated.dynamicIds).size, validated.staticIds.size,
-        validated.dynamicIds.size, extracted, reused, snapshot.revision,
+        validated.dynamicIds.size, extracted, reused, snapshot?.revision ?: "custom-static",
         rejectedDynamic = validated.rejectedDynamic.size,
         nightRevision = options.nightContract(),
         derivedDynamicCount = derivedDynamicCount)
@@ -1195,6 +1248,7 @@ class PerfectIconRepository internal constructor(
       val prefix = "res/drawable-xxhdpi/$name"
       val flat = plan.files["$prefix.png"]
       val layers = listOfNotNull(plan.files["$prefix/0.png"], plan.files["$prefix/1.png"])
+      if (layers.any { it.source.startsWith(PerfectCustomStatic.SOURCE_PREFIX) }) return@mapNotNull null
       when {
         flat != null -> {
           val sourcePrefix = flat.source.removeSuffix(".png")
@@ -1302,20 +1356,24 @@ class PerfectIconRepository internal constructor(
     }
   }
 
-  private suspend fun publish(snapshot: Snapshot, options: PerfectIconOptions, plan: PerfectIconPlan,
+  private suspend fun publish(sourceHash: String, options: PerfectIconOptions, plan: PerfectIconPlan,
     transform: ByteArray, mask: String?, renderProgress: (Int, Int) -> Unit): File {
     outputDir.mkdirs()
     val identity = buildString {
       append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
-      append(snapshot.sourceHash).append('\n').append(options.style.ifEmpty { "default" })
+      append(sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
       if (options.staticNight) append(options.nightContract()).append('\n')
       append(listOf(staticRenderer != null, staticEquivalentRenderer != null,
         nativeSnapshotRenderer != null, dynamicNightRenderer != null).joinToString(":")).append('\n')
-      plan.files.forEach { (path, blob) -> append(path).append('\u0000').append(blob.sha).append('\n') }
+      plan.files.forEach { (path, blob) ->
+        append(path).append('\u0000').append(blob.sha)
+        if (blob.source.startsWith(PerfectCustomStatic.SOURCE_PREFIX)) append('\u0000').append("custom")
+        append('\n')
+      }
     }
     val key = PerfectIconFormat.sha(identity.toByteArray(Charsets.UTF_8)).take(24)
-    val destination = File(outputDir, "perfect-${snapshot.sourceHash.take(12)}-$key.zip")
+    val destination = File(outputDir, "perfect-${sourceHash.take(12)}-$key.zip")
     val proofs = publicationProofDir.apply { mkdirs() }
     val proof = File(proofs, "${destination.name}.sha256")
     val coroutine = currentCoroutineContext()

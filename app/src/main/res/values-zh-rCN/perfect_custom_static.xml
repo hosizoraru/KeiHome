@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="perfect_custom_tab">自定义</string>
+  <string name="perfect_custom_static">静态分层图标</string>
+  <string name="perfect_custom_add">添加分层图标</string>
+  <string name="perfect_custom_edit">编辑分层图标</string>
+  <string name="perfect_custom_pair_help">每个图标需要两张正方形 PNG。</string>
+  <string name="perfect_custom_id">图标标识</string>
+  <string name="perfect_custom_id_help">支持包名、完整 Activity 类名或包名#Activity 类名。</string>
+  <string name="perfect_custom_background">底图</string>
+  <string name="perfect_custom_foreground">前景图</string>
+  <string name="perfect_custom_save">保存</string>
+  <string name="perfect_custom_delete">删除自定义图标</string>
+  <string name="perfect_custom_png_error">请选择有效的正方形 PNG，最大 32 MB、8192 × 8192 像素。</string>
+  <string name="perfect_custom_id_error">请输入有效的图标标识。</string>
+  <string name="perfect_custom_duplicate">此图标已存在，请打开该条目编辑。</string>
+  <string name="perfect_custom_io_error">无法更新自定义图标，请重试。</string>
+  <string name="perfect_custom_choose_app">选择已安装应用</string>
+  <string name="perfect_custom_search_apps">搜索应用</string>
+  <string name="perfect_custom_loading_apps">正在加载应用…</string>
+  <string name="perfect_custom_no_apps">没有匹配的应用</string>
+  <string name="perfect_custom_apps_error">无法读取已安装应用。</string>
+  <string name="perfect_custom_composite">合成预览</string>
+  <string name="perfect_custom_ready">自定义图标已就绪</string>
+  <string name="perfect_custom_only_help">可使用已保存的自定义图层生成图标包。</string>
+</resources>

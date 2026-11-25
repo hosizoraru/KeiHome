@@ -22,6 +22,7 @@ runs:
         cache: gradle
 
     - name: Set up Android SDK
+      if: inputs.install-android == 'true'
       uses: android-actions/setup-android@v3
 
     - name: Install Android and native toolchains

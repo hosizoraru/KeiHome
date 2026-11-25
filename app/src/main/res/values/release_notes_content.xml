@@ -1,4 +1,17 @@
 <resources>
+    <string name="release_notes_1_16_0_introduction">Create layered icons, see the temperature on the Weather icon again, and adjust dark mode from a single page.</string>
+    <string-array name="release_notes_1_16_0_changes">
+        <item>Build your own layered icons\nIn Perfect Icons → Custom, choose an app and add a background and a foreground. The editor saves them as 0.png and 1.png, shows the saved icon in Custom, and includes it when you generate the pack.</item>
+        <item>Use static icon artwork for light and dark mode\nAn optional setting prepares separate light and dark artwork for eligible static icons. Home swaps them when the system appearance changes and refreshes affected icons together. Supported dynamic icons keep their animations. Thanks to @jizizr for the static icon switching and batched refresh contributions.</item>
+        <item>Weather shows the temperature again\nPerfect Icons restores the original Xiaomi Weather animation and temperature on Home. The status bar, notification center, and Recents use the available weather artwork from the same layers.</item>
+        <item>Dark mode settings in one place\nOpen Home → Dark mode settings to find the system dark style, low-brightness contrast, wallpaper dimming and presets, launch overlay, and status bar color inversion. On supported HyperOS builds, choose from three dark styles for compatible system surfaces and select HyperOS or ColorOS wallpaper dimming.</item>
+        <item>More consistent gesture bar colors\nWhen Match bottom bar color is enabled for a supported app, the gesture area follows more Hongguo tabs and playback screens, and matches the background of the Douyin comments panel.</item>
+        <item>Rounder launch icons and more reliable icon packs\nLaunch icon completion follows the theme outline when an app such as Candysign falls back to an opaque square icon. Imported ColorOS packs keep compact dark-mode resources, and third-party Telegram clients retain their own launch icons. Built-in ColorOS icon tabs also keep the Glass header as you switch styles.</item>
+        <item>Smoother Home editing with dynamic icons\nHome batches cleanup of dynamic icon resources to reduce stalls when opening the page thumbnail view with a large pack applied.</item>
+        <item>Find the guide, license, and credits more easily\nOpen Release notes to revisit the setup guide. The KeiHome license is now under Open-source notices, and About has a contributor acknowledgments page.</item>
+    </string-array>
+    <string name="release_notes_1_16_0_footnote">This update changes the native launcher library. Restart your device after updating, then unlock it and return to Home. To get generated icon changes, update or regenerate the icon pack and apply it again.</string>
+
     <string name="release_notes_1_15_0_introduction">Choose wallpaper presets for light and dark mode, dim wallpapers in dark mode, and find new options for icon packs and app appearance.</string>
     <string-array name="release_notes_1_15_0_changes">
         <item>Different wallpapers for light and dark mode\nIn Home → Appearance → Wallpaper presets by appearance, choose a System Personalization preset for each mode. HyperOS applies its Home and Lock screen appearance when the system switches modes. Either mode can keep the current preset.</item>

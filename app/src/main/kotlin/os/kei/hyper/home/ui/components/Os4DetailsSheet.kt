@@ -49,10 +49,11 @@ internal fun Os4DetailsSheet(
       dismiss { onDismissRequest(); true }
     },
     onDismissFinished = onDismissFinished,
-    endAction = endAction) {
+    endAction = endAction) { headerPadding ->
     CompositionLocalProvider(locals) {
       Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
         .then(if (scrollContent) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+        .padding(headerPadding)
         .navigationBarsPadding()
         .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         summary?.let {

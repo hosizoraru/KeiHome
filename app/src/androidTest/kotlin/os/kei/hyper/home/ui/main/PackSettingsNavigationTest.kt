@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -30,6 +31,7 @@ import com.tencent.mmkv.MMKV
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.MainNavigation
@@ -37,6 +39,8 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppLocalStorage
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.OnboardingPreferences
+import os.kei.hyper.home.data.supportsLowBrightnessContrast
+import os.kei.hyper.home.data.supportsSystemDarkStyle
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 
 class PackSettingsNavigationTest {
@@ -174,6 +178,22 @@ class PackSettingsNavigationTest {
     rule.runOnIdle { width = 900.dp }
     rule.onNodeWithTag("adaptive.rail").assertIsDisplayed()
     selectShortcut(MainShortcut.DARK_MODE, "desktop.page.dark-mode")
+    val statusBarTools = rule.onNodeWithTag("desktop.dark-mode.tools")
+    val orderedRows = buildList {
+      if (supportsSystemDarkStyle()) add("desktop.dark-mode.system-style")
+      if (supportsLowBrightnessContrast()) add("dark-mode.low-contrast.switch")
+      add("wallpaper-dimming.switch")
+      add("wallpaper-presets.open")
+      add("splash-appearance.switch")
+      add("desktop.dark-mode.tools")
+    }
+    val positions = orderedRows.map { rule.onNodeWithTag(it).getUnclippedBoundsInRoot().top }
+    assertTrue("Dark mode rows must follow their group order",
+      positions.zipWithNext().all { (above, below) -> above < below })
+    statusBarTools.performScrollTo().assertIsDisplayed().performClick()
+    waitForTag("desktop.page.tools")
+    back()
+    waitForTag("desktop.page.dark-mode")
     back()
     rule.onNode(hasText(context.getString(R.string.navigation_desktop)) and isSelectable())
       .assertIsSelected()

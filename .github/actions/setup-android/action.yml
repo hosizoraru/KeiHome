@@ -33,7 +33,7 @@ runs:
       run: |
         yes | sdkmanager --licenses >/dev/null || true
         sdkmanager --install \
-          "platforms;android-37" \
+          "platforms;android-37.2" \
           "build-tools;37.0.0" \
           "ndk;30.0.16248370" \
           "cmake;4.1.2"

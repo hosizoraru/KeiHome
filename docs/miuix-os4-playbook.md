@@ -34,9 +34,9 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-KeiHome 当前使用 `0.9.5-2b226150-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
-现有 Glass 面板接收上游的底部描线修复。构件、调用链和验证范围见
-[2b226150 迁移记录](miuix-snapshot-2b226150.md)。
+KeiHome 当前使用 `0.9.5-a09d4f32-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
+现有 Glass 面板接收上游的渐进模糊、滚动表面、返回手势和动态配色修复。
+构件、调用链和验证范围见 [a09d4f32 迁移记录](miuix-snapshot-a09d4f32.md)。
 
 Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
@@ -606,6 +606,8 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [a09d4f32 迁移](miuix-snapshot-a09d4f32.md)记录渐进模糊底部面板、动效交接、
+  动态配色对比度和详情面板内容内边距。
 - [07d48590 迁移](miuix-snapshot-07d48590.md)记录搜索清除按钮、底部面板动效和滑块点按。
 - [84ce2a0a 迁移](miuix-snapshot-84ce2a0a.md)记录主题设置、App 配色与 About 页的 Glass 更新。
 - [44f1d315 迁移](miuix-snapshot-44f1d315.md)记录对话框动效、退出期间的触摸释放和面板内 GlassCard。

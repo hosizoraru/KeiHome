@@ -89,10 +89,10 @@ and historical licenses are presented separately from current dependencies.
 
 KeiHome uses the MIUIX UI, icons, preferences, navigation, blur, material, glass
 and glass-icons modules under Apache 2.0. The current pinned snapshot is
-`0.9.4-ca674992-SNAPSHOT`.
+`0.9.5-a09d4f32-SNAPSHOT`.
 The full Apache 2.0 text is bundled as `assets/licenses/Apache-2.0.txt`.
 
-Source: <https://github.com/compose-miuix-ui/miuix/tree/ca674992>
+Source: <https://github.com/compose-miuix-ui/miuix/tree/a09d4f32>
 
 ## AndroidX, Compose, Kotlin and supporting libraries
 

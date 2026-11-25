@@ -26,7 +26,7 @@ class NativeAppearanceVariantsTest {
   private val system = "com.android.settings"
   private val clock = "com.android.deskclock"
 
-  private fun archive(entries: Map<String, ByteArray>): File = folder.newFile("source.zip").also { file ->
+  private fun archive(entries: Map<String, ByteArray>, name: String = "source.zip"): File = folder.newFile(name).also { file ->
     ZipOutputStream(file.outputStream()).use { output ->
       for ((name, bytes) in entries) {
         output.putNextEntry(ZipEntry(name))
@@ -101,6 +101,40 @@ class NativeAppearanceVariantsTest {
     val entries = mapOf("res/drawable-xxhdpi/$plain.png" to light, "nightmode/res/drawable-xxhdpi/$plain.png" to dark)
     assertThrows(NativeAppearanceVariants.NothingToFlatten::class.java) {
       NativeAppearanceVariants.write(archive(entries), File(folder.root, "light.icons"), File(folder.root, "dark.icons"))
+    }
+  }
+
+  @Test fun keepsDescriptorsForPhoneCompanions() {
+    val entries = generated().toMutableMap()
+    // Recommended phone icons carry a descriptor even when both appearances are equal.
+    entries.putAll(NativeDayNightIcon.entries("com.android.phone", light, light))
+    entries.putAll(NativeDayNightIcon.entries("com.android.server.telecom.InCall", light, dark))
+    val darkOut = File(folder.root, "dark.icons")
+    val result = NativeAppearanceVariants.write(archive(entries), File(folder.root, "light.icons"), darkOut)
+    assertEquals(2, result.flattened)
+    val darkEntries = read(darkOut)
+    assertTrue("fancy_icons/com.android.phone/manifest.xml" in darkEntries)
+    assertTrue("fancy_icons/com.android.server.telecom.InCall/manifest.xml" in darkEntries)
+  }
+
+  @Test fun keepsSelectorsWhoseIconAnotherResourceCanServe() {
+    val competing = listOf(
+      "res/drawable-xxhdpi/$plain/0.png",            // Static layer pair.
+      "nightmode/res/drawable-xxhdpi/$plain/1.png",
+      "res/drawable-xxxhdpi/$plain.png",             // Another density.
+      "$plain.png",                                  // Legacy root icon.
+      "animating_icons/$plain/fancy/manifest.xml",
+      "layer_animating_icons/$plain/manifest.xml",
+      "nightmode/fancy_icons/$plain/manifest.xml",
+    )
+    competing.forEachIndexed { index, extra ->
+      val entries = generated().toMutableMap().apply { put(extra, light) }
+      val darkOut = File(folder.root, "dark-$index.icons")
+      val result = NativeAppearanceVariants.write(archive(entries, "source-$index.zip"),
+        File(folder.root, "light-$index.icons"), darkOut)
+      assertEquals(extra, 1, result.flattened)
+      assertTrue(extra, "fancy_icons/$plain/manifest.xml" in read(darkOut))
+      assertArrayEquals(extra, light, read(darkOut).getValue("res/drawable-xxhdpi/$plain.png"))
     }
   }
 

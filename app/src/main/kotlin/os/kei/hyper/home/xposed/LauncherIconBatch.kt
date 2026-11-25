@@ -12,12 +12,13 @@ package os.kei.hyper.home.xposed
  * entries keep the per-package path.
  *
  * Home drops a batch equal to its previous one (same action, user and package order) for about
- * five seconds, so consecutive batches alternate their order.
+ * five seconds, so consecutive batches for the same user alternate their order. One refresh sends
+ * a batch per profile; a shared toggle would flip twice and repeat each profile's last order.
  */
 internal class LauncherIconBatch {
   data class Entry(val packageName: String, val suspended: Boolean)
 
-  private var reversed = false
+  private val reversed = HashMap<Int, Boolean>()
 
   fun eligible(entries: Collection<Entry>): Set<String> =
     entries.groupBy { it.packageName }
@@ -25,10 +26,11 @@ internal class LauncherIconBatch {
       .keys.toSortedSet()
 
   @Synchronized
-  fun order(packages: Collection<String>): Array<String> {
-    reversed = !reversed
+  fun order(userId: Int, packages: Collection<String>): Array<String> {
+    val next = reversed[userId] != true
+    reversed[userId] = next
     val sorted = packages.toSortedSet().toList()
-    return (if (reversed) sorted.asReversed() else sorted).toTypedArray()
+    return (if (next) sorted.asReversed() else sorted).toTypedArray()
   }
 
   companion object {

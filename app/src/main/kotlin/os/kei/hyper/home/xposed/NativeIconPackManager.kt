@@ -339,9 +339,35 @@ internal object NativeIconPackManager {
     }
   }
 
+  /**
+   * Stops fixed copies of [primary] after an import made without them. Themes first restores the
+   * primary if one of its copies is applied, so the active archive keeps its approval.
+   */
+  fun unregisterAppearanceVariants(context: Context, primary: ConvertedIconArchive.Digests): AppearanceSync =
+    asSystemWorker {
+      verifyInstalledContract(context)
+      withNativeImporter(context) { pc ->
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+          data.writeInterfaceToken(ThemeIconImportRuntime.GRANT_DESCRIPTOR)
+          data.writeString(primary.sha1)
+          data.writeString(primary.sha256)
+          if (!pc.transact(ThemeIconImportRuntime.UNREGISTER_APPEARANCE_VARIANTS, data, reply, 0)) {
+            throw UnsupportedContract("Fixed-appearance bridge unavailable")
+          }
+          reply.readException()
+          AppearanceSync(reply.readString() ?: "unknown", null)
+        } finally { data.recycle(); reply.recycle() }
+      }
+    }
+
   data class AppearanceSync(val status: String, val prepared: AppearanceFastSwap.State?) {
     /** Themes replaced the archive itself, after Home may already have reloaded its icons. */
     val replaced get() = status.startsWith("applied")
+    /** The copy replaced an archive Themes had just applied; Home is not showing it to the user yet. */
+    val afterApply get() = replaced && status.contains(ThemeAppearanceVariants.FROM_PRIMARY) ||
+      status.startsWith("applied primary; unregistered")
   }
 
   /**

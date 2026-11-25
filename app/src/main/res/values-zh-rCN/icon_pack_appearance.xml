@@ -9,7 +9,7 @@
     <string name="icon_pack_appearance_dim">夜间调暗</string>
     <string name="icon_pack_appearance_update_note">下次导入／更新后生效，需重新应用。</string>
     <string name="icon_pack_static_appearance">静态明暗切换</string>
-    <string name="icon_pack_static_appearance_summary">系统切换深浅色时换用预先生成的浅色或深色图标，不再为每个图标加载动态配置。打开应用更流畅，切换时保持桌面当前页和已打开的应用。下次导入后生效。</string>
+    <string name="icon_pack_static_appearance_summary">系统切换深浅色时换用预先生成的浅色或深色图标，不再为每个图标加载动态配置。打开应用更流畅，切换时保持桌面当前页和已打开的应用。导入后桌面会在后台重新加载一次即生效；之后每次切换，抽屉图标在下次息屏时更新。</string>
     <string name="icon_pack_appearance_scope_note">明暗选项用于 APK／经典 ZIP 的转换结果；原生 MTZ／icons ZIP 保持原有行为。</string>
     <string name="icon_pack_appearance_system_note">跟随系统使用图标包自身的明暗资源，需桌面支持；部分图标可能保持浅色。</string>
     <string name="icon_pack_appearance_dim_note">使用浅色资源，夜间按 ColorOS 默认风格调暗至 214/255，不使用深色资源；明暗切换需桌面支持。</string>

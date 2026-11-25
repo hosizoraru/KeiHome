@@ -13,7 +13,8 @@ import java.util.zip.ZipFile
  * launch and return transitions. The static copies remove only selectors that this generator
  * can reproduce byte for byte from the archive's own day and night PNGs. The dark copy then
  * places the night PNG at the default path. Authored programs (clock, calendar, weather),
- * system-frontend compatibility descriptors and unrecognized groups stay unchanged.
+ * system-frontend compatibility descriptors (including phone companions), icons that another
+ * resource can also serve, and unrecognized groups stay unchanged.
  *
  * Exactly one copy is active at a time; the caller swaps them when the system appearance
  * changes. Palette selectors are flattened too; [Result.paletteFlattened] tells the caller that
@@ -29,6 +30,9 @@ internal object NativeAppearanceVariants {
   private const val FANCY = "fancy_icons/"
   private const val DAY = "res/drawable-xxhdpi/"
   private const val NIGHT = "nightmode/res/drawable-xxhdpi/"
+  private const val NIGHT_ROOT = "nightmode/"
+  private const val PNG = ".png"
+  private val PROGRAMS = setOf("fancy_icons", "animating_icons", "layer_animating_icons")
   private const val MAX_MANIFEST_BYTES = 64 * 1024
   private const val MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
@@ -93,15 +97,50 @@ internal object NativeAppearanceVariants {
     // System frontends can ignore a flat override; their explicit descriptors stay authoritative.
     val systemNames = read(SystemIconFallbackManifest.PATH, SystemIconFallbackManifest.MAX_BYTES)
       ?.let { SystemIconFallbackManifest.decode(it).names }.orEmpty()
+    val competing = competingNames(entries.values.filterNot { it.isDirectory }.map { it.name })
     val flattened = ArrayList<Selector>()
     var retained = 0
     for ((name, files) in groups) {
       check()
-      val selector = if (name in systemNames || "$FANCY$name/manifest.xml" !in files) null
+      val selector = if (name in systemNames || requiresDescriptor(name) || name in competing ||
+        "$FANCY$name/manifest.xml" !in files) null
         else recognize(name, files, ::read)
       if (selector == null) retained++ else flattened += selector
     }
     return Plan(flattened, retained)
+  }
+
+  /**
+   * Phone companions get a descriptor even for equal artwork ([NativeRecommendedIconCompletion]);
+   * their frontends can ignore a flat PNG. Activity names start with the package name.
+   */
+  private fun requiresDescriptor(name: String) = RecommendedPackageIcons.PHONE_TARGETS.any { target ->
+    name == target || name.startsWith("$target.") || name.startsWith("$target#")
+  }
+
+  /**
+   * Names another resource can serve once the selector is gone: static layer pairs, other
+   * densities, root PNGs, animated programs and night MAML. Home may prefer any of them to the
+   * default PNG, which only the day/night pair of a flattened selector replaces.
+   */
+  private fun competingNames(paths: Collection<String>): Set<String> {
+    val names = HashSet<String>()
+    for (path in paths) {
+      val night = path.startsWith(NIGHT_ROOT)
+      val parts = path.removePrefix(NIGHT_ROOT).split('/')
+      val name = when {
+        parts.size == 1 -> parts[0].removeSuffix(PNG).takeIf { it.length < parts[0].length }
+        parts[0] == "res" && parts.size >= 3 && parts[1].startsWith("drawable") ->
+          if (parts.size > 3) parts[2]
+          else parts[2].removeSuffix(PNG).takeIf {
+            it.length < parts[2].length && path != "$DAY$it$PNG" && path != "$NIGHT$it$PNG"
+          }
+        parts.size >= 3 && parts[0] in PROGRAMS && (night || "${parts[0]}/" != FANCY) -> parts[1]
+        else -> null
+      }
+      if (!name.isNullOrEmpty()) names += name
+    }
+    return names
   }
 
   private fun recognize(name: String, files: Set<String>, read: (String, Int) -> ByteArray?): Selector? {

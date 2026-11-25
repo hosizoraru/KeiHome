@@ -20,12 +20,24 @@ class LauncherIconBatchTest {
   @Test fun consecutiveBatchesNeverRepeatTheSameOrder() {
     val batch = LauncherIconBatch()
     val packages = setOf("c", "a", "b")
-    val first = batch.order(packages)
-    val second = batch.order(packages)
-    val third = batch.order(packages)
+    val first = batch.order(0, packages)
+    val second = batch.order(0, packages)
+    val third = batch.order(0, packages)
     // Home drops a batch identical to its previous one for about five seconds.
     assertArrayEquals(arrayOf("c", "b", "a"), first)
     assertArrayEquals(arrayOf("a", "b", "c"), second)
     assertArrayEquals(first, third)
+  }
+
+  @Test fun eachProfileAlternatesOnItsOwn() {
+    val batch = LauncherIconBatch()
+    val packages = setOf("a", "b")
+    // One refresh covers the owner and a dual-app profile; the next refresh must change both.
+    val owner = batch.order(0, packages)
+    val dual = batch.order(999, packages)
+    assertArrayEquals(arrayOf("b", "a"), owner)
+    assertArrayEquals(arrayOf("b", "a"), dual)
+    assertArrayEquals(arrayOf("a", "b"), batch.order(0, packages))
+    assertArrayEquals(arrayOf("a", "b"), batch.order(999, packages))
   }
 }

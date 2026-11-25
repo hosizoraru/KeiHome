@@ -21,7 +21,7 @@ import os.kei.hyper.home.iconpack.NativeAppearanceVariants
  * and this store makes the matching one the active icons archive after each appearance change.
  * Only an active archive whose digest equals a registered primary or copy is ever replaced.
  *
- * No theme configuration change is sent, so foreground apps are not relaunched and Home keeps
+ * No global theme configuration change is sent, so foreground apps are not relaunched and Home keeps
  * its engine and page. Home rechecks the archive's modification time on every icon lookup and
  * clears its icon caches when it applies a night-mode change. The opposite copy is therefore
  * pre-staged beside the active archive; system_server renames it into place before the night
@@ -48,8 +48,12 @@ internal class ThemeAppearanceVariants(private val context: Context) {
 
   data class SyncResult(val status: String, val prepared: Prepared?)
 
+  /**
+   * Guards the receipt, the copy directories and the theme directory files this store writes.
+   * The receipt is read on every use: it holds at most [MAX_RECORDS] rows, and a cached copy
+   * could miss a write made after it was loaded.
+   */
   private val lock = Any()
-  @Volatile private var loaded: List<Record>? = null
 
   /** Digests of files this store wrote or verified, by identity. A rename keeps the identity. */
   private val known = object : LinkedHashMap<AppearanceFileKey, ConvertedIconArchive.Digests>() {
@@ -60,7 +64,7 @@ internal class ThemeAppearanceVariants(private val context: Context) {
 
   /** Fixed copies that inherit a primary grant's approval. Empty when unavailable. */
   fun siblings(primary: ConvertedIconArchive.Digests): Set<ConvertedIconArchive.Digests> = try {
-    records().filter { it.primary == primary }.flatMapTo(HashSet()) { listOf(it.light, it.dark) }
+    synchronized(lock) { records() }.filter { it.primary == primary }.flatMapTo(HashSet()) { listOf(it.light, it.dark) }
   } catch (failure: Exception) {
     if (failure is InterruptedException) Thread.currentThread().interrupt()
     emptySet()
@@ -76,6 +80,7 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     dark: ConvertedIconArchive.Digests,
     paletteFlattened: Boolean,
   ): Unit = synchronized(lock) {
+    sweepTemporaries()
     require(localId.length in 1..128 && localId.none(Char::isISOControl)) { "Invalid converted local ID" }
     require(setOf(primary, light, dark).size == 3) { "Appearance copies must differ from the original" }
     require(ConvertedIconArchive.digest(primaryContent) == primary) { "Native Icon bytes do not match conversion" }
@@ -84,15 +89,36 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     copyVerified(lightStage, File(directory, LIGHT), light)
     copyVerified(darkStage, File(directory, DARK), dark)
     val record = Record(localId, primary, primaryContent.path, light, dark, paletteFlattened)
-    val kept = (records().filterNot { it.primary == primary } + record).takeLast(MAX_RECORDS)
+    val previous = records()
+    val kept = retain(previous, activeRecord(previous), record)
     persist(kept)
-    loaded = kept
-    // Remove copy directories that no record references.
-    for (stale in root().listFiles().orEmpty()) {
-      if (!stale.isDirectory || !stale.name.matches(HEX_64) || kept.any { it.primary.sha256 == stale.name }) continue
-      stale.listFiles().orEmpty().forEach(File::delete)
-      stale.delete()
-    }
+    removeUnreferencedCopies(kept)
+  }
+
+  /**
+   * Stops fixed copies for [primary], for an import made without them. An active copy is first
+   * replaced by the primary itself, so the active archive never loses its approval. The status
+   * starts with "applied" when the active archive changed.
+   */
+  fun unregister(primary: ConvertedIconArchive.Digests): SyncResult = synchronized(lock) {
+    sweepTemporaries()
+    val records = records()
+    val record = records.lastOrNull { it.primary == primary } ?: return SyncResult("absent", null)
+    val active = File(ACTIVE)
+    val before = statKey(active)
+    val current = before?.let { currentDigest(active, it) }
+    val status = if (current == record.light || current == record.dark) {
+      if (!replaceActive(File(record.primaryContent), record.primary, active, checkNotNull(before))) {
+        return SyncResult("theme-changed", null)
+      }
+      "applied primary; unregistered"
+    } else "unregistered"
+    val kept = records - record
+    persist(kept)
+    removeUnreferencedCopies(kept)
+    // Staged copies belong to the applied record; keep them when that is another import.
+    val applied = current == record.primary || current == record.light || current == record.dark
+    if (applied) clearStaging(status) else SyncResult(status, null)
   }
 
   /**
@@ -101,9 +127,10 @@ internal class ThemeAppearanceVariants(private val context: Context) {
    * package callbacks; a pre-dispatch rename needs nothing more than Home's own night handling.
    */
   fun sync(night: Boolean, paletteEnabled: Boolean): SyncResult = synchronized(lock) {
+    sweepTemporaries()
     val active = File(ACTIVE)
     val before = statKey(active) ?: return clearStaging("unmanaged")
-    val current = known[before] ?: ConvertedIconArchive.digest(active).also { known[before] = it }
+    val current = currentDigest(active, before)
     val record = records().lastOrNull { current == it.primary || current == it.light || current == it.dark }
       ?: return clearStaging("unmanaged")
     val role = NativeAppearanceVariants.target(night, paletteEnabled, record.paletteFlattened)
@@ -111,17 +138,9 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     val status = if (current == expected) "unchanged ${role.label}" else {
       val source = sourceFor(record, role)
       if (!source.isFile) return clearStaging("missing ${role.label}")
-      val staged = File(active.parentFile, "$STAGED_PREFIX${UUID.randomUUID()}.tmp")
-      try {
-        copyVerified(source, staged, expected)
-        matchActiveMetadata(active, staged)
-        // Themes may have applied another archive while this copy was written.
-        if (statKey(active) != before) return clearStaging("theme-changed")
-        Os.rename(staged.path, active.path)
-      } finally {
-        Files.deleteIfExists(staged.toPath())
-      }
-      "applied ${role.label}"
+      if (!replaceActive(source, expected, active, before)) return clearStaging("theme-changed")
+      // From the primary: Themes has just applied the archive and Home reloaded the original.
+      if (current == record.primary) "applied ${role.label} $FROM_PRIMARY" else "applied ${role.label}"
     }
     val activeKey = statKey(active) ?: return clearStaging("unmanaged")
     known[activeKey] = expected
@@ -137,6 +156,69 @@ internal class ThemeAppearanceVariants(private val context: Context) {
     }
     SyncResult(status, Prepared(activeKey, role == NativeAppearanceVariants.Role.DARK,
       stagedFile(next).path, stagedKey, next == NativeAppearanceVariants.Role.DARK))
+  }
+
+  private fun currentDigest(active: File, key: AppearanceFileKey): ConvertedIconArchive.Digests =
+    known[key] ?: ConvertedIconArchive.digest(active).also { known[key] = it }
+
+  /** The record whose primary or copy is the applied archive; null when that cannot be read. */
+  private fun activeRecord(records: List<Record>): Record? {
+    val active = File(ACTIVE)
+    val current = try {
+      statKey(active)?.let { currentDigest(active, it) } ?: return null
+    } catch (failure: Exception) {
+      if (failure is InterruptedException) throw failure
+      return null
+    }
+    return records.lastOrNull { current == it.primary || current == it.light || current == it.dark }
+  }
+
+  /** Renames a verified copy of [source] over the active archive unless Themes replaced it first. */
+  private fun replaceActive(
+    source: File,
+    expected: ConvertedIconArchive.Digests,
+    active: File,
+    before: AppearanceFileKey,
+  ): Boolean {
+    val staged = File(active.parentFile, "$STAGED_PREFIX${UUID.randomUUID()}.tmp")
+    try {
+      copyVerified(source, staged, expected)
+      matchActiveMetadata(active, staged)
+      // Themes may have applied another archive while this copy was written.
+      if (statKey(active) != before) return false
+      Os.rename(staged.path, active.path)
+    } finally {
+      Files.deleteIfExists(staged.toPath())
+    }
+    statKey(active)?.let { known[it] = expected }
+    return true
+  }
+
+  private fun removeUnreferencedCopies(kept: List<Record>) {
+    for (stale in root().listFiles().orEmpty()) {
+      if (!stale.isDirectory || !stale.name.matches(HEX_64) || kept.any { it.primary.sha256 == stale.name }) continue
+      stale.listFiles().orEmpty().forEach(File::delete)
+      stale.delete()
+    }
+  }
+
+  /**
+   * Removes copies a killed process left mid-write. Every writer holds [lock] in this process,
+   * so no temporary file is in use when a locked operation starts.
+   */
+  private fun sweepTemporaries() {
+    val theme = File(ACTIVE).parentFile ?: return
+    val leftovers = theme.listFiles { _, name ->
+      name.endsWith(".tmp") && (name.startsWith(STAGED_PREFIX) || name.startsWith(".$STAGED_PREFIX"))
+    }.orEmpty().toMutableList()
+    for (folder in root().listFiles().orEmpty()) {
+      if (folder.isDirectory && folder.name.matches(HEX_64)) {
+        leftovers += folder.listFiles { _, name -> name.startsWith(".") && name.endsWith(".tmp") }.orEmpty()
+      }
+    }
+    for (file in leftovers) {
+      try { Files.deleteIfExists(file.toPath()) } catch (_: IOException) { /* Best effort. */ }
+    }
   }
 
   /** Copies [role] next to the active archive with the active archive's owner, mode and label. */
@@ -253,7 +335,6 @@ internal class ThemeAppearanceVariants(private val context: Context) {
   private fun storage(): AtomicFile = AtomicFile(File(root(), RECORDS))
 
   private fun records(): List<Record> {
-    loaded?.let { return it }
     val file = storage()
     val result = if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) emptyList() else {
       val bytes = file.openRead().use(::readConvertedIconValidationReceipt)
@@ -270,7 +351,6 @@ internal class ThemeAppearanceVariants(private val context: Context) {
           digests("light"), digests("dark"), row.getBoolean("paletteFlattened"))
       }
     }
-    loaded = result
     return result
   }
 
@@ -297,7 +377,20 @@ internal class ThemeAppearanceVariants(private val context: Context) {
   }
 
   companion object {
+    /**
+     * The newest records within [MAX_RECORDS], replacing any earlier record of the same primary.
+     * The applied archive may be a copy of an older import; its record outlives newer imports.
+     */
+    internal fun retain(previous: List<Record>, applied: Record?, added: Record): List<Record> {
+      val others = previous.filter { it.primary != added.primary }
+      val pinned = applied?.takeIf { it in others }
+      val room = MAX_RECORDS - 1 - (if (pinned == null) 0 else 1)
+      return others.filter { it != pinned }.takeLast(room) + listOfNotNull(pinned) + added
+    }
+
     const val ACTIVE = "/data/system/theme/icons"
+    /** Sync status marker: the copy replaced the original that Themes had just applied. */
+    const val FROM_PRIMARY = "after apply"
     const val STAGED_PREFIX = ".keihome-appearance-"
     private const val STAGE_ROOT = "/data/system/theme/.keihome-import"
     private const val DIRECTORY = "keihome_appearance_variants"

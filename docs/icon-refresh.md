@@ -112,8 +112,10 @@ Eligible packages have a single launcher entry and are not suspended.
 - Suspended and multi-entry packages, shortcut callbacks and targeted package
   refreshes keep the paced `onPackageChanged` path.
 - Home ignores a batch identical to its previous one for about five seconds, so
-  consecutive batches alternate the package order.
-- If the framework has no such callback, every package uses the paced path.
+  consecutive batches alternate the package order. Each user profile alternates
+  on its own, because one refresh sends a batch per enabled profile.
+- A batch needs at least two packages. If the framework has no such callback, or
+  the callback fails, every package of that profile uses the paced path.
 
 On phone `82411d42` (Home 9239), 307 entries changed in one update, and icon
 loading finished in about 5 s instead of about 70 s of paced callbacks. See

@@ -168,7 +168,13 @@ internal class ConvertedIconRuntime(
       .flatMap { listOf(it.light, it.dark) }
     if (file.canonicalPath != ACTIVE_ICONS || !file.isFile ||
       file.length() !in 1..ConvertedIconArchive.MAX_BYTES) return false
-    val digest = hashIcons(file)
+    val digest = try {
+      hashIcons(file)
+    } catch (_: IllegalArgumentException) {
+      // A fixed-appearance rename can replace the archive mid-read; hash the new one once.
+      if (file.length() !in 1..ConvertedIconArchive.MAX_BYTES) return false
+      hashIcons(file)
+    }
     return digest in known && file.canonicalPath == ACTIVE_ICONS && file.isFile
   }
 

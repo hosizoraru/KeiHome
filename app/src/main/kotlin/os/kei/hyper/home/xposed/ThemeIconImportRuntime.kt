@@ -195,8 +195,11 @@ internal class ThemeIconImportRuntime(
     if (!grantsReady) return
     val info = application.applicationInfo
     if (info.packageName != PACKAGE_NAME || info.uid != Process.myUid()) return
-    if (convertedGuard == null) convertedGuard = ThemeConvertedGuard(application, classLoader, profile)
-    appearance(application).let { store -> convertedGuard?.appearanceSiblings = store::siblings }
+    val store = appearance(application)
+    // Bind the copies before publishing the guard: a validation may read it at once.
+    val guard = convertedGuard ?: ThemeConvertedGuard(application, classLoader, profile)
+      .also { it.appearanceSiblings = store::siblings; convertedGuard = it }
+    guard.appearanceSiblings = store::siblings
     if (initializationThread?.isAlive == true) return
     if (!initializationScheduled.compareAndSet(false, true)) return
     if (!gate.enter()) { initializationScheduled.set(false); return }
@@ -355,6 +358,24 @@ internal class ThemeIconImportRuntime(
           }
           return true
         }
+        if (code == UNREGISTER_APPEARANCE_VARIANTS) {
+          require(flags and IBinder.FLAG_ONEWAY == 0 && reply != null)
+          data.enforceInterface(GRANT_DESCRIPTOR)
+          fun read() = requireNotNull(data.readString()).also { require(it.length in 1..4096) }
+          val primary = ConvertedIconArchive.Digests(read(), read())
+          require(data.dataAvail() == 0)
+          val status = try {
+            check(grantsReady) { "Converted approval hooks unavailable" }
+            appearance(context).unregister(primary).status
+          } catch (failure: Exception) {
+            if (failure is InterruptedException) Thread.currentThread().interrupt()
+            xposed.log(Log.WARN, TAG, "Fixed-appearance icon removal failed", failure)
+            "failed ${failure.javaClass.simpleName}"
+          }
+          reply.writeNoException()
+          reply.writeString(status)
+          return true
+        }
         if (code == SYNC_APPEARANCE_VARIANT) {
           require(flags and IBinder.FLAG_ONEWAY == 0 && reply != null)
           data.enforceInterface(GRANT_DESCRIPTOR)
@@ -399,6 +420,7 @@ internal class ThemeIconImportRuntime(
     const val AUTHORIZE_AUTO_APPLY = 0x004b4802
     const val REGISTER_APPEARANCE_VARIANTS = 0x004b4803
     const val SYNC_APPEARANCE_VARIANT = 0x004b4804
+    const val UNREGISTER_APPEARANCE_VARIANTS = 0x004b4805
     private const val AUTO_APPLY_HOOK_ID = "keihome.theme.icon.auto_apply.v1"
     private const val RIGHTS_HOOK_ID = "keihome.theme.converted_icon.rights.v1"
     private const val DOWNLOAD_RIGHTS_HOOK_ID = "keihome.theme.converted_icon.download_rights.v1"

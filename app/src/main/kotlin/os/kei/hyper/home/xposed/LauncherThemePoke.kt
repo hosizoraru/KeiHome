@@ -15,18 +15,27 @@ import android.content.res.Configuration
  * The flag is outside MiuiConfiguration's restart set (framework | icon | font | launcher |
  * third-party app), so Home's own restart policy does not rebuild the Launcher either.
  * Home's process sequence then runs ahead of the global one; [poke] always increments past
- * both, and the caller repeats it after a real icon-theme change so Home still sees that.
+ * both, and the caller repeats it after a real icon-theme change ([ahead]) so Home still sees that.
  */
 internal object LauncherThemePoke {
   const val LAUNCHER = "com.miui.home"
   /** MiuiConfiguration.THEME_FLAG_FREE_HOME_DEPRECATED: no component restarts for it. */
   private const val NO_RESTART_FLAG = 2_097_152L
 
+  /** JVM-wide, so a hot-reloaded module generation continues from the same sequence. */
+  private const val DELIVERED_KEY = "keihome.launcher.theme.sequence.v1"
+
   /**
    * Highest sequence delivered to Home. Global dispatches reset the server's last-reported copy
    * to the global value, while Home keeps the higher one, so the server copy cannot be trusted.
+   * A reload must not restart from zero: Home would ignore a sequence it has already passed.
    */
-  @Volatile private var delivered = 0
+  private var delivered: Int
+    get() = System.getProperty(DELIVERED_KEY)?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    set(value) { System.setProperty(DELIVERED_KEY, value.toString()) }
+
+  /** A poke reached Home in this system_server, so Home's sequence may be ahead of the global one. */
+  val ahead: Boolean get() = delivered > 0
 
   /** Takes the WM global lock. A caller may hold the UiModeManager lock (UiMode -> WM), no WM lock. */
   fun poke(launcherUid: Int): String {
@@ -60,6 +69,28 @@ internal object LauncherThemePoke {
       return "sent theme=$next procState=$state"
     }
   }
+
+  /**
+   * Ends Home's process for [userId] so the system starts a new one, whose engine reads every
+   * icon from the current archive ([LauncherRebuildSchedule]). Uses
+   * `ActivityManagerInternal.killProcess`, which records the exit and allows the restart.
+   * Takes the ActivityManager lock; call it from a worker that holds no system lock.
+   */
+  fun restart(launcherUid: Int, userId: Int, reason: String): String {
+    if (launcherUid < 0) return "no-launcher-uid"
+    val uid = userId * PER_USER_RANGE + launcherUid % PER_USER_RANGE
+    val ams = Class.forName("android.os.ServiceManager").getMethod("getService", String::class.java)
+      .invoke(null, "activity") ?: return "no-ams"
+    val loader = ams.javaClass.classLoader
+    val internal = Class.forName("android.app.ActivityManagerInternal", false, loader)
+    val service = Class.forName("com.android.server.LocalServices", false, loader)
+      .getMethod("getService", Class::class.java).invoke(null, internal) ?: return "no-ami"
+    internal.getMethod("killProcess", String::class.java, Int::class.javaPrimitiveType, String::class.java)
+      .invoke(service, LAUNCHER, uid, reason)
+    return "restarted uid=$uid"
+  }
+
+  private const val PER_USER_RANGE = 100_000
 
   private fun ancestor(type: Class<*>, name: String): Class<*> =
     generateSequence(type) { it.superclass }.firstOrNull { it.name == name }

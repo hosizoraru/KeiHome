@@ -39,23 +39,35 @@ swaps between them.
      removes only selector groups it can regenerate byte for byte from the
      archive's own `res` and `nightmode/res` PNGs (plain and palette templates,
      current and legacy forms). The dark copy writes the night PNG at the
-     default path. Names in `keihome-system-fallback.txt`, authored programs
-     (clock, calendar, weather) and unrecognized groups stay unchanged.
+     default path. These stay unchanged:
+     - names in `keihome-system-fallback.txt` and phone companions
+       (`RecommendedPackageIcons.PHONE_TARGETS`), whose frontends need a descriptor;
+     - names another resource can also serve: static layer pairs, other densities,
+       root PNGs, `animating_icons`, `layer_animating_icons` and `nightmode/fancy_icons`;
+     - authored programs (clock, calendar, weather) and unrecognized groups.
+
      Unchanged entries are copied raw by `RawIconArchive`.
    - Both copies pass the origin's own admission (`ConvertedIconArchive.validateIconsFile`).
    - Their SHA-256s are persisted in `/data/system/keihome-icon-imports/appearance-variants-v1.json`
      before Themes receives them. `ConvertedIconRuntime` approves a copy only
      while its primary converted digest is registered. The existing
      `converted-drm-v1.json` format is unchanged.
+   - An import made with the option off asks Themes to remove copies that an
+     earlier import of the same archive registered (`0x004b4805`). If one of
+     those copies is applied, Themes first puts the primary back, so the active
+     archive never loses its approval; Home is then poked and refreshed.
 3. **Themes, private bridge** (`0x004b4803`). `ThemeAppearanceVariants` checks the
    grant and the native component's bytes, then copies both stages into its private
    `keihome_appearance_variants` directory. It verifies each copy's digest and keeps
-   the two most recent records.
+   the two most recent records. The record whose primary or copy is applied is
+   always kept, so importing other packs without applying them cannot remove it.
+   The receipt is read under the store's lock on every use, without a cache.
 4. **Swap** (`0x004b4804`). Themes replaces `/data/system/theme/icons` only when
    its digest equals a registered primary or copy. It writes a verified temporary
    file beside the active archive and matches its owner, mode and SELinux label.
    It checks that the active archive did not change, renames atomically, and then
    stages the *opposite* copy as `/data/system/theme/.keihome-appearance-{light,dark}.icons`.
+   Each locked operation first removes temporary files a killed process left behind.
    The reply carries both files' identities (device, inode, size, mtime).
    system_server coalesces requests on the import worker. They come from
    night-mode changes, icon-theme changes (including re-applying the archive),
@@ -67,6 +79,9 @@ swaps between them.
    into place. That is two `lstat` calls and one same-directory `rename`.
 6. **Post-apply validation in Themes** (`ConvertedIconGrants.validates`,
    `ThemeConvertedGuard.validates`) also accepts a grant's registered copies.
+   The guard is published only after its copy lookup is bound. In system_server,
+   `ConvertedIconRuntime` hashes the active archive once more if a rename
+   replaced it during the first read.
 
 ## Making Home reload the archive
 
@@ -83,7 +98,12 @@ open and draws from its own caches. Two further steps are needed.
      for Home's process alone. The configuration carries a higher theme sequence
      and flag `2097152`, which is outside `MiuiConfiguration`'s restart set.
    - Each global configuration dispatch resets the server's last-reported copy,
-     so KeiHome tracks the highest sequence it delivered.
+     so KeiHome tracks the highest sequence it delivered. The value is a JVM
+     system property, so a hot-reloaded module (including a module update)
+     continues above the sequence Home has already seen.
+   - After a real icon-theme change, the poke is repeated so Home, whose
+     sequence may be ahead, still reopens the archive. A night change that
+     clears the refresh queue keeps that queued poke.
    - The poke runs in the UiModeManager hook right after the rename, before the
      night change is dispatched.
 2. **Redraw all icons: one batched package callback.** After the night change,
@@ -96,12 +116,41 @@ open and draws from its own caches. Two further steps are needed.
      of those icons in one pass.
    - Suspended packages, packages with several launcher entries, and shortcut
      callbacks keep the paced per-package path.
+   - Each profile alternates its own batch order, since one refresh sends a batch
+     per enabled profile. If the batch callback fails, that profile falls back to
+     the per-package path.
    - A successful rename requests a full refresh, so the isolated resource probe
      (about 2 s) is skipped.
 
 If the rename could not run (first switch after boot, a quick second toggle, or
-a palette change), Themes swaps afterwards. KeiHome then pokes Home and sends
-the same full refresh (`scheduleArchiveRefresh`).
+a palette change), Themes swaps afterwards. KeiHome then pokes Home and always
+sends the same full refresh (`scheduleArchiveRefresh`): reopening the archive
+does not redraw mounted icons.
+
+### Rebuilding Home when caches cannot follow
+
+The poke and the batch do not reach every cache. Home's drawer keeps its grid items alive
+(`AutomaticKeepAliveClientMixin`) with the images they were built with, and `IconCacheV2`
+replaces an entry only when a mounted `IconDrawableWidget` for that key updates
+(`didUpdateWidget` → `evict`). Drawer-only apps therefore keep the previous artwork. A full
+`PACKAGE_CHANGED` does not change that either. Home only clears these caches when its engine
+is rebuilt, and KeiHome has no code inside Home's process on a normal device.
+
+[LauncherRebuildSchedule](../app/src/main/kotlin/os/kei/hyper/home/xposed/LauncherRebuildSchedule.kt)
+therefore rebuilds Home through `ActivityManagerInternal.killProcess`, which records the exit
+and lets the system start Home again:
+
+- **After a dark/light switch:** at the next screen-off, once the screen has stayed off for
+  3 s. A screen that turns on earlier cancels the attempt until the following screen-off.
+  The workspace, Dock and folders already changed through the batch; the rebuild completes
+  the drawer. Home returns to its first page, which the user does not see.
+- **After an import is applied:** at once. Themes' own theme change has just reloaded Home
+  with the system-following original. A sync that replaces that original
+  (`applied … after apply`) or restores it during an opt-out reimport is urgent.
+- system_server watches `/data/system/theme` (`CLOSE_WRITE`, `MOVED_TO` on `icons`) and syncs
+  50 ms after Themes writes the archive, instead of waiting for a later event.
+- After a real theme change, Home was observed to ignore later pokes until it restarted. The
+  rebuild also recovers from that state.
 
 A *global* theme configuration change cannot replace the poke. Two drafts were
 tested:
@@ -140,8 +189,21 @@ its first page, and the foreground app, which appears to exit
   therefore show the previous artwork. This was not observed in the phone
   acceptance below, but it has not been ruled out.
 - **Applying another theme** produces an unknown digest, so nothing is swapped and
-  the staged files are removed. Turning the option off affects only the next
-  import. An archive imported with the option keeps swapping when it is re-applied.
+  the staged files are removed. Turning the option off affects the next import;
+  importing the same archive again then removes its copies. Re-applying an archive
+  that is still registered keeps swapping.
+- **Drawer after a switch:** drawer icons of apps that are not also on the workspace keep the
+  previous appearance until the next screen-off rebuild. An app that is long-pressed, opened
+  or redrawn for a badge picks up the workspace's refreshed cache entry earlier.
+- **Hot reload** drops a pending rebuild; the next archive change schedules it again.
+- **Interrupted imports:** if the import worker restarts after the native import
+  but before the copies were registered, the journal reconciliation delivers the
+  report without copies. That import stays system-following.
+- **Equal copies:** a pack whose flattened selectors are all palette selectors
+  with equal day and night artwork produces identical light and dark copies.
+  Registration refuses them and the import stays system-following.
+- **Secondary users:** the poke targets Home's process for user 0. In a second
+  space Home may not reopen the archive until the next theme event.
 - **Without KeiHome's system and Themes hooks,** the active copy stays fixed. A
   standalone export is unaffected; it remains the system-following archive.
 - **Storage:** two private copies in Themes' data, plus one staged copy in
@@ -154,15 +216,18 @@ its first page, and the foreground app, which appears to exit
   --tests 'os.kei.hyper.home.iconpack.NativeAppearanceVariantsTest' \
   --tests 'os.kei.hyper.home.xposed.ConvertedAppearanceVariantsTest' \
   --tests 'os.kei.hyper.home.xposed.AppearanceFastSwapTest' \
-  --tests 'os.kei.hyper.home.xposed.LauncherIconBatchTest'
+  --tests 'os.kei.hyper.home.xposed.LauncherIconBatchTest' \
+  --tests 'os.kei.hyper.home.xposed.ThemeAppearanceVariantsTest' \
+  --tests 'os.kei.hyper.home.xposed.ConvertedIconRuntimeTest'
 ```
 
-They cover selector recognition, exclusions, the dark default path, legacy
-templates, refusal without selectors, target policy, and framework approval
-inheritance. They also cover pre-dispatch rename preconditions: a matching
+They cover selector recognition, exclusions (phone companions and names another
+resource can serve), the dark default path, legacy templates, refusal without
+selectors, target policy, record retention (the applied record outlives newer
+imports), framework approval inheritance and one re-hash after a mid-read rename. They also cover pre-dispatch rename preconditions: a matching
 transition, a single use, foreign or changed files, and staging paths. Batch
-tests cover eligibility (single entry, not suspended) and the alternating order
-that keeps Home from dropping a repeated batch. `LauncherThemePoke` reflects on
+tests cover eligibility (single entry, not suspended) and the per-profile
+alternating order that keeps Home from dropping a repeated batch. `LauncherThemePoke` reflects on
 system_server classes and has device evidence only.
 
 ## Device evidence
@@ -186,6 +251,18 @@ place with hot reload; Home (PID 6412) and system_server (PID 3828) kept their P
   during the toggles.
 - A full-resolution home screen capture in dark mode matched the dark copy for
   every sampled Dock and folder icon. The user reported the test as passing.
+
+Follow-up on 2026-11-25 with 115000805–115000808 on the same phone:
+
+- After the 804 → 805 hot reload, pokes restarted at 6 while Home had reached 13 and were
+  ignored; the sequence is now a JVM system property and continues across reloads.
+- A drawer screenshot in light mode matched the dark copy for about 20 of 24 visible icons;
+  only a badge-redrawn icon matched the light copy. This established the drawer cache limit.
+- A screen-off after a switch logged `Launcher rebuilt after the icon archive change:
+  restarted uid=10138`; Home restarted at once and held the current copy.
+- An import was registered at 13:35:17, the copy replaced the applied original 1 s later
+  (`applied light after apply`) and Home was rebuilt immediately. After a later switch and
+  screen-off the user reported both the home screen and the drawer correct.
 
 ## Remaining acceptance
 

@@ -5,7 +5,7 @@
     <string name="desktop_overview_summary">Choose a category to view settings and sync status.</string>
     <string name="desktop_dock_summary">Dock style, corners and layout</string>
     <string name="desktop_display_title">Appearance</string>
-    <string name="desktop_display_summary">Search bar material, app labels, and wallpaper</string>
+    <string name="desktop_display_summary">Search bar material and app labels</string>
     <string name="desktop_icons_title">Icons and launch screens</string>
-    <string name="desktop_icons_summary">Icon effects, launch icons and backgrounds</string>
+    <string name="desktop_icons_summary">Icon effects and launch icons</string>
 </resources>

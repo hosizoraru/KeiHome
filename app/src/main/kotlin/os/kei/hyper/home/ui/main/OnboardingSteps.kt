@@ -175,8 +175,8 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
             onOpenDesktopSection(DesktopSection.ICONS.route)
           }
           SetupDivider()
-          SetupLink(DesktopSection.TOOLS.title, DesktopSection.TOOLS.summary, PageActionIcon.TOOLS) {
-            onOpenDesktopSection(DesktopSection.TOOLS.route)
+          SetupLink(DesktopSection.DARK_MODE.title, DesktopSection.DARK_MODE.summary, PageActionIcon.TOOLS) {
+            onOpenDesktopSection(DesktopSection.DARK_MODE.route)
           }
           SetupDivider()
           SetupLink(DesktopSection.NAVIGATION.title, DesktopSection.NAVIGATION.summary, PageActionIcon.SETTINGS) {

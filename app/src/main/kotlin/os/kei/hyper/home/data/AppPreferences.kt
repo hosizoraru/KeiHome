@@ -10,6 +10,7 @@ import os.kei.hyper.home.iconpack.ExtraIcon
 import os.kei.hyper.home.iconpack.ExtraIcons
 
 internal enum class AppAppearance { SYSTEM, LIGHT, DARK }
+internal enum class AppDarkStyle { ENHANCED, MEDIUM, GENTLE }
 internal enum class AppColorMode { DEFAULT, MONET, FOLLOW_ICONS }
 internal enum class AppPagerGesture { NATIVE, CROSS_AXIS }
 internal enum class AppTopBarBlur { OFF, GAUSSIAN, PROGRESSIVE }
@@ -47,6 +48,7 @@ internal enum class IconPackAppearance {
 
 internal data class AppPreferencesState(
   val appearance: AppAppearance = AppAppearance.SYSTEM,
+  val darkStyle: AppDarkStyle = AppDarkStyle.ENHANCED,
   val colorMode: AppColorMode = AppColorMode.FOLLOW_ICONS,
   val pageUserScroll: Boolean = true,
   val pagerGesture: AppPagerGesture = AppPagerGesture.CROSS_AXIS,
@@ -113,6 +115,8 @@ internal class AppPreferences internal constructor(
     appearance = AppAppearance.entries.firstOrNull {
       it.name == preferences.getString("appearance", null)
     } ?: AppAppearance.SYSTEM,
+    darkStyle = AppDarkStyle.entries.firstOrNull { it.name == preferences.getString("dark_style", null) }
+      ?: AppDarkStyle.ENHANCED,
     colorMode = AppColorMode.entries.firstOrNull { it.name == preferences.getString("ui_color_mode", null) }
       ?: AppColorMode.FOLLOW_ICONS,
     pageUserScroll = preferences.getBoolean("page_user_scroll", true),
@@ -183,6 +187,11 @@ internal class AppPreferences internal constructor(
   fun setAppearance(value: AppAppearance) {
     preferences.edit().putString("appearance", value.name).apply()
     state.update { it.copy(appearance = value) }
+  }
+
+  fun setDarkStyle(value: AppDarkStyle) {
+    preferences.edit().putString("dark_style", value.name).apply()
+    state.update { it.copy(darkStyle = value) }
   }
 
   fun setTopBarBlur(value: AppTopBarBlur) {

@@ -6,6 +6,8 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
 import android.os.UserManager
+import os.kei.hyper.home.data.supportsLowBrightnessContrast
+import os.kei.hyper.home.data.supportsSystemDarkStyle
 import os.kei.hyper.home.status.NavigationBackdropInbox
 
 /** Short control operations that do not depend on completing an icon sweep. */
@@ -100,9 +102,20 @@ internal class LauncherControlMonitor(
           if (!closed) onFailure(failure)
         }
         try {
+          if (supportsSystemDarkStyle()) {
+            registerSystemDarkStyle(context, handler, registrations, { !closed }, onFailure)
+          }
+        } catch (failure: Exception) {
+          if (!closed) onFailure(failure)
+        }
+        try {
           val surfaces = wallpaperSurfaces()
           WallpaperDimmingControl(context, handler, registrations, wallpaperPreferences,
-            surfaces, { !closed }, onFailure).also {
+            surfaces, { !closed }, onFailure, onPreferencesReady = { preferences ->
+              if (supportsLowBrightnessContrast()) {
+                LowBrightnessContrast(context, handler, registrations, { !closed }, onFailure).start(preferences)
+              }
+            }).also {
             dimming = it
             it.start()
           }

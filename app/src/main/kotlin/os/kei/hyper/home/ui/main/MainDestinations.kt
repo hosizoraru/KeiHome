@@ -27,7 +27,7 @@ internal enum class MainShortcut(
   MONET(MainTab.PACKS, PackRoute("monet"), R.string.navigation_monet, PageActionIcon.MONET),
   COMPLETION(MainTab.PACKS, PackRoute("fallback"), R.string.pack_completion_title, PageActionIcon.MATCH),
   CUSTOM(MainTab.PACKS, PackRoute("custom-icons"), R.string.custom_icons_title, PageActionIcon.CUSTOMIZE),
-  TOOLS(MainTab.DESKTOP, DesktopRoute(DesktopSection.TOOLS.route), DesktopSection.TOOLS.title, PageActionIcon.TOOLS),
+  DARK_MODE(MainTab.DESKTOP, DesktopRoute(DesktopSection.DARK_MODE.route), DesktopSection.DARK_MODE.title, PageActionIcon.TOOLS),
 }
 
 @Composable

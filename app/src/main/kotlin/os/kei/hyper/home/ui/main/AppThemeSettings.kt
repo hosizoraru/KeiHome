@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppAppearance
 import os.kei.hyper.home.data.AppColorMode
+import os.kei.hyper.home.data.AppDarkStyle
 import os.kei.hyper.home.data.AppNavigationBarStyle
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.AppTopBarBlur
@@ -51,14 +52,15 @@ private val appPaletteLabels = listOf(R.string.browser_ui_default, R.string.brow
 private val appThemeSearchLabels = listOf(
   R.string.settings_app_theme_title, R.string.settings_app_theme_summary, R.string.polish_appearance_title,
   R.string.polish_appearance_light, R.string.polish_appearance_dark, R.string.language_system,
-  R.string.polish_appearance_summary, R.string.polish_settings_display, R.string.settings_theme_display,
+  R.string.polish_appearance_summary, R.string.dark_mode_style_title, R.string.dark_mode_style_summary,
+  R.string.polish_settings_display, R.string.settings_theme_display,
   R.string.browser_ui_palette, R.string.browser_ui_palette_hint, R.string.top_bar_blur,
   R.string.top_bar_blur_summary, R.string.top_bar_off, R.string.top_bar_gaussian, R.string.top_bar_progressive,
   R.string.app_squircle_title, R.string.app_squircle_summary, R.string.app_scale_title, R.string.app_scale_summary,
   R.string.app_scroll_haptic_title, R.string.app_scroll_haptic_summary, R.string.navigation_bar_style_title,
   R.string.navigation_bar_style_summary, R.string.navigation_bar_style_ios_like,
   R.string.navigation_bar_style_os4_glass, R.string.navigation_bar_style_search_keywords,
-) + appPaletteLabels
+) + appPaletteLabels + darkStyleLabels
 
 internal fun appThemeSearchMatches(query: String, resources: Resources): Boolean =
   settingsQueryMatches(query, appThemeSearchLabels.joinToString(" ") { resources.getString(it) } +
@@ -90,6 +92,11 @@ internal fun AppThemeSettingsContent(preferences: AppPreferences) {
             else -> AppAppearance.LIGHT
           })
         }, modifier = Modifier.testTag("settings.theme.follow-system"))
+      Os4DropdownPreference(title = stringResource(R.string.dark_mode_style_title),
+        summary = stringResource(R.string.dark_mode_style_summary),
+        items = darkStyleLabels.map { stringResource(it) }, selectedIndex = state.darkStyle.ordinal,
+        onSelectedIndexChange = { preferences.setDarkStyle(AppDarkStyle.entries[it]) },
+        modifier = Modifier.testTag("settings.theme.dark-style"))
     }
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       Os4DropdownPreference(title = stringResource(R.string.browser_ui_palette),

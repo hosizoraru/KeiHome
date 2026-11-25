@@ -8,6 +8,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.activity.compose.LocalActivity
 import androidx.core.view.WindowCompat
 import androidx.compose.runtime.remember
@@ -22,25 +24,39 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.channels.awaitClose
 import os.kei.hyper.home.data.AppAppearance
+import os.kei.hyper.home.data.AppDarkStyle
 import os.kei.hyper.home.data.AppPreferences
 import os.kei.hyper.home.data.DEFAULT_APP_SCALE_PERCENT
 import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 internal val LocalKeiHomeDarkTheme = staticCompositionLocalOf { false }
 internal val LocalKeiHomeScrollEndHaptic = staticCompositionLocalOf { true }
 
+private fun Colors.withDarkStyle(style: AppDarkStyle): Colors {
+  val strength = when (style) {
+    AppDarkStyle.ENHANCED -> return this
+    AppDarkStyle.MEDIUM -> 0.09f
+    AppDarkStyle.GENTLE -> 0.18f
+  }
+  fun lift(color: Color): Color = lerp(color, Color(0xFFAAAAAA).copy(alpha = color.alpha), strength)
+  return copy(background = lift(background), surface = lift(surface), surfaceVariant = lift(surfaceVariant),
+    surfaceContainer = lift(surfaceContainer), surfaceContainerHigh = lift(surfaceContainerHigh),
+    surfaceContainerHighest = lift(surfaceContainerHighest))
+}
+
 @Composable
 fun KeiHomeTheme(content: @Composable () -> Unit) {
   val preferences = AppPreferences.get(LocalContext.current)
   val (choiceFlow, initialChoice) = remember(preferences) {
-    preferences.state.map { it.appearance to it.colorMode }.distinctUntilChanged() to
-      preferences.state.value.let { it.appearance to it.colorMode }
+    preferences.state.map { Triple(it.appearance, it.colorMode, it.darkStyle) }.distinctUntilChanged() to
+      preferences.state.value.let { Triple(it.appearance, it.colorMode, it.darkStyle) }
   }
   val choice by choiceFlow.collectAsStateWithLifecycle(initialValue = initialChoice)
-  val (appearance, colorMode) = choice
+  val (appearance, colorMode, darkStyle) = choice
   val (interactionFlow, initialInteraction) = remember(preferences) {
     preferences.state.map { Triple(it.appScalePercent, it.squircleShapes, it.scrollEndHaptic) }.distinctUntilChanged() to
       preferences.state.value.let { Triple(it.appScalePercent, it.squircleShapes, it.scrollEndHaptic) }
@@ -111,14 +127,19 @@ fun KeiHomeTheme(content: @Composable () -> Unit) {
     LocalKeiHomeScrollEndHaptic provides scrollEndHaptic,
   ) {
     MiuixTheme(controller = controller) {
-      // Include Monet's surface when the system hands the starting window to Compose.
-      val windowBackground = MiuixTheme.colorScheme.surface.toArgb()
-      DisposableEffect(activity, windowBackground) {
-        activity?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(windowBackground))
-        onDispose {}
-      }
-      content()
+      val colors = if (dark) MiuixTheme.colorScheme.withDarkStyle(darkStyle) else MiuixTheme.colorScheme
+      MiuixTheme(colors = colors) { KeiHomeWindowContent(activity, content) }
     }
   }
 }
 
+@Composable
+private fun KeiHomeWindowContent(activity: android.app.Activity?, content: @Composable () -> Unit) {
+  // Include the selected surface when the system hands the starting window to Compose.
+  val windowBackground = MiuixTheme.colorScheme.surface.toArgb()
+  DisposableEffect(activity, windowBackground) {
+    activity?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(windowBackground))
+    onDispose {}
+  }
+  content()
+}

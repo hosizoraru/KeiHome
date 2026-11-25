@@ -26,6 +26,7 @@ internal class WallpaperDimmingControl(
   private val surfaces: WallpaperSurfaceDimming?,
   private val active: () -> Boolean,
   private val onFailure: (Throwable) -> Unit,
+  private val onPreferencesReady: (SharedPreferences) -> Unit,
 ) {
   private var preferences: SharedPreferences? = null
   private var platform: WallpaperDimRequests? = null
@@ -41,10 +42,10 @@ internal class WallpaperDimmingControl(
     override fun run() {
       if (!active()) return
       try {
+        val prefs = if (removedUid == null) connectPreferences() else null
         val uid = removedUid ?: context.packageManager.getApplicationInfo(BuildConfig.APPLICATION_ID, 0).uid
         val service = platform ?: WallpaperDimRequests.resolve(context).also { platform = it }
         val config = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-        val prefs = if (removedUid == null) connectPreferences() else null
         val strengths = if (prefs != null && config == Configuration.UI_MODE_NIGHT_YES &&
           WallpaperDimmingPreferences.enabled(prefs)) WallpaperDimmingPreferences.strengths(prefs)
           else WallpaperDimStrengths.Off
@@ -54,7 +55,7 @@ internal class WallpaperDimmingControl(
           service.update(uid, 0f)
           surfaces.update(context, service.service, strengths, refreshSurfaces.getAndSet(false))
         } else {
-          service.update(uid, strengths.home / 100f)
+          service.update(uid, strengths.forScreen(lockScreen = false) / 100f)
         }
         if (publishedStrengths != strengths) {
           context.sendBroadcast(Intent(WALLPAPER_DIM_CHANGED).setPackage("com.android.systemui"),
@@ -113,6 +114,7 @@ internal class WallpaperDimmingControl(
     registrations.own { it.unregisterOnSharedPreferenceChangeListener(listener) }
     it.registerOnSharedPreferenceChangeListener(listener)
     preferences = it
+    onPreferencesReady(it)
   }
 }
 

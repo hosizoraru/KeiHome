@@ -34,11 +34,11 @@ internal fun DesktopPage(model: HomeViewModel, onOpenSection: (String) -> Unit) 
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     DesktopConnectionCard(model)
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      DesktopSection.entries.filter { it != DesktopSection.OVERVIEW }.forEach { section ->
+      DesktopSection.entries.filter { it != DesktopSection.OVERVIEW && it != DesktopSection.TOOLS }.forEach { section ->
         val pressSource = rememberOs4PressSource()
         val icon = actionIcon(when (section) {
           DesktopSection.DOCK -> PageActionIcon.DESKTOP
-          DesktopSection.APPEARANCE, DesktopSection.TOOLS, DesktopSection.NAVIGATION -> PageActionIcon.SETTINGS
+          DesktopSection.APPEARANCE, DesktopSection.DARK_MODE, DesktopSection.NAVIGATION -> PageActionIcon.SETTINGS
           else -> PageActionIcon.PACKS
         })
         BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),

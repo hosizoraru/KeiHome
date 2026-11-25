@@ -1,0 +1,23 @@
+<resources>
+    <string name="desktop_dark_mode_title">ダークモード設定</string>
+    <string name="desktop_dark_mode_summary">ダークスタイル、壁紙、ステータスバーのコントラスト</string>
+    <string name="desktop_dark_mode_statusbar">ステータスバーの色反転</string>
+    <string name="dark_mode_style_title">KeiHome のダークスタイル</string>
+    <string name="dark_mode_style_summary">KeiHome のダークモードで使う背景の明るさを選びます。</string>
+    <string name="dark_mode_style_enhanced">強め</string>
+    <string name="dark_mode_style_medium">標準</string>
+    <string name="dark_mode_style_gentle">ソフト</string>
+    <string name="system_dark_style_title">システムのダークスタイル</string>
+    <string name="system_dark_style_summary">HyperOS の設定、通知、Android システム画面のダーク背景色を調整します。「強調」は元のシステム色を使います。</string>
+    <string name="system_dark_style_scope">システムフレームワークのスコープを有効にすると、システムのダークスタイルを調整できます。</string>
+    <string name="system_dark_style_busy">システムのダークスタイルを確認中…</string>
+    <string name="system_dark_style_failed">システムのダークスタイルを確認できませんでした。スタイルを選び直してください。</string>
+    <string name="dark_mode_wallpaper_style">壁紙を暗くするスタイル</string>
+    <string name="dark_mode_wallpaper_hyperos">HyperOS · 調整可能</string>
+    <string name="dark_mode_wallpaper_coloros">ColorOS</string>
+    <string name="dark_mode_wallpaper_preview">暗さをプレビュー</string>
+    <string name="dark_mode_wallpaper_fixed">ColorOS はホーム画面とロック画面の壁紙を %1$d%% 暗くします。</string>
+    <string name="dark_mode_low_contrast">低輝度時にコントラストを下げる</string>
+    <string name="dark_mode_low_contrast_summary">システムがダークモードのとき、20 ニト未満で画面の表示を和らげます。</string>
+    <string name="dark_mode_low_contrast_scope">コントラストを下げるにはシステムフレームワークのスコープを有効にしてください。</string>
+</resources>

@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import os.kei.hyper.home.data.WallpaperDimStrengths
+import os.kei.hyper.home.data.WallpaperDimStyle
 import os.kei.hyper.home.data.WallpaperDimmingPreferences
 import os.kei.hyper.home.status.FrameworkConnection
 
@@ -79,9 +80,15 @@ internal class WallpaperDimmingStrengthSettings(
 
   fun set(lockScreen: Boolean, percent: Int, separate: Boolean) {
     val before = state.value.strengths ?: return
-    val value = if (!separate) WallpaperDimStrengths(percent, percent)
+    if (before.style != WallpaperDimStyle.HYPER_OS) return
+    val value = if (!separate) before.copy(home = percent, lock = percent)
       else if (lockScreen) before.copy(lock = percent) else before.copy(home = percent)
     if (value != before || state.value.failed) save(value)
+  }
+
+  fun setStyle(style: WallpaperDimStyle) {
+    val before = state.value.strengths ?: return
+    if (before.style != style || state.value.failed) save(before.copy(style = style))
   }
 
   fun retry() { state.value.strengths?.let(::save) }

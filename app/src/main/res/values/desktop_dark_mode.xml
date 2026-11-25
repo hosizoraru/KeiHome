@@ -1,0 +1,23 @@
+<resources>
+    <string name="desktop_dark_mode_title">Dark mode settings</string>
+    <string name="desktop_dark_mode_summary">Dark styles, wallpapers, and status bar contrast</string>
+    <string name="desktop_dark_mode_statusbar">Status bar color inversion</string>
+    <string name="dark_mode_style_title">KeiHome dark style</string>
+    <string name="dark_mode_style_summary">Choose the shade of dark surfaces in KeiHome.</string>
+    <string name="dark_mode_style_enhanced">Enhanced</string>
+    <string name="dark_mode_style_medium">Medium</string>
+    <string name="dark_mode_style_gentle">Gentle</string>
+    <string name="system_dark_style_title">System dark style</string>
+    <string name="system_dark_style_summary">Adjusts dark backgrounds in HyperOS Settings, notifications and Android system surfaces. Enhanced uses the original system colors.</string>
+    <string name="system_dark_style_scope">Enable the System Framework scope to adjust system dark colors.</string>
+    <string name="system_dark_style_busy">Checking system dark colors…</string>
+    <string name="system_dark_style_failed">Could not confirm the system dark style. Select a style to try again.</string>
+    <string name="dark_mode_wallpaper_style">Wallpaper dimming style</string>
+    <string name="dark_mode_wallpaper_hyperos">HyperOS · Adjustable</string>
+    <string name="dark_mode_wallpaper_coloros">ColorOS</string>
+    <string name="dark_mode_wallpaper_preview">Preview dimming</string>
+    <string name="dark_mode_wallpaper_fixed">ColorOS dims both wallpapers by %1$d%%.</string>
+    <string name="dark_mode_low_contrast">Reduce contrast at low brightness</string>
+    <string name="dark_mode_low_contrast_summary">Soften the display below 20 nits while the system is in dark mode.</string>
+    <string name="dark_mode_low_contrast_scope">Enable the System Framework scope to reduce contrast.</string>
+</resources>

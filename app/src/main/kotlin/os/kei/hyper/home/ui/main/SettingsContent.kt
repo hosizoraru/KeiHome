@@ -84,7 +84,7 @@ internal fun SettingsContent(
     R.string.hide_launcher_icon, R.string.hide_launcher_icon_summary, extra = "launcher LSPosed")
   val migratedSearch = section == null && query.isNotBlank()
   val wallpaperDimming = migratedSearch && matches(SettingsSection.HOOK, R.string.wallpaper_dimming_title,
-    R.string.wallpaper_dimming_summary, R.string.desktop_display_title)
+    R.string.wallpaper_dimming_summary, R.string.desktop_dark_mode_title)
   val wallpaperPresets = migratedSearch && matches(SettingsSection.HOOK, R.string.wallpaper_presets_title,
     R.string.wallpaper_presets_summary, R.string.desktop_display_title)
   val recommendedMappings = migratedSearch && onOpenRecommendedMappings != null &&

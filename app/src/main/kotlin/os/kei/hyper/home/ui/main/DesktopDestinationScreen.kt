@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -28,17 +29,21 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSection, onBack: () -> Unit,
   navigationPage: String? = null, onOpenNavigationPage: (String) -> Unit = {}) {
-  if (section == DesktopSection.TOOLS) {
+  if (section == DesktopSection.TOOLS ||
+    section == DesktopSection.DARK_MODE && navigationPage == DesktopSection.TOOLS.route) {
     DesktopToolsScreen(model, onBack)
     return
   }
@@ -74,7 +79,7 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
           start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
           bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DesktopStatusCard(model, section)
+        if (section != DesktopSection.DARK_MODE) DesktopStatusCard(model, section)
         section.features.forEach { feature ->
           when (feature) {
             DesktopFeature.DOCK_MATERIAL -> LauncherGlassSettingsCard(model)
@@ -84,9 +89,19 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
             else -> DesktopIconSettings(model, feature)
           }
         }
-        if (section == DesktopSection.APPEARANCE) {
+        if (section == DesktopSection.DARK_MODE) {
+          SystemDarkStyleSettingsCard(model)
           WallpaperPresetSettingsCard(model)
           WallpaperDimmingSettingsCard(model)
+          LowBrightnessContrastSettingsCard(model)
+          DesktopIconSettings(model, DesktopFeature.SPLASH)
+          Card(insideMargin = PaddingValues(0.dp)) {
+            BasicComponent(title = stringResource(R.string.desktop_dark_mode_statusbar),
+              summary = stringResource(DesktopSection.TOOLS.summary),
+              role = Role.Button, onClick = { onOpenNavigationPage(DesktopSection.TOOLS.route) },
+              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+              modifier = Modifier.testTag("desktop.dark-mode.tools"))
+          }
         }
       }
     }

@@ -1,0 +1,23 @@
+<resources>
+    <string name="desktop_dark_mode_title">深色模式设置</string>
+    <string name="desktop_dark_mode_summary">暗色风格、壁纸和状态栏对比度</string>
+    <string name="desktop_dark_mode_statusbar">状态栏反色</string>
+    <string name="dark_mode_style_title">KeiHome 暗色风格</string>
+    <string name="dark_mode_style_summary">选择 KeiHome 界面在深色模式下的底色深浅。</string>
+    <string name="dark_mode_style_enhanced">增强</string>
+    <string name="dark_mode_style_medium">适中</string>
+    <string name="dark_mode_style_gentle">柔和</string>
+    <string name="system_dark_style_title">系统暗色风格</string>
+    <string name="system_dark_style_summary">调整 HyperOS 系统设置、通知和 Android 系统界面的深色底色。增强档使用系统原色。</string>
+    <string name="system_dark_style_scope">启用系统框架作用域后可调整系统暗色风格。</string>
+    <string name="system_dark_style_busy">正在确认系统暗色风格…</string>
+    <string name="system_dark_style_failed">无法确认系统暗色风格，请重新选择档位。</string>
+    <string name="dark_mode_wallpaper_style">壁纸调暗风格</string>
+    <string name="dark_mode_wallpaper_hyperos">HyperOS · 可调强度</string>
+    <string name="dark_mode_wallpaper_coloros">ColorOS</string>
+    <string name="dark_mode_wallpaper_preview">预览调暗效果</string>
+    <string name="dark_mode_wallpaper_fixed">ColorOS 将桌面和锁屏壁纸调暗 %1$d%%。</string>
+    <string name="dark_mode_low_contrast">低亮度时降低对比度</string>
+    <string name="dark_mode_low_contrast_summary">系统处于深色模式且亮度低于 20 尼特时，柔化屏幕显示。</string>
+    <string name="dark_mode_low_contrast_scope">启用系统框架作用域后即可降低对比度。</string>
+</resources>

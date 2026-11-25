@@ -5,7 +5,7 @@
     <string name="desktop_overview_summary">按分类调整设置，在子页面查看同步状态。</string>
     <string name="desktop_dock_summary">材质、圆角与布局</string>
     <string name="desktop_display_title">桌面外观</string>
-    <string name="desktop_display_summary">搜索栏质感、应用名称与壁纸</string>
+    <string name="desktop_display_summary">搜索栏质感与应用名称</string>
     <string name="desktop_icons_title">图标与启动</string>
-    <string name="desktop_icons_summary">图标材质、启动图标与背景</string>
+    <string name="desktop_icons_summary">图标材质与启动图标</string>
 </resources>

@@ -59,8 +59,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.WallpaperDimStrengths
+import os.kei.hyper.home.data.WallpaperDimStyle
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -77,6 +79,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun WallpaperDimmingSettingsCard(model: HomeViewModel) {
   val settings by model.wallpaperDimming.state.collectAsStateWithLifecycle()
+  val strengths by model.wallpaperDimmingStrength.state.collectAsStateWithLifecycle()
   val framework by model.framework.collectAsStateWithLifecycle()
   val inScope = framework.wallpaperDimmingInScope()
   var show by rememberSaveable { mutableStateOf(false) }
@@ -84,7 +87,15 @@ internal fun WallpaperDimmingSettingsCard(model: HomeViewModel) {
     scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed,
     title = R.string.wallpaper_dimming_title, summary = R.string.wallpaper_dimming_summary,
     tag = "wallpaper-dimming", feature = null, scopeMessage = R.string.wallpaper_dimming_scope) {
-    BasicComponent(title = stringResource(R.string.wallpaper_dimming_strength),
+    val style = strengths.strengths?.style
+    Os4DropdownPreference(title = stringResource(R.string.dark_mode_wallpaper_style),
+      items = listOf(stringResource(R.string.dark_mode_wallpaper_hyperos), stringResource(R.string.dark_mode_wallpaper_coloros)),
+      selectedIndex = style?.ordinal ?: 0,
+      enabled = inScope && style != null,
+      onSelectedIndexChange = { model.wallpaperDimmingStrength.setStyle(WallpaperDimStyle.entries[it]) },
+      modifier = Modifier.testTag("wallpaper-dimming.style"))
+    BasicComponent(title = stringResource(if (style == WallpaperDimStyle.COLOR_OS)
+      R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
       summary = stringResource(R.string.wallpaper_dimming_strength_entry),
       enabled = inScope, onClick = { show = true },
       endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
@@ -144,7 +155,9 @@ private fun WallpaperDimmingStrengthSheet(
       }
     }
   }
-  Os4DetailsSheet(show, onDismiss, title = stringResource(R.string.wallpaper_dimming_strength),
+  val colorOs = state.strengths?.style == WallpaperDimStyle.COLOR_OS
+  Os4DetailsSheet(show, onDismiss, title = stringResource(if (colorOs)
+    R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
     endAction = {
       val label = stringResource(R.string.wallpaper_dimming_preview_refresh)
       KeiHomeIconButton(onClick = refresh, enabled = !previewState.refreshing,
@@ -167,7 +180,10 @@ private fun WallpaperDimmingStrengthSheet(
     Text(stringResource(if (separate == false) R.string.wallpaper_dimming_shared else R.string.wallpaper_dimming_live),
       style = MiuixTheme.textStyles.body2,
       color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
+    if (colorOs) {
+      Text(stringResource(R.string.dark_mode_wallpaper_fixed, percent),
+        color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    } else SliderPreference(value = percent.toFloat(), valueRange = 0f..100f,
       title = stringResource(R.string.wallpaper_dimming_strength),
       valueText = stringResource(R.string.wallpaper_dimming_percent, percent),
       enabled = strengths != null && separate != null,

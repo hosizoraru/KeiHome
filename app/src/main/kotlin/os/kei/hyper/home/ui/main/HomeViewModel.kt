@@ -53,6 +53,7 @@ import os.kei.hyper.home.data.MonetPaletteSnapshot
 import os.kei.hyper.home.data.ThemeEffectsPreferences
 import os.kei.hyper.home.data.SplashAppearancePreferences
 import os.kei.hyper.home.data.WallpaperDimmingPreferences
+import os.kei.hyper.home.data.supportsLowBrightnessContrast
 import os.kei.hyper.home.status.FrameworkConnection
 import os.kei.hyper.home.status.FrameworkSnapshot
 import os.kei.hyper.home.status.readFrameworkSnapshot
@@ -254,6 +255,8 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
     SplashAppearancePreferences::saveIcons) { framework.value.splashAppearanceInScope() }
   val wallpaperDimming = RemoteBooleanSettings(viewModelScope, WallpaperDimmingPreferences::read,
     WallpaperDimmingPreferences::save) { framework.value.wallpaperDimmingInScope() }
+  val lowBrightnessContrast = RemoteBooleanSettings(viewModelScope, WallpaperDimmingPreferences::readContrast,
+    WallpaperDimmingPreferences::saveContrast) { supportsLowBrightnessContrast() && framework.value.wallpaperDimmingInScope() }
   val wallpaperDimmingStrength = WallpaperDimmingStrengthSettings(viewModelScope) {
     framework.value.wallpaperDimmingInScope()
   }
@@ -460,6 +463,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         splashAppearance.value = ThemeEffectsUiState()
         splashIcons.reset()
         wallpaperDimming.reset()
+        lowBrightnessContrast.reset()
         wallpaperDimmingStrength.reset()
         if (service == null && !binding.waiting) initialActivation.observe(null)
         if (service != null) coroutineScope {
@@ -547,7 +551,7 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         delay(5_000)
       }
     }
-    if (section != DesktopSection.ICONS) {
+    if (section != DesktopSection.ICONS && section != DesktopSection.DARK_MODE) {
       while (true) {
         refreshHomeScreenStatus()
         delay(5_000)
@@ -558,12 +562,19 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
   private suspend fun readDesktopSettings(section: DesktopSection?) {
     if (section == null || section == DesktopSection.APPEARANCE) {
       launcherLabels.read()
+    }
+    if (section == null || section == DesktopSection.DARK_MODE) {
       wallpaperDimming.read()
+      wallpaperDimmingStrength.read()
+      if (supportsLowBrightnessContrast()) lowBrightnessContrast.read()
     }
     if (section == null || section == DesktopSection.APPEARANCE || section == DesktopSection.DOCK) launcherGlass.read()
     if (section == null || section == DesktopSection.DOCK) dockGlass.read()
     if (section == DesktopSection.ICONS) {
       readThemeEffects()
+      splashIcons.read()
+    }
+    if (section == DesktopSection.DARK_MODE) {
       readSplashAppearance()
     }
   }
@@ -584,14 +595,17 @@ internal class HomeViewModel(application: Application) : AndroidViewModel(applic
         if (page == 4) { readSplashAppearance(); readThemeEffects() }
         if (page == 5) {
           readDesktopSettings(desktopSection)
-          if (desktopSection != DesktopSection.ICONS) refreshHomeScreenStatus()
+          if (desktopSection != DesktopSection.ICONS && desktopSection != DesktopSection.DARK_MODE) refreshHomeScreenStatus()
           val failed = framework.value.readFailed || when (desktopSection) {
-            DesktopSection.ICONS -> themeEffects.value.readFailed || splashAppearance.value.readFailed || splashIcons.state.value.readFailed
+            DesktopSection.ICONS -> themeEffects.value.readFailed || splashIcons.state.value.readFailed
+            DesktopSection.DARK_MODE -> wallpaperDimming.state.value.readFailed ||
+              wallpaperDimmingStrength.state.value.failed || lowBrightnessContrast.state.value.readFailed ||
+              splashAppearance.value.readFailed
             else -> homeScreenRuntime.value.readFailed || homeScreenRuntime.value.timedOut ||
               when (desktopSection) {
                 DesktopSection.DOCK -> dockGlass.state.value.failed || launcherGlass.state.value.failed
-                DesktopSection.APPEARANCE -> launcherLabels.state.value.failed || launcherGlass.state.value.failed ||
-                  wallpaperDimming.state.value.readFailed
+                DesktopSection.APPEARANCE -> launcherLabels.state.value.failed || launcherGlass.state.value.failed
+                DesktopSection.DARK_MODE -> false
                 else -> false
               }
           }

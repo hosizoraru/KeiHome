@@ -50,6 +50,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
   private val file = File("/data/system/theme/icons")
   private val lock = Any()
   private val snapshots = SplashSnapshotCache<Key, Snapshot>()
+  private val weatherTemperature = WeatherIconTemperature()
   private var source: Source? = null
   private var archive: ZipFile? = null
   private var retryAt = 0L
@@ -202,6 +203,7 @@ internal class SplashIconArtwork(private val maintenance: () -> Unit) {
           val themed = SurfaceIconSnapshotRenderer.render(zip,
             nativeLauncherActivityName(component) ?: activity.packageName,
             dark, locale, wallTime, palette, packageName = activity.packageName,
+            weatherTemperature = { global -> weatherTemperature.read(context, global, wallTime) },
             onDynamic = { dynamic = true }, originalIcon = {
               preserved = true
               original?.bitmap

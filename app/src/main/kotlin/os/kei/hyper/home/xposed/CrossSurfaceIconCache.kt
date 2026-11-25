@@ -77,6 +77,7 @@ internal class CrossSurfaceIconCache(
   private val pending = linkedSetOf<Key>()
   private val misses = hashSetOf<Key>()
   private val dynamicMinutes = hashMapOf<Key, Long>()
+  private val weatherTemperature = WeatherIconTemperature()
   private val cache = object : LruCache<Key, Bitmap>(maxEntries * SurfaceIconSnapshotRenderer.SIZE *
     SurfaceIconSnapshotRenderer.SIZE * 4) {
     override fun sizeOf(key: Key, value: Bitmap) = value.allocationByteCount
@@ -407,7 +408,8 @@ internal class CrossSurfaceIconCache(
         val zip = archive ?: ZipFile(file).also { archive = it }
         val name = nativeLauncherActivityName(component) ?: key.name
         bitmap = SurfaceIconSnapshotRenderer.render(zip, name, current.dark, current.locale,
-          now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = ::original) {
+          now, current.palette, ::checkCurrent, packageName = key.name, originalIcon = ::original,
+          weatherTemperature = { global -> weatherTemperature.read(context, global, now) }) {
           dynamic = true
         }
       }

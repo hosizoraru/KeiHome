@@ -199,7 +199,7 @@ internal class HyperOsShareIcons(
       try {
         val profile = HyperOsShareProfile.resolve(application, classLoader)
         val icons = CrossSurfaceIconCache(application, maxEntries = 64, systemPaletteEvents = true,
-          eagerReload = false) {
+          eagerReload = false, refreshOnMinute = true) {
           queueReplay()
         }
         cache = icons

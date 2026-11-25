@@ -27,6 +27,8 @@ import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeLayerConfig
 import os.kei.hyper.home.iconpack.NativeLayerViewport
+import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+import os.kei.hyper.home.iconpack.IconPackException
 import os.kei.hyper.home.iconpack.validNativeIconName
 import os.kei.hyper.home.iconpack.validDottedName
 import os.kei.hyper.home.iconpack.IconGenerationManifest
@@ -45,6 +47,7 @@ internal object SurfaceIconSnapshotRenderer {
     palette: Long = 0L, check: () -> Unit = {}, packageName: String? = null,
     resolvedMask: NativeAdaptiveIconMask? = resolveMask(zip, check),
     originalIcon: (() -> Bitmap?)? = null,
+    weatherTemperature: (global: Boolean) -> Int? = { null },
     onDynamic: () -> Unit = {},
   ): Bitmap? {
     if (!validNativeIconName(name) || name.length > 240) return null
@@ -63,8 +66,11 @@ internal object SurfaceIconSnapshotRenderer {
     }
     if ((packageName ?: name.substringBefore('#')) in skipped) return originalIcon?.invoke()
     val fallback = packageName?.takeIf { it != name && it.length <= 240 && validDottedName(it) }
-    val bitmap = renderArtwork(zip, name, dark, locale, now, palette, check, onDynamic)
-      ?: fallback?.let { renderArtwork(zip, it, dark, locale, now, palette, check, onDynamic) }
+    val weather = (packageName ?: name) == WeatherIconTemperature.PACKAGE
+    val bitmap = renderArtwork(zip, name, dark, locale, now, palette, check, weather,
+      weatherTemperature, onDynamic)
+      ?: fallback?.let { renderArtwork(zip, it, dark, locale, now, palette, check, weather,
+        weatherTemperature, onDynamic) }
       ?: return null
     return try {
       check()
@@ -120,7 +126,8 @@ internal object SurfaceIconSnapshotRenderer {
 
   private fun renderArtwork(
     zip: ZipFile, name: String, dark: Boolean, locale: Locale, now: Long,
-    palette: Long, check: () -> Unit, onDynamic: () -> Unit,
+    palette: Long, check: () -> Unit, weather: Boolean,
+    weatherTemperature: (Boolean) -> Int?, onDynamic: () -> Unit,
   ): Bitmap? {
     fun bytes(path: String, limit: Int = IMAGE_LIMIT): ByteArray? {
       check()
@@ -205,22 +212,64 @@ internal object SurfaceIconSnapshotRenderer {
     for (prefix in if (dark) listOf("nightmode/", "") else listOf("")) {
       val base = "${prefix}layer_animating_icons/$name/"
       bytes(base + "config.xml", 64 * 1024)?.let { config ->
-        val layers = try {
-          val availableLayers = NativeLayerConfig.availableLayerDirectories(
-            base,
-            zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toSet(),
-          )
+        val layerConfig = try {
+          // The legacy config only has numbered layer slots and may use one
+          // implicit slot. Probe its known resource locations for this icon.
+          val availableLayers = (0 until NativeLayerConfig.MAX_LAYERS)
+            .map(Int::toString).filterTo(linkedSetOf()) { layer ->
+              zip.getEntry("$base$layer/quiet/quietImage.png") != null ||
+                zip.getEntry("$base$layer/fancy/manifest.xml") != null
+            }
           NativeLayerConfig.parse(
             config,
             IconPackLimits(maxXmlBytes = 64 * 1024),
             check,
             availableLayers,
-          ).layers
-        } catch (_: Exception) { null }
-        if (layers != null) {
+          )
+        } catch (_: IconPackException) { null }
+        if (layerConfig != null) {
+          val weatherLayer = layerConfig.layers.last().takeIf { weather && it !in layerConfig.quietOnly }
+          if (weatherLayer != null) {
+            val fancy = "$base$weatherLayer/fancy/"
+            val program = bytes(fancy + "manifest.xml", 16 * 1024)?.let {
+              NativeWeatherLayerProgram.snapshot(it, fancy) { path -> zip.getEntry(path) != null }
+            }
+            if (program != null) {
+              val art = fancy + if (dark && program.embeddedNight) {
+                NativeWeatherLayerProgram.NIGHT_DIRECTORY
+              } else ""
+              val paths = layerConfig.layers.dropLast(1).map { layer ->
+                val directory = "$base$layer/"
+                val pair = try {
+                  bytes(directory + "fancy/manifest.xml", 64 * 1024)?.let {
+                    NativeMamlPair.parse(it, check)
+                  }
+                } catch (_: IconPackException) { null }
+                if (pair != null) directory + "fancy/" + if (dark) pair.dark else pair.light
+                else directory + "quiet/quietImage.png"
+              }
+              val result = composite(
+                if (program.background) paths + (art + "bg.png") else paths, nativeLayers = true)
+              if (result != null) {
+                try {
+                  val temperature = weatherTemperature(program.global)
+                  if (temperature != null) {
+                    drawWeatherTemperature(result, temperature, art) { path ->
+                      bytes(path)?.let { decode(it, keepTexture = true) }
+                    }
+                  }
+                  onDynamic()
+                  return result
+                } catch (failure: Throwable) {
+                  result.recycle()
+                  throw failure
+                }
+              }
+            }
+          }
           // Quiet assets are completed snapshots, independent of native texture bounds.
           image(base + "quiet/quietImage.png")?.let { return it }
-          composite(layers.map { base + it + "/quiet/quietImage.png" })?.let { return it }
+          composite(layerConfig.layers.map { base + it + "/quiet/quietImage.png" })?.let { return it }
         }
       }
       composite(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" }, nativeLayers = true)
@@ -228,6 +277,29 @@ internal object SurfaceIconSnapshotRenderer {
       image("${prefix}res/drawable-xxhdpi/$name.png")?.let { return it }
     }
     return null
+  }
+
+  private fun drawWeatherTemperature(
+    result: Bitmap, temperature: Int, base: String, glyphImage: (String) -> Bitmap?,
+  ) {
+    val glyphs = mutableListOf<Bitmap>()
+    try {
+      for (character in "$temperature°") {
+        glyphs += glyphImage("${base}num_$character.png") ?: return
+      }
+      val canvas = Canvas(result)
+      val bounds = NativeLayerViewport.bounds(Rect(0, 0, SIZE, SIZE))
+      val scale = bounds.width().toFloat() / NativeWeatherLayerProgram.CANVAS_SIZE
+      canvas.translate(bounds.left.toFloat(), bounds.top.toFloat())
+      canvas.scale(scale, scale)
+      val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+      var x = NativeWeatherLayerProgram.TEMPERATURE_X
+      val y = NativeWeatherLayerProgram.TEMPERATURE_Y
+      for (glyph in glyphs) {
+        canvas.drawBitmap(glyph, null, RectF(x, y, x + glyph.width, y + glyph.height), paint)
+        x += glyph.width
+      }
+    } finally { glyphs.forEach { it.recycle() } }
   }
 
   private fun decode(bytes: ByteArray, size: Int = SIZE, keepTexture: Boolean = false): Bitmap? {

@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.CancellationException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -21,6 +22,7 @@ import os.kei.hyper.home.iconpack.NativeAdaptiveIconMask
 import os.kei.hyper.home.iconpack.NativeDayNightIcon
 import os.kei.hyper.home.iconpack.NativeIconShapeConfig
 import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
+import os.kei.hyper.home.xposed.SurfaceIconSnapshotRenderer
 
 @RunWith(AndroidJUnit4::class)
 class PublishedIconCompositeMaskDeviceTest {
@@ -345,6 +347,60 @@ class PublishedIconCompositeMaskDeviceTest {
       val result = read(output)
       for ((name, bytes) in files) if (name != flat)
         assertArrayEquals(name, bytes, result.getValue(name))
+    }
+  }
+
+  @Test fun weatherSnapshotUsesAuthoredLayersAndSignedTemperatureBeforeMasking() {
+    val name = "com.miui.weather2"
+    val root = "layer_animating_icons/$name/"
+    val fancy = root + "1/fancy/"
+    val paths = weatherImages.mapTo(linkedSetOf()) { fancy + it }
+    val switched = requireNotNull(NativeWeatherLayerProgram.darkVariant(weather(), fancy, paths))
+    val files = entries(
+      root + "config.xml" to layers(),
+      root + "quiet/quietImage.png" to png(color = Color.YELLOW),
+      root + "0/quiet/quietImage.png" to png(351, color = Color.BLUE),
+      fancy + "manifest.xml" to switched,
+    )
+    for (path in paths) {
+      val image = path.removePrefix(fancy)
+      val day = if (image == "bg.png") png(351, color = Color.TRANSPARENT)
+        else png(30, 42, Color.WHITE)
+      val night = if (image == "bg.png") png(351, color = Color.MAGENTA)
+        else png(30, 42, Color.CYAN)
+      files[path] = day
+      files[fancy + NativeWeatherLayerProgram.NIGHT_DIRECTORY + image] = night
+    }
+    archive(files) { source, _ ->
+      ZipFile(source).use { zip ->
+        for (dark in listOf(false, true)) {
+          var queries = 0
+          var dynamic = false
+          fun render(temperature: Int?) = requireNotNull(SurfaceIconSnapshotRenderer.render(
+            zip, name, dark, Locale.US, 0L,
+            weatherTemperature = { global -> assertFalse(global); queries++; temperature },
+            onDynamic = { dynamic = true },
+          ))
+          val background = if (dark) Color.MAGENTA else Color.BLUE
+          val glyph = if (dark) Color.CYAN else Color.WHITE
+          val plain = render(null)
+          val current = render(-9)
+          try {
+            assertEquals(2, queries)
+            assertTrue(dynamic)
+            assertEquals(background, plain.getPixel(96, 96))
+            assertEquals(background, current.getPixel(96, 96))
+            assertEquals(Color.TRANSPARENT, current.getPixel(0, 0))
+            assertEquals(background, plain.getPixel(45, 21))
+            assertEquals(glyph, current.getPixel(45, 21))
+            assertEquals(glyph, current.getPixel(70, 21))
+            assertEquals(glyph, current.getPixel(95, 21))
+          } finally {
+            plain.recycle()
+            current.recycle()
+          }
+        }
+      }
     }
   }
 

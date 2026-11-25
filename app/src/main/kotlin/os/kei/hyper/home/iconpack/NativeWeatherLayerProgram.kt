@@ -2,6 +2,17 @@ package os.kei.hyper.home.iconpack
 
 /** Exact weather display schemas; existing provider and refresh capabilities stay fixed. */
 internal object NativeWeatherLayerProgram {
+  const val CANVAS_SIZE = 351
+  const val TEMPERATURE_X = CANVAS_SIZE / 2f - 84
+  const val TEMPERATURE_Y = CANVAS_SIZE / 2f - 102
+  const val NIGHT_DIRECTORY = "keihome_night/"
+  const val LOCAL_URI = "content://weather/actualWeatherData/4"
+  const val GLOBAL_URI = "content://weather/actualWeatherData/1"
+  const val GLOBAL_FALLBACK_URI = "content://weather/weather"
+
+  data class Snapshot(val resources: Set<String>, val global: Boolean, val background: Boolean,
+    val embeddedNight: Boolean)
+
   private val limits = IconPackLimits(maxXmlBytes = 16 * 1024, maxMappings = 32)
   private val localBase = Regex("(?:[A-Za-z0-9_][A-Za-z0-9_.-]*/)+")
   private val comments = Regex("<!--[\\s\\S]*?-->")
@@ -29,7 +40,7 @@ internal object NativeWeatherLayerProgram {
       element("VariableBinders", children = listOf(
         element(
           "ContentProviderBinder", "name" to "weather_provider",
-          "uri" to "content://weather/actualWeatherData/4", "columns" to "temperature",
+          "uri" to LOCAL_URI, "columns" to "temperature",
           "countName" to "hasweather",
           children = listOf(
             element("Variable", "name" to "temperature", "type" to "int", "column" to "temperature"),
@@ -83,9 +94,9 @@ internal object NativeWeatherLayerProgram {
     children = listOf(
       element("VariableBinders", children = listOf(
         weatherGlobalBinder(
-          "weather_provider", "content://weather/actualWeatherData/1",
+          "weather_provider", GLOBAL_URI,
         ),
-        weatherGlobalBinder("weather_provider2", "content://weather/weather"),
+        weatherGlobalBinder("weather_provider2", GLOBAL_FALLBACK_URI),
       )),
       element(
         "Var", "name" to "weather_temperature",
@@ -162,11 +173,11 @@ internal object NativeWeatherLayerProgram {
     children = program.children.flatMap { node ->
       when (node.tag) {
         "Image" -> listOf(visibility(node, false),
-          visibility(node.copy(attributes = node.attributes + ("src" to "keihome_night/bg.png")), true))
+          visibility(node.copy(attributes = node.attributes + ("src" to "${NIGHT_DIRECTORY}bg.png")), true))
         "Group" -> listOf(node.copy(children = listOf(
           visibility(element("Group", children = node.children), false),
           visibility(element("Group", children = node.children.map {
-            it.copy(attributes = it.attributes + ("src" to "keihome_night/num.png"))
+            it.copy(attributes = it.attributes + ("src" to "${NIGHT_DIRECTORY}num.png"))
           }), true),
         )))
         else -> listOf(node)
@@ -180,7 +191,7 @@ internal object NativeWeatherLayerProgram {
       listOf(node.copy(children = listOf(
         visibility(element("Group", children = node.children), false),
         visibility(element("Group", children = node.children.map {
-          it.copy(attributes = it.attributes + ("src" to "keihome_night/num.png"))
+          it.copy(attributes = it.attributes + ("src" to "${NIGHT_DIRECTORY}num.png"))
         }), true),
       )))
     },
@@ -194,7 +205,7 @@ internal object NativeWeatherLayerProgram {
       if (node.tag != "Group") node else node.copy(children = listOf(
         visibility(element("Group", children = node.children), false),
         visibility(element("Group", children = node.children.map {
-          it.copy(attributes = it.attributes + ("src" to "keihome_night/num.png"))
+          it.copy(attributes = it.attributes + ("src" to "${NIGHT_DIRECTORY}num.png"))
         }), true),
       ))
     },
@@ -205,7 +216,10 @@ internal object NativeWeatherLayerProgram {
    * Returns the complete image closure for this exact program, or null on any mismatch.
    * [base] is an archive-relative directory ending in '/'; callers still validate image bytes.
    */
-  fun resources(bytes: ByteArray, base: String, paths: Set<String>): Set<String>? {
+  fun resources(bytes: ByteArray, base: String, paths: Set<String>): Set<String>? =
+    snapshot(bytes, base, paths::contains)?.resources
+
+  fun snapshot(bytes: ByteArray, base: String, exists: (String) -> Boolean): Snapshot? {
     if (base.length > 1024 || !localBase.matches(base) || ".." in base ||
       bytes.isEmpty() || bytes.size > limits.maxXmlBytes) return null
     val required = images.mapTo(linkedSetOf()) { base + it }
@@ -213,11 +227,12 @@ internal object NativeWeatherLayerProgram {
     val sourceResources: Set<String>
     val sourceSchemas: List<List<Boundary>>
     val darkSchemas: List<List<Boundary>>
-    if (paths.containsAll(required)) {
+    val background = required.all(exists)
+    if (background) {
       sourceResources = required
       sourceSchemas = listOf(expected)
       darkSchemas = listOf(darkExpected)
-    } else if (paths.containsAll(numericRequired)) {
+    } else if (numericRequired.all(exists)) {
       sourceResources = numericRequired
       sourceSchemas = listOf(numericExpected, globalExpected)
       darkSchemas = listOf(darkNumericExpected, darkGlobalExpected)
@@ -234,21 +249,22 @@ internal object NativeWeatherLayerProgram {
       .replace(declaration, "")
     if ("<?" in markup) return null
 
-    val isSource = sourceSchemas.any { matches(bytes, it) }
-    val isDark = darkSchemas.any { matches(bytes, it) }
-    if (!isSource && !isDark) return null
+    val sourceIndex = sourceSchemas.indexOfFirst { matches(bytes, it) }
+    val isDark = sourceIndex < 0
+    val index = if (isDark) darkSchemas.indexOfFirst { matches(bytes, it) } else sourceIndex
+    if (index < 0) return null
     val darkResources = sourceResources.mapTo(linkedSetOf()) {
-      base + "keihome_night/" + it.removePrefix(base)
+      base + NIGHT_DIRECTORY + it.removePrefix(base)
     }
-    return if (isDark && paths.containsAll(darkResources)) {
-      sourceResources + darkResources
-    } else if (isDark) null else sourceResources
+    if (isDark && !darkResources.all(exists)) return null
+    return Snapshot(if (isDark) sourceResources + darkResources else sourceResources,
+      global = index == 1, background = background, embeddedNight = isDark)
   }
 
   /** Rewrites only the exact original display tree; provider queries and event timing are unchanged. */
   fun darkVariant(bytes: ByteArray, base: String, paths: Set<String>): ByteArray? {
     val required = resources(bytes, base, paths) ?: return null
-    if (required.any { it.startsWith(base + "keihome_night/") }) return null
+    if (required.any { it.startsWith(base + NIGHT_DIRECTORY) }) return null
     val numeric = base + "bg.png" !in required
     val global = numeric && matches(bytes, globalExpected)
     fun escape(value: String) = value.replace("&", "&amp;").replace("\"", "&quot;")

@@ -1,0 +1,39 @@
+name: Set up KeiHome Android build
+description: Install the Java, Android SDK and native toolchains required by build-logic
+
+inputs:
+  java-version:
+    description: JDK version for the consuming Gradle build
+    required: false
+    default: '21'
+  install-android:
+    description: Whether to install the Android and native SDK packages
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Java 21
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+        cache: gradle
+
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android and native toolchains
+      if: inputs.install-android == 'true'
+      shell: bash
+      run: |
+        yes | sdkmanager --licenses >/dev/null || true
+        sdkmanager --install \
+          "platforms;android-37" \
+          "build-tools;37.0.0" \
+          "ndk;30.0.16248370" \
+          "cmake;4.1.2"
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v4

@@ -1,5 +1,6 @@
 package os.kei.hyper.home.xposed
 
+import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -115,12 +116,17 @@ internal class LowBrightnessContrast(
       val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
       val alpha = if (enabled && packageAvailable && night == Configuration.UI_MODE_NIGHT_YES &&
         display?.state == Display.STATE_ON && currentUser.invoke(null) == 0) {
-        lowBrightnessMaskAlpha(checkNotNull(displayManager).getBrightness(Display.DEFAULT_DISPLAY, BRIGHTNESS_UNIT_NITS))
+        lowBrightnessMaskAlpha(readPanelBrightnessNits(checkNotNull(displayManager)))
       } else 0f
       if (alpha == 0f) removeMask()
       else if (alpha != appliedAlpha || surface?.isValid != true) applyMask(alpha)
     }.onFailure(::reportFailure)
   }
+
+  // The framework accepts the internal nits unit, which the public SDK omits from its IntDef.
+  @SuppressLint("WrongConstant")
+  private fun readPanelBrightnessNits(manager: DisplayManager): Float =
+    manager.getBrightness(Display.DEFAULT_DISPLAY, BRIGHTNESS_UNIT_NITS)
 
   private fun reportFailure(failure: Throwable) {
     failed = true

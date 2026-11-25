@@ -109,5 +109,34 @@ Capture and inspect the desktop separately and exercise one enabled native
 feature. Also verify the Java targets and API 102 reload separately when
 accepting a new framework. The 7948 log build passed the cold boot checker
 on the recovered phone. The 7949 log build failed native startup on this
-configuration. A crash capture tied to the production Build ID and
-verification of a framework fix are still pending.
+configuration. A crash capture tied to the 7949 production Build ID is still
+pending.
+
+## 7953 follow-up on the physical phone
+
+The November 25 boot used LSPosed `2.2.1 (7953)`, Home `801030308` and
+KeiHome `115000782` (b0782). The installed LSPosed ARM64 library and
+`daemon.apk` matched the supplied 7953 archive. Its HyperOS Runtime
+registration still targets `/system_ext/bin/hyos_spawner`.
+
+Zygisk Next injected the HyperOS Runtime at 17:49:16 SGT. The first Home
+PID, 6161, loaded `libkeihome_hyos_lsp.so` at 17:49:21 and was still live
+at 17:55:18. WindowManager recorded the main Home window completing a draw
+and receiving input focus at 17:50:21. The captured crash, event and exit
+records contain no current-boot Home crash or ANR. KeiHome's Java
+system-server hooks installed and an icon refresh dispatched 203 callbacks.
+
+Before the bridge was ready, LSPosed logged eight connection refusals
+between 17:49:12.711 and 17:49:13.065. The monitor reported ready at
+17:49:17.688 and system-server bridge delivery completed at 17:49:17.969.
+The early `init` SIGABRT also appears in the healthy 7948 capture. Its
+crash helper produced no stack. Home logged a 4.4-second `ILauncherApps`
+call during startup and a later Flutter two-second first-frame warning.
+The capture is from one boot and does not establish a performance
+regression or its cause.
+
+The read-only checker confirmed stable PID and native load evidence. Its
+foreground requirement did not pass during the sampling window because a
+different app had focus. Logs already recorded the earlier Home focus.
+The audit did not rerun the boot or exercise API 102 hot reload. Evidence
+is under `.artifacts/physical-launcher-boot-20261125/7953-log-audit/`.

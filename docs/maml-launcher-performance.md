@@ -15,12 +15,13 @@ the stall. The imported archive still made Launcher parse the weather
 descriptor repeatedly.
 
 The HyperOS 4 weather descriptor is the only scanned dynamic group that
-declares `ContentProviderBinder`. Its `DateTime.Minute` updater refreshes
-`content://weather/actualWeatherData/4`. The generator now keeps the static
-weather counterpart and omits that animated descriptor when both are present.
-Calendar, clock, music and other local animation descriptors remain dynamic.
-The static fallback keeps a useful weather image without a synchronous
-provider query during Launcher construction.
+declares `ContentProviderBinder`. Its `DateTime.Minute` updater and weather
+refresh commands are part of the source manifest. The November 24 generator
+used the static weather counterpart to avoid loading that descriptor.
+The `keihome-perfect-layers-6` contract restores the original `com.miui.weather2`
+program using the same schema checks as native import. It keeps the original
+queries, update timing and glyphs. Desktop icon batch refresh is a separate
+optimization from evaluating the MAML program.
 
 Local testing used a Xiaomi 17 Pro, HyperOS `OS4.0.8.0.XBLCNXM`, Home
 `801030308`, and the installed KeiHome `113000646`. The display was set to
@@ -236,7 +237,7 @@ layer. The fancy manifest uses `DateTime.Minute` and a
 `ContentProviderBinder` for `content://weather/actualWeatherData/4`. The
 pre-fix Perfect archive preserves both stock numbered PNGs and the weather
 manifest, with the layer config adding `layer_only_quiet0=true` and
-`layer_only_fancy1=true`. The current generator keeps the authored static
+`layer_only_fancy1=true`. The November 24 generator kept the authored static
 artwork when a validated static fallback and an enabled provider-backed fancy
 layer coexist. Validation classifies the fancy layer from the XML it already
 parsed. XML comments and fancy manifests belonging to quiet-only layers have
@@ -248,7 +249,7 @@ The supplied LSPosed log records the desktop launch handoff to
 AVD, repeated Perfetto runs measured the weather launch slice at approximately
 885 ms for the stock archive, 647 ms for the complete Perfect archive, and
 454 ms for a weather-only control. These numbers vary with cold-start state,
-so they are used to compare the archive path. The current Perfect output
+so they are used to compare the archive path. The November 24 Perfect output
 omits the external weather provider and its live temperature and condition
 artwork. The weather app and the separate launcher widget still display
 their weather data.
@@ -331,3 +332,20 @@ Six cases skipped because their optional local fixtures were absent.
 The artifact directory `.artifacts/research/weather-acceptance-20261124/`
 contains the frame traces, SQL, summary, archive comparisons, deployment
 and apply receipts, and motion recordings.
+
+### November 25 weather restoration
+
+KeiHome b0782, signed with the KeiOS release key, was installed in place on
+the USB-connected Xiaomi 17 Pro running `OS4.0.8.0.XBLCNXM`, Home `801030308`
+and LSPosed 7948-log. Generating and applying the HyperOS4 pack through KeiHome
+put all 20 weather resources back into the active icon component. The
+temperature manifest and all of its glyphs matched the source bytes. The
+existing Twitter custom layers matched the previously applied component.
+
+The desktop showed `10°` in dark mode, with Perfect's extra dark adaptation
+disabled. The recording captured opening Weather and animating back to Home.
+Home's Rust MAML logs recorded the native `temperature` query during the
+transition. The new component was left applied. This was a functional
+check on one physical phone. No new frame-time benchmark or cold boot was
+performed. The build, resource comparison, screenshot, and motion recording
+are in `.artifacts/weather-live-20261125/`.

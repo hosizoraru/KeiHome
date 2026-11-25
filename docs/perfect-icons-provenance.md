@@ -132,17 +132,10 @@ dependency. Static rendering geometry is obtained from Android's own
 `AdaptiveIconDrawable` child bounds. Original artwork retains its existing
 rights; the packer's GPL-3.0 license does not grant rights to that artwork.
 
-Provider-backed dynamic descriptors are launch-sensitive. When a matching
-static counterpart exists, the generator retains it and omits the animated
-descriptor. HyperOS 4 Weather currently follows this policy because its
-descriptor queries `content://weather/actualWeatherData/4` on a minute
-updater. Other scanned dynamic groups use local variables or animation
-triggers and remain eligible.
-
-See [the interoperability record](perfect-layered-mtz.md) for the fixes and
-their validation boundary.
-
-The weather exception is intentionally narrow. A generated archive drops a
-provider-backed animated descriptor only when its package also has a complete
-static `0.png` and `1.png` pair. Local variable and trigger-driven dynamic
-icons continue through the animated path.
+The `keihome-perfect-layers-6` generator retains the source weather animation
+when it passes the native weather schema check. Its original manifest reads
+`content://weather/actualWeatherData/4` and declares the minute updater.
+Unrecognized provider-backed descriptors use their complete static `0.png`
+and `1.png` pair when available. Local variable and trigger-driven dynamic
+icons continue through the animated path. See [the interoperability
+record](perfect-layered-mtz.md) for the format and import checks.

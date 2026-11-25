@@ -127,14 +127,13 @@ well as the shared static rendering paths.
 - Standalone native ZIPs and MTZ icon components can contain these structures.
   Importing a Magisk/KernelSU module ZIP is not the workflow.
 
-The existing validated local-native import boundary still applies: bounded
-images and local visual XML are admitted. External sources, arbitrary binders,
-script installation payloads, malformed/ambiguous layers, and unsafe paths
-are rejected. One exact original weather program is recognized structurally:
-its read-only temperature query, update timing, glyph layout and all 13 textures
-must match. Additional queries or commands are rejected. This retains the
-original weather program; it does not add dark adaptation to it. Upstream
-identity is not a reason to bypass these checks.
+The local-native validator checks bounded images, local visual XML and the
+exact native weather program schemas. With original dynamic icons enabled,
+the generator keeps the recognized `com.miui.weather2` resources so Home can
+draw the live temperature. Validation checks the weather query, refresh
+schedule, glyph layout, and all required textures. An unrecognized
+provider-backed program keeps its available static fallback. Regenerate and
+apply a pack made under an earlier contract to restore its live temperature.
 
 ## Download and storage behavior
 

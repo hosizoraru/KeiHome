@@ -311,10 +311,12 @@ internal object PerfectIconFormat {
       val prefix = "layer_animating_icons/$name/"
       val resources = plan.files.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }
       try {
-        val rendering = PerfectDynamicIconValidator.validate(resources, read)
+        val rendering = PerfectDynamicIconValidator.validate(
+          resources, preserveNativeWeather = name == "com.miui.weather2", read = read,
+        )
         when {
           rendering == PerfectDynamicIconValidator.Rendering.QUIET -> staticIds += name
-          rendering == PerfectDynamicIconValidator.Rendering.PROVIDER_BACKED_FANCY && name in staticIds -> {
+          rendering == PerfectDynamicIconValidator.Rendering.OTHER_PROVIDER_BACKED_FANCY && name in staticIds -> {
             files.keys.removeAll { it.startsWith(prefix) }
             rejected[name] = "external content provider is launch-sensitive; kept static fallback"
           }

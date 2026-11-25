@@ -2,6 +2,10 @@ package os.kei.hyper.home.xposed
 
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.iconpack.NativeIconPngFixtures
+import os.kei.hyper.home.iconpack.perfect.PerfectIconBlob
+import os.kei.hyper.home.iconpack.perfect.PerfectIconFormat
+import os.kei.hyper.home.iconpack.perfect.PerfectIconPlan
 
 class LocalWeatherLayerProgramTest {
   private val base = "layer_animating_icons/com.miui.weather2/1/fancy/"
@@ -82,6 +86,47 @@ class LocalWeatherLayerProgramTest {
     mutations.forEach { xml ->
       assertNotEquals("Mutation must change the fixture", fixture, xml)
       assertNull(xml, resources(xml))
+    }
+  }
+
+  @Test fun perfectGenerationKeepsTheOriginalWeatherAndStaticFallback() {
+    val png = NativeIconPngFixtures.rgba()
+    val icon = "com.miui.weather2"
+    val root = "layer_animating_icons/$icon/"
+    val static = "res/drawable-xxhdpi/$icon/"
+    val manifest = base + "manifest.xml"
+    val source = (paths + listOf("${static}0.png", "${static}1.png", "${root}0/quiet/quietImage.png"))
+      .associateWith { png } + mapOf(
+      "${root}config.xml" to """
+        <Config><Variables>
+          <Variable name="layer0" value="0" type="string"/>
+          <Variable name="layer1" value="1" type="string"/>
+          <Variable name="layer_only_quiet0" value="true" type="string"/>
+          <Variable name="layer_only_fancy1" value="true" type="string"/>
+        </Variables></Config>
+      """.trimIndent().toByteArray(),
+      manifest to fixture.toByteArray(),
+    )
+    fun validate(files: Map<String, ByteArray>): PerfectIconPlan {
+      val blobs = files.mapValues { (path, bytes) -> PerfectIconBlob(path, path, bytes.size.toLong()) }
+      return PerfectIconFormat.validate(PerfectIconPlan(blobs, setOf(icon), setOf(icon))) {
+        files.getValue(it.path)
+      }
+    }
+    val weather = validate(source)
+    assertEquals(weather.rejectedDynamic.toString(), setOf(icon), weather.dynamicIds)
+    assertEquals(source.keys, weather.files.keys)
+    assertTrue(weather.rejectedDynamic.isEmpty())
+    val unsupported = listOf(
+      source + (manifest to fixture.replace("actualWeatherData/4", "actualWeatherData/5").toByteArray()),
+      source - (base + "num_-.png"),
+    )
+    for (invalid in unsupported) {
+      val fallback = validate(invalid)
+      assertEquals(setOf(icon), fallback.staticIds)
+      assertTrue(fallback.dynamicIds.isEmpty())
+      assertEquals(setOf(icon), fallback.rejectedDynamic.keys)
+      assertEquals(setOf("${static}0.png", "${static}1.png"), fallback.files.keys)
     }
   }
 

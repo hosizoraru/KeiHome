@@ -36,7 +36,7 @@ class PerfectDynamicIconValidatorTest {
         """<Icon><!-- <ContentProviderBinder uri="content://example"/> --></Icon>""".toByteArray(),
     )
     assertEquals(PerfectDynamicIconValidator.Rendering.FANCY, rendering(source))
-    assertEquals(PerfectDynamicIconValidator.Rendering.PROVIDER_BACKED_FANCY,
+    assertEquals(PerfectDynamicIconValidator.Rendering.OTHER_PROVIDER_BACKED_FANCY,
       rendering(source + ("1/fancy/manifest.xml" to provider)))
   }
 

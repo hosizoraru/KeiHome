@@ -8,6 +8,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import os.kei.hyper.home.iconpack.BoundedPackXml
 import os.kei.hyper.home.iconpack.NativeLayerConfig
+import os.kei.hyper.home.iconpack.NativeWeatherLayerProgram
 import os.kei.hyper.home.iconpack.IconPackLimits
 
 /** Checks local resource closure, independently of the native renderer's MAML execution policy. */
@@ -37,9 +38,13 @@ internal object PerfectDynamicIconValidator {
     return match.groupValues[1].toInt() <= 255 && match.groupValues[2].toInt() <= 32
   }
 
-  enum class Rendering { QUIET, FANCY, PROVIDER_BACKED_FANCY }
+  enum class Rendering { QUIET, FANCY, OTHER_PROVIDER_BACKED_FANCY }
 
-  fun validate(resources: Map<String, PerfectIconBlob>, read: (PerfectIconBlob) -> ByteArray): Rendering {
+  fun validate(
+    resources: Map<String, PerfectIconBlob>,
+    preserveNativeWeather: Boolean = false,
+    read: (PerfectIconBlob) -> ByteArray,
+  ): Rendering {
     fun bytes(path: String) = read(requireNotNull(resources[path]) { "Missing dynamic resource: $path" })
     val configBytes = bytes("config.xml")
     val config = PerfectIconFormat.xml(configBytes)
@@ -86,9 +91,15 @@ internal object PerfectDynamicIconValidator {
       // fancy_work is retained as source metadata; it does not replace per-layer mode flags.
       if (!quietOnly && fancy) {
         try {
-          val usesProvider = manifest(bytes(manifestPath), "$layer/fancy/", resources, read)
-          if (usesProvider) rendering = Rendering.PROVIDER_BACKED_FANCY
-          else if (rendering == Rendering.QUIET) rendering = Rendering.FANCY
+          val program = bytes(manifestPath)
+          val base = "$layer/fancy/"
+          val usesProvider = manifest(program, base, resources, read)
+          if (usesProvider && (!preserveNativeWeather ||
+              NativeWeatherLayerProgram.resources(program, base, resources.keys) == null)) {
+            rendering = Rendering.OTHER_PROVIDER_BACKED_FANCY
+          } else if (rendering == Rendering.QUIET) {
+            rendering = Rendering.FANCY
+          }
         } catch (failure: Exception) {
           if (failure is CancellationException || failure is InterruptedException) throw failure
           throw IOException("$manifestPath (source ${resources.getValue(manifestPath).source}): ${failure.message}", failure)

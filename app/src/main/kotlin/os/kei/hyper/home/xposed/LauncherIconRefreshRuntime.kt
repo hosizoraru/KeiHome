@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.os.Handler
@@ -83,6 +84,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     },
     rename = { from, to -> android.system.Os.rename(from, to) },
   )
+  private val iconBatch = LauncherIconBatch()
   /** Home's uid for [LauncherThemePoke]; resolved on a worker, read from the UiMode hook. */
   @Volatile private var launcherUid = -1
   /** A process-level theme poke ran, so Home's theme sequence is ahead of the global one. */
@@ -617,8 +619,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
 
   /**
    * The active archive changed and Home was poked to reopen it ([LauncherThemePoke]). A full
-   * refresh skips the resource probe and redraws every entry in place. No global theme change
-   * is sent, so Home keeps its page and foreground apps keep running.
+   * refresh skips the resource probe; Home receives it as one [LauncherIconBatch] and redraws
+   * every entry in place. No global theme change is sent, so Home keeps its page and
+   * foreground apps keep running.
    */
   private fun scheduleArchiveRefresh() {
     iconTheme.invalidate()
@@ -823,6 +826,27 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             // Native HyperOS frontends can own icon resources without an Android
             // MAIN/LAUNCHER activity. A targeted update must still reach their owner.
             val packages = (activityOwners + shortcutsByPackage.keys).toSortedSet()
+            // A resource change reloads many icons; Home takes them in one model update.
+            val batched = if (cause == IconRefreshCause.RESOURCE_CHANGE && requestedPackages == null) {
+              val eligible = iconBatch.eligible(activities.map {
+                LauncherIconBatch.Entry(it.componentName.packageName,
+                  it.applicationInfo.flags and ApplicationInfo.FLAG_SUSPENDED != 0)
+              }).filterTo(sortedSetOf()) { it in activityOwners }
+              dispatchBatchIfRegistered(launcherService, listener, user, eligible, isCurrent)
+            } else emptySet()
+            if (batched.isNotEmpty()) {
+              sent += 1
+              xposed.log(Log.INFO, TAG, "Icon batch generation=$generation " +
+                "user=${profile.userId.invoke(user)} packages=${batched.size}")
+              if (cause.packageIntervalMs > 0) {
+                try {
+                  Thread.sleep(cause.packageIntervalMs)
+                } catch (_: InterruptedException) {
+                  Thread.currentThread().interrupt()
+                  return
+                }
+              }
+            }
             for (name in requestedPackages.orEmpty()) {
               if (!isCurrent()) return
               if (name in packages) continue
@@ -848,8 +872,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               if (!listener.callback.asBinder().isBinderAlive) {
                 break
               }
+              // Batched packages are paced only when they still need a shortcut callback.
+              var paced = packageName !in batched
               try {
-                if (dispatchIfRegistered(
+                if (packageName !in batched && dispatchIfRegistered(
                     launcherService, listener, user, packageName, isCurrent,
                   )
                 ) {
@@ -866,11 +892,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                   )
                 ) {
                   sent += 1
+                  paced = true
                 }
               } catch (failure: Throwable) {
                 logFailure("launcher callback failed for $packageName", failure)
+                paced = true
               }
-              if (cause.packageIntervalMs > 0) {
+              if (paced && cause.packageIntervalMs > 0) {
                 try {
                   Thread.sleep(cause.packageIntervalMs)
                 } catch (_: InterruptedException) {
@@ -963,6 +991,35 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     if (!isCurrent()) return false
     profile.onPackageChanged.invoke(callback, user, packageName)
     return true
+  }
+
+  /** Sends one [LauncherIconBatch] callback; returns the packages it covered. */
+  private fun dispatchBatchIfRegistered(
+    launcherService: Any,
+    listener: LauncherListener,
+    user: UserHandle,
+    packages: Set<String>,
+    isCurrent: () -> Boolean,
+  ): Set<String> {
+    val method = profile.onPackagesUnsuspended ?: return emptySet()
+    if (packages.size < LauncherIconBatch.MIN_SIZE) return emptySet()
+    @Suppress("UNCHECKED_CAST")
+    val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
+      ?: return emptySet()
+    val callback = profile.registeredCallbacks.findRegistered(callbacks, listener.cookie) { entry ->
+      entry is IInterface && profile.callbackClass.isInstance(entry) &&
+        entry.asBinder() == listener.callback.asBinder()
+    } as? IInterface ?: return emptySet()
+    if (!isCurrent() || profile.isEnabledProfile.invoke(
+        launcherService, listener.cookie, user, "KeiHome icon refresh",
+      ) != true || !callback.asBinder().isBinderAlive
+    ) return emptySet()
+    val visible = packages.filterTo(linkedSetOf()) {
+      profile.isPackageVisible.invoke(launcherService, it, listener.cookie, user) == true
+    }
+    if (visible.size < LauncherIconBatch.MIN_SIZE || !isCurrent()) return emptySet()
+    method.invoke(callback, user, iconBatch.order(visible))
+    return visible
   }
 
   private fun dispatchShortcutsIfRegistered(
@@ -1080,6 +1137,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val isEnabledProfile: Method,
     val isPackageVisible: Method,
     val onPackageChanged: Method,
+    /** Optional: a missing batch callback keeps the per-package refresh. */
+    val onPackagesUnsuspended: Method?,
     val onShortcutChanged: Method,
     val shortcutSliceConstructor: Constructor<*>,
     val getEnabledProfiles: Method,
@@ -1174,6 +1233,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           onPackageChanged = callback.method(
             "onPackageChanged", UserHandle::class.java, String::class.java,
           ),
+          onPackagesUnsuspended = runCatching {
+            callback.method("onPackagesUnsuspended", UserHandle::class.java, Array<String>::class.java)
+          }.getOrNull(),
           onShortcutChanged = callback.method(
             "onShortcutChanged",
             UserHandle::class.java,

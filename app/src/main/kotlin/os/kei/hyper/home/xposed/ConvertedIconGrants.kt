@@ -54,6 +54,23 @@ internal class ConvertedIconGrants(
 
   fun retire() = approvals.retire()
 
+  /** Fixed-appearance copies that may stand in for a granted icons archive at the active path. */
+  @Volatile var appearanceSiblings: (ConvertedIconArchive.Digests) -> Set<ConvertedIconArchive.Digests> = { emptySet() }
+
+  /** Current native content of a registered converted Icon, rechecked against its grant and association. */
+  fun registeredContent(context: Context, localId: String, icons: ConvertedIconArchive.Digests): File {
+    requireWorker()
+    checkHost(context)
+    approvals.load { read(context) }
+    val entry = requireNotNull(approvals.entry(localId)) { "Converted Icon is not registered" }
+    require(entry.grant.proof.icons == icons) { "Registered converted Icon digest mismatch" }
+    val ctx = iconContext()
+    val approved = requireNotNull(association(lookup(ctx, localId), ctx, entry.grant)) {
+      "Converted Icon association changed"
+    }
+    return File(approved.contentPath)
+  }
+
   fun register(context: Context, stagePath: String, localId: String, expected: ConvertedIconArchive.Proof) {
     requireWorker()
     checkHost(context)
@@ -132,7 +149,9 @@ internal class ConvertedIconGrants(
     }
     if (grants.isEmpty()) return false
     val digest = digest(active, "post-apply")
-    return grants.any { approvals.isCurrent(it) && it.grant.proof.icons == digest }
+    return grants.any {
+      approvals.isCurrent(it) && (it.grant.proof.icons == digest || digest in appearanceSiblings(it.grant.proof.icons))
+    }
   }
 
   private fun association(resource: Any, ctx: Any, grant: ConvertedIconGrant): ConvertedIconAssociation? {

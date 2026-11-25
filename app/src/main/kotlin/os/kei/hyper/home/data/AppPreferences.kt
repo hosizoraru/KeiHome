@@ -63,6 +63,8 @@ internal data class AppPreferencesState(
   val rememberMenuSelections: Boolean = true,
   val showIconPreviews: Boolean = true,
   val iconPackAppearance: IconPackAppearance = IconPackAppearance.SYSTEM,
+  /** Follow the system with fixed light/dark copies instead of per-icon MAML selectors. */
+  val staticAppearanceIcons: Boolean = false,
   val systemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
   val nativeSystemIconFallback: SystemIconFallback = SystemIconFallback.DEFAULT,
   val perfectIconCompletionStyle: String = SystemIconFallback.DEFAULT_PERFECT_STYLE,
@@ -135,6 +137,7 @@ internal class AppPreferences internal constructor(
     iconPackAppearance = IconPackAppearance.entries.firstOrNull {
       it.name == preferences.getString("icon_pack_appearance", null)
     } ?: IconPackAppearance.SYSTEM,
+    staticAppearanceIcons = preferences.getBoolean("icon_pack_static_appearance", false),
     systemIconFallback = preferences.getString("system_icon_fallback", null)?.let { name ->
       runCatching { SystemIconFallback.valueOf(name) }.getOrNull()
         ?.takeIf { it.isPerfect || it in systemIconFallbackChoices }
@@ -315,6 +318,11 @@ internal class AppPreferences internal constructor(
   fun setIconPackAppearance(value: IconPackAppearance) {
     preferences.edit().putString("icon_pack_appearance", value.name).apply()
     state.update { it.copy(iconPackAppearance = value) }
+  }
+
+  fun setStaticAppearanceIcons(value: Boolean) {
+    preferences.edit().putBoolean("icon_pack_static_appearance", value).apply()
+    state.update { it.copy(staticAppearanceIcons = value) }
   }
 
   fun setSystemIconFallback(value: SystemIconFallback) {

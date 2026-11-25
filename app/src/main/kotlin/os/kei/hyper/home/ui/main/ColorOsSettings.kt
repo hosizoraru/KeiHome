@@ -90,7 +90,9 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
       }
     }
     if (!inspiration) IconPackAppearancePreference(preferences.iconPackAppearance,
-      model.preferences::setIconPackAppearance, !busy, compact = true)
+      model.preferences::setIconPackAppearance, !busy, compact = true,
+      staticAppearance = preferences.staticAppearanceIcons,
+      onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons)
     if (!inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       SwitchPreference(title = stringResource(R.string.pack_art_plus),
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,

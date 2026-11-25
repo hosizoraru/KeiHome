@@ -1,6 +1,7 @@
 package os.kei.hyper.home.xposed
 
 import os.kei.hyper.home.iconpack.IconPackBudgets
+import os.kei.hyper.home.iconpack.NativeAppearanceVariants
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -43,6 +44,8 @@ import org.json.JSONObject
  *
  * Native importResource can block for 600,000 ms. There is deliberately no detached executor,
  * speculative retry, active-theme file write, configuration broadcast, or launcher restart here.
+ * The opt-in fixed-appearance copies are the one exception: Themes itself performs their atomic
+ * swap behind [syncAppearanceVariant], only for archives it registered, without a configuration change.
  */
 internal object NativeIconPackManager {
   data class Identity(val title: String?, val localId: String?, val default: Boolean, val hash: String?)
@@ -250,6 +253,151 @@ internal object NativeIconPackManager {
         check(pc.transact(ThemeIconImportRuntime.AUTHORIZE_AUTO_APPLY, data, reply, 0))
         reply.readException()
         reply.readInt() == 1
+      } finally { data.recycle(); reply.recycle() }
+    }
+  }
+
+  data class AppearanceVariants(val digests: ConvertedAppearanceVariants, val flattened: Int, val paletteFlattened: Int)
+
+  /**
+   * Derives fixed light and dark copies of a completed converted import from its system-owned
+   * original. Both copies pass the origin's admission. [beforeThemes] must durably record their
+   * digests for the framework validator before Themes receives Themes-readable staging copies.
+   * Failure leaves the imported, system-following archive untouched.
+   */
+  fun registerAppearanceVariants(context: Context, systemOwnedOriginalPath: String, localId: String,
+    proof: ConvertedIconArchive.Proof, beforeThemes: (ConvertedAppearanceVariants) -> Unit,
+  ): AppearanceVariants = asSystemWorker {
+    verifyInstalledContract(context)
+    val original = File(systemOwnedOriginalPath)
+    requireOwnedFile(original)
+    ensureStageRoot()
+    val folder = File(stageRoot, UUID.randomUUID().toString())
+    Os.mkdir(folder.path, 0x1c0) // 0700 until both copies are validated and labelled.
+    val primary = File(folder, "primary.icons")
+    val light = File(folder, "light.icons")
+    val dark = File(folder, "dark.icons")
+    try {
+      restoreThemeLabel(folder)
+      ZipFile(original).use { zip ->
+        val entry = zip.getEntry("icons") ?: throw InvalidArchive("Missing icons module")
+        if (entry.size !in 1..MAX_ARCHIVE_BYTES) throw InvalidArchive("Icons module size limit")
+        zip.getInputStream(entry).use { input ->
+          withOwnedFd(Os.open(primary.path, OsConstants.O_WRONLY or OsConstants.O_CREAT or
+            OsConstants.O_EXCL or OsConstants.O_NOFOLLOW or OsConstants.O_CLOEXEC, 0x180)) { fd ->
+            FileOutputStream(fd).use { output ->
+              val buffer = ByteArray(64 * 1024)
+              var copied = 0L
+              while (true) {
+                checkInterrupted()
+                val count = input.read(buffer)
+                if (count < 0) break
+                copied += count
+                if (copied > entry.size) throw InvalidArchive("Icons module grew while extracting")
+                output.write(buffer, 0, count)
+              }
+              if (copied != entry.size) throw InvalidArchive("Incomplete icons module")
+            }
+          }
+        }
+      }
+      if (ConvertedIconArchive.digest(primary) != proof.icons) {
+        throw InvalidArchive("Imported icons no longer match the converted proof")
+      }
+      val result = NativeAppearanceVariants.write(primary, light, dark, check = ::checkInterrupted)
+      ConvertedIconArchive.validateIconsFile(light, proof.origin)
+      ConvertedIconArchive.validateIconsFile(dark, proof.origin)
+      val lightDigest = ConvertedIconArchive.digest(light)
+      val darkDigest = ConvertedIconArchive.digest(dark)
+      val digests = ConvertedAppearanceVariants(proof.icons.sha256, lightDigest.sha256, darkDigest.sha256)
+      digests.validate()
+      beforeThemes(digests)
+      for (file in listOf(light, dark)) {
+        restoreThemeLabel(file)
+        Os.chmod(file.path, 0x1a4) // 0644: Themes copies these into its own storage.
+      }
+      Os.chmod(folder.path, 0x1ed)
+      withNativeImporter(context) { pc ->
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+          data.writeInterfaceToken(ThemeIconImportRuntime.GRANT_DESCRIPTOR)
+          listOf(localId, proof.icons.sha1, proof.icons.sha256, light.path, lightDigest.sha1, lightDigest.sha256,
+            dark.path, darkDigest.sha1, darkDigest.sha256).forEach(data::writeString)
+          data.writeInt(if (result.paletteFlattened > 0) 1 else 0)
+          if (!pc.transact(ThemeIconImportRuntime.REGISTER_APPEARANCE_VARIANTS, data, reply, 0)) {
+            throw UnsupportedContract("Fixed-appearance bridge unavailable")
+          }
+          reply.readException()
+          if (reply.readInt() != 1) throw IOException(reply.readString() ?: "Themes rejected appearance copies")
+        } finally { data.recycle(); reply.recycle() }
+      }
+      AppearanceVariants(digests, result.flattened, result.paletteFlattened)
+    } finally {
+      for (file in listOf(primary, light, dark)) runCatching { file.delete() }
+      runCatching { folder.delete() }
+    }
+  }
+
+  /**
+   * Stops fixed copies of [primary] after an import made without them. Themes first restores the
+   * primary if one of its copies is applied, so the active archive keeps its approval.
+   */
+  fun unregisterAppearanceVariants(context: Context, primary: ConvertedIconArchive.Digests): AppearanceSync =
+    asSystemWorker {
+      verifyInstalledContract(context)
+      withNativeImporter(context) { pc ->
+        val data = Parcel.obtain()
+        val reply = Parcel.obtain()
+        try {
+          data.writeInterfaceToken(ThemeIconImportRuntime.GRANT_DESCRIPTOR)
+          data.writeString(primary.sha1)
+          data.writeString(primary.sha256)
+          if (!pc.transact(ThemeIconImportRuntime.UNREGISTER_APPEARANCE_VARIANTS, data, reply, 0)) {
+            throw UnsupportedContract("Fixed-appearance bridge unavailable")
+          }
+          reply.readException()
+          AppearanceSync(reply.readString() ?: "unknown", null)
+        } finally { data.recycle(); reply.recycle() }
+      }
+    }
+
+  data class AppearanceSync(val status: String, val prepared: AppearanceFastSwap.State?) {
+    /** Themes replaced the archive itself, after Home may already have reloaded its icons. */
+    val replaced get() = status.startsWith("applied")
+    /** The copy replaced an archive Themes had just applied; Home is not showing it to the user yet. */
+    val afterApply get() = replaced && status.contains(ThemeAppearanceVariants.FROM_PRIMARY) ||
+      status.startsWith("applied primary; unregistered")
+  }
+
+  /**
+   * Asks Themes to make the active icons archive match the system appearance when it is one of
+   * the registered copies, and to stage the opposite copy for the next pre-dispatch swap.
+   */
+  fun syncAppearanceVariant(context: Context, night: Boolean, paletteEnabled: Boolean): AppearanceSync = asSystemWorker {
+    verifyInstalledContract(context)
+    withNativeImporter(context) { pc ->
+      val data = Parcel.obtain()
+      val reply = Parcel.obtain()
+      try {
+        data.writeInterfaceToken(ThemeIconImportRuntime.GRANT_DESCRIPTOR)
+        data.writeInt(if (night) 1 else 0)
+        data.writeInt(if (paletteEnabled) 1 else 0)
+        if (!pc.transact(ThemeIconImportRuntime.SYNC_APPEARANCE_VARIANT, data, reply, 0)) {
+          throw UnsupportedContract("Fixed-appearance bridge unavailable")
+        }
+        reply.readException()
+        val status = reply.readString() ?: "unknown"
+        val prepared = if (reply.readInt() != 1) null else {
+          val activeNight = reply.readInt() == 1
+          val activeKey = AppearanceFileKey.of(reply.createLongArray())
+          val stagedPath = reply.readString()
+          val stagedNight = reply.readInt() == 1
+          val stagedKey = AppearanceFileKey.of(reply.createLongArray())
+          if (activeKey == null || stagedKey == null || stagedPath == null) null
+          else AppearanceFastSwap.State(activeKey, activeNight, stagedPath, stagedKey, stagedNight)
+        }
+        AppearanceSync(status, prepared)
       } finally { data.recycle(); reply.recycle() }
     }
   }

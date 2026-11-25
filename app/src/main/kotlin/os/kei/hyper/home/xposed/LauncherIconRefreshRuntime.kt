@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.os.Handler
@@ -73,6 +74,40 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
   @Volatile private var wallpaperSurfaces: WallpaperSurfaceDimming? = null
   @Volatile private var lastRefreshReceipt: IconRefreshReceipt? = null
   private val monetColorSynchronizer = MonetColorSynchronizer(iconTheme) { recentTaskLoader }
+  /** Pre-dispatch rename of the Themes-staged fixed-appearance copy; see [AppearanceFastSwap]. */
+  private val appearanceFastSwap = AppearanceFastSwap(
+    stat = { path ->
+      try {
+        android.system.Os.lstat(path).takeIf { android.system.OsConstants.S_ISREG(it.st_mode) }
+          ?.let(AppearanceFileKey::of)
+      } catch (_: android.system.ErrnoException) { null }
+    },
+    rename = { from, to -> android.system.Os.rename(from, to) },
+  )
+  private val iconBatch = LauncherIconBatch()
+  /** Home's uid for [LauncherThemePoke]; resolved on a worker, read from the UiMode hook. */
+  @Volatile private var launcherUid = -1
+
+  private fun pokeLauncher(reason: String): Boolean = try {
+    val result = LauncherThemePoke.poke(launcherUid)
+    xposed.log(Log.INFO, TAG, "Launcher icon theme poke ($reason): $result")
+    result.startsWith("sent")
+  } catch (failure: Throwable) {
+    logFailure("launcher icon theme poke failed", failure)
+    false
+  }
+
+  /** Home's theme sequence may be ahead after a poke; repeat so Home sees a real theme change. */
+  private val launcherRepoke = Runnable { pokeLauncher("after icon theme change") }
+
+  /** Themes replaced the active archive after Home may have drawn the old one. */
+  private fun onArchiveReplaced() {
+    pokeLauncher("archive replaced")
+    // Reopening the archive does not redraw mounted icons; the batched refresh does.
+    scheduleArchiveRefresh()
+    // The import worker also schedules the Home rebuild for drawer items and unmounted entries.
+  }
+
   private val iconPackImportMonitor = IconPackImportMonitor(
     { xposed.getRemotePreferences(IconPackImportProtocol.GROUP) },
     { failure -> logFailure("native icon import failed", failure) },
@@ -83,6 +118,21 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           .register(report, proof)
       }
     },
+    onAppearanceVariants = { variants ->
+      lifecycle.withActiveRuntime {
+        check(hooksReady) { "Converted icon runtime is unavailable" }
+        checkNotNull(convertedIconRuntime) { "Converted icon validation hook is unavailable" }
+          .registerAppearanceVariants(variants)
+      }
+    },
+    onAppearanceVariantsRemoved = { primary ->
+      lifecycle.withActiveRuntime { convertedIconRuntime?.unregisterAppearanceVariants(primary) }
+    },
+    hasAppearanceVariants = { convertedIconRuntime?.hasAppearanceVariants() == true },
+    onAppearanceStatus = { message -> xposed.log(Log.INFO, TAG, message) },
+    onAppearancePrepared = { prepared -> appearanceFastSwap.publish(prepared) },
+    onAppearanceReplaced = ::onArchiveReplaced,
+    onLauncherRebuild = { user -> LauncherThemePoke.restart(launcherUid, user, "KeiHome fixed-appearance icons") },
   )
   private val monetColorMonitor = MonetColorMonitor(
     monetColorSynchronizer,
@@ -108,10 +158,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               "packageRefresh=${result.refreshPackages}",
           )
           if (result.refreshPackages) schedulePaletteRefresh()
+          iconPackImportMonitor.requestAppearanceSync()
         }
         is MonetColorSynchronizer.SynchronizationResult.WriteFailed ->
           xposed.log(Log.WARN, TAG, "Monet icon background could not be written")
-        is MonetColorSynchronizer.SynchronizationResult.Restored -> schedulePaletteRefresh()
+        is MonetColorSynchronizer.SynchronizationResult.Restored -> {
+          schedulePaletteRefresh()
+          iconPackImportMonitor.requestAppearanceSync()
+        }
         else -> Unit
       }
     },
@@ -124,6 +178,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     onUserUnlocked = {
       launcherControl.requestNavigationStatus()
       iconPackImportMonitor.request()
+      iconPackImportMonitor.requestAppearanceSync()
     },
     refreshReceipt = { lastRefreshReceipt },
     themePreferences = { xposed.getRemotePreferences(ThemeEffectsPreferences.GROUP) },
@@ -343,6 +398,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             if (themeChanged || resourcesChanged) {
               // Only revision/queue work belongs in the WM transaction; inspect files on workers.
               if (themeChanged) iconTheme.invalidate()
+              if (themeChanged && LauncherThemePoke.ahead) handler?.post(launcherRepoke)
               monetColorSynchronizer.invalidateIconResources()
               synchronized(lock) {
                 if (!lifecycle.retired) {
@@ -360,6 +416,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               }
             }
             if (changes and ActivityInfo.CONFIG_UI_MODE != 0) launcherControl.requestWallpaperRefresh()
+            // Fixed-appearance copies follow the night bit and re-applications of their archive.
+            if (themeChanged || changes and ActivityInfo.CONFIG_UI_MODE != 0) {
+              iconPackImportMonitor.requestAppearanceSync()
+            }
           } catch (failure: Throwable) {
             logFailure("could not schedule icon refresh", failure)
           }
@@ -374,6 +434,14 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       handles += configuration.first
       require(configuration.first.id == CONFIGURATION_HOOK_ID &&
         configuration.first.executable == resolved.updateConfiguration)
+      try {
+        installAppearanceFastSwap(loader, oldHooks)?.let { installed ->
+          installed.second?.let(replaced::add)
+          handles += installed.first
+        }
+      } catch (failure: Throwable) {
+        logFailure("fixed-appearance pre-dispatch swap unavailable", failure)
+      }
       try {
         val wallpaper = Class.forName("com.android.server.wallpaper.WallpaperManagerService", false, loader)
         val setDim = wallpaper.getMethod("setWallpaperDimAmountForUid", Int::class.javaPrimitiveType,
@@ -491,6 +559,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
         if (!hooksReady || lifecycle.retiring || lifecycle.retired) return
         service?.let { profile.context.get(it) } as? Context
       } ?: return
+      if (launcherUid < 0) launcherUid = try {
+        context.packageManager.getPackageUid(LauncherThemePoke.LAUNCHER, 0)
+      } catch (_: Exception) { -1 }
       launcherControl.start(context)
       wallpaperPresets.start(context)
       synchronized(lock) {
@@ -556,6 +627,68 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     ((profile.themeChangedFlags?.get(extra) as? Number)?.toLong() ?: 0L) and 8L != 0L
   } catch (_: Exception) { false }
 
+  /**
+   * The active archive changed and Home was poked to reopen it ([LauncherThemePoke]), either by
+   * the pre-dispatch swap or by a Themes-side replacement. Reopening does not redraw mounted
+   * icons. A full refresh skips the resource probe; Home receives it as one [LauncherIconBatch]
+   * and redraws every entry in place. No global theme change is sent, so Home keeps its page
+   * and foreground apps keep running.
+   */
+  private fun scheduleArchiveRefresh() {
+    iconTheme.invalidate()
+    monetColorSynchronizer.invalidateIconResources()
+    synchronized(lock) {
+      if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
+      generations.nextFullRefresh()?.let { pending.replace(IconRefreshRequest(it, 0)) }
+      postPendingLocked()
+    }
+  }
+
+  /**
+   * Hooks the UiModeManager commit, which holds only its own lock and runs before the new night
+   * bit reaches any process. Two stats and one same-directory rename happen here; everything
+   * else stays on the import worker.
+   */
+  private fun installAppearanceFastSwap(
+    loader: ClassLoader,
+    oldHooks: List<XposedInterface.HookHandle>,
+  ): Pair<XposedInterface.HookHandle, XposedInterface.HookHandle?>? {
+    val service = Class.forName("com.android.server.UiModeManagerService", false, loader)
+    val commit = service.getDeclaredMethod("applyConfigurationExternallyLocked")
+    val applied = service.getDeclaredField("mSetUiMode").apply { isAccessible = true }
+    val pending = service.getDeclaredField("mConfiguration").apply { isAccessible = true }
+    require(applied.type == Int::class.javaPrimitiveType && pending.type == Configuration::class.java)
+    return installOrReplaceIconHook(xposed, findMatchingIconHook(oldHooks, APPEARANCE_SWAP_HOOK_ID, commit),
+      APPEARANCE_SWAP_HOOK_ID, commit, XposedInterface.Hooker { chain ->
+        lifecycle.trackHook {
+          var swapped = false
+          try {
+            val instance = chain.thisObject
+            val before = applied.getInt(instance)
+            val after = (pending.get(instance) as? Configuration)?.uiMode
+            if (!lifecycle.retired && after != null && isNightModeTransition(before, after)) {
+              swapped = appearanceFastSwap.beforeNightChange(
+                after and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
+              // Home reopens its icon archive only on a theme event; send it to Home's process
+              // alone before the night change, so both arrive in order. Lock order UiMode -> WM.
+              if (swapped) pokeLauncher("before night change")
+            }
+          } catch (failure: Throwable) {
+            // Never fail the platform commit; the worker's Themes path still converges.
+            logFailure("fixed-appearance pre-dispatch swap failed", failure)
+          }
+          val result = chain.proceed()
+          if (swapped) {
+            xposed.log(Log.INFO, TAG, "Fixed-appearance icons swapped before the night change")
+            // Every themed icon changed, so the night refresh needs no resource probe.
+            scheduleArchiveRefresh()
+            iconPackImportMonitor.requestLauncherRebuild()
+          }
+          result
+        }
+      })
+  }
+
   private fun schedulePaletteRefresh() {
     synchronized(lock) {
       if (lifecycle.retiring || lifecycle.retired || !hooksReady) return
@@ -573,7 +706,12 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
       val generation = generations.next(previous, current) ?: return
       pending.replace(IconRefreshRequest(generation, 0))
       monetColorMonitor.request()
-      handler?.removeCallbacksAndMessages(null)
+      handler?.let { queue ->
+        // Drop stale refresh work, but keep a queued poke for a real icon-theme change.
+        val repoke = queue.hasCallbacks(launcherRepoke)
+        queue.removeCallbacksAndMessages(null)
+        if (repoke) queue.post(launcherRepoke)
+      }
       postPendingLocked()
     }
   }
@@ -705,6 +843,27 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
             // Native HyperOS frontends can own icon resources without an Android
             // MAIN/LAUNCHER activity. A targeted update must still reach their owner.
             val packages = (activityOwners + shortcutsByPackage.keys).toSortedSet()
+            // A resource change reloads many icons; Home takes them in one model update.
+            val batched = if (cause == IconRefreshCause.RESOURCE_CHANGE && requestedPackages == null) {
+              val eligible = iconBatch.eligible(activities.map {
+                LauncherIconBatch.Entry(it.componentName.packageName,
+                  it.applicationInfo.flags and ApplicationInfo.FLAG_SUSPENDED != 0)
+              }).filterTo(sortedSetOf()) { it in activityOwners }
+              dispatchBatchIfRegistered(launcherService, listener, user, eligible, isCurrent)
+            } else emptySet()
+            if (batched.isNotEmpty()) {
+              sent += 1
+              xposed.log(Log.INFO, TAG, "Icon batch generation=$generation " +
+                "user=${profile.userId.invoke(user)} packages=${batched.size}")
+              if (cause.packageIntervalMs > 0) {
+                try {
+                  Thread.sleep(cause.packageIntervalMs)
+                } catch (_: InterruptedException) {
+                  Thread.currentThread().interrupt()
+                  return
+                }
+              }
+            }
             for (name in requestedPackages.orEmpty()) {
               if (!isCurrent()) return
               if (name in packages) continue
@@ -730,8 +889,10 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
               if (!listener.callback.asBinder().isBinderAlive) {
                 break
               }
+              // Batched packages are paced only when they still need a shortcut callback.
+              var paced = packageName !in batched
               try {
-                if (dispatchIfRegistered(
+                if (packageName !in batched && dispatchIfRegistered(
                     launcherService, listener, user, packageName, isCurrent,
                   )
                 ) {
@@ -748,11 +909,13 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
                   )
                 ) {
                   sent += 1
+                  paced = true
                 }
               } catch (failure: Throwable) {
                 logFailure("launcher callback failed for $packageName", failure)
+                paced = true
               }
-              if (cause.packageIntervalMs > 0) {
+              if (paced && cause.packageIntervalMs > 0) {
                 try {
                   Thread.sleep(cause.packageIntervalMs)
                 } catch (_: InterruptedException) {
@@ -845,6 +1008,52 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     if (!isCurrent()) return false
     profile.onPackageChanged.invoke(callback, user, packageName)
     return true
+  }
+
+  /**
+   * Sends one [LauncherIconBatch] callback; returns the packages it covered. A failure returns
+   * none, so the caller refreshes every package through the per-package path instead.
+   */
+  private fun dispatchBatchIfRegistered(
+    launcherService: Any,
+    listener: LauncherListener,
+    user: UserHandle,
+    packages: Set<String>,
+    isCurrent: () -> Boolean,
+  ): Set<String> = try {
+    sendBatch(launcherService, listener, user, packages, isCurrent)
+  } catch (failure: Throwable) {
+    if (failure is InterruptedException) Thread.currentThread().interrupt()
+    logFailure("launcher batch callback failed; using per-package callbacks", failure)
+    emptySet()
+  }
+
+  private fun sendBatch(
+    launcherService: Any,
+    listener: LauncherListener,
+    user: UserHandle,
+    packages: Set<String>,
+    isCurrent: () -> Boolean,
+  ): Set<String> {
+    val method = profile.onPackagesUnsuspended ?: return emptySet()
+    if (packages.size < LauncherIconBatch.MIN_SIZE) return emptySet()
+    @Suppress("UNCHECKED_CAST")
+    val callbacks = profile.listeners.get(launcherService) as? RemoteCallbackList<IInterface>
+      ?: return emptySet()
+    val callback = profile.registeredCallbacks.findRegistered(callbacks, listener.cookie) { entry ->
+      entry is IInterface && profile.callbackClass.isInstance(entry) &&
+        entry.asBinder() == listener.callback.asBinder()
+    } as? IInterface ?: return emptySet()
+    if (!isCurrent() || profile.isEnabledProfile.invoke(
+        launcherService, listener.cookie, user, "KeiHome icon refresh",
+      ) != true || !callback.asBinder().isBinderAlive
+    ) return emptySet()
+    val visible = packages.filterTo(linkedSetOf()) {
+      profile.isPackageVisible.invoke(launcherService, it, listener.cookie, user) == true
+    }
+    if (visible.size < LauncherIconBatch.MIN_SIZE || !isCurrent()) return emptySet()
+    method.invoke(callback, user, iconBatch.order(profile.userId.invoke(user) as Int, visible))
+    return visible
   }
 
   private fun dispatchShortcutsIfRegistered(
@@ -962,6 +1171,8 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     val isEnabledProfile: Method,
     val isPackageVisible: Method,
     val onPackageChanged: Method,
+    /** Optional: a missing batch callback keeps the per-package refresh. */
+    val onPackagesUnsuspended: Method?,
     val onShortcutChanged: Method,
     val shortcutSliceConstructor: Constructor<*>,
     val getEnabledProfiles: Method,
@@ -1056,6 +1267,9 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
           onPackageChanged = callback.method(
             "onPackageChanged", UserHandle::class.java, String::class.java,
           ),
+          onPackagesUnsuspended = runCatching {
+            callback.method("onPackagesUnsuspended", UserHandle::class.java, Array<String>::class.java)
+          }.getOrNull(),
           onShortcutChanged = callback.method(
             "onShortcutChanged",
             UserHandle::class.java,
@@ -1079,6 +1293,7 @@ internal class LauncherIconRefreshRuntime(private val xposed: XposedInterface) {
     const val LAUNCHER_PACKAGE = "com.miui.home"
     const val LISTENER_HOOK_ID = "keihome_launcher_listener"
     const val CONFIGURATION_HOOK_ID = "keihome_night_configuration"
+    const val APPEARANCE_SWAP_HOOK_ID = "keihome.appearance-fast-swap"
     const val SNAPSHOT_RETRY_MS = 250L
     const val MAX_SNAPSHOT_RETRIES = 3
     const val RETIRE_TIMEOUT_MS = 5_000L

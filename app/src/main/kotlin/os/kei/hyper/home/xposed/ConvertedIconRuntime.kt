@@ -29,10 +29,12 @@ internal class ConvertedIconRuntime(
   private val xposed: XposedInterface,
   private val storage: ConvertedIconValidationStorage = ConvertedIconValidationFile(),
   private val hashIcons: (File) -> String = ::convertedIconFileSha256,
+  private val appearanceStorage: ConvertedAppearanceVariantStorage = ConvertedAppearanceVariantFile(),
 ) {
   private val gate = ConvertedIconValidationGate()
   private val registrationLock = Any()
   private val registrations = AtomicReference<Map<String, ConvertedIconValidationRegistration>>(emptyMap())
+  private val appearanceVariants = AtomicReference<List<ConvertedAppearanceVariants>>(emptyList())
   private lateinit var legalResult: Any
   private lateinit var method: Method
 
@@ -42,6 +44,7 @@ internal class ConvertedIconRuntime(
   ): Pair<XposedInterface.HookHandle, XposedInterface.HookHandle?> {
     resolveContract(loader)
     loadRegistrations()
+    loadAppearanceVariants()
     val previous = findMatchingIconHook(oldHooks, HOOK_ID, method)
     val installed = installOrReplaceIconHook(
       xposed, previous, HOOK_ID, method,
@@ -79,6 +82,57 @@ internal class ConvertedIconRuntime(
     } finally {
       gate.leave()
     }
+  }
+
+  /**
+   * Records the fixed light/dark copies derived from a registered converted archive. They are
+   * approved only while their primary digest is itself registered. Persist before Themes may
+   * swap either copy into the active icons path.
+   */
+  fun registerAppearanceVariants(entry: ConvertedAppearanceVariants) {
+    check(gate.enter()) { "Converted icon validation is retired" }
+    try {
+      entry.validate()
+      synchronized(registrationLock) {
+        val current = appearanceVariants.get()
+        if (entry in current) return
+        val updated = (current.filterNot { it.primary == entry.primary } + entry)
+          .takeLast(MAX_APPEARANCE_VARIANTS)
+        appearanceStorage.write(updated)
+        appearanceVariants.set(updated)
+      }
+    } finally {
+      gate.leave()
+    }
+  }
+
+  /** Called after Themes removed the copies and no copy of [primary] remains applied. */
+  fun unregisterAppearanceVariants(primary: String) {
+    check(gate.enter()) { "Converted icon validation is retired" }
+    try {
+      synchronized(registrationLock) {
+        val current = appearanceVariants.get()
+        val updated = current.filterNot { it.primary == primary }
+        if (updated.size == current.size) return
+        appearanceStorage.write(updated)
+        appearanceVariants.set(updated)
+      }
+    } finally {
+      gate.leave()
+    }
+  }
+
+  fun hasAppearanceVariants(): Boolean = appearanceVariants.get().isNotEmpty()
+
+  internal fun loadAppearanceVariants() = synchronized(registrationLock) {
+    val loaded = try {
+      appearanceStorage.read().onEach { it.validate() }.takeLast(MAX_APPEARANCE_VARIANTS)
+    } catch (failure: Exception) {
+      if (failure is InterruptedException) Thread.currentThread().interrupt()
+      xposed.log(Log.WARN, TAG, "Ignoring corrupt appearance variant receipt", failure)
+      emptyList()
+    }
+    appearanceVariants.set(loaded)
   }
 
   /** The old hook must stop admitting work before API 102 replaces its executable. */
@@ -123,11 +177,20 @@ internal class ConvertedIconRuntime(
 
   private fun isApproved(file: File): Boolean {
     if (file.path != ACTIVE_ICONS) return false
-    val known = registrations.get().values.map { it.proof.icons.sha256 }.toSet()
-    if (known.isEmpty()) return false
+    val registered = registrations.get().values.map { it.proof.icons.sha256 }.toSet()
+    if (registered.isEmpty()) return false
+    // A fixed-appearance copy inherits approval only from its still-registered primary.
+    val known = registered + appearanceVariants.get().filter { it.primary in registered }
+      .flatMap { listOf(it.light, it.dark) }
     if (file.canonicalPath != ACTIVE_ICONS || !file.isFile ||
       file.length() !in 1..ConvertedIconArchive.MAX_BYTES) return false
-    val digest = hashIcons(file)
+    val digest = try {
+      hashIcons(file)
+    } catch (_: IllegalArgumentException) {
+      // A fixed-appearance rename can replace the archive mid-read; hash the new one once.
+      if (file.length() !in 1..ConvertedIconArchive.MAX_BYTES) return false
+      hashIcons(file)
+    }
     return digest in known && file.canonicalPath == ACTIVE_ICONS && file.isFile
   }
 
@@ -154,6 +217,60 @@ internal class ConvertedIconRuntime(
     private const val TAG = "KeiHomeIconRefresh"
     private const val ACTIVE_ICONS = "/data/system/theme/icons"
     internal const val MAX_REGISTRATIONS = 700
+    internal const val MAX_APPEARANCE_VARIANTS = 16
+  }
+}
+
+/** SHA-256 identities of one converted icons archive and its fixed light and dark copies. */
+internal data class ConvertedAppearanceVariants(val primary: String, val light: String, val dark: String) {
+  fun validate() {
+    val hex = Regex("[0-9a-f]{64}")
+    require(listOf(primary, light, dark).all(hex::matches) && setOf(primary, light, dark).size == 3) {
+      "Invalid appearance variant digests"
+    }
+  }
+}
+
+internal interface ConvertedAppearanceVariantStorage {
+  fun read(): List<ConvertedAppearanceVariants>
+  /** Return only after the entire collection has been durably committed and verified. */
+  fun write(values: List<ConvertedAppearanceVariants>)
+}
+
+private class ConvertedAppearanceVariantFile : ConvertedAppearanceVariantStorage {
+  // Constructed lazily: this receipt is separate from, and never rewrites, converted-drm-v1.json.
+  private val storage by lazy {
+    AtomicFile(File("/data/system/keihome-icon-imports/appearance-variants-v1.json"))
+  }
+
+  override fun read(): List<ConvertedAppearanceVariants> {
+    if (!storage.baseFile.exists() && !File("${storage.baseFile.path}.bak").exists()) return emptyList()
+    val root = JSONObject(String(storage.openRead().use(::readConvertedIconValidationReceipt), Charsets.UTF_8))
+    require(root.get("version") == 1)
+    val rows = root.getJSONArray("variants")
+    require(rows.length() <= ConvertedIconRuntime.MAX_APPEARANCE_VARIANTS)
+    return List(rows.length()) { index ->
+      val row = rows.getJSONObject(index)
+      ConvertedAppearanceVariants(row.getString("primary"), row.getString("light"), row.getString("dark"))
+    }
+  }
+
+  override fun write(values: List<ConvertedAppearanceVariants>) {
+    val rows = JSONArray()
+    values.forEach { rows.put(JSONObject().put("primary", it.primary).put("light", it.light).put("dark", it.dark)) }
+    val bytes = JSONObject().put("version", 1).put("variants", rows).toString().toByteArray(Charsets.UTF_8)
+    val stream = storage.startWrite()
+    try {
+      stream.write(bytes)
+      stream.fd.sync()
+      storage.finishWrite(stream)
+    } catch (failure: Throwable) {
+      storage.failWrite(stream)
+      throw failure
+    }
+    require(storage.openRead().use(::readConvertedIconValidationReceipt).contentEquals(bytes)) {
+      "Appearance variant receipt was not committed"
+    }
   }
 }
 

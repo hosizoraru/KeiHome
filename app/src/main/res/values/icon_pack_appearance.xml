@@ -8,6 +8,8 @@
     <string name="icon_pack_appearance_dark">Always dark</string>
     <string name="icon_pack_appearance_dim">Dim at night</string>
     <string name="icon_pack_appearance_update_note">Next import/update only. Reapply in Themes.</string>
+    <string name="icon_pack_static_appearance">Static day/night icons</string>
+    <string name="icon_pack_static_appearance_summary">Switch between prepared light/dark copies when the system mode changes, instead of a live selector per icon. Smoother app launches; the desktop page and open apps are kept. After an import, the desktop reloads once in the background. After each later switch, drawer icons update the next time the screen turns off.</string>
     <string name="icon_pack_appearance_scope_note">Brightness selection applies to converted APK / classic ZIP artwork. Native MTZ / icons ZIPs keep their own behavior.</string>
     <string name="icon_pack_appearance_system_note">Follow system uses the pack\'s light/dark artwork where the launcher supports it. Other icons may stay light.</string>
     <string name="icon_pack_appearance_dim_note">Uses light artwork, dimmed to 214/255 at night like ColorOS Default style. This is separate from dark artwork; night switching needs launcher support.</string>

@@ -133,6 +133,12 @@ Pad 尚未实测。截图、资源解析、安装签名和热重载证据位于�
 框架解码、设备规则和清理回执在
 `.artifacts/research/hyperos-system-dark-surfaces-20261125/`。
 
+2026 年 11 月 25 日确认保留这些场景各自的原生暗色表现。实体 Xiaomi 17 Pro
+运行 `OS4.0.8.0.XBLCNXM` 与桌面 `801030308`。SystemUI 和控制中心插件的
+临时资源覆盖可分别注册，但覆盖注册只验证了资源入口，未建立各场景三档配色的
+视觉一致性。逐应用 Force Dark 三组规则继续交由 HyperOS 处理。这次调查结束时，
+两份临时覆盖和测试通知均已清理，系统深色模式仍为开启。
+
 原始证据位于 `.artifacts/research/coloros17-wallpaper-dimming-20261124/`。其中
 `runtime/layer-matrix.txt` 保留每次采样的层号和 alpha，`runtime/comparison.jpg`
 按桌面关、桌面开、锁屏关、锁屏开、系统预览排列。设备输出、原尺寸截图、APK/JAR

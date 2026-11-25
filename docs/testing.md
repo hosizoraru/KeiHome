@@ -1,5 +1,13 @@
 # Select checks by the change
 
+## LSPosed cold boot on the native HyperOS launcher
+
+Use `scripts/check-launcher-cold-boot.py` after rebooting into a candidate
+framework with KeiHome scoped to the native launcher. Check the exact log or
+production framework variant, a stable foreground HOME, the boot crash buffer,
+and native load evidence for the live launcher PID. See the
+[7949 incident and candidate acceptance procedure](launcher-boot-incident-20261125.md).
+
 ## HyperOS AVD readiness
 
 After a managed recovery, unlock the device, enter the primary system desktop,

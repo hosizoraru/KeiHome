@@ -5,6 +5,27 @@ internal object CustomIconResources {
   const val MAX_BYTES = 32 * 1024 * 1024
   private val programs = setOf("fancy_icons", "animating_icons", "layer_animating_icons")
 
+  /**
+   * Returns every native name that can address a user's package-level choice.
+   *
+   * The launcher can resolve an icon through the package name or through the
+   * concrete MAIN/LAUNCHER activity. The target inventory normally contains
+   * those activities, but a stale or restricted LauncherApps result can omit
+   * them. Keeping the package alias and the observed launcher aliases together
+   * makes the generated custom resource authoritative on both surfaces.
+   */
+  fun nativeNames(
+    packageName: String,
+    targets: Iterable<IconPackComponent>,
+    launcherClassNames: Iterable<String> = emptyList(),
+  ): Set<String> = buildSet {
+    add(packageName)
+    targets.filter { it.packageName == packageName }
+      .mapNotNullTo(this, ::nativeLauncherActivityName)
+    launcherClassNames.map { IconPackComponent(packageName, it) }
+      .mapNotNullTo(this, ::nativeLauncherActivityName)
+  }
+
   fun owner(path: String): String? {
     val parts = path.removePrefix("nightmode/").split('/')
     return when {

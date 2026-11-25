@@ -4,6 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CustomIconResourcesTest {
+  @Test fun nativeNamesIncludePackageObservedAndQualifiedLauncherAliases() {
+    val names = CustomIconResources.nativeNames(
+      packageName = "com.example.shop",
+      targets = listOf(IconPackComponent("com.example.shop", ".MainActivity")),
+      launcherClassNames = listOf("com.example.shop.Welcome"),
+    )
+    assertEquals(
+      setOf(
+        "com.example.shop",
+        "com.example.shop.MainActivity",
+        "com.example.shop.Welcome",
+      ),
+      names,
+    )
+  }
+
   @Test fun capturesOnlyTheExactIconWithoutGlobalMasksOrOtherChannels() {
     val selected = CustomIconResources.select(mapOf(
       "res/drawable/com.source.png" to byteArrayOf(1),

@@ -115,6 +115,7 @@ internal object IconPackHandoffs {
       systemFallback = systemFallback, systemAppNameMatching = systemAppNameMatching,
       colorOsForOtherPacks = colorOsForOtherPacks, installedOnly = installedOnly, maskPolicy = iconMask,
       preservedPackages = preserved, recommendedMappings = mappings, colorOsSources = sources,
+      packageMappingExclusions = custom.packages,
       allowEmpty = custom.resources.isNotEmpty(),
       onProgress = progress(ColorOsGenerationStage.LIGHT),
       onNativeProgress = onProgress)
@@ -131,6 +132,7 @@ internal object IconPackHandoffs {
             repository.exportNativeIcons(pack, exportTargets, darkMode = true, systemFallback = systemFallback,
               systemAppNameMatching = systemAppNameMatching, colorOsForOtherPacks = colorOsForOtherPacks,
               installedOnly = installedOnly, maskPolicy = iconMask, preservedPackages = preserved, recommendedMappings = mappings,
+              packageMappingExclusions = custom.packages,
               colorOsSources = sources, allowEmpty = custom.resources.isNotEmpty(),
               onProgress = progress(ColorOsGenerationStage.DARK))
               .also { darkResult = it }
@@ -330,9 +332,17 @@ internal object IconPackHandoffs {
             val exclusions = PreservedIconResources.fromInstalled(context, custom.packages, targets) { caller.ensureActive() }
             val replacements = linkedMapOf<String, ByteArray>()
             custom.resources.forEach { (packageName, resources) ->
-              val names = linkedSetOf(packageName).apply {
-                targets.filter { it.packageName == packageName }.mapNotNullTo(this, ::nativeLauncherActivityName)
+              val launcherClasses = try {
+                val intent = android.content.Intent(android.content.Intent.ACTION_MAIN)
+                  .addCategory(android.content.Intent.CATEGORY_LAUNCHER).setPackage(packageName)
+                context.packageManager.queryIntentActivities(
+                  intent, android.content.pm.PackageManager.ResolveInfoFlags.of(0))
+                  .mapNotNull { it.activityInfo?.name }
+              } catch (_: SecurityException) {
+                emptyList()
               }
+              val names = os.kei.hyper.home.iconpack.CustomIconResources.nativeNames(
+                packageName, targets, launcherClasses)
               replacements.putAll(os.kei.hyper.home.iconpack.CustomIconResources.retarget(resources, names))
             }
             ZipFile(maskedSource).use { source ->

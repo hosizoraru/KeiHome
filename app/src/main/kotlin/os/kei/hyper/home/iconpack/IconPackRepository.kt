@@ -222,6 +222,7 @@ internal class IconPackRepository(
     maskPolicy: IconMaskPolicy? = null,
     preservedPackages: Set<String> = os.kei.hyper.home.data.PreservedIcons.snapshot(application),
     recommendedMappings: RecommendedIconMappings? = null,
+    packageMappingExclusions: Set<String> = emptySet(),
     colorOsSources: ColorOsFallbackRenderer.Sources? = null,
     allowEmpty: Boolean = false,
     onProgress: ((Int, Int, String) -> Unit)? = null,
@@ -232,6 +233,7 @@ internal class IconPackRepository(
     IconPackExporter(application, limits).export(pack, targets, darkMode, sizePx, systemFallback,
       systemAppNameMatching, fallback, installedOnly, maskPolicy, preservedPackages,
       recommendedMappings ?: RecommendedIconMappings.snapshot(application),
+      packageMappingExclusions = packageMappingExclusions,
       colorOsSources = colorOsSources, allowEmpty = allowEmpty, onProgress = onProgress,
       onNativeProgress = onNativeProgress) { caller.ensureActive() }
   }

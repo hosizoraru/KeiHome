@@ -25,10 +25,11 @@ validation performed and any remaining limitation in the pull request.
 
 Pull requests use the repository template to keep scope, localization,
 verification, visual checks, and compatibility notes visible to reviewers.
-Every pull request runs the debug test, lint, and APK build workflow. Pushes to
-`main` also publish debug and release APK artifacts for maintainers to inspect.
-The workflow needs read access to the public MIUIX GitHub Packages snapshot
-repository so dependency resolution matches local builds.
+Every pull request runs separate wrapper, resource, `build-logic`, JVM, and
+Debug lint/build jobs. Pushes to `main` run the same gates and then publish
+Debug and Release APK artifacts for maintainers to inspect. The workflow needs
+read access to the public MIUIX GitHub Packages snapshot repository so
+dependency resolution matches local builds.
 
 ## Codex guidance
 

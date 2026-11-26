@@ -9,3 +9,7 @@ internal fun ownsReloadableJava(process: String, uid: Int): Boolean =
     ThemeIconImportRuntime.PACKAGE_NAME -> true
     else -> HostAppIconRuntime.supports(process) || process == BILIBILI_PACKAGE
   }
+
+/** Quiet app hosts rarely allocate enough in background to collect retired module loaders on their own. */
+internal fun supportsRetiredCollectionHint(process: String): Boolean =
+  process.isNotEmpty() && process != "system" && process != "system_server"

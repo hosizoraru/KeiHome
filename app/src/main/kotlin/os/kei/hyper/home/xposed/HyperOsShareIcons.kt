@@ -160,6 +160,7 @@ internal class HyperOsShareIcons(
   private val replayQueued = AtomicBoolean()
   @Volatile private var stopped = false
   @Volatile private var cache: CrossSurfaceIconCache? = null
+  @Volatile private var worker: Thread? = null
   private val replay = Runnable {
     replayQueued.set(false)
     if (!lifecycle.enter()) return@Runnable
@@ -193,11 +194,13 @@ internal class HyperOsShareIcons(
   private fun initialize(application: Application) {
     if (application.packageName != HyperOsShareProfile.PACKAGE || stopped ||
       !initialized.compareAndSet(false, true)) return
-    val worker = Thread({
+    val task = Thread({
       Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
       if (!lifecycle.enter()) return@Thread
       try {
+        if (stopped) return@Thread
         val profile = HyperOsShareProfile.resolve(application, classLoader)
+        if (stopped) return@Thread
         val icons = CrossSurfaceIconCache(application, maxEntries = 64, systemPaletteEvents = true,
           eagerReload = false, refreshOnMinute = true) {
           queueReplay()
@@ -222,7 +225,8 @@ internal class HyperOsShareIcons(
         Log.w(TAG, "OEM share contract unavailable; retaining native behavior", failure)
       } finally { lifecycle.leave() }
     }, "KeiHomeShareProfile")
-    worker.start()
+    worker = task
+    task.start()
   }
 
   private fun queueReplay() {
@@ -301,7 +305,9 @@ internal class HyperOsShareIcons(
   fun retire(publish: () -> Unit): Boolean = lifecycle.retire(workersStopped = {
     stopped = true
     main.removeCallbacksAndMessages(null)
-    val complete = cache?.stop() ?: true
+    val task = worker
+    if (task?.isAlive == true) task.join(1_000)
+    val complete = task?.isAlive != true && (cache?.stop() ?: true)
     main.removeCallbacksAndMessages(null)
     complete
   }) {

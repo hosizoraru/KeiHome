@@ -37,6 +37,7 @@ internal class LauncherControlMonitor(
     override val cleanupComplete: Boolean get() = closed && registrations.complete
     private var cleanupQueued = false
     private var published: Pair<Boolean, String>? = null
+    private var publishAttempts = 0
     private var updateAttempts = 0
     @Volatile private var dimming: WallpaperDimmingControl? = null
 
@@ -44,22 +45,36 @@ internal class LauncherControlMonitor(
       dimming?.request(force = true)
     }
 
-    private val publish = Runnable {
-      if (closed) return@Runnable
-      try {
-        // The unlock receiver requests another receipt even if the choice is unchanged.
-        if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return@Runnable
-        val status = navigationStatus()
-        if (closed || status == published) return@Runnable
-        NavigationBackdropInbox.publish(context, status.first, status.second)
-        published = status
-      } catch (failure: Exception) {
-        if (!closed) onFailure(failure)
+    private val publish = object : Runnable {
+      override fun run() {
+        if (closed) return
+        try {
+          // The unlock receiver requests another receipt even if the choice is unchanged.
+          if (context.getSystemService(UserManager::class.java)?.isUserUnlocked != true) return
+          val status = navigationStatus()
+          if (closed || status == published) return
+          NavigationBackdropInbox.publish(context, status.first, status.second)
+          published = status
+          synchronized(this@Watch) { publishAttempts = 0 }
+        } catch (failure: Exception) {
+          if (closed) return
+          // Package replacement can briefly unpublish KeiHome's provider while system_server reloads.
+          val retryDelay = if (isTransientRuntimeAuthorityFailure(failure)) {
+            synchronized(this@Watch) {
+              if (!closed && publishAttempts < PUBLISH_RETRY_DELAYS_MS.size && !handler.hasCallbacks(this)) {
+                PUBLISH_RETRY_DELAYS_MS[publishAttempts++]
+              } else null
+            }
+          } else null
+          if (retryDelay != null && handler.postDelayed(this, retryDelay)) return
+          onFailure(failure)
+        }
       }
     }
 
     @Synchronized fun requestNavigationStatus() {
       if (closed) return
+      publishAttempts = 0
       handler.removeCallbacks(publish)
       handler.post(publish)
     }
@@ -149,4 +164,11 @@ internal class LauncherControlMonitor(
       thread.interrupt()
     }
   }
+
+  private companion object {
+    val PUBLISH_RETRY_DELAYS_MS = longArrayOf(500L, 1_000L, 2_000L, 4_000L)
+  }
 }
+
+internal fun isTransientRuntimeAuthorityFailure(failure: Throwable): Boolean =
+  failure is IllegalArgumentException && failure.message?.contains("Unknown authority") == true

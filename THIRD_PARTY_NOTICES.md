@@ -14,8 +14,7 @@ dependencies, icons, artwork, and other resources retain their respective
 licenses, copyright notices, and source obligations. In particular, the
 GPL and LGPL components listed below are not relicensed under Apache 2.0.
 
-The KeiHome source repository is not public yet. This license declaration
-does not assert that the project source has already been published.
+The KeiHome source is available in the [project repository](https://github.com/hosizoraru/KeiHome).
 Third-party source offers and rebuilding information remain applicable as
 described in the component sections below.
 

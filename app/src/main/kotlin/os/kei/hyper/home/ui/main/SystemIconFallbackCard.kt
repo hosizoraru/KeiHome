@@ -1,8 +1,5 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,19 +34,21 @@ import os.kei.hyper.home.data.SystemIconFallback
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectSystemFallback
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.glassPress
 import os.kei.hyper.home.ui.perfect.ObservePerfectResources
 
 @Composable
@@ -171,16 +170,18 @@ internal fun PerfectCompletionPreferences(
     onSelectedIndexChange = { index -> perfectChoices.getOrNull(index)?.let(selectPerfect) },
     enabled = enabled && !checking && perfectChoices.isNotEmpty(),
     modifier = Modifier.testTag("icon-packs.perfect-completion-style"))
+  val resourcesPress = rememberOs4PressSource()
   BasicComponent(title = stringResource(if (resourcesAvailable)
       R.string.system_fallback_perfect_source_title else R.string.system_fallback_perfect_download_title),
     summary = stringResource(if (resourcesAvailable)
       R.string.system_fallback_perfect_source_summary else R.string.system_fallback_perfect_download_summary),
     enabled = onOpenPerfectIcons != null && !checking,
+    interactionSource = resourcesPress,
     onClick = { onOpenPerfectIcons?.invoke() },
-    endActions = { Icon(MiuixIcons.Glass.ChevronForward, null,
-      tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
-    modifier = Modifier.testTag("icon-packs.perfect-fallback-resources"))
-  if (selected.isPerfect && selected.perfectStyle !in localStyles) {
+    endActions = { Os4TrailingChevron() },
+    modifier = Modifier.glassPress(resourcesPress, onOpenPerfectIcons != null && !checking)
+      .testTag("icon-packs.perfect-fallback-resources"))
+  Os4AnimatedVisibility(selected.isPerfect && selected.perfectStyle !in localStyles) {
     Text(stringResource(R.string.system_fallback_perfect_unavailable,
       systemFallbackName(selected, completion = true)),
       modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -234,7 +235,7 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
   val busy = state.nativeImporting != null
   val result = state.nativeResult?.takeIf { pack != null &&
     it.sourceId == preferences.systemIconFallback.sourceId(pack.id) }
-  Card(Modifier.fillMaxWidth().animateContentSize(tween(180)), insideMargin = PaddingValues(0.dp)) {
+  Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     Column {
       SwitchPreference(title = stringResource(R.string.coloros_other_packs_title),
         summary = stringResource(R.string.coloros_other_packs_summary),
@@ -260,7 +261,7 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
       Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val applied = source?.systemFallback
-        if (applied != null || updateNeeded) {
+        Os4AnimatedVisibility(applied != null || updateNeeded) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -298,24 +299,32 @@ internal fun SystemIconFallbackCard(model: HomeViewModel, onOpenPerfectIcons: ((
         }
         Text(stringResource(R.string.system_fallback_update_note),
           style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        if (missingResources && !perfect.loading) {
+        Os4AnimatedVisibility(missingResources && !perfect.loading) {
           Text(stringResource(R.string.system_fallback_resources_unavailable,
             systemFallbackName(preferences.systemIconFallback)),
             modifier = Modifier.testTag("icon-packs.system-fallback-unavailable"),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        if (pack == null && !state.loading && state.scanned &&
+        Os4AnimatedVisibility(pack == null && !state.loading && state.scanned &&
           runtime.report?.iconTheme?.source == os.kei.hyper.home.status.SystemIconThemeReport.Source.THEME) {
           Text(stringResource(R.string.system_fallback_source_needed),
             style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
-        if (result?.imported == true) NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy,
-          manualFallback = preferences.manualThemeFallback)
-        if (result != null && !result.imported) {
-          Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote2,
-            color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
-          if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck),
-            onClick = model::recheckNativeIconImport)
+        Os4AnimatedVisibility(result?.imported == true) {
+          result?.takeIf { it.imported }?.let { imported ->
+            NativeThemeLink(imported, preferences.autoApplyIconPack, enabled = !busy,
+              manualFallback = preferences.manualThemeFallback)
+          }
+        }
+        Os4AnimatedVisibility(result != null && !result.imported) {
+          result?.takeIf { !it.imported }?.let { failed ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text(stringResource(failed.failureLabel()), style = MiuixTheme.textStyles.footnote2,
+                color = if (failed.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+              if (failed.pending) TextButton(stringResource(R.string.icon_pack_recheck),
+                onClick = model::recheckNativeIconImport)
+            }
+          }
         }
       }
     }

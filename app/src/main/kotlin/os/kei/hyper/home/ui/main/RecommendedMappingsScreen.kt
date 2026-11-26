@@ -24,6 +24,8 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -88,16 +90,18 @@ internal fun RecommendedMappingsPage(
         .padding(PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(16.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             MetadataPill(stringResource(R.string.recommended_mappings_preview),
               MiuixTheme.colorScheme.primary)
             Text(stringResource(R.string.recommended_mappings_update_note),
               modifier = Modifier.testTag("recommended-mappings.update-note"),
               style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            if (nativeImporting) Text(stringResource(R.string.recommended_mappings_importing),
-              modifier = Modifier.testTag("recommended-mappings.importing"),
-              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Os4AnimatedVisibility(nativeImporting) {
+              Text(stringResource(R.string.recommended_mappings_importing),
+                modifier = Modifier.testTag("recommended-mappings.importing"),
+                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
           }
         }
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {

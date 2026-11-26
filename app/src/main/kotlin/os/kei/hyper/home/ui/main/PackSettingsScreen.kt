@@ -25,7 +25,10 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -109,11 +112,16 @@ internal fun PackSettingsContent(
         checked = preferences.completeSystemIconConfig,
         onCheckedChange = onCompleteSystemIconConfig,
         modifier = Modifier.testTag("icon-packs.complete-system-icon-config"))
-      if (onOpenMask != null) BasicComponent(
-        title = stringResource(R.string.icon_mask_entry_title),
-        summary = stringResource(R.string.icon_mask_entry_summary),
-        onClick = onOpenMask,
-        modifier = Modifier.testTag("icon-packs.open-mask"))
+      if (onOpenMask != null) {
+        val maskPress = rememberOs4PressSource()
+        BasicComponent(
+          title = stringResource(R.string.icon_mask_entry_title),
+          summary = stringResource(R.string.icon_mask_entry_summary),
+          onClick = onOpenMask,
+          interactionSource = maskPress,
+          endActions = { Os4TrailingChevron() },
+          modifier = Modifier.glassPress(maskPress).testTag("icon-packs.open-mask"))
+      }
     }
   }
   if (showRememberMenus || showPreviews || onOpenCurrentIconPack != null || onKeepLatestGeneratedPacks != null) {

@@ -1,6 +1,9 @@
 package os.kei.hyper.home.ui.main
 
 import android.text.format.Formatter
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -48,8 +50,13 @@ import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4LazyColumn
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackEntry
@@ -114,7 +121,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
   var confirmRemoval by remember { mutableStateOf(false) }
   val busy = state.importing || state.nativeImporting != null || state.removing != null
   val sectionLoading = state.isSectionLoading(section)
-  LazyColumn(overscrollEffect = null, state = listState, modifier = modifier, contentPadding = padding,
+  Os4LazyColumn(state = listState, modifier = modifier, contentPadding = padding,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     when (section) {
       "home" -> {
@@ -183,36 +190,42 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
       }
       else -> {
         item("search") {
-          Row(verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Os4SearchField(query = query, onQueryChange = { query = it },
-              modifier = Modifier.weight(1f), inputModifier = Modifier.testTag("packs.search"),
-              label = stringResource(R.string.icon_pack_search))
-            val description = stringResource(R.string.pack_list_result_count, cards.size, total)
-            MetadataPill(if (cards.size == total) "$total" else "${cards.size}/$total",
-              MiuixTheme.colorScheme.primary, Modifier.testTag("packs.count").clearAndSetSemantics {
-                contentDescription = description
-              })
-          }
-        }
-        if (filter.isActive) item("filter-summary") {
-          Row(Modifier.fillMaxWidth().testTag("icon-packs.filter-summary"),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              if (filter.isActive) Text(packListFilterSummary(filter),
-                style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
+          Column(Modifier.fillMaxWidth().os4ContentSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              Os4SearchField(query = query, onQueryChange = { query = it },
+                modifier = Modifier.weight(1f), inputModifier = Modifier.testTag("packs.search"),
+                label = stringResource(R.string.icon_pack_search))
+              val description = stringResource(R.string.pack_list_result_count, cards.size, total)
+              MetadataPill(if (cards.size == total) "$total" else "${cards.size}/$total",
+                MiuixTheme.colorScheme.primary, Modifier.testTag("packs.count").clearAndSetSemantics {
+                  contentDescription = description
+                })
             }
-            if (filter.isActive) TextButton(text = stringResource(R.string.pack_list_filter_reset),
-              onClick = onFilterReset, modifier = Modifier.testTag("icon-packs.reset-filter"))
+            Os4AnimatedVisibility(filter.isActive) {
+              Row(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("icon-packs.filter-summary"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text(packListFilterSummary(filter),
+                    style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.primary)
+                }
+                TextButton(text = stringResource(R.string.pack_list_filter_reset),
+                  onClick = onFilterReset, modifier = Modifier.testTag("icon-packs.reset-filter"))
+              }
+            }
           }
         }
-        item("appearance") { IconPackAppearancePreference(preferences.iconPackAppearance,
-          model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true,
-          staticAppearance = preferences.staticAppearanceIcons,
-          onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons) }
-        if (!state.importing && state.importName != null) item("import-status") {
-          PackInfoCard(stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
-            Modifier.testTag("packs.file-import.status"))
+        item("appearance") {
+          Column(Modifier.fillMaxWidth().os4ContentSize()) {
+            IconPackAppearancePreference(preferences.iconPackAppearance,
+              model.preferences::setIconPackAppearance, state.nativeImporting == null, compact = true,
+              staticAppearance = preferences.staticAppearanceIcons,
+              onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons)
+            Os4AnimatedVisibility(!state.importing && state.importName != null) {
+              PackInfoCard(stringResource(R.string.icon_pack_imported_name, state.importName.orEmpty()),
+                Modifier.padding(top = 12.dp).testTag("packs.file-import.status"))
+            }
+          }
         }
         items(cards, key = { it.pack.id }, contentType = { "pack" }) { card ->
           IconPackCard(card, model.packPreviews, preferences.iconPackAppearance,
@@ -226,12 +239,13 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
               removingPack = card.pack
               confirmRemoval = true
             }) else null, removeEnabled = !busy && !sectionLoading,
-            removing = state.removing == card.pack.id)
+            removing = state.removing == card.pack.id,
+            modifier = Modifier.animateItem())
         }
         if (!sectionLoading && (state.scanned || state.loading) && cards.isEmpty()) item("empty") {
           PackInfoCard(stringResource(if (filter.isActive) R.string.pack_list_filter_empty
             else if (query.isBlank()) R.string.icon_pack_empty else R.string.icon_pack_search_empty),
-            Modifier.testTag("icon-packs.empty"))
+            Modifier.animateItem().testTag("icon-packs.empty"))
         }
       }
     }
@@ -243,6 +257,7 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
     title = stringResource(R.string.pack_remove_title),
     summary = removingPack?.displayName.orEmpty(),
     icon = actionIcon(PageActionIcon.CLEAR),
+    onDismissFinished = { removingPack = null },
     details = { Text(stringResource(R.string.pack_remove_message),
       style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary) },
     actions = listOf(
@@ -299,16 +314,18 @@ internal fun IconPackAppearancePreference(
   staticAppearance: Boolean = false,
   onStaticAppearanceChange: ((Boolean) -> Unit)? = null,
 ) {
-  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  Card(modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     Column {
       IconPackAppearanceControl(appearance, onChange, enabled, compact, compactNote = compact)
-      if (appearance == IconPackAppearance.SYSTEM && onStaticAppearanceChange != null) {
-        Os4ExplainedSwitchPreference(title = stringResource(R.string.icon_pack_static_appearance),
-          summary = stringResource(R.string.icon_pack_static_appearance_summary),
-          explanation = stringResource(R.string.icon_pack_static_appearance_help),
-          checked = staticAppearance, enabled = enabled,
-          tag = "icon-packs.static-appearance",
-          onCheckedChange = onStaticAppearanceChange)
+      Os4AnimatedVisibility(appearance == IconPackAppearance.SYSTEM && onStaticAppearanceChange != null) {
+        onStaticAppearanceChange?.let { onChangeStatic ->
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.icon_pack_static_appearance),
+            summary = stringResource(R.string.icon_pack_static_appearance_summary),
+            explanation = stringResource(R.string.icon_pack_static_appearance_help),
+            checked = staticAppearance, enabled = enabled,
+            tag = "icon-packs.static-appearance",
+            onCheckedChange = onChangeStatic)
+        }
       }
       if (!compact) Text(stringResource(R.string.icon_pack_appearance_update_note),
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
@@ -389,7 +406,13 @@ internal fun ThemeEffectsCard(
       stringResource(if (state.savedChoice) R.string.theme_effects_saved_on else R.string.theme_effects_saved_off),
       targetStatuses.joinToString(" · "))
   }
-  Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  val statusColor by animateColorAsState(
+    if (framework.readFailed || state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
+    else MiuixTheme.colorScheme.onSurfaceSecondary,
+    Os4Motion.colorSpring(),
+    label = "theme-effects-status-color",
+  )
+  Card(modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     Column {
       Os4ExplainedSwitchPreference(
         title = stringResource(R.string.theme_effects_title),
@@ -400,20 +423,22 @@ internal fun ThemeEffectsCard(
         onCheckedChange = onCheckedChange,
         tag = "theme-effects.switch",
       )
-      if (showStatus || state.readFailed || state.saveFailed || scopeGuidance != null) {
+      Os4AnimatedVisibility(showStatus || state.readFailed || state.saveFailed || scopeGuidance != null) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
           verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2,
-            color = if (framework.readFailed || state.saveFailed || state.readFailed) MiuixTheme.colorScheme.error
-              else MiuixTheme.colorScheme.onSurfaceSecondary)
-          if (state.readFailed || state.saveFailed) {
+          if (showStatus) Text(status, style = MiuixTheme.textStyles.footnote2, color = statusColor)
+          Os4AnimatedVisibility(state.readFailed || state.saveFailed) {
             TextButton(stringResource(R.string.theme_effects_resave_off),
               onClick = { onCheckedChange(false) },
               enabled = available && state.canSaveThemeEffects(false),
               modifier = Modifier.testTag("theme-effects.resave-off"))
           }
-          if (scopeGuidance != null) Text(stringResource(scopeGuidance),
-            style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          Os4AnimatedVisibility(scopeGuidance != null) {
+            scopeGuidance?.let { guidance ->
+              Text(stringResource(guidance),
+                style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
+          }
         }
       }
       DesktopSettingProgress(if (state.saving) DesktopFeatureStatus.SAVING else DesktopFeatureStatus.ACCEPTED,
@@ -436,13 +461,13 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
   result: NativeIconImportReport?, onImport: () -> Unit, onRecheck: () -> Unit,
   metadataContent: @Composable (() -> Unit)? = null,
   onRemove: (() -> Unit)? = null, removeEnabled: Boolean = true, removing: Boolean = false,
-  manualThemeFallback: Boolean = false) {
+  manualThemeFallback: Boolean = false, modifier: Modifier = Modifier) {
   val context = LocalContext.current
   val pack = card.pack
   val generated = pack.source is IconPackSource.Generated || result?.convertedReady == false
   val native = pack.format == IconPackFormat.MIUI_MTZ || pack.format == IconPackFormat.MIUI_ICONS
   val previewAppearance = if (native) IconPackAppearance.SYSTEM else appearance
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+  Card(modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(14.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
       Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         val removingLabel = stringResource(R.string.pack_removing)
@@ -452,9 +477,13 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
           modifier = Modifier.testTag("pack.remove.${pack.id}").semantics {
             if (removing) contentDescription = removingLabel
           }) {
-          if (removing) CircularProgressIndicator(size = 22.dp, strokeWidth = 2.dp)
-          else Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.pack_remove_named, pack.displayName),
-            Modifier.size(22.dp), tint = MiuixTheme.colorScheme.error)
+          Crossfade(targetState = removing, animationSpec = tween(160), label = "pack-remove-icon") { isRemoving ->
+            Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+              if (isRemoving) CircularProgressIndicator(size = 20.dp, strokeWidth = 2.dp)
+              else Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.pack_remove_named, pack.displayName),
+                Modifier.size(22.dp), tint = MiuixTheme.colorScheme.error)
+            }
+          }
         }
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -526,15 +555,24 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
             onClick = onImport, enabled = enabled && !importing)
         }
       }
-      if (result != null && !result.imported) {
-        Text(stringResource(result.failureLabel()), style = MiuixTheme.textStyles.footnote2,
-          color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
-        if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
+      Os4AnimatedVisibility(result != null && !result.imported) {
+        result?.takeIf { !it.imported }?.let { failed ->
+          Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(failed.failureLabel()), style = MiuixTheme.textStyles.footnote2,
+              color = if (failed.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+            if (failed.pending) TextButton(stringResource(R.string.icon_pack_recheck), onClick = onRecheck)
+          }
+        }
       }
-      if (result?.imported == true && result.convertedReady == false) {
-        NativeThemeLink(result, autoApply = false, enabled = !importing, manualFallback = manualThemeFallback)
-      } else if (manualThemeFallback && generated && nativeId != null && (result == null || result.imported)) {
-        NativeThemeDetailLink(nativeId, enabled = !importing)
+      val showNativeLink = result?.imported == true && result.convertedReady == false
+      val showDetailLink = !showNativeLink && manualThemeFallback && generated && nativeId != null &&
+        (result == null || result.imported)
+      Os4AnimatedVisibility(showNativeLink || showDetailLink) {
+        if (showNativeLink && result != null) {
+          NativeThemeLink(result, autoApply = false, enabled = !importing, manualFallback = manualThemeFallback)
+        } else if (showDetailLink && nativeId != null) {
+          NativeThemeDetailLink(nativeId, enabled = !importing)
+        }
       }
     }
   }
@@ -552,7 +590,7 @@ internal fun PackActionButton(label: String, onClick: () -> Unit, modifier: Modi
   enabled: Boolean = true, primary: Boolean = false, compact: Boolean = true,
   operation: PageActionIcon = PageActionIcon.UPDATE) {
   val colors = if (primary) ButtonDefaults.textButtonColorsPrimary() else ButtonDefaults.textButtonColors()
-  Button(onClick = onClick, modifier = modifier, enabled = enabled,
+  Button(onClick = onClick, modifier = modifier.os4ContentSize(), enabled = enabled,
     minWidth = if (compact) 0.dp else ButtonDefaults.MinWidth,
     minHeight = if (compact) 48.dp else ButtonDefaults.MinHeight,
     insideMargin = if (compact) PaddingValues(12.dp) else ButtonDefaults.InsideMargin,
@@ -587,11 +625,21 @@ internal fun PackIconPair(pack: IconPackDescriptor, entry: IconPackEntry, reposi
     val appearances = if (distinctOnly && entry.light == entry.dark) listOf(light to false)
       else listOf(light to false, dark to true)
     appearances.forEach { (bitmap, isDark) ->
-      Box(Modifier.size(if (compact) 32.dp else 50.dp), contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),
-          Modifier.fillMaxSize(), colorFilter = if (isDark) nightFilter else null)
-        else if (preview == null) CircularProgressIndicator(size = if (compact) 14.dp else 18.dp, strokeWidth = 2.dp)
-        else Text("—", color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      val iconSize = if (compact) 32.dp else 50.dp
+      Crossfade(
+        targetState = bitmap to (preview == null),
+        modifier = Modifier.size(iconSize),
+        animationSpec = tween(180),
+        label = "pack-icon-pair",
+      ) { (image, loading) ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          when {
+            image != null -> Image(image, stringResource(if (isDark) R.string.icon_pack_dark_preview else R.string.icon_pack_light_preview),
+              Modifier.fillMaxSize(), colorFilter = if (isDark) nightFilter else null)
+            loading -> Os4ShimmerPlaceholder(Modifier.fillMaxSize(), cornerRadius = if (compact) 8.dp else 12.dp)
+            else -> Text("—", color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+        }
       }
     }
   }
@@ -609,8 +657,15 @@ internal fun PackStyleThumbnail(pack: IconPackDescriptor, entry: IconPackEntry,
   }
   val artwork = if (dark) preview?.dark else preview?.light
   val bitmap = remember(artwork) { artwork?.asImageBitmap() }
-  Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-    if (bitmap != null) Image(bitmap, null, Modifier.size(50.dp))
-    else if (preview == null) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+  Crossfade(
+    targetState = bitmap to (preview == null),
+    modifier = Modifier.size(54.dp),
+    animationSpec = tween(180),
+    label = "pack-style-thumbnail",
+  ) { (image, loading) ->
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      if (image != null) Image(image, null, Modifier.size(50.dp))
+      else if (loading) Os4ShimmerPlaceholder(Modifier.size(46.dp), cornerRadius = 12.dp)
+    }
   }
 }

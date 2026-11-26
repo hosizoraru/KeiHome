@@ -13,21 +13,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.status.NativeIconImportReport
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun PackCompletionCard(
   needsUpdate: Boolean, pending: NativeIconImportReport?, importing: Boolean, onOpenSettings: () -> Unit,
 ) {
-  Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
+  Card(Modifier.fillMaxWidth().os4ContentSize().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
     onClick = onOpenSettings), insideMargin = PaddingValues(16.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -36,8 +36,10 @@ internal fun PackCompletionCard(
           else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
           style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
-      Icon(MiuixIcons.Glass.ChevronForward, null, Modifier.size(20.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      Os4TrailingChevron()
     }
-    if (pending != null) NativeThemeLink(pending, autoApply = false, enabled = !importing)
+    Os4AnimatedVisibility(pending != null) {
+      pending?.let { NativeThemeLink(it, autoApply = false, enabled = !importing) }
+    }
   }
 }

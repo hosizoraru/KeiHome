@@ -2,6 +2,10 @@ package os.kei.hyper.home.ui.main
 
 import android.content.ComponentName
 import android.content.Intent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -17,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -28,7 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.ColorOsStyle
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -47,7 +55,7 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
   val key = "coloros-${style.artworkKey}-art-${if (art) "on" else "off"}"
   val card = state.packs.firstOrNull { it.pack.builtinKey == key }
   val busy = state.nativeImporting != null
-  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  Column(Modifier.os4ContentSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     if (!inspiration) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(vertical = 16.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
@@ -56,8 +64,23 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
               it.pack.builtinKey == "coloros-${option.key}-art-${if (art) "on" else "off"}"
             }
             val selected = option == style
-            Column(Modifier.width(82.dp).squircleBorder(2.dp,
-              if (selected) MiuixTheme.colorScheme.primary else Color.Transparent, 18.dp)
+            val borderColor by animateColorAsState(
+              if (selected) MiuixTheme.colorScheme.primary else Color.Transparent,
+              Os4Motion.colorSpring(),
+              label = "coloros-style-border",
+            )
+            val labelColor by animateColorAsState(
+              if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+              Os4Motion.colorSpring(),
+              label = "coloros-style-label",
+            )
+            val tileScale by animateFloatAsState(
+              if (selected) 1.03f else 1f,
+              Os4Motion.stateSpring(),
+              label = "coloros-style-scale",
+            )
+            Column(Modifier.width(82.dp).graphicsLayer { scaleX = tileScale; scaleY = tileScale }
+              .squircleBorder(2.dp, borderColor, 18.dp)
               .os4Clickable(enabled = !busy, cornerRadius = 18.dp) { model.preferences.setColorOsStyle(option) }
               .padding(6.dp).semantics { this.selected = selected },
               horizontalAlignment = Alignment.CenterHorizontally,
@@ -66,23 +89,28 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
                 ?: preview?.previewEntries?.firstOrNull())?.let {
                 PackStyleThumbnail(preview!!.pack, it, model.packPreviews, preferences.iconPackAppearance)
               }
-              Text(stringResource(colorOsStyleLabel(option)), style = MiuixTheme.textStyles.footnote2)
+              Text(stringResource(colorOsStyleLabel(option)), style = MiuixTheme.textStyles.footnote2,
+                color = labelColor)
             }
           }
         }
       }
     }
-    if (card != null && !inspiration) Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("ColorOS · ${stringResource(colorOsStyleLabel(style))}", style = MiuixTheme.textStyles.body1)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          card.previewEntries.forEach { entry ->
-            PackIconPair(card.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f), compact = true)
+    Os4AnimatedVisibility(card != null && !inspiration) {
+      if (card != null) Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(14.dp)) {
+        Crossfade(targetState = Triple(style, art, card), animationSpec = tween(200), label = "coloros-preview-card") { (currentStyle, _, previewCard) ->
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("ColorOS · ${stringResource(colorOsStyleLabel(currentStyle))}", style = MiuixTheme.textStyles.body1)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              previewCard.previewEntries.forEach { entry ->
+                PackIconPair(previewCard.pack, entry, model.packPreviews, preferences.iconPackAppearance, Modifier.weight(1f), compact = true)
+              }
+            }
           }
         }
       }
     }
-    if (card == null && state.scanned && !state.isSectionLoading("coloros")) {
+    Os4AnimatedVisibility(card == null && state.scanned && !state.isSectionLoading("coloros")) {
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
         Text(stringResource(R.string.pack_local_unavailable), style = MiuixTheme.textStyles.footnote1,
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -97,9 +125,13 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         summary = stringResource(R.string.pack_art_summary), checked = preferences.colorOsArtPlus,
         enabled = !busy, onCheckedChange = model.preferences::setColorOsArtPlus)
     }
-    state.error?.takeIf { it.isNotBlank() }?.let { message ->
-      Text(message, modifier = Modifier.testTag("coloros.generation.error")
-        .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1)
+    val errorMessage = state.error?.takeIf { it.isNotBlank() }
+    Os4AnimatedVisibility(errorMessage != null) {
+      errorMessage?.let { message ->
+        Text(message, modifier = Modifier.testTag("coloros.generation.error")
+          .semantics { liveRegion = LiveRegionMode.Polite }, style = MiuixTheme.textStyles.footnote1,
+          color = MiuixTheme.colorScheme.error)
+      }
     }
     val result = state.nativeResult?.takeIf { !busy }?.takeIf {
       if (card == null) {
@@ -108,17 +140,21 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
         preferences.systemIconFallback.sourceId(style.importSourceId(id, preferences.iconPackAppearance))
       }
     }
-    if (result != null) Card(Modifier.fillMaxWidth(),
-      insideMargin = PaddingValues(if (result?.imported == true) 0.dp else 16.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (result?.imported == true) {
-          NativeThemeLink(result, preferences.autoApplyIconPack, enabled = !busy,
-            manualFallback = preferences.manualThemeFallback)
-        } else if (result != null) {
-          Text(stringResource(result.failureLabel()),
-            color = if (result.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
-          if (result.pending) TextButton(stringResource(R.string.icon_pack_recheck),
-            onClick = model::recheckNativeIconImport)
+    Os4AnimatedVisibility(result != null) {
+      result?.let { currentResult ->
+        Card(Modifier.fillMaxWidth().os4ContentSize(),
+          insideMargin = PaddingValues(if (currentResult.imported) 0.dp else 16.dp)) {
+          Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (currentResult.imported) {
+              NativeThemeLink(currentResult, preferences.autoApplyIconPack, enabled = !busy,
+                manualFallback = preferences.manualThemeFallback)
+            } else {
+              Text(stringResource(currentResult.failureLabel()),
+                color = if (currentResult.pending) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.error)
+              if (currentResult.pending) TextButton(stringResource(R.string.icon_pack_recheck),
+                onClick = model::recheckNativeIconImport)
+            }
+          }
         }
       }
     }

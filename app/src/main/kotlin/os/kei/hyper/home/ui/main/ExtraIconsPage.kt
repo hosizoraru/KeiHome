@@ -1,6 +1,9 @@
 package os.kei.hyper.home.ui.main
 
 import android.graphics.Bitmap
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -48,8 +52,11 @@ import os.kei.hyper.home.iconpack.ExtraIcon
 import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
+import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
@@ -113,7 +120,7 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
         Text(stringResource(R.string.no_matching_apps), Modifier.padding(12.dp),
           color = MiuixTheme.colorScheme.onSurfaceSecondary)
       } else {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
           ExtraIconsRow(Modifier.padding(top = 12.dp, bottom = 6.dp),
             name = { ExtraColumnTitle(R.string.extra_icons_dark_preview, TextAlign.Start) },
             current = { ExtraColumnTitle(R.string.extra_icons_current) },
@@ -123,27 +130,43 @@ internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: P
             key(icon) {
               HorizontalDivider(Modifier.padding(horizontal = 12.dp))
               val name = names.getValue(icon)
+              val enabled = icon.packageName in prefs.extraIconPackages
+              val interactive = packs.nativeImporting == null
               val overridden = icon.packageName in prefs.preservedIconPackages ||
                 custom.selections.any { it.packageName == icon.packageName }
-              ExtraIconsRow(Modifier.testTag("extra-icons.row.${icon.packageName}").heightIn(min = 64.dp)
-                .padding(vertical = 8.dp), name = {
+              val currentAlpha by animateFloatAsState(if (enabled) 0.48f else 1f, Os4Motion.stateSpring(),
+                label = "extra-current-alpha")
+              val extraAlpha by animateFloatAsState(if (enabled) 1f else 0.72f, Os4Motion.stateSpring(),
+                label = "extra-replacement-alpha")
+              val extraScale by animateFloatAsState(if (enabled) 1.05f else 0.96f, Os4Motion.stateSpring(),
+                label = "extra-replacement-scale")
+              ExtraIconsRow(Modifier.testTag("extra-icons.row.${icon.packageName}")
+                .os4Clickable(enabled = interactive) { model.preferences.setExtraIconEnabled(icon, !enabled) }
+                .heightIn(min = 64.dp).padding(vertical = 8.dp), name = {
                   Text(name, style = MiuixTheme.textStyles.body2)
                   if (overridden) Text(stringResource(R.string.extra_icons_override),
                     style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
                 }, current = {
                   val artwork = currentArtwork[icon]
-                  Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                  Column(Modifier.graphicsLayer { alpha = currentAlpha },
+                    horizontalAlignment = Alignment.CenterHorizontally) {
                     ExtraArtwork(
                       if (artwork?.original == true) R.string.extra_icons_original else R.string.extra_icons_current,
                       artwork?.bitmap, artwork == null)
                     if (artwork?.original == true) ExtraColumnTitle(R.string.extra_icons_original)
                   }
                 }, extra = {
-                  ExtraArtwork(R.string.extra_icons_title, extraArtwork[icon], icon !in extraArtwork)
+                  Box(Modifier.graphicsLayer {
+                    alpha = extraAlpha
+                    scaleX = extraScale
+                    scaleY = extraScale
+                  }) {
+                    ExtraArtwork(R.string.extra_icons_title, extraArtwork[icon], icon !in extraArtwork)
+                  }
                 }, toggle = {
                   val description = stringResource(R.string.extra_icons_enable, name)
-                  Switch(checked = icon.packageName in prefs.extraIconPackages,
-                    enabled = packs.nativeImporting == null,
+                  Switch(checked = enabled,
+                    enabled = interactive,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("extra-icons.enable.${icon.packageName}")
                       .semantics { contentDescription = description },
                     onCheckedChange = { model.preferences.setExtraIconEnabled(icon, it) })
@@ -185,19 +208,27 @@ private fun ExtraColumnTitle(label: Int, alignment: TextAlign = TextAlign.Center
 private fun ExtraArtwork(label: Int, bitmap: Bitmap?, loading: Boolean) {
   val name = stringResource(label)
   IconPreviewArtworkFrame(Modifier.size(40.dp)) {
-    when {
-      bitmap != null -> Image(remember(bitmap) { bitmap.asImageBitmap() }, contentDescription = name,
-        modifier = Modifier.fillMaxSize())
-      loading -> {
-        val status = stringResource(R.string.extra_icons_loading, name)
-        Box(Modifier.clearAndSetSemantics { contentDescription = status }) {
-          CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
+    Crossfade(
+      targetState = bitmap to loading,
+      modifier = Modifier.fillMaxSize(),
+      animationSpec = tween(180),
+      label = "extra-artwork",
+    ) { (image, isLoading) ->
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when {
+          image != null -> Image(remember(image) { image.asImageBitmap() }, contentDescription = name,
+            modifier = Modifier.fillMaxSize())
+          isLoading -> {
+            val status = stringResource(R.string.extra_icons_loading, name)
+            Os4ShimmerPlaceholder(Modifier.fillMaxSize().clearAndSetSemantics { contentDescription = status },
+              cornerRadius = 10.dp)
+          }
+          else -> {
+            val status = stringResource(R.string.extra_icons_unavailable, name)
+            Text("\u2014", Modifier.clearAndSetSemantics { contentDescription = status },
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
         }
-      }
-      else -> {
-        val status = stringResource(R.string.extra_icons_unavailable, name)
-        Text("\u2014", Modifier.clearAndSetSemantics { contentDescription = status },
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
   }

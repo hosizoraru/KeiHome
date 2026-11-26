@@ -3,6 +3,9 @@ package os.kei.hyper.home.ui.main
 import android.graphics.Rect
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +33,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asComposePath
@@ -66,11 +67,15 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
@@ -79,11 +84,13 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -158,7 +165,7 @@ internal fun IconMaskSettingsContent(
   val colors = MiuixTheme.colorScheme
   val sourceLabel = stringResource(if (state.custom == null) R.string.icon_mask_source_auto
     else R.string.icon_mask_source_custom)
-  Card(Modifier.fillMaxWidth().testTag("icon-mask.status"), insideMargin = PaddingValues(16.dp)) {
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("icon-mask.status"), insideMargin = PaddingValues(16.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         MaskShapePreview(state.custom?.pathData ?: state.defaultPathData)
@@ -174,11 +181,15 @@ internal fun IconMaskSettingsContent(
           }
         }
       }
-      state.custom?.let {
-        Text(it.name, style = MiuixTheme.textStyles.body2, maxLines = 2, overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.testTag("icon-mask.filename"), color = colors.onSurfaceSecondary)
+      Os4AnimatedVisibility(state.custom != null) {
+        state.custom?.let {
+          Text(it.name, style = MiuixTheme.textStyles.body2, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("icon-mask.filename"), color = colors.onSurfaceSecondary)
+        }
       }
-      if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("icon-mask.progress"))
+      Os4AnimatedVisibility(state.busy) {
+        LinearProgressIndicator(Modifier.fillMaxWidth().testTag("icon-mask.progress"))
+      }
     }
   }
   val errorText = when {
@@ -188,9 +199,11 @@ internal fun IconMaskSettingsContent(
     pickerError -> R.string.icon_mask_picker_failed
     else -> null
   }
-  if (errorText != null) {
-    Card(Modifier.fillMaxWidth().testTag("icon-mask.error"), insideMargin = PaddingValues(16.dp)) {
-      Text(stringResource(errorText), color = colors.error, style = MiuixTheme.textStyles.body2)
+  Os4AnimatedVisibility(errorText != null) {
+    errorText?.let { res ->
+      Card(Modifier.fillMaxWidth().testTag("icon-mask.error"), insideMargin = PaddingValues(16.dp)) {
+        Text(stringResource(res), color = colors.error, style = MiuixTheme.textStyles.body2)
+      }
     }
   }
   comparison()
@@ -201,13 +214,22 @@ internal fun IconMaskSettingsContent(
       checked = completeSystemIconConfig, enabled = !state.busy,
       onCheckedChange = onCompleteSystemIconConfig,
       modifier = Modifier.testTag("icon-mask.complete"))
+    val restorePress = rememberOs4PressSource()
+    val restoreEnabled = state.custom != null && !state.busy
+    val restoreTint by animateColorAsState(
+      if (restoreEnabled) colors.error else colors.onSurfaceSecondary,
+      Os4Motion.colorSpring(),
+      label = "icon-mask-restore-tint",
+    )
     BasicComponent(title = stringResource(R.string.icon_mask_restore),
       summary = stringResource(R.string.icon_mask_restore_summary),
-      enabled = state.custom != null && !state.busy, onClick = { confirmReset = true },
+      enabled = restoreEnabled,
+      holdDownState = confirmReset,
+      interactionSource = restorePress,
+      onClick = { confirmReset = true },
       endActions = {
-        Icon(actionIcon(PageActionIcon.CLEAR), null, Modifier.size(22.dp),
-          tint = if (state.custom != null && !state.busy) colors.error else colors.onSurfaceSecondary)
-      }, modifier = Modifier.testTag("icon-mask.restore"))
+        Icon(actionIcon(PageActionIcon.CLEAR), null, Modifier.size(22.dp), tint = restoreTint)
+      }, modifier = Modifier.glassPress(restorePress, restoreEnabled).testTag("icon-mask.restore"))
   }
   SmallTitle(stringResource(R.string.icon_mask_rules))
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
@@ -261,55 +283,60 @@ private fun MaskIconComparison(
   val labels = listOf(stringResource(R.string.icon_mask_compare_original),
     stringResource(R.string.icon_mask_compare_hyperos4), stringResource(R.string.icon_mask_compare_custom))
   SmallTitle(stringResource(R.string.icon_mask_comparison))
-  Card(Modifier.fillMaxWidth().testTag("icon-mask.comparison"), insideMargin = PaddingValues(0.dp)) {
-    if (selected == null) {
-      Text(stringResource(if (catalog.loading) R.string.icon_mask_catalog_loading else R.string.icon_mask_no_packs),
-        modifier = Modifier.padding(16.dp), style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
-    } else {
-      val items = remember(SnapshotIdentity(packs)) { packs.map { DropdownItem(text = it.pack.displayName) } }
-      OverlaySpinnerPreference(title = stringResource(R.string.icon_mask_compare_pack),
-        items = items, selectedIndex = selectedIndex, enabled = packs.size > 1,
-        modifier = Modifier.testTag("icon-mask.pack"),
-        onSelectedIndexChange = { index -> packs.getOrNull(index)?.let { selectedId = it.pack.id } })
-      Os4ViewTabs(items = listOf(stringResource(R.string.monet_preview_light),
-        stringResource(R.string.monet_preview_dark)), selectedIndex = if (dark) 1 else 0,
-        onSelect = { darkOverride = it == 1 },
-        modifier = Modifier.padding(16.dp).testTag("icon-mask.compare-dark"))
-      val samples = remember(selected) {
-        selected.previewEntries.ifEmpty { selected.pack.entries }.asSequence().distinctBy { it.key }.take(3).toList()
-      }
-      Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          labels.forEach { label ->
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-              Text(label, style = MiuixTheme.textStyles.footnote1, fontWeight = FontWeight.Medium,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            }
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("icon-mask.comparison"), insideMargin = PaddingValues(0.dp)) {
+    Crossfade(targetState = selected == null, animationSpec = tween(200), label = "icon-mask-comparison") { empty ->
+      if (empty) {
+        Text(stringResource(if (catalog.loading) R.string.icon_mask_catalog_loading else R.string.icon_mask_no_packs),
+          modifier = Modifier.padding(16.dp), style = MiuixTheme.textStyles.body2,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      } else {
+        val currentSelected = selected ?: return@Crossfade
+        Column {
+          val items = remember(SnapshotIdentity(packs)) { packs.map { DropdownItem(text = it.pack.displayName) } }
+          OverlaySpinnerPreference(title = stringResource(R.string.icon_mask_compare_pack),
+            items = items, selectedIndex = selectedIndex, enabled = packs.size > 1,
+            modifier = Modifier.testTag("icon-mask.pack"),
+            onSelectedIndexChange = { index -> packs.getOrNull(index)?.let { selectedId = it.pack.id } })
+          Os4ViewTabs(items = listOf(stringResource(R.string.monet_preview_light),
+            stringResource(R.string.monet_preview_dark)), selectedIndex = if (dark) 1 else 0,
+            onSelect = { darkOverride = it == 1 },
+            modifier = Modifier.padding(16.dp).testTag("icon-mask.compare-dark"))
+          val samples = remember(currentSelected) {
+            currentSelected.previewEntries.ifEmpty { currentSelected.pack.entries }.asSequence().distinctBy { it.key }.take(3).toList()
           }
-        }
-        samples.forEach { entry ->
-          Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              listOf(originalPolicy, hyperOs4Policy, customPolicy).forEachIndexed { index, policy ->
+              labels.forEach { label ->
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                  if (policy == null) Text(stringResource(R.string.icon_mask_compare_no_custom),
-                    style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-                  else MaskComparisonIcon(selected.pack, entry, repository, policy, dark, labels[index], previewRevision,
-                    Modifier.testTag("icon-mask.compare.$index.${entry.key}"))
+                  Text(label, style = MiuixTheme.textStyles.footnote1, fontWeight = FontWeight.Medium,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
               }
             }
-            Text(entry.component?.packageName ?: entry.nativeName ?: entry.key,
-              style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
-              maxLines = 1, overflow = TextOverflow.Ellipsis,
-              textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            samples.forEach { entry ->
+              Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                  listOf(originalPolicy, hyperOs4Policy, customPolicy).forEachIndexed { index, policy ->
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                      if (policy == null) Text(stringResource(R.string.icon_mask_compare_no_custom),
+                        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                      else MaskComparisonIcon(currentSelected.pack, entry, repository, policy, dark, labels[index], previewRevision,
+                        Modifier.testTag("icon-mask.compare.$index.${entry.key}"))
+                    }
+                  }
+                }
+                Text(entry.component?.packageName ?: entry.nativeName ?: entry.key,
+                  style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                  maxLines = 1, overflow = TextOverflow.Ellipsis,
+                  textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+              }
+            }
+            Text(stringResource(R.string.icon_mask_compare_note), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Text(stringResource(R.string.icon_mask_compare_legacy), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
         }
-        Text(stringResource(R.string.icon_mask_compare_note), style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        Text(stringResource(R.string.icon_mask_compare_legacy), style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
     }
   }
@@ -343,13 +370,23 @@ internal fun MaskComparisonIcon(
   }
   val artwork = if (dark) preview?.dark else preview?.light
   val bitmap = remember(artwork) { artwork?.asImageBitmap() }
+  val tileBg by animateColorAsState(
+    if (dark) Color(0xff232428) else Color(0xfff0f1f4),
+    Os4Motion.colorSpring(),
+    label = "mask-compare-bg",
+  )
   // No clip or shape is added by the UI: every column shows the shared renderer's output.
-  Box(modifier.size(56.dp).background(if (dark) Color(0xff232428) else Color(0xfff0f1f4)),
-    contentAlignment = Alignment.Center) {
-    if (bitmap != null) Image(bitmap, label, Modifier.size(50.dp))
-    else if (preview == null) CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
-    else Text(stringResource(R.string.icon_mask_compare_unavailable),
-      style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
+  Box(modifier.size(56.dp).background(tileBg), contentAlignment = Alignment.Center) {
+    Crossfade(targetState = bitmap to (preview == null), animationSpec = tween(180), label = "mask-compare-icon") { (image, loading) ->
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when {
+          image != null -> Image(image, label, Modifier.size(50.dp))
+          loading -> Os4ShimmerPlaceholder(Modifier.size(44.dp), cornerRadius = 10.dp)
+          else -> Text(stringResource(R.string.icon_mask_compare_unavailable),
+            style = MiuixTheme.textStyles.footnote2, color = if (dark) Color.White else Color.DarkGray)
+        }
+      }
+    }
   }
 }
 
@@ -360,16 +397,19 @@ private fun MaskShapePreview(pathData: String?) {
   }
   val color = MiuixTheme.colorScheme.primary
   val description = stringResource(R.string.icon_mask_shape)
-  Box(Modifier.size(72.dp).clip(RoundedCornerShape(16.dp))
-    .background(MiuixTheme.colorScheme.surfaceContainer)
+  Box(Modifier.size(72.dp).squircleBackground(MiuixTheme.colorScheme.surfaceContainer, 16.dp)
     .testTag("icon-mask.shape").semantics { contentDescription = description },
     contentAlignment = Alignment.Center) {
-    if (mask != null) Canvas(Modifier.size(56.dp)) {
-      val path = mask.pathForBounds(Rect(0, 0, size.width.toInt(), size.height.toInt())).asComposePath()
-      drawPath(path, Brush.linearGradient(listOf(color, color.copy(alpha = 0.45f))))
+    Crossfade(targetState = mask, animationSpec = tween(200), label = "mask-shape-preview") { activeMask ->
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (activeMask != null) Canvas(Modifier.size(56.dp)) {
+          val path = activeMask.pathForBounds(Rect(0, 0, size.width.toInt(), size.height.toInt())).asComposePath()
+          drawPath(path, Brush.linearGradient(listOf(color, color.copy(alpha = 0.45f))))
+        }
+        else Text(stringResource(R.string.icon_mask_shape_unavailable),
+          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
+          modifier = Modifier.padding(8.dp))
+      }
     }
-    else Text(stringResource(R.string.icon_mask_shape_unavailable),
-      style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      modifier = Modifier.padding(8.dp))
   }
 }

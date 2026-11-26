@@ -18,20 +18,26 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun IconFallbackSettingsEntry(onOpen: (String) -> Unit) {
+  val pressSource = rememberOs4PressSource()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = stringResource(R.string.icon_fallback_title),
       summary = stringResource(R.string.icon_fallback_entry_summary),
-      startAction = { Icon(actionIcon(PageActionIcon.MATCH), null) },
-      endActions = { Icon(actionIcon(PageActionIcon.OPEN_INTERNAL), null) },
-      modifier = Modifier.testTag("icon-fallback.entry"),
+      interactionSource = pressSource,
+      startAction = { Icon(actionIcon(PageActionIcon.MATCH), null, tint = MiuixTheme.colorScheme.primary) },
+      endActions = { Os4TrailingChevron() },
+      modifier = Modifier.glassPress(pressSource).testTag("icon-fallback.entry"),
       onClick = { onOpen("fallback-settings") })
   }
 }
@@ -60,7 +66,7 @@ internal fun IconFallbackOrderCard(model: HomeViewModel) {
     add(stringResource(R.string.icon_fallback_original) to
       stringResource(R.string.icon_fallback_original_summary))
   }
-  Card(Modifier.fillMaxWidth().testTag("icon-fallback.order"), insideMargin = PaddingValues(16.dp)) {
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("icon-fallback.order"), insideMargin = PaddingValues(16.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
       Text(stringResource(R.string.icon_fallback_order_title), style = MiuixTheme.textStyles.title4)
       Text(stringResource(R.string.icon_fallback_priority_rules),

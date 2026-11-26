@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,8 +38,11 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4InfoPopup
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -206,26 +211,41 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            val preservedPress = rememberOs4PressSource()
             BasicComponent(title = stringResource(R.string.preserved_icons_title),
               summary = stringResource(R.string.preserved_icons_entry),
-              startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null) },
-              modifier = Modifier.testTag("icon-packs.open-preserved-icons"),
+              interactionSource = preservedPress,
+              startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Os4TrailingChevron() },
+              modifier = Modifier.glassPress(preservedPress).testTag("icon-packs.open-preserved-icons"),
               onClick = { onNavigate("preserved-icons") })
+            val customPress = rememberOs4PressSource()
             BasicComponent(title = stringResource(R.string.custom_icons_title),
               summary = stringResource(R.string.custom_icons_entry),
-              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), contentDescription = null) },
-              modifier = Modifier.testTag("icon-packs.open-custom-icons"),
+              interactionSource = customPress,
+              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Os4TrailingChevron() },
+              modifier = Modifier.glassPress(customPress).testTag("icon-packs.open-custom-icons"),
               onClick = { onNavigate("custom-icons") })
+            val mappingPress = rememberOs4PressSource()
             BasicComponent(title = stringResource(R.string.recommended_mappings_title),
               summary = stringResource(R.string.recommended_mappings_entry),
-              startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null) },
-              modifier = Modifier.testTag("icon-packs.open-recommended-mappings"),
+              interactionSource = mappingPress,
+              startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Os4TrailingChevron() },
+              modifier = Modifier.glassPress(mappingPress).testTag("icon-packs.open-recommended-mappings"),
               onClick = { onNavigate("recommended-mappings") })
+            val extraPress = rememberOs4PressSource()
             BasicComponent(title = stringResource(R.string.extra_icons_title),
               summary = stringResource(R.string.extra_icons_entry),
-              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), null) },
-              endActions = { Icon(actionIcon(PageActionIcon.OPEN_INTERNAL), null) },
-              modifier = Modifier.testTag("icon-packs.open-extra-icons"),
+              interactionSource = extraPress,
+              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), null,
+                tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Os4TrailingChevron() },
+              modifier = Modifier.glassPress(extraPress).testTag("icon-packs.open-extra-icons"),
               onClick = { onNavigate("extra-icons") })
           }
           IconFallbackSettingsEntry(onNavigate)
@@ -237,13 +257,15 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
             Modifier.fillMaxSize().keiHomeTopBarScroll(behavior, overScrollEnabled = !busy), section, onNavigate,
             filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
         }
-      } else {
-        val activeList = when (contentSection) {
-          "builtin" -> hyperOsList
-          "coloros" -> colorOsList
-          else -> list
+      } else if (builtin) {
+        Crossfade(targetState = contentSection, animationSpec = tween(200), label = "builtin-pack-tab") { tab ->
+          val tabList = if (tab == "coloros") colorOsList else hyperOsList
+          val tabBehavior = if (tab == "coloros") colorOsBehavior else defaultBehavior
+          IconPacksPage(model, tabList, padding, Modifier.fillMaxSize().keiHomeTopBarScroll(tabBehavior),
+            tab, onNavigate, filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
         }
-        IconPacksPage(model, activeList, padding, contentModifier, contentSection, onNavigate,
+      } else {
+        IconPacksPage(model, list, padding, contentModifier, contentSection, onNavigate,
           filter = filter, onFilterReset = { updateFilter(IconPackCatalogFilter()) })
       }
     }

@@ -1,5 +1,6 @@
 package os.kei.buildlogic.assets
 
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Project
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
@@ -25,8 +26,9 @@ internal fun Project.configureGeneratedAssets() {
     task.outputDirectory.set(layout.buildDirectory.dir("generated/assets/third-party-notices"))
   }
   extensions.getByType(ApplicationAndroidComponentsExtension::class.java).onVariants { variant ->
+    val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
     val dependencyVersions = tasks.register(
-      "prepare${variant.name.replaceFirstChar(Char::uppercaseChar)}DependencyVersions",
+      "prepare${variantName}DependencyVersions",
       PrepareDependencyVersions::class.java,
     ) { task ->
       task.modules.set(configurations.named("${variant.name}RuntimeClasspath").map { configuration ->
@@ -41,5 +43,12 @@ internal fun Project.configureGeneratedAssets() {
     variant.sources.assets?.addGeneratedSourceDirectory(dependencyVersions, PrepareDependencyVersions::outputDirectory)
     variant.sources.assets?.addGeneratedSourceDirectory(noticeAssets, PrepareThirdPartyNotices::outputDirectory)
     variant.sources.assets?.addGeneratedSourceDirectory(builtinAssets, PrepareBuiltinIconStore::outputDirectory)
+    val verify = tasks.register("verify${variantName}BuiltinIconStore", VerifyBuiltinIconStore::class.java) { task ->
+      task.apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+      task.generatedAssets.set(builtinAssets.flatMap(PrepareBuiltinIconStore::outputDirectory))
+    }
+    tasks.matching { task -> task.name == "assemble$variantName" }.configureEach { task ->
+      task.dependsOn(verify)
+    }
   }
 }

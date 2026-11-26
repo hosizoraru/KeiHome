@@ -30,6 +30,11 @@ Builds without optional OEM pack inputs skip Python and have an empty catalog.
 With those inputs, Python 3.11+ is required at build time. There is no new
 Android library, JNI codec, or host-process initialization.
 
+Variant assembly checks the final APK for the catalog and the uncompressed
+object entry at its generated size. Checking merged asset bytes alone cannot
+detect a change in outer ZIP compression. Builds without a catalog and object
+store still pass this check.
+
 ## Reader, bounds and ownership
 
 `BuiltinIconPackStore` validates the catalog schema, names, paths, file/parent

@@ -10,6 +10,7 @@ import org.gradle.api.Project
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
+import os.kei.buildlogic.assets.configureGeneratedAssets
 
 class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
   override fun apply(project: Project) {
@@ -116,6 +117,8 @@ class KeiHomeAndroidApplicationPlugin : Plugin<Project> {
         }
       }
     }
+
+    project.configureGeneratedAssets()
 
     project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java).onVariants { variant ->
       variant.androidTest?.let { test ->

@@ -68,7 +68,7 @@ checkpoint; do not promise it for every future release.
 
 ## What the bundled ColorOS packs actually contain
 
-The generated packs are inputs to `app/build.gradle.kts` asset packaging. Their
+The generated packs are inputs to the built-in icon store task in `build-logic`. Their
 Telegram appfilter rows target only `org.telegram.messenger`, through:
 
 ```text

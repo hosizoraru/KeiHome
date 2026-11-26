@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.graphics.Color
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
@@ -59,8 +61,7 @@ import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -121,7 +122,7 @@ internal fun ScopeAuthorizationPage(
   Scaffold(backdrop = backdrop, topBar = {
     BlurredBar(backdrop, backdrop != null) {
     TopAppBar(stringResource(R.string.settings_hook_section), navigationIcon = {
-      IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
+      IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back)) }
     }, actions = {
       IconButton(onClick = onRefresh, enabled = !reading && !state.requesting,
         modifier = Modifier.testTag("scope.page.refresh")) {
@@ -146,7 +147,7 @@ internal fun ScopeAuthorizationPage(
         BasicComponent(title = stringResource(R.string.scope_open_manager),
           summary = stringResource(R.string.scope_page_manager_summary),
           startAction = { Icon(ImageVector.vectorResource(LucideR.drawable.lucide_ic_shield), null, Modifier.size(24.dp)) },
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+          endActions = { Os4TrailingChevron() },
           onClick = managerAction)
       }
       Card(Modifier.fillMaxWidth()) {

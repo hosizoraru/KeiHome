@@ -23,13 +23,11 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.AppPreferencesState
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -177,7 +175,7 @@ internal fun SettingsContent(
         BasicComponent(title = stringResource(R.string.recommended_mappings_title),
           summary = stringResource(R.string.recommended_mappings_entry),
           modifier = Modifier.testTag("settings.entry.recommended-mappings"),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+          endActions = { Os4TrailingChevron() },
           onClick = onOpenRecommendedMappings)
       }
     }
@@ -186,7 +184,7 @@ internal fun SettingsContent(
         BasicComponent(title = stringResource(SettingsSection.THEME.title),
           summary = stringResource(SettingsSection.THEME.summary), onClick = onOpenAppTheme,
           modifier = Modifier.testTag("settings.entry.theme"),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+          endActions = { Os4TrailingChevron() })
       }
     }
     if (language) {

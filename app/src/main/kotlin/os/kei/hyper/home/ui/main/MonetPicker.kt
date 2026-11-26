@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import os.kei.hyper.home.ui.components.LocalOs4GlassSurface
@@ -7,7 +9,6 @@ import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import top.yukonga.miuix.kmp.glass.GlassCard
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import top.yukonga.miuix.kmp.basic.BasicComponent
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -230,7 +231,7 @@ internal fun MonetPicker(
             MonetSection.PREVIEW -> stringResource(R.string.monet_page_preview_summary)
             else -> null
           },
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+          endActions = { Os4TrailingChevron() },
           modifier = Modifier.testTag("monet.open.${destination.name}"),
           insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
           onClick = { openSheet(destination) },

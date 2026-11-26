@@ -41,7 +41,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -63,7 +63,7 @@ internal fun DesktopToolsScreen(model: HomeViewModel, onBack: () -> Unit) {
       TopAppBar(title = stringResource(R.string.desktop_dark_mode_statusbar), scrollBehavior = behavior, expandable = false,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
         actions = { IconButton(enabled = !state.checking, onClick = { model.readDesktopAppearance() }) {
           Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.desktop_tools_read))

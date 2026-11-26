@@ -51,8 +51,8 @@ internal fun Os4DisclosureHeader(
   )
   val indicator: @Composable RowScope.() -> Unit = {
     Icon(MiuixIcons.Glass.ChevronForward, null,
-      modifier = Modifier.size(24.dp).testTag("disclosure.indicator").graphicsLayer { rotationZ = rotation },
-      tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      modifier = Modifier.size(16.dp).testTag("disclosure.indicator").graphicsLayer { rotationZ = rotation },
+      tint = MiuixTheme.colorScheme.onSurfaceVariantSummary)
   }
   if (titleContent != null) {
     BasicComponent(

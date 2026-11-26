@@ -35,7 +35,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -49,7 +49,7 @@ internal fun ContributorsScreen(onBack: () -> Unit) {
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
           IconButton(onClick = onBack, modifier = Modifier.testTag("contributors.back")) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           }
         })
     }

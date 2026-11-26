@@ -96,7 +96,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.More
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -361,7 +361,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = { if (selecting) exitSelection() else onBack() }) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
         actions = {
           PackHelpAction(notes = guidanceNotes, page = when {

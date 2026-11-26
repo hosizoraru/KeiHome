@@ -37,7 +37,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -116,7 +116,7 @@ internal fun SettingsDestinationScreen(model: HomeViewModel, route: String, onBa
           }
         },
         navigationIcon = { IconButton(onClick = onBack) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } })
     }
   }, floatingActionButton = {

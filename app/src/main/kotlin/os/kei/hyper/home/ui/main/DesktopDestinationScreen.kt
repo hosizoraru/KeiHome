@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,8 +42,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -72,7 +73,7 @@ internal fun DesktopDestinationScreen(model: HomeViewModel, section: DesktopSect
       TopAppBar(title = stringResource(section.title), scrollBehavior = behavior,
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
         actions = { IconButton(enabled = 5 !in refreshing, onClick = { model.refresh(5, section) }) {
           Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
@@ -121,7 +122,7 @@ private fun DarkModeSettingsContent(model: HomeViewModel, onOpenStatusBarTools: 
       BasicComponent(title = stringResource(R.string.desktop_dark_mode_statusbar),
         summary = stringResource(DesktopSection.TOOLS.summary),
         role = Role.Button, onClick = onOpenStatusBarTools,
-        endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+        endActions = { Os4TrailingChevron() },
         modifier = Modifier.testTag("desktop.dark-mode.tools"))
     }
   }

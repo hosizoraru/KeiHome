@@ -49,6 +49,8 @@ import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.data.IconPackAppearance
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.iconpack.IconPackDescriptor
@@ -59,6 +61,7 @@ import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.status.FrameworkTarget
 import os.kei.hyper.home.status.openNativeThemeDetail
 import os.kei.hyper.home.status.NativeIconImportReport
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Button
@@ -72,7 +75,16 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.glass.glassPress
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.FolderOutline
+import top.yukonga.miuix.kmp.icon.glass.GridView
+import top.yukonga.miuix.kmp.icon.glass.Iphone
+import top.yukonga.miuix.kmp.icon.glass.Item
+import top.yukonga.miuix.kmp.icon.glass.Layers
+import top.yukonga.miuix.kmp.icon.glass.Phone
+import top.yukonga.miuix.kmp.icon.glass.SettingsOutline
+import top.yukonga.miuix.kmp.icon.glass.Theme
 
 @Composable
 internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, padding: PaddingValues,
@@ -128,30 +140,36 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
               Modifier.testTag("icon-packs.system-appearance-note"))
           }
         }
-        item("library") { PackNavigationCard(stringResource(R.string.icon_pack_library),
-          stringResource(R.string.pack_library_summary), { onNavigate("library") }) }
-        item("monet") { PackNavigationCard(stringResource(R.string.navigation_monet),
-          stringResource(R.string.pack_monet_summary), { onNavigate("monet") }) }
-        item("completion") {
-          PackNavigationCard(stringResource(R.string.pack_completion_title),
-            stringResource(if (pending != null) R.string.pack_pending_apply_hint
-              else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
-            { onNavigate("fallback") })
+        item("sections") {
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            PackNavigationRow(stringResource(R.string.icon_pack_library),
+              stringResource(R.string.pack_library_summary), MiuixIcons.Glass.Item) { onNavigate("library") }
+            PackNavigationRow(stringResource(R.string.navigation_monet),
+              stringResource(R.string.pack_monet_summary), actionIcon(PageActionIcon.MONET)) { onNavigate("monet") }
+            PackNavigationRow(stringResource(R.string.pack_completion_title),
+              stringResource(if (pending != null) R.string.pack_pending_apply_hint
+                else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
+              MiuixIcons.Glass.Layers) { onNavigate("fallback") }
+            PackNavigationRow(stringResource(R.string.pack_action_settings),
+              stringResource(R.string.pack_action_settings_summary), MiuixIcons.Glass.SettingsOutline) { onNavigate("settings") }
+          }
         }
-        item("settings") { PackNavigationCard(stringResource(R.string.pack_action_settings),
-          stringResource(R.string.pack_action_settings_summary), { onNavigate("settings") }) }
       }
       "library" -> {
-        item("builtin") { PackNavigationCard(stringResource(R.string.pack_builtin),
-          stringResource(R.string.pack_builtin_summary), { onNavigate("builtin") }) }
-        item("perfect") { PackNavigationCard(stringResource(R.string.perfect_icons_title),
-          stringResource(R.string.perfect_icons_library_summary), { onNavigate("perfect") }) }
-        item("apple") { PackNavigationCard(stringResource(R.string.apple_pack_title),
-          stringResource(R.string.apple_pack_summary), { onNavigate("apple") }) }
-        item("installed") { PackNavigationCard(stringResource(R.string.pack_installed),
-          stringResource(R.string.pack_installed_summary), { onNavigate("installed") }) }
-        item("imported") { PackNavigationCard(stringResource(R.string.pack_imported),
-          stringResource(R.string.pack_imported_summary), { onNavigate("imported") }) }
+        item("sources") {
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            PackNavigationRow(stringResource(R.string.pack_builtin),
+              stringResource(R.string.pack_builtin_summary), MiuixIcons.Glass.Phone) { onNavigate("builtin") }
+            PackNavigationRow(stringResource(R.string.perfect_icons_title),
+              stringResource(R.string.perfect_icons_library_summary), MiuixIcons.Glass.Theme) { onNavigate("perfect") }
+            PackNavigationRow(stringResource(R.string.apple_pack_title),
+              stringResource(R.string.apple_pack_summary), MiuixIcons.Glass.Iphone) { onNavigate("apple") }
+            PackNavigationRow(stringResource(R.string.pack_installed),
+              stringResource(R.string.pack_installed_summary), MiuixIcons.Glass.GridView) { onNavigate("installed") }
+            PackNavigationRow(stringResource(R.string.pack_imported),
+              stringResource(R.string.pack_imported_summary), MiuixIcons.Glass.FolderOutline) { onNavigate("imported") }
+          }
+        }
       }
       "builtin" -> {
         item("hyperos") { HyperOsPackCard() }
@@ -238,16 +256,35 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
 }
 
 @Composable
+private fun PackNavigationRow(
+  title: String,
+  summary: String,
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  onClick: () -> Unit,
+) {
+  val pressSource = rememberOs4PressSource()
+  BasicComponent(
+    title = title,
+    summary = summary,
+    onClick = onClick,
+    role = Role.Button,
+    interactionSource = pressSource,
+    modifier = Modifier.glassPress(pressSource),
+    startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
+    endActions = { Os4TrailingChevron() },
+  )
+}
+
+@Composable
 internal fun PackNavigationCard(title: String, summary: String, onClick: () -> Unit) {
   Card(Modifier.fillMaxWidth().os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
-    onClick = onClick), insideMargin = PaddingValues(18.dp)) {
+    onClick = onClick), insideMargin = PaddingValues(16.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MiuixTheme.textStyles.body1)
         Text(summary, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
       }
-      top.yukonga.miuix.kmp.basic.Icon(top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.ChevronForward, null,
-        tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      Os4TrailingChevron()
     }
   }
 }

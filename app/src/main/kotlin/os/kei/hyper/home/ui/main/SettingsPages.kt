@@ -22,15 +22,18 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.AppData
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Link
 import top.yukonga.miuix.kmp.icon.glass.Log
+import top.yukonga.miuix.kmp.icon.glass.Theme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class SettingsSection(val route: String, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
@@ -53,22 +56,31 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
       modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("settings.search"),
       label = stringResource(R.string.settings_search))
     if (query.isBlank()) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        SettingsSection.entries.filter { it != SettingsSection.PACKS }.forEach { section ->
-          val icon = when (section) {
-            SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
-            SettingsSection.THEME -> actionIcon(PageActionIcon.MONET)
-            SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
-            SettingsSection.HOOK -> MiuixIcons.Glass.Link
-            SettingsSection.CACHE -> MiuixIcons.Glass.AppData
-            SettingsSection.LOG -> MiuixIcons.Glass.Log
-            SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
-            SettingsSection.ABOUT -> MiuixIcons.Glass.Info
+      val groups = listOf(
+        listOf(SettingsSection.APP, SettingsSection.THEME),
+        listOf(SettingsSection.HOOK, SettingsSection.CACHE, SettingsSection.LOG),
+        listOf(SettingsSection.RELEASE_NOTES, SettingsSection.ABOUT),
+      )
+      groups.forEach { sections ->
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+          sections.forEach { section ->
+            val pressSource = rememberOs4PressSource()
+            val icon = when (section) {
+              SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
+              SettingsSection.THEME -> MiuixIcons.Glass.Theme
+              SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
+              SettingsSection.HOOK -> MiuixIcons.Glass.Link
+              SettingsSection.CACHE -> MiuixIcons.Glass.AppData
+              SettingsSection.LOG -> MiuixIcons.Glass.Log
+              SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
+              SettingsSection.ABOUT -> MiuixIcons.Glass.Info
+            }
+            BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
+              onClick = { onNavigate(section.route) }, interactionSource = pressSource,
+              modifier = Modifier.testTag("settings.entry.${section.route}").glassPress(pressSource),
+              startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
+              endActions = { Os4TrailingChevron() })
           }
-          BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-            onClick = { onNavigate(section.route) }, modifier = Modifier.testTag("settings.entry.${section.route}"),
-            startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
     } else {
@@ -85,14 +97,14 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             summary = stringResource(R.string.release_notes_summary),
             modifier = Modifier.testTag("settings.entry.release-notes"),
             onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+            endActions = { Os4TrailingChevron() })
         }
       }
       if (logs) {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.settings_log_section),
             summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+            endActions = { Os4TrailingChevron() })
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
@@ -129,10 +141,10 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
     splashIconsContent = { SplashIconSettingsCard(splashIcons, framework.splashAppearanceInScope(),
       model.splashIcons::save, scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed) },
     staticScopeContent = {
-      Card(Modifier.fillMaxWidth()) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = stringResource(R.string.settings_hook_section),
           summary = stringResource(R.string.scope_page_entry_summary),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+          endActions = { Os4TrailingChevron() },
           onClick = { onNavigate(SettingsSection.HOOK.route) })
       }
     },

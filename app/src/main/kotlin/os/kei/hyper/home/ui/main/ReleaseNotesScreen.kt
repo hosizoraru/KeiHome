@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -75,7 +77,7 @@ import top.yukonga.miuix.kmp.basic.VerticalScrollBar
 import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.Ok
@@ -143,7 +145,7 @@ internal fun ReleaseNotesScreen(
           navigationIcon = {
             IconButton(onClick = leave, minHeight = 48.dp, minWidth = 48.dp,
               modifier = Modifier.testTag("release-notes.back")) {
-              Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+              Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
             }
           },
           actions = {
@@ -220,7 +222,7 @@ internal fun ReleaseNotesScreen(
                   summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
                   startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
                   endActions = {
-                    Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+                    Os4TrailingChevron()
                   },
                   modifier = Modifier.testTag("release-notes.guide"))
               }

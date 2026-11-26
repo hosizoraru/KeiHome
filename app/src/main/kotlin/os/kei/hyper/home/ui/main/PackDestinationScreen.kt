@@ -49,7 +49,7 @@ import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.apple.ApplePackDestination
@@ -157,7 +157,7 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
         }), scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = { IconButton(onClick = onBack) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           } }, actions = {
             when (contentSection) {
               "installed", "imported" -> PackHelpAction(

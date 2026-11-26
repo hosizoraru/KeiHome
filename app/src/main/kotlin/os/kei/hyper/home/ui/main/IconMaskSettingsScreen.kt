@@ -80,7 +80,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
@@ -109,7 +109,7 @@ internal fun IconMaskSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
         color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
           IconButton(onClick = onBack) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           }
         })
     }

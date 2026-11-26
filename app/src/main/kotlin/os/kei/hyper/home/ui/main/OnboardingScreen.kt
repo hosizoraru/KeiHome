@@ -56,7 +56,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.material.GlassDefaults
@@ -108,7 +108,7 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
         GlassIconButton(onClick = onBack, backdrop = backdrop, inheritTopBarMaterial = false,
           style = GlassDefaults.style(LocalKeiHomeDarkTheme.current), size = 56.dp,
           modifier = Modifier.testTag("setup.previous").semantics { role = Role.Button; contentDescription = previous }) {
-          Icon(MiuixIcons.Glass.Back, null, Modifier.size(24.dp))
+          Icon(MiuixIcons.Glass.ChevronBackward, null, Modifier.size(24.dp))
         }
       } else Spacer(Modifier.size(56.dp))
       PageActionFab(stringResource(when (page) {
@@ -148,7 +148,7 @@ internal fun OnboardingDesktopScreen(model: HomeViewModel, onBack: () -> Unit, o
         scrollBehavior = behavior,
         color = if (backdrop != null) androidx.compose.ui.graphics.Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } })
     }
   }) { insets ->

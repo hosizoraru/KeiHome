@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Process
@@ -81,8 +83,7 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -142,7 +143,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
         expandable = false,
         color = MiuixTheme.colorScheme.surface,
         navigationIcon = { IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp) {
-          Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+          Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
         actions = {
           IconButton(onClick = copyVersion, minHeight = 48.dp, minWidth = 48.dp,
@@ -254,10 +255,10 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
       })
     if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
       modifier = Modifier.testTag("about.notices"),
-      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+      endActions = { Os4TrailingChevron() })
     if (onOpenContributors != null) BasicComponent(title = stringResource(R.string.about_contributors_title),
       onClick = onOpenContributors, modifier = Modifier.testTag("about.contributors"),
-      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+      endActions = { Os4TrailingChevron() })
   }
   if (onBackground) GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
   else Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)

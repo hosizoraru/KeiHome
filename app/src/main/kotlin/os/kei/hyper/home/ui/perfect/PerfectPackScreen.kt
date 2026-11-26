@@ -55,7 +55,7 @@ import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -96,7 +96,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = {
             IconButton(onClick = onBack) {
-              Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+              Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
             }
           },
           actions = {

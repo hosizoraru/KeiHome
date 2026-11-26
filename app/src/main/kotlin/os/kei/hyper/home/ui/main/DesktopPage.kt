@@ -19,13 +19,18 @@ import os.kei.hyper.home.R
 import os.kei.hyper.home.data.LauncherGlassStyle
 import os.kei.hyper.home.data.LauncherLabelMode
 import os.kei.hyper.home.status.LauncherRuntimeCapabilities
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.DisplayBrightness
+import top.yukonga.miuix.kmp.icon.glass.FullScreen
+import top.yukonga.miuix.kmp.icon.glass.HomeOutline
+import top.yukonga.miuix.kmp.icon.glass.Item
+import top.yukonga.miuix.kmp.icon.glass.Wallpaper
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -36,16 +41,19 @@ internal fun DesktopPage(model: HomeViewModel, onOpenSection: (String) -> Unit) 
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       DesktopSection.entries.filter { it != DesktopSection.OVERVIEW && it != DesktopSection.TOOLS }.forEach { section ->
         val pressSource = rememberOs4PressSource()
-        val icon = actionIcon(when (section) {
-          DesktopSection.DOCK -> PageActionIcon.DESKTOP
-          DesktopSection.APPEARANCE, DesktopSection.DARK_MODE, DesktopSection.NAVIGATION -> PageActionIcon.SETTINGS
-          else -> PageActionIcon.PACKS
-        })
+        val icon = when (section) {
+          DesktopSection.DOCK -> MiuixIcons.Glass.HomeOutline
+          DesktopSection.APPEARANCE -> MiuixIcons.Glass.Wallpaper
+          DesktopSection.DARK_MODE -> MiuixIcons.Glass.DisplayBrightness
+          DesktopSection.ICONS -> MiuixIcons.Glass.Item
+          DesktopSection.NAVIGATION -> MiuixIcons.Glass.FullScreen
+          else -> actionIcon(PageActionIcon.PACKS)
+        }
         BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
           onClick = { onOpenSection(section.route) }, role = Role.Button, interactionSource = pressSource,
           modifier = Modifier.testTag("desktop.open.${section.route}").glassPress(pressSource),
-          startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+          startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
+          endActions = { Os4TrailingChevron() })
       }
     }
   }

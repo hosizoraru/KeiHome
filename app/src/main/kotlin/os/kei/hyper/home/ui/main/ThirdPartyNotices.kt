@@ -1,5 +1,7 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
@@ -58,8 +60,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -131,7 +132,7 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
         navigationIcon = {
           IconButton(onClick = onBack, minHeight = 48.dp, minWidth = 48.dp,
             modifier = Modifier.testTag("notices.back")) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           }
         }, actions = {
           if (route == "notices" || category != null) {
@@ -228,7 +229,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
         BasicComponent(title = projectLicenseTitle, summary = "Apache License 2.0",
           modifier = Modifier.testTag("notices.project-license"),
           onClick = { onNavigate("license/keihome") },
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+          endActions = { Os4TrailingChevron() })
       }
     }
     if (dependencies == null) NoticePlaceholder(state.failed || state.text != null) { retry++ }
@@ -245,7 +246,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
             title = stringResource(R.string.project_license_group_count, stringResource(entry.title), count),
             modifier = Modifier.testTag("notices.category.${entry.key}"),
             onClick = { onNavigate("notices/category/${entry.key}") },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+            endActions = { Os4TrailingChevron() },
           )
         }
       }
@@ -264,7 +265,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
               summary = listOfNotNull(stringResource(component.description), versions.singleOrNull()).joinToString("\n"),
               onClick = { onNavigate("component/${component.key}") },
               modifier = Modifier.testTag("notices.component.${component.key}"),
-              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
+              endActions = { Os4TrailingChevron() },
             )
           }
         }
@@ -313,7 +314,7 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
           BasicComponent(title = if (key == "dexkit-source") stringResource(R.string.notices_source_offer) else license.title,
             modifier = Modifier.testTag("notices.license.$key"),
             onClick = { onNavigate("license/$key") },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+            endActions = { Os4TrailingChevron() })
         }
       }
     }

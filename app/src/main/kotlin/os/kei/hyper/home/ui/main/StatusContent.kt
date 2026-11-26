@@ -55,6 +55,7 @@ import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.InitialActivationStatus
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.components.os4Clickable
@@ -134,7 +135,7 @@ internal fun StatusBody(
   frameworkChecking: Boolean = false,
 ) {
   val framework = frameworkCardState(connected, readFailed, snapshot, frameworkChecking)
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment, activation, onOpenGuide)
     scopeContent()
     DashboardMonetCard(
@@ -143,9 +144,9 @@ internal fun StatusBody(
       onOpenMonet = onOpenMonet,
     )
     Card(Modifier.fillMaxWidth().testTag("status.icon-pack.card")
-      .os4Clickable(role = Role.Button, indication = null, onClick = onOpenPacks),
-      insideMargin = PaddingValues(12.dp)) {
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      .os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius, onClick = onOpenPacks),
+      insideMargin = PaddingValues(16.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text(stringResource(R.string.icon_pack_active), style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -157,6 +158,7 @@ internal fun StatusBody(
         MetadataPill(if (iconSource?.previewKey != null && coveredApps != null)
           stringResource(R.string.browser_dashboard_coverage, coveredApps) else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready else R.string.status_needs_verification),
           color = MiuixTheme.colorScheme.primary)
+        DashboardArrow()
       }
     }
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
@@ -851,8 +853,7 @@ private fun DashboardFootnote(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun DashboardArrow() {
-  Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null,
-    tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+  Os4TrailingChevron()
 }
 
 @Composable

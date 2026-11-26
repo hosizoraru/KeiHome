@@ -82,7 +82,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.ImageOutline
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.main.PageActionIcon
@@ -119,7 +119,7 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
     BlurredBar(backdrop, backdrop != null) {
       KeiHomeTopAppBar(stringResource(R.string.perfect_custom_static), scrollBehavior = behavior,
         navigationIcon = {
-          KeiHomeIconButton(onClick = onBack) { Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back)) }
+          KeiHomeIconButton(onClick = onBack) { Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back)) }
         }, actions = {
           if (state.customStaticIds.isNotEmpty()) {
             KeiHomeIconButton(enabled = !busy, onClick = {

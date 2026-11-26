@@ -59,7 +59,7 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.Back
+import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.Info
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -147,7 +147,7 @@ private fun MonetTabPage(model: HomeViewModel, section: MonetSection, backdrop: 
           scrollBehavior = behavior,
           color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
           navigationIcon = { IconButton(onClick = onBack) {
-            Icon(MiuixIcons.Glass.Back, stringResource(R.string.pack_back))
+            Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           } },
           actions = {
             IconButton(onClick = onHelp, modifier = Modifier.testTag("monet.help.open")) {

@@ -11,9 +11,25 @@ without opening a temporary PR. It runs the same wrapper, resources,
 build-logic, JVM and Debug checks as a PR.
 
 `Main build` runs for pushes to `main` and manual dispatches. It runs the same
-validation gates and builds the Release APK. A push to a non-main branch does
-not start a second automatic copy of the PR checks. This avoids duplicate
-runner usage when that branch already belongs to a PR.
+validation gates and builds the Release APK. Pushes to feature branches use
+the PR workflow once a pull request is open.
+
+## Documentation changes
+
+Both workflows first check whether a push or PR changes only Markdown under
+`docs/` or one of the top-level and directory guides listed in the
+[CI classifier](../scripts/ci-build-required.py). For those runs, GitHub
+reports the existing required jobs as skipped and the workflow exits without
+installing the Android toolchain, running tests, or producing APK artifacts.
+The PR comparison uses the proposed merge commit and its base parent, so a
+push that only edits the README still runs builds if the PR also changes code.
+
+App inputs such as `THIRD_PARTY_NOTICES.md` still trigger the build. Manual
+dispatches and unavailable comparisons also run the normal jobs. Main runs
+are independent so a documentation push can finish while a previous build
+continues packaging.
+
+## Build cache and artifacts
 
 Both workflows use `gradle/actions/setup-gradle@v6` as the single owner of
 the Gradle User Home cache. `actions/setup-java` only installs the requested

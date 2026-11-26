@@ -10,18 +10,38 @@ permissions:
   contents: read
   packages: read
 
-concurrency:
-  group: keihome-build-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   GITHUB_TOKEN: ${{ github.token }}
   GITHUB_ACTOR: ${{ github.actor }}
   GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
 
 jobs:
+  changes:
+    name: Detect build changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      required: ${{ steps.detect.outputs.required }}
+    steps:
+      - name: Check out source
+        id: checkout
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect documentation-only push
+        id: detect
+        if: steps.checkout.outcome == 'success'
+        continue-on-error: true
+        env:
+          BASE: ${{ github.event.before }}
+        run: python3 scripts/ci-build-required.py "$BASE"
+
   wrapper:
     name: Validate Gradle wrapper
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.required != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -32,6 +52,8 @@ jobs:
 
   resources:
     name: Check resources
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.required != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -46,6 +68,8 @@ jobs:
 
   build-logic:
     name: Test build-logic
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.required != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

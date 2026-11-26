@@ -48,7 +48,18 @@ import os.kei.hyper.home.data.MonetIconRole
 import os.kei.hyper.home.data.MonetPaletteFamily
 import os.kei.hyper.home.data.MonetSchemes
 import os.kei.hyper.home.data.MonetTonalSpec
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogActions
@@ -171,9 +182,11 @@ private fun ColorEditRow(
   title: String, color: Int, enabled: Boolean, tag: String, summary: String? = null, onClick: () -> Unit,
 ) {
   val hex = colorHex(color)
+  val press = rememberOs4PressSource()
   BasicComponent(title = title, summary = hex,
     insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-    onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag), endActions = {
+    interactionSource = press,
+    onClick = onClick, enabled = enabled, modifier = Modifier.testTag(tag).glassPress(press, enabled), endActions = {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (summary != null) MetadataPill(summary, MiuixTheme.colorScheme.primary)
         Box(Modifier.size(28.dp).clip(CircleShape).background(Color(color))
@@ -236,10 +249,19 @@ internal fun MonetColorEditor(
         Os4ViewTabs(items = listOf(stringResource(R.string.monet_custom_grid),
           stringResource(R.string.monet_custom_sliders)), selectedIndex = mode,
           onSelect = { mode = it }, modifier = Modifier.testTag("monet.editor.views"))
-        if (mode == 0) ColorPalette(Color(color), { updateColor(it.toArgb()) },
-          modifier = Modifier.testTag("monet.editor.palette"))
-        else ColorPicker(Color(color), { updateColor(it.toArgb()) },
-          modifier = Modifier.testTag("monet.editor.picker"))
+        AnimatedContent(
+          targetState = mode,
+          transitionSpec = {
+            (fadeIn(tween(180)) togetherWith fadeOut(tween(130)))
+              .using(SizeTransform(clip = false) { _, _ -> Os4Motion.revealSpring() })
+          },
+          label = "monet-editor-mode",
+        ) { selectedMode ->
+          if (selectedMode == 0) ColorPalette(Color(color), { updateColor(it.toArgb()) },
+            modifier = Modifier.testTag("monet.editor.palette"))
+          else ColorPicker(Color(color), { updateColor(it.toArgb()) },
+            modifier = Modifier.testTag("monet.editor.picker"))
+        }
         GlassTextField(state = hexField, inputTransformation = InputTransformation {
           val digits = asCharSequence().toString().removePrefix("#")
           if (digits.length > 6 || digits.any { it !in '0'..'9' && it !in 'a'..'f' && it !in 'A'..'F' }) {
@@ -249,8 +271,10 @@ internal fun MonetColorEditor(
           autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii),
           label = "#RRGGBB", lineLimits = TextFieldLineLimits.SingleLine,
           modifier = Modifier.testTag("monet.editor.hex"))
-        if (color ushr 24 != 255) Text(stringResource(R.string.monet_custom_opaque),
-          color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.footnote1)
+        Os4AnimatedVisibility(visible = color ushr 24 != 255, label = "monet-opaque-warn") {
+          Text(stringResource(R.string.monet_custom_opaque),
+            color = MiuixTheme.colorScheme.error, style = MiuixTheme.textStyles.footnote1)
+        }
         if (initialSpec != null) {
           Text(stringResource(R.string.monet_custom_hct_hint), style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)

@@ -2,6 +2,11 @@ package os.kei.hyper.home.ui.main
 
 import android.text.format.DateFormat
 import android.text.format.Formatter
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -39,8 +44,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.data.CacheBucket
 import os.kei.hyper.home.data.CacheReminderBudget
 import os.kei.hyper.home.data.DiskCacheUsage
@@ -50,6 +58,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class CacheSample(
@@ -127,16 +136,23 @@ internal fun CacheStorageContent(
   val exceeded = sample != null && sample.total >= budget
   val partial = failed || sample?.disk?.complete == false
   Column(Modifier.fillMaxWidth().testTag("cache.storage"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Card(Modifier.fillMaxWidth().testTag("cache.storage.summary"), insideMargin = PaddingValues(16.dp)) {
+    Card(Modifier.fillMaxWidth().os4ContentSize().testTag("cache.storage.summary"), insideMargin = PaddingValues(16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically) {
           Column(Modifier.weight(1f).os4Clickable(onClick = onRefresh), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(stringResource(R.string.storage_used), style = MiuixTheme.textStyles.footnote1,
               color = scheme.onSurfaceVariantSummary)
-            Text(sample?.let { size(it.total) } ?: "\u2014",
-              style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.SemiBold,
-              color = scheme.onSurface, modifier = Modifier.testTag("cache.storage.total"))
+            val totalText = sample?.let { size(it.total) } ?: "\u2014"
+            AnimatedContent(
+              targetState = totalText,
+              transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
+              label = "cache-total-text",
+            ) { value ->
+              Text(value,
+                style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface, modifier = Modifier.testTag("cache.storage.total"))
+            }
           }
           MetadataPill(stringResource(when {
             exceeded -> R.string.storage_warning
@@ -157,7 +173,9 @@ internal fun CacheStorageContent(
             style = MiuixTheme.textStyles.footnote1,
             color = if (failed) scheme.error else scheme.onSurfaceVariantSummary)
         }
-        if (reading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        Os4AnimatedVisibility(visible = reading, label = "cache-reading-progress") {
+          LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
       }
     }
     CacheStorageChart(sample?.categories ?: List(8) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
@@ -165,21 +183,27 @@ internal fun CacheStorageContent(
       insideMargin = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
       modifier = Modifier.semantics { heading() })
     Card(Modifier.fillMaxWidth().testTag("cache.storage.manage"), insideMargin = PaddingValues(0.dp)) {
+      val importedPress = rememberOs4PressSource()
       BasicComponent(title = stringResource(R.string.storage_manage_imported),
         summary = stringResource(R.string.storage_manage_imported_summary),
         onClick = { onOpenPack("imported") },
+        interactionSource = importedPress,
         endActions = { Os4TrailingChevron() },
-        modifier = Modifier.testTag("cache.storage.manage.imported"))
+        modifier = Modifier.testTag("cache.storage.manage.imported").glassPress(importedPress))
+      val perfectPress = rememberOs4PressSource()
       BasicComponent(title = stringResource(R.string.storage_manage_perfect),
         summary = stringResource(R.string.storage_manage_perfect_summary),
         onClick = { onOpenPack("perfect") },
+        interactionSource = perfectPress,
         endActions = { Os4TrailingChevron() },
-        modifier = Modifier.testTag("cache.storage.manage.perfect"))
+        modifier = Modifier.testTag("cache.storage.manage.perfect").glassPress(perfectPress))
+      val applePress = rememberOs4PressSource()
       BasicComponent(title = stringResource(R.string.storage_manage_apple),
         summary = stringResource(R.string.storage_manage_apple_summary),
         onClick = { onOpenPack("apple") },
+        interactionSource = applePress,
         endActions = { Os4TrailingChevron() },
-        modifier = Modifier.testTag("cache.storage.manage.apple"))
+        modifier = Modifier.testTag("cache.storage.manage.apple").glassPress(applePress))
       Text(stringResource(R.string.storage_generated_cleanup_help),
         style = MiuixTheme.textStyles.footnote2, color = scheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp))

@@ -1,6 +1,13 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.animateColorAsState
+import os.kei.hyper.home.ui.components.IconPreviewComparison
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
@@ -220,26 +227,31 @@ internal fun MonetPicker(
     }
     }
     if (visibleSection == MonetSection.OVERVIEW) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
         val panels = if (preferredStyle == null) listOf(MonetSection.SOURCE, MonetSection.STYLE, MonetSection.PREVIEW)
           else listOf(MonetSection.SOURCE, MonetSection.PREVIEW)
-        for (destination in panels) BasicComponent(
-          title = stringResource(destination.title),
-          summary = when (destination) {
-            MonetSection.SOURCE -> sourceNames[choice.source.ordinal]
-            MonetSection.STYLE -> styleName(choice.style)
-            MonetSection.PREVIEW -> stringResource(R.string.monet_page_preview_summary)
-            else -> null
-          },
-          endActions = { Os4TrailingChevron() },
-          modifier = Modifier.testTag("monet.open.${destination.name}"),
-          insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-          onClick = { openSheet(destination) },
-        )
+        for (destination in panels) {
+          val press = rememberOs4PressSource()
+          BasicComponent(
+            title = stringResource(destination.title),
+            summary = when (destination) {
+              MonetSection.SOURCE -> sourceNames[choice.source.ordinal]
+              MonetSection.STYLE -> styleName(choice.style)
+              MonetSection.PREVIEW -> stringResource(R.string.monet_page_preview_summary)
+              else -> null
+            },
+            holdDownState = sheetOpen && sheet == destination,
+            interactionSource = press,
+            endActions = { Os4TrailingChevron() },
+            modifier = Modifier.testTag("monet.open.${destination.name}").glassPress(press),
+            insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+            onClick = { openSheet(destination) },
+          )
+        }
       }
     }
     if (visibleSection == MonetSection.SOURCE) {
-    MonetSurfaceCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    MonetSurfaceCard(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
       OverlaySpinnerPreference(
         title = stringResource(R.string.monet_seed_source),
         items = sourceNames.map { DropdownItem(text = it) },
@@ -293,7 +305,7 @@ internal fun MonetPicker(
           }
         }
       }
-      if (choice.source == MonetSeedSource.BASIC_COLOR) {
+      Os4AnimatedVisibility(visible = choice.source == MonetSeedSource.BASIC_COLOR, label = "monet-basic-hex") {
         MonetSeedColorField(choice.color, enabled = !applying) { change(choice.copy(color = it)) }
       }
     }
@@ -318,10 +330,18 @@ internal fun MonetPicker(
           ) {
             Row(verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              val accent = sample?.get("primary60")?.let(::Color) ?: MiuixTheme.colorScheme.primary
-              val secondary = sample?.get("secondary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface
-              val tertiary = sample?.get("tertiary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface
-              val neutral = sample?.get("neutral90")?.let(::Color) ?: MiuixTheme.colorScheme.surface
+              val accent by animateColorAsState(
+                sample?.get("primary60")?.let(::Color) ?: MiuixTheme.colorScheme.primary,
+                Os4Motion.colorSpring(), label = "monet-style-accent")
+              val secondary by animateColorAsState(
+                sample?.get("secondary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                Os4Motion.colorSpring(), label = "monet-style-secondary")
+              val tertiary by animateColorAsState(
+                sample?.get("tertiary60")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                Os4Motion.colorSpring(), label = "monet-style-tertiary")
+              val neutral by animateColorAsState(
+                sample?.get("neutral90")?.let(::Color) ?: MiuixTheme.colorScheme.surface,
+                Os4Motion.colorSpring(), label = "monet-style-neutral")
               Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(30.dp)) {
                   drawArc(accent, 0f, 90f, useCenter = true)
@@ -345,8 +365,10 @@ internal fun MonetPicker(
       color = MiuixTheme.colorScheme.onSurfaceSecondary,
     )
     }
-    if (visibleSection == MonetSection.STYLE && choice.source != MonetSeedSource.BASIC_COLOR &&
-      choice.style in listOf(MonetSchemeStyle.RAINBOW, MonetSchemeStyle.FRUIT_SALAD)
+    Os4AnimatedVisibility(
+      visible = visibleSection == MonetSection.STYLE && choice.source != MonetSeedSource.BASIC_COLOR &&
+        choice.style in listOf(MonetSchemeStyle.RAINBOW, MonetSchemeStyle.FRUIT_SALAD),
+      label = "monet-basic-rec",
     ) {
       Text(stringResource(R.string.monet_details_basic_recommended),
         modifier = Modifier.padding(horizontal = 16.dp),
@@ -364,18 +386,16 @@ internal fun MonetPicker(
     }
     if (visibleSection == MonetSection.PREVIEW && palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
-      MonetSurfaceCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
-        IconPreviewModeTabs(IconPreviewMode.entries[previewView], { previewView = it.ordinal },
+      MonetSurfaceCard(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(12.dp)) {
+        val activeMode = IconPreviewMode.entries[previewView]
+        IconPreviewModeTabs(activeMode, { previewView = it.ordinal },
           modifier = Modifier.testTag("monet.preview.views"))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          if (previewView != IconPreviewMode.DARK.ordinal)
-            IconPalettePreview(palette, dark = false, choice = choice, modifier = Modifier.weight(1f))
-          if (previewView != IconPreviewMode.LIGHT.ordinal)
-            IconPalettePreview(palette, dark = true, choice = choice, modifier = Modifier.weight(1f))
+        IconPreviewComparison(activeMode) { darkTile, tileModifier ->
+          IconPalettePreview(palette, dark = darkTile, choice = choice, modifier = tileModifier)
         }
       }
     }
-    if (visibleSection == MonetSection.OVERVIEW && draft != null) {
+    Os4AnimatedVisibility(visible = visibleSection == MonetSection.OVERVIEW && draft != null, label = "monet-discard") {
       TextButton(stringResource(R.string.monet_custom_discard),
         onClick = { draft = null }, enabled = !applying,
         modifier = Modifier.fillMaxWidth().testTag("monet.draft.discard"))
@@ -434,12 +454,16 @@ private fun IconPalettePreview(
   val roles = remember(palette, dark, choice) {
     MonetSchemes.iconRoles(palette, dark, choice)
   } ?: return
-  val foreground = Color(roles.foreground)
-  val background = Color(roles.background)
-  val neutral = MonetSchemes.nearestTone(palette, "neutral", if (dark) 12 else 96)?.let(::Color)
-    ?: MiuixTheme.colorScheme.surface
-  val content = MonetSchemes.nearestTone(palette, "neutral", if (dark) 90 else 10)?.let(::Color)
-    ?: MiuixTheme.colorScheme.onSurface
+  val foreground by animateColorAsState(Color(roles.foreground), Os4Motion.colorSpring(), label = "monet-preview-fg")
+  val background by animateColorAsState(Color(roles.background), Os4Motion.colorSpring(), label = "monet-preview-bg")
+  val neutral by animateColorAsState(
+    MonetSchemes.nearestTone(palette, "neutral", if (dark) 12 else 96)?.let(::Color)
+      ?: MiuixTheme.colorScheme.surface,
+    Os4Motion.colorSpring(), label = "monet-preview-neutral")
+  val content by animateColorAsState(
+    MonetSchemes.nearestTone(palette, "neutral", if (dark) 90 else 10)?.let(::Color)
+      ?: MiuixTheme.colorScheme.onSurface,
+    Os4Motion.colorSpring(), label = "monet-preview-content")
   Column(modifier.squircleBackground(neutral, 16.dp).padding(12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {

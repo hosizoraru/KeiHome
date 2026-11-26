@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.ScopeRequestFeedback
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -25,11 +27,11 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = false, readOnly: Boolean = false) {
   val state by model.scopeRequests.state.collectAsStateWithLifecycle()
-  if (attentionOnly && !state.needsAttention) return
   val openManager = rememberFrameworkManagerAction()
-  val plan = state.plan
-  val color = MiuixTheme.colorScheme.primary
-  Card(Modifier.fillMaxWidth().testTag("framework.static-scope"), insideMargin = PaddingValues(0.dp)) {
+  Os4AnimatedVisibility(visible = !attentionOnly || state.needsAttention, label = "static-scope-card") {
+    val plan = state.plan
+    val color = MiuixTheme.colorScheme.primary
+    Card(Modifier.fillMaxWidth().os4ContentSize().testTag("framework.static-scope"), insideMargin = PaddingValues(0.dp)) {
     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -97,6 +99,7 @@ internal fun StaticScopeCard(model: HomeViewModel, attentionOnly: Boolean = fals
           modifier = Modifier.heightIn(min = 48.dp))
       }
     }
+  }
   }
 }
 

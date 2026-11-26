@@ -1,17 +1,23 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -43,8 +48,8 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Theme
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -95,7 +100,7 @@ private fun MonetPaletteSource.sample(family: String, tone: Int): Int? {
 private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit) {
   val openDetailsLabel = stringResource(R.string.monet_open_details)
   Card(
-    modifier = Modifier.fillMaxWidth().os4Clickable(
+    modifier = Modifier.fillMaxWidth().os4ContentSize().os4Clickable(
       cornerRadius = CardDefaults.CornerRadius, onClickLabel = openDetailsLabel, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
     insideMargin = PaddingValues(16.dp),
     showIndication = true,
@@ -119,59 +124,70 @@ private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit)
           modifier = Modifier.weight(1f),
           style = MiuixTheme.textStyles.body1,
         )
-        Icon(
-          MiuixIcons.Glass.ChevronForward,
-          contentDescription = null,
-          tint = MiuixTheme.colorScheme.onSurfaceSecondary,
-        )
+        Os4TrailingChevron()
       }
-      if (summary.loading || summary.readFailed) {
-        Text(
-          text = stringResource(
-            if (summary.readFailed) R.string.monet_unavailable else R.string.monet_loading,
-          ),
-          style = MiuixTheme.textStyles.body2,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        )
-      } else {
-        Text(
-          text = stringResource(
-            R.string.polish_monet_scheme,
-            monetSourceLabel(summary.source),
-            monetStyleLabel(summary.style),
-          ),
-          style = MiuixTheme.textStyles.body2,
-        )
-        Text(
-          text = stringResource(
-            R.string.polish_monet_icons,
-            stringResource(when (summary.iconsEnabled) {
-              true -> R.string.monet_themed_icons_on
-              false -> R.string.monet_themed_icons_off
-              null -> R.string.monet_themed_icons_unknown
-            }),
-          ),
-          style = MiuixTheme.textStyles.footnote1,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        )
-        if (summary.primary != null || summary.secondary != null ||
-          summary.tertiary != null || summary.neutral != null
-        ) {
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            SummarySwatch(summary.primary, stringResource(R.string.monet_family_primary))
-            SummarySwatch(summary.secondary, stringResource(R.string.monet_family_secondary))
-            SummarySwatch(summary.tertiary, stringResource(R.string.monet_family_tertiary))
-            SummarySwatch(summary.neutral, stringResource(R.string.monet_family_neutral))
+      Crossfade(
+        targetState = summary.loading || summary.readFailed,
+        animationSpec = tween(200),
+        label = "monet-summary-state",
+      ) { unavailable ->
+        if (unavailable) {
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+              text = stringResource(
+                if (summary.readFailed) R.string.monet_unavailable else R.string.monet_loading,
+              ),
+              style = MiuixTheme.textStyles.body2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+            if (summary.loading) {
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(4) { Os4ShimmerPlaceholder(Modifier.size(22.dp), cornerRadius = 7.dp) }
+              }
+            }
           }
         } else {
-          Text(stringResource(R.string.polish_monet_no_palette),
-            style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+              text = stringResource(
+                R.string.polish_monet_scheme,
+                monetSourceLabel(summary.source),
+                monetStyleLabel(summary.style),
+              ),
+              style = MiuixTheme.textStyles.body2,
+            )
+            Text(
+              text = stringResource(
+                R.string.polish_monet_icons,
+                stringResource(when (summary.iconsEnabled) {
+                  true -> R.string.monet_themed_icons_on
+                  false -> R.string.monet_themed_icons_off
+                  null -> R.string.monet_themed_icons_unknown
+                }),
+              ),
+              style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+            if (summary.primary != null || summary.secondary != null ||
+              summary.tertiary != null || summary.neutral != null
+            ) {
+              Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                SummarySwatch(summary.primary, stringResource(R.string.monet_family_primary))
+                SummarySwatch(summary.secondary, stringResource(R.string.monet_family_secondary))
+                SummarySwatch(summary.tertiary, stringResource(R.string.monet_family_tertiary))
+                SummarySwatch(summary.neutral, stringResource(R.string.monet_family_neutral))
+              }
+            } else {
+              Text(stringResource(R.string.polish_monet_no_palette),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
+            LastAppliedPalette(summary.lastAppliedRevision)
+          }
         }
-        LastAppliedPalette(summary.lastAppliedRevision)
       }
     }
   }
@@ -180,10 +196,11 @@ private fun MonetSummaryContent(summary: MonetSummaryState, onClick: () -> Unit)
 @Composable
 private fun SummarySwatch(color: Int?, label: String) {
   if (color == null) return
+  val animated by animateColorAsState(Color(color), Os4Motion.colorSpring(), label = "monet-swatch")
   val description = stringResource(
     R.string.monet_swatch_description, label, "#%08X".format(color),
   )
-  Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(Color(color))
+  Box(Modifier.size(22.dp).squircleBackground(animated, 7.dp)
     .semantics { contentDescription = description })
 }
 
@@ -272,16 +289,21 @@ internal fun MonetDetailCard(
   readFailed: Boolean,
 ) {
   Card(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth().os4ContentSize(),
     insideMargin = PaddingValues(0.dp),
   ) {
     if (snapshot == null || readFailed) {
-      Text(
-        text = paletteStatus(snapshot, readFailed),
-        modifier = Modifier.padding(16.dp),
-        style = MiuixTheme.textStyles.body1,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      )
+      Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+          text = paletteStatus(snapshot, readFailed),
+          style = MiuixTheme.textStyles.body1,
+          color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        )
+        if (snapshot == null && !readFailed) {
+          Os4ShimmerPlaceholder(Modifier.fillMaxWidth(0.6f).height(14.dp), cornerRadius = 6.dp)
+          Os4ShimmerPlaceholder(Modifier.fillMaxWidth(0.85f).height(14.dp), cornerRadius = 6.dp)
+        }
+      }
       return@Card
     }
 
@@ -301,8 +323,7 @@ internal fun MonetDetailCard(
             Box(
               modifier = Modifier
                 .size(24.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(color))
+                .squircleBackground(Color(color), 6.dp)
                 .semantics { contentDescription = description },
             )
           }
@@ -437,8 +458,7 @@ private fun MonetFamilySwatch(family: MonetColorFamily) {
           Box(
             modifier = Modifier
               .size(18.dp)
-              .clip(RoundedCornerShape(4.dp))
-              .background(Color(color.value))
+              .squircleBackground(Color(color.value), 5.dp)
               .semantics { contentDescription = description },
           )
         }

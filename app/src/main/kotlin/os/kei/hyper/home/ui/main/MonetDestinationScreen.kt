@@ -45,7 +45,9 @@ import os.kei.hyper.home.data.MonetCustomization
 import os.kei.hyper.home.data.MonetSchemeStyle
 import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -175,11 +177,13 @@ private fun MonetTabPage(model: HomeViewModel, section: MonetSection, backdrop: 
 private fun MonetApplyAction(state: MonetApplyUiState, apply: (MonetCustomization) -> Unit,
   modifier: Modifier = Modifier) {
   Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    state.notice?.let { notice ->
-      Card(Modifier.widthIn(max = 300.dp).testTag("monet.apply.status")
-        .semantics { liveRegion = LiveRegionMode.Polite }, insideMargin = PaddingValues(12.dp)) {
-        Text(stringResource(notice), style = MiuixTheme.textStyles.footnote1,
-          color = if (state.warning) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
+    Os4AnimatedVisibility(visible = state.notice != null, label = "monet-apply-notice") {
+      state.notice?.let { notice ->
+        Card(Modifier.widthIn(max = 300.dp).testTag("monet.apply.status")
+          .semantics { liveRegion = LiveRegionMode.Polite }, insideMargin = PaddingValues(12.dp)) {
+          Text(stringResource(notice), style = MiuixTheme.textStyles.footnote1,
+            color = if (state.warning) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
       }
     }
     PageActionFab(stringResource(R.string.monet_apply_scheme), actionIcon(PageActionIcon.APPLY),
@@ -232,9 +236,11 @@ private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runt
   val ready = framework.connected && framework.snapshot?.themesInScope == true &&
     runtime.report?.moduleVersion == BuildConfig.VERSION_CODE.toLong()
   val editable = packs.nativeImporting == null
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    if (inspiration) IconPackAppearanceControl(preferences.iconPackAppearance,
-      model.preferences::setIconPackAppearance, editable, compact = true)
+  Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
+    Os4AnimatedVisibility(visible = inspiration, label = "monet-inspiration-appearance") {
+      IconPackAppearanceControl(preferences.iconPackAppearance,
+        model.preferences::setIconPackAppearance, editable, compact = true)
+    }
     MonetArtworkPreferences(
       enabled = preferences.monetUnadaptedIcons,
       padding = preferences.monetFullBleedIconPadding,
@@ -249,7 +255,7 @@ private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runt
     ?.takeIf { it.sourceId == sourceId }
   val updateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
   val busy = packs.importing || packs.preparing || packs.nativeImporting != null || packs.removing != null
-  Card(Modifier.fillMaxWidth().testTag("monet.artwork.pack"),
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("monet.artwork.pack"),
     insideMargin = PaddingValues(16.dp)) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Text(stringResource(R.string.monet_artwork_pack_title), style = MiuixTheme.textStyles.body1)
@@ -293,19 +299,21 @@ private fun MonetInstall(model: HomeViewModel, framework: FrameworkUiState, runt
         color = MiuixTheme.colorScheme.error) }
     }
   }
-  if (inspiration) {
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.pack_style_inspiration), style = MiuixTheme.textStyles.body1)
-        Text(stringResource(R.string.monet_inspiration_install_summary),
-          style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        top.yukonga.miuix.kmp.basic.TextButton(
-          text = stringResource(R.string.pack_action_inspiration),
-          modifier = Modifier.fillMaxWidth().testTag("monet.inspiration.install"),
-          enabled = ready && !packs.preparing && packs.nativeImporting == null && framework.snapshot?.themesInScope == true,
-          onClick = { model.applyColorOs(inspiration = true) })
+  Os4AnimatedVisibility(visible = inspiration, label = "monet-inspiration-install") {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Text(stringResource(R.string.pack_style_inspiration), style = MiuixTheme.textStyles.body1)
+          Text(stringResource(R.string.monet_inspiration_install_summary),
+            style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          top.yukonga.miuix.kmp.basic.TextButton(
+            text = stringResource(R.string.pack_action_inspiration),
+            modifier = Modifier.fillMaxWidth().testTag("monet.inspiration.install"),
+            enabled = ready && !packs.preparing && packs.nativeImporting == null && framework.snapshot?.themesInScope == true,
+            onClick = { model.applyColorOs(inspiration = true) })
+        }
       }
+      ColorOsSettings(model, ready, inspiration = true)
     }
-    ColorOsSettings(model, ready, inspiration = true)
   }
 }

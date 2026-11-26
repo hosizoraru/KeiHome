@@ -249,11 +249,18 @@ internal fun CacheStorageChart(bytes: List<Long>, budget: Long, ready: Boolean, 
       }
     }
   }
+  var pendingOpenLibrary by remember { mutableStateOf(false) }
   Os4DetailsSheet(showingInfo, { showingInfo = false }, title = stringResource(storageLabels[infoCategory]),
     summary = stringResource(storageDescriptions.getValue(infoCategory)),
+    onDismissFinished = {
+      if (pendingOpenLibrary) {
+        pendingOpenLibrary = false
+        onOpenPack("library")
+      }
+    },
     modifier = Modifier.testTag("cache.category.info.card")) {
     if (infoCategory == 7) Os4DialogButton(stringResource(R.string.icon_pack_library),
-      { showingInfo = false; onOpenPack("library") },
+      { pendingOpenLibrary = true; showingInfo = false },
       Modifier.fillMaxWidth().testTag("cache.category.info.imported"))
     Os4DialogButton(stringResource(R.string.pack_guidance_done), { showingInfo = false },
       Modifier.fillMaxWidth().testTag("cache.category.info.close"))

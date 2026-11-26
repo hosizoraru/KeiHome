@@ -2,6 +2,18 @@ package os.kei.hyper.home.ui.main
 
 import android.os.SystemClock
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
@@ -31,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -53,9 +66,12 @@ import io.github.libxposed.service.HookedTarget
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.data.InitialActivationStatus
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.components.os4Clickable
@@ -326,7 +342,7 @@ private fun RuntimeStatusSection(
   }
   val native = runtimeCardState(current, maxOf(elapsed, SystemClock.elapsedRealtime()))
   FrameworkHero(framework, native, onRefresh, onOpenEnvironment, activation)
-  if (activation != InitialActivationStatus.COMPLETE) {
+  Os4AnimatedVisibility(visible = activation != InitialActivationStatus.COMPLETE, label = "status-activation") {
     Card(Modifier.fillMaxWidth().testTag("status.activation"), insideMargin = PaddingValues(16.dp)) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(if (activation == InitialActivationStatus.UNKNOWN)
@@ -750,10 +766,11 @@ private fun DashboardSheetCard(
   val openDestination by rememberUpdatedState(onOpen)
   val pressSource = rememberOs4PressSource()
   val actionLabel = stringResource(R.string.status_sheet_open, title)
-  Card(Modifier.fillMaxWidth().testTag("$tag.card"), insideMargin = PaddingValues(0.dp)) {
+  Card(Modifier.fillMaxWidth().testTag("$tag.card").os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(
       title = title, modifier = Modifier.glassPress(pressSource),
       interactionSource = pressSource, onClickLabel = actionLabel, role = Role.Button,
+      holdDownState = showing,
       onClick = {
         if (!mounted) {
           openAfterExit = false
@@ -878,28 +895,40 @@ internal fun StatusOverviewCard(
   val colors = MiuixTheme.colorScheme
   // Status colors stay semantic even when the app's accent comes from wallpaper.
   // Use the app appearance, which may differ from the system's light/dark mode.
-  val accentColor = when (tone) {
-    StatusTone.READY -> colorResource(
-      if (dark) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent,
-    )
-    StatusTone.WARNING -> colorResource(
-      if (dark) R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent,
-    )
-    StatusTone.ERROR -> colors.error
-    StatusTone.CHECKING -> colors.onSurfaceSecondary
-  }
-  val backgroundColor = when (tone) {
-    StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_container_dark else R.color.status_hero_ready_container)
-    StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_container_dark else R.color.status_hero_warning_container)
-    StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_container_dark else R.color.status_hero_error_container)
-    StatusTone.CHECKING -> colors.surfaceContainer
-  }
-  val contentColor = when (tone) {
-    StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_content_dark else R.color.status_hero_ready_content)
-    StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_content_dark else R.color.status_hero_warning_content)
-    StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
-    StatusTone.CHECKING -> colors.onSurface
-  }
+  val accentColor by animateColorAsState(
+    targetValue = when (tone) {
+      StatusTone.READY -> colorResource(
+        if (dark) R.color.status_hero_loaded_accent_dark else R.color.status_hero_loaded_accent,
+      )
+      StatusTone.WARNING -> colorResource(
+        if (dark) R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent,
+      )
+      StatusTone.ERROR -> colors.error
+      StatusTone.CHECKING -> colors.onSurfaceSecondary
+    },
+    animationSpec = Os4Motion.colorSpring(),
+    label = "status-hero-accent",
+  )
+  val backgroundColor by animateColorAsState(
+    targetValue = when (tone) {
+      StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_container_dark else R.color.status_hero_ready_container)
+      StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_container_dark else R.color.status_hero_warning_container)
+      StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_container_dark else R.color.status_hero_error_container)
+      StatusTone.CHECKING -> colors.surfaceContainer
+    },
+    animationSpec = Os4Motion.colorSpring(),
+    label = "status-hero-bg",
+  )
+  val contentColor by animateColorAsState(
+    targetValue = when (tone) {
+      StatusTone.READY -> colorResource(if (dark) R.color.status_hero_ready_content_dark else R.color.status_hero_ready_content)
+      StatusTone.WARNING -> colorResource(if (dark) R.color.status_hero_warning_content_dark else R.color.status_hero_warning_content)
+      StatusTone.ERROR -> colorResource(if (dark) R.color.status_hero_error_content_dark else R.color.status_hero_error_content)
+      StatusTone.CHECKING -> colors.onSurface
+    },
+    animationSpec = Os4Motion.colorSpring(),
+    label = "status-hero-content",
+  )
   val hasBadges = badges.isNotEmpty() || badgeContent != null
   val hasLowerContent = environmentDetails.isNotEmpty() || hasBadges || details.isNotEmpty()
   // The 72.dp ornament overhangs the end edge by 12.dp.
@@ -907,7 +936,7 @@ internal fun StatusOverviewCard(
   val summaryEndPadding = if (hasLowerContent) symbolClearance - 18.dp else 0.dp
 
   Card(
-    modifier = modifier.fillMaxWidth(),
+    modifier = modifier.fillMaxWidth().os4ContentSize(),
     insideMargin = PaddingValues(0.dp),
     colors = CardDefaults.defaultColors(color = backgroundColor, contentColor = contentColor),
     onClick = onOpen ?: onRefresh,
@@ -1025,22 +1054,41 @@ internal fun StatusOverviewCard(
 
 @Composable
 internal fun BoxScope.StatusOverviewCornerSymbol(tone: StatusTone, color: Color) {
-  val icon = when (tone) {
-    StatusTone.READY -> MiuixIcons.Glass.Ok
-    StatusTone.WARNING, StatusTone.CHECKING -> MiuixIcons.Glass.Info
-    StatusTone.ERROR -> MiuixIcons.Glass.Report
-  }
+  val pulseAlpha = if (tone == StatusTone.CHECKING) {
+    val transition = rememberInfiniteTransition(label = "status-checking-pulse")
+    transition.animateFloat(
+      initialValue = 0.45f,
+      targetValue = 0.92f,
+      animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+      label = "status-checking-alpha",
+    )
+  } else null
   // Only the card clips this square ornament; it never participates in content measurement.
   Box(Modifier.matchParentSize()) {
-    Icon(
-      imageVector = icon,
+    AnimatedContent(
+      targetState = tone,
       modifier = Modifier.align(Alignment.BottomEnd).offset(x = 12.dp, y = 18.dp)
-        .requiredSize(72.dp).testTag("status.overview.symbol")
-        .then(if (tone == StatusTone.READY) Modifier.padding(8.dp)
-          .border(3.dp, color, CircleShape).padding(10.dp)
-          else Modifier),
-      tint = color,
-      contentDescription = null,
-    )
+        .graphicsLayer { alpha = pulseAlpha?.value ?: 1f },
+      transitionSpec = {
+        (fadeIn(tween(220)) + scaleIn(initialScale = 0.86f, animationSpec = Os4Motion.stateSpring())) togetherWith
+          (fadeOut(tween(150)) + scaleOut(targetScale = 0.86f, animationSpec = tween(150)))
+      },
+      label = "status-overview-symbol",
+    ) { target ->
+      val icon = when (target) {
+        StatusTone.READY -> MiuixIcons.Glass.Ok
+        StatusTone.WARNING, StatusTone.CHECKING -> MiuixIcons.Glass.Info
+        StatusTone.ERROR -> MiuixIcons.Glass.Report
+      }
+      Icon(
+        imageVector = icon,
+        modifier = Modifier.requiredSize(72.dp).testTag("status.overview.symbol")
+          .then(if (target == StatusTone.READY) Modifier.padding(8.dp)
+            .border(3.dp, color, CircleShape).padding(10.dp)
+            else Modifier),
+        tint = color,
+        contentDescription = null,
+      )
+    }
   }
 }

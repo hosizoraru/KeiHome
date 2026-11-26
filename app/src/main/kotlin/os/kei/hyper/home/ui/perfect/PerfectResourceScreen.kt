@@ -11,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -237,7 +238,10 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
       val styleName = if (style == "default") defaultName else style
       val detail = state.catalog?.styleDetails?.get(style)
       val identity = state.catalog?.sourceHash.orEmpty()
-      Os4ActionDialog(session.show, { styleDialog.dismiss(session.id) },
+      val isDownloaded = style in downloaded
+      Os4DetailsSheet(
+        show = session.show,
+        onDismissRequest = { styleDialog.dismiss(session.id) },
         onDismissFinished = {
           // Keep the old panel and scrim until native exit, then hand off exactly once.
           val finished = styleDialog.finish(session.id)
@@ -252,46 +256,90 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
               null -> Unit
             }
           }
-        }, title = if (style in downloaded) styleName
-        else stringResource(R.string.perfect_resource_download_title, styleName),
-        summary = stringResource(if (style in downloaded) R.string.perfect_resource_style_ready
+        },
+        title = if (isDownloaded) styleName else stringResource(R.string.perfect_resource_download_title, styleName),
+        summary = stringResource(if (isDownloaded) R.string.perfect_resource_style_ready
           else R.string.perfect_resource_style_missing),
-        artwork = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, identity, 48.dp) } },
-        details = {
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            MetadataPill(stringResource(if (style in downloaded) R.string.perfect_git_downloaded
-              else R.string.perfect_git_not_downloaded), MiuixTheme.colorScheme.primary)
-            if (detail != null && detail.bytes > 0)
-              MetadataPill(stringResource(R.string.perfect_resource_style_bytes, Formatter.formatFileSize(context, detail.bytes)), MiuixTheme.colorScheme.onSurfaceSecondary,
-                Modifier.testTag("perfect.resources.style-size"))
-            if (detail != null && detail.sharedBytes > 0) {
-              MetadataPill(stringResource(R.string.perfect_resource_own_bytes, Formatter.formatFileSize(context, detail.ownBytes)),
-                MiuixTheme.colorScheme.onSurfaceSecondary, Modifier.testTag("perfect.resources.style-own-size"))
-              MetadataPill(stringResource(R.string.perfect_resource_shared_bytes, Formatter.formatFileSize(context, detail.sharedBytes)),
-                MiuixTheme.colorScheme.onSurfaceSecondary, Modifier.testTag("perfect.resources.style-shared-size"))
-            }
-            (state.catalog?.revision ?: state.remote?.revision)?.takeIf { it.isNotBlank() }?.let {
-              MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), MiuixTheme.colorScheme.onSurfaceSecondary)
+      ) {
+        top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+          Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            detail?.iconFile?.let { file -> PerfectStyleArtwork(file, identity, 56.dp) }
+            FlowRow(
+              Modifier.weight(1f),
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+              MetadataPill(
+                stringResource(if (isDownloaded) R.string.perfect_git_downloaded else R.string.perfect_git_not_downloaded),
+                if (isDownloaded) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary,
+              )
+              if (detail != null && detail.bytes > 0) {
+                MetadataPill(
+                  stringResource(R.string.perfect_resource_style_bytes, Formatter.formatFileSize(context, detail.bytes)),
+                  MiuixTheme.colorScheme.onSurfaceSecondary,
+                  Modifier.testTag("perfect.resources.style-size"),
+                )
+              }
+              if (detail != null && detail.sharedBytes > 0) {
+                MetadataPill(
+                  stringResource(R.string.perfect_resource_own_bytes, Formatter.formatFileSize(context, detail.ownBytes)),
+                  MiuixTheme.colorScheme.onSurfaceSecondary,
+                  Modifier.testTag("perfect.resources.style-own-size"),
+                )
+                MetadataPill(
+                  stringResource(R.string.perfect_resource_shared_bytes, Formatter.formatFileSize(context, detail.sharedBytes)),
+                  MiuixTheme.colorScheme.onSurfaceSecondary,
+                  Modifier.testTag("perfect.resources.style-shared-size"),
+                )
+              }
+              (state.catalog?.revision ?: state.remote?.revision)?.takeIf { it.isNotBlank() }?.let {
+                MetadataPill(
+                  stringResource(R.string.perfect_icons_revision_short, it.take(7)),
+                  MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
+              }
             }
           }
-        },
-        actions = buildList {
-          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.action_label_update
-            else R.string.action_label_download), enabled = session.show && !busy && !cooling,
-            role = GlassDialogButtonRole.Primary, tag = "perfect.resources.style-download",
-            onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.DOWNLOAD) }))
-          if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_remove_short),
-            enabled = session.show && !busy, role = GlassDialogButtonRole.Destructive,
-            tag = "perfect.resources.style-remove", onClick = {
-              styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.REMOVE)
-            }))
-          if (style in downloaded) add(Os4DialogAction(stringResource(R.string.perfect_resource_preview),
-            enabled = session.show && !busy, tag = "perfect.resources.style-preview",
-            onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.PREVIEW) }))
-          add(Os4DialogAction(stringResource(if (style in downloaded) R.string.perfect_resource_close
-            else R.string.logs_cancel), { styleDialog.dismiss(session.id) },
-            enabled = session.show, tag = "perfect.resources.style-close"))
-        })
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          Os4DialogButton(
+            text = stringResource(if (isDownloaded) R.string.action_label_update else R.string.action_label_download),
+            onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.DOWNLOAD) },
+            enabled = session.show && !busy && !cooling,
+            role = GlassDialogButtonRole.Primary,
+            modifier = Modifier.weight(1f).testTag("perfect.resources.style-download"),
+          )
+          if (isDownloaded) {
+            Os4DialogButton(
+              text = stringResource(R.string.perfect_resource_preview),
+              onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.PREVIEW) },
+              enabled = session.show && !busy,
+              modifier = Modifier.weight(1f).testTag("perfect.resources.style-preview"),
+            )
+          }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          if (isDownloaded) {
+            Os4DialogButton(
+              text = stringResource(R.string.perfect_resource_remove_short),
+              onClick = { styleDialog.dismiss(session.id, PerfectResourceStyleDialogState.Action.REMOVE) },
+              enabled = session.show && !busy,
+              role = GlassDialogButtonRole.Destructive,
+              modifier = Modifier.weight(1f).testTag("perfect.resources.style-remove"),
+            )
+          }
+          Os4DialogButton(
+            text = stringResource(if (isDownloaded) R.string.perfect_resource_close else R.string.logs_cancel),
+            onClick = { styleDialog.dismiss(session.id) },
+            enabled = session.show,
+            modifier = Modifier.weight(1f).testTag("perfect.resources.style-close"),
+          )
+        }
+      }
     }
     val infoScroll = rememberScrollState()
     Os4DetailsSheet(showInfo, { showInfo = false }, scrollContent = false, scrollOffset = { infoScroll.value.toFloat() },
@@ -302,28 +350,42 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
           FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             PerfectSyncBadges(state, MiuixTheme.colorScheme.primary)
           }
-          state.remote?.let {
-            Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" + it.subject,
-              style = MiuixTheme.textStyles.footnote1)
+          top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              state.remote?.let {
+                Text(stringResource(R.string.perfect_git_remote_revision, it.revision) + "\n" + it.subject,
+                  style = MiuixTheme.textStyles.footnote1)
+              }
+              state.catalog?.let {
+                Text(stringResource(R.string.perfect_resource_local_revision, it.revision),
+                  style = MiuixTheme.textStyles.footnote1,
+                  color = MiuixTheme.colorScheme.onSurfaceSecondary)
+              }
+            }
           }
-          state.catalog?.let {
-            Text(stringResource(R.string.perfect_resource_local_revision, it.revision), style = MiuixTheme.textStyles.footnote1)
+          top.yukonga.miuix.kmp.glass.GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+              Text(stringResource(R.string.perfect_resource_cache_size, Formatter.formatFileSize(context, state.cacheBytes)),
+                style = MiuixTheme.textStyles.footnote1)
+              Text(stringResource(R.string.perfect_resource_source_size, Formatter.formatFileSize(context, state.resourceBytes)),
+                style = MiuixTheme.textStyles.footnote1)
+              Text(stringResource(R.string.perfect_git_last_transfer, Formatter.formatFileSize(context, state.catalog?.transferredBytes ?: 0)),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            }
           }
-          Text(stringResource(R.string.perfect_resource_cache_size, Formatter.formatFileSize(context, state.cacheBytes)),
-            style = MiuixTheme.textStyles.footnote1)
-          Text(stringResource(R.string.perfect_resource_source_size, Formatter.formatFileSize(context, state.resourceBytes)),
-            style = MiuixTheme.textStyles.footnote1)
-          Text(stringResource(R.string.perfect_git_last_transfer, Formatter.formatFileSize(context, state.catalog?.transferredBytes ?: 0)),
-            style = MiuixTheme.textStyles.footnote1)
           Text(stringResource(R.string.perfect_resource_info_hint), style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceSecondary)
-          Os4DialogButton(stringResource(R.string.perfect_icons_source_icons),
-            onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
-            modifier = Modifier.fillMaxWidth())
-          Os4DialogButton(stringResource(R.string.perfect_icons_source_packer),
-            onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") },
-            modifier = Modifier.fillMaxWidth())
-          Text(stringResource(R.string.perfect_icons_attribution), style = MiuixTheme.textStyles.footnote1)
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Os4DialogButton(stringResource(R.string.perfect_icons_source_icons),
+              onClick = { uri.openUri("https://github.com/pzcn/Perfect-Icons-Completion-Project") },
+              modifier = Modifier.weight(1f))
+            Os4DialogButton(stringResource(R.string.perfect_icons_source_packer),
+              onClick = { uri.openUri("https://github.com/YifePlayte/PerfectIconsPacker") },
+              modifier = Modifier.weight(1f))
+          }
+          Text(stringResource(R.string.perfect_icons_attribution), style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         Os4DialogButton(stringResource(R.string.perfect_resource_close), { showInfo = false }, Modifier.fillMaxWidth())
       }

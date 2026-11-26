@@ -170,5 +170,28 @@ Binder 跟踪、SurfaceFlinger 数值、原尺寸截图、录屏和安装回执�
 `b0744` 在同一台实机验证，系统框架和 SystemUI 热重载后保持原 PID。切换标签没有
 发出壁纸读取请求，重新打开时版本校验约 `0–1 ms` 每区，手动刷新约
 `104–112 ms` 每区。连续注入三次壁纸变更通知时合并为一轮，面板关闭时
-没有触发读取。实机使用当前壁纸，变更通知测试未替换壁纸文件。缓存替换、
-读取失败和中途取消另由单元测试覆盖。现场记录位于上述目录的 `refresh/`。
+没有触发读取。实机使用当前壁纸，变更通知测试未替换壁纸文件。缓存替换、读取失败和中途取消另由单元测试覆盖。现场记录位于上述目录的 `refresh/`。
+
+### 锁屏「我的搭配」防透底（不透明调暗覆盖层）
+
+AOSP 原生的 `WallpaperService.Engine.updateWallpaperDimming` 通过降低内层
+`Wallpaper BBQ wrapper` / `Wallpaper BBQ wrapper-lock` 的 `alpha`（`1 - dim`）实现调暗。
+HyperOS 锁屏进入「我的搭配」（`com.miui.aod/com.miui.keyguard.editor.EditorActivity`）时，
+`TemplateApiImpl.getCurrentLockWallpaperAsBitmapW` 仅在锁屏态下调用
+`IWindowManager.captureDisplay`（`setExcludeOrIncludeLayerNames(["Wallpaper BBQ wrapper"])`、
+`setMiCaptureMode(2)`）单独抓取壁纸层生成 `ARGB_8888` 位图并叠画在桌面预览卡片之上。
+若 `Wallpaper BBQ wrapper-lock` 的 `alpha < 1`，抓图会携带半透明通道，导致下层桌面预览透出。
+
+在提供 `WindowStateStub.getWallpaperBBQSurface()` 的 HyperOS 构建上，
+`WallpaperSurfaceDimming` 改为仅向引擎透传平台自身调暗基线（保持 `Wallpaper BBQ wrapper*`
+`alpha = 1`），并在其下挂载子级黑色 `ColorLayer`（`KeiHome wallpaper dim`，`z = 1`，
+`alpha = (target - baseline) / (1 - baseline)`）实现等价调暗。该层随壁纸可见性、缩放与过渡动画同步，
+使用 HWC `SOLID_COLOR` 硬件合成，监听 `Session.setWallpaperBBQSurface` 跟踪壁纸重建，
+并在关闭开关、切换浅色或 API 102 热重载退场时释放。缺少该接口的系统继续沿用原有
+`applyDimming` 路径。
+
+2026-11-26 在 Xiaomi 17 Pro（`OS4.0.8.0.XBLCNXM`、桌面 `801030308`）上验证：
+`Wallpaper BBQ wrapper#72` 与 `Wallpaper BBQ wrapper-lock#83` 保持 `alpha = 1`，
+子层 `KeiHome wallpaper dim` 以 `SOLID_COLOR` 硬件合成维持 `alpha = 0.25`，
+锁屏景深主体与背景亮度一致，锁屏进入「我的搭配」无桌面透出；深浅色往返、平台 `0.40 → 0.0`
+基线叠加与 API 102 热重载（核心进程保持原 PID）均符合预期。

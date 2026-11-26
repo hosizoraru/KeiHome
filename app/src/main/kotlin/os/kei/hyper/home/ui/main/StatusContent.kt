@@ -312,11 +312,13 @@ private fun RuntimeStatusSection(
   LaunchedEffect(checkedAt, lifecycle) {
     if (checkedAt == null) return@LaunchedEffect
     lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      val now = SystemClock.elapsedRealtime()
-      elapsed = now
-      if (now >= checkedAt && now - checkedAt <= RuntimeStatusReport.FRESHNESS_MS) {
-        delay(RuntimeStatusReport.FRESHNESS_MS - (now - checkedAt) + 1)
-        elapsed = SystemClock.elapsedRealtime()
+      while (true) {
+        val now = SystemClock.elapsedRealtime()
+        elapsed = now
+        if (now < checkedAt) break
+        val remaining = RuntimeStatusReport.FRESHNESS_MS - (now - checkedAt)
+        if (remaining < 0L) break
+        delay(remaining + 1L)
       }
     }
   }

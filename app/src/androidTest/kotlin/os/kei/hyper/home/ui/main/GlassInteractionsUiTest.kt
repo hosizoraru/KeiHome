@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -49,7 +51,9 @@ import os.kei.hyper.home.data.MonetReadState
 import os.kei.hyper.home.data.MonetSchemeStyle
 import os.kei.hyper.home.data.MonochromeIconSettings
 import os.kei.hyper.home.data.WallpaperColorSnapshot
+import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
+import os.kei.hyper.home.ui.components.LocalOs4GlassSurface
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.os4Clickable
@@ -254,5 +258,51 @@ class GlassInteractionsUiTest {
     compose.runOnIdle { assertEquals(1, actions); enabled = false }
     compose.onNodeWithTag("glass.press").assertIsNotEnabled().performTouchInput { click(center) }
     compose.runOnIdle { assertEquals(1, actions) }
+  }
+
+  @Test fun sheetHeaderActionsUseGlassToolbarSizingAndExposeGlassSurfaceContext() {
+    var visible by mutableStateOf(true)
+    var selected by mutableIntStateOf(0)
+    var refreshes = 0
+    var inGlassSurface = false
+    val host = Os4NavigationTestHost()
+    compose.setContent {
+      host.Provide {
+        KeiHomeTheme {
+          val backdrop = rememberLayerBackdrop { drawContent() }
+          KeiHomeScaffold(Modifier.fillMaxSize(), backdrop = backdrop) {
+            Box(Modifier.fillMaxSize().layerBackdrop(backdrop))
+            Os4DetailsSheet(
+              show = visible,
+              onDismissRequest = { visible = false },
+              title = "Presets",
+              modifier = Modifier.testTag("glass.sheet.header"),
+              endAction = {
+                KeiHomeIconButton(onClick = { refreshes++ }, modifier = Modifier.testTag("sheet.header.refresh")) {
+                  Text("R")
+                }
+              },
+              headerBottomContent = {
+                Os4ViewTabs(listOf("Light", "Dark"), selected, { selected = it },
+                  Modifier.testTag("sheet.header.tabs"))
+              },
+            ) {
+              inGlassSurface = LocalOs4GlassSurface.current
+              Text("Option $selected", Modifier.testTag("sheet.body.value"))
+            }
+          }
+        }
+      }
+    }
+    compose.onNodeWithTag("sheet.header.refresh").assertWidthIsEqualTo(40.dp).assertHeightIsEqualTo(40.dp).performClick()
+    compose.onNodeWithText("Dark").performClick().assertIsSelected()
+    compose.runOnIdle {
+      assertEquals(1, refreshes)
+      assertEquals(1, selected)
+      assertTrue("Sheet content must observe LocalOs4GlassSurface", inGlassSurface)
+    }
+    compose.runOnIdle { host.completeBack() }
+    compose.waitForIdle()
+    compose.onNodeWithTag("glass.sheet.header").assertDoesNotExist()
   }
 }

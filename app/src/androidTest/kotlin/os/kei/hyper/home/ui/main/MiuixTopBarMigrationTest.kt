@@ -1,15 +1,23 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,18 +28,24 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
+import os.kei.hyper.home.ui.components.LocalGlassTopBarScrolled
+import os.kei.hyper.home.ui.components.Os4ViewTabs
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.TopAppBarState
 import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -169,5 +183,46 @@ class MiuixTopBarMigrationTest {
     rule.onNodeWithTag("help").performClick()
     rule.onNodeWithTag("refresh").performClick()
     rule.runOnIdle { assertEquals(2, clicks) }
+  }
+
+  @Test fun topBarBottomContentTabsTrackScrollStateWithoutSelfSampling() {
+    lateinit var state: TopAppBarState
+    var selected by mutableIntStateOf(0)
+    var observedScrolled: Boolean? = null
+    rule.setContent {
+      KeiHomeTheme {
+        val backdrop = rememberLayerBackdrop { drawContent() }
+        state = rememberTopAppBarState()
+        val behavior = MiuixScrollBehavior(state)
+        KeiHomeScaffold(
+          modifier = Modifier.fillMaxSize(),
+          backdrop = backdrop,
+          topBar = {
+            KeiHomeTopAppBar(
+              title = "Apps",
+              scrollBehavior = behavior,
+              bottomContent = {
+                observedScrolled = LocalGlassTopBarScrolled.current
+                Os4ViewTabs(listOf("All", "User", "System"), selected, { selected = it },
+                  Modifier.testTag("topbar.bottom.tabs"))
+              },
+            )
+          },
+        ) {
+          Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color(0xFF278DC4)))
+        }
+      }
+    }
+    rule.waitForIdle()
+    rule.runOnIdle { assertFalse("Tabs inside an unscrolled top bar start at rest", observedScrolled == true) }
+    val resting = rule.onNodeWithTag("topbar.bottom.tabs").captureToImage()
+    assertTrue(resting.width > 0 && resting.height > 0)
+    rule.runOnIdle { state.contentOffset = -120f; state.heightOffset = state.heightOffsetLimit }
+    rule.waitForIdle()
+    rule.runOnIdle { assertTrue("Tabs inside a scrolled top bar enable Glass material", observedScrolled == true) }
+    val scrolled = rule.onNodeWithTag("topbar.bottom.tabs").captureToImage()
+    assertTrue(scrolled.width > 0 && scrolled.height > 0)
+    rule.onNodeWithText("User").performClick().assertIsSelected()
+    rule.runOnIdle { assertEquals(1, selected) }
   }
 }

@@ -42,7 +42,9 @@ internal fun Os4DetailsSheet(
   val maxHeight = (LocalConfiguration.current.screenHeightDp * 0.8f).dp
   val backdrop = LocalKeiHomeBackdrop.current
   val locals = currentCompositionLocalContext
+  // Keep the overlay header for both wrapper-owned scrolling and nested content lists.
   GlassBottomSheet(show = show, onDismissRequest = onDismissRequest, backdrop = backdrop,
+    progressiveBlur = true,
     title = title, insideMargin = insideMargin, modifier = modifier.semantics {
       dialog()
       title?.let { paneTitle = it }

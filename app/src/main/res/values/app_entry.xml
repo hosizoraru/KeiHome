@@ -5,6 +5,6 @@
     <string name="hide_launcher_icon_summary">Open KeiHome from LSPosed. Turn this off here to restore the launcher icon.</string>
     <string name="hide_launcher_icon_failed">Could not change launcher icon visibility. Please try again.</string>
     <string name="update_channel">Telegram updates</string>
-    <string name="update_channel_summary">@VoyagerMIUIUpdate · Release announcements for KeiHome</string>
+    <string name="update_channel_summary">\@VoyagerMIUIUpdate</string>
     <string name="update_channel_failed">Install Telegram or a browser to open the update channel.</string>
 </resources>

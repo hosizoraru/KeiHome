@@ -72,12 +72,16 @@ import os.kei.hyper.home.ui.components.about.AboutBackground
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4BadgePalette
 import os.kei.hyper.home.ui.components.Os4CopyIconButton
+import os.kei.hyper.home.ui.components.Os4IconBadge
+import os.kei.hyper.home.ui.components.Os4InsetDivider
 import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
+import androidx.compose.foundation.layout.Row
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.glass.GlassCard
@@ -88,6 +92,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Link
+import top.yukonga.miuix.kmp.icon.glass.Log
+import top.yukonga.miuix.kmp.icon.glass.Share
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -204,9 +213,15 @@ internal fun AboutHero(model: HomeViewModel, scrollProgress: () -> Float = { 0f 
     Text(appName, modifier = Modifier.heroFade(0.18f),
       style = MiuixTheme.textStyles.title1.copy(brush = Brush.linearGradient(titleColors),
         fontSize = 36.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
-    Text(version, modifier = Modifier.heroFade(0.05f),
-      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary,
-      textAlign = TextAlign.Center)
+    Text(
+      version,
+      modifier = Modifier.heroFade(0.05f)
+        .squircleBackground(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f), 12.dp)
+        .padding(horizontal = 12.dp, vertical = 5.dp),
+      style = MiuixTheme.textStyles.footnote1,
+      color = MiuixTheme.colorScheme.onSurfaceSecondary,
+      textAlign = TextAlign.Center,
+    )
   }
 }
 
@@ -243,45 +258,82 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
   val context = LocalContext.current
   val uriHandler = LocalUriHandler.current
   val links: @Composable ColumnScope.() -> Unit = {
+    var hasPrevious = false
     if (showSource) {
       val sourcePress = rememberOs4PressSource()
-      BasicComponent(title = stringResource(R.string.settings_source),
+      BasicComponent(
+        title = stringResource(R.string.settings_source),
         onClick = { uriHandler.openUri(ProjectLinks.SOURCE_URL) },
         onClickLabel = stringResource(R.string.settings_source_open),
         interactionSource = sourcePress,
         modifier = Modifier.glassPress(sourcePress),
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Link, Os4BadgePalette.Indigo, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
         endActions = {
-          Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL),
-            stringResource(R.string.settings_source_open),
-            tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-        })
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("GitHub", style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL),
+              stringResource(R.string.settings_source_open),
+              modifier = Modifier.size(16.dp),
+              tint = MiuixTheme.colorScheme.onSurfaceVariantActions)
+          }
+        },
+      )
+      hasPrevious = true
     }
     if (showChannel) {
+      if (hasPrevious) Os4InsetDivider(start = 64.dp)
       val channelPress = rememberOs4PressSource()
-      BasicComponent(title = stringResource(R.string.update_channel),
-        summary = stringResource(R.string.update_channel_summary),
+      BasicComponent(
+        title = stringResource(R.string.update_channel),
         interactionSource = channelPress,
         modifier = Modifier.glassPress(channelPress),
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Share, Os4BadgePalette.Blue, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
         onClick = {
           if (!UpdateChannel.open(context))
             android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
-        }, endActions = {
-          Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-        })
+        },
+        endActions = {
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              stringResource(R.string.update_channel_summary),
+              style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+            Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null,
+              modifier = Modifier.size(16.dp),
+              tint = MiuixTheme.colorScheme.onSurfaceVariantActions)
+          }
+        },
+      )
+      hasPrevious = true
     }
     if (showNotices) {
+      if (hasPrevious) Os4InsetDivider(start = 64.dp)
       val noticesPress = rememberOs4PressSource()
-      BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
+      BasicComponent(
+        title = stringResource(R.string.settings_notices),
+        onClick = onOpenNotices,
         interactionSource = noticesPress,
         modifier = Modifier.glassPress(noticesPress).testTag("about.notices"),
-        endActions = { Os4TrailingChevron() })
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Log, Os4BadgePalette.Teal, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        endActions = { Os4TrailingChevron() },
+      )
+      hasPrevious = true
     }
     if (onOpenContributors != null) {
+      if (hasPrevious) Os4InsetDivider(start = 64.dp)
       val contribPress = rememberOs4PressSource()
-      BasicComponent(title = stringResource(R.string.about_contributors_title),
-        onClick = onOpenContributors, interactionSource = contribPress,
+      BasicComponent(
+        title = stringResource(R.string.about_contributors_title),
+        onClick = onOpenContributors,
+        interactionSource = contribPress,
         modifier = Modifier.glassPress(contribPress).testTag("about.contributors"),
-        endActions = { Os4TrailingChevron() })
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Info, Os4BadgePalette.Pink, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        endActions = { Os4TrailingChevron() },
+      )
     }
   }
   if (onBackground) GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
@@ -304,6 +356,7 @@ private fun AboutDetails() {
           maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
     })
+    Os4InsetDivider(start = 16.dp)
     BasicComponent(title = stringResource(R.string.polish_about_system),
       endActions = {
         Column(horizontalAlignment = Alignment.End) {
@@ -313,6 +366,7 @@ private fun AboutDetails() {
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
       })
+    Os4InsetDivider(start = 16.dp)
     BasicComponent(title = stringResource(R.string.polish_about_launcher),
       endActions = {
         val version = details.launcherVersion ?: stringResource(R.string.polish_about_unavailable)
@@ -324,12 +378,20 @@ private fun AboutDetails() {
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
       })
-    details.rustVersion?.takeIf(String::isNotBlank)?.let { version -> BasicComponent(
-      title = stringResource(R.string.polish_about_rust),
-      endActions = { AboutDetailValue(version) }) }
-    details.flutterVersion?.takeIf(String::isNotBlank)?.let { version -> BasicComponent(
-      title = stringResource(R.string.polish_about_flutter),
-      endActions = { AboutDetailValue(version) }) }
+    details.rustVersion?.takeIf(String::isNotBlank)?.let { version ->
+      Os4InsetDivider(start = 16.dp)
+      BasicComponent(
+        title = stringResource(R.string.polish_about_rust),
+        endActions = { AboutDetailValue(version) },
+      )
+    }
+    details.flutterVersion?.takeIf(String::isNotBlank)?.let { version ->
+      Os4InsetDivider(start = 16.dp)
+      BasicComponent(
+        title = stringResource(R.string.polish_about_flutter),
+        endActions = { AboutDetailValue(version) },
+      )
+    }
   }
 }
 

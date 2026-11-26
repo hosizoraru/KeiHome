@@ -5,6 +5,6 @@
     <string name="hide_launcher_icon_summary">非表示後も LSPosed から KeiHome を開けます。この設定をオフにするとアイコンが戻ります。</string>
     <string name="hide_launcher_icon_failed">アイコンの表示状態を変更できませんでした。もう一度お試しください。</string>
     <string name="update_channel">Telegram 更新チャンネル</string>
-    <string name="update_channel_summary">@VoyagerMIUIUpdate · KeiHome のリリース情報を受け取る</string>
+    <string name="update_channel_summary">\@VoyagerMIUIUpdate</string>
     <string name="update_channel_failed">Telegram またはブラウザをインストールして開いてください。</string>
 </resources>

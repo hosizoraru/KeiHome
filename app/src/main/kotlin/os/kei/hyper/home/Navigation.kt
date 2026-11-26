@@ -182,10 +182,13 @@ internal fun MainNavigation(
     railEnabled = railEnabled,
     overlay = { IconPackProgressHost(model, applyingIcons) },
   ) { wide ->
+    val activity = LocalActivity.current
+    val cornerRadius = if (wide || activity?.isInMultiWindowMode == true) androidx.compose.ui.unit.Dp(0f)
+      else rememberNavSystemCornerRadius()
     NavDisplay(backStack = backStack,
       onBack = ::back,
       transition = NavTransitions.MiuixDefault,
-      effects = NavDisplayEffects(cornerClipRadius = rememberNavSystemCornerRadius(),
+      effects = NavDisplayEffects(cornerClipRadius = cornerRadius,
         dimAmount = 0.26f, blockInputDuringTransition = true,
         backdropColor = MiuixTheme.colorScheme.surface)) {
       entry<Main> {

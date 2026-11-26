@@ -3,10 +3,16 @@ package os.kei.hyper.home.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -90,7 +96,9 @@ internal fun Os4DetailsSheet(
         Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
           .then(if (scrollContent) Modifier.verticalScroll(bodyScroll) else Modifier)
           .padding(headerPadding)
-          .navigationBarsPadding()
+          // Cover navigationBars, freeform captionBar, and bottom displayCutout without doubling IME
+          // (handled by GlassBottomSheet) or pushing centered content sideways with horizontal cutouts.
+          .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom))
           .padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           summary?.let {
             Text(it, style = MiuixTheme.textStyles.body2,

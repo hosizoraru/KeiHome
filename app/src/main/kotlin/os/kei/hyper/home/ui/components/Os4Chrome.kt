@@ -98,19 +98,26 @@ internal fun KeiHomeTopAppBar(
   navigationIcon: @Composable () -> Unit = {},
   actions: @Composable RowScope.() -> Unit = {},
   scrollBehavior: ScrollBehavior? = null,
+  isContentScrolled: Boolean? = null,
+  backgroundAlpha: () -> Float = { 1f },
   bottomContent: @Composable () -> Unit = {},
   expandable: Boolean = true,
   titleAlpha: () -> Float = { 1f },
 ) {
   val backdrop = LocalKeiHomeBackdrop.current
   val progressive = LocalKeiHomeTopBarBlur.current == AppTopBarBlur.PROGRESSIVE
-  val contentScrolled by remember(scrollBehavior) {
+  val contentScrolled by remember(scrollBehavior, isContentScrolled) {
     derivedStateOf {
-      scrollBehavior?.state?.let { it.contentOffset < -1f || it.overscrollOffset < -1f } ?: true
+      val overscrolled = scrollBehavior?.state?.let { it.overscrollOffset < -1f } ?: false
+      (isContentScrolled ?: (scrollBehavior?.state?.let { it.contentOffset < -1f } ?: true)) || overscrolled
     }
   }
-  GlassTopAppBar(title = title, modifier = modifier, backdrop = backdrop,
+  val bandBrush = remember(color, progressive) {
+    if (progressive) GlassTopAppBarDefaults.bandBrush(color) else SolidColor(Color.Transparent)
+  }
+  GlassTopAppBar(title = title, isContentScrolled = contentScrolled, modifier = modifier, backdrop = backdrop,
     expandable = expandable,
+    backgroundAlpha = backgroundAlpha,
     titleAlpha = titleAlpha,
     progressiveBlur = progressive && backdrop != null,
     style = GlassDefaults.style(LocalKeiHomeDarkTheme.current),
@@ -118,8 +125,7 @@ internal fun KeiHomeTopAppBar(
     actions = { KeiHomeTopBarActions(actions) },
     scrollBehavior = scrollBehavior,
     bottomContent = { CompositionLocalProvider(LocalGlassTopBarScrolled provides contentScrolled, content = bottomContent) },
-    bandBrush = if (progressive) GlassTopAppBarDefaults.bandBrush(color)
-      else SolidColor(Color.Transparent))
+    bandBrush = bandBrush)
 }
 
 @Composable

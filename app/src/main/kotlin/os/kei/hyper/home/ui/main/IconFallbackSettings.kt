@@ -37,6 +37,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.Layers
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -50,15 +51,15 @@ private data class FallbackPipelineStep(
 
 @Composable
 internal fun IconFallbackSettingsEntry(onOpen: (String) -> Unit) {
-  val pressSource = rememberOs4PressSource()
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-    BasicComponent(title = stringResource(R.string.icon_fallback_title),
+    os.kei.hyper.home.ui.components.Os4NavigationRow(
+      title = stringResource(R.string.icon_fallback_title),
       summary = stringResource(R.string.icon_fallback_entry_summary),
-      interactionSource = pressSource,
-      startAction = { Icon(actionIcon(PageActionIcon.MATCH), null, tint = MiuixTheme.colorScheme.primary) },
-      endActions = { Os4TrailingChevron() },
-      modifier = Modifier.glassPress(pressSource).testTag("icon-fallback.entry"),
-      onClick = { onOpen("fallback-settings") })
+      icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.Layers,
+      tint = os.kei.hyper.home.ui.components.Os4BadgePalette.Pink,
+      modifier = Modifier.testTag("icon-fallback.entry"),
+      onClick = { onOpen("fallback-settings") },
+    )
   }
 }
 

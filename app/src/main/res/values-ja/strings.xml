@@ -238,6 +238,17 @@
   <string name="icon_fallback_section_system">システム標準の補完</string>
   <string name="icon_fallback_section_coloros">ColorOS 拡張補完</string>
   <string name="icon_fallback_applied_status">現在適用中</string>
+  <string name="pack_completion_section_overrides">アプリごとの上書き</string>
+  <string name="pack_completion_section_automatic">自動補完とフォールバック</string>
+  <string name="logs_section_capture">記録と範囲</string>
+  <string name="logs_section_storage">ストレージと消去</string>
+  <string name="logs_section_framework">モジュールとフレームワークログ</string>
+  <string name="apple_section_artwork">アイコン仕様</string>
+  <string name="apple_section_appearance">外観</string>
+  <string name="apple_section_storage">キャッシュと補完</string>
+  <string name="recommended_section_general">一般マッチング</string>
+  <string name="recommended_section_apps">アプリ固有のルール</string>
+  <string name="app_scale_preview_title">ライブプレビュー</string>
     <string name="monet_unadapted_title">未対応アイコンの配色補完</string>
     <string name="monet_full_bleed_padding_title">全面アイコンに余白を追加</string>
     <string name="monet_full_bleed_padding_summary">画面端まで広がる大きな配色図柄に余白を設けます。変更後はアイコンパックの再生成と適用が必要です。</string>

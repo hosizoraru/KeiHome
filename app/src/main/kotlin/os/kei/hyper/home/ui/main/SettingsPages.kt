@@ -67,23 +67,26 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
           )
           groups.forEach { sections ->
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              sections.forEach { section ->
-                val pressSource = rememberOs4PressSource()
-                val icon = when (section) {
-                  SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS)
-                  SettingsSection.THEME -> MiuixIcons.Glass.Theme
-                  SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS)
-                  SettingsSection.HOOK -> MiuixIcons.Glass.Link
-                  SettingsSection.CACHE -> MiuixIcons.Glass.AppData
-                  SettingsSection.LOG -> MiuixIcons.Glass.Log
-                  SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY)
-                  SettingsSection.ABOUT -> MiuixIcons.Glass.Info
+              sections.forEachIndexed { index, section ->
+                if (index > 0) os.kei.hyper.home.ui.components.Os4InsetDivider()
+                val (icon, tint) = when (section) {
+                  SettingsSection.APP -> actionIcon(PageActionIcon.SETTINGS) to os.kei.hyper.home.ui.components.Os4BadgePalette.Blue
+                  SettingsSection.THEME -> MiuixIcons.Glass.Theme to os.kei.hyper.home.ui.components.Os4BadgePalette.Pink
+                  SettingsSection.PACKS -> actionIcon(PageActionIcon.PACKS) to os.kei.hyper.home.ui.components.Os4BadgePalette.Purple
+                  SettingsSection.HOOK -> MiuixIcons.Glass.Link to os.kei.hyper.home.ui.components.Os4BadgePalette.Green
+                  SettingsSection.CACHE -> MiuixIcons.Glass.AppData to os.kei.hyper.home.ui.components.Os4BadgePalette.Gold
+                  SettingsSection.LOG -> MiuixIcons.Glass.Log to os.kei.hyper.home.ui.components.Os4BadgePalette.Teal
+                  SettingsSection.RELEASE_NOTES -> actionIcon(PageActionIcon.HISTORY) to os.kei.hyper.home.ui.components.Os4BadgePalette.Indigo
+                  SettingsSection.ABOUT -> MiuixIcons.Glass.Info to os.kei.hyper.home.ui.components.Os4BadgePalette.Blue
                 }
-                BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-                  onClick = { onNavigate(section.route) }, interactionSource = pressSource,
-                  modifier = Modifier.testTag("settings.entry.${section.route}").glassPress(pressSource),
-                  startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
-                  endActions = { Os4TrailingChevron() })
+                os.kei.hyper.home.ui.components.Os4NavigationRow(
+                  title = stringResource(section.title),
+                  summary = stringResource(section.summary),
+                  icon = icon,
+                  tint = tint,
+                  modifier = Modifier.testTag("settings.entry.${section.route}"),
+                  onClick = { onNavigate(section.route) },
+                )
               }
             }
           }

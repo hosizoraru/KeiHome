@@ -39,21 +39,25 @@ internal fun DesktopPage(model: HomeViewModel, onOpenSection: (String) -> Unit) 
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     DesktopConnectionCard(model)
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-      DesktopSection.entries.filter { it != DesktopSection.OVERVIEW && it != DesktopSection.TOOLS }.forEach { section ->
-        val pressSource = rememberOs4PressSource()
-        val icon = when (section) {
-          DesktopSection.DOCK -> MiuixIcons.Glass.HomeOutline
-          DesktopSection.APPEARANCE -> MiuixIcons.Glass.Wallpaper
-          DesktopSection.DARK_MODE -> MiuixIcons.Glass.DisplayBrightness
-          DesktopSection.ICONS -> MiuixIcons.Glass.Item
-          DesktopSection.NAVIGATION -> MiuixIcons.Glass.FullScreen
-          else -> actionIcon(PageActionIcon.PACKS)
+      val sections = DesktopSection.entries.filter { it != DesktopSection.OVERVIEW && it != DesktopSection.TOOLS }
+      sections.forEachIndexed { index, section ->
+        if (index > 0) os.kei.hyper.home.ui.components.Os4InsetDivider()
+        val (icon, tint) = when (section) {
+          DesktopSection.DOCK -> MiuixIcons.Glass.HomeOutline to os.kei.hyper.home.ui.components.Os4BadgePalette.Blue
+          DesktopSection.APPEARANCE -> MiuixIcons.Glass.Wallpaper to os.kei.hyper.home.ui.components.Os4BadgePalette.Purple
+          DesktopSection.DARK_MODE -> MiuixIcons.Glass.DisplayBrightness to os.kei.hyper.home.ui.components.Os4BadgePalette.Indigo
+          DesktopSection.ICONS -> MiuixIcons.Glass.Item to os.kei.hyper.home.ui.components.Os4BadgePalette.Pink
+          DesktopSection.NAVIGATION -> MiuixIcons.Glass.FullScreen to os.kei.hyper.home.ui.components.Os4BadgePalette.Teal
+          else -> actionIcon(PageActionIcon.PACKS) to MiuixTheme.colorScheme.primary
         }
-        BasicComponent(title = stringResource(section.title), summary = stringResource(section.summary),
-          onClick = { onOpenSection(section.route) }, role = Role.Button, interactionSource = pressSource,
-          modifier = Modifier.testTag("desktop.open.${section.route}").glassPress(pressSource),
-          startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
-          endActions = { Os4TrailingChevron() })
+        os.kei.hyper.home.ui.components.Os4NavigationRow(
+          title = stringResource(section.title),
+          summary = stringResource(section.summary),
+          icon = icon,
+          tint = tint,
+          modifier = Modifier.testTag("desktop.open.${section.route}"),
+          onClick = { onOpenSection(section.route) },
+        )
       }
     }
   }

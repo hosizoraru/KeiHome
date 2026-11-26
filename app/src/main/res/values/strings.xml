@@ -241,6 +241,17 @@
   <string name="icon_fallback_section_system">System icon fallback</string>
   <string name="icon_fallback_section_coloros">ColorOS supplemental fallback</string>
   <string name="icon_fallback_applied_status">Currently applied</string>
+  <string name="pack_completion_section_overrides">Per-app overrides</string>
+  <string name="pack_completion_section_automatic">Automatic completion &amp; fallback</string>
+  <string name="logs_section_capture">Recording &amp; range</string>
+  <string name="logs_section_storage">Storage &amp; cleanup</string>
+  <string name="logs_section_framework">Module &amp; framework logs</string>
+  <string name="apple_section_artwork">Artwork &amp; store</string>
+  <string name="apple_section_appearance">Appearance</string>
+  <string name="apple_section_storage">Cache &amp; maintenance</string>
+  <string name="recommended_section_general">General matching</string>
+  <string name="recommended_section_apps">App-specific rules</string>
+  <string name="app_scale_preview_title">Live preview</string>
     <string name="monet_unadapted_title">Color unthemed icons</string>
     <string name="monet_full_bleed_padding_title">Inset full-bleed icons</string>
     <string name="monet_full_bleed_padding_summary">Inset large, edge-filling themed artwork to reveal its background. Regenerate and apply the icon pack after changing this option.</string>

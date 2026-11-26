@@ -37,15 +37,15 @@ import kotlinx.coroutines.coroutineScope
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.PackGuidancePage
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4BadgePalette
 import os.kei.hyper.home.ui.components.Os4InfoPopup
-import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.Os4InsetDivider
+import os.kei.hyper.home.ui.components.Os4NavigationRow
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
-import os.kei.hyper.home.ui.components.rememberOs4PressSource
-import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -55,6 +55,8 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.icon.glass.DisplayBrightness
+import top.yukonga.miuix.kmp.icon.glass.Layers
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.apple.ApplePackDestination
@@ -195,9 +197,9 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() +
-          if (fallbackSettings) actionBottomPadding + 16.dp
-          else if (contentSection == "coloros" || fallback || extraIcons || fileImport)
-            actionBottomPadding else 24.dp)
+          if (fallbackSettings || extraIcons || fileImport) actionBottomPadding + 24.dp
+          else if (contentSection == "coloros" || fallback)
+            actionBottomPadding + 12.dp else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
       if (extraIcons) {
         ExtraIconsPage(model, contentModifier, padding)
@@ -209,47 +211,74 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
           IconPackRefreshFeedback(model)
         }
       } else if (fallback) {
+        val customState by model.customIcons.state.collectAsStateWithLifecycle()
+        val preservedCount = prefs.preservedIconPackages.size
+        val customCount = customState.selections.size
+        val recommendedEnabled = listOf(
+          prefs.systemAppNameMatching,
+          prefs.telegramChannelMapping,
+          prefs.phoneCompanionMapping,
+          prefs.weiboLiteMapping,
+          prefs.colorOsThemeStoreMapping,
+        ).count { it }
+        val extraCount = prefs.extraIconPackages.size
+        val fallbackLabel = systemFallbackName(prefs.systemIconFallback)
         Column(contentModifier.verticalScroll(rememberScrollState(), overscrollEffect = null).padding(padding),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SmallTitle(stringResource(R.string.pack_completion_section_overrides))
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            val preservedPress = rememberOs4PressSource()
-            BasicComponent(title = stringResource(R.string.preserved_icons_title),
+            Os4NavigationRow(
+              title = stringResource(R.string.preserved_icons_title),
               summary = stringResource(R.string.preserved_icons_entry),
-              interactionSource = preservedPress,
-              startAction = { Icon(actionIcon(PageActionIcon.APPS), contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Os4TrailingChevron() },
-              modifier = Modifier.glassPress(preservedPress).testTag("icon-packs.open-preserved-icons"),
-              onClick = { onNavigate("preserved-icons") })
-            val customPress = rememberOs4PressSource()
-            BasicComponent(title = stringResource(R.string.custom_icons_title),
+              icon = actionIcon(PageActionIcon.APPS),
+              tint = Os4BadgePalette.Blue,
+              badgeText = preservedCount.takeIf { it > 0 }?.toString(),
+              modifier = Modifier.testTag("icon-packs.open-preserved-icons"),
+              onClick = { onNavigate("preserved-icons") },
+            )
+            Os4InsetDivider()
+            Os4NavigationRow(
+              title = stringResource(R.string.custom_icons_title),
               summary = stringResource(R.string.custom_icons_entry),
-              interactionSource = customPress,
-              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Os4TrailingChevron() },
-              modifier = Modifier.glassPress(customPress).testTag("icon-packs.open-custom-icons"),
-              onClick = { onNavigate("custom-icons") })
-            val mappingPress = rememberOs4PressSource()
-            BasicComponent(title = stringResource(R.string.recommended_mappings_title),
-              summary = stringResource(R.string.recommended_mappings_entry),
-              interactionSource = mappingPress,
-              startAction = { Icon(actionIcon(PageActionIcon.MATCH), contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Os4TrailingChevron() },
-              modifier = Modifier.glassPress(mappingPress).testTag("icon-packs.open-recommended-mappings"),
-              onClick = { onNavigate("recommended-mappings") })
-            val extraPress = rememberOs4PressSource()
-            BasicComponent(title = stringResource(R.string.extra_icons_title),
-              summary = stringResource(R.string.extra_icons_entry),
-              interactionSource = extraPress,
-              startAction = { Icon(actionIcon(PageActionIcon.CUSTOMIZE), null,
-                tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Os4TrailingChevron() },
-              modifier = Modifier.glassPress(extraPress).testTag("icon-packs.open-extra-icons"),
-              onClick = { onNavigate("extra-icons") })
+              icon = actionIcon(PageActionIcon.CUSTOMIZE),
+              tint = Os4BadgePalette.Purple,
+              badgeText = customCount.takeIf { it > 0 }?.toString(),
+              modifier = Modifier.testTag("icon-packs.open-custom-icons"),
+              onClick = { onNavigate("custom-icons") },
+            )
           }
-          IconFallbackSettingsEntry(onNavigate)
+          SmallTitle(stringResource(R.string.pack_completion_section_automatic))
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            Os4NavigationRow(
+              title = stringResource(R.string.recommended_mappings_title),
+              summary = stringResource(R.string.recommended_mappings_entry),
+              icon = actionIcon(PageActionIcon.MATCH),
+              tint = Os4BadgePalette.Teal,
+              badgeText = "$recommendedEnabled/5",
+              modifier = Modifier.testTag("icon-packs.open-recommended-mappings"),
+              onClick = { onNavigate("recommended-mappings") },
+            )
+            Os4InsetDivider()
+            Os4NavigationRow(
+              title = stringResource(R.string.extra_icons_title),
+              summary = stringResource(R.string.extra_icons_entry),
+              icon = MiuixIcons.Glass.DisplayBrightness,
+              tint = Os4BadgePalette.Orange,
+              badgeText = extraCount.takeIf { it > 0 }?.toString(),
+              modifier = Modifier.testTag("icon-packs.open-extra-icons"),
+              onClick = { onNavigate("extra-icons") },
+            )
+            Os4InsetDivider()
+            Os4NavigationRow(
+              title = stringResource(R.string.icon_fallback_title),
+              summary = stringResource(R.string.icon_fallback_entry_summary),
+              icon = MiuixIcons.Glass.Layers,
+              tint = Os4BadgePalette.Pink,
+              badgeText = fallbackLabel,
+              modifier = Modifier.testTag("icon-fallback.entry"),
+              onClick = { onNavigate("fallback-settings") },
+            )
+          }
           IconPackRefreshFeedback(model)
         }
       } else if (fileImport) {

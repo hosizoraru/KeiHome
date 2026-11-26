@@ -150,15 +150,22 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("sections") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
             PackNavigationRow(stringResource(R.string.icon_pack_library),
-              stringResource(R.string.pack_library_summary), MiuixIcons.Glass.Item) { onNavigate("library") }
+              stringResource(R.string.pack_library_summary), MiuixIcons.Glass.Item,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Blue) { onNavigate("library") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.navigation_monet),
-              stringResource(R.string.pack_monet_summary), actionIcon(PageActionIcon.MONET)) { onNavigate("monet") }
+              stringResource(R.string.pack_monet_summary), actionIcon(PageActionIcon.MONET),
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Purple) { onNavigate("monet") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.pack_completion_title),
               stringResource(if (pending != null) R.string.pack_pending_apply_hint
                 else if (needsUpdate) R.string.pack_completion_update_hint else R.string.pack_completion_hint),
-              MiuixIcons.Glass.Layers) { onNavigate("fallback") }
+              MiuixIcons.Glass.Layers,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Pink) { onNavigate("fallback") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.pack_action_settings),
-              stringResource(R.string.pack_action_settings_summary), MiuixIcons.Glass.SettingsOutline) { onNavigate("settings") }
+              stringResource(R.string.pack_action_settings_summary), MiuixIcons.Glass.SettingsOutline,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Teal) { onNavigate("settings") }
           }
         }
       }
@@ -166,15 +173,24 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
         item("sources") {
           Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
             PackNavigationRow(stringResource(R.string.pack_builtin),
-              stringResource(R.string.pack_builtin_summary), MiuixIcons.Glass.Phone) { onNavigate("builtin") }
+              stringResource(R.string.pack_builtin_summary), MiuixIcons.Glass.Phone,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Teal) { onNavigate("builtin") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.perfect_icons_title),
-              stringResource(R.string.perfect_icons_library_summary), MiuixIcons.Glass.Theme) { onNavigate("perfect") }
+              stringResource(R.string.perfect_icons_library_summary), MiuixIcons.Glass.Theme,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Pink) { onNavigate("perfect") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.apple_pack_title),
-              stringResource(R.string.apple_pack_summary), MiuixIcons.Glass.Iphone) { onNavigate("apple") }
+              stringResource(R.string.apple_pack_summary), MiuixIcons.Glass.Iphone,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Blue) { onNavigate("apple") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.pack_installed),
-              stringResource(R.string.pack_installed_summary), MiuixIcons.Glass.GridView) { onNavigate("installed") }
+              stringResource(R.string.pack_installed_summary), MiuixIcons.Glass.GridView,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Purple) { onNavigate("installed") }
+            os.kei.hyper.home.ui.components.Os4InsetDivider()
             PackNavigationRow(stringResource(R.string.pack_imported),
-              stringResource(R.string.pack_imported_summary), MiuixIcons.Glass.FolderOutline) { onNavigate("imported") }
+              stringResource(R.string.pack_imported_summary), MiuixIcons.Glass.FolderOutline,
+              os.kei.hyper.home.ui.components.Os4BadgePalette.Gold) { onNavigate("imported") }
           }
         }
       }
@@ -275,18 +291,15 @@ private fun PackNavigationRow(
   title: String,
   summary: String,
   icon: androidx.compose.ui.graphics.vector.ImageVector,
+  tint: Color = MiuixTheme.colorScheme.primary,
   onClick: () -> Unit,
 ) {
-  val pressSource = rememberOs4PressSource()
-  BasicComponent(
+  os.kei.hyper.home.ui.components.Os4NavigationRow(
     title = title,
     summary = summary,
+    icon = icon,
+    tint = tint,
     onClick = onClick,
-    role = Role.Button,
-    interactionSource = pressSource,
-    modifier = Modifier.glassPress(pressSource),
-    startAction = { Icon(icon, null, Modifier.size(22.dp), tint = MiuixTheme.colorScheme.primary) },
-    endActions = { Os4TrailingChevron() },
   )
 }
 

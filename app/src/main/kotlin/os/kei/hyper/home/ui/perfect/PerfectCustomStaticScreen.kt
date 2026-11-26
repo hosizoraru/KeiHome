@@ -75,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -139,6 +140,7 @@ import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleBorder
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private data class StaticDraft(val id: String? = null, val pair: PerfectCustomStatic? = null)
@@ -360,6 +362,7 @@ internal fun PerfectCustomStaticScreen(
                   layers = artwork,
                   description = resolvedLabel ?: id,
                   backdropMode = StageBackdrop.GRID,
+                  cornerRadius = 14.dp,
                 )
               },
               endActions = {
@@ -852,6 +855,7 @@ private fun InteractiveLayeredStage(
           layers = listOfNotNull(background, foreground),
           description = stringResource(R.string.perfect_custom_composite),
           backdropMode = backdropMode,
+          cornerRadius = 24.dp,
           layerOffsets = if (bothLayers) {
             listOf(
               Offset(parallax.x * 0.25f, parallax.y * 0.25f),
@@ -1072,6 +1076,7 @@ private fun StaticArtwork(
   layers: List<ImageBitmap>,
   description: String?,
   backdropMode: StageBackdrop = StageBackdrop.GRID,
+  cornerRadius: Dp = 18.dp,
   layerOffsets: List<Offset> = emptyList(),
 ) {
   val scheme = MiuixTheme.colorScheme
@@ -1085,8 +1090,9 @@ private fun StaticArtwork(
     label = "static-artwork-bg",
   )
   Box(
-    modifier.squircleBackground(bg, 18.dp)
-      .squircleBorder(1.dp, scheme.onSurface.copy(alpha = 0.08f), 18.dp),
+    modifier.squircleClip(cornerRadius)
+      .squircleBackground(bg, cornerRadius)
+      .squircleBorder(1.dp, scheme.onSurface.copy(alpha = 0.08f), cornerRadius),
     contentAlignment = Alignment.Center,
   ) {
     if (backdropMode == StageBackdrop.GRID) {
@@ -1094,8 +1100,14 @@ private fun StaticArtwork(
         val tile = 8.dp.toPx()
         val tint = scheme.onSurface.copy(alpha = 0.065f)
         for (row in 0..(size.height / tile).toInt()) {
+          val y = row * tile
+          val h = (size.height - y).coerceIn(0f, tile)
+          if (h <= 0f) continue
           for (column in (row % 2)..(size.width / tile).toInt() step 2) {
-            drawRect(tint, Offset(column * tile, row * tile), Size(tile, tile))
+            val x = column * tile
+            val w = (size.width - x).coerceIn(0f, tile)
+            if (w <= 0f) continue
+            drawRect(tint, Offset(x, y), Size(w, h))
           }
         }
       }

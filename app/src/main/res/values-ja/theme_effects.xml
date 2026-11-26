@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="theme_effects_title">システムの質感効果を保持</string>
-    <string name="theme_effects_summary">標準以外のアイコンを初めて使う際に一度だけ有効化。手動でオフにできます。省電力・ぼかし設定に従い、対応する質感とハイライトを復元。パネルは開き直すと更新されます。</string>
+    <string name="theme_effects_summary">対応するシステム素材とアイコンのハイライトを復元します。</string>
+    <string name="theme_effects_help">標準以外のアイコンを初めて使う際に一度だけ有効化。手動でオフにできます。省電力・ぼかし設定に従い、対応する質感とハイライトを復元。パネルは開き直すと更新されます。</string>
     <string name="theme_effects_disconnected">フレームワーク未接続。</string>
     <string name="theme_effects_framework_failed">スコープ未確認。更新してください。</string>
     <string name="theme_effects_scope_needed">システムフレームワークまたはシステム UI をスコープに追加してください。</string>

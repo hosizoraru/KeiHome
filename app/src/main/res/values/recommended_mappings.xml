@@ -6,12 +6,16 @@
     <string name="recommended_mappings_update_note">Changes affect previews and the next import. For themes already generated or applied, update and reapply the theme.</string>
     <string name="recommended_mappings_importing">An import is in progress. These settings will be available when it finishes.</string>
     <string name="recommended_mappings_telegram_title">Official Telegram Android channels</string>
-    <string name="recommended_mappings_telegram_summary">Share default icons across official Play, Web, and Beta builds when the donor has real dark artwork. Fill missing adaptations; keep existing light and dark artwork, alternate icons, and preserved apps.</string>
+    <string name="recommended_mappings_telegram_summary">Fill missing icons across official Play, Web and Beta builds.</string>
+    <string name="recommended_mappings_telegram_help">Share default icons across official Play, Web, and Beta builds when the donor has real dark artwork. Fill missing adaptations; keep existing light and dark artwork, alternate icons, and preserved apps.</string>
     <string name="recommended_mappings_phone_companions_title">Phone companion icons</string>
-    <string name="recommended_mappings_phone_companions_summary">Use Phone artwork for Call management and Phone services only when each lacks its own icon. Keep dedicated icons, including light-only designs, and apps set to keep their original icon.</string>
+    <string name="recommended_mappings_phone_companions_summary">Use Phone artwork for Call management and Phone services.</string>
+    <string name="recommended_mappings_phone_companions_help">Use Phone artwork for Call management and Phone services only when each lacks its own icon. Keep dedicated icons, including light-only designs, and apps set to keep their original icon.</string>
     <string name="recommended_mappings_coloros_title">Built-in ColorOS Theme Store mapping</string>
-    <string name="recommended_mappings_coloros_summary">Use Theme Store artwork for Themes and Theme Store when the built-in ColorOS pack has no explicit mapping. Keep mappings provided by the pack.</string>
+    <string name="recommended_mappings_coloros_summary">Fill missing theme app icons in built-in ColorOS packs.</string>
+    <string name="recommended_mappings_coloros_help">Use Theme Store artwork for Themes and Theme Store when the built-in ColorOS pack has no explicit mapping. Keep mappings provided by the pack.</string>
     <string name="recommended_mappings_search_keywords">recommended mappings system app names Telegram TG Android Play Web Beta phone companions calls telecom com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap theme store com.android.thememanager com.miui.themestore Weibo Lite com.weico.international com.sina.weibo</string>
     <string name="recommended_mappings_weibo_lite_title">Weibo Lite</string>
-    <string name="recommended_mappings_weibo_lite_summary">Use Weibo artwork when Weibo Lite has no icon in the pack. Apps set to keep their original icon retain it.</string>
+    <string name="recommended_mappings_weibo_lite_summary">Fill missing Weibo Lite icons with Weibo artwork.</string>
+    <string name="recommended_mappings_weibo_lite_help">Use Weibo artwork when Weibo Lite has no icon in the pack. Apps set to keep their original icon retain it.</string>
 </resources>

@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -92,14 +93,16 @@ internal fun PackSettingsContent(
       if (showAutoApply) SwitchPreference(title = stringResource(R.string.pack_auto_apply),
         summary = stringResource(R.string.pack_auto_apply_summary), checked = preferences.autoApplyIconPack,
         onCheckedChange = onAutoApply)
-      if (onManualThemeFallback != null) SwitchPreference(
+      if (onManualThemeFallback != null) Os4ExplainedSwitchPreference(
         title = stringResource(R.string.pack_manual_theme_fallback),
         summary = stringResource(R.string.pack_manual_theme_fallback_summary),
+        explanation = stringResource(R.string.pack_manual_theme_fallback_help),
         checked = preferences.manualThemeFallback, onCheckedChange = onManualThemeFallback,
-        modifier = Modifier.testTag("icon-packs.manual-theme-fallback"))
-      if (showInstalledOnly) SwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
-        summary = stringResource(R.string.pack_installed_icons_only_summary), checked = preferences.installedIconsOnly,
-        onCheckedChange = onInstalledOnly)
+        tag = "icon-packs.manual-theme-fallback")
+      if (showInstalledOnly) Os4ExplainedSwitchPreference(title = stringResource(R.string.pack_installed_icons_only),
+        summary = stringResource(R.string.pack_installed_icons_only_summary),
+        explanation = stringResource(R.string.pack_installed_icons_only_help), checked = preferences.installedIconsOnly,
+        onCheckedChange = onInstalledOnly, tag = "icon-packs.installed-only")
       if (onCompleteSystemIconConfig != null) SwitchPreference(
         title = stringResource(R.string.complete_system_icon_config_title),
         summary = stringResource(R.string.complete_system_icon_config_summary),
@@ -124,11 +127,12 @@ internal fun PackSettingsContent(
       if (showRememberMenus) SwitchPreference(title = stringResource(R.string.pack_remember_menus),
         summary = stringResource(R.string.pack_remember_menus_summary), checked = preferences.rememberMenuSelections,
         onCheckedChange = onRememberMenus, modifier = Modifier.testTag("settings.remember-pack-menus"))
-      if (onKeepLatestGeneratedPacks != null) SwitchPreference(
+      if (onKeepLatestGeneratedPacks != null) Os4ExplainedSwitchPreference(
         title = stringResource(R.string.generated_pack_retention_title),
         summary = stringResource(R.string.generated_pack_retention_summary),
+        explanation = stringResource(R.string.generated_pack_retention_help),
         checked = preferences.keepLatestGeneratedPacks, onCheckedChange = onKeepLatestGeneratedPacks,
-        modifier = Modifier.testTag("settings.keep-latest-generated-packs"))
+        tag = "settings.keep-latest-generated-packs")
       if (showPreviews) SwitchPreference(title = stringResource(R.string.polish_previews_title),
         summary = stringResource(R.string.polish_previews_summary), checked = preferences.showIconPreviews,
         onCheckedChange = onPreviews, modifier = Modifier.testTag("settings.icon-previews"))

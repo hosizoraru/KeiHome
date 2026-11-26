@@ -38,7 +38,8 @@
   <string name="nav_backdrop_limits">Known limitations</string>
   <string name="nav_backdrop_limits_summary">System color matching may have little effect on app-drawn bars, enforced edge-to-edge layouts and some video screens. Bilibili home tabs have a separate setting.</string>
   <string name="nav_backdrop_bilibili">Bilibili home tabs</string>
-  <string name="nav_backdrop_bilibili_summary">Extend supported tab artwork or a solid tab color to the screen edge. The handle picks up the background hue and turns darker on light backgrounds or lighter on dark backgrounds. Fully reopen Bilibili after changes.</string>
+  <string name="nav_backdrop_bilibili_summary">Extend the home tab background. Fully reopen Bilibili to apply.</string>
+  <string name="nav_backdrop_bilibili_help">Extend supported tab artwork or a solid tab color to the screen edge. The handle picks up the background hue and turns darker on light backgrounds or lighter on dark backgrounds. Fully reopen Bilibili after changes.</string>
   <string name="nav_backdrop_bilibili_scope">Enable the optional Bilibili scope in LSPosed, then return here.</string>
   <string name="nav_backdrop_bilibili_limit">Free an Affected apps slot before enabling this option.</string>
   <string name="nav_backdrop_bilibili_bound">Included by Bilibili home tabs</string>

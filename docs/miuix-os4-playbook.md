@@ -337,6 +337,10 @@ Apple 图标包与完美图标补全计划共用 `PackTabScaffold`。底栏固�
 下载进度、失败原因、未保存或待重新生成等重要状态应继续可见。
 长说明的折叠不应让用户失去当前操作是否可执行的依据。
 
+设置开关的摘要优先说明开启后的效果。条件、兼容性和完整的生效流程可放入标题旁的说明按钮，
+由 `Os4ExplainedSwitchPreference` 打开 `Os4DetailsSheet`。说明按钮独立于开关，禁用时仍可阅读。
+设置搜索可同时索引简短摘要和完整说明。
+
 ### 状态摘要与诊断详情
 
 运行状态和 Monet 等动态信息适合保留紧凑摘要卡，点击打开诊断 Sheet。
@@ -511,6 +515,7 @@ KeiHome 的 Gaussian 条带使用实现 `BackdropPipeline` 的不可变值对象
 | 下拉选择 | [Os4DropdownPreference](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DropdownPreference.kt) | 有效选项、保存值、禁用规则 |
 | 分组菜单 | [Os4DropdownMenu](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DropdownMenu.kt) | 原生锚点、宿主退出、分组选中语义 |
 | 短说明 | [Os4InfoPopup](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4InfoPopup.kt) | 触发器、焦点、返回、无障碍和退出 |
+| 带说明的开关 | [Os4ExplainedSwitchPreference](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ExplainedSwitchPreference.kt) | 标题旁的帮助按钮、简短摘要和开关状态 |
 | 长详情 | [Os4DetailsSheet](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4DetailsSheet.kt) | 材质、边界、滚动、关闭完成 |
 | 操作确认 | [Os4ActionDialog](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ActionDialog.kt) | 动作角色与自适应布局 |
 | 分段／分类 | [Os4ViewTabs](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4ViewTabs.kt) | 文字测量、轨道边界、叶子采样 |

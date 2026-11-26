@@ -6,12 +6,16 @@
     <string name="recommended_mappings_update_note">修改会影响预览和下次导入。已生成或已应用的主题需要更新并重新应用。</string>
     <string name="recommended_mappings_importing">正在导入，完成后即可修改这些设置。</string>
     <string name="recommended_mappings_telegram_title">Telegram 官方 Android 渠道</string>
-    <string name="recommended_mappings_telegram_summary">在官方 Play、Web、Beta 渠道间共用已有深色适配的默认图标，仅补全缺失项。保留已有深浅色适配，不影响其他可选图标及保留原始图标的应用。</string>
+    <string name="recommended_mappings_telegram_summary">为官方 Play、Web、Beta 版本补齐缺失的图标。</string>
+    <string name="recommended_mappings_telegram_help">在官方 Play、Web、Beta 渠道间共用已有深色适配的默认图标，仅补全缺失项。保留已有深浅色适配，不影响其他可选图标及保留原始图标的应用。</string>
     <string name="recommended_mappings_phone_companions_title">电话配套图标</string>
-    <string name="recommended_mappings_phone_companions_summary">为“通话管理”和“电话服务”补齐“电话”图标，两个应用分别判断。已有专属图标（即使仅有浅色）或已保留原始图标时不补齐。</string>
+    <string name="recommended_mappings_phone_companions_summary">用电话图标补齐通话管理和电话服务。</string>
+    <string name="recommended_mappings_phone_companions_help">为“通话管理”和“电话服务”补齐“电话”图标，两个应用分别判断。已有专属图标（即使仅有浅色）或已保留原始图标时不补齐。</string>
     <string name="recommended_mappings_coloros_title">内置 ColorOS 主题商店映射</string>
-    <string name="recommended_mappings_coloros_summary">为内置 ColorOS 图标包未覆盖的“主题壁纸”和“主题商店”使用主题商店图标，保留图标包原有映射。</string>
+    <string name="recommended_mappings_coloros_summary">补齐内置 ColorOS 方案缺失的主题应用图标。</string>
+    <string name="recommended_mappings_coloros_help">为内置 ColorOS 图标包未覆盖的“主题壁纸”和“主题商店”使用主题商店图标，保留图标包原有映射。</string>
     <string name="recommended_mappings_search_keywords">推荐映射 系统应用 名称匹配 电报 Telegram TG Android Play Web Beta 电话 配套图标 通话 电信 com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap 主题商店 com.android.thememanager com.miui.themestore 微博 微博轻享版 Weibo Lite com.weico.international com.sina.weibo</string>
     <string name="recommended_mappings_weibo_lite_title">微博轻享版</string>
-    <string name="recommended_mappings_weibo_lite_summary">图标包没有适配微博轻享版时，使用微博的图标。已设为保留原始图标的应用仍使用原图标。</string>
+    <string name="recommended_mappings_weibo_lite_summary">用微博图标补齐微博轻享版。</string>
+    <string name="recommended_mappings_weibo_lite_help">图标包没有适配微博轻享版时，使用微博的图标。已设为保留原始图标的应用仍使用原图标。</string>
 </resources>

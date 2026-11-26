@@ -38,7 +38,8 @@
   <string name="nav_backdrop_limits">已知限制</string>
   <string name="nav_backdrop_limits_summary">通用适配由系统为底栏取色。应用自绘的底栏、强制边到边布局及部分视频页面可能看不到变化。哔哩哔哩首页可另外开启专属适配。</string>
   <string name="nav_backdrop_bilibili">哔哩哔哩专属适配</string>
-  <string name="nav_backdrop_bilibili_summary">将首页的主题原图或纯色底栏延伸至屏幕底边。手势条随下方背景取色，在亮处加深、暗处提亮。更改后请完全重启哔哩哔哩。</string>
+  <string name="nav_backdrop_bilibili_summary">延伸首页底栏背景，完全重启哔哩哔哩后生效。</string>
+  <string name="nav_backdrop_bilibili_help">将首页的主题原图或纯色底栏延伸至屏幕底边。手势条随下方背景取色，在亮处加深、暗处提亮。更改后请完全重启哔哩哔哩。</string>
   <string name="nav_backdrop_bilibili_scope">请在 LSPosed 中勾选可选的哔哩哔哩作用域，再返回此页。</string>
   <string name="nav_backdrop_bilibili_limit">请先在适用应用中腾出一个名额。</string>
   <string name="nav_backdrop_bilibili_bound">由哔哩哔哩专属适配自动加入</string>

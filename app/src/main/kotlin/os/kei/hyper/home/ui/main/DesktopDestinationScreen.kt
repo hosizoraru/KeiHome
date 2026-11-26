@@ -148,7 +148,8 @@ private fun DesktopIconSettings(model: HomeViewModel, feature: DesktopFeature) {
       scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
     DesktopFeature.SPLASH -> SplashAppearanceSettingsCard(splash, framework.splashAppearanceInScope(),
       model::setSplashAppearance, showStatus = false,
-      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
+      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed,
+      help = R.string.splash_adapt_help)
     else -> Unit
   }
 }

@@ -28,7 +28,8 @@
   <string name="pack_hyperos_theme_open">主题壁纸中的图标</string>
   <string name="pack_hyperos_icons_open">打开图标样式</string>
   <string name="system_name_matching_title">按应用名称匹配系统图标</string>
-  <string name="system_name_matching_summary">图标包未覆盖系统应用时，可按应用名称查找相应图标。调整后需更新并应用图标包。</string>
+  <string name="system_name_matching_summary">按应用名称补齐缺失图标，需更新并应用图标包。</string>
+  <string name="system_name_matching_help">图标包未覆盖系统应用时，可按应用名称查找相应图标。调整后需更新并应用图标包。</string>
   <string name="polish_about_device">手机机型</string>
   <string name="polish_about_system">系统版本</string>
   <string name="polish_about_launcher">系统桌面</string>

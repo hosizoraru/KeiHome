@@ -2,11 +2,12 @@
 <resources>
     <string name="splash_section">应用启动</string>
     <string name="splash_adapt">启动遮罩夜间适配</string>
-    <string name="splash_adapt_summary">应用处于夜间模式时，按 ColorOS 逻辑调暗浅色纯色背景。保留品牌色、自定义启动图标和快照，下次冷启动生效。</string>
+    <string name="splash_adapt_summary">深色模式下调暗纯色启动背景，下次冷启动生效。</string>
+    <string name="splash_adapt_help">应用处于夜间模式时，按 ColorOS 逻辑调暗浅色纯色背景。保留品牌色、自定义启动图标和快照，下次冷启动生效。</string>
     <string name="splash_scope">请连接框架，并将系统界面加入模块作用域。</string>
     <string name="splash_icons_title">启动图标补全</string>
     <string name="splash_icons_summary">为缺少启动图标的纯色启动页补上当前已应用图标，下次冷启动生效。</string>
-    <string name="splash_icons_help_title">使用说明</string>
+    <string name="preference_help_for">%1$s使用说明</string>
     <string name="splash_icons_help_summary">图标来源、配色联动与补全范围</string>
     <string name="splash_icons_help">使用已应用到系统的图标方案，遵循自定义图标与保留原图规则，并跟随深浅色和 Monet。更换图标包或修改规则后，请先重新应用。\n\n仅补全未提供图标的纯色系统启动页，不替换应用自带图标、品牌图、自定义背景或真实快照。双开与工作资料暂时沿用系统行为。\n\n关闭后下次冷启动恢复系统行为。本功能无法改变应用进入后自行绘制的空白页面。</string>
 </resources>

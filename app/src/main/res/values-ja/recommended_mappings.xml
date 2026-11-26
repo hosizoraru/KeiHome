@@ -6,12 +6,16 @@
     <string name="recommended_mappings_update_note">変更はプレビューと次回のインポートに反映されます。生成済み・適用済みのテーマは、更新して再適用してください。</string>
     <string name="recommended_mappings_importing">インポート中です。完了後にこれらの設定を変更できます。</string>
     <string name="recommended_mappings_telegram_title">Telegram 公式 Android 配信版</string>
-    <string name="recommended_mappings_telegram_summary">実際のダーク用画像がある公式 Play・Web・Beta 版のデフォルトアイコンを共有し、不足分のみ補完します。既存のライト・ダーク対応、選択した別のアイコン、元のアイコンを保持するアプリが優先されます。</string>
+    <string name="recommended_mappings_telegram_summary">公式の Play、Web、Beta 版で不足しているアイコンを補います。</string>
+    <string name="recommended_mappings_telegram_help">実際のダーク用画像がある公式 Play・Web・Beta 版のデフォルトアイコンを共有し、不足分のみ補完します。既存のライト・ダーク対応、選択した別のアイコン、元のアイコンを保持するアプリが優先されます。</string>
     <string name="recommended_mappings_phone_companions_title">電話関連アイコン</string>
-    <string name="recommended_mappings_phone_companions_summary">「通話管理」と「電話サービス」に個別のアイコンがない場合、「電話」のアイコンで補完します。明るい表示用のみの専用アイコンや、元のアイコンを保持するアプリは変更しません。</string>
+    <string name="recommended_mappings_phone_companions_summary">通話管理と電話サービスの不足分を電話アイコンで補います。</string>
+    <string name="recommended_mappings_phone_companions_help">「通話管理」と「電話サービス」に個別のアイコンがない場合、「電話」のアイコンで補完します。明るい表示用のみの専用アイコンや、元のアイコンを保持するアプリは変更しません。</string>
     <string name="recommended_mappings_coloros_title">内蔵 ColorOS テーマストアのマッピング</string>
-    <string name="recommended_mappings_coloros_summary">内蔵 ColorOS パックに明示的な指定がない場合、テーマとテーマストアにテーマストアのアイコンを使用します。パックの既存の指定は保持します。</string>
+    <string name="recommended_mappings_coloros_summary">内蔵 ColorOS パックで不足しているテーマアプリのアイコンを補います。</string>
+    <string name="recommended_mappings_coloros_help">内蔵 ColorOS パックに明示的な指定がない場合、テーマとテーマストアにテーマストアのアイコンを使用します。パックの既存の指定は保持します。</string>
     <string name="recommended_mappings_search_keywords">推奨マッピング システムアプリ 名前照合 Telegram TG Android Play Web Beta 電話 関連アイコン 通話 com.android.server.telecom com.android.phone com.android.incallui ColorOS HeyTap テーマストア com.android.thememanager com.miui.themestore Weibo Lite com.weico.international com.sina.weibo</string>
     <string name="recommended_mappings_weibo_lite_title">Weibo Lite</string>
-    <string name="recommended_mappings_weibo_lite_summary">アイコンパックに Weibo Lite のアイコンがない場合、Weibo のアイコンを使用します。元のアイコンを保持する設定が優先されます。</string>
+    <string name="recommended_mappings_weibo_lite_summary">微博ライト版の不足分を微博のアイコンで補います。</string>
+    <string name="recommended_mappings_weibo_lite_help">アイコンパックに Weibo Lite のアイコンがない場合、Weibo のアイコンを使用します。元のアイコンを保持する設定が優先されます。</string>
 </resources>

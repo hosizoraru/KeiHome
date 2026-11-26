@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.libxposed.service.HookedTarget
 import os.kei.hyper.home.BuildConfig
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.KeiHomeIconButton
 import os.kei.hyper.home.ui.components.Os4ActionDialog
@@ -69,7 +70,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
@@ -266,10 +266,11 @@ internal fun IconPackAppearancePreference(
     Column {
       IconPackAppearanceControl(appearance, onChange, enabled, compact, compactNote = compact)
       if (appearance == IconPackAppearance.SYSTEM && onStaticAppearanceChange != null) {
-        SwitchPreference(title = stringResource(R.string.icon_pack_static_appearance),
+        Os4ExplainedSwitchPreference(title = stringResource(R.string.icon_pack_static_appearance),
           summary = stringResource(R.string.icon_pack_static_appearance_summary),
+          explanation = stringResource(R.string.icon_pack_static_appearance_help),
           checked = staticAppearance, enabled = enabled,
-          modifier = Modifier.testTag("icon-packs.static-appearance"),
+          tag = "icon-packs.static-appearance",
           onCheckedChange = onStaticAppearanceChange)
       }
       if (!compact) Text(stringResource(R.string.icon_pack_appearance_update_note),
@@ -353,13 +354,14 @@ internal fun ThemeEffectsCard(
   }
   Card(modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     Column {
-      SwitchPreference(
+      Os4ExplainedSwitchPreference(
         title = stringResource(R.string.theme_effects_title),
         summary = stringResource(R.string.theme_effects_summary),
+        explanation = stringResource(R.string.theme_effects_help),
         checked = state.savedChoice == true,
         enabled = enabled,
         onCheckedChange = onCheckedChange,
-        modifier = Modifier.testTag("theme-effects.switch"),
+        tag = "theme-effects.switch",
       )
       if (showStatus || state.readFailed || state.saveFailed || scopeGuidance != null) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),

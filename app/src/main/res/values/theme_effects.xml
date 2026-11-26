@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="theme_effects_title">Keep system materials</string>
-    <string name="theme_effects_summary">Turns on once for the first non-default icon pack; you can turn it off. Restores supported materials and icon highlights, respecting power-saving and blur settings. Reopen panels to update.</string>
+    <string name="theme_effects_summary">Restore supported system materials and icon highlights.</string>
+    <string name="theme_effects_help">Turns on once for the first non-default icon pack; you can turn it off. Restores supported materials and icon highlights, respecting power-saving and blur settings. Reopen panels to update.</string>
     <string name="theme_effects_disconnected">Framework disconnected.</string>
     <string name="theme_effects_framework_failed">Scope unavailable. Refresh to retry.</string>
     <string name="theme_effects_scope_needed">Add System Framework or System UI to the module scope.</string>

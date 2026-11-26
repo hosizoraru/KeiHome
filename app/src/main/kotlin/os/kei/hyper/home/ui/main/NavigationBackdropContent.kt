@@ -48,6 +48,7 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -307,10 +308,10 @@ internal fun NavigationBackdropContent(
                 else -> R.string.nav_backdrop_bilibili_summary
               }
               Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-                SwitchPreference(title = stringResource(R.string.nav_backdrop_bilibili),
-                  summary = stringResource(summary), checked = artworkOn, enabled = enabled,
-                  onCheckedChange = onBilibiliArtwork, modifier = Modifier.testTag("nav-backdrop.bilibili")
-                    .semantics { if (!enabled) disabled() })
+                Os4ExplainedSwitchPreference(title = stringResource(R.string.nav_backdrop_bilibili),
+                  summary = stringResource(summary), explanation = stringResource(R.string.nav_backdrop_bilibili_help),
+                  checked = artworkOn, enabled = enabled, onCheckedChange = onBilibiliArtwork,
+                  tag = "nav-backdrop.bilibili")
                 if (state.bilibiliInScope == false && bilibiliInstalled) {
                   NavigationBackdropLink(R.string.scope_open_manager, null, "nav-backdrop.bilibili.scope",
                     onOpenManager)

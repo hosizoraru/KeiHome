@@ -36,6 +36,26 @@ class ThemeEffectsCardTest {
   private val context: Context = ApplicationProvider.getApplicationContext()
 
   @Test
+  fun explanationOpensWhileTheSwitchIsDisabledWithoutWriting() {
+    val requests = mutableListOf<Boolean>()
+    composeTestRule.setContent {
+      KeiHomeTheme {
+        ThemeEffectsCard(ThemeEffectsUiState(savedChoice = false, saving = true),
+          framework(systemUiInScope = true), onCheckedChange = { requests.add(it) })
+      }
+    }
+
+    toggle().assertIsNotEnabled()
+    val help = composeTestRule.onNodeWithTag("theme-effects.switch.help.open")
+    val sheet = composeTestRule.onNodeWithTag("theme-effects.switch.help")
+    sheet.assertDoesNotExist()
+    help.assertIsEnabled().performClick()
+    sheet.assertExists()
+    composeTestRule.onNodeWithText(context.getString(R.string.theme_effects_help)).assertExists()
+    composeTestRule.runOnIdle { assertEquals(emptyList<Boolean>(), requests) }
+  }
+
+  @Test
   fun checkedValueIsTheSavedChoiceAndClickRequestsAWrite() {
     var requested: Boolean? = null
     var state by mutableStateOf(ThemeEffectsUiState(savedChoice = false))

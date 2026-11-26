@@ -38,7 +38,8 @@
   <string name="nav_backdrop_limits">既知の制限</string>
   <string name="nav_backdrop_limits_summary">アプリ独自の下部バー、エッジツーエッジを強制する画面、一部の動画画面では、システムの色取得による変化が見えない場合があります。ビリビリのホームには専用設定があります。</string>
   <string name="nav_backdrop_bilibili">ビリビリ専用設定</string>
-  <string name="nav_backdrop_bilibili_summary">対応するホーム画面のテーマ画像や単色の背景を画面の下端まで延ばします。バーは背景の色味を取り入れ、明るい背景では暗く、暗い背景では明るくなります。変更後はアプリを完全に終了して開き直してください。</string>
+  <string name="nav_backdrop_bilibili_summary">ホームタブの背景を延長します。Bilibili を完全に開き直すと反映されます。</string>
+  <string name="nav_backdrop_bilibili_help">対応するホーム画面のテーマ画像や単色の背景を画面の下端まで延ばします。バーは背景の色味を取り入れ、明るい背景では暗く、暗い背景では明るくなります。変更後はアプリを完全に終了して開き直してください。</string>
   <string name="nav_backdrop_bilibili_scope">LSPosed でオプションの Bilibili スコープを有効にしてから、この画面に戻ってください。</string>
   <string name="nav_backdrop_bilibili_limit">対象アプリの選択を一つ解除してから有効にしてください。</string>
   <string name="nav_backdrop_bilibili_bound">ビリビリ専用設定により追加</string>

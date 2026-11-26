@@ -2,25 +2,15 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Switch
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
@@ -36,7 +26,7 @@ internal fun SplashAppearanceSettingsCard(
   tag: String = "splash-appearance",
   feature: DesktopFeature? = DesktopFeature.SPLASH,
   scopeMessage: Int = R.string.splash_scope,
-  titleAction: (@Composable () -> Unit)? = null,
+  help: Int? = null,
   content: @Composable () -> Unit = {},
 ) {
   val issue = when {
@@ -54,30 +44,14 @@ internal fun SplashAppearanceSettingsCard(
     val allowed = inScope && !scopeChecking && !scopeReadFailed &&
       state.canSaveThemeEffects(state.savedChoice != true)
     val description = stringResource(if (showStatus) issue ?: summary else summary)
-    if (titleAction == null) {
+    if (help == null) {
       SwitchPreference(title = stringResource(title), summary = description,
         checked = state.savedChoice == true, enabled = allowed,
         onCheckedChange = onChange, modifier = Modifier.testTag("$tag.switch"))
     } else {
-      BasicComponent(modifier = Modifier.testTag("$tag.switch"), enabled = allowed,
-        role = Role.Switch, onClick = { if (allowed) onChange(state.savedChoice != true) },
-        endActions = {
-          Switch(checked = state.savedChoice == true, enabled = allowed,
-            onCheckedChange = onChange)
-        }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(stringResource(title), modifier = Modifier.weight(1f, fill = false),
-            fontSize = MiuixTheme.textStyles.headline1.fontSize, fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface)
-          Box(Modifier.width(44.dp).height(24.dp)) {
-            Box(Modifier.matchParentSize().wrapContentSize(Alignment.Center, unbounded = true)) {
-              titleAction()
-            }
-          }
-        }
-        Text(description, style = MiuixTheme.textStyles.body2,
-          color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      }
+      Os4ExplainedSwitchPreference(title = stringResource(title), summary = description,
+        explanation = stringResource(help), checked = state.savedChoice == true, enabled = allowed,
+        onCheckedChange = onChange, tag = "$tag.switch", helpTag = "$tag.help")
     }
     if (inScope && (state.readFailed || state.saveFailed)) {
       BasicComponent(title = stringResource(R.string.theme_effects_resave_off),

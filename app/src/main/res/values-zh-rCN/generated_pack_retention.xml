@@ -1,5 +1,6 @@
 <resources>
     <string name="generated_pack_retention_title">仅保留最新生成包</string>
-    <string name="generated_pack_retention_summary">Apple 与完美图标包各自保留最新生成版本。新包成功保存后自动清理旧版本，手动导入的图标包不受影响。</string>
+    <string name="generated_pack_retention_summary">Apple 与完美图标包各自仅保留最新生成版本。</string>
+    <string name="generated_pack_retention_help">Apple 与完美图标包各自保留最新生成版本。新包成功保存后自动清理旧版本，手动导入的图标包不受影响。</string>
     <string name="generated_pack_retention_note">默认开启「仅保留最新生成包」：Apple 与完美图标包各自保留最新生成版本，新包成功保存后自动清理旧版本。如需保留生成历史，可在「图标包 > 更多设置」中关闭；手动导入的图标包不受影响。</string>
 </resources>

@@ -43,5 +43,6 @@
   <string name="pack_monet_ordinary_locked">元のデザインを使用中。インスピレーション適用後に有効化できます。</string>
   <string name="pack_system_palette_hint">現在のシステムパレットを使用</string>
   <string name="system_name_matching_title">名前でシステムアプリを照合</string>
-  <string name="system_name_matching_summary">パックで未対応のシステムアプリは、アプリ名から対応するアイコンを検索します。変更後はパックを更新して適用してください。</string>
+  <string name="system_name_matching_summary">不足分をアプリ名で照合します。パックを更新して再適用してください。</string>
+  <string name="system_name_matching_help">パックで未対応のシステムアプリは、アプリ名から対応するアイコンを検索します。変更後はパックを更新して適用してください。</string>
 </resources>

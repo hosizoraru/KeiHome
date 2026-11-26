@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -317,16 +318,19 @@ internal fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List
       checked = options.dynamic, enabled = enabled,
       modifier = Modifier.testTag("perfect.options.dynamic"),
       onCheckedChange = { onOptionsChange(options.copy(dynamic = it)) })
-    SwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
+    Os4ExplainedSwitchPreference(title = stringResource(R.string.perfect_icons_static_night),
       summary = stringResource(if (options.staticNight) R.string.perfect_icons_night_enabled else R.string.perfect_icons_night_disabled),
+      explanation = stringResource(R.string.perfect_icons_night_enabled_help) + "\n\n" +
+        stringResource(R.string.perfect_icons_night_disabled_help),
       checked = options.staticNight, enabled = enabled,
-      modifier = Modifier.testTag("perfect.options.night"),
+      tag = "perfect.options.night",
       onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) })
     if (options.staticNight) {
-      SwitchPreference(title = stringResource(R.string.perfect_icons_fixed_dark),
+      Os4ExplainedSwitchPreference(title = stringResource(R.string.perfect_icons_fixed_dark),
         summary = stringResource(R.string.perfect_icons_fixed_dark_summary),
+        explanation = stringResource(R.string.perfect_icons_fixed_dark_help),
         checked = options.fixedDark, enabled = enabled,
-        modifier = Modifier.testTag("perfect.options.fixed-dark"),
+        tag = "perfect.options.fixed-dark",
         onCheckedChange = { onOptionsChange(options.copy(fixedDark = it)) })
     }
     SwitchPreference(title = stringResource(R.string.perfect_icons_installed),

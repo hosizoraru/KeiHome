@@ -2,11 +2,12 @@
 <resources>
     <string name="splash_section">アプリの起動</string>
     <string name="splash_adapt">起動画面の夜間対応</string>
-    <string name="splash_adapt_summary">アプリの夜間モードで、明るい単色背景に ColorOS の明度処理を適用します。ブランド色、独自アイコン、スナップショットは保持し、次回のコールド起動から反映します。</string>
+    <string name="splash_adapt_summary">ダークモードで単色の起動画面を暗くします。次回のコールド起動から有効です。</string>
+    <string name="splash_adapt_help">アプリの夜間モードで、明るい単色背景に ColorOS の明度処理を適用します。ブランド色、独自アイコン、スナップショットは保持し、次回のコールド起動から反映します。</string>
     <string name="splash_scope">フレームワークに接続し、システム UI をモジュールのスコープに追加してください。</string>
     <string name="splash_icons_title">起動アイコンを補完</string>
     <string name="splash_icons_summary">アイコンのない単色の起動画面に適用中のアイコンを表示します。次のコールド起動から反映されます。</string>
-    <string name="splash_icons_help_title">使い方</string>
+    <string name="preference_help_for">%1$sの使い方</string>
     <string name="splash_icons_help_summary">アイコンの選択、配色の連動と補完の対象</string>
     <string name="splash_icons_help">システムに適用済みのアイコン設定を使います。カスタムアイコンや元のアイコンを保持するルール、ライト／ダークと Monet に従います。パックやルールを変更した後は、先にアイコンを再適用してください。\n\nアイコンのない単色のシステム起動画面のみ補完します。アプリ独自のアイコン、ブランド画像、背景や実際のタスクスナップショットは保持します。複製アプリと仕事用プロファイルは当面システムの動作を使います。\n\nオフにすると次のコールド起動から元の動作に戻ります。アプリが最初のフレーム以降に描画する空白ページは変更できません。</string>
 </resources>

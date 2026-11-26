@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import os.kei.hyper.home.ui.components.Os4ExplainedSwitchPreference
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -31,7 +32,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
-import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -101,31 +101,36 @@ internal fun RecommendedMappingsPage(
           }
         }
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          SwitchPreference(title = stringResource(R.string.system_name_matching_title),
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.system_name_matching_title),
             summary = stringResource(R.string.system_name_matching_summary),
+            explanation = stringResource(R.string.system_name_matching_help),
             checked = systemAppNameMatching, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onSystemAppNameMatchingChange(it) },
-            modifier = Modifier.testTag("icon-packs.system-name-matching"))
-          SwitchPreference(title = stringResource(R.string.recommended_mappings_telegram_title),
+            tag = "icon-packs.system-name-matching")
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_telegram_title),
             summary = stringResource(R.string.recommended_mappings_telegram_summary),
+            explanation = stringResource(R.string.recommended_mappings_telegram_help),
             checked = telegramChannelMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onTelegramChannelMappingChange(it) },
-            modifier = Modifier.testTag("recommended-mappings.telegram"))
-          SwitchPreference(title = stringResource(R.string.recommended_mappings_phone_companions_title),
+            tag = "recommended-mappings.telegram")
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_phone_companions_title),
             summary = stringResource(R.string.recommended_mappings_phone_companions_summary),
+            explanation = stringResource(R.string.recommended_mappings_phone_companions_help),
             checked = phoneCompanionMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onPhoneCompanionMappingChange(it) },
-            modifier = Modifier.testTag("recommended-mappings.phone-companions"))
-          SwitchPreference(title = stringResource(R.string.recommended_mappings_weibo_lite_title),
+            tag = "recommended-mappings.phone-companions")
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_weibo_lite_title),
             summary = stringResource(R.string.recommended_mappings_weibo_lite_summary),
+            explanation = stringResource(R.string.recommended_mappings_weibo_lite_help),
             checked = weiboLiteMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onWeiboLiteMappingChange(it) },
-            modifier = Modifier.testTag("recommended-mappings.weibo-lite"))
-          SwitchPreference(title = stringResource(R.string.recommended_mappings_coloros_title),
+            tag = "recommended-mappings.weibo-lite")
+          Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_coloros_title),
             summary = stringResource(R.string.recommended_mappings_coloros_summary),
+            explanation = stringResource(R.string.recommended_mappings_coloros_help),
             checked = colorOsThemeStoreMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onColorOsThemeStoreMappingChange(it) },
-            modifier = Modifier.testTag("recommended-mappings.coloros-theme-store"))
+            tag = "recommended-mappings.coloros-theme-store")
         }
       }
     }

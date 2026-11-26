@@ -91,16 +91,21 @@ internal fun SettingsContent(
   val recommendedMappings = migratedSearch && onOpenRecommendedMappings != null &&
     matches(SettingsSection.PACKS, R.string.recommended_mappings_title,
       R.string.recommended_mappings_entry, R.string.recommended_mappings_search_keywords,
-      R.string.system_name_matching_title, R.string.system_name_matching_summary,
+      R.string.system_name_matching_title, R.string.system_name_matching_summary, R.string.system_name_matching_help,
       R.string.recommended_mappings_telegram_title, R.string.recommended_mappings_telegram_summary,
+      R.string.recommended_mappings_telegram_help,
       R.string.recommended_mappings_phone_companions_title, R.string.recommended_mappings_phone_companions_summary,
+      R.string.recommended_mappings_phone_companions_help,
       R.string.recommended_mappings_weibo_lite_title, R.string.recommended_mappings_weibo_lite_summary,
-      R.string.recommended_mappings_coloros_title, R.string.recommended_mappings_coloros_summary)
+      R.string.recommended_mappings_weibo_lite_help,
+      R.string.recommended_mappings_coloros_title, R.string.recommended_mappings_coloros_summary,
+      R.string.recommended_mappings_coloros_help)
   val fallback = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_hook_section,
     R.string.system_fallback_title, R.string.system_fallback_summary, R.string.system_fallback_default,
     R.string.system_fallback_classic, R.string.system_fallback_boundless,
     R.string.coloros_other_packs_title, R.string.coloros_other_packs_summary, extra = "ColorOS ART+")
-  val effects = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_system_appearance, R.string.theme_effects_title, R.string.theme_effects_summary)
+  val effects = migratedSearch && matches(SettingsSection.HOOK, R.string.settings_system_appearance,
+    R.string.theme_effects_title, R.string.theme_effects_summary, R.string.theme_effects_help)
   val staticScope = matches(SettingsSection.HOOK, R.string.scope_title, R.string.scope_search,
     R.string.scope_surfaces_note,
     extra = "scope libxposed")
@@ -122,17 +127,18 @@ internal fun SettingsContent(
     R.string.dock_glass_radius_title, R.string.dock_glass_radius_summary,
     R.string.dock_glass_reset, R.string.dock_glass_reset_summary)
   val splashIconsVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_icons_title, R.string.splash_icons_summary, R.string.splash_icons_help)
-  val splashVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section, R.string.splash_adapt, R.string.splash_adapt_summary)
+  val splashVisible = migratedSearch && matches(SettingsSection.HOOK, R.string.splash_section,
+    R.string.splash_adapt, R.string.splash_adapt_summary, R.string.splash_adapt_help)
   val autoApply = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_auto_apply, R.string.pack_auto_apply_summary)
   val manualThemeFallback = onManualThemeFallbackChange != null &&
     matches(SettingsSection.PACKS, R.string.pack_action_settings,
-      R.string.pack_manual_theme_fallback, R.string.pack_manual_theme_fallback_summary)
+      R.string.pack_manual_theme_fallback, R.string.pack_manual_theme_fallback_summary, R.string.pack_manual_theme_fallback_help)
   val installedIconsOnly = matches(SettingsSection.PACKS, R.string.pack_action_settings,
-    R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary)
+    R.string.pack_installed_icons_only, R.string.pack_installed_icons_only_summary, R.string.pack_installed_icons_only_help)
   val rememberMenus = matches(SettingsSection.PACKS, R.string.pack_action_settings, R.string.pack_remember_menus, R.string.pack_remember_menus_summary)
   val keepLatestGeneratedPacks = matches(SettingsSection.PACKS, R.string.pack_action_settings,
     R.string.pack_settings_experience, R.string.generated_pack_retention_title,
-    R.string.generated_pack_retention_summary)
+    R.string.generated_pack_retention_summary, R.string.generated_pack_retention_help)
   val pageScroll = matches(SettingsSection.APP, R.string.app_interaction_title,
     R.string.browser_pager_title, R.string.browser_page_scroll)
   val pagerMode = matches(SettingsSection.APP, R.string.app_interaction_title,
@@ -202,7 +208,8 @@ internal fun SettingsContent(
     if (wallpaperPresets) wallpaperPresetsContent()
     if (wallpaperDimming) wallpaperDimmingContent()
     if (splashVisible) SplashAppearanceSettingsCard(splash, splashInScope, onSplashChange,
-      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed)
+      scopeChecking = framework.desktopScopeChecking(), scopeReadFailed = framework.readFailed,
+      help = R.string.splash_adapt_help)
     if (autoApply || manualThemeFallback || installedIconsOnly || rememberMenus || keepLatestGeneratedPacks || previews) {
       PackSettingsContent(preferences, onAutoApplyChange, onInstalledIconsOnlyChange,
         onRememberMenusChange, onPreviewsChange,

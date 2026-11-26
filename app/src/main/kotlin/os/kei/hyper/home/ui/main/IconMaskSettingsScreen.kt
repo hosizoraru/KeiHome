@@ -87,6 +87,7 @@ import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.icon.glass.UsageHelp
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
@@ -118,6 +119,20 @@ internal fun IconMaskSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
           IconButton(onClick = onBack) {
             Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
           }
+        },
+        actions = {
+          val maskHelp = listOf(
+            stringResource(R.string.icon_mask_priority),
+            stringResource(R.string.icon_mask_disabled_note),
+            stringResource(R.string.icon_mask_xml_note),
+            stringResource(R.string.icon_mask_dynamic_note),
+            stringResource(R.string.icon_mask_apply_note),
+          ).joinToString("\n\n")
+          os.kei.hyper.home.ui.components.Os4InfoPopup(
+            title = stringResource(R.string.icon_mask_rules),
+            summary = maskHelp,
+            icon = top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.UsageHelp,
+          )
         })
     }
   }, floatingActionButton = {
@@ -141,7 +156,7 @@ internal fun IconMaskSettingsScreen(model: HomeViewModel, onBack: () -> Unit) {
       Column(Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
         .verticalScroll(rememberScrollState(), overscrollEffect = null).padding(
           start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 8.dp,
-          bottom = insets.calculateBottomPadding() + actionPadding),
+          bottom = insets.calculateBottomPadding() + actionPadding + 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         IconMaskSettingsContent(state, preferences.completeSystemIconConfig,
           onCompleteSystemIconConfig = model.preferences::setCompleteSystemIconConfig,
@@ -214,6 +229,7 @@ internal fun IconMaskSettingsContent(
       checked = completeSystemIconConfig, enabled = !state.busy,
       onCheckedChange = onCompleteSystemIconConfig,
       modifier = Modifier.testTag("icon-mask.complete"))
+    os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
     val restorePress = rememberOs4PressSource()
     val restoreEnabled = state.custom != null && !state.busy
     val restoreTint by animateColorAsState(
@@ -230,24 +246,6 @@ internal fun IconMaskSettingsContent(
       endActions = {
         Icon(actionIcon(PageActionIcon.CLEAR), null, Modifier.size(22.dp), tint = restoreTint)
       }, modifier = Modifier.glassPress(restorePress, restoreEnabled).testTag("icon-mask.restore"))
-  }
-  SmallTitle(stringResource(R.string.icon_mask_rules))
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Text(stringResource(R.string.icon_mask_priority), style = MiuixTheme.textStyles.body2)
-      Text(stringResource(R.string.icon_mask_disabled_note), style = MiuixTheme.textStyles.footnote1,
-        color = colors.onSurfaceSecondary)
-    }
-  }
-  SmallTitle(stringResource(R.string.icon_mask_file_requirements))
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Text(stringResource(R.string.icon_mask_xml_note), style = MiuixTheme.textStyles.body2)
-      Text(stringResource(R.string.icon_mask_dynamic_note), style = MiuixTheme.textStyles.footnote1,
-        color = colors.onSurfaceSecondary)
-      Text(stringResource(R.string.icon_mask_apply_note), style = MiuixTheme.textStyles.footnote1,
-        color = colors.onSurfaceSecondary)
-    }
   }
   Os4ActionDialog(show = confirmReset,
     onDismissRequest = { confirmReset = false },

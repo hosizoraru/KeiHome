@@ -101,13 +101,17 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Iphone
 import top.yukonga.miuix.kmp.icon.glass.More
+import top.yukonga.miuix.kmp.icon.glass.Refresh
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.main.HomeViewModel
 import os.kei.hyper.home.ui.main.IconPackAppearancePreference
 import os.kei.hyper.home.ui.main.IconPackCard
 import os.kei.hyper.home.ui.main.LocalSearchError
+import os.kei.hyper.home.ui.main.MetadataPill
 import os.kei.hyper.home.ui.main.Os4SearchField
 import os.kei.hyper.home.ui.main.PackHelpAction
 import os.kei.hyper.home.ui.main.PackInfoCard
@@ -481,7 +485,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   }) { insets ->
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val actionSpacing =
-        if (selectionMode) 16.dp else maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
+        if (selectionMode) 16.dp else maxOf(116.dp, with(LocalDensity.current) { actionHeight.toDp() } + 40.dp)
       val listPadding = PaddingValues(start = 16.dp, end = 16.dp,
         top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() + actionSpacing)
@@ -521,39 +525,90 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             AppleBatchProgressCard(state, controller::cancelBatch)
           }
           item("options") {
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              OverlaySpinnerPreference(title = stringResource(R.string.apple_platform), enabled = enabled,
-                items = listOf("iOS", "iPadOS", "macOS").map { DropdownItem(text = it) },
-                selectedIndex = state.options.platform.ordinal,
-                onSelectedIndexChange = { controller.options(state.options.copy(platform = ApplePlatform.entries[it])) })
-              OverlaySpinnerPreference(title = stringResource(R.string.apple_resolution),
-                enabled = enabled,
-                items = listOf("256 px", "512 px", "1024 px").map { DropdownItem(text = it) },
-                selectedIndex = listOf(256, 512, 1024).indexOf(state.options.resolution),
-                onSelectedIndexChange = { controller.options(state.options.copy(resolution = listOf(256, 512, 1024)[it])) })
-              OverlaySpinnerPreference(title = stringResource(R.string.apple_corners), enabled = enabled,
-                items = listOf("Rounded", "Original").map { DropdownItem(text = it) },
-                selectedIndex = state.options.corners.ordinal,
-                onSelectedIndexChange = { controller.options(state.options.copy(corners = AppleCorners.entries[it])) })
-              AppleStorefrontPreference(state.options.country, enabled) {
-                controller.options(state.options.copy(country = it))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              top.yukonga.miuix.kmp.basic.SmallTitle(stringResource(R.string.apple_section_artwork))
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                OverlaySpinnerPreference(title = stringResource(R.string.apple_platform), enabled = enabled,
+                  items = listOf("iOS", "iPadOS", "macOS").map { DropdownItem(text = it) },
+                  selectedIndex = state.options.platform.ordinal,
+                  onSelectedIndexChange = { controller.options(state.options.copy(platform = ApplePlatform.entries[it])) })
+                os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
+                OverlaySpinnerPreference(title = stringResource(R.string.apple_resolution),
+                  enabled = enabled,
+                  items = listOf("256 px", "512 px", "1024 px").map { DropdownItem(text = it) },
+                  selectedIndex = listOf(256, 512, 1024).indexOf(state.options.resolution),
+                  onSelectedIndexChange = { controller.options(state.options.copy(resolution = listOf(256, 512, 1024)[it])) })
+                os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
+                OverlaySpinnerPreference(title = stringResource(R.string.apple_corners), enabled = enabled,
+                  items = listOf("Rounded", "Original").map { DropdownItem(text = it) },
+                  selectedIndex = state.options.corners.ordinal,
+                  onSelectedIndexChange = { controller.options(state.options.copy(corners = AppleCorners.entries[it])) })
+                os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
+                AppleStorefrontPreference(state.options.country, enabled) {
+                  controller.options(state.options.copy(country = it))
+                }
               }
             }
           }
-          item("appearance") { IconPackAppearancePreference(prefs.iconPackAppearance,
-            model.preferences::setIconPackAppearance, enabled, compact = true,
-            staticAppearance = prefs.staticAppearanceIcons,
-            onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons) }
+          item("appearance") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              top.yukonga.miuix.kmp.basic.SmallTitle(stringResource(R.string.apple_section_appearance))
+              IconPackAppearancePreference(prefs.iconPackAppearance,
+                model.preferences::setIconPackAppearance, enabled, compact = true,
+                staticAppearance = prefs.staticAppearanceIcons,
+                onStaticAppearanceChange = model.preferences::setStaticAppearanceIcons)
+            }
+          }
           item("cache") {
-            Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-              BasicComponent(title = stringResource(R.string.apple_download_cache),
-                summary = stringResource(R.string.apple_cache_summary),
-                endActions = { Text(Formatter.formatShortFileSize(context, state.cacheBytes)) })
-            BasicComponent(title = stringResource(R.string.apple_check_updates),
-              enabled = enabled && state.retryAtMillis == 0L,
-                summary = stringResource(R.string.apple_check_updates_summary), onClick = { controller.generate(refresh = true) })
-              BasicComponent(title = stringResource(R.string.apple_clear_downloads), enabled = enabled && !state.searching,
-                onClick = { showClearDownloads = true })
+            val scheme = MiuixTheme.colorScheme
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              top.yukonga.miuix.kmp.basic.SmallTitle(stringResource(R.string.apple_section_storage))
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                BasicComponent(
+                  title = stringResource(R.string.apple_download_cache),
+                  summary = stringResource(R.string.apple_cache_summary),
+                  startAction = {
+                    os.kei.hyper.home.ui.components.Os4IconBadge(
+                      top.yukonga.miuix.kmp.icon.MiuixIcons.Glass.Iphone,
+                      os.kei.hyper.home.ui.components.Os4BadgePalette.Blue,
+                    )
+                  },
+                  endActions = {
+                    MetadataPill(
+                      Formatter.formatShortFileSize(context, state.cacheBytes),
+                      os.kei.hyper.home.ui.components.Os4BadgePalette.Blue,
+                    )
+                  },
+                )
+                os.kei.hyper.home.ui.components.Os4InsetDivider()
+                BasicComponent(
+                  title = stringResource(R.string.apple_check_updates),
+                  enabled = enabled && state.retryAtMillis == 0L,
+                  summary = stringResource(R.string.apple_check_updates_summary),
+                  startAction = {
+                    os.kei.hyper.home.ui.components.Os4IconBadge(
+                      MiuixIcons.Glass.Refresh,
+                      os.kei.hyper.home.ui.components.Os4BadgePalette.Teal,
+                    )
+                  },
+                  endActions = { os.kei.hyper.home.ui.components.Os4TrailingChevron() },
+                  onClick = { controller.generate(refresh = true) },
+                )
+                os.kei.hyper.home.ui.components.Os4InsetDivider()
+                BasicComponent(
+                  title = stringResource(R.string.apple_clear_downloads),
+                  titleColor = top.yukonga.miuix.kmp.basic.BasicComponentDefaults.titleColor(color = scheme.error),
+                  enabled = enabled && !state.searching,
+                  startAction = {
+                    os.kei.hyper.home.ui.components.Os4IconBadge(
+                      actionIcon(PageActionIcon.CLEAR),
+                      scheme.error,
+                    )
+                  },
+                  endActions = { os.kei.hyper.home.ui.components.Os4TrailingChevron(tint = scheme.error) },
+                  onClick = { showClearDownloads = true },
+                )
+              }
             }
           }
           state.result?.let { result -> item("result") {
@@ -585,10 +640,34 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
               android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(state.retryAtMillis))))
           }
           if (batchBrowser) item("batch-guidance") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              PackInfoCard(stringResource(R.string.apple_batch_intro, visibleMatchEligible.size) +
-                if (selecting) "\n" + stringResource(R.string.apple_batch_selection_count,
-                  selectedVisible.size, selectedBatch.size) else "")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+                Row(
+                  Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                      stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
+                      style = MiuixTheme.textStyles.footnote1,
+                      color = MiuixTheme.colorScheme.onSurface,
+                    )
+                    if (selecting) {
+                      Text(
+                        stringResource(R.string.apple_batch_selection_count, selectedVisible.size, selectedBatch.size),
+                        style = MiuixTheme.textStyles.footnote2,
+                        color = MiuixTheme.colorScheme.primary,
+                      )
+                    }
+                  }
+                  os.kei.hyper.home.ui.components.Os4InfoPopup(
+                    title = stringResource(R.string.apple_mappings),
+                    summary = stringResource(R.string.apple_batch_intro, visibleMatchEligible.size),
+                    icon = MiuixIcons.Glass.Info,
+                  )
+                }
+              }
               if (state.batchRunning) AppleBatchProgressCard(state, controller::cancelBatch)
             }
           }
@@ -616,11 +695,6 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 searching = browserResult?.status?.showProgress == true)
               browserResult?.status?.let { LocalSearchError(it) }
             }
-          }
-          if (batchBrowser) item("count") {
-            Text(stringResource(R.string.apple_browser_count, browserRows.size, mappedCount, state.rows.size),
-              Modifier.padding(horizontal = 12.dp), style = MiuixTheme.textStyles.footnote2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary)
           }
           if (browserRows.isNotEmpty() || (!localLoading && !browserLoading)) {
             appleMappingCards(browserRows, state, controller, enabled && (!selecting || !browserLoading),

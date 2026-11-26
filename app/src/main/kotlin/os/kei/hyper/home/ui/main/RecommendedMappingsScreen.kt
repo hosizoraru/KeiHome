@@ -90,10 +90,24 @@ internal fun RecommendedMappingsPage(
         .padding(PaddingValues(start = 16.dp, end = 16.dp,
           top = insets.calculateTopPadding() + 4.dp, bottom = insets.calculateBottomPadding() + 24.dp)),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val enabledCount = listOf(
+          systemAppNameMatching,
+          telegramChannelMapping,
+          phoneCompanionMapping,
+          weiboLiteMapping,
+          colorOsThemeStoreMapping,
+        ).count { it }
         Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(16.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetadataPill(stringResource(R.string.recommended_mappings_preview),
-              MiuixTheme.colorScheme.primary)
+            androidx.compose.foundation.layout.Row(
+              Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+              MetadataPill(stringResource(R.string.recommended_mappings_preview),
+                MiuixTheme.colorScheme.primary)
+              MetadataPill("$enabledCount/5", os.kei.hyper.home.ui.components.Os4BadgePalette.Teal)
+            }
             Text(stringResource(R.string.recommended_mappings_update_note),
               modifier = Modifier.testTag("recommended-mappings.update-note"),
               style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -104,6 +118,7 @@ internal fun RecommendedMappingsPage(
             }
           }
         }
+        top.yukonga.miuix.kmp.basic.SmallTitle(stringResource(R.string.recommended_section_general))
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           Os4ExplainedSwitchPreference(title = stringResource(R.string.system_name_matching_title),
             summary = stringResource(R.string.system_name_matching_summary),
@@ -111,24 +126,30 @@ internal fun RecommendedMappingsPage(
             checked = systemAppNameMatching, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onSystemAppNameMatchingChange(it) },
             tag = "icon-packs.system-name-matching")
+        }
+        top.yukonga.miuix.kmp.basic.SmallTitle(stringResource(R.string.recommended_section_apps))
+        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_telegram_title),
             summary = stringResource(R.string.recommended_mappings_telegram_summary),
             explanation = stringResource(R.string.recommended_mappings_telegram_help),
             checked = telegramChannelMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onTelegramChannelMappingChange(it) },
             tag = "recommended-mappings.telegram")
+          os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
           Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_phone_companions_title),
             summary = stringResource(R.string.recommended_mappings_phone_companions_summary),
             explanation = stringResource(R.string.recommended_mappings_phone_companions_help),
             checked = phoneCompanionMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onPhoneCompanionMappingChange(it) },
             tag = "recommended-mappings.phone-companions")
+          os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
           Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_weibo_lite_title),
             summary = stringResource(R.string.recommended_mappings_weibo_lite_summary),
             explanation = stringResource(R.string.recommended_mappings_weibo_lite_help),
             checked = weiboLiteMapping, enabled = !nativeImporting,
             onCheckedChange = { if (!nativeImporting) onWeiboLiteMappingChange(it) },
             tag = "recommended-mappings.weibo-lite")
+          os.kei.hyper.home.ui.components.Os4InsetDivider(start = 16.dp)
           Os4ExplainedSwitchPreference(title = stringResource(R.string.recommended_mappings_coloros_title),
             summary = stringResource(R.string.recommended_mappings_coloros_summary),
             explanation = stringResource(R.string.recommended_mappings_coloros_help),

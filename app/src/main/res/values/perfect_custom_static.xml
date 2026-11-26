@@ -23,4 +23,13 @@
   <string name="perfect_custom_composite">Combined preview</string>
   <string name="perfect_custom_ready">Custom icons ready</string>
   <string name="perfect_custom_only_help">Generate a pack from saved custom layers.</string>
+  <string name="perfect_custom_count">%1$d layered icon(s)</string>
+  <string name="perfect_custom_tap_to_pick">Tap to choose PNG</string>
+  <string name="perfect_custom_replace_layer">Loaded · Tap to replace</string>
+  <string name="perfect_custom_parallax_hint">Drag preview to test 2-layer depth</string>
+  <string name="perfect_custom_backdrop_grid">Grid</string>
+  <string name="perfect_custom_backdrop_light">Light</string>
+  <string name="perfect_custom_backdrop_dark">Dark</string>
+  <string name="perfect_custom_layers_title">Icon layers</string>
+  <string name="perfect_custom_target_title">Target app</string>
 </resources>

@@ -23,4 +23,13 @@
   <string name="perfect_custom_composite">合成预览</string>
   <string name="perfect_custom_ready">自定义图标已就绪</string>
   <string name="perfect_custom_only_help">可使用已保存的自定义图层生成图标包。</string>
+  <string name="perfect_custom_count">已配置 %1$d 个分层图标</string>
+  <string name="perfect_custom_tap_to_pick">点击选择 PNG</string>
+  <string name="perfect_custom_replace_layer">已导入 · 点击更换</string>
+  <string name="perfect_custom_parallax_hint">拖动预览可体验双层视差效果</string>
+  <string name="perfect_custom_backdrop_grid">棋盘格</string>
+  <string name="perfect_custom_backdrop_light">浅色</string>
+  <string name="perfect_custom_backdrop_dark">深色</string>
+  <string name="perfect_custom_layers_title">图标图层</string>
+  <string name="perfect_custom_target_title">目标应用</string>
 </resources>

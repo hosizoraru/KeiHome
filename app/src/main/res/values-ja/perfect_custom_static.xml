@@ -23,4 +23,13 @@
   <string name="perfect_custom_composite">合成プレビュー</string>
   <string name="perfect_custom_ready">カスタムアイコンを利用可能</string>
   <string name="perfect_custom_only_help">保存したカスタムレイヤーからパックを生成できます。</string>
+  <string name="perfect_custom_count">%1$d 個のレイヤーアイコン</string>
+  <string name="perfect_custom_tap_to_pick">タップして PNG を選択</string>
+  <string name="perfect_custom_replace_layer">読込済み · タップで変更</string>
+  <string name="perfect_custom_parallax_hint">ドラッグで 2 層の視差を確認できます</string>
+  <string name="perfect_custom_backdrop_grid">グリッド</string>
+  <string name="perfect_custom_backdrop_light">ライト</string>
+  <string name="perfect_custom_backdrop_dark">ダーク</string>
+  <string name="perfect_custom_layers_title">アイコンレイヤー</string>
+  <string name="perfect_custom_target_title">対象アプリ</string>
 </resources>

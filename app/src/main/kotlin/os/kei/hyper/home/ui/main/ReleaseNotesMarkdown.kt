@@ -127,6 +127,11 @@ private fun MarkdownBlocks(
               measurer.measure("\u2022", style = styles.body2).size.width.toDp()
             }.coerceAtLeast(14.dp)
           }
+          val orderedBadgeMinWidth = if (ordered && block.start.toLong() + block.items.size - 1 >= 10) {
+            24.dp
+          } else {
+            20.dp
+          }
           Column(
             verticalArrangement = Arrangement.spacedBy(when {
               block.tight -> 4.dp
@@ -145,7 +150,7 @@ private fun MarkdownBlocks(
                   Box(
                     modifier = Modifier
                       .padding(top = 1.dp)
-                      .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                      .defaultMinSize(minWidth = orderedBadgeMinWidth, minHeight = 20.dp)
                       .clip(CircleShape)
                       .background(colors.primary.copy(alpha = 0.12f))
                       .padding(horizontal = 5.dp, vertical = 1.dp),

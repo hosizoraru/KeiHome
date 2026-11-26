@@ -64,8 +64,10 @@ import os.kei.hyper.home.data.ReleaseNotesCatalog
 import os.kei.hyper.home.data.ReleaseVersion
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4BadgePalette
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4IconBadge
 import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.os4ContentSize
@@ -236,7 +238,7 @@ internal fun ReleaseNotesScreen(
                 BasicComponent(title = stringResource(R.string.setup_title),
                   summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
                   interactionSource = guidePress,
-                  startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
+                  startAction = { Os4IconBadge(MiuixIcons.Glass.UsageHelp, Os4BadgePalette.Blue) },
                   endActions = {
                     Os4TrailingChevron()
                   },
@@ -370,7 +372,7 @@ private fun ReleaseNotesCard(
               text = intro,
               style = MiuixTheme.textStyles.body2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary,
-              maxLines = 1,
+              maxLines = 2,
               overflow = TextOverflow.Ellipsis,
               modifier = Modifier.testTag("release-notes.summary.${release.version}"),
             )
@@ -379,7 +381,10 @@ private fun ReleaseNotesCard(
       },
     )
     Os4DisclosureContent(expanded) {
-      HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+      HorizontalDivider(
+        Modifier.padding(horizontal = 16.dp),
+        color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+      )
       ReleaseNotesBody(release, hasFooterAction = highlighted)
       Os4AnimatedVisibility(highlighted) {
         Row(

@@ -233,14 +233,14 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
         .padding(
           start = 16.dp,
           end = 16.dp,
-          top = padding.calculateTopPadding() + 8.dp,
-          bottom = padding.calculateBottomPadding() + actionBottomPadding + 16.dp,
+          top = padding.calculateTopPadding() + 4.dp,
+          bottom = padding.calculateBottomPadding() + actionBottomPadding + 12.dp,
         ),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      // Hero log overview card (mirrors CacheOverview summary card)
-      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(18.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      // Hero log overview card (compact single-screen density)
+      Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -254,19 +254,25 @@ internal fun LogSettingsScreen(onBack: () -> Unit) {
             )
             MetadataPill(stringResource(levelLabels[level.ordinal]), levelTint)
           }
-          AnimatedContent(
-            targetState = sizeText,
-            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-            label = "logs-hero-size",
-          ) { formatted ->
-            Text(formatted, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.Bold)
-          }
-          FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+          Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
           ) {
-            MetadataPill(stringResource(R.string.logs_lines, stats.second), Os4BadgePalette.Teal)
-            MetadataPill(stringResource(labels[rangeIndex]), scheme.primary)
+            AnimatedContent(
+              targetState = sizeText,
+              transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+              label = "logs-hero-size",
+            ) { formatted ->
+              Text(formatted, style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.Bold)
+            }
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(6.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              MetadataPill(stringResource(R.string.logs_lines, stats.second), Os4BadgePalette.Teal)
+              MetadataPill(stringResource(labels[rangeIndex]), scheme.primary)
+            }
           }
         }
       }

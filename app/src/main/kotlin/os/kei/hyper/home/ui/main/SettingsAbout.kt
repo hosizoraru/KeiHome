@@ -170,7 +170,7 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
   }) { insets ->
     BoxWithConstraints(Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
-      val heroHeight = (maxHeight * 0.47f).coerceAtLeast(260.dp)
+      val heroHeight = (maxHeight * 0.36f).coerceIn(210.dp, 300.dp)
       AboutBackground(alpha = { 1f - scrollProgress() }) {
         Column(
           Modifier.fillMaxSize().testTag("about.scroll")
@@ -257,17 +257,19 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
   onBackground: Boolean = false, showChannel: Boolean = true, onOpenContributors: (() -> Unit)? = null) {
   val context = LocalContext.current
   val uriHandler = LocalUriHandler.current
+  val linkMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
   val links: @Composable ColumnScope.() -> Unit = {
     var hasPrevious = false
     if (showSource) {
       val sourcePress = rememberOs4PressSource()
       BasicComponent(
         title = stringResource(R.string.settings_source),
+        insideMargin = linkMargin,
         onClick = { uriHandler.openUri(ProjectLinks.SOURCE_URL) },
         onClickLabel = stringResource(R.string.settings_source_open),
         interactionSource = sourcePress,
         modifier = Modifier.glassPress(sourcePress),
-        startAction = { Os4IconBadge(MiuixIcons.Glass.Link, Os4BadgePalette.Indigo, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Link, Os4BadgePalette.Indigo, size = 32.dp, cornerRadius = 9.dp, iconSize = 17.dp) },
         endActions = {
           Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("GitHub", style = MiuixTheme.textStyles.footnote1,
@@ -282,13 +284,14 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
       hasPrevious = true
     }
     if (showChannel) {
-      if (hasPrevious) Os4InsetDivider(start = 64.dp)
+      if (hasPrevious) Os4InsetDivider(start = 60.dp)
       val channelPress = rememberOs4PressSource()
       BasicComponent(
         title = stringResource(R.string.update_channel),
+        insideMargin = linkMargin,
         interactionSource = channelPress,
         modifier = Modifier.glassPress(channelPress),
-        startAction = { Os4IconBadge(MiuixIcons.Glass.Share, Os4BadgePalette.Blue, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Share, Os4BadgePalette.Blue, size = 32.dp, cornerRadius = 9.dp, iconSize = 17.dp) },
         onClick = {
           if (!UpdateChannel.open(context))
             android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
@@ -311,27 +314,29 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
       hasPrevious = true
     }
     if (showNotices) {
-      if (hasPrevious) Os4InsetDivider(start = 64.dp)
+      if (hasPrevious) Os4InsetDivider(start = 60.dp)
       val noticesPress = rememberOs4PressSource()
       BasicComponent(
         title = stringResource(R.string.settings_notices),
+        insideMargin = linkMargin,
         onClick = onOpenNotices,
         interactionSource = noticesPress,
         modifier = Modifier.glassPress(noticesPress).testTag("about.notices"),
-        startAction = { Os4IconBadge(MiuixIcons.Glass.Log, Os4BadgePalette.Teal, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Log, Os4BadgePalette.Teal, size = 32.dp, cornerRadius = 9.dp, iconSize = 17.dp) },
         endActions = { Os4TrailingChevron() },
       )
       hasPrevious = true
     }
     if (onOpenContributors != null) {
-      if (hasPrevious) Os4InsetDivider(start = 64.dp)
+      if (hasPrevious) Os4InsetDivider(start = 60.dp)
       val contribPress = rememberOs4PressSource()
       BasicComponent(
         title = stringResource(R.string.about_contributors_title),
+        insideMargin = linkMargin,
         onClick = onOpenContributors,
         interactionSource = contribPress,
         modifier = Modifier.glassPress(contribPress).testTag("about.contributors"),
-        startAction = { Os4IconBadge(MiuixIcons.Glass.Info, Os4BadgePalette.Pink, size = 34.dp, cornerRadius = 10.dp, iconSize = 18.dp) },
+        startAction = { Os4IconBadge(MiuixIcons.Glass.Info, Os4BadgePalette.Pink, size = 32.dp, cornerRadius = 9.dp, iconSize = 17.dp) },
         endActions = { Os4TrailingChevron() },
       )
     }

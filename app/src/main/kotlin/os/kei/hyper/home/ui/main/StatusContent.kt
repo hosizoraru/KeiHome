@@ -162,7 +162,7 @@ internal fun StatusBody(
   frameworkChecking: Boolean = false,
 ) {
   val framework = frameworkCardState(connected, readFailed, snapshot, frameworkChecking)
-  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
     RuntimeStatusSection(framework, runtime, onRefresh, onOpenEnvironment, activation, onOpenGuide)
     scopeContent()
     DashboardMonetCard(
@@ -728,44 +728,51 @@ private fun DashboardActivePackCard(
       .os4ContentSize()
       .glassPress(pressSource)
       .os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius, onClick = onOpenPacks),
-    insideMargin = PaddingValues(16.dp),
+    insideMargin = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
   ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        Os4IconBadge(MiuixIcons.Glass.Theme, Os4BadgePalette.Pink)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Row(
+      Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      Os4IconBadge(MiuixIcons.Glass.Theme, Os4BadgePalette.Pink, size = 30.dp, cornerRadius = 9.dp, iconSize = 16.dp)
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
           Text(
             stringResource(R.string.icon_pack_active),
             style = MiuixTheme.textStyles.footnote2,
             color = MiuixTheme.colorScheme.onSurfaceSecondary,
           )
-          Text(
-            iconSource?.title ?: stringResource(R.string.status_unknown),
-            style = MiuixTheme.textStyles.body1,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-          )
+          iconSource?.version?.let {
+            Text(
+              stringResource(R.string.icon_pack_version_label, it),
+              style = MiuixTheme.textStyles.footnote2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
         }
-        DashboardArrow()
-      }
-      DashboardPillRow {
-        MetadataPill(
-          if (iconSource?.previewKey != null && coveredApps != null)
-            stringResource(R.string.browser_dashboard_coverage, coveredApps)
-          else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready
-            else R.string.status_needs_verification),
-          color = if (iconSource?.previewKey != null) MiuixTheme.colorScheme.primary
-            else MiuixTheme.colorScheme.onSurfaceSecondary,
+        Text(
+          iconSource?.title ?: stringResource(R.string.status_unknown),
+          style = MiuixTheme.textStyles.body2,
+          fontWeight = FontWeight.SemiBold,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
         )
-        iconSource?.version?.let {
-          MetadataPill(stringResource(R.string.icon_pack_version_label, it), MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
       }
+      MetadataPill(
+        if (iconSource?.previewKey != null && coveredApps != null)
+          stringResource(R.string.browser_dashboard_coverage, coveredApps)
+        else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready
+          else R.string.status_needs_verification),
+        color = if (iconSource?.previewKey != null) MiuixTheme.colorScheme.primary
+          else MiuixTheme.colorScheme.onSurfaceSecondary,
+      )
+      DashboardArrow()
     }
   }
 }
@@ -866,15 +873,15 @@ private fun AppCapabilitiesCard(
         onClickLabel = stringResource(R.string.polish_apps_open),
         onClick = onOpenApps,
       ),
-    insideMargin = PaddingValues(16.dp),
+    insideMargin = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
   ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        Os4IconBadge(actionIcon(PageActionIcon.APPS), Os4BadgePalette.Blue)
+        Os4IconBadge(actionIcon(PageActionIcon.APPS), Os4BadgePalette.Blue, size = 30.dp, cornerRadius = 9.dp, iconSize = 16.dp)
         Text(
           stringResource(if (installedApps == null) R.string.dashboard_apps_unscanned else R.string.dashboard_apps),
           modifier = Modifier.weight(1f),
@@ -918,26 +925,26 @@ private fun CapabilityMetricTile(
   val value = count?.takeIf { it >= 0 }?.let { stringResource(R.string.polish_apps_count, it) }
     ?: stringResource(R.string.polish_value_pending)
   val accent = if (ready) color else MiuixTheme.colorScheme.onSurfaceSecondary
-  Column(
+  Row(
     modifier
-      .squircleBackground(accent.copy(alpha = 0.10f), 14.dp)
-      .padding(horizontal = 10.dp, vertical = 10.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(2.dp),
+      .squircleBackground(accent.copy(alpha = 0.10f), 11.dp)
+      .padding(horizontal = 8.dp, vertical = 6.dp),
+    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    Text(
-      value,
-      style = MiuixTheme.textStyles.body1,
-      fontWeight = FontWeight.Bold,
-      color = accent,
-      maxLines = 1,
-    )
     Text(
       label,
       style = MiuixTheme.textStyles.footnote2,
       color = MiuixTheme.colorScheme.onSurfaceSecondary,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
+    )
+    Text(
+      value,
+      style = MiuixTheme.textStyles.footnote1,
+      fontWeight = FontWeight.Bold,
+      color = accent,
+      maxLines = 1,
     )
   }
 }
@@ -979,32 +986,31 @@ private fun DashboardSheetCard(
           showing = true
         }
       },
-    insideMargin = PaddingValues(16.dp),
+    insideMargin = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
   ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        Os4IconBadge(icon, iconTint)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Os4IconBadge(icon, iconTint, size = 30.dp, cornerRadius = 9.dp, iconSize = 16.dp)
+        Text(
+          title,
+          modifier = Modifier.weight(1f),
+          style = MiuixTheme.textStyles.body1,
+          fontWeight = FontWeight.SemiBold,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        if (!subtitle.isNullOrBlank()) {
           Text(
-            title,
-            style = MiuixTheme.textStyles.body1,
-            fontWeight = FontWeight.SemiBold,
+            subtitle,
+            style = MiuixTheme.textStyles.footnote2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
-          if (!subtitle.isNullOrBlank()) {
-            Text(
-              subtitle,
-              style = MiuixTheme.textStyles.footnote2,
-              color = MiuixTheme.colorScheme.onSurfaceSecondary,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-          }
         }
         headerEnd?.invoke()
         DashboardArrow()
@@ -1026,22 +1032,22 @@ private fun DashboardSheetCard(
       }
     },
   ) {
-    GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
       Column(
         Modifier.fillMaxWidth().testTag("$tag.overview"),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         overview()
         footer(true)
       }
     }
-    GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+    GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
       Column(Modifier.fillMaxWidth()) {
         content()
       }
     }
     if (!footnote.isNullOrBlank()) {
-      DashboardFootnote(footnote, Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+      DashboardFootnote(footnote, Modifier.padding(horizontal = 4.dp))
     }
     if (onOpen != null && openLabel != null) Os4DialogButton(
       text = openLabel,
@@ -1071,7 +1077,7 @@ private fun DashboardDetail(
   pillColor: Color? = null,
   modifier: Modifier = Modifier,
 ) {
-  BoxWithConstraints(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+  BoxWithConstraints(modifier.fillMaxWidth().padding(vertical = 6.dp)) {
     val vertical = stacked || maxWidth < 260.dp || LocalDensity.current.fontScale > 1.3f
     val valueContent: @Composable () -> Unit = {
       if (pillColor != null) MetadataPill(value, pillColor)

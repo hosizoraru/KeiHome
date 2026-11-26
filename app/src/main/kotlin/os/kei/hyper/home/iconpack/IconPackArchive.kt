@@ -356,23 +356,29 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
           } else if (descriptor.valid) animated += dynamicName
         }
       }
-    }
-    if (animated.isNotEmpty()) notices += IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED
-    fun artwork(name: String, night: Boolean): IconPackArtwork.Archive? {
-      snapshots[name to night]?.let { return it }
-      staticLayers[name to night]?.let {
-        return IconPackArtwork.Archive(it.flatten(), part, layers = it, nativeLayers = true)
+      val metadata = if (IconThemeMetadata.PATH in paths) {
+        IconThemeMetadata.decode(readEntry(zip, IconThemeMetadata.PATH, IconThemeMetadata.MAX_BYTES, check))
+      } else null
+      if (animated.isNotEmpty()) notices += IconPackNotice.NATIVE_ANIMATION_PREVIEW_UNSUPPORTED
+      fun artwork(name: String, night: Boolean): IconPackArtwork.Archive? {
+        snapshots[name to night]?.let { return it }
+        staticLayers[name to night]?.let {
+          return IconPackArtwork.Archive(it.flatten(), part, layers = it, nativeLayers = true)
+        }
+        val candidates = variants[name]?.filter { night || it.qualifiers.night != IconNightMode.DARK }.orEmpty()
+        if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return pairedDarkFallbacks[name]
+        return candidates.takeIf { it.isNotEmpty() }?.let { IconPackArtwork.Archive(it, part) }
       }
-      val candidates = variants[name]?.filter { night || it.qualifiers.night != IconNightMode.DARK }.orEmpty()
-      if (night && candidates.none { it.qualifiers.night == IconNightMode.DARK }) return pairedDarkFallbacks[name]
-      return candidates.takeIf { it.isNotEmpty() }?.let { IconPackArtwork.Archive(it, part) }
+      val names = variants.keys + staticLayers.keys.map { it.first } + snapshots.keys.map { it.first } + animated
+      val entries = names.map { name ->
+        val light = artwork(name, false)
+        IconPackEntry(name, nativeName = name, light = light, dark = artwork(name, true) ?: light)
+      }
+      val description = metadata?.let {
+        IconPackDescription(title = it.title, author = it.author, version = it.version)
+      } ?: IconPackDescription()
+      return IconPackArchiveIndex(IconPackFormat.MIUI_ICONS, entries, description = description, notices = notices)
     }
-    val names = variants.keys + staticLayers.keys.map { it.first } + snapshots.keys.map { it.first } + animated
-    val entries = names.map { name ->
-      val light = artwork(name, false)
-      IconPackEntry(name, nativeName = name, light = light, dark = artwork(name, true) ?: light)
-    }
-    return IconPackArchiveIndex(IconPackFormat.MIUI_ICONS, entries, notices = notices)
   }
 
   private fun nativeName(name: String) = validNativeIconName(name) && ('.' in name || name == "android")

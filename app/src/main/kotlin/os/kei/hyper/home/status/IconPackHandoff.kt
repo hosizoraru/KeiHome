@@ -260,12 +260,16 @@ internal object IconPackHandoffs {
         try {
           fun metadata(value: String?, length: Int) =
             value?.map { if (it.isISOControl()) ' ' else it }?.joinToString("")?.trim()?.take(length)?.takeIf { it.isNotEmpty() }
+          val resolvedVersion = os.kei.hyper.home.iconpack.KeiHomePackVersion.resolveForExport(
+            pack.description.version,
+            (pack.source as? IconPackSource.Installed)?.versionName,
+          )
           val stamps = linkedMapOf(
             IconBuildInventory.SOURCE_PATH to IconBuildInventory.sourceIdentity(pack).toByteArray(Charsets.UTF_8),
             IconGenerationManifest.PATH to generation.encode(),
             IconThemeMetadata.PATH to IconThemeMetadata(
               metadata(pack.description.title ?: pack.displayName, 120),
-              metadata(pack.description.version ?: (pack.source as? IconPackSource.Installed)?.versionName, 80),
+              metadata(resolvedVersion, 80),
               metadata(pack.description.author ?: pack.description.designer, 120),
             ).encode(),
           )
@@ -371,7 +375,7 @@ internal object IconPackHandoffs {
             val title = xml(pack.displayName)
             val author = xml(pack.description.author ?: "Original icon pack authors")
             val designer = xml(pack.description.designer ?: pack.description.author ?: "Original icon pack authors")
-            val version = xml(pack.description.version ?: (pack.source as? IconPackSource.Installed)?.versionName ?: "1.0")
+            val version = xml(resolvedVersion)
             output.write(("<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
               "<MIUI-Theme><title>$title</title><author>$author</author><designer>$designer</designer>" +
               "<version>$version</version><uiVersion>13</uiVersion>" +

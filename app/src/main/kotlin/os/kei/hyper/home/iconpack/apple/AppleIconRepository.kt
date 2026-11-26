@@ -441,8 +441,9 @@ internal class AppleIconRepository(context: Context, private val client: AppleIc
             }
             zip.text("appfilter.xml", appfilter)
             packaged()
+            val packVersion = os.kei.hyper.home.iconpack.KeiHomePackVersion.format(System.currentTimeMillis())
             zip.text("description.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><MIUI-Theme>" +
-              "<title>Apple</title><author>Apple / App publishers</author><version>1</version></MIUI-Theme>")
+              "<title>Apple</title><author>Apple / App publishers</author><version>$packVersion</version></MIUI-Theme>")
             packaged()
             zip.text("apple-source-manifest.json", identity.toString())
             packaged()

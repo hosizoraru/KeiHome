@@ -35,4 +35,20 @@ class SystemIconThemeReportTest {
     assertNull(SystemIconThemeReport.decode(fields.take(10).joinToString(":") + ":%%%"))
     assertNull(SystemIconThemeReport.decode(report.copy(resourceCount = 1, nightResourceCount = 2).encode()))
   }
+
+  @Test fun appliedTimestampIsParsedFromPrimaryRevisionStamp() {
+    val expected = java.time.Instant.parse("2026-11-27T02:35:12Z").toEpochMilli()
+    val theme = SystemIconThemeReport(
+      SystemIconThemeReport.Source.THEME,
+      "Perfect",
+      "/data/system/theme/icons",
+      12,
+      4,
+      true,
+      "ino=123:9876:2026-11-27T02:35:12Z:3;mod:0::3",
+    )
+    assertEquals(expected, theme.appliedAtMillis)
+    assertNull(theme.copy(source = SystemIconThemeReport.Source.DEFAULT).appliedAtMillis)
+    assertNull(theme.copy(revision = "legacy-revision").appliedAtMillis)
+  }
 }

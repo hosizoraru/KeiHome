@@ -633,7 +633,8 @@ class PerfectIconRepository internal constructor(
       val mask = nativeMask()
       val transform = HyperOs4IconModule.transform(usesLayerDirectory(validated) ||
         (options.staticNight && staticNightInputs(validated).isNotEmpty()), mask)
-      val file = publish(snapshot?.sourceHash ?: "custom-static", options, validated, transform, mask) { done, total ->
+      val file = publish(snapshot?.sourceHash ?: "custom-static", options, validated, transform, mask,
+        revision = snapshot?.revision) { done, total ->
         progress(PerfectIconProgress(done, total, "source.static-night"))
       }
       trimBlobs(unique.map { it.sha }.toSet())
@@ -1357,10 +1358,12 @@ class PerfectIconRepository internal constructor(
   }
 
   private suspend fun publish(sourceHash: String, options: PerfectIconOptions, plan: PerfectIconPlan,
-    transform: ByteArray, mask: String?, renderProgress: (Int, Int) -> Unit): File {
+    transform: ByteArray, mask: String?, revision: String? = null, renderProgress: (Int, Int) -> Unit): File {
     outputDir.mkdirs()
+    val packVersion = os.kei.hyper.home.iconpack.KeiHomePackVersion.format(now(), revision = revision)
     val identity = buildString {
       append(LAYER_CONTRACT).append('\n').append(HyperOs4IconModule.REVISION).append('\n').append(PerfectIconFormat.sha(transform)).append('\n')
+      append(os.kei.hyper.home.iconpack.KeiHomePackVersion.appVersion).append('\n')
       append(sourceHash).append('\n').append(options.style.ifEmpty { "default" })
       append('\n').append(options.dynamic).append('\n')
       if (options.staticNight) append(options.nightContract()).append('\n')
@@ -1385,8 +1388,13 @@ class PerfectIconRepository internal constructor(
       coroutine.ensureActive()
       return destination
     }
+    val metadata = os.kei.hyper.home.iconpack.IconThemeMetadata(
+      title = null,
+      version = packVersion,
+      author = "Perfect Icons",
+    )
     writeArchive(destination, plan, transform, options = options, mask = mask,
-      renderProgress = renderProgress) { blob -> blobFile(blob.sha).readBytes() }
+      metadata = metadata, renderProgress = renderProgress) { blob -> blobFile(blob.sha).readBytes() }
     val digest = previewHash(destination, os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES)
     atomic(proof, digest.toByteArray(Charsets.US_ASCII)) { coroutine.ensureActive() }
     proofs.listFiles().orEmpty().filter { it.extension == "sha256" }
@@ -1401,14 +1409,16 @@ class PerfectIconRepository internal constructor(
     maxFile: Long = os.kei.hyper.home.iconpack.IconPackBudgets.ARCHIVE_BYTES,
     options: PerfectIconOptions = PerfectIconOptions(),
     mask: String? = null,
+    metadata: os.kei.hyper.home.iconpack.IconThemeMetadata? = null,
     renderProgress: (Int, Int) -> Unit = { _, _ -> },
     read: (PerfectIconBlob) -> ByteArray,
   ) {
     val temporary = File(destination.parentFile, ".${UUID.randomUUID()}.part")
     val coroutine = currentCoroutineContext()
-    val generated = mapOf(
-      "transform_config.xml" to transform,
-    )
+    val generated = buildMap {
+      put("transform_config.xml", transform)
+      metadata?.let { put(os.kei.hyper.home.iconpack.IconThemeMetadata.PATH, it.encode()) }
+    }
     val nightInputs = if (options.staticNight) staticNightInputs(plan) else emptyMap()
     val dynamicNight = options.staticNight && dynamicNightRenderer != null
     val replaced = buildSet {
@@ -1537,7 +1547,7 @@ class PerfectIconRepository internal constructor(
         generated.forEach { (path, bytes) ->
           require(zip.getInputStream(zip.getEntry(path)).use { it.readBytes() }.contentEquals(bytes))
           require(zip.getEntry(path).method == ZipEntry.DEFLATED)
-          PerfectIconFormat.xml(bytes)
+          if (path.endsWith(".xml", true)) PerfectIconFormat.xml(bytes)
         }
       }
       coroutine.ensureActive()

@@ -1,6 +1,7 @@
 package os.kei.hyper.home.status
 
 import androidx.compose.runtime.Immutable
+import java.time.Instant
 import java.util.Base64
 
 /** Resource inventory of the active native source, not a rendering or night-mode receipt. */
@@ -20,11 +21,21 @@ internal data class SystemIconThemeReport(
 ) {
   enum class Source { DEFAULT, THEME, UNAVAILABLE }
 
+  /** Filesystem modification time of the primary active theme archive, parsed from [revision]. */
+  val appliedAtMillis: Long?
+    get() {
+      if (source != Source.THEME) return null
+      val primary = revision.substringBefore(';')
+      val match = ISO_TIMESTAMP.find(primary)?.value ?: return null
+      return runCatching { Instant.parse(match).toEpochMilli() }.getOrNull()?.takeIf { it > 0L }
+    }
+
   fun encode(): String = listOf(source.name, text(title), text(archivePath), resourceCount,
     nightResourceCount, complete, text(revision), text(localId), text(nativeHash), text(previewKey),
     text(version)).joinToString(":")
 
   companion object {
+    private val ISO_TIMESTAMP = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z""")
     private fun text(value: String?) = Base64.getEncoder().encodeToString(value.orEmpty().toByteArray())
     private fun read(value: String) = String(Base64.getDecoder().decode(value)).takeIf { it.isNotEmpty() }
 

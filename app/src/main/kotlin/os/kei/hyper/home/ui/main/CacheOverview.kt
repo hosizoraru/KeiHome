@@ -5,6 +5,7 @@ import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,10 +16,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -34,15 +39,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import os.kei.hyper.home.R
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.data.CacheBucket
 import os.kei.hyper.home.data.CacheReminderBudget
 import os.kei.hyper.home.data.DiskCacheUsage
 import os.kei.hyper.home.data.measureDiskCache
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class CacheSample(
@@ -119,12 +126,18 @@ internal fun CacheStorageContent(
   val budget = CacheReminderBudget.resolve(customBudget)
   val exceeded = sample != null && sample.total >= budget
   val partial = failed || sample?.disk?.complete == false
-  Column(Modifier.fillMaxWidth().testTag("cache.storage"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-    Card(Modifier.fillMaxWidth().testTag("cache.storage.summary")) {
-      Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-          Text(stringResource(R.string.storage_used), style = MiuixTheme.textStyles.subtitle,
-            modifier = Modifier.os4Clickable(onClick = onRefresh))
+  Column(Modifier.fillMaxWidth().testTag("cache.storage"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Card(Modifier.fillMaxWidth().testTag("cache.storage.summary"), insideMargin = PaddingValues(16.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically) {
+          Column(Modifier.weight(1f).os4Clickable(onClick = onRefresh), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.storage_used), style = MiuixTheme.textStyles.footnote1,
+              color = scheme.onSurfaceVariantSummary)
+            Text(sample?.let { size(it.total) } ?: "\u2014",
+              style = MiuixTheme.textStyles.title2, fontWeight = FontWeight.SemiBold,
+              color = scheme.onSurface, modifier = Modifier.testTag("cache.storage.total"))
+          }
           MetadataPill(stringResource(when {
             exceeded -> R.string.storage_warning
             partial -> R.string.storage_partial
@@ -133,47 +146,52 @@ internal fun CacheStorageContent(
           }), if (exceeded || partial) scheme.error else scheme.primary,
             Modifier.testTag("cache.storage.status"))
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          MetadataPill(stringResource(R.string.storage_used_pill,
-            sample?.let { size(it.total) } ?: "\u2014"), scheme.primary,
-            Modifier.testTag("cache.storage.total"))
-          MetadataPill(stringResource(R.string.storage_budget_pill, size(budget)),
-            scheme.onSurfaceVariantSummary, Modifier.testTag("cache.storage.limit"))
-          if (sample != null) MetadataPill(
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+          verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          Text(stringResource(R.string.storage_budget_pill, size(budget)),
+            style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
+            modifier = Modifier.testTag("cache.storage.limit"))
+          if (sample != null) Text(
             stringResource(if (failed) R.string.storage_refresh_failed else R.string.storage_measured,
               DateFormat.getTimeFormat(context).format(Date(sample.capturedAt))),
-            if (failed) scheme.error else scheme.onSurfaceVariantSummary)
+            style = MiuixTheme.textStyles.footnote1,
+            color = if (failed) scheme.error else scheme.onSurfaceVariantSummary)
         }
         if (reading) LinearProgressIndicator(Modifier.fillMaxWidth())
       }
     }
     CacheStorageChart(sample?.categories ?: List(8) { 0L }, budget, sample != null, onOpenPack, onOpenLogs)
-    Card(Modifier.fillMaxWidth().testTag("cache.storage.manage")) {
-      Text(stringResource(R.string.storage_manage_title),
-        style = MiuixTheme.textStyles.subtitle, modifier = Modifier.padding(16.dp))
+    SmallTitle(stringResource(R.string.storage_manage_title),
+      insideMargin = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+      modifier = Modifier.semantics { heading() })
+    Card(Modifier.fillMaxWidth().testTag("cache.storage.manage"), insideMargin = PaddingValues(0.dp)) {
       BasicComponent(title = stringResource(R.string.storage_manage_imported),
         summary = stringResource(R.string.storage_manage_imported_summary),
         onClick = { onOpenPack("imported") },
+        endActions = { Os4TrailingChevron() },
         modifier = Modifier.testTag("cache.storage.manage.imported"))
       BasicComponent(title = stringResource(R.string.storage_manage_perfect),
         summary = stringResource(R.string.storage_manage_perfect_summary),
         onClick = { onOpenPack("perfect") },
+        endActions = { Os4TrailingChevron() },
         modifier = Modifier.testTag("cache.storage.manage.perfect"))
       BasicComponent(title = stringResource(R.string.storage_manage_apple),
         summary = stringResource(R.string.storage_manage_apple_summary),
         onClick = { onOpenPack("apple") },
+        endActions = { Os4TrailingChevron() },
         modifier = Modifier.testTag("cache.storage.manage.apple"))
       Text(stringResource(R.string.storage_generated_cleanup_help),
         style = MiuixTheme.textStyles.footnote2, color = scheme.onSurfaceVariantSummary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp))
     }
-    Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences")) {
-      Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Card(Modifier.fillMaxWidth().testTag("cache.storage.preferences"), insideMargin = PaddingValues(16.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically) {
           Text(stringResource(R.string.storage_memory), style = MiuixTheme.textStyles.body2)
           Text(sample?.let { size(it.memory) } ?: "\u2014",
-            style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+            style = MiuixTheme.textStyles.body2, fontWeight = FontWeight.Medium,
+            color = scheme.onSurfaceVariantSummary)
         }
         Text(stringResource(R.string.storage_clear_help), style = MiuixTheme.textStyles.footnote2,
           color = scheme.onSurfaceVariantSummary)

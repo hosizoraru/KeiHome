@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -30,12 +31,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.FabPosition
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.ToolbarPosition
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.glass.GlassTopAppBar
 import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -166,4 +170,13 @@ internal fun KeiHomeIconButton(
       backgroundColor = if (backgroundColor == Color.Unspecified) Color.Transparent else backgroundColor,
       content = content)
   }
+}
+
+/** Refined OS4 disclosure chevron sized for list/preference rows rather than 28 dp toolbar glyphs. */
+@Composable
+internal fun Os4TrailingChevron(
+  modifier: Modifier = Modifier,
+  tint: Color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+) {
+  Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null, modifier = modifier.size(16.dp), tint = tint)
 }

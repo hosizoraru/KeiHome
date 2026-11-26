@@ -408,7 +408,7 @@ private fun NavigationBackdropAppMenus(origin: AppOrigin, sort: AppSort, reverse
 private fun NavigationBackdropLink(title: Int, summary: String?, tag: String, onClick: () -> Unit) {
   BasicComponent(title = stringResource(title), summary = summary, onClick = onClick,
     modifier = Modifier.testTag(tag),
-    endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
+    endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
 }
 
 private fun LazyListScope.hint(key: String, text: Int, vararg args: Any) {

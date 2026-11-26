@@ -1,6 +1,5 @@
 package os.kei.hyper.home.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,12 +10,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -29,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal data class Os4DialogAction(
@@ -65,8 +63,8 @@ internal fun Os4ActionDialog(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (artwork != null) artwork()
-        else if (icon != null) Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
-          .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
+        else if (icon != null) Box(Modifier.size(32.dp)
+          .squircleBackground(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.1f), 8.dp),
           contentAlignment = Alignment.Center) {
           Icon(icon, contentDescription = null, modifier = Modifier.size(21.dp),
             tint = MiuixTheme.colorScheme.onSurface)

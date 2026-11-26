@@ -245,7 +245,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
             title = stringResource(R.string.project_license_group_count, stringResource(entry.title), count),
             modifier = Modifier.testTag("notices.category.${entry.key}"),
             onClick = { onNavigate("notices/category/${entry.key}") },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
           )
         }
       }
@@ -264,7 +264,7 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
               summary = listOfNotNull(stringResource(component.description), versions.singleOrNull()).joinToString("\n"),
               onClick = { onNavigate("component/${component.key}") },
               modifier = Modifier.testTag("notices.component.${component.key}"),
-              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
             )
           }
         }
@@ -303,7 +303,7 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
           } catch (_: RuntimeException) {
             Toast.makeText(context, R.string.notices_source_unavailable, Toast.LENGTH_SHORT).show()
           }
-        }, endActions = { Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null) })
+        }, endActions = { Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
     }
     if (component.licenseKeys.isNotEmpty()) {
       SmallTitle(stringResource(R.string.settings_license_files))
@@ -313,7 +313,7 @@ internal fun ThirdPartyComponentDetails(component: ThirdPartyComponent, onNaviga
           BasicComponent(title = if (key == "dexkit-source") stringResource(R.string.notices_source_offer) else license.title,
             modifier = Modifier.testTag("notices.license.$key"),
             onClick = { onNavigate("license/$key") },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
     }

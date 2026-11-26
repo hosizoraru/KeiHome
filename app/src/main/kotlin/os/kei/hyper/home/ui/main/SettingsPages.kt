@@ -85,14 +85,14 @@ internal fun SettingsRootPage(model: HomeViewModel, onNavigate: (String) -> Unit
             summary = stringResource(R.string.release_notes_summary),
             modifier = Modifier.testTag("settings.entry.release-notes"),
             onClick = { onNavigate(SettingsSection.RELEASE_NOTES.route) },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
       if (logs) {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.settings_log_section),
             summary = stringResource(R.string.settings_log_summary), onClick = { onNavigate(SettingsSection.LOG.route) },
-            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
+            endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
         }
       }
       SettingsSectionContent(model, section = null, query = query, onNavigate = onNavigate,
@@ -132,7 +132,7 @@ internal fun SettingsSectionContent(model: HomeViewModel, section: SettingsSecti
       Card(Modifier.fillMaxWidth()) {
         BasicComponent(title = stringResource(R.string.settings_hook_section),
           summary = stringResource(R.string.scope_page_entry_summary),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
           onClick = { onNavigate(SettingsSection.HOOK.route) })
       }
     },

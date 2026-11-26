@@ -2,7 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import android.content.ComponentName
 import android.content.Intent
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -36,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -57,9 +56,9 @@ internal fun ColorOsSettings(model: HomeViewModel, ready: Boolean, inspiration: 
               it.pack.builtinKey == "coloros-${option.key}-art-${if (art) "on" else "off"}"
             }
             val selected = option == style
-            Column(Modifier.width(82.dp).border(2.dp,
-              if (selected) MiuixTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(18.dp))
-              .os4Clickable(enabled = !busy) { model.preferences.setColorOsStyle(option) }
+            Column(Modifier.width(82.dp).squircleBorder(2.dp,
+              if (selected) MiuixTheme.colorScheme.primary else Color.Transparent, 18.dp)
+              .os4Clickable(enabled = !busy, cornerRadius = 18.dp) { model.preferences.setColorOsStyle(option) }
               .padding(6.dp).semantics { this.selected = selected },
               horizontalAlignment = Alignment.CenterHorizontally,
               verticalArrangement = Arrangement.spacedBy(6.dp)) {

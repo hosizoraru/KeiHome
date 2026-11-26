@@ -121,7 +121,7 @@ private fun DarkModeSettingsContent(model: HomeViewModel, onOpenStatusBarTools: 
       BasicComponent(title = stringResource(R.string.desktop_dark_mode_statusbar),
         summary = stringResource(DesktopSection.TOOLS.summary),
         role = Role.Button, onClick = onOpenStatusBarTools,
-        endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+        endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
         modifier = Modifier.testTag("desktop.dark-mode.tools"))
     }
   }

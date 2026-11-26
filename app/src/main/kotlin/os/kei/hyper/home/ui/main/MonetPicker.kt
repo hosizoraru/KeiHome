@@ -74,6 +74,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Theme
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal enum class MonetSection(val title: Int) {
@@ -229,7 +230,7 @@ internal fun MonetPicker(
             MonetSection.PREVIEW -> stringResource(R.string.monet_page_preview_summary)
             else -> null
           },
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
           modifier = Modifier.testTag("monet.open.${destination.name}"),
           insideMargin = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
           onClick = { openSheet(destination) },
@@ -438,19 +439,19 @@ private fun IconPalettePreview(
     ?: MiuixTheme.colorScheme.surface
   val content = MonetSchemes.nearestTone(palette, "neutral", if (dark) 90 else 10)?.let(::Color)
     ?: MiuixTheme.colorScheme.onSurface
-  Column(modifier.clip(RoundedCornerShape(16.dp)).background(neutral).padding(12.dp),
+  Column(modifier.squircleBackground(neutral, 16.dp).padding(12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text(stringResource(if (dark) R.string.monet_preview_dark else R.string.monet_preview_light),
       color = content, style = MiuixTheme.textStyles.footnote1)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
+      Box(Modifier.size(44.dp).squircleBackground(background, 14.dp),
         contentAlignment = Alignment.Center) {
         Icon(painterResource(R.drawable.ic_launcher_monochrome), contentDescription = null,
           tint = foreground, modifier = Modifier.size(40.dp))
       }
-      Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(background),
+      Box(Modifier.size(44.dp).squircleBackground(background, 14.dp),
         contentAlignment = Alignment.Center) {
         Icon(MiuixIcons.Glass.Theme, contentDescription = null, tint = foreground, modifier = Modifier.size(26.dp))
       }

@@ -73,6 +73,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
 import top.yukonga.miuix.kmp.preference.SliderPreference
+import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 
@@ -97,8 +99,8 @@ internal fun WallpaperDimmingSettingsCard(model: HomeViewModel) {
     BasicComponent(title = stringResource(if (style == WallpaperDimStyle.COLOR_OS)
       R.string.dark_mode_wallpaper_preview else R.string.wallpaper_dimming_strength),
       summary = stringResource(R.string.wallpaper_dimming_strength_entry),
-      enabled = inScope, onClick = { show = true },
-      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+      enabled = inScope, holdDownState = show && inScope, onClick = { show = true },
+      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
       modifier = Modifier.testTag("wallpaper-dimming.strength"))
   }
   WallpaperDimmingStrengthSheet(show && inScope, { show = false }, model.wallpaperDimmingStrength,
@@ -277,8 +279,8 @@ private fun WallpaperPreviewComparison(
 
 @Composable
 private fun WallpaperPreviewStatus(message: Int, onRetry: () -> Unit) {
-  Column(Modifier.widthIn(max = 250.dp).padding(12.dp).clip(RoundedCornerShape(14.dp))
-    .background(MiuixTheme.colorScheme.surfaceContainer)
+  Column(Modifier.widthIn(max = 250.dp).padding(12.dp)
+    .squircleBackground(MiuixTheme.colorScheme.surfaceContainer, 14.dp)
     .padding(horizontal = 14.dp, vertical = 10.dp),
     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
     if (message == R.string.wallpaper_dimming_preview_loading) {
@@ -305,7 +307,7 @@ private fun WallpaperPreviewTile(
   lockAlpha: State<Float>,
 ) {
   Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Box(Modifier.fillMaxWidth().aspectRatio(0.8f).clip(RoundedCornerShape(14.dp))
+    Box(Modifier.fillMaxWidth().aspectRatio(0.8f).squircleClip(14.dp)
       .background(MiuixTheme.colorScheme.surfaceContainerHigh)) {
       if (hasBase) {
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = reveal.value }) {

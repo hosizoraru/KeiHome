@@ -77,8 +77,8 @@ internal fun WallpaperPresetSettingsCard(model: HomeViewModel) {
   Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = stringResource(R.string.wallpaper_presets_title),
       summary = stringResource(if (inScope) R.string.wallpaper_presets_summary else R.string.wallpaper_presets_scope),
-      enabled = inScope, onClick = { show = true },
-      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+      enabled = inScope, holdDownState = show && inScope, onClick = { show = true },
+      endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
       modifier = Modifier.testTag("wallpaper-presets.open"))
   }
   WallpaperPresetSheet(show && inScope) { show = false }

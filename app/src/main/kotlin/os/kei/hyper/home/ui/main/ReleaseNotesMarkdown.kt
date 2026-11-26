@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -42,6 +41,7 @@ import os.kei.hyper.home.data.ReleaseNotesBlock
 import os.kei.hyper.home.data.ReleaseNotesInline
 import os.kei.hyper.home.data.parseReleaseNotesMarkdown
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** Call only from the expanded release body; disposal also releases its parsed content. */
@@ -95,7 +95,7 @@ private fun MarkdownBlocks(
         is ReleaseNotesBlock.CodeBlock -> Text(
           text = AnnotatedString(block.text),
           modifier = Modifier.fillMaxWidth()
-            .background(colors.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .squircleBackground(colors.surfaceVariant.copy(alpha = 0.6f), 8.dp)
             .padding(horizontal = 10.dp, vertical = 8.dp),
           style = styles.body2,
           fontFamily = FontFamily.Monospace,
@@ -103,8 +103,7 @@ private fun MarkdownBlocks(
         )
         is ReleaseNotesBlock.Quote -> Row(
           Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surfaceVariant.copy(alpha = 0.55f))
+            .squircleBackground(colors.surfaceVariant.copy(alpha = 0.55f), 12.dp)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .height(IntrinsicSize.Min),
           horizontalArrangement = Arrangement.spacedBy(10.dp),

@@ -177,7 +177,7 @@ internal fun SettingsContent(
         BasicComponent(title = stringResource(R.string.recommended_mappings_title),
           summary = stringResource(R.string.recommended_mappings_entry),
           modifier = Modifier.testTag("settings.entry.recommended-mappings"),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) },
           onClick = onOpenRecommendedMappings)
       }
     }
@@ -186,7 +186,7 @@ internal fun SettingsContent(
         BasicComponent(title = stringResource(SettingsSection.THEME.title),
           summary = stringResource(SettingsSection.THEME.summary), onClick = onOpenAppTheme,
           modifier = Modifier.testTag("settings.entry.theme"),
-          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) })
+          endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
       }
     }
     if (language) {

@@ -45,7 +45,6 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -345,7 +344,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
   }
   val device = environment
-  val environmentSummary = if (device == null) null else listOfNotNull(
+  val environmentDetails = if (device == null) emptyList() else listOfNotNull(
     "${device.marketName} · ${android.os.Build.VERSION.INCREMENTAL.substringBeforeLast('.', android.os.Build.VERSION.INCREMENTAL)}",
     listOfNotNull(device.launcherVersion?.let { version ->
       compactLauncherVersion(version) ?: stringResource(R.string.desktop_connection_version_unknown)
@@ -353,7 +352,7 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
       device.rustVersion?.takeIf(String::isNotBlank)?.let { "Rust $it" },
       device.flutterVersion?.takeIf(String::isNotBlank)?.let { "Flutter ${it.substringBefore("-mi-")}" })
       .takeIf { it.isNotEmpty() }?.joinToString(" · "),
-  ).joinToString("\n")
+  )
   val presentation = if (activation != InitialActivationStatus.COMPLETE)
     ModuleStatusPresentation(R.string.activation_reboot_title, StatusTone.WARNING)
   else moduleStatusPresentation(state, runtime)
@@ -368,6 +367,10 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
       frameworkVersionLabel(state.frameworkVersion, state.frameworkVersionCode),
     )
   }
+  val connectionBadge = state.apiVersion?.takeIf {
+    activation == InitialActivationStatus.COMPLETE && presentation.tone == StatusTone.READY &&
+      state.launcherState != HookedTarget.State.STALE && state.launcherState != HookedTarget.State.RELOADING
+  }?.let { stringResource(R.string.runtime_endpoint_verified, it) }
   StatusOverviewCard(
     title = stringResource(presentation.title),
     titleBadge = BuildConfig.VERSION_NAME.substringBefore('+'),
@@ -378,16 +381,15 @@ private fun FrameworkHero(state: FrameworkCardState, runtime: RuntimeCardState, 
     onRefresh = onRefresh,
     onOpen = onOpenEnvironment,
     actionLabel = if (onOpenEnvironment != null) stringResource(R.string.status_open_environment) else null,
-    environmentSummary = environmentSummary,
+    environmentDetails = environmentDetails,
+    summaryBadge = connectionBadge,
     footer = when {
-      activation != InitialActivationStatus.COMPLETE -> null
+      activation != InitialActivationStatus.COMPLETE || connectionBadge != null -> null
       // Java hot reload is a separate observation from the resident native endpoint.
       state.launcherState == HookedTarget.State.STALE ||
         state.launcherState == HookedTarget.State.RELOADING -> stringResource(
           R.string.runtime_java_summary, targetLabel(state.launcherState, state.reported),
         )
-      presentation.tone == StatusTone.READY && state.apiVersion != null ->
-        stringResource(R.string.runtime_endpoint_verified, state.apiVersion)
       state.reported && state.apiVersion != null ->
         stringResource(R.string.status_hero_load_report_api, state.apiVersion)
       state.reported -> stringResource(R.string.status_hero_load_report)
@@ -456,7 +458,7 @@ private fun RuntimeStatusCard(
             NativeStatusKind.UNAVAILABLE -> null
             else -> StatusTone.WARNING
           }, "status.runtime.launcher$suffix")
-        DashboardCallbackReceipt(report?.refresh)
+        DashboardCallbackReceipt(report?.refresh, compact = !sheet)
       }
     },
   ) {
@@ -665,14 +667,16 @@ private fun dashboardRelativeTime(age: Long?): String = when {
 }
 
 @Composable
-private fun DashboardCallbackReceipt(receipt: IconRefreshReceipt?) {
+private fun DashboardCallbackReceipt(receipt: IconRefreshReceipt?, compact: Boolean) {
   if (receipt == null || receipt.callbacks < 0 || receipt.completedAtMillis <= 0) {
-    MetadataPill(stringResource(R.string.runtime_callbacks_unreported), MiuixTheme.colorScheme.onSurfaceSecondary)
+    MetadataPill(stringResource(if (compact) R.string.runtime_callbacks_no_record
+      else R.string.runtime_callbacks_unreported), MiuixTheme.colorScheme.onSurfaceSecondary)
     return
   }
   val relative = dashboardRelativeTime(dashboardAgeMinutes(receipt.completedAtMillis))
   MetadataPill(pluralStringResource(
-    R.plurals.runtime_callbacks_dispatched, receipt.callbacks, receipt.callbacks, relative,
+    if (compact) R.plurals.runtime_callbacks_compact else R.plurals.runtime_callbacks_dispatched,
+    receipt.callbacks, receipt.callbacks, relative,
   ), MiuixTheme.colorScheme.primary)
 }
 
@@ -819,8 +823,8 @@ private fun DashboardDetail(
 }
 
 @Composable
-private fun DashboardPillRow(content: @Composable () -> Unit) {
-  FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+private fun DashboardPillRow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+  FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
     verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
 }
 
@@ -858,12 +862,13 @@ internal fun StatusOverviewCard(
   onRefresh: () -> Unit,
   footer: String? = null,
   onOpen: (() -> Unit)? = null,
-  environmentSummary: String? = null,
+  environmentDetails: List<String> = emptyList(),
   modifier: Modifier = Modifier,
   badges: List<String> = emptyList(),
-  badgeContent: (@Composable ColumnScope.(Color) -> Unit)? = null,
+  badgeContent: (@Composable (Color) -> Unit)? = null,
   actionLabel: String? = null,
   titleBadge: String? = null,
+  summaryBadge: String? = null,
 ) {
   val refreshLabel = stringResource(R.string.status_refresh)
   val dark = LocalKeiHomeDarkTheme.current
@@ -893,7 +898,10 @@ internal fun StatusOverviewCard(
     StatusTone.CHECKING -> colors.onSurface
   }
   val hasBadges = badges.isNotEmpty() || badgeContent != null
-  val hasLowerContent = environmentSummary != null || hasBadges || details.isNotEmpty()
+  val hasLowerContent = environmentDetails.isNotEmpty() || hasBadges || details.isNotEmpty()
+  // The 72.dp ornament overhangs the end edge by 12.dp.
+  val symbolClearance = 64.dp
+  val summaryEndPadding = if (hasLowerContent) symbolClearance - 18.dp else 0.dp
 
   Card(
     modifier = modifier.fillMaxWidth(),
@@ -913,8 +921,8 @@ internal fun StatusOverviewCard(
           Column(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(start = 18.dp, end = if (hasLowerContent) 18.dp else 76.dp,
-                top = 16.dp, bottom = 16.dp),
+              .padding(start = 18.dp, end = if (hasLowerContent) 18.dp else symbolClearance,
+                top = 16.dp, bottom = if (hasLowerContent) 10.dp else 16.dp),
           ) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
               FlowRow(
@@ -932,40 +940,52 @@ internal fun StatusOverviewCard(
                   Modifier.align(Alignment.CenterVertically).testTag("status.overview.version"),
                 )
               }
-              Text(
-                text = summary,
-                style = MiuixTheme.textStyles.body2,
-                color = contentColor.copy(alpha = 0.84f),
-              )
+              FlowRow(modifier = Modifier.padding(end = summaryEndPadding),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                  text = summary,
+                  modifier = Modifier.align(Alignment.CenterVertically),
+                  style = MiuixTheme.textStyles.body2,
+                  color = contentColor.copy(alpha = 0.84f),
+                )
+                if (summaryBadge != null) MetadataPill(
+                  summaryBadge, contentColor, Modifier.align(Alignment.CenterVertically),
+                )
+              }
             }
             if (footer != null) {
               Text(
                 text = footer,
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 6.dp, end = summaryEndPadding),
                 style = MiuixTheme.textStyles.footnote1,
                 color = contentColor,
               )
             }
           }
         }
-        if (environmentSummary != null) Text(environmentSummary,
-          modifier = Modifier.fillMaxWidth().padding(start = 18.dp,
-            end = if (hasBadges || details.isNotEmpty()) 18.dp else 76.dp, bottom = 14.dp),
-          style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f),
-          maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (hasBadges) {
-          Column(
+        if (environmentDetails.isNotEmpty()) {
+          FlowRow(
             modifier = Modifier.fillMaxWidth().padding(start = 18.dp,
-              end = if (details.isEmpty()) 76.dp else 18.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+              end = symbolClearance, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
           ) {
+            environmentDetails.forEach {
+              Text(it, style = MiuixTheme.textStyles.footnote2, color = contentColor.copy(alpha = 0.86f))
+            }
+          }
+        }
+        if (hasBadges) {
+          DashboardPillRow(Modifier.padding(start = 18.dp,
+            end = symbolClearance, bottom = 16.dp)) {
             if (badgeContent != null) badgeContent(accentColor)
             else badges.forEach { MetadataPill(it, accentColor) }
           }
         }
         if (details.isNotEmpty()) {
           BoxWithConstraints(
-            modifier = Modifier.padding(start = 18.dp, end = 76.dp, bottom = 16.dp),
+            modifier = Modifier.padding(start = 18.dp, end = symbolClearance, bottom = 16.dp),
           ) {
             val stacked = maxWidth < 280.dp
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -4,7 +4,7 @@
     <string name="runtime_module_ready">モジュール準備完了</string>
     <string name="runtime_native_ready">ホーム準備完了</string>
     <string name="runtime_ready_summary">システム：%1$s · ホーム準備完了</string>
-    <string name="runtime_endpoint_verified">API %1$d · ホーム接続済み</string>
+    <string name="runtime_endpoint_verified">API %1$d · ホーム接続中</string>
     <string name="runtime_checking">状態を確認中…</string>
     <string name="runtime_not_reported">ホームの状態を待機中</string>
     <string name="runtime_expired">状態の有効期限切れ</string>
@@ -24,6 +24,10 @@
     <string name="runtime_java_summary">Java 報告：%1$s</string>
     <string name="runtime_framework_api">フレームワーク API</string>
     <string name="runtime_callbacks_unreported">コールバック送出：記録なし</string>
+    <string name="runtime_callbacks_no_record">コールバック記録なし</string>
+    <plurals name="runtime_callbacks_compact">
+        <item quantity="other">コールバック %1$d 件 · %2$s</item>
+    </plurals>
     <plurals name="runtime_callbacks_dispatched">
         <item quantity="other">コールバック %1$d 件を送出 · %2$s</item>
     </plurals>

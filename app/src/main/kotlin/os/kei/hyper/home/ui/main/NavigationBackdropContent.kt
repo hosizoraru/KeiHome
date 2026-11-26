@@ -2,7 +2,6 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -260,13 +259,10 @@ internal fun NavigationBackdropContent(
                     receipt?.outcome == BilibiliArtworkOutcome.UNSUPPORTED -> R.string.nav_backdrop_artwork_unsupported
                     else -> R.string.nav_backdrop_artwork_waiting
                   }
-                  FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MetadataPill(stringResource(R.string.nav_backdrop_bilibili_version,
-                      host.name?.takeIf(String::isNotBlank) ?: host.version.toString()), color,
-                      Modifier.testTag("nav-backdrop.bilibili.version"))
-                    MetadataPill(stringResource(label), color, Modifier.testTag("nav-backdrop.bilibili.outcome"))
-                  }
+                  MetadataPill(stringResource(R.string.nav_backdrop_bilibili_version,
+                    host.name?.takeIf(String::isNotBlank) ?: host.version.toString()), color,
+                    Modifier.testTag("nav-backdrop.bilibili.version"))
+                  MetadataPill(stringResource(label), color, Modifier.testTag("nav-backdrop.bilibili.outcome"))
                 }
               },
               onRefresh = { if (!state.loading && !state.saving) onRefresh() },

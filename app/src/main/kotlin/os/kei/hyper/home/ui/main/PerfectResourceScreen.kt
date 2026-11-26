@@ -413,14 +413,12 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
       }), summary = stringResource(if (downloaded.isNotEmpty()) R.string.perfect_resource_ready_summary
         else R.string.perfect_resource_empty_summary), tone = tone, details = emptyList(), onRefresh = { if (!busy && !cooling) onCheck() }, onOpen = { showInfo = true }, actionLabel = stringResource(R.string.perfect_resource_info),
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("perfect.resources.status"), badgeContent = { color ->
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            MetadataPill(stringResource(R.string.perfect_resource_style_count, downloaded.size, available.size), color)
+          MetadataPill(stringResource(R.string.perfect_resource_style_count, downloaded.size, available.size), color)
           MetadataPill(stringResource(R.string.perfect_resource_occupied_bytes, Formatter.formatFileSize(context, state.resourceBytes)), color)
-            (state.catalog?.revision ?: state.remote?.revision)?.let {
-              MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), color)
-            }
-            PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
+          (state.catalog?.revision ?: state.remote?.revision)?.let {
+            MetadataPill(stringResource(R.string.perfect_icons_revision_short, it.take(7)), color)
           }
+          PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
         })
       if (busy && !state.refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
     }

@@ -14,9 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -54,6 +56,42 @@ class MonetStatusContentTest {
   @get:Rule(order = 1) val composeTestRule = createComposeRule()
 
   private val context: Context = ApplicationProvider.getApplicationContext()
+
+  @Test
+  fun overviewBadgesShareARowWhenThereIsRoomAndWrapBeforeTheSymbol() {
+    var fontScale by mutableStateOf(1f)
+    composeTestRule.setContent {
+      val density = LocalDensity.current
+      CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+        KeiHomeTheme {
+          Box(Modifier.width(300.dp)) {
+            StatusOverviewCard(
+              title = "Launcher connection",
+              summary = "Native connection verified",
+              details = emptyList(),
+              tone = StatusTone.READY,
+              onRefresh = {},
+              badgeContent = { color ->
+                MetadataPill("Launcher is ready", color, Modifier.testTag("badge.ready"))
+                MetadataPill("Home 308", color, Modifier.testTag("badge.version"))
+              },
+            )
+          }
+        }
+      }
+    }
+
+    fun bounds(tag: String) = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+      .getUnclippedBoundsInRoot()
+    assertEquals(bounds("badge.ready").top, bounds("badge.version").top)
+
+    composeTestRule.runOnIdle { fontScale = 2f }
+    val ready = bounds("badge.ready")
+    val version = bounds("badge.version")
+    val symbol = bounds("status.overview.symbol")
+    assertTrue(ready.bottom < version.top)
+    assertTrue(version.right <= symbol.left)
+  }
 
   @Test
   fun distinguishesWallpaperColorsFromGeneratedShades() {

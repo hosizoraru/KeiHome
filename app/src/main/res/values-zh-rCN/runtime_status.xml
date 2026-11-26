@@ -4,7 +4,7 @@
     <string name="runtime_module_ready">模块已就绪</string>
     <string name="runtime_native_ready">桌面已就绪</string>
     <string name="runtime_ready_summary">系统：%1$s · 桌面已就绪</string>
-    <string name="runtime_endpoint_verified">API %1$d · 桌面已连接</string>
+    <string name="runtime_endpoint_verified">API %1$d · 桌面在线</string>
     <string name="runtime_checking">正在检查状态…</string>
     <string name="runtime_not_reported">等待桌面状态</string>
     <string name="runtime_expired">状态已过期</string>
@@ -24,6 +24,10 @@
     <string name="runtime_java_summary">Java 报告：%1$s</string>
     <string name="runtime_framework_api">框架 API</string>
     <string name="runtime_callbacks_unreported">回调派发：暂无记录</string>
+    <string name="runtime_callbacks_no_record">回调暂无记录</string>
+    <plurals name="runtime_callbacks_compact">
+        <item quantity="other">回调 %1$d · %2$s</item>
+    </plurals>
     <plurals name="runtime_callbacks_dispatched">
         <item quantity="other">已派发 %1$d 个回调 · %2$s</item>
     </plurals>

@@ -7,7 +7,6 @@ import android.text.format.Formatter
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -165,22 +164,19 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
             .testTag("icon-packs.perfect.status"),
           badgeContent = if (catalog == null && state.syncIssue == null) null else { color ->
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
-              verticalArrangement = Arrangement.spacedBy(6.dp)) {
-              PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
-              if (catalog != null) {
-                MetadataPill(stringResource(R.string.perfect_resource_downloaded_count, downloadedCount), MiuixTheme.colorScheme.primary)
-                if (!state.ready) MetadataPill(stringResource(R.string.perfect_git_not_downloaded), color,
-                  Modifier.testTag("icon-packs.perfect.style-readiness"))
-                MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
-                val revision = catalog.revision.ifEmpty { catalog.sourceHash }
-                val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
-                  R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-                MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
-                  Modifier.testTag("icon-packs.perfect.revision").os4Clickable(onClickLabel = copyLabel) {
-                    copyPerfectRevision(context, revision, copyLabel)
-                  })
-              }
+            PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
+            if (catalog != null) {
+              MetadataPill(stringResource(R.string.perfect_resource_downloaded_count, downloadedCount), MiuixTheme.colorScheme.primary)
+              if (!state.ready) MetadataPill(stringResource(R.string.perfect_git_not_downloaded), color,
+                Modifier.testTag("icon-packs.perfect.style-readiness"))
+              MetadataPill(stringResource(R.string.perfect_icons_catalog_count, catalog.iconCount), color)
+              val revision = catalog.revision.ifEmpty { catalog.sourceHash }
+              val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
+                R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
+              MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+                Modifier.testTag("icon-packs.perfect.revision").os4Clickable(onClickLabel = copyLabel) {
+                  copyPerfectRevision(context, revision, copyLabel)
+                })
             }
           },
         )

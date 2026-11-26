@@ -4,7 +4,7 @@
     <string name="runtime_module_ready">Module ready</string>
     <string name="runtime_native_ready">Launcher ready</string>
     <string name="runtime_ready_summary">System: %1$s · Launcher ready</string>
-    <string name="runtime_endpoint_verified">API %1$d · Launcher connected</string>
+    <string name="runtime_endpoint_verified">API %1$d · Launcher online</string>
     <string name="runtime_checking">Checking status…</string>
     <string name="runtime_not_reported">Waiting for launcher status</string>
     <string name="runtime_expired">Status expired</string>
@@ -24,6 +24,11 @@
     <string name="runtime_java_summary">Java report: %1$s</string>
     <string name="runtime_framework_api">Framework API</string>
     <string name="runtime_callbacks_unreported">Callback dispatch: no record</string>
+    <string name="runtime_callbacks_no_record">No callbacks recorded</string>
+    <plurals name="runtime_callbacks_compact">
+        <item quantity="one">%1$d callback · %2$s</item>
+        <item quantity="other">%1$d callbacks · %2$s</item>
+    </plurals>
     <plurals name="runtime_callbacks_dispatched">
         <item quantity="one">%1$d callback dispatched · %2$s</item>
         <item quantity="other">%1$d callbacks dispatched · %2$s</item>

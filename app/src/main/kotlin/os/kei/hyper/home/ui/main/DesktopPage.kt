@@ -146,13 +146,11 @@ internal fun DesktopStatusCard(model: HomeViewModel, section: DesktopSection) {
   }, sync.accepted, sync.supported), details = emptyList(), tone = tone,
     onRefresh = { model.refresh(5, section) }, modifier = Modifier.testTag("desktop.status.${section.route}"),
     badgeContent = {
-      Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        entries.forEach { entry ->
-          val value = if (storedOnly && entry.status == DesktopFeatureStatus.ACCEPTED)
-            stringResource(R.string.desktop_stored_value, entry.value) else entry.value
-          MetadataPill(desktopStatusBadge(stringResource(entry.title), value, entry.status), desktopPillColor(entry.status),
-            Modifier.testTag("desktop.feature.${entry.feature.name.lowercase()}.status"))
-        }
+      entries.forEach { entry ->
+        val value = if (storedOnly && entry.status == DesktopFeatureStatus.ACCEPTED)
+          stringResource(R.string.desktop_stored_value, entry.value) else entry.value
+        MetadataPill(desktopStatusBadge(stringResource(entry.title), value, entry.status), desktopPillColor(entry.status),
+          Modifier.testTag("desktop.feature.${entry.feature.name.lowercase()}.status"))
       }
     })
 }

@@ -195,7 +195,8 @@ internal fun PackDestinationScreen(model: HomeViewModel, section: String,
     Box(Modifier.fillMaxSize().then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)) {
       val padding = PaddingValues(start = 16.dp, end = 16.dp, top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() +
-          if (contentSection == "coloros" || fallback || fallbackSettings || extraIcons || fileImport)
+          if (fallbackSettings) actionBottomPadding + 16.dp
+          else if (contentSection == "coloros" || fallback || extraIcons || fileImport)
             actionBottomPadding else 24.dp)
       val contentModifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior)
       if (extraIcons) {

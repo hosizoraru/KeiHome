@@ -237,6 +237,10 @@
   <string name="icon_fallback_pending_note">This order reflects your current settings. Regenerate and apply to update the desktop; previews may show pending changes.</string>
   <string name="icon_fallback_system_source">System icon fallback · %1$s</string>
   <string name="icon_fallback_system_summary">Look up the selected system style for uncovered system apps; other apps continue down the chain</string>
+  <string name="icon_fallback_section_completion">Perfect Icons completion</string>
+  <string name="icon_fallback_section_system">System icon fallback</string>
+  <string name="icon_fallback_section_coloros">ColorOS supplemental fallback</string>
+  <string name="icon_fallback_applied_status">Currently applied</string>
     <string name="monet_unadapted_title">Color unthemed icons</string>
     <string name="monet_full_bleed_padding_title">Inset full-bleed icons</string>
     <string name="monet_full_bleed_padding_summary">Inset large, edge-filling themed artwork to reveal its background. Regenerate and apply the icon pack after changing this option.</string>

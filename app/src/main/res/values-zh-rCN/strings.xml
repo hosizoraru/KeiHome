@@ -234,6 +234,10 @@
   <string name="icon_fallback_pending_note">顺序按当前设置展示。更改后需重新生成并应用，桌面才会更新；预览可能包含尚未应用的更改。</string>
   <string name="icon_fallback_system_source">系统图标回退 · %1$s</string>
   <string name="icon_fallback_system_summary">为未覆盖的系统应用查找所选系统样式，其他应用继续向下回退</string>
+  <string name="icon_fallback_section_completion">完美图标补全</string>
+  <string name="icon_fallback_section_system">系统原生回退</string>
+  <string name="icon_fallback_section_coloros">ColorOS 扩展兜底</string>
+  <string name="icon_fallback_applied_status">当前桌面已应用</string>
     <string name="monet_unadapted_title">未适配图标取色补全</string>
     <string name="monet_full_bleed_padding_title">满幅图标留白</string>
     <string name="monet_full_bleed_padding_summary">为铺满或大面积贴边的取色图案增加留白，露出背景。修改后需重新生成并应用图标包。</string>

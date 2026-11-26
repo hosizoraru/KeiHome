@@ -234,6 +234,10 @@
   <string name="icon_fallback_pending_note">現在の設定に基づく順序です。デスクトップに反映するには再生成して適用してください。プレビューには未適用の変更も表示されます。</string>
   <string name="icon_fallback_system_source">システムアイコンの補完 · %1$s</string>
   <string name="icon_fallback_system_summary">未対応のシステムアプリを選択したスタイルで補完します。その他のアプリは次の補完元へ進みます</string>
+  <string name="icon_fallback_section_completion">Perfect Icons 補完</string>
+  <string name="icon_fallback_section_system">システム標準の補完</string>
+  <string name="icon_fallback_section_coloros">ColorOS 拡張補完</string>
+  <string name="icon_fallback_applied_status">現在適用中</string>
     <string name="monet_unadapted_title">未対応アイコンの配色補完</string>
     <string name="monet_full_bleed_padding_title">全面アイコンに余白を追加</string>
     <string name="monet_full_bleed_padding_summary">画面端まで広がる大きな配色図柄に余白を設けます。変更後はアイコンパックの再生成と適用が必要です。</string>

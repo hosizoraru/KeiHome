@@ -19,6 +19,12 @@ internal object ReleaseNotesCatalog {
   // Dates come from the tagged commits, rather than tag creation or APK build time.
   val releases: List<ReleaseNote> = listOf(
     ReleaseNote(
+      version = "1.17.0",
+      introduction = R.string.release_notes_1_17_0_introduction,
+      changes = R.array.release_notes_1_17_0_changes,
+      footnote = R.string.release_notes_1_17_0_footnote,
+    ),
+    ReleaseNote(
       version = "1.16.0",
       tag = "v1.16.0",
       committedAt = "2026-11-25T22:01:40+08:00",

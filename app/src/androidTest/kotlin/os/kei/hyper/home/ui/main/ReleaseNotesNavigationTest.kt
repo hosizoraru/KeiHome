@@ -226,6 +226,18 @@ class ReleaseNotesNavigationTest {
     shot("large-end")
   }
 
+  @Test fun currentBadgeCollapsedSummaryAndEmptyUnreadCardRenderClearly() {
+    rule.setContent { KeiHomeTheme { ReleaseNotesScreen({}, currentVersion = "1.17.0") } }
+    rule.onNodeWithTag("release-notes.current.1.17.0", useUnmergedTree = true).assertIsDisplayed()
+    rule.onNodeWithTag("release-notes.summary.1.17.0", useUnmergedTree = true).assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.toggle.1.17.0").performClick()
+    rule.onNodeWithTag("release-notes.body.1.17.0").assertDoesNotExist()
+    rule.onNodeWithTag("release-notes.summary.1.17.0", useUnmergedTree = true).assertIsDisplayed()
+    val unread = context.getString(R.string.release_notes_ui_unread)
+    rule.onNode(hasText(unread, substring = true) and hasAnyAncestor(hasTestTag("release-notes.views"))).performClick()
+    rule.onNodeWithTag("release-notes.empty").assertIsDisplayed()
+  }
+
   @Test fun lightThemeRetainsReadableCollapsedDates() {
     rule.setContent {
       val controller = remember { ThemeController(colorSchemeMode = ColorSchemeMode.Light) }

@@ -6,6 +6,17 @@ internal data class NativeLayerConfig(
   val quietOnly: Set<String>,
   val fancyOnly: Set<String>,
 ) {
+  data class QuietSnapshot(val paths: List<String>, val nativeLayers: Boolean = false)
+
+  fun quietSnapshots(base: String, exists: (String) -> Boolean): Sequence<QuietSnapshot> = sequence {
+    val completed = base + "quiet/quietImage.png"
+    if (exists(completed)) yield(QuietSnapshot(listOf(completed)))
+    val paths = layers.map { "$base$it/quiet/quietImage.png" }
+    // A single quiet slot can carry completed legacy artwork. A stack
+    // contains adaptive child textures and needs the framework viewport.
+    if (paths.all(exists)) yield(QuietSnapshot(paths, nativeLayers = paths.size > 1))
+  }
+
   companion object {
     const val MAX_LAYERS = 8
 

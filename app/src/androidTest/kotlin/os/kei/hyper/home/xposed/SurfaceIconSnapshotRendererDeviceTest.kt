@@ -269,7 +269,7 @@ class SurfaceIconSnapshotRendererDeviceTest {
     }
   }
 
-  @Test fun completedPaletteMasksAndQuietLayersKeepTheirAuthoredPixelPositions() {
+  @Test fun quietLayerStacksUseAdaptiveBoundsAndCompletedArtworkUsesOutputBounds() {
     val mark = marker(Color.BLACK, 80, 80, 112, 112, size = 192)
     val root = "layer_animating_icons/$name/"
     val quiet = mapOf(
@@ -281,13 +281,18 @@ class SurfaceIconSnapshotRendererDeviceTest {
       "res/drawable-xxhdpi/$name.png" to png(Color.CYAN, size = 192))
     val palette = NativePaletteIcon.entries(name, png(Color.RED, size = 192),
       png(Color.BLUE, size = 192), mark, mark)
-    for (entries in listOf(quiet, palette)) archive(configured(entries, square)) { zip ->
+    val completed = quiet + (root + "quiet/quietImage.png" to mark)
+    for (entries in listOf(quiet, completed, palette)) archive(configured(entries, square)) { zip ->
       val actual = requireNotNull(SurfaceIconSnapshotRenderer.render(zip, name, false, Locale.US, 0,
         NativePaletteIcon.packedState(Color.GREEN, Color.YELLOW)))
       try {
-        val ink = if (entries === quiet) Color.BLACK else Color.GREEN
-        val row = (0 until 192).filter { actual.getPixel(it, 96) == ink }
-        assertEquals((80 until 112).toList(), row)
+        val ink = if (entries === palette) Color.GREEN else Color.BLACK
+        val row = (0 until 192).filter {
+          val pixel = actual.getPixel(it, 96)
+          if (entries === quiet) Color.red(pixel) < 128 else pixel == ink
+        }
+        val expected = if (entries === quiet) (72 until 120) else (80 until 112)
+        assertEquals(expected.toList(), row)
       } finally { actual.recycle() }
     }
   }

@@ -55,6 +55,13 @@ child layers. `NativeLayerViewport` obtains the child bounds from Android's
 `AdaptiveIconDrawable`. Completed PNGs and generated `mask.png` files already
 occupy the final canvas and must not receive that expansion again.
 
+For `layer_animating_icons`, a group-level `quiet/quietImage.png` is a completed
+snapshot. A complete stack of per-slot quiet textures uses the same child
+viewport as its numbered static counterparts, in the order declared by
+`config.xml`. Preserve single-slot quiet snapshots used for completed artwork
+and the existing native Weather program and appearance-specific fallback.
+Archive previews and cross-surface snapshots share this selection rule.
+
 APK monochrome paths can contain intentional whitespace. A small authored glyph
 is not evidence of another scale operation. Compare against the actual APK
 adaptive child on the same device before changing its dimensions.

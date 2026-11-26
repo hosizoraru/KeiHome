@@ -143,12 +143,37 @@ class IconPackArchiveTest {
     assertEquals(2, layers.layers.size)
     val snapshot = index.entries.first { it.nativeName == "com.netease.cloudmusic" }.light as IconPackArtwork.Archive
     assertTrue(snapshot.snapshot)
+    assertFalse(snapshot.nativeLayers)
     assertArrayEquals(bytes, record.originalFile.readBytes())
     assertArrayEquals(bytes, copied.readBytes())
     resources.forEach { (path, payload) ->
       assertArrayEquals(payload, IconPackArchive.readEntry(copied, path, payload.size))
     }
     assertEquals(sha256(record.originalFile), index.nativeIconsSha256)
+  }
+
+  @Test fun layeredQuietPreviewUsesChildBoundsUnlessThereIsACompletedSnapshot() {
+    val name = "org.example.music"
+    val root = "layer_animating_icons/$name/"
+    val config = """
+      <Config><Variables>
+        <Variable name="layer0" value="plate"/>
+        <Variable name="layer1" value="art"/>
+      </Variables></Config>
+    """.trimIndent().toByteArray()
+    val layers = listOf("plate/quiet/quietImage.png", "art/quiet/quietImage.png")
+    val layerEntries = listOf(root + "config.xml" to config) + layers.map { root + it to png }
+    val completed = root + "quiet/quietImage.png"
+    for (hasCompleted in listOf(false, true)) {
+      val entries = if (hasCompleted) layerEntries + (completed to png) else layerEntries
+      val artwork = inspect(file(zip(*entries.toTypedArray()))).entries.single().light as IconPackArtwork.Archive
+      assertTrue(artwork.snapshot)
+      assertEquals(!hasCompleted, artwork.nativeLayers)
+      assertEquals(if (hasCompleted) emptyList() else layers.map { root + it },
+        artwork.layers.flatten().map { it.path })
+      assertEquals(if (hasCompleted) listOf(completed) else layers.map { root + it },
+        artwork.variants.map { it.path })
+    }
   }
 
   @Test fun rasterHeaderAcceptsJpegFramesAndAllThreeWebpHeadersUnderArbitraryNativeNames() {

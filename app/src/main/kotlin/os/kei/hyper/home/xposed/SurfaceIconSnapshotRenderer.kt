@@ -190,19 +190,18 @@ internal object SurfaceIconSnapshotRenderer {
         }
       }
     }
-    fun composite(paths: List<String>, nativeLayers: Boolean = false): Bitmap? {
+    fun compositeNativeLayers(paths: List<String>): Bitmap? {
       if (paths.isEmpty() || paths.size > NativeLayerConfig.MAX_LAYERS) return null
       if (paths.any { zip.getEntry(it) == null }) return null
       val result = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
       try {
         val canvas = Canvas(result)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        val output = Rect(0, 0, SIZE, SIZE)
-        val bounds = if (nativeLayers) NativeLayerViewport.bounds(output) else output
+        val bounds = NativeLayerViewport.bounds(Rect(0, 0, SIZE, SIZE))
         for (path in paths) {
-          val bitmap = (if (nativeLayers) bytes(path)?.let {
+          val bitmap = bytes(path)?.let {
             decode(it, bounds.width(), keepTexture = true)
-          } else image(path)) ?: run { result.recycle(); return null }
+          } ?: run { result.recycle(); return null }
           try { canvas.drawBitmap(bitmap, null, bounds, paint) } finally { bitmap.recycle() }
         }
         return result
@@ -248,8 +247,8 @@ internal object SurfaceIconSnapshotRenderer {
                 if (pair != null) directory + "fancy/" + if (dark) pair.dark else pair.light
                 else directory + "quiet/quietImage.png"
               }
-              val result = composite(
-                if (program.background) paths + (art + "bg.png") else paths, nativeLayers = true)
+              val result = compositeNativeLayers(
+                if (program.background) paths + (art + "bg.png") else paths)
               if (result != null) {
                 try {
                   val temperature = weatherTemperature(program.global)
@@ -267,12 +266,13 @@ internal object SurfaceIconSnapshotRenderer {
               }
             }
           }
-          // Quiet assets are completed snapshots, independent of native texture bounds.
-          image(base + "quiet/quietImage.png")?.let { return it }
-          composite(layerConfig.layers.map { base + it + "/quiet/quietImage.png" })?.let { return it }
+          for (quiet in layerConfig.quietSnapshots(base) { zip.getEntry(it) != null }) {
+            if (quiet.nativeLayers) compositeNativeLayers(quiet.paths)?.let { return it }
+            else image(quiet.paths.single())?.let { return it }
+          }
         }
       }
-      composite(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" }, nativeLayers = true)
+      compositeNativeLayers(listOf(0, 1).map { "${prefix}res/drawable-xxhdpi/$name/$it.png" })
         ?.let { return it }
       image("${prefix}res/drawable-xxhdpi/$name.png")?.let { return it }
     }

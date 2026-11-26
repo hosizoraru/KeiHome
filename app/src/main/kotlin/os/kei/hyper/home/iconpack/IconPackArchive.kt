@@ -322,18 +322,15 @@ internal class IconPackArchive(private val limits: IconPackLimits = IconPackLimi
           val base = path.removeSuffix("config.xml")
           val qualifiers = IconResourceQualifiers("drawable-nodpi",
             night = if (night) IconNightMode.DARK else IconNightMode.ANY, densityDpi = 0)
-          val rootQuiet = base + "quiet/quietImage.png"
-          val quietPaths = config.layers.map { base + it + "/quiet/quietImage.png" }
           val manifests = config.layers.map { base + it + "/fancy/manifest.xml" }
-          val groups = when {
-            rootQuiet in paths -> listOf(listOf(variant(rootQuiet, qualifiers)))
-            quietPaths.all { it in paths } -> quietPaths.map { listOf(variant(it, qualifiers)) }
-            else -> emptyList()
+          val quiet = config.quietSnapshots(base, paths::contains).firstOrNull()
+          if (quiet != null || manifests.any { it in paths && descriptor(it) }) animated += pieces[1]
+          if (quiet != null) {
+            val variants = quiet.paths.map { variant(it, qualifiers) }
+            snapshots[pieces[1] to night] = IconPackArtwork.Archive(
+              variants, part, layers = if (quiet.nativeLayers) variants.map(::listOf) else emptyList(),
+              nativeLayers = quiet.nativeLayers, snapshot = true)
           }
-          val known = groups.isNotEmpty() || manifests.any { it in paths && descriptor(it) }
-          if (known || groups.isNotEmpty()) animated += pieces[1]
-          if (groups.isNotEmpty()) snapshots[pieces[1] to night] = IconPackArtwork.Archive(
-            groups.flatten(), part, layers = if (groups.size > 1) groups else emptyList(), snapshot = true)
         }
         val dynamicName = when {
           pieces.size == 3 && pieces[0] == "fancy_icons" && pieces[2] == "manifest.xml" -> pieces[1]

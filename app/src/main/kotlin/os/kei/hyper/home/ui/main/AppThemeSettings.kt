@@ -3,6 +3,7 @@ package os.kei.hyper.home.ui.main
 import android.content.res.Resources
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,12 +20,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import os.kei.hyper.home.R
@@ -38,6 +44,7 @@ import os.kei.hyper.home.data.AppTopBarBlur
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
@@ -45,6 +52,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.squircle.squircleBorder
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private val appPaletteLabels = listOf(R.string.browser_ui_default, R.string.browser_ui_monet,
   R.string.browser_ui_follow)
@@ -70,14 +78,17 @@ internal fun appThemeSearchMatches(query: String, resources: Resources): Boolean
 internal fun AppThemeSettingsContent(preferences: AppPreferences) {
   val state by preferences.state.collectAsStateWithLifecycle()
   val dark = LocalKeiHomeDarkTheme.current
-  Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-      Row(Modifier.widthIn(max = 500.dp).fillMaxWidth().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+  Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+      val wide = maxWidth >= 520.dp
+      Row(Modifier.widthIn(max = 520.dp).fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         ThemeAppearancePreview(stringResource(R.string.polish_appearance_light), dark = false,
+          wide = wide, darkStyle = state.darkStyle,
           selected = !dark, onClick = { preferences.setAppearance(AppAppearance.LIGHT) },
           modifier = Modifier.weight(1f).testTag("settings.theme.light"))
         ThemeAppearancePreview(stringResource(R.string.polish_appearance_dark), dark = true,
+          wide = wide, darkStyle = state.darkStyle,
           selected = dark, onClick = { preferences.setAppearance(AppAppearance.DARK) },
           modifier = Modifier.weight(1f).testTag("settings.theme.dark"))
       }
@@ -105,7 +116,9 @@ internal fun AppThemeSettingsContent(preferences: AppPreferences) {
         onSelectedIndexChange = { preferences.setColorMode(AppColorMode.entries[it]) },
         modifier = Modifier.testTag("settings.theme.palette"))
     }
-    SmallTitle(stringResource(R.string.settings_theme_display), modifier = Modifier.semantics { heading() })
+    SmallTitle(stringResource(R.string.settings_theme_display),
+      insideMargin = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+      modifier = Modifier.semantics { heading() })
     Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       val squircleSupported = isRuntimeShaderSupported()
       SwitchPreference(title = stringResource(R.string.app_squircle_title),
@@ -134,34 +147,65 @@ internal fun AppThemeSettingsContent(preferences: AppPreferences) {
 }
 
 @Composable
-private fun ThemeAppearancePreview(title: String, dark: Boolean, selected: Boolean,
-  onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ThemeAppearancePreview(title: String, dark: Boolean, wide: Boolean, darkStyle: AppDarkStyle,
+  selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
   val scheme = MiuixTheme.colorScheme
   val accent = scheme.primary
-  val outline = if (selected) accent else scheme.onSurfaceSecondary.copy(alpha = 0.3f)
-  Column(modifier.squircleClip(20.dp).selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-    .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 10.dp),
-    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.fillMaxWidth().squircleBorder(if (selected) 3.dp else 1.dp, outline, 20.dp).padding(5.dp)) {
-      Canvas(Modifier.fillMaxWidth().aspectRatio(1.55f).squircleClip(15.dp)) {
-        val rounded = CornerRadius(7.dp.toPx())
-        val surface = if (dark) Color(0xff1b212b) else Color(0xffecf0f6)
-        val card = if (dark) Color(0xff2e3745) else Color.White
-        val line = if (dark) Color(0xff8998aa) else Color(0xff9daaba)
-        val control = if (dark) Color(0xff8ac1ff) else Color(0xff2878cc)
-        drawRect(surface)
-        fun block(color: Color, x: Float, y: Float, width: Float, height: Float) {
-          drawRoundRect(color, Offset(size.width * x, size.height * y),
-            Size(size.width * width, size.height * height), rounded)
+  Card(
+    modifier = modifier.semantics(mergeDescendants = true) {
+      role = Role.RadioButton
+      this.selected = selected
+    },
+    cornerRadius = 26.dp,
+    insideMargin = PaddingValues(vertical = 4.dp),
+    colors = CardDefaults.defaultColors(color = Color.Transparent),
+    pressFeedbackType = PressFeedbackType.Sink,
+    onClick = onClick,
+  ) {
+    Box(
+      Modifier.fillMaxWidth()
+        .squircleBorder(width = 3.dp, color = if (selected) accent else Color.Transparent, cornerRadius = 26.dp)
+        .padding(6.dp),
+    ) {
+      Canvas(Modifier.fillMaxWidth().aspectRatio(if (wide) 1.75f else 1f).squircleClip(20.dp)) {
+        val gradient = when {
+          !dark -> listOf(Color(0xFF406EFF), Color(0xFF55B9FA))
+          darkStyle == AppDarkStyle.ENHANCED -> listOf(Color(0xFF1F387E), Color(0xFF2B609A))
+          else -> listOf(Color(0xFF2D4EC2), Color(0xFF3E89C8))
         }
-        block(line, 0.12f, 0.13f, 0.31f, 0.06f)
-        block(card, 0.12f, 0.28f, 0.76f, 0.27f)
-        block(card, 0.12f, 0.61f, 0.76f, 0.27f)
-        block(line, 0.19f, 0.39f, 0.29f, 0.045f)
-        block(line, 0.19f, 0.72f, 0.36f, 0.045f)
-        block(control, 0.66f, 0.36f, 0.15f, 0.12f)
+        drawRect(Brush.verticalGradient(gradient))
+        val illustrationWidth = size.width * if (wide) 0.72f else 1f
+        val start = (size.width - illustrationWidth) / 2f
+        val unitX = illustrationWidth / 680f
+        val unitY = size.height / 680f
+        val cornerUnit = minOf(unitX, unitY)
+        val panelColor = if (dark) Color.Black.copy(alpha = if (darkStyle == AppDarkStyle.ENHANCED) 0.34f else 0.24f)
+          else Color.White.copy(alpha = 0.24f)
+        val panelStroke = if (dark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.22f)
+        val lineColor = if (dark) Color.White.copy(alpha = 0.36f) else Color(0xFF285ABC).copy(alpha = 0.58f)
+        val subLineColor = if (dark) Color.White.copy(alpha = 0.22f) else Color(0xFF285ABC).copy(alpha = 0.36f)
+        for (top in listOf(148f, 356f)) {
+          val panelLeft = start + 48f * unitX
+          val panelTop = top * unitY
+          val panelSize = Size(584f * unitX, 176f * unitY)
+          val panelRadius = CornerRadius(44f * cornerUnit)
+          drawRoundRect(panelColor, Offset(panelLeft, panelTop), panelSize, panelRadius)
+          drawRoundRect(panelStroke, Offset(panelLeft, panelTop), panelSize, panelRadius,
+            style = Stroke(width = 1.dp.toPx()))
+          drawRoundRect(lineColor, Offset(start + 108f * unitX, (top + 52f) * unitY),
+            Size(456f * unitX, 24f * unitY), CornerRadius(12f * cornerUnit))
+          drawRoundRect(subLineColor, Offset(start + 108f * unitX, (top + 102f) * unitY),
+            Size(304f * unitX, 22f * unitY), CornerRadius(11f * cornerUnit))
+        }
       }
     }
-    Text(title, color = if (selected) accent else scheme.onSurface, style = MiuixTheme.textStyles.body2)
+    Text(
+      text = title,
+      modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+      color = if (selected) accent else scheme.onSurfaceSecondary,
+      style = MiuixTheme.textStyles.body2,
+      fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+      textAlign = TextAlign.Center,
+    )
   }
 }

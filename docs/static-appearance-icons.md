@@ -170,6 +170,38 @@ ActivityTaskManager relaunched every activity that does not handle
 its first page, and the foreground app, which appears to exit
 (`wm_relaunch_resume_activity` with `400000`).
 
+## SystemUI notification and status-bar icons
+
+SystemUI loads app icons through `AppIconsManager`, which keeps plain bitmaps per user and
+package (`mIconsCache`, `mQuietFancyIconsCache`) and only drops one when its package is
+replaced. A system-following archive's day/night icons are MAML `FancyDrawable`s, which it
+returns uncached (`NoCacheBitmapDrawable`), so they followed each switch. A fixed-appearance
+copy serves plain PNGs, which it caches. Below it, `ThemeResources` keeps the replaced archive
+open until a theme configuration change, and `IconCustomizer` caches its own bitmaps. Status-bar
+descriptors also keep the bitmap they were built with. After a switch, notifications and
+status-bar icons therefore kept the previous appearance (observed on 2026-11-26: QQ and WeChat
+dark in light mode, while KeiHome's own SystemUI snapshots rendered light).
+
+KeiHome's SystemUI icon cache already watches the archive. On each archive or appearance
+refresh it now posts [SystemUiNativeIconCaches](../app/src/main/kotlin/os/kei/hyper/home/xposed/SystemUiNativeIconCaches.kt)
+to SystemUI's main thread, the thread the framework itself uses for this check:
+
+1. `ThemeResources.getSystem().checkUpdate()` reopens the archive when its modification time
+   differs and calls `IconCustomizer.clearCache()`.
+2. The current user's `AppIconsManager` maps are cleared; the bitmaps that were still alive
+   are returned.
+3. `SystemUiStatusBarIconRuntime.adoptNative` binds status-bar views that still draw one of
+   those bitmaps to its package (bitmap identity), so the ordinary replay draws the current
+   snapshot. Notification rows are refreshed by the existing row replay.
+
+Device check (116000783 on the same phone, light mode): a no-op write to the archive logged
+`Native app-icon caches refreshed; dropped=6`, a status-bar replay and a row replay, with no
+SystemUI error. The user then switched to dark and back to light (14:33:36 and 14:33:41).
+Each switch logged `Fixed-appearance icons swapped before the night change` in system_server
+and, about 330 ms later, `Native app-icon caches refreshed` (dropped 6 and 7), a status-bar
+replay of 3 views and a row replay of 7 rows in SystemUI. A notification-shade screenshot
+in light mode afterwards showed QQ's light artwork; before the fix it showed the dark one.
+
 ## Behavior and limits
 
 - **Target:** light copy in light mode, dark copy in dark mode. If palette selectors

@@ -47,6 +47,8 @@ internal class CrossSurfaceIconCache(
   private val maxIdentities: Int = maxEntries,
   private val watchThemeArchive: Boolean = false,
   private val onReady: (() -> Unit)? = null,
+  /** Called on the worker before an archive or appearance reload, so host caches can follow it. */
+  private val beforeAppearanceReload: (() -> Unit)? = null,
 ) {
   init {
     require(maxEntries in 1..64)
@@ -70,7 +72,14 @@ internal class CrossSurfaceIconCache(
   private var paletteReceiverRegistered = false
   private var settingsObserver: ContentObserver? = null
   private var themeObserver: FileObserver? = null
-  private val refreshAppearance = Runnable { invalidate() }
+  private val refreshAppearance = Runnable {
+    if (active) beforeAppearanceReload?.let { step ->
+      try { step() } catch (failure: Exception) {
+        Log.w(TAG, "Host icon caches kept their previous artwork", failure)
+      }
+    }
+    invalidate()
+  }
   private var appearanceRefreshQueued = false
   private var observedPalette: Long? = null
   private val wanted = LinkedHashMap<Key, Unit>(16, 0.75f, true)

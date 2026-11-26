@@ -507,6 +507,60 @@ internal class SystemUiStatusBarIconRuntime(
     }
   }
 
+  /**
+   * Binds status-bar views that still draw a native bitmap SystemUI just dropped
+   * ([SystemUiNativeIconCaches]). Their descriptors outlive the cache, so the bound views then
+   * take the current snapshot through the ordinary [replay].
+   */
+  fun adoptNative(entries: List<Pair<String, Bitmap>>, roots: () -> List<View> = ::windowRoots) {
+    if (stopped || entries.isEmpty() || entries.size > SystemUiNativeIconCaches.MAX_ENTRIES) return
+    post {
+      if (stopped || !lifecycle.enter()) return@post
+      try {
+        replayGuard.run(Unit) {
+          val windows = roots()
+          if (windows.size <= 16) adoptNativeBatch(ArrayDeque(windows), entries, 0, 0)
+        }
+      } finally { lifecycle.leave() }
+    }
+  }
+
+  private fun adoptNativeBatch(queue: ArrayDeque<View>, entries: List<Pair<String, Bitmap>>, visited: Int, bound: Int) {
+    if (stopped) return
+    var count = visited
+    var adopted = bound
+    var batch = 0
+    while (queue.isNotEmpty() && count < 2_048 && batch++ < 128) {
+      val view = queue.removeFirst()
+      count++
+      if (view is ImageView && profile.drawable.declaringClass.isInstance(view)) {
+        val icon = profile.viewDescriptor.get(view)?.let { profile.descriptorIcon.get(it) as? Icon }
+        if (icon != null && icon.type == Icon.TYPE_BITMAP && bindings.name(icon) == null) {
+          val bitmap = (profile.bitmap.invoke(icon) as? Bitmap)?.takeUnless { it.isRecycled }
+          val name = bitmap?.let { SystemUiStatusBarBitmapIdentity.match(it, entries) }
+          if (name != null && owns(view, icon)) {
+            bindings.remember(icon, name)
+            bindings.bind(view, icon, null)
+            adopted++
+          }
+        }
+      }
+      if (view is ViewGroup && queue.size + view.childCount <= 2_048) {
+        for (i in 0 until view.childCount) queue.addLast(view.getChildAt(i))
+      }
+    }
+    if (queue.isNotEmpty() && count < 2_048) {
+      post {
+        if (stopped || !lifecycle.enter()) return@post
+        try { replayGuard.run(Unit) { adoptNativeBatch(queue, entries, count, adopted) } }
+        finally { lifecycle.leave() }
+      }
+    } else if (adopted > 0) {
+      onBootstrap("Status-bar native icons adopted=$adopted")
+      ready()
+    }
+  }
+
   private fun windowRoots(): List<View> {
     val type = Class.forName("android.view.WindowManagerGlobal")
     val global = type.getDeclaredMethod("getInstance").invoke(null)

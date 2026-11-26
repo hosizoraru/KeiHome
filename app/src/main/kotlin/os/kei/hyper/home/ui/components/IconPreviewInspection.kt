@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,9 +72,12 @@ internal fun IconPreviewInspectionSheet(
   var selectedIndex by rememberSaveable { mutableIntStateOf(IconPreviewMode.COMPARE.ordinal) }
   val mode = IconPreviewMode.entries.getOrElse(selectedIndex) { IconPreviewMode.COMPARE }
   Os4DetailsSheet(show = show, onDismissRequest = onDismissRequest, title = title,
-    modifier = modifier, onDismissFinished = onDismissFinished) {
+    modifier = modifier, onDismissFinished = onDismissFinished,
+    headerBottomContent = {
+      IconPreviewModeTabs(mode, onSelect = { selectedIndex = it.ordinal },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp))
+    }) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-      IconPreviewModeTabs(mode, onSelect = { selectedIndex = it.ordinal }, modifier = Modifier.fillMaxWidth())
       preview(mode)
       details()
     }

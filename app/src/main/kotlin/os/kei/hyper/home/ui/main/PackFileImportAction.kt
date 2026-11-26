@@ -5,8 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +27,8 @@ import os.kei.hyper.home.iconpack.IconPackRepository
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassBottomSheetDefaults
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -70,6 +74,7 @@ internal fun PackFileImportButton(
     })
   if (mounted) Os4DetailsSheet(show = showing, title = title,
     modifier = Modifier.testTag("packs.file-import.sheet"),
+    insideMargin = GlassBottomSheetDefaults.InsideMargin,
     onDismissRequest = { showing = false },
     onDismissFinished = {
       if (mounted) {
@@ -80,18 +85,24 @@ internal fun PackFileImportButton(
         if (choose && !latestBusy) chooseFile()
       }
     }) {
-    ImportGuideStep("1", stringResource(R.string.icon_pack_choose_file),
-      stringResource(if (apk) R.string.pack_file_import_apk_file else R.string.pack_file_import_archive_file))
-    ImportGuideStep("2", stringResource(R.string.pack_file_import_preview_title),
-      stringResource(R.string.pack_file_import_preview_body))
-    ImportGuideStep("3", stringResource(R.string.pack_file_import_apply_title),
-      stringResource(R.string.pack_file_import_apply_body))
+    GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(14.dp)) {
+      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ImportGuideStep("1", stringResource(R.string.icon_pack_choose_file),
+          stringResource(if (apk) R.string.pack_file_import_apk_file else R.string.pack_file_import_archive_file))
+        ImportGuideStep("2", stringResource(R.string.pack_file_import_preview_title),
+          stringResource(R.string.pack_file_import_preview_body))
+        ImportGuideStep("3", stringResource(R.string.pack_file_import_apply_title),
+          stringResource(R.string.pack_file_import_apply_body))
+      }
+    }
     if (apk) Text(stringResource(R.string.icon_pack_apk_file_guidance),
+      modifier = Modifier.padding(horizontal = 12.dp),
       style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     if (!hasThemeScope) Text(stringResource(R.string.icon_pack_scope_needed),
+      modifier = Modifier.padding(horizontal = 12.dp),
       style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
     Os4DialogButton(stringResource(R.string.icon_pack_choose_file),
-      modifier = Modifier.fillMaxWidth().testTag("packs.file-import.choose"),
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 4.dp).testTag("packs.file-import.choose"),
       role = GlassDialogButtonRole.Primary, enabled = showing && !busy,
       onClick = {
         if (showing && !latestBusy && !chooseAfterExit) {

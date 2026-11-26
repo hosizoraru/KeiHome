@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -60,6 +62,8 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.glass.GlassBottomSheetDefaults
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Refresh
@@ -155,15 +159,22 @@ private fun WallpaperPresetSheet(show: Boolean, onDismiss: () -> Unit) {
     }
   }
 
+  val listState = rememberLazyListState()
   Os4DetailsSheet(show, onDismiss, title = stringResource(R.string.wallpaper_presets_title), scrollContent = false,
+    insideMargin = GlassBottomSheetDefaults.InsideMargin,
     endAction = {
       KeiHomeIconButton(onClick = { refresh.trySend(Unit) }, enabled = !loading && !saving,
         modifier = Modifier.testTag("wallpaper-presets.refresh")) {
         Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.wallpaper_presets_refresh))
       }
+    },
+    headerBottomContent = {
+      Os4ViewTabs(listOf(stringResource(R.string.wallpaper_presets_light), stringResource(R.string.wallpaper_presets_dark)),
+        mode, { mode = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp))
+    },
+    scrollOffset = {
+      if (listState.firstVisibleItemIndex > 0) 1000f else listState.firstVisibleItemScrollOffset.toFloat()
     }) {
-    Os4ViewTabs(listOf(stringResource(R.string.wallpaper_presets_light), stringResource(R.string.wallpaper_presets_dark)),
-      mode, { mode = it })
     val status = when {
       loadFailed -> R.string.wallpaper_presets_unavailable
       saveFailed -> R.string.wallpaper_presets_save_failed
@@ -173,10 +184,10 @@ private fun WallpaperPresetSheet(show: Boolean, onDismiss: () -> Unit) {
       catalog != null && entries.isEmpty() -> R.string.wallpaper_presets_empty
       else -> null
     }
-    status?.let { Text(stringResource(it), style = MiuixTheme.textStyles.body2,
-      color = MiuixTheme.colorScheme.onSurfaceSecondary) }
+    status?.let { Text(stringResource(it), modifier = Modifier.padding(horizontal = 12.dp),
+      style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary) }
     val enabled = choices != null && !saving && !loadFailed
-    LazyColumn(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(state = listState, modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       item {
         PresetOption(stringResource(R.string.wallpaper_presets_keep), choices != null && selected == null,
           choices != null && !saving, onClick = { select(null) })
@@ -210,7 +221,7 @@ private fun PresetOption(
   onClick: () -> Unit,
   preview: (@Composable RowScope.() -> Unit)? = null,
 ) {
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = title, enabled = enabled, onClick = onClick,
       summary = if (selected) stringResource(R.string.wallpaper_presets_selected) else null,
       endActions = preview, modifier = Modifier.semantics {

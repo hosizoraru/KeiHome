@@ -164,13 +164,16 @@ private fun WallpaperDimmingStrengthSheet(
         modifier = Modifier.testTag("wallpaper-dimming.refresh")) {
         Icon(MiuixIcons.Glass.Refresh, label)
       }
+    },
+    headerBottomContent = {
+      if (separate != false) {
+        Os4ViewTabs(
+          listOf(stringResource(R.string.wallpaper_dimming_home), stringResource(R.string.wallpaper_dimming_lock)),
+          selectedTab, { selected = it },
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+        )
+      }
     }) {
-    if (separate != false) {
-      Os4ViewTabs(
-        listOf(stringResource(R.string.wallpaper_dimming_home), stringResource(R.string.wallpaper_dimming_lock)),
-        selectedTab, { selected = it },
-      )
-    }
     val strengths = state.strengths
     val percent = strengths?.forScreen(selectedTab == 1) ?: 0
     WallpaperPreviewComparison(

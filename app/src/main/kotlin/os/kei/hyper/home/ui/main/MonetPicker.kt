@@ -1,8 +1,10 @@
 package os.kei.hyper.home.ui.main
 
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
+import os.kei.hyper.home.ui.components.LocalOs4GlassSurface
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import top.yukonga.miuix.kmp.glass.GlassCard
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
@@ -235,7 +237,7 @@ internal fun MonetPicker(
       }
     }
     if (visibleSection == MonetSection.SOURCE) {
-    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+    MonetSurfaceCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
       OverlaySpinnerPreference(
         title = stringResource(R.string.monet_seed_source),
         items = sourceNames.map { DropdownItem(text = it) },
@@ -264,7 +266,7 @@ internal fun MonetPicker(
               palette?.let { MonetSchemes.iconRoles(it, false, choice) } else candidatePairs[color]
             val hex = "#%06X".format(color and 0xFFFFFF)
             val selectedColor = seed == color
-            Card(
+            MonetSurfaceCard(
               modifier = Modifier.testTag("monet.seed.$index").semantics {
                 contentDescription = hex
                 selected = selectedColor
@@ -304,7 +306,7 @@ internal fun MonetPicker(
         styles.forEach { style ->
           val sample = schemes[style]
           val isSelected = choice.style == style
-          Card(
+          MonetSurfaceCard(
             modifier = Modifier.weight(1f).testTag("monet.style.${style.name}")
               .semantics { selected = isSelected }
               .os4Clickable(enabled = !applying, cornerRadius = CardDefaults.CornerRadius, role = androidx.compose.ui.semantics.Role.RadioButton) {
@@ -360,7 +362,7 @@ internal fun MonetPicker(
     }
     if (visibleSection == MonetSection.PREVIEW && palette != null) {
       SmallTitle(stringResource(R.string.monet_preview_title))
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+      MonetSurfaceCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
         IconPreviewModeTabs(IconPreviewMode.entries[previewView], { previewView = it.ordinal },
           modifier = Modifier.testTag("monet.preview.views"))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -390,15 +392,36 @@ internal fun MonetPicker(
     }
   }
   content(applyState, renderSection) {
+    val sheetScroll = rememberSaveable(sheet, saver = ScrollState.Saver) { ScrollState(0) }
     Os4DetailsSheet(show = sheetOpen, onDismissRequest = { sheetOpen = false },
       title = stringResource(sheet.title), scrollContent = false,
+      scrollOffset = { sheetScroll.value.toFloat() },
       modifier = Modifier.testTag("monet.panel.${sheet.name}")) {
       sheetState.SaveableStateProvider(sheet.name) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxWidth().verticalScroll(sheetScroll)) {
           renderSection(sheet)
         }
       }
     }
+  }
+}
+
+@Composable
+private fun MonetSurfaceCard(
+  modifier: Modifier = Modifier,
+  insideMargin: PaddingValues = CardDefaults.InsideMargin,
+  onClick: (() -> Unit)? = null,
+  showIndication: Boolean = false,
+  content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+  if (LocalOs4GlassSurface.current) {
+    if (onClick != null) GlassCard(modifier = modifier, insideMargin = insideMargin,
+      onClick = onClick, showIndication = showIndication, content = content)
+    else GlassCard(modifier = modifier, insideMargin = insideMargin, content = content)
+  } else {
+    if (onClick != null) Card(modifier = modifier, insideMargin = insideMargin,
+      onClick = onClick, showIndication = showIndication, content = content)
+    else Card(modifier = modifier, insideMargin = insideMargin, content = content)
   }
 }
 

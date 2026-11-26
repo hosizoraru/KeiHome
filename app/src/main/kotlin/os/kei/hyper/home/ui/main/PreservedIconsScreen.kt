@@ -58,6 +58,7 @@ import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.data.PackageRefreshTarget
 import os.kei.hyper.home.data.PendingPackageRefresh
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
@@ -74,6 +75,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.Filter
@@ -166,13 +168,16 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
           Text(state.apps.firstOrNull { it.packageName == name }?.label ?: name,
             style = MiuixTheme.textStyles.body1)
         }
-        top.yukonga.miuix.kmp.basic.Button(onClick = {
-          conflict?.let { customController.remove(it, preserveOriginal = true) }
-          conflict = null
-        }, enabled = customState.ready && !customState.busy && !customState.loading,
-          modifier = Modifier.fillMaxWidth()) {
-          Text(stringResource(R.string.custom_icons_conflict_preserve_action))
-        }
+        Os4DialogButton(
+          text = stringResource(R.string.custom_icons_conflict_preserve_action),
+          onClick = {
+            conflict?.let { customController.remove(it, preserveOriginal = true) }
+            conflict = null
+          },
+          enabled = customState.ready && !customState.busy && !customState.loading,
+          role = GlassDialogButtonRole.Primary,
+          modifier = Modifier.fillMaxWidth(),
+        )
       }
     },
     appIcon = { app -> OriginalPreservedIcon(app, inventory, configurationKey) })

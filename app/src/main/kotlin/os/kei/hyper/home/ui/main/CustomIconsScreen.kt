@@ -426,24 +426,32 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           }
         }
         if (state.failed) Text(stringResource(R.string.custom_icons_error), style = MiuixTheme.textStyles.body2)
-        Button(onClick = { targetPackage?.let { name ->
-          controller.save(name, target?.label ?: state.selections.firstOrNull { it.packageName == name }?.appLabel ?: name,
-            pack, selected, sourceTitle)
-        } }, enabled = state.ready && !state.busy && !state.loading && targetPackage != null,
-          modifier = Modifier.fillMaxWidth()) {
-          Text(stringResource(when {
+        Os4DialogButton(
+          text = stringResource(when {
             state.busy -> R.string.custom_icons_saving
             targetPackage in preferences.preservedIconPackages -> R.string.custom_icons_conflict_save_action
             else -> R.string.custom_icons_confirm
-          }))
-        }
+          }),
+          onClick = { targetPackage?.let { name ->
+            controller.save(name, target?.label ?: state.selections.firstOrNull { it.packageName == name }?.appLabel ?: name,
+              pack, selected, sourceTitle)
+          } },
+          enabled = state.ready && !state.busy && !state.loading && targetPackage != null,
+          role = GlassDialogButtonRole.Primary,
+          modifier = Modifier.fillMaxWidth(),
+        )
       }
     }
     Os4DetailsSheet(removing != null, { removing = null }, title = stringResource(R.string.custom_icons_remove),
       summary = stringResource(R.string.custom_icons_remove_summary)) {
       removing?.let { Text(it.appLabel, style = MiuixTheme.textStyles.body1) }
-      Button(onClick = { removing?.let { controller.remove(it.packageName) }; removing = null },
-        modifier = Modifier.fillMaxWidth(), enabled = !state.busy) { Text(stringResource(R.string.custom_icons_remove)) }
+      Os4DialogButton(
+        text = stringResource(R.string.custom_icons_remove),
+        onClick = { removing?.let { controller.remove(it.packageName) }; removing = null },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !state.busy,
+        role = GlassDialogButtonRole.Destructive,
+      )
     }
   }
 }

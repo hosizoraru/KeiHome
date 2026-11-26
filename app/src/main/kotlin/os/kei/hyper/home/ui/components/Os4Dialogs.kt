@@ -44,7 +44,7 @@ internal fun Os4Dialog(
     if (dismissible) dismiss { onDismissRequest(); true }
   }
   val dialogContent: @Composable () -> Unit = {
-    CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark, content = content)
+    CompositionLocalProvider(LocalKeiHomeDarkTheme provides dark, LocalOs4GlassSurface provides true, content = content)
   }
   // A null backdrop uses the component's opaque fallback and keeps the same return dispatcher.
   GlassDialog(show = show, backdrop = backdrop, modifier = dialogModifier, title = title,

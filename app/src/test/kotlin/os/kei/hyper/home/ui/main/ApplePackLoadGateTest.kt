@@ -2,6 +2,7 @@ package os.kei.hyper.home.ui.main
 
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.ui.apple.ApplePackLoadGate
 
 class ApplePackLoadGateTest {
   @Test fun completedEmptySnapshotDoesNotReloadOnEntryButExplicitRefreshDoes() {

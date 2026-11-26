@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import android.text.format.DateFormat
 import android.text.format.DateUtils
@@ -25,6 +25,8 @@ import java.time.ZoneId
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.main.MetadataPill
+import os.kei.hyper.home.ui.main.compactPackEventTime
 
 @Composable
 private fun compactSyncTime(millis: Long, nowMillis: Long): String {

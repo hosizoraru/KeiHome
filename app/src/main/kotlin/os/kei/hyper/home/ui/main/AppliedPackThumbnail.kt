@@ -23,6 +23,7 @@ import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.status.SystemIconThemeReport
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import os.kei.hyper.home.ui.apple.appleCurrentThemeSourceReady
 
 /** Applied artwork must never inherit pending mask or preservation settings. */
 @Composable

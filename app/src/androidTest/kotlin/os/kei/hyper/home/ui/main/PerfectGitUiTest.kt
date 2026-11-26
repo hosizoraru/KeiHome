@@ -55,6 +55,14 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconStyleDetails
 import os.kei.hyper.home.ui.components.KeiHomeScaffold
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.perfect.PerfectDownloadStatusCard
+import os.kei.hyper.home.ui.perfect.PerfectPackOptions
+import os.kei.hyper.home.ui.perfect.PerfectPackState
+import os.kei.hyper.home.ui.perfect.PerfectResourceConfirmations
+import os.kei.hyper.home.ui.perfect.PerfectResourceContent
+import os.kei.hyper.home.ui.perfect.PerfectResourceStorageCard
+import os.kei.hyper.home.ui.perfect.PerfectResourceStyleDialogState
+import os.kei.hyper.home.ui.perfect.PerfectSyncBadges
 
 class PerfectGitUiTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()

@@ -15,6 +15,9 @@ import org.junit.Test
 import os.kei.hyper.home.iconpack.apple.AppleAppMatch
 import os.kei.hyper.home.iconpack.apple.AppleAppTarget
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.apple.AppleMappingRow
+import os.kei.hyper.home.ui.apple.AppleSelectionToolbar
+import os.kei.hyper.home.ui.apple.appleMappingSelection
 
 class AppleSelectionToolbarDeviceTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()

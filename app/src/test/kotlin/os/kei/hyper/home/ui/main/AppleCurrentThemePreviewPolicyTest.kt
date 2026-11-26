@@ -12,6 +12,8 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.StoredIconPack
 import os.kei.hyper.home.status.SystemIconThemeReport
+import os.kei.hyper.home.ui.apple.appleCurrentThemeEntry
+import os.kei.hyper.home.ui.apple.appleCurrentThemeSourceReady
 
 class AppleCurrentThemePreviewPolicyTest {
   private val packageEntry = IconPackEntry("package", nativeName = "probe.app")

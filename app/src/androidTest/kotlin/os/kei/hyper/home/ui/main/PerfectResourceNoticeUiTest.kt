@@ -34,6 +34,10 @@ import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.perfect.PerfectPackError
+import os.kei.hyper.home.ui.perfect.PerfectPackState
+import os.kei.hyper.home.ui.perfect.PerfectResourceContent
+import os.kei.hyper.home.ui.perfect.PerfectSyncIssue
 
 class PerfectResourceNoticeUiTest {
   @get:Rule(order = 0) val foreground = ForegroundComposeHostRule()

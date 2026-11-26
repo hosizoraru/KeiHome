@@ -26,6 +26,7 @@ import org.junit.Test
 import os.kei.hyper.home.data.AppLocalStorage
 import os.kei.hyper.home.iconpack.apple.AppleAppTarget
 import os.kei.hyper.home.iconpack.apple.AppleIconRepository
+import os.kei.hyper.home.ui.apple.ApplePackController
 
 class ApplePackLoadingDeviceTest {
   private fun fixture(block: suspend (AppleIconRepository, CoroutineScope) -> Unit) = runBlocking {

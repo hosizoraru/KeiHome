@@ -25,6 +25,7 @@ import os.kei.hyper.home.iconpack.IconPackFormat
 import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.StoredIconPack
 import os.kei.hyper.home.status.SystemIconThemeReport
+import os.kei.hyper.home.ui.apple.AppleCurrentThemePreviewProvider
 
 @RunWith(AndroidJUnit4::class)
 class AppleCurrentThemePreviewDeviceTest {

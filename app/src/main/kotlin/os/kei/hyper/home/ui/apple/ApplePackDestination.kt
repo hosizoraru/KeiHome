@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.apple
 
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -27,6 +27,12 @@ import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.NavigationItem
 import top.yukonga.miuix.kmp.basic.Text
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.PackTabScaffold
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.SnapshotIdentity
+import os.kei.hyper.home.ui.main.TabPagerNavigation
+import os.kei.hyper.home.ui.main.actionIcon
 
 internal enum class ApplePackTab(val section: String, val label: Int, val icon: PageActionIcon) {
   GENERATE("apple", R.string.action_label_generate, PageActionIcon.GENERATE),

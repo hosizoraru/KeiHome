@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -23,6 +23,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import os.kei.hyper.home.R
 import top.yukonga.miuix.kmp.basic.NavigationItem
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.PackTabScaffold
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.TabPagerNavigation
+import os.kei.hyper.home.ui.main.actionIcon
 
 internal enum class PerfectPackTab(val label: Int, val icon: PageActionIcon) {
   GENERATE(R.string.action_label_generate, PageActionIcon.GENERATE),

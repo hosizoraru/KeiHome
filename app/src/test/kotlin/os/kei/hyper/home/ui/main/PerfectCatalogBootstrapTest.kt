@@ -11,6 +11,10 @@ import org.junit.Test
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
+import os.kei.hyper.home.ui.perfect.PerfectCatalogBootstrap
+import os.kei.hyper.home.ui.perfect.PerfectPackState
+import os.kei.hyper.home.ui.perfect.PerfectResourceResumeWork
+import os.kei.hyper.home.ui.perfect.retainPerfectCatalogMetadata
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PerfectCatalogBootstrapTest {

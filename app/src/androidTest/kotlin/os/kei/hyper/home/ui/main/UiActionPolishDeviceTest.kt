@@ -42,6 +42,9 @@ import os.kei.hyper.home.ui.components.Os4DisclosureHeader
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.perfect.PerfectPackState
+import os.kei.hyper.home.ui.perfect.PerfectSyncBadges
+import os.kei.hyper.home.ui.perfect.PerfectSyncIssue
 
 class UiActionPolishDeviceTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()

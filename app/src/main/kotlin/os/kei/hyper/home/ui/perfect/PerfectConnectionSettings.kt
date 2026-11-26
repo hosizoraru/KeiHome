@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

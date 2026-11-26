@@ -16,7 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.status.SystemIconThemeReport
-import os.kei.hyper.home.ui.main.AppleCurrentThemePreviewProvider
+import os.kei.hyper.home.ui.apple.AppleCurrentThemePreviewProvider
 import os.kei.hyper.home.ui.main.CurrentIconPreviewRepository
 import os.kei.hyper.home.ui.main.IconBrowserSource
 import os.kei.hyper.home.ui.main.IconPreviewColors

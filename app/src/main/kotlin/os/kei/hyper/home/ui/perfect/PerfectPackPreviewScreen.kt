@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +81,13 @@ import top.yukonga.miuix.kmp.icon.glass.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import java.util.Locale
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.LocalSearchError
+import os.kei.hyper.home.ui.main.MetadataPill
+import os.kei.hyper.home.ui.main.Os4SearchField
+import os.kei.hyper.home.ui.main.PackIconPair
+import os.kei.hyper.home.ui.main.SnapshotIdentity
+import os.kei.hyper.home.ui.main.rememberLocalSearch
 
 private val IconPackEntry.quietSnapshot: Boolean
   get() = (light as? IconPackArtwork.Archive)?.snapshot == true ||

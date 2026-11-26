@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import android.content.Context
 import android.os.SystemClock
@@ -39,6 +39,8 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 import os.kei.hyper.home.iconpack.perfect.PerfectLocalHealth
 import os.kei.hyper.home.iconpack.perfect.PerfectSyncFailure
 import os.kei.hyper.home.iconpack.perfect.perfectInstalledIconNames
+import os.kei.hyper.home.ui.main.IconPackCardData
+import os.kei.hyper.home.ui.main.iconPackCardData
 
 internal const val PERFECT_PACK_UI_STORAGE_ID = "perfect_icons_ui_v1"
 

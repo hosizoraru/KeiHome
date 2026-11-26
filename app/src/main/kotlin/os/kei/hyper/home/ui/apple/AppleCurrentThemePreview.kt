@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.apple
 
 import os.kei.hyper.home.iconpack.IconPackComponent
 import os.kei.hyper.home.iconpack.nativeLauncherIconNames
@@ -34,6 +34,11 @@ import kotlinx.coroutines.withContext
 import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.status.SystemIconThemeReport
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.IconBrowserSource
+import os.kei.hyper.home.ui.main.IconPreviewColors
+import os.kei.hyper.home.ui.main.SnapshotIdentity
+import os.kei.hyper.home.ui.main.previewColors
 
 internal data class AppleCurrentThemePreview(val light: Bitmap, val dark: Bitmap? = null)
 

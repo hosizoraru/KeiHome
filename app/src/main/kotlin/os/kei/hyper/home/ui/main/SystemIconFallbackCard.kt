@@ -50,6 +50,7 @@ import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import os.kei.hyper.home.ui.perfect.ObservePerfectResources
 
 @Composable
 internal fun systemFallbackName(style: SystemIconFallback, completion: Boolean = false): String = when (style) {

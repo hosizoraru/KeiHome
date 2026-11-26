@@ -34,6 +34,8 @@ import os.kei.hyper.home.iconpack.IconPackSource
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRepository
 import os.kei.hyper.home.iconpack.perfect.PerfectIconSettings
 import os.kei.hyper.home.iconpack.perfect.PerfectIconTransport
+import os.kei.hyper.home.ui.perfect.PerfectPackController
+import os.kei.hyper.home.ui.perfect.PerfectPackError
 
 class PerfectPackRecoveryDeviceTest {
   @Test fun repairedPublicationRecoversOnSameControllerReentryOnlyOnce() = fixture { fixture ->

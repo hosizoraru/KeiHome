@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,6 +87,8 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.ImageOutline
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.actionIcon
 
 private data class StaticDraft(val id: String? = null, val pair: PerfectCustomStatic? = null)
 

@@ -6,6 +6,8 @@ import org.junit.Test
 import os.kei.hyper.home.iconpack.perfect.PerfectIconCatalog
 import os.kei.hyper.home.iconpack.perfect.PerfectIconOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectIconRemote
+import os.kei.hyper.home.ui.perfect.PerfectPackError
+import os.kei.hyper.home.ui.perfect.PerfectPackState
 
 class PerfectPackStateTest {
   private val catalog = PerfectIconCatalog(

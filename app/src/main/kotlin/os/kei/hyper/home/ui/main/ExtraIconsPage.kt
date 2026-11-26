@@ -54,6 +54,7 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.apple.rememberAppleCurrentThemePreviewProvider
 
 @Composable
 internal fun ExtraIconsPage(model: HomeViewModel, modifier: Modifier, padding: PaddingValues) {

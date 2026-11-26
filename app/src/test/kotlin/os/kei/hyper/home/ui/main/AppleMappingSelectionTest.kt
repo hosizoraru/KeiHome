@@ -10,6 +10,10 @@ import os.kei.hyper.home.iconpack.apple.AppleMappingTransfer
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
+import os.kei.hyper.home.ui.apple.AppleMappingRow
+import os.kei.hyper.home.ui.apple.appleMappingSelection
+import os.kei.hyper.home.ui.apple.appleSelectedMappingDocument
+import os.kei.hyper.home.ui.apple.retainedAppleSelection
 
 class AppleMappingSelectionTest {
   private val now = 10_000L

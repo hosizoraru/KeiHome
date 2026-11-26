@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import android.os.SystemClock
 import android.text.format.DateUtils
@@ -40,6 +40,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.main.MetadataPill
 
 @Composable
 internal fun PerfectDownloadStatusCard(state: PerfectPackState) {

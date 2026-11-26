@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.apple
 
 import androidx.compose.foundation.Image
 import os.kei.hyper.home.iconpack.IconMaskPolicy
@@ -65,6 +65,8 @@ import os.kei.hyper.home.ui.components.os4Toggleable
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.Collator
 import java.util.Locale
+import os.kei.hyper.home.ui.main.MetadataPill
+import os.kei.hyper.home.ui.main.PackInfoCard
 
 internal enum class AppleMappingFilter {
   ALL, MAPPED, UNMAPPED, CUSTOM, AUTOMATIC, EXCLUDED, CROSS_REGION, SYSTEM, USER, MISSING_DARK,

@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -60,6 +60,16 @@ import top.yukonga.miuix.kmp.icon.glass.Refresh
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.IconPackCard
+import os.kei.hyper.home.ui.main.MetadataPill
+import os.kei.hyper.home.ui.main.PackHelpAction
+import os.kei.hyper.home.ui.main.PageActionFab
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.StatusOverviewCard
+import os.kei.hyper.home.ui.main.StatusTone
+import os.kei.hyper.home.ui.main.actionIcon
+import os.kei.hyper.home.ui.main.activeCatalogPackId
 
 @Composable
 internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenResources: () -> Unit,

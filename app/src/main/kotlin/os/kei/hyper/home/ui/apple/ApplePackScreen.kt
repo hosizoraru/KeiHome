@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.apple
 
 import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -100,6 +100,19 @@ import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.More
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.IconPackAppearancePreference
+import os.kei.hyper.home.ui.main.IconPackCard
+import os.kei.hyper.home.ui.main.LocalSearchError
+import os.kei.hyper.home.ui.main.Os4SearchField
+import os.kei.hyper.home.ui.main.PackHelpAction
+import os.kei.hyper.home.ui.main.PackInfoCard
+import os.kei.hyper.home.ui.main.PageActionFab
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.SnapshotIdentity
+import os.kei.hyper.home.ui.main.actionIcon
+import os.kei.hyper.home.ui.main.browserRows
+import os.kei.hyper.home.ui.main.rememberLocalSearch
 
 @Composable
 internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -> Unit,

@@ -21,6 +21,7 @@ import os.kei.hyper.home.iconpack.perfect.PerfectGitNetworkOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectGitNetworkPreferences
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
+import os.kei.hyper.home.ui.perfect.PerfectConnectionSettings
 
 class PerfectConnectionUiTest {
   @get:Rule(order = 0) val host = ForegroundComposeHostRule()

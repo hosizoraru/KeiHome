@@ -1,4 +1,4 @@
-package os.kei.hyper.home.ui.main
+package os.kei.hyper.home.ui.perfect
 
 import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 
@@ -79,6 +79,12 @@ import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Date
 import java.util.Locale
+import os.kei.hyper.home.ui.main.HomeViewModel
+import os.kei.hyper.home.ui.main.MetadataPill
+import os.kei.hyper.home.ui.main.PageActionIcon
+import os.kei.hyper.home.ui.main.StatusOverviewCard
+import os.kei.hyper.home.ui.main.StatusTone
+import os.kei.hyper.home.ui.main.actionIcon
 
 @Stable
 internal class PerfectResourceStyleDialogState {

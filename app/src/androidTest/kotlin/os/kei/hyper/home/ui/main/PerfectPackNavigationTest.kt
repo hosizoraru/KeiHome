@@ -29,6 +29,8 @@ import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.perfect.PerfectPackDestination
+import os.kei.hyper.home.ui.perfect.PerfectPackTab
 
 class PerfectPackNavigationTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()

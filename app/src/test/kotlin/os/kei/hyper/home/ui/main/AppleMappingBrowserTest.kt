@@ -9,6 +9,12 @@ import os.kei.hyper.home.iconpack.apple.AppleAppTarget
 import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttempt
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
+import os.kei.hyper.home.ui.apple.AppleDarkCapability
+import os.kei.hyper.home.ui.apple.AppleMappingFilter
+import os.kei.hyper.home.ui.apple.AppleMappingRow
+import os.kei.hyper.home.ui.apple.AppleMappingSort
+import os.kei.hyper.home.ui.apple.appleMappingRows
+import os.kei.hyper.home.ui.apple.appleMappingViewRows
 
 class AppleMappingBrowserTest {
   @Test fun viewsPartitionTheSameSortedAndFilteredRows() {

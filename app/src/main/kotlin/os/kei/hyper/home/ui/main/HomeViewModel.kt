@@ -77,6 +77,8 @@ import os.kei.hyper.home.status.NativeIconImportReport
 import os.kei.hyper.home.status.NativeThemeApplyWindow
 import os.kei.hyper.home.status.LibxposedStaticScopeClient
 import os.kei.hyper.home.status.StaticScopeRequests
+import os.kei.hyper.home.ui.apple.ApplePackController
+import os.kei.hyper.home.ui.perfect.PerfectPackController
 
 internal data class FrameworkUiState(
   val connected: Boolean = false,

@@ -4,6 +4,14 @@ import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import org.junit.Assert.*
 import org.junit.Test
+import os.kei.hyper.home.ui.perfect.PerfectPreviewListItem
+import os.kei.hyper.home.ui.perfect.PerfectPreviewSort
+import os.kei.hyper.home.ui.perfect.PerfectResourceFilter
+import os.kei.hyper.home.ui.perfect.PerfectResourceSort
+import os.kei.hyper.home.ui.perfect.perfectPreviewRows
+import os.kei.hyper.home.ui.perfect.perfectPreviewViews
+import os.kei.hyper.home.ui.perfect.perfectResourceRows
+import os.kei.hyper.home.ui.perfect.retainedPerfectSelection
 
 class PerfectListOrderingTest {
   @Test fun cancelledPreviewFilteringStopsBeforeTraversingTheRemainingCatalog() {

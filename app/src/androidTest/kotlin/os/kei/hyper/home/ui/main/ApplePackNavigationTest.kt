@@ -28,6 +28,8 @@ import org.junit.Rule
 import org.junit.Test
 import os.kei.hyper.home.R
 import os.kei.hyper.home.ui.theme.KeiHomeTheme
+import os.kei.hyper.home.ui.apple.ApplePackDestination
+import os.kei.hyper.home.ui.apple.ApplePackTab
 
 class ApplePackNavigationTest {
   @get:Rule(order = 0) val foregroundHost = ForegroundComposeHostRule()

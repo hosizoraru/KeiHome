@@ -20,6 +20,8 @@ internal object ReleaseNotesCatalog {
   val releases: List<ReleaseNote> = listOf(
     ReleaseNote(
       version = "1.17.0",
+      tag = "v1.17.0",
+      committedAt = "2026-11-27T03:11:30+08:00",
       introduction = R.string.release_notes_1_17_0_introduction,
       changes = R.array.release_notes_1_17_0_changes,
       footnote = R.string.release_notes_1_17_0_footnote,

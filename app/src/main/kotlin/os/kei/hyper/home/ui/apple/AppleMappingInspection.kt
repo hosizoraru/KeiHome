@@ -1,11 +1,16 @@
 package os.kei.hyper.home.ui.apple
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -17,6 +22,7 @@ import os.kei.hyper.home.iconpack.apple.AppleArtworkPreview
 import os.kei.hyper.home.iconpack.apple.AppleDynamicArtwork
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -49,10 +55,15 @@ internal fun AppleMappingInspection(
             .testTag("apple.mapping.inspection.edit"))
       }
     }) { mode ->
-    val artwork = preview.second
-    if (artwork != null) AppleArtworkPair(artwork, iconSize = 112.dp, maskPolicy = maskPolicy, mode = mode)
-    else Text(stringResource(if (preview.first) R.string.apple_glass_preview_unavailable
-      else R.string.apple_preview_loading),
-      color = MiuixTheme.colorScheme.onSurfaceSecondary)
+    Crossfade(targetState = preview, animationSpec = tween(180), label = "apple-inspection-artwork") { (done, artwork) ->
+      Box(Modifier.fillMaxWidth().heightIn(min = 120.dp), contentAlignment = Alignment.Center) {
+        when {
+          artwork != null -> AppleArtworkPair(artwork, iconSize = 112.dp, maskPolicy = maskPolicy, mode = mode)
+          !done -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
+          else -> Text(stringResource(R.string.apple_glass_preview_unavailable),
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+      }
+    }
   }
 }

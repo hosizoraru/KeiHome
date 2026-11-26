@@ -26,8 +26,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
@@ -58,16 +61,20 @@ import os.kei.hyper.home.data.PackageChangeObserver
 import os.kei.hyper.home.data.PackageRefreshTarget
 import os.kei.hyper.home.data.PendingPackageRefresh
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.Os4ViewTabs
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.os4Toggleable
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -101,6 +108,7 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
     customState.selections.mapTo(hashSetOf()) { it.packageName }
   }
   var conflict by rememberSaveable { mutableStateOf<String?>(null) }
+  var showConflict by rememberSaveable { mutableStateOf(false) }
   val context = LocalContext.current
   val inventory = remember(context) { PreservedIconInventory(context) }
   val configuration = LocalConfiguration.current
@@ -153,15 +161,19 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
   PreservedIconsPage(state.apps, prefs.preservedIconPackages, state.loading, state.failed,
     onToggle = { pkg ->
       val current = model.preferences.state.value.preservedIconPackages
-      if (pkg !in current && customState.selections.any { it.packageName == pkg }) conflict = pkg
-      else model.setPreservedIconPackages(if (pkg in current) current - pkg else current + pkg)
+      if (pkg !in current && customState.selections.any { it.packageName == pkg }) {
+        conflict = pkg
+        showConflict = true
+      } else model.setPreservedIconPackages(if (pkg in current) current - pkg else current + pkg)
     }, onRetry = { manualRefreshing = true; retry++ }, onBack = onBack,
     refreshing = manualRefreshing,
     showHidden = showHidden, onShowHiddenChange = { showHidden = it },
     configuredPackages = customized,
     editingEnabled = customState.ready && !customState.busy && !customState.loading,
     dialogs = {
-      os.kei.hyper.home.ui.components.Os4DetailsSheet(conflict != null, { conflict = null },
+      os.kei.hyper.home.ui.components.Os4DetailsSheet(showConflict && conflict != null,
+        onDismissRequest = { showConflict = false },
+        onDismissFinished = { if (!showConflict) conflict = null },
         title = stringResource(R.string.custom_icons_conflict_title),
         summary = stringResource(R.string.custom_icons_conflict_custom)) {
         conflict?.let { name ->
@@ -172,7 +184,7 @@ internal fun PreservedIconsScreen(model: HomeViewModel, onBack: () -> Unit) {
           text = stringResource(R.string.custom_icons_conflict_preserve_action),
           onClick = {
             conflict?.let { customController.remove(it, preserveOriginal = true) }
-            conflict = null
+            showConflict = false
           },
           enabled = customState.ready && !customState.busy && !customState.loading,
           role = GlassDialogButtonRole.Primary,
@@ -298,16 +310,21 @@ internal fun PreservedIconsPage(
           modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("preserved-icons.search"))
       }
       item("guidance", contentType = "guidance") {
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+        Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(12.dp)) {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.preserved_icons_explanation), style = MiuixTheme.textStyles.footnote1,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
-            if (loading || failed) {
-              Text(stringResource(if (loading) R.string.preserved_icons_loading else R.string.preserved_icons_error),
-                modifier = Modifier.testTag("preserved-icons.status"), style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onSurfaceSecondary)
-              if (failed) TextButton(stringResource(R.string.preserved_icons_retry), onClick = onRetry,
-                modifier = Modifier.testTag("preserved-icons.retry"))
+            Os4AnimatedVisibility(loading || failed) {
+              Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                  if (loading) CircularProgressIndicator(size = 16.dp, strokeWidth = 2.dp)
+                  Text(stringResource(if (loading) R.string.preserved_icons_loading else R.string.preserved_icons_error),
+                    modifier = Modifier.testTag("preserved-icons.status"), style = MiuixTheme.textStyles.footnote1,
+                    color = if (failed) MiuixTheme.colorScheme.error else MiuixTheme.colorScheme.onSurfaceSecondary)
+                }
+                if (failed) TextButton(stringResource(R.string.preserved_icons_retry), onClick = onRetry,
+                  modifier = Modifier.testTag("preserved-icons.retry"))
+              }
             }
           }
         }
@@ -399,13 +416,24 @@ internal fun OriginalPreservedIcon(app: PreservedIconApp?, inventory: PreservedI
   configuration: String, iconSize: androidx.compose.ui.unit.Dp = 44.dp) {
   val size = with(LocalDensity.current) { iconSize.roundToPx().coerceIn(48, 192) }
   val dark = LocalKeiHomeDarkTheme.current
-  val bitmap by produceState<Bitmap?>(null, app, configuration, size, dark) {
-    value = null
-    if (app != null) value = inventory.icon(app, configuration, size, dark)
+  val loaded by produceState<Pair<Boolean, Bitmap?>>(false to null, app, configuration, size, dark) {
+    value = false to null
+    value = true to if (app != null) inventory.icon(app, configuration, size, dark) else null
   }
-  Box(Modifier.size(iconSize)) {
-    if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
-    else PreservedIconPlaceholder()
+  val image = remember(loaded.second) { loaded.second?.asImageBitmap() }
+  Crossfade(
+    targetState = image to !loaded.first,
+    modifier = Modifier.size(iconSize),
+    animationSpec = tween(180),
+    label = "preserved-icon",
+  ) { (img, isLoading) ->
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      when {
+        img != null -> Image(img, contentDescription = null, modifier = Modifier.fillMaxSize())
+        isLoading && app != null -> Os4ShimmerPlaceholder(Modifier.fillMaxSize(), cornerRadius = 11.dp)
+        else -> PreservedIconPlaceholder()
+      }
+    }
   }
 }
 

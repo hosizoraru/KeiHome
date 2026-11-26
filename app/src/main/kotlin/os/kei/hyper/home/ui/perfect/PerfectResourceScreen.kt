@@ -4,7 +4,10 @@ import os.kei.hyper.home.iconpack.perfect.PerfectIconStyles
 
 import android.text.format.DateFormat
 import android.text.format.Formatter
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -53,11 +56,15 @@ import os.kei.hyper.home.ui.components.LocalKeiHomeBackdrop
 import os.kei.hyper.home.ui.components.Os4FloatingToolbar
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogButton
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -71,10 +78,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassIconButton
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.More
-import top.yukonga.miuix.kmp.icon.glass.Filter
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Date
@@ -182,6 +188,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     isBackEnabled = active && selecting, onBackCompleted = { exitSelection() })
   val styleDialog = remember { PerfectResourceStyleDialogState() }
   var removalTargets by remember { mutableStateOf(emptySet<String>()) }
+  var showRemoveConfirm by remember { mutableStateOf(false) }
   var showInfo by remember { mutableStateOf(false) }
   var showClear by remember { mutableStateOf(false) }
   var showRepair by remember { mutableStateOf(false) }
@@ -190,21 +197,23 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     PerfectResourceConfirmations(state, busy, showDelete, showClear,
       onDismissDelete = { showDelete = false }, onDismissClearCache = { showClear = false },
       onDelete = onDelete, onClearCache = onClearCache)
-    Os4ActionDialog(show = removalTargets.isNotEmpty(),
+    Os4ActionDialog(show = showRemoveConfirm && removalTargets.isNotEmpty(),
       title = stringResource(R.string.perfect_git_remove_title, removalTargets.size),
       summary = stringResource(R.string.perfect_git_remove_confirm, removalTargets.size, removalTargets.joinToString { if (it == "default") defaultName else it },
         Formatter.formatFileSize(context, state.resourceBytes)) +
         if (removalTargets.isNotEmpty() && removalTargets.containsAll(downloaded))
           "\n" + stringResource(R.string.perfect_git_remove_all_scope) else "",
-      onDismissRequest = { removalTargets = emptySet() }, icon = actionIcon(PageActionIcon.CLEAR),
+      onDismissRequest = { showRemoveConfirm = false },
+      onDismissFinished = { if (!showRemoveConfirm) removalTargets = emptySet() },
+      icon = actionIcon(PageActionIcon.CLEAR),
       actions = listOf(
-        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { removalTargets = emptySet() },
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { showRemoveConfirm = false },
           tag = "perfect.resources.cancel-remove"),
         Os4DialogAction(stringResource(R.string.perfect_git_delete_proceed),
           enabled = !busy && removalTargets.intersect(downloaded).isNotEmpty(), onClick = {
             if (!busy) {
               val requested = removalTargets.intersect(downloaded)
-              removalTargets = emptySet()
+              showRemoveConfirm = false
               if (requested.isNotEmpty()) { exitSelection(); onRemove(requested) }
             }
           }, role = GlassDialogButtonRole.Destructive,
@@ -237,7 +246,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
               PerfectResourceStyleDialogState.Action.DOWNLOAD ->
                 if (!cooling) onDownload(setOf(finished.style))
               PerfectResourceStyleDialogState.Action.REMOVE ->
-                if (finished.style in downloaded) removalTargets = setOf(finished.style)
+                if (finished.style in downloaded) { removalTargets = setOf(finished.style); showRemoveConfirm = true }
               PerfectResourceStyleDialogState.Action.PREVIEW ->
                 if (finished.style in downloaded) onPreview(finished.style)
               null -> Unit
@@ -284,9 +293,11 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
             enabled = session.show, tag = "perfect.resources.style-close"))
         })
     }
-    Os4DetailsSheet(showInfo, { showInfo = false }, scrollContent = false, title = stringResource(R.string.perfect_resource_info)) {
+    val infoScroll = rememberScrollState()
+    Os4DetailsSheet(showInfo, { showInfo = false }, scrollContent = false, scrollOffset = { infoScroll.value.toFloat() },
+      title = stringResource(R.string.perfect_resource_info)) {
       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+        Column(Modifier.heightIn(max = 420.dp).verticalScroll(infoScroll),
           verticalArrangement = Arrangement.spacedBy(12.dp)) {
           FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             PerfectSyncBadges(state, MiuixTheme.colorScheme.primary)
@@ -335,7 +346,7 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
             onClick = { val targets = selected.toSet(); exitSelection(); onDownload(targets) })
           ResourceToolbarButton("remove", stringResource(R.string.perfect_resource_remove_short),
             actionIcon(PageActionIcon.CLEAR), enabled = !busy && selectedDownloaded.isNotEmpty(),
-            tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet() })
+            tint = MiuixTheme.colorScheme.error, onClick = { removalTargets = selectedDownloaded.toSet(); showRemoveConfirm = true })
           ResourceToolbarButton("done", stringResource(R.string.perfect_resource_done),
             actionIcon(PageActionIcon.APPLY), onClick = { exitSelection() },
             tint = MiuixTheme.colorScheme.primary)
@@ -354,14 +365,12 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
     listState = listState,
     backdrop = backdrop,
     bottomBar = {
-      if (selecting || bottomBar != null) {
-        val modifier = if (bottomBar == null) Modifier.navigationBarsPadding() else Modifier
-        Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-          if (selecting) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { selectionToolbar() }
-          }
-          bottomBar?.invoke()
+      val modifier = if (bottomBar == null) Modifier.navigationBarsPadding() else Modifier
+      Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Os4AnimatedVisibility(selecting) {
+          Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { selectionToolbar() }
         }
+        bottomBar?.invoke()
       }
     },
     bottomContent = {
@@ -426,10 +435,12 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
           }
           PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
         })
-      if (busy && !state.refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+      Os4AnimatedVisibility(busy && !state.refreshing) {
+        LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+      }
     }
     if (state.error != null || cooling || state.syncIssue == PerfectSyncIssue.CORRUPT) item(key = "resource-notice") {
-      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
+      Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()
         .testTag("perfect.resources.notice")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           state.error?.let {
@@ -459,10 +470,12 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
         color = MiuixTheme.colorScheme.onSurfaceSecondary)
     }
     items(visible, key = { "style:$it" }, contentType = { "style" }) { style ->
+      val pressSource = rememberOs4PressSource()
       Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)
         .animateItem(fadeInSpec = tween(180), fadeOutSpec = tween(120), placementSpec = null)) {
         val detail = state.catalog?.styleDetails?.get(style)
         BasicComponent(title = if (style == "default") defaultName else style, enabled = !busy,
+          interactionSource = pressSource,
           startAction = detail?.iconFile?.let { file -> { PerfectStyleArtwork(file, state.catalog?.sourceHash.orEmpty()) } },
           onClick = { if (selecting) toggle(style) else styleDialog.open(style) }, endActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -478,12 +491,17 @@ internal fun PerfectResourceContent(state: PerfectPackState, busy: Boolean,
                   color = MiuixTheme.colorScheme.onSurfaceSecondary,
                   modifier = Modifier.testTag("perfect.resources.size.$style"))
               }
-              if (selecting) Checkbox(state = if (style in selected) ToggleableState.On else ToggleableState.Off, onClick = { toggle(style) },
-                enabled = !busy, modifier = Modifier.testTag("perfect.resources.select.$style"))
-              else Icon(MiuixIcons.Glass.ChevronForward, contentDescription = null,
-                modifier = Modifier.size(18.dp), tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+              AnimatedContent(
+                targetState = selecting,
+                transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) },
+                label = "perfect-resource-trailing",
+              ) { isSelecting ->
+                if (isSelecting) Checkbox(state = if (style in selected) ToggleableState.On else ToggleableState.Off, onClick = { toggle(style) },
+                  enabled = !busy, modifier = Modifier.testTag("perfect.resources.select.$style"))
+                else Os4TrailingChevron()
+              }
             }
-          }, modifier = Modifier.testTag("perfect.resources.style.$style"))
+          }, modifier = Modifier.glassPress(pressSource, !busy).testTag("perfect.resources.style.$style"))
       }
     }
   }

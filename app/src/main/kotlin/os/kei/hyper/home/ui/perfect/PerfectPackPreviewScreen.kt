@@ -16,6 +16,7 @@ import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,7 +57,11 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.IconPreviewComparison
 import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -167,6 +172,7 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
     backdrop = backdrop,
     bottomBar = bottomBar,
     onRefresh = { vm.perfectPacks.loadPreview(refresh = true) },
+    refreshing = preview.loading,
     refreshEnabled = !state.busy && state.ready,
     // Keep the saved position until the asynchronous projection has restored the icon rows.
     listState = if (groups != null) listState else loadingListState,
@@ -237,12 +243,15 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
               Column(slotModifier, horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconPreviewArtworkFrame {
-                  Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
-                    when {
-                      previews == null -> CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
-                      image != null -> Image(image, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
-                      else -> Text(stringResource(R.string.browser_preview_unavailable),
-                        style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                  Crossfade(targetState = image to (previews == null), modifier = Modifier.size(88.dp),
+                    animationSpec = tween(180), label = "perfect-preview-inspection") { (img, loading) ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                      when {
+                        loading -> Os4ShimmerPlaceholder(Modifier.fillMaxSize(), cornerRadius = 18.dp)
+                        img != null -> Image(img, contentDescription = themeLabel, modifier = Modifier.size(88.dp))
+                        else -> Text(stringResource(R.string.browser_preview_unavailable),
+                          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+                      }
                     }
                   }
                 }
@@ -279,10 +288,11 @@ internal fun PerfectPackPreviewScreen(vm: HomeViewModel, onBack: () -> Unit, onO
         }
 
       }
-      if (preview.loading || !state.ready || preview.failed) {
-        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-          if (preview.loading) LinearProgressIndicator(Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp))
+      Os4AnimatedVisibility(preview.loading || !state.ready || preview.failed) {
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()) {
+          Os4AnimatedVisibility(preview.loading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+          }
           if (!state.ready || preview.failed) BasicComponent(
             title = stringResource(if (!state.ready) R.string.perfect_git_style_missing else R.string.perfect_icons_error),
             summary = stringResource(if (!state.ready) R.string.perfect_git_style_needed
@@ -385,9 +395,12 @@ internal fun PerfectSubpage(
         },
         actions = {
           actions()
-          if (onRefresh != null && !pullRefresh) IconButton(onClick = onRefresh, enabled = refreshEnabled) {
-            Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_icons_preview_refresh))
-          }
+          if (onRefresh != null && !pullRefresh) Os4RefreshIconButton(
+            busy = refreshing,
+            onClick = onRefresh,
+            contentDescription = stringResource(R.string.perfect_icons_preview_refresh),
+            enabled = refreshEnabled,
+          )
         }, bottomContent = bottomContent)
     }
   }, bottomBar = bottomBar, floatingActionButton = floatingActionButton) { padding ->

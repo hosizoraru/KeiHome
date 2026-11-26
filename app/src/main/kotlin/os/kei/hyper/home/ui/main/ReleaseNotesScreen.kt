@@ -4,6 +4,10 @@ import os.kei.hyper.home.ui.components.Os4TrailingChevron
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,10 +63,15 @@ import os.kei.hyper.home.data.ReleaseNote
 import os.kei.hyper.home.data.ReleaseNotesCatalog
 import os.kei.hyper.home.data.ReleaseVersion
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DisclosureContent
 import os.kei.hyper.home.ui.components.Os4DisclosureHeader
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
@@ -149,7 +158,12 @@ internal fun ReleaseNotesScreen(
             }
           },
           actions = {
-            if (onContinue == null && unreadCount > 0) {
+            Os4AnimatedVisibility(
+              visible = onContinue == null && unreadCount > 0,
+              enter = scaleIn(Os4Motion.stateSpring(), initialScale = 0.85f) + fadeIn(tween(160)),
+              exit = scaleOut(Os4Motion.stateSpring(), targetScale = 0.85f) + fadeOut(tween(120)),
+              label = "release-notes-read-all",
+            ) {
               IconButton(onClick = { onReadVersions(releases.map { it.version }.toSet()) },
                 modifier = Modifier.testTag("release-notes.read-all")) {
                 Icon(MiuixIcons.Glass.SelectAll, stringResource(R.string.release_notes_ui_read_all))
@@ -217,14 +231,16 @@ internal fun ReleaseNotesScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
           ) {
             if (onOpenGuide != null) {
+              val guidePress = rememberOs4PressSource()
               Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 BasicComponent(title = stringResource(R.string.setup_title),
                   summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
+                  interactionSource = guidePress,
                   startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
                   endActions = {
                     Os4TrailingChevron()
                   },
-                  modifier = Modifier.testTag("release-notes.guide"))
+                  modifier = Modifier.glassPress(guidePress).testTag("release-notes.guide"))
               }
             }
             visible.forEach { release ->
@@ -313,7 +329,7 @@ private fun ReleaseNotesCard(
     }
   }
   val intro = if (release.introduction == 0) "" else stringResource(release.introduction)
-  Card(Modifier.fillMaxWidth().testTag("release-notes.release.${release.version}"),
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("release-notes.release.${release.version}"),
     insideMargin = PaddingValues(0.dp)) {
     Os4DisclosureHeader(
       title = release.version,
@@ -349,7 +365,7 @@ private fun ReleaseNotesCard(
                 MiuixTheme.colorScheme.primary)
             }
           }
-          if (!expanded && intro.isNotBlank()) {
+          Os4AnimatedVisibility(!expanded && intro.isNotBlank()) {
             Text(
               text = intro,
               style = MiuixTheme.textStyles.body2,
@@ -365,7 +381,7 @@ private fun ReleaseNotesCard(
     Os4DisclosureContent(expanded) {
       HorizontalDivider(Modifier.padding(horizontal = 16.dp))
       ReleaseNotesBody(release, hasFooterAction = highlighted)
-      if (highlighted) {
+      Os4AnimatedVisibility(highlighted) {
         Row(
           Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
           horizontalArrangement = Arrangement.End,

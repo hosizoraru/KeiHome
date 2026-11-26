@@ -1,6 +1,11 @@
 package os.kei.hyper.home.ui.main
 
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
 import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
+import top.yukonga.miuix.kmp.glass.glassPress
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.graphics.Color
@@ -124,10 +129,12 @@ internal fun ScopeAuthorizationPage(
     TopAppBar(stringResource(R.string.settings_hook_section), navigationIcon = {
       IconButton(onClick = onBack) { Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back)) }
     }, actions = {
-      IconButton(onClick = onRefresh, enabled = !reading && !state.requesting,
-        modifier = Modifier.testTag("scope.page.refresh")) {
-        Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.refresh))
-      }
+      Os4RefreshIconButton(
+        busy = reading || state.requesting,
+        onClick = onRefresh,
+        contentDescription = stringResource(R.string.refresh),
+        modifier = Modifier.testTag("scope.page.refresh"),
+      )
     }, scrollBehavior = behavior,
       color = if (backdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface)
     }
@@ -144,9 +151,13 @@ internal fun ScopeAuthorizationPage(
       ScopeTargetGroup(R.string.scope_page_primary, primary, state, versions, reading)
       ScopeTargetGroup(R.string.scope_page_surfaces, surfaces, state, versions, reading)
       Card(modifier = Modifier.fillMaxWidth().testTag("scope.page.manager")) {
+        val managerPress = rememberOs4PressSource()
         BasicComponent(title = stringResource(R.string.scope_open_manager),
           summary = stringResource(R.string.scope_page_manager_summary),
-          startAction = { Icon(ImageVector.vectorResource(LucideR.drawable.lucide_ic_shield), null, Modifier.size(24.dp)) },
+          interactionSource = managerPress,
+          modifier = Modifier.glassPress(managerPress),
+          startAction = { Icon(ImageVector.vectorResource(LucideR.drawable.lucide_ic_shield), null,
+            Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
           endActions = { Os4TrailingChevron() },
           onClick = managerAction)
       }
@@ -192,7 +203,7 @@ private fun ScopeAuthorizationSummary(
   val trusted = state.connected && !state.readFailed && plan != null
   val (title, tone) = scopeStatusPresentation(state)
   val color = desktopStatusColor(tone)
-  Card(Modifier.fillMaxWidth().testTag("scope.page.summary")) {
+  Card(Modifier.fillMaxWidth().os4ContentSize().testTag("scope.page.summary")) {
     Box(Modifier.fillMaxWidth().clipToBounds()) {
       StatusOverviewCornerSymbol(tone, color)
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -213,11 +224,14 @@ private fun ScopeAuthorizationSummary(
             } else MetadataPill(stringResource(R.string.scope_page_unknown_count, declared.size), color)
           }
         }
-        if (metadataFailed) Text(stringResource(R.string.scope_page_metadata_failed),
-          modifier = Modifier.padding(end = 60.dp),
-          style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
-        if (reading || state.requesting || tone == StatusTone.CHECKING)
+        Os4AnimatedVisibility(metadataFailed) {
+          Text(stringResource(R.string.scope_page_metadata_failed),
+            modifier = Modifier.padding(end = 60.dp),
+            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.error)
+        }
+        Os4AnimatedVisibility(reading || state.requesting || tone == StatusTone.CHECKING) {
           LinearProgressIndicator(Modifier.fillMaxWidth().padding(end = 60.dp))
+        }
       }
     }
   }

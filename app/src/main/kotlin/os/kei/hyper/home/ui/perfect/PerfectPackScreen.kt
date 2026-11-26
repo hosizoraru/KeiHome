@@ -4,7 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.text.format.DateFormat
 import android.text.format.Formatter
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,8 +43,14 @@ import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
+import os.kei.hyper.home.ui.components.Os4LazyColumn
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4RefreshIconButton
 import os.kei.hyper.home.ui.components.os4Clickable
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberCopyFeedback
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -56,7 +62,6 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Refresh
 import os.kei.hyper.home.ui.components.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -105,10 +110,13 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
               stringResource(R.string.perfect_icons_limits_summary),
               stringResource(R.string.generated_pack_retention_note),
             ), page = os.kei.hyper.home.data.PackGuidancePage.PERFECT)
-            IconButton(onClick = { vm.perfectPacks.checkUpdates() }, enabled = !busy && !cooling,
-              modifier = Modifier.testTag("icon-packs.perfect.check-updates")) {
-              Icon(MiuixIcons.Glass.Refresh, stringResource(R.string.perfect_git_check))
-            }
+            Os4RefreshIconButton(
+              busy = state.checking || state.refreshing,
+              onClick = { vm.perfectPacks.checkUpdates() },
+              contentDescription = stringResource(R.string.perfect_git_check),
+              enabled = !busy && !cooling,
+              modifier = Modifier.testTag("icon-packs.perfect.check-updates"),
+            )
           },
         )
       }
@@ -123,9 +131,9 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
         modifier = Modifier.testTag("icon-packs.perfect.generate"))
     },
   ) { padding ->
-    LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
+    Os4LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize()
       .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-      .keiHomeTopBarScroll(behavior), contentPadding = PaddingValues(
+      .keiHomeTopBarScroll(behavior), topAppBarScrollBehavior = behavior, contentPadding = PaddingValues(
       top = padding.calculateTopPadding() + 8.dp,
       bottom = padding.calculateBottomPadding() + actionBottom)) {
       item("status") {
@@ -171,7 +179,7 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
           onRefresh = { if (!busy && !cooling) vm.perfectPacks.checkUpdates() },
           onOpen = onOpenResources.takeIf { !state.ready && !localLoading },
           actionLabel = stringResource(R.string.perfect_git_resources),
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()
             .testTag("icon-packs.perfect.status"),
           badgeContent = if (catalog == null && state.syncIssue == null) null else { color ->
             PerfectSyncBadges(state, color, showRemote = false, showSuccess = false)
@@ -183,23 +191,31 @@ internal fun PerfectPackScreen(vm: HomeViewModel, onBack: () -> Unit, onOpenReso
               val revision = catalog.revision.ifEmpty { catalog.sourceHash }
               val copyLabel = stringResource(if (catalog.revision.matches(Regex("[0-9a-f]{40}")))
                 R.string.perfect_icons_revision else R.string.perfect_icons_snapshot_hash)
-              MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)), color,
+              val revisionCopy = rememberCopyFeedback()
+              MetadataPill(stringResource(R.string.perfect_icons_revision_short, revision.take(7)),
+                if (revisionCopy.copied) MiuixTheme.colorScheme.primary else color,
                 Modifier.testTag("icon-packs.perfect.revision").os4Clickable(onClickLabel = copyLabel) {
                   copyPerfectRevision(context, revision, copyLabel)
+                  revisionCopy.trigger()
                 })
             }
           },
         )
-        PerfectDownloadStatusCard(state)
-        if ((state.busy && !state.refreshing) || localLoading || state.error != null || cooling) {
-          Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).animateContentSize()) {
+        Os4AnimatedVisibility(state.refreshing) {
+          PerfectDownloadStatusCard(state)
+        }
+        Os4AnimatedVisibility((state.busy && !state.refreshing) || localLoading || state.error != null || cooling) {
+          Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
               if (state.busy || localLoading) {
                 val progress = state.progress
+                val rawProgress = progress?.takeIf { it.total > 0 }?.let {
+                  (it.done.toFloat() / it.total).coerceIn(0f, 1f)
+                }
+                val animatedProgress by animateFloatAsState(rawProgress ?: 0f, Os4Motion.stateSpring(),
+                  label = "perfect-busy-progress")
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(),
-                  progress = progress?.takeIf { it.total > 0 }?.let {
-                    (it.done.toFloat() / it.total).coerceIn(0f, 1f)
-                  })
+                  progress = if (rawProgress != null) animatedProgress else null)
                 progress?.let {
                   Text(if (state.checking) stringResource(R.string.perfect_git_checking)
                   else if (it.label.startsWith("source.git:")) stringResource(
@@ -400,7 +416,7 @@ internal fun PerfectResourceConfirmations(state: PerfectPackState, busy: Boolean
 internal fun PerfectResourceStorageCard(state: PerfectPackState, busy: Boolean,
   onRequestClearCache: () -> Unit, onRequestDelete: () -> Unit) {
   val context = LocalContext.current
-  Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+  Card(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).os4ContentSize()) {
     BasicComponent(title = stringResource(R.string.perfect_icons_clear_cache),
       summary = stringResource(R.string.perfect_icons_clear_cache_summary),
       endActions = { MetadataPill(Formatter.formatFileSize(context, state.cacheBytes),
@@ -414,15 +430,20 @@ internal fun PerfectResourceStorageCard(state: PerfectPackState, busy: Boolean,
         state.syncIssue != null),
       onClick = onRequestDelete,
       modifier = Modifier.testTag("icon-packs.perfect.delete-resources"))
-    if (state.clearingCache) LinearProgressIndicator(Modifier.fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 8.dp))
-    state.clearedBytes?.let { bytes ->
-      BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
-        Formatter.formatFileSize(context, bytes)))
+    Os4AnimatedVisibility(state.clearingCache) {
+      LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
     }
-    state.deletedBytes?.let { bytes ->
-      BasicComponent(title = stringResource(R.string.perfect_git_deleted,
-        Formatter.formatFileSize(context, bytes)))
+    Os4AnimatedVisibility(state.clearedBytes != null) {
+      state.clearedBytes?.let { bytes ->
+        BasicComponent(title = stringResource(R.string.perfect_icons_cache_cleared,
+          Formatter.formatFileSize(context, bytes)))
+      }
+    }
+    Os4AnimatedVisibility(state.deletedBytes != null) {
+      state.deletedBytes?.let { bytes ->
+        BasicComponent(title = stringResource(R.string.perfect_git_deleted,
+          Formatter.formatFileSize(context, bytes)))
+      }
     }
   }
 }

@@ -1,8 +1,11 @@
 package os.kei.hyper.home.ui.main
 
 import android.content.res.Configuration
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,8 +25,8 @@ import kotlinx.coroutines.awaitCancellation
 import os.kei.hyper.home.data.AppIconPreviews
 import os.kei.hyper.home.iconpack.IconPackEntry
 import os.kei.hyper.home.status.SystemIconThemeReport
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import os.kei.hyper.home.ui.apple.appleCurrentThemeSourceReady
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 
 /** Applied artwork must never inherit pending mask or preservation settings. */
 @Composable
@@ -61,8 +64,15 @@ internal fun AppliedPackThumbnail(
   val dark = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   val artwork = if (dark) preview?.dark else preview?.light
   val image = remember(artwork) { artwork?.asImageBitmap() }
-  Box(modifier.size(54.dp), contentAlignment = Alignment.Center) {
-    if (image != null) Image(image, contentDescription = null, modifier = Modifier.size(50.dp))
-    else if (ready && preview == null) CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+  Crossfade(
+    targetState = image to (ready && preview == null),
+    modifier = modifier.size(54.dp),
+    animationSpec = tween(180),
+    label = "applied-pack-thumbnail",
+  ) { (img, loading) ->
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      if (img != null) Image(img, contentDescription = null, modifier = Modifier.size(50.dp))
+      else if (loading) Os4ShimmerPlaceholder(Modifier.size(46.dp), cornerRadius = 12.dp)
+    }
   }
 }

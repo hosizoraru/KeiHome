@@ -4,9 +4,13 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,16 +18,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -76,8 +75,13 @@ import os.kei.hyper.home.iconpack.IconMaskPolicy
 import os.kei.hyper.home.iconpack.apple.AppleMatchAttemptStatus
 import os.kei.hyper.home.iconpack.apple.ApplePlatform
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4LazyColumn
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.Os4PullToRefresh
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.Os4ViewTabs
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
@@ -165,11 +169,13 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val uiScope = rememberCoroutineScope()
   var transferring by remember { mutableStateOf(false) }
   var transferMessage by rememberSaveable { mutableStateOf<String?>(null) }
+  var showTransferMessage by rememberSaveable { mutableStateOf(false) }
   var exportingSelection by rememberSaveable { mutableStateOf(false) }
   var exportSelectionCount by rememberSaveable { mutableIntStateOf(0) }
   var selectedExportDocument by remember { mutableStateOf<ByteArray?>(null) }
   var showClearDownloads by rememberSaveable { mutableStateOf(false) }
   var mappingConfirmation by rememberSaveable(state.editing?.packageName) { mutableStateOf<String?>(null) }
+  var showMappingConfirmation by rememberSaveable(state.editing?.packageName) { mutableStateOf(false) }
   val exportMappings = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
     if (uri == null) {
       transferring = false
@@ -185,8 +191,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         }
         transferMessage = if (exportingSelection) resources.getString(R.string.apple_glass_exported, exportSelectionCount)
           else resources.getString(R.string.apple_mapping_exported)
+        showTransferMessage = true
       } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
-      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_export_failed); showTransferMessage = true
       } finally {
         transferring = false
         exportingSelection = false
@@ -202,8 +209,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
             .use { controller.importMappings(it) }
         }
         transferMessage = resources.getString(R.string.apple_mapping_imported, count)
+        showTransferMessage = true
       } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled
-      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_import_failed)
+      } catch (_: Exception) { transferMessage = resources.getString(R.string.apple_mapping_import_failed); showTransferMessage = true
       } finally { transferring = false }
     }
   }
@@ -219,6 +227,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
     mutableStateOf<AppleMappingRow?>(null)
   }
   var showInspection by remember(section, state.options.platform, state.options.country) { mutableStateOf(false) }
+  var pendingEditAfterInspection by remember(section, state.options.platform, state.options.country) {
+    mutableStateOf<os.kei.hyper.home.iconpack.apple.AppleAppTarget?>(null)
+  }
   var selectedPackages by rememberSaveable(section, state.options.platform, state.options.country) {
     mutableStateOf(emptyList<String>())
   }
@@ -324,6 +335,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         exportingSelection = false
         selectedExportDocument = null
         transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+        showTransferMessage = true
       }
     }
   }
@@ -340,7 +352,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
   val selectionMode = !main && !search && selecting
   Scaffold(if (search) modifier.imePadding() else modifier, backdrop = backdrop, bottomBar = {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-      if (selectionMode) {
+      Os4AnimatedVisibility(selectionMode) {
         Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
           AppleSelectionToolbar(selection, allowMatch = batchBrowser, enabled = enabled && !browserLoading,
             matchingEnabled = state.retryAtMillis <= now,
@@ -391,6 +403,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 } catch (_: Exception) {
                   transferring = false
                   transferMessage = resources.getString(R.string.apple_mapping_export_failed)
+                  showTransferMessage = true
                 }
               }),
               DropdownItem(text = stringResource(R.string.apple_mapping_import), enabled = enabled, onClick = {
@@ -399,6 +412,7 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 } catch (_: Exception) {
                   transferring = false
                   transferMessage = resources.getString(R.string.apple_mapping_import_failed)
+                  showTransferMessage = true
                 }
               }),
             ))
@@ -422,7 +436,12 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         })
     }
   }, floatingActionButton = {
-    if (!matchedOnly && !selecting) {
+    Os4AnimatedVisibility(
+      visible = !matchedOnly && !selecting,
+      enter = scaleIn(Os4Motion.stateSpring(), initialScale = 0.86f) + fadeIn(tween(180)),
+      exit = scaleOut(Os4Motion.stateSpring(), targetScale = 0.86f) + fadeOut(tween(140)),
+      label = "apple-action-fab",
+    ) {
       val description = when {
         batchBrowser && selecting -> stringResource(R.string.apple_batch_match_selected,
           selectedBatch.size, selectedVisible.size)
@@ -467,10 +486,11 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         top = insets.calculateTopPadding() + 4.dp,
         bottom = insets.calculateBottomPadding() + actionSpacing)
       val list: @Composable () -> Unit = {
-      LazyColumn(overscrollEffect = null, modifier = Modifier.fillMaxSize()
+      Os4LazyColumn(modifier = Modifier.fillMaxSize()
         .keiHomeTopBarScroll(behavior, overScrollEnabled = main || search || enabled && !selecting && !localLoading),
         state = if (awaitingRows) loadingListState else listState,
         contentPadding = listPadding,
+        topAppBarScrollBehavior = behavior,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (main && state.pack != null &&
           (state.pendingChanges || state.publishedOptions != state.options)) item("pending-options") {
@@ -673,9 +693,9 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           item("reset") {
             Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
               BasicComponent(title = stringResource(R.string.apple_restore_mapping), enabled = enabled,
-                onClick = { mappingConfirmation = "reset" })
+                onClick = { mappingConfirmation = "reset"; showMappingConfirmation = true })
               BasicComponent(title = stringResource(R.string.apple_disable_mapping), enabled = enabled,
-                onClick = { mappingConfirmation = "exclude" })
+                onClick = { mappingConfirmation = "exclude"; showMappingConfirmation = true })
             }
           }
           if (state.previewing) item("preview-loading") {
@@ -735,11 +755,20 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
         AppleMappingInspection(row, state, controller, maskPolicy,
           show = active && showInspection, enabled = enabled,
           onDismiss = { showInspection = false },
-          onDismissFinished = { if (!showInspection) inspectionRow = null },
+          onDismissFinished = {
+            if (!showInspection) {
+              inspectionRow = null
+              val target = pendingEditAfterInspection
+              pendingEditAfterInspection = null
+              if (target != null) {
+                controller.edit(target)
+                onOpenSearch()
+              }
+            }
+          },
           onEdit = {
+            pendingEditAfterInspection = row.target
             showInspection = false
-            controller.edit(row.target)
-            onOpenSearch()
           })
       }
     }
@@ -752,24 +781,28 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
           role = GlassDialogButtonRole.Destructive, tag = "apple.cache.confirm-clear",
           onClick = { showClearDownloads = false; controller.clearDownloads() })))
     val resetMapping = mappingConfirmation == "reset"
-    Os4ActionDialog(show = mappingConfirmation != null,
+    Os4ActionDialog(show = showMappingConfirmation && mappingConfirmation != null,
       title = stringResource(if (resetMapping) R.string.apple_restore_mapping else R.string.apple_disable_mapping),
       summary = stringResource(if (resetMapping) R.string.apple_glass_restore_confirm else R.string.apple_glass_exclude_confirm,
         state.editing?.label.orEmpty()), icon = actionIcon(PageActionIcon.CLEAR),
-      onDismissRequest = { mappingConfirmation = null }, actions = listOf(
-        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { mappingConfirmation = null }),
+      onDismissRequest = { showMappingConfirmation = false },
+      onDismissFinished = { if (!showMappingConfirmation) mappingConfirmation = null },
+      actions = listOf(
+        Os4DialogAction(stringResource(R.string.logs_cancel), onClick = { showMappingConfirmation = false }),
         Os4DialogAction(stringResource(if (resetMapping) R.string.apple_restore_mapping else R.string.apple_disable_mapping),
           enabled = enabled && state.editing != null, role = GlassDialogButtonRole.Destructive,
           tag = "apple.mapping.confirm-change", onClick = {
-            mappingConfirmation = null
+            showMappingConfirmation = false
             controller.mapping(null, reset = resetMapping)
             onBack()
           })))
-    Os4ActionDialog(show = active && transferMessage != null, onDismissRequest = { transferMessage = null },
+    Os4ActionDialog(show = active && showTransferMessage && transferMessage != null,
+      onDismissRequest = { showTransferMessage = false },
+      onDismissFinished = { if (!showTransferMessage) transferMessage = null },
       title = stringResource(R.string.apple_mapping_transfer), summary = transferMessage.orEmpty(),
       icon = actionIcon(PageActionIcon.IMPORT), actions = listOf(
         Os4DialogAction(stringResource(R.string.apple_mapping_transfer_done),
-          role = GlassDialogButtonRole.Primary, onClick = { transferMessage = null })))
+          role = GlassDialogButtonRole.Primary, onClick = { showTransferMessage = false })))
   }
 }
 
@@ -801,6 +834,7 @@ internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.
     Box(Modifier.size(size)) {
       Crossfade(targetState = image, animationSpec = tween(160), label = "apple-artwork") { bitmap ->
         if (bitmap != null) Image(bitmap, label, Modifier.fillMaxSize())
+        else Os4ShimmerPlaceholder(Modifier.fillMaxSize(), cornerRadius = 14.dp)
       }
     }
     Text(label, style = MiuixTheme.textStyles.footnote1, maxLines = 2,
@@ -812,9 +846,15 @@ internal fun AppleArtworkThumb(file: java.io.File, label: String, size: Dp = 76.
 @Composable
 private fun AppleBatchProgressCard(state: ApplePackUiState, onCancel: () -> Unit) {
   val progress = state.batchProgress
-  Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  val fraction = progress?.takeIf { it.total > 0 }?.let { (it.done.toFloat() / it.total).coerceIn(0f, 1f) }
+  val animatedFraction by animateFloatAsState(fraction ?: 0f, Os4Motion.stateSpring(), label = "apple-batch-progress")
+  Card(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = stringResource(R.string.apple_batch_progress, progress?.done ?: 0, progress?.total ?: 0),
       summary = progress?.label?.takeIf { it.isNotBlank() })
+    LinearProgressIndicator(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+      progress = if (fraction != null) animatedFraction else null,
+    )
     BasicComponent(title = stringResource(R.string.apple_batch_cancel), onClick = onCancel)
   }
 }

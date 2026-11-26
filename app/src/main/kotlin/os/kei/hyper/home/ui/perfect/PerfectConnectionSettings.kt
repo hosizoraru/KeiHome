@@ -41,8 +41,10 @@ import os.kei.hyper.home.iconpack.perfect.PerfectGitNetworkOptions
 import os.kei.hyper.home.iconpack.perfect.PerfectGitNetworkPreferences
 import os.kei.hyper.home.iconpack.perfect.PerfectGitProxyMode
 import os.kei.hyper.home.ui.components.Os4ActionDialog
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DropdownPreference
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
@@ -81,6 +83,7 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
     title = title,
     summary = stringResource(R.string.perfect_connection_summary),
     enabled = canEdit,
+    holdDownState = show,
     role = Role.Button,
     onClickLabel = title,
     interactionSource = pressSource,
@@ -158,7 +161,7 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
       }, role = GlassDialogButtonRole.Primary, enabled = canEdit, tag = "perfect.connection.save"),
     ),
     details = {
-      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Column(Modifier.fillMaxWidth().os4ContentSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         GlassTextField(state = acceleration,
           label = stringResource(R.string.perfect_connection_acceleration),
           modifier = Modifier.fillMaxWidth().testTag("perfect.connection.acceleration"),
@@ -181,21 +184,23 @@ internal fun PerfectConnectionSettings(enabled: Boolean = true, onSaved: () -> U
           insideMargin = PaddingValues(vertical = 8.dp),
           modifier = Modifier.testTag("perfect.connection.proxy.mode"),
         )
-        if (customProxy) {
-          GlassTextField(state = proxyHost,
-            label = stringResource(R.string.perfect_connection_proxy_host),
-            modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.host"),
-            enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None,
-              autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next))
-          GlassTextField(state = proxyPort, inputTransformation = InputTransformation {
-            if (length > 5 || asCharSequence().any { it !in '0'..'9' }) revertAllChanges()
-          }, label = stringResource(R.string.perfect_connection_proxy_port),
-            modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.port"),
-            enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done))
-          Text(stringResource(R.string.perfect_connection_proxy_help),
-            style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+        Os4AnimatedVisibility(customProxy) {
+          Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            GlassTextField(state = proxyHost,
+              label = stringResource(R.string.perfect_connection_proxy_host),
+              modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.host"),
+              enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
+              keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next))
+            GlassTextField(state = proxyPort, inputTransformation = InputTransformation {
+              if (length > 5 || asCharSequence().any { it !in '0'..'9' }) revertAllChanges()
+            }, label = stringResource(R.string.perfect_connection_proxy_port),
+              modifier = Modifier.fillMaxWidth().testTag("perfect.connection.proxy.port"),
+              enabled = canEdit, lineLimits = TextFieldLineLimits.SingleLine,
+              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done))
+            Text(stringResource(R.string.perfect_connection_proxy_help),
+              style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+          }
         }
       }
     },

@@ -1,15 +1,19 @@
 package os.kei.hyper.home.ui.main
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import os.kei.hyper.home.ui.components.Os4LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -44,8 +48,10 @@ import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -76,7 +82,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   var sourceQuery by rememberSaveable(targetPackage) { mutableStateOf("") }
   var iconQuery by rememberSaveable(targetPackage, packId) { mutableStateOf("") }
   var candidate by remember { mutableStateOf<IconPackEntry?>(null) }
+  var showCandidate by remember { mutableStateOf(false) }
   var removing by remember { mutableStateOf<CustomIconSelection?>(null) }
+  var showRemoving by remember { mutableStateOf(false) }
   var inspecting by remember { mutableStateOf<CustomIconSelection?>(null) }
   var inspectionVisible by remember { mutableStateOf(false) }
   var afterInspection by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -86,7 +94,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   val query = when { root -> rootQuery; packId == null -> sourceQuery; else -> iconQuery }
   fun back() {
     dismissSearch()
-    candidate = null
+    showCandidate = false
     when {
       packId != null -> packId = null
       targetPackage != null -> targetPackage = null
@@ -96,7 +104,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
   BackHandler(enabled = !root) { back() }
   LaunchedEffect(state.saved) {
     if (state.saved > 0) {
-      candidate = null; targetPackage = null; packId = null; uncustomized = false; rootQuery = ""
+      showCandidate = false; targetPackage = null; packId = null; uncustomized = false; rootQuery = ""
     }
   }
   val title = stringResource(when {
@@ -218,16 +226,38 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         })
     }
   }) { padding ->
-    Os4LazyColumn(state = list,
+    val depth = when {
+      root -> 0
+      packId == null -> 1
+      else -> 2
+    }
+    AnimatedContent(
+      targetState = depth,
       modifier = Modifier.fillMaxSize()
-        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
-        .keiHomeTopBarScroll(behavior),
-      listModifier = Modifier.testTag("custom-icons.list"),
-      contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
-        top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
-      topAppBarScrollBehavior = behavior,
-      verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      if (root) item("origins", contentType = "origins") {
+        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+      transitionSpec = {
+        val forward = targetState > initialState
+        val enterOffset: (Int) -> Int = { if (forward) it / 5 else -it / 5 }
+        val exitOffset: (Int) -> Int = { if (forward) -it / 6 else it / 6 }
+        (slideInHorizontally(tween(220), enterOffset) + fadeIn(tween(200))) togetherWith
+          (slideOutHorizontally(tween(180), exitOffset) + fadeOut(tween(140)))
+      },
+      label = "custom-icons-depth",
+    ) { level ->
+      val levelRoot = level == 0
+      val levelList = when (level) {
+        0 -> rootList
+        1 -> sourceList
+        else -> iconList
+      }
+      Os4LazyColumn(state = levelList,
+        modifier = Modifier.fillMaxSize().keiHomeTopBarScroll(behavior),
+        listModifier = Modifier.testTag("custom-icons.list"),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
+          top = padding.calculateTopPadding() + 12.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        topAppBarScrollBehavior = behavior,
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      if (levelRoot) item("origins", contentType = "origins") {
           val origins = if (uncustomized) newApps.map { it.systemApp }
             else searchedSaved.map { state.origins[it.packageName] }
           CustomIconOriginTabs(listOf(origins.size, origins.count { it == false }, origins.count { it == true }),
@@ -236,20 +266,24 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
       item("search", contentType = "search") {
         Column {
           Os4SearchField(query = query, onQueryChange = {
-            when { root -> rootQuery = it; packId == null -> sourceQuery = it; else -> iconQuery = it }
+            when { levelRoot -> rootQuery = it; level == 1 -> sourceQuery = it; else -> iconQuery = it }
           },
             modifier = Modifier.fillMaxWidth(), inputModifier = Modifier.testTag("custom-icons.search"),
-            label = stringResource(if (root) R.string.preserved_icons_search else R.string.custom_icons_search),
+            label = stringResource(if (levelRoot) R.string.preserved_icons_search else R.string.custom_icons_search),
             searching = matches.status.showProgress)
-          if (!root && packId != null) LocalSearchError(matches.status)
+          if (level == 2) LocalSearchError(matches.status)
         }
       }
-      if (root) {
+      if (levelRoot) {
         if (uncustomized) items(apps, key = { it.packageName }, contentType = { "app" }) { app ->
+          val pressSource = rememberOs4PressSource()
           Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
             BasicComponent(title = app.label, summary = app.packageName, enabled = state.ready && !state.busy,
-              modifier = Modifier.testTag("custom-icons.app.${app.packageName}"),
+              interactionSource = pressSource,
+              modifier = Modifier.glassPress(pressSource, state.ready && !state.busy)
+                .testTag("custom-icons.app.${app.packageName}"),
               startAction = { OriginalPreservedIcon(app, controller.inventory, configuration) },
+              endActions = { Os4TrailingChevron() },
               onClick = { dismissSearch(); targetPackage = app.packageName })
           }
         } else items(savedRows, key = { it.packageName }, contentType = { "custom" }) { item ->
@@ -258,7 +292,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
             "ColorOS · ${customIconSourceTitle(sourcePack)}" else item.sourceTitle
           Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
             Row(Modifier.fillMaxWidth().testTag("custom-icons.saved.${item.packageName}")
-              .clickable(enabled = !state.busy) { dismissSearch(); inspecting = item; inspectionVisible = true }
+              .os4Clickable(enabled = !state.busy, cornerRadius = CardDefaults.CornerRadius) {
+                dismissSearch(); inspecting = item; inspectionVisible = true
+              }
               .padding(14.dp), verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(12.dp)) {
               SavedIconArtwork(controller, item, dark)
@@ -269,7 +305,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
                 Text(item.packageName, style = MiuixTheme.textStyles.footnote2,
                   color = MiuixTheme.colorScheme.onSurfaceSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
               }
-              IconButton(onClick = { dismissSearch(); removing = item }, enabled = !state.busy) {
+              IconButton(onClick = { dismissSearch(); removing = item; showRemoving = true }, enabled = !state.busy) {
                 Icon(actionIcon(PageActionIcon.CLEAR), stringResource(R.string.custom_icons_remove))
               }
             }
@@ -289,7 +325,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           }
         } }
         when {
-          packId == null -> {
+          level == 1 -> {
             item("sources") {
               Text(stringResource(R.string.custom_icons_available), Modifier.padding(horizontal = 12.dp),
                 style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceSecondary)
@@ -302,34 +338,45 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
                 else -> R.string.custom_icons_source_examples
               })
               val origin = if (source.colorOsProfile != null) "ColorOS · " else ""
-              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+              val pressSource = rememberOs4PressSource()
+              Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
                 BasicComponent(title = customIconSourceTitle(source),
                   summary = origin + stringResource(R.string.custom_icons_count, source.entries.size) + "\n" + explanation,
+                  interactionSource = pressSource,
+                  modifier = Modifier.glassPress(pressSource, !state.busy),
                   startAction = {
                     Row(Modifier.width(116.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                       verticalAlignment = Alignment.CenterVertically) {
                       if (preview?.match != null) SourceIconArtwork(controller, source, preview.match, dark, 56.dp)
                       else if (preview != null) preview.examples.forEach {
                         SourceIconArtwork(controller, source, it, dark, 36.dp)
-                      } else Box(Modifier.size(36.dp))
+                      } else Os4ShimmerPlaceholder(Modifier.size(36.dp), cornerRadius = 10.dp)
                     }
                   },
+                  endActions = { Os4TrailingChevron() },
                   enabled = !state.busy, onClick = { dismissSearch(); packId = source.id })
               }
             }
             item("get-packs") {
+              val morePress = rememberOs4PressSource()
               Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
                 BasicComponent(title = stringResource(R.string.custom_icons_more),
+                  interactionSource = morePress,
+                  modifier = Modifier.glassPress(morePress),
+                  endActions = { Os4TrailingChevron() },
                   onClick = { dismissSearch(); onNavigate("library") })
               }
             }
           }
           pack != null -> {
             items(entryRows, key = { it.first().key }, contentType = { "icons" }) { row ->
-              Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Row(Modifier.fillMaxWidth().animateItem(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { entry ->
-                  Column(Modifier.weight(1f).background(MiuixTheme.colorScheme.surface, RoundedCornerShape(20.dp))
-                    .clickable(enabled = !state.busy) { dismissSearch(); candidate = entry }.padding(12.dp),
+                  Column(Modifier.weight(1f)
+                    .squircleBackground(MiuixTheme.colorScheme.surfaceContainer, 20.dp)
+                    .os4Clickable(enabled = !state.busy, cornerRadius = 20.dp) {
+                      dismissSearch(); candidate = entry; showCandidate = true
+                    }.padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SourceIconArtwork(controller, pack, entry, dark)
                     Text(labels[entry.component?.packageName ?: entry.nativeName?.substringBefore('#')]
@@ -344,15 +391,20 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
           else -> item("unavailable") { Text(stringResource(R.string.custom_icons_source_missing)) }
         }
       }
-      if (!state.ready || state.loading || state.busy || catalog.loading && !root) item("loading") {
-        Text(stringResource(if (state.busy) R.string.custom_icons_saving else R.string.custom_icons_loading),
-          Modifier.padding(12.dp), style = MiuixTheme.textStyles.body2)
+      if (!state.ready || state.loading || state.busy || catalog.loading && !levelRoot) item("loading") {
+        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalAlignment = Alignment.CenterVertically) {
+          CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+          Text(stringResource(if (state.busy) R.string.custom_icons_saving else R.string.custom_icons_loading),
+            style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
       }
       if (state.failed) item("error") {
         Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = stringResource(R.string.custom_icons_error), onClick = controller::load)
         }
       }
+    }
     }
     inspecting?.let { item ->
       Os4ActionDialog(show = inspectionVisible, title = item.appLabel,
@@ -369,7 +421,7 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         }, actions = listOf(
           Os4DialogAction(stringResource(R.string.custom_icons_remove), enabled = inspectionVisible && !state.busy,
             onClick = {
-              afterInspection = { removing = item }
+              afterInspection = { removing = item; showRemoving = true }
               inspectionVisible = false
             }),
           Os4DialogAction(stringResource(R.string.custom_icons_edit), enabled = inspectionVisible && !state.busy,
@@ -399,7 +451,9 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
       }
     }
     val selected = candidate
-    Os4DetailsSheet(selected != null && pack != null, { if (!state.busy) candidate = null },
+    Os4DetailsSheet(showCandidate && selected != null && pack != null,
+      onDismissRequest = { if (!state.busy) showCandidate = false },
+      onDismissFinished = { if (!showCandidate) candidate = null },
       title = stringResource(R.string.custom_icons_confirm),
       summary = stringResource(R.string.custom_icons_confirm_summary)) {
       if (selected != null && pack != null) {
@@ -443,12 +497,15 @@ internal fun CustomIconsScreen(model: HomeViewModel, onBack: () -> Unit, onNavig
         )
       }
     }
-    Os4DetailsSheet(removing != null, { removing = null }, title = stringResource(R.string.custom_icons_remove),
+    Os4DetailsSheet(showRemoving && removing != null,
+      onDismissRequest = { showRemoving = false },
+      onDismissFinished = { if (!showRemoving) removing = null },
+      title = stringResource(R.string.custom_icons_remove),
       summary = stringResource(R.string.custom_icons_remove_summary)) {
       removing?.let { Text(it.appLabel, style = MiuixTheme.textStyles.body1) }
       Os4DialogButton(
         text = stringResource(R.string.custom_icons_remove),
-        onClick = { removing?.let { controller.remove(it.packageName) }; removing = null },
+        onClick = { removing?.let { controller.remove(it.packageName) }; showRemoving = false },
         modifier = Modifier.fillMaxWidth(),
         enabled = !state.busy,
         role = GlassDialogButtonRole.Destructive,
@@ -475,7 +532,8 @@ private fun SourceIconArtwork(controller: CustomIconsController, pack: IconPackD
       catch (_: Exception) { null }
     value = key to bitmap
   }
-  CustomIconArtwork(result?.takeIf { it.first == key }?.second, iconSize)
+  val matched = result?.takeIf { it.first == key }
+  CustomIconArtwork(matched?.second, loading = matched == null, iconSize = iconSize)
 }
 
 private data class SourceIconPreviewKey(val pack: String, val source: IconPackSource, val entry: String, val dark: Boolean)
@@ -490,14 +548,31 @@ private fun SavedIconArtwork(controller: CustomIconsController, item: CustomIcon
       catch (_: Exception) { null }
     value = key to bitmap
   }
-  CustomIconArtwork(result?.takeIf { it.first == key }?.second, iconSize)
+  val matched = result?.takeIf { it.first == key }
+  CustomIconArtwork(matched?.second, loading = matched == null, iconSize = iconSize)
 }
 
 @Composable
-private fun CustomIconArtwork(bitmap: android.graphics.Bitmap?, iconSize: androidx.compose.ui.unit.Dp = 60.dp) {
-  if (bitmap != null) Image(bitmap.asImageBitmap(), contentDescription = null, modifier = Modifier.size(iconSize))
-  else Box(Modifier.size(iconSize), contentAlignment = Alignment.Center) {
-    Icon(actionIcon(PageActionIcon.PACKS), contentDescription = null)
+private fun CustomIconArtwork(
+  bitmap: android.graphics.Bitmap?,
+  loading: Boolean = false,
+  iconSize: androidx.compose.ui.unit.Dp = 60.dp,
+) {
+  val image = remember(bitmap) { bitmap?.asImageBitmap() }
+  Crossfade(
+    targetState = image to loading,
+    modifier = Modifier.size(iconSize),
+    animationSpec = tween(180),
+    label = "custom-icon-artwork",
+  ) { (img, isLoading) ->
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      when {
+        img != null -> Image(img, contentDescription = null, modifier = Modifier.fillMaxSize())
+        isLoading -> Os4ShimmerPlaceholder(Modifier.fillMaxSize(), cornerRadius = 12.dp)
+        else -> Icon(actionIcon(PageActionIcon.PACKS), contentDescription = null,
+          tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+      }
+    }
   }
 }
 

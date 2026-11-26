@@ -5,6 +5,8 @@ import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,9 +48,12 @@ import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4CopyIconButton
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
@@ -59,9 +64,9 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.icon.glass.More
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -146,9 +151,10 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
               Icon(MiuixIcons.Glass.More, stringResource(R.string.project_license_documents_menu))
             }
           }
-          if (license != null) IconButton(
+          if (license != null) Os4CopyIconButton(
             enabled = document.text != null,
             minHeight = 48.dp, minWidth = 48.dp,
+            contentDescription = stringResource(R.string.notices_copy_document),
             modifier = Modifier.testTag("notices.copy"),
             onClick = {
               document.text?.let { text ->
@@ -156,7 +162,7 @@ internal fun NoticesDestinationScreen(route: String, onBack: () -> Unit, onNavig
                   .setPrimaryClip(ClipData.newPlainText(title, text))
               }
             },
-          ) { Icon(MiuixIcons.Glass.Copy, stringResource(R.string.notices_copy_document)) }
+          )
         })
     }
   }) { insets ->
@@ -220,53 +226,69 @@ internal fun ThirdPartyNotices(onNavigate: (String) -> Unit, category: NoticeCat
     (category == null || component.category == category) &&
       terms.all { searchable.contains(it, ignoreCase = true) }
   }
-  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  Column(Modifier.os4ContentSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Os4SearchField(query = query, onQueryChange = { query = it },
       label = stringResource(R.string.notices_search),
       inputModifier = Modifier.testTag("notices.search"))
     if (showProjectLicense) {
+      val licensePress = rememberOs4PressSource()
       Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
         BasicComponent(title = projectLicenseTitle, summary = "Apache License 2.0",
-          modifier = Modifier.testTag("notices.project-license"),
+          interactionSource = licensePress,
+          modifier = Modifier.glassPress(licensePress).testTag("notices.project-license"),
           onClick = { onNavigate("license/keihome") },
           endActions = { Os4TrailingChevron() })
       }
     }
     if (dependencies == null) NoticePlaceholder(state.failed || state.text != null) { retry++ }
-    if (filtered.isEmpty() && dependencies != null && !showProjectLicense) {
-      Text(stringResource(R.string.notices_search_empty), style = MiuixTheme.textStyles.body2,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary,
-        modifier = Modifier.testTag("notices.empty").padding(16.dp))
-    }
-    if (category == null && terms.isEmpty()) {
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-        NoticeCategory.entries.forEach { entry ->
-          val count = filtered.count { it.category == entry }
-          if (count > 0) BasicComponent(
-            title = stringResource(R.string.project_license_group_count, stringResource(entry.title), count),
-            modifier = Modifier.testTag("notices.category.${entry.key}"),
-            onClick = { onNavigate("notices/category/${entry.key}") },
-            endActions = { Os4TrailingChevron() },
-          )
+    Crossfade(
+      targetState = category == null && terms.isEmpty(),
+      animationSpec = tween(180),
+      label = "notices-search-mode",
+    ) { showCategories ->
+      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (filtered.isEmpty() && dependencies != null && !showProjectLicense) {
+          Text(stringResource(R.string.notices_search_empty), style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            modifier = Modifier.testTag("notices.empty").padding(16.dp))
         }
-      }
-      return@Column
-    }
-    NoticeCategory.entries.forEach { entry ->
-      val entries = filtered.filter { it.category == entry }
-      if (entries.isNotEmpty()) {
-        val groupTitle = stringResource(entry.title)
-        SmallTitle(stringResource(R.string.project_license_group_count, groupTitle, entries.size))
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-          entries.forEach { component ->
-            val versions = component.dependencies(dependencies.orEmpty()).map { it.version }.distinct()
-            BasicComponent(
-              title = component.name,
-              summary = listOfNotNull(stringResource(component.description), versions.singleOrNull()).joinToString("\n"),
-              onClick = { onNavigate("component/${component.key}") },
-              modifier = Modifier.testTag("notices.component.${component.key}"),
-              endActions = { Os4TrailingChevron() },
-            )
+        if (showCategories) {
+          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+            NoticeCategory.entries.forEach { entry ->
+              val count = filtered.count { it.category == entry }
+              if (count > 0) {
+                val entryPress = rememberOs4PressSource()
+                BasicComponent(
+                  title = stringResource(R.string.project_license_group_count, stringResource(entry.title), count),
+                  interactionSource = entryPress,
+                  modifier = Modifier.glassPress(entryPress).testTag("notices.category.${entry.key}"),
+                  onClick = { onNavigate("notices/category/${entry.key}") },
+                  endActions = { Os4TrailingChevron() },
+                )
+              }
+            }
+          }
+        } else {
+          NoticeCategory.entries.forEach { entry ->
+            val entries = filtered.filter { it.category == entry }
+            if (entries.isNotEmpty()) {
+              val groupTitle = stringResource(entry.title)
+              SmallTitle(stringResource(R.string.project_license_group_count, groupTitle, entries.size))
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                entries.forEach { component ->
+                  val versions = component.dependencies(dependencies.orEmpty()).map { it.version }.distinct()
+                  val compPress = rememberOs4PressSource()
+                  BasicComponent(
+                    title = component.name,
+                    summary = listOfNotNull(stringResource(component.description), versions.singleOrNull()).joinToString("\n"),
+                    interactionSource = compPress,
+                    onClick = { onNavigate("component/${component.key}") },
+                    modifier = Modifier.glassPress(compPress).testTag("notices.component.${component.key}"),
+                    endActions = { Os4TrailingChevron() },
+                  )
+                }
+              }
+            }
           }
         }
       }
@@ -345,11 +367,13 @@ private fun ProjectLicenseSummary() {
 
 @Composable
 private fun LicenseDocument(state: NoticeText, onRetry: () -> Unit) {
-  val content = state.text
-  if (content == null) NoticePlaceholder(state.failed, onRetry)
-  else Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-    SelectionContainer {
-      Text(content, style = MiuixTheme.textStyles.body2, modifier = Modifier.testTag("notices.document"))
+  Crossfade(targetState = state, animationSpec = tween(200), label = "license-document") { current ->
+    val content = current.text
+    if (content == null) NoticePlaceholder(current.failed, onRetry)
+    else Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+      SelectionContainer {
+        Text(content, style = MiuixTheme.textStyles.body2, modifier = Modifier.testTag("notices.document"))
+      }
     }
   }
 }

@@ -1,7 +1,16 @@
 package os.kei.hyper.home.ui.main
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,11 +54,15 @@ import androidx.lifecycle.repeatOnLifecycle
 import os.kei.hyper.home.R
 import os.kei.hyper.home.data.OnboardingPreferences
 import os.kei.hyper.home.ui.components.BlurredBar
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4Motion
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
+import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -61,6 +74,8 @@ import top.yukonga.miuix.kmp.icon.glass.ChevronForward
 import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.material.GlassDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
@@ -87,10 +102,14 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
       Row(Modifier.semantics { contentDescription = stepLabel },
         horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(OnboardingPreferences.PAGE_COUNT) { index ->
-          val width by animateDpAsState(if (index == page) 24.dp else 6.dp, tween(200), label = "setup-step")
-          Box(Modifier.width(width).height(6.dp).background(
+          val width by animateDpAsState(if (index == page) 24.dp else 6.dp,
+            folmeSpring(damping = 0.88f, response = 0.34f), label = "setup-step")
+          val dotColor by animateColorAsState(
             if (index <= page) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondaryContainer,
-            CircleShape))
+            Os4Motion.colorSpring(),
+            label = "setup-step-color",
+          )
+          Box(Modifier.width(width).height(6.dp).background(dotColor, CircleShape))
         }
       }
       TextButton(stringResource(if (replay) R.string.setup_os4_exit else R.string.setup_os4_later),
@@ -103,14 +122,21 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
     Row(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)
       .testTag("setup.toolbar"),
       verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-      if (page > 0 || replay) {
-        val previous = stringResource(if (page == 0) R.string.pack_back else R.string.setup_previous)
-        GlassIconButton(onClick = onBack, backdrop = backdrop, inheritTopBarMaterial = false,
-          style = GlassDefaults.style(LocalKeiHomeDarkTheme.current), size = 56.dp,
-          modifier = Modifier.testTag("setup.previous").semantics { role = Role.Button; contentDescription = previous }) {
-          Icon(MiuixIcons.Glass.ChevronBackward, null, Modifier.size(24.dp))
+      Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+        Os4AnimatedVisibility(
+          visible = page > 0 || replay,
+          enter = scaleIn(Os4Motion.stateSpring(), initialScale = 0.84f) + fadeIn(tween(180)),
+          exit = scaleOut(Os4Motion.stateSpring(), targetScale = 0.84f) + fadeOut(tween(140)),
+          label = "setup-previous",
+        ) {
+          val previous = stringResource(if (page == 0) R.string.pack_back else R.string.setup_previous)
+          GlassIconButton(onClick = onBack, backdrop = backdrop, inheritTopBarMaterial = false,
+            style = GlassDefaults.style(LocalKeiHomeDarkTheme.current), size = 56.dp,
+            modifier = Modifier.testTag("setup.previous").semantics { role = Role.Button; contentDescription = previous }) {
+            Icon(MiuixIcons.Glass.ChevronBackward, null, Modifier.size(24.dp))
+          }
         }
-      } else Spacer(Modifier.size(56.dp))
+      }
       PageActionFab(stringResource(when (page) {
         0 -> R.string.setup_os4_start
         4 -> R.string.setup_os4_done
@@ -120,13 +146,27 @@ internal fun OnboardingScreen(model: HomeViewModel, page: Int, replay: Boolean,
     }
     }
   }) { insets ->
-      key(page) {
+      val hapticEnabled = LocalKeiHomeScrollEndHaptic.current
+      AnimatedContent(
+        targetState = page,
+        transitionSpec = {
+          val forward = targetState > initialState
+          val enterOffset: (Int) -> Int = { if (forward) it / 4 else -it / 4 }
+          val exitOffset: (Int) -> Int = { if (forward) -it / 5 else it / 5 }
+          (slideInHorizontally(tween(240), enterOffset) + fadeIn(tween(220))) togetherWith
+            (slideOutHorizontally(tween(180), exitOffset) + fadeOut(tween(150)))
+        },
+        label = "setup-page-transition",
+      ) { currentPage ->
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize()
-          .testTag("setup.content").verticalScroll(rememberScrollState())
+          .testTag("setup.content")
+          .then(if (hapticEnabled) Modifier.scrollEndHaptic() else Modifier)
+          .overScrollVertical()
+          .verticalScroll(rememberScrollState(), overscrollEffect = null)
           .padding(insets).padding(horizontal = 24.dp),
           verticalArrangement = Arrangement.spacedBy(24.dp)) {
-          OnboardingHero(page)
-          OnboardingStepContent(model, page, onOpenPack, onOpenDesktop, onOpenSettings, onOpenDesktopSection)
+          OnboardingHero(currentPage)
+          OnboardingStepContent(model, currentPage, onOpenPack, onOpenDesktop, onOpenSettings, onOpenDesktopSection)
           Spacer(Modifier.height(8.dp).testTag("setup.end"))
         }
       }

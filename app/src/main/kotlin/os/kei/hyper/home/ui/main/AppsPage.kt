@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
@@ -66,6 +67,7 @@ import os.kei.hyper.home.ui.components.IconPreviewComparison
 import os.kei.hyper.home.ui.components.IconPreviewArtworkFrame
 import os.kei.hyper.home.ui.components.IconPreviewInspectionSheet
 import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import top.yukonga.miuix.kmp.basic.Card
@@ -391,11 +393,16 @@ private fun IconVariant(label: String, bitmap: Bitmap?, modifier: Modifier,
 ) {
   Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
     val artwork: @Composable () -> Unit = {
-      if (loading) androidx.compose.foundation.layout.Box(Modifier.size(size),
-        contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(size = 24.dp, strokeWidth = 2.dp)
-      } else PreviewIcon(bitmap, foreground, background, Modifier.size(size).semantics { contentDescription = label },
-        backgroundMask, maskPathData)
+      Crossfade(
+        targetState = loading,
+        modifier = Modifier.size(size),
+        animationSpec = tween(180),
+        label = "app-icon-variant",
+      ) { isLoading ->
+        if (isLoading) Os4ShimmerPlaceholder(Modifier.size(size), cornerRadius = if (size >= 72.dp) 18.dp else 11.dp)
+        else PreviewIcon(bitmap, foreground, background, Modifier.size(size).semantics { contentDescription = label },
+          backgroundMask, maskPathData)
+      }
     }
     if (surfaceDark == null) artwork()
     else IconPreviewArtworkFrame { artwork() }
@@ -412,14 +419,20 @@ internal fun CurrentAppearanceIcon(previews: AppIconPreviews?, monetEnabled: Boo
   val bitmap = previews?.let { if (night) it.dark ?: it.light else it.light }
   val mono = previews?.let { if (night) it.darkMonochrome ?: it.lightMonochrome else it.lightMonochrome }
   val palette = colors?.takeIf { monetEnabled && mono != null }
-  if (bitmap == null && palette == null && placeholder != null) {
-    placeholder()
-    return
+  Crossfade(
+    targetState = bitmap == null && palette == null && placeholder != null,
+    animationSpec = tween(220),
+    label = "current-appearance-icon",
+  ) { showPlaceholder ->
+    if (showPlaceholder && placeholder != null) {
+      placeholder()
+    } else {
+      PreviewIcon(if (palette != null) mono else bitmap,
+        if (night) palette?.darkForeground else palette?.lightForeground,
+        if (night) palette?.darkBackground else palette?.lightBackground,
+        modifier, previews?.backgroundMask, previews?.maskPathData)
+    }
   }
-  PreviewIcon(if (palette != null) mono else bitmap,
-    if (night) palette?.darkForeground else palette?.lightForeground,
-    if (night) palette?.darkBackground else palette?.lightBackground,
-    modifier, previews?.backgroundMask, previews?.maskPathData)
 }
 
 @Composable

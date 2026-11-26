@@ -3,9 +3,10 @@ package os.kei.hyper.home.ui.perfect
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -40,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
@@ -71,19 +70,26 @@ import os.kei.hyper.home.ui.components.Os4ActionDialog
 import os.kei.hyper.home.ui.components.Os4DialogAction
 import os.kei.hyper.home.ui.components.Os4DialogButton
 import os.kei.hyper.home.ui.components.Os4LazyColumn
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
 import os.kei.hyper.home.ui.components.keiHomeTopBarScroll
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.glass.GlassCard
 import top.yukonga.miuix.kmp.glass.GlassDialogButtonRole
 import top.yukonga.miuix.kmp.glass.GlassTextField
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
 import top.yukonga.miuix.kmp.icon.glass.ImageOutline
+import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import os.kei.hyper.home.ui.main.PageActionIcon
 import os.kei.hyper.home.ui.main.actionIcon
@@ -98,7 +104,10 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
   val scope = rememberCoroutineScope()
   val direction = LocalLayoutDirection.current
   var draft by remember { mutableStateOf<StaticDraft?>(null) }
+  var showDraft by remember { mutableStateOf(false) }
   var pendingDelete by remember { mutableStateOf<String?>(null) }
+  var showDeleteConfirm by remember { mutableStateOf(false) }
+  var deleteAfterDraft by remember { mutableStateOf<String?>(null) }
   var busy by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf(false) }
   fun edit(operation: suspend () -> Unit) {
@@ -125,6 +134,7 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
             KeiHomeIconButton(enabled = !busy, onClick = {
               error = false
               draft = StaticDraft()
+              showDraft = true
             }) {
               Icon(actionIcon(PageActionIcon.CUSTOMIZE), stringResource(R.string.perfect_custom_add))
             }
@@ -150,7 +160,7 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
             Text(stringResource(R.string.perfect_custom_pair_help), textAlign = TextAlign.Center,
               color = MiuixTheme.colorScheme.onSurfaceSecondary)
             Os4DialogButton(stringResource(R.string.perfect_custom_add),
-              onClick = { error = false; draft = StaticDraft() },
+              onClick = { error = false; draft = StaticDraft(); showDraft = true },
               modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth().testTag("perfect.custom.add"),
               enabled = !busy, role = GlassDialogButtonRole.Primary)
           }
@@ -158,12 +168,16 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
       }
       items(state.customStaticIds, key = { it }) { id ->
         val artwork = rememberStaticThumbnail(id, state.customStaticRevision, controller)
-        Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+        val pressSource = rememberOs4PressSource()
+        Card(Modifier.fillMaxWidth().animateItem(), insideMargin = PaddingValues(0.dp)) {
           BasicComponent(title = id, enabled = !busy,
+            interactionSource = pressSource,
+            modifier = Modifier.glassPress(pressSource, !busy),
             startAction = {
               StaticArtwork(Modifier.size(48.dp), artwork, null)
             },
-            onClick = { edit { draft = StaticDraft(id, controller.readCustomStatic(id)) } })
+            endActions = { Os4TrailingChevron() },
+            onClick = { edit { draft = StaticDraft(id, controller.readCustomStatic(id)); showDraft = true } })
         }
       }
       if (state.customStaticIds.isNotEmpty()) item {
@@ -176,33 +190,47 @@ internal fun PerfectCustomStaticScreen(controller: PerfectPackController, backdr
     }
   }
   CompositionLocalProvider(LocalKeiHomeBackdrop provides backdrop) {
-    if (active) draft?.let { current ->
+    draft?.let { current ->
       key(current) {
-        PerfectStaticEditor(current, busy, error, state.customStaticIds,
-          onClose = { draft = null; error = false },
+        PerfectStaticEditor(current, show = active && showDraft, busy = busy, saveError = error,
+          existing = state.customStaticIds,
+          onClose = { showDraft = false; error = false },
+          onDismissFinished = {
+            if (!showDraft) {
+              draft = null
+              val target = deleteAfterDraft
+              deleteAfterDraft = null
+              if (target != null) {
+                pendingDelete = target
+                showDeleteConfirm = true
+              }
+            }
+          },
           onSave = { id, pair -> edit {
             controller.saveCustomStatic(id, pair, create = current.id == null)
-            draft = null
+            showDraft = false
           } },
-          onDelete = current.id?.let { id -> { pendingDelete = id; draft = null } })
+          onDelete = current.id?.let { id -> { deleteAfterDraft = id; showDraft = false } })
       }
     }
-    if (active) pendingDelete?.let { id ->
-      Os4ActionDialog(show = true, onDismissRequest = { if (!busy) pendingDelete = null },
-        title = stringResource(R.string.perfect_custom_delete), summary = id,
-        actions = listOf(
-          Os4DialogAction(stringResource(android.R.string.cancel), { pendingDelete = null }, enabled = !busy),
-          Os4DialogAction(stringResource(R.string.perfect_custom_delete), {
-            edit { controller.deleteCustomStatic(id); pendingDelete = null }
-          }, role = GlassDialogButtonRole.Primary, enabled = !busy),
-        ), footer = if (error) ({ StaticError(R.string.perfect_custom_io_error) }) else null)
-    }
+    Os4ActionDialog(show = active && showDeleteConfirm && pendingDelete != null,
+      onDismissRequest = { if (!busy) showDeleteConfirm = false },
+      onDismissFinished = { if (!showDeleteConfirm) pendingDelete = null },
+      title = stringResource(R.string.perfect_custom_delete), summary = pendingDelete.orEmpty(),
+      icon = actionIcon(PageActionIcon.CLEAR),
+      actions = listOf(
+        Os4DialogAction(stringResource(android.R.string.cancel), { showDeleteConfirm = false }, enabled = !busy),
+        Os4DialogAction(stringResource(R.string.perfect_custom_delete), {
+          pendingDelete?.let { id -> edit { controller.deleteCustomStatic(id); showDeleteConfirm = false } }
+        }, role = GlassDialogButtonRole.Destructive, enabled = !busy),
+      ), footer = if (error) ({ StaticError(R.string.perfect_custom_io_error) }) else null)
   }
 }
 
 @Composable
-private fun PerfectStaticEditor(draft: StaticDraft, busy: Boolean, saveError: Boolean, existing: List<String>,
-  onClose: () -> Unit, onSave: (String, PerfectCustomStatic) -> Unit, onDelete: (() -> Unit)?) {
+private fun PerfectStaticEditor(draft: StaticDraft, show: Boolean, busy: Boolean, saveError: Boolean, existing: List<String>,
+  onClose: () -> Unit, onDismissFinished: () -> Unit,
+  onSave: (String, PerfectCustomStatic) -> Unit, onDelete: (() -> Unit)?) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val name = rememberTextFieldState(draft.id.orEmpty())
@@ -238,7 +266,8 @@ private fun PerfectStaticEditor(draft: StaticDraft, busy: Boolean, saveError: Bo
     }
   }
   val available = !busy && !reading
-  Os4ActionDialog(show = !chooseApp, onDismissRequest = { if (available) onClose() },
+  Os4ActionDialog(show = show && !chooseApp, onDismissRequest = { if (available) onClose() },
+    onDismissFinished = { if (!show && !chooseApp) onDismissFinished() },
     title = stringResource(if (draft.id == null) R.string.perfect_custom_add else R.string.perfect_custom_edit),
     actions = listOf(
       Os4DialogAction(stringResource(android.R.string.cancel), onClose, enabled = available),
@@ -249,63 +278,67 @@ private fun PerfectStaticEditor(draft: StaticDraft, busy: Boolean, saveError: Bo
         tag = "perfect.custom.save"),
     ),
     details = {
-      if (draft.id == null) {
-        GlassTextField(state = name, label = stringResource(R.string.perfect_custom_id),
-          lineLimits = TextFieldLineLimits.SingleLine,
-          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
-          modifier = Modifier.fillMaxWidth().testTag("perfect.custom.id"), enabled = available)
-        Text(stringResource(R.string.perfect_custom_id_help), style = MiuixTheme.textStyles.footnote1)
-        BasicComponent(title = stringResource(R.string.perfect_custom_choose_app),
-          enabled = available, onClick = { chooseApp = true }, modifier = Modifier.fillMaxWidth())
-      } else {
-        Text(id, style = MiuixTheme.textStyles.body1)
-      }
-      val backgroundPreview by rememberLayerPreview(background)
-      val foregroundPreview by rememberLayerPreview(foreground)
-      Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          StaticArtwork(Modifier.size(108.dp), listOfNotNull(backgroundPreview, foregroundPreview),
-            stringResource(R.string.perfect_custom_composite))
-          Text(stringResource(R.string.perfect_custom_composite), style = MiuixTheme.textStyles.footnote1,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+      Column(Modifier.fillMaxWidth().os4ContentSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (draft.id == null) {
+          GlassTextField(state = name, label = stringResource(R.string.perfect_custom_id),
+            lineLimits = TextFieldLineLimits.SingleLine,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+            modifier = Modifier.fillMaxWidth().testTag("perfect.custom.id"), enabled = available)
+          Text(stringResource(R.string.perfect_custom_id_help), style = MiuixTheme.textStyles.footnote1)
+          BasicComponent(title = stringResource(R.string.perfect_custom_choose_app),
+            enabled = available, onClick = { chooseApp = true }, endActions = { Os4TrailingChevron() },
+            modifier = Modifier.fillMaxWidth())
+        } else {
+          Text(id, style = MiuixTheme.textStyles.body1)
+        }
+        val backgroundPreview by rememberLayerPreview(background)
+        val foregroundPreview by rememberLayerPreview(foreground)
+        GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(12.dp)) {
+          Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StaticArtwork(Modifier.size(108.dp), listOfNotNull(backgroundPreview, foregroundPreview),
+              stringResource(R.string.perfect_custom_composite))
+            Text(stringResource(R.string.perfect_custom_composite), style = MiuixTheme.textStyles.footnote1,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          StaticLayerTile(Modifier.weight(1f), stringResource(R.string.perfect_custom_background), "0.png",
+            backgroundPreview, available, "perfect.custom.background", onPick = {
+              pickForeground = false
+              picker.launch(arrayOf("image/png"))
+            })
+          StaticLayerTile(Modifier.weight(1f), stringResource(R.string.perfect_custom_foreground), "1.png",
+            foregroundPreview, available, "perfect.custom.foreground", onPick = {
+              pickForeground = true
+              picker.launch(arrayOf("image/png"))
+            })
+        }
+        if (onDelete != null) {
+          BasicComponent(title = stringResource(R.string.perfect_custom_delete), enabled = available, onClick = onDelete)
+        }
+        when {
+          invalidPng -> StaticError(R.string.perfect_custom_png_error)
+          duplicate -> StaticError(R.string.perfect_custom_duplicate)
+          id.isNotEmpty() && !valid -> StaticError(R.string.perfect_custom_id_error)
+          saveError -> StaticError(R.string.perfect_custom_io_error)
         }
       }
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StaticLayerTile(Modifier.weight(1f), stringResource(R.string.perfect_custom_background), "0.png",
-          backgroundPreview, available, "perfect.custom.background", onPick = {
-            pickForeground = false
-            picker.launch(arrayOf("image/png"))
-          })
-        StaticLayerTile(Modifier.weight(1f), stringResource(R.string.perfect_custom_foreground), "1.png",
-          foregroundPreview, available, "perfect.custom.foreground", onPick = {
-            pickForeground = true
-            picker.launch(arrayOf("image/png"))
-          })
-      }
-      if (onDelete != null) {
-        BasicComponent(title = stringResource(R.string.perfect_custom_delete), enabled = available, onClick = onDelete)
-      }
-      when {
-        invalidPng -> StaticError(R.string.perfect_custom_png_error)
-        duplicate -> StaticError(R.string.perfect_custom_duplicate)
-        id.isNotEmpty() && !valid -> StaticError(R.string.perfect_custom_id_error)
-        saveError -> StaticError(R.string.perfect_custom_io_error)
-      }
     })
-  if (chooseApp) PerfectStaticTargetPicker(onClose = { chooseApp = false }, onPick = {
+  PerfectStaticTargetPicker(show = show && chooseApp, onClose = { chooseApp = false }, onPick = {
     name.setTextAndPlaceCursorAtEnd(it)
     chooseApp = false
   })
 }
 
 @Composable
-private fun PerfectStaticTargetPicker(onClose: () -> Unit, onPick: (String) -> Unit) {
+private fun PerfectStaticTargetPicker(show: Boolean, onClose: () -> Unit, onPick: (String) -> Unit) {
   val context = LocalContext.current
   val query = rememberTextFieldState()
   var choices by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
   var failed by remember { mutableStateOf(false) }
-  LaunchedEffect(context) {
+  LaunchedEffect(context, show) {
+    if (!show || choices != null) return@LaunchedEffect
     try {
       choices = withContext(Dispatchers.IO) {
         val manager = context.packageManager
@@ -326,7 +359,7 @@ private fun PerfectStaticTargetPicker(onClose: () -> Unit, onPick: (String) -> U
   val matches = remember(choices, search) {
     choices.orEmpty().filter { (label, id) -> label.contains(search, true) || id.contains(search, true) }
   }
-  Os4ActionDialog(show = true, onDismissRequest = onClose,
+  Os4ActionDialog(show = show, onDismissRequest = onClose,
     title = stringResource(R.string.perfect_custom_choose_app),
     actions = listOf(Os4DialogAction(stringResource(android.R.string.cancel), onClose)),
     details = {
@@ -334,7 +367,11 @@ private fun PerfectStaticTargetPicker(onClose: () -> Unit, onPick: (String) -> U
         lineLimits = TextFieldLineLimits.SingleLine, modifier = Modifier.fillMaxWidth())
       when {
         failed -> StaticError(R.string.perfect_custom_apps_error)
-        choices == null -> Text(stringResource(R.string.perfect_custom_loading_apps))
+        choices == null -> Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalAlignment = Alignment.CenterVertically) {
+          CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+          Text(stringResource(R.string.perfect_custom_loading_apps))
+        }
         matches.isEmpty() -> Text(stringResource(R.string.perfect_custom_no_apps))
         else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 264.dp)) {
           items(matches) { (label, id) -> BasicComponent(title = label, summary = id, onClick = { onPick(id) }) }
@@ -358,22 +395,26 @@ private fun StaticLayerTile(modifier: Modifier, title: String, file: String, bit
 @Composable
 private fun StaticArtwork(modifier: Modifier, layers: List<ImageBitmap>, description: String?) {
   val scheme = MiuixTheme.colorScheme
-  Box(modifier.clip(RoundedCornerShape(16.dp)).background(scheme.surfaceContainerHigh),
+  Box(modifier.squircleBackground(scheme.surfaceContainerHigh, 16.dp),
     contentAlignment = Alignment.Center) {
-    if (layers.isEmpty()) {
-      Icon(MiuixIcons.Glass.ImageOutline, description, Modifier.size(30.dp), tint = scheme.onSurfaceSecondary)
-    } else {
-      Canvas(Modifier.matchParentSize()) {
-        val tile = 8.dp.toPx()
-        val tint = scheme.onSurface.copy(alpha = 0.07f)
-        for (row in 0..(size.height / tile).toInt()) {
-          for (column in (row % 2)..(size.width / tile).toInt() step 2) {
-            drawRect(tint, Offset(column * tile, row * tile), Size(tile, tile))
+    Crossfade(targetState = layers, animationSpec = tween(180), label = "static-artwork") { activeLayers ->
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (activeLayers.isEmpty()) {
+          Icon(MiuixIcons.Glass.ImageOutline, description, Modifier.size(30.dp), tint = scheme.onSurfaceSecondary)
+        } else {
+          Canvas(Modifier.matchParentSize()) {
+            val tile = 8.dp.toPx()
+            val tint = scheme.onSurface.copy(alpha = 0.07f)
+            for (row in 0..(size.height / tile).toInt()) {
+              for (column in (row % 2)..(size.width / tile).toInt() step 2) {
+                drawRect(tint, Offset(column * tile, row * tile), Size(tile, tile))
+              }
+            }
+          }
+          activeLayers.forEachIndexed { index, layer ->
+            Image(layer, description.takeIf { index == 0 }, Modifier.fillMaxSize().padding(6.dp))
           }
         }
-      }
-      layers.forEachIndexed { index, layer ->
-        Image(layer, description.takeIf { index == 0 }, Modifier.fillMaxSize().padding(6.dp))
       }
     }
   }

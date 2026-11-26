@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +43,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.composables.icons.lucide.R as LucideR
 import os.kei.hyper.home.R
 import os.kei.hyper.home.status.ScopeRequestFeedback
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
 import os.kei.hyper.home.ui.components.Os4DetailsSheet
+import os.kei.hyper.home.ui.components.Os4TrailingChevron
+import os.kei.hyper.home.ui.components.os4ContentSize
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
@@ -53,8 +55,8 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.glass.glassPress
+import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -70,7 +72,7 @@ internal fun OnboardingHero(page: Int) {
       .background(Brush.radialGradient(listOf(primary.copy(alpha = 0.14f), primary.copy(alpha = 0.02f), Color.Transparent)), CircleShape),
       contentAlignment = Alignment.Center) {
       if (page == 0) Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(156.dp)
-        .clip(RoundedCornerShape(40.dp))
+        .squircleClip(40.dp)
         .background(androidx.compose.ui.res.colorResource(R.color.ic_launcher_background)))
       else Icon(setupHeroIcon(page), null, Modifier.size(76.dp), tint = primary)
     }
@@ -207,8 +209,9 @@ internal fun OnboardingStepContent(model: HomeViewModel, page: Int, onOpenPack: 
 @Composable
 private fun SetupTile(title: Int, action: PageActionIcon, modifier: Modifier,
   icon: ImageVector = actionIcon(action), onClick: (() -> Unit)? = null) {
-  Column(modifier.clip(RoundedCornerShape(20.dp)).then(if (onClick != null) Modifier.os4Clickable(role = androidx.compose.ui.semantics.Role.Button,
-    onClick = onClick) else Modifier).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+  Column(modifier.squircleClip(20.dp).then(if (onClick != null) Modifier.os4Clickable(
+    role = androidx.compose.ui.semantics.Role.Button, cornerRadius = 20.dp, onClick = onClick) else Modifier)
+    .padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Box(Modifier.size(48.dp).background(MiuixTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
       contentAlignment = Alignment.Center) {
@@ -220,11 +223,14 @@ private fun SetupTile(title: Int, action: PageActionIcon, modifier: Modifier,
 
 @Composable
 private fun SetupLink(title: Int, body: Int, action: PageActionIcon = PageActionIcon.OPEN_INTERNAL,
-  icon: ImageVector = actionIcon(action), onClick: () -> Unit) {
+  icon: ImageVector = actionIcon(action), holdDownState: Boolean = false, onClick: () -> Unit) {
+  val pressSource = rememberOs4PressSource()
   BasicComponent(title = stringResource(title), summary = stringResource(body), onClick = onClick,
+    holdDownState = holdDownState,
+    interactionSource = pressSource,
+    modifier = Modifier.glassPress(pressSource),
     startAction = { Icon(icon, null, Modifier.size(24.dp), tint = MiuixTheme.colorScheme.primary) },
-    endActions = { Icon(MiuixIcons.Glass.ChevronForward, null, Modifier.size(20.dp),
-      tint = MiuixTheme.colorScheme.onSurfaceSecondary) })
+    endActions = { Os4TrailingChevron() })
 }
 
 @Composable
@@ -246,7 +252,7 @@ private fun SetupConnectionPanel(model: HomeViewModel) {
   val plan = state.plan
   val trusted = state.connected && !state.readFailed && plan != null
   val connectionColor = desktopStatusColor(if (state.connected) StatusTone.READY else StatusTone.WARNING)
-  Card(Modifier.fillMaxWidth()) {
+  Card(Modifier.fillMaxWidth().os4ContentSize()) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MetadataPill(stringResource(if (state.connected) R.string.setup_os4_module_ready else R.string.setup_os4_module_pending), connectionColor)
@@ -255,8 +261,10 @@ private fun SetupConnectionPanel(model: HomeViewModel) {
           else stringResource(R.string.setup_os4_scopes_unknown)
         MetadataPill(label, desktopStatusColor(if (trusted && plan?.complete == true) StatusTone.READY else StatusTone.WARNING))
       }
-      if (state.canRequest || state.requesting) TextButton(stringResource(R.string.scope_request),
-        onClick = model.scopeRequests::request, enabled = !state.requesting, modifier = Modifier.fillMaxWidth())
+      Os4AnimatedVisibility(state.canRequest || state.requesting) {
+        TextButton(stringResource(R.string.scope_request),
+          onClick = model.scopeRequests::request, enabled = !state.requesting, modifier = Modifier.fillMaxWidth())
+      }
       val feedback = when {
         state.readFailed -> R.string.scope_read_failed
         plan?.complete == true -> null
@@ -266,9 +274,15 @@ private fun SetupConnectionPanel(model: HomeViewModel) {
         state.feedback == ScopeRequestFeedback.TIMEOUT -> R.string.scope_timeout
         else -> null
       }
-      if (feedback != null) Text(stringResource(feedback), style = MiuixTheme.textStyles.footnote1,
-        color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      if (state.requesting) LinearProgressIndicator(Modifier.fillMaxWidth())
+      Os4AnimatedVisibility(feedback != null) {
+        feedback?.let { res ->
+          Text(stringResource(res), style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceSecondary)
+        }
+      }
+      Os4AnimatedVisibility(state.requesting) {
+        LinearProgressIndicator(Modifier.fillMaxWidth())
+      }
     }
   }
 }
@@ -278,7 +292,7 @@ private fun SetupStorageHelp() {
   var mounted by rememberSaveable { mutableStateOf(false) }
   var showing by rememberSaveable { mutableStateOf(false) }
   Card(Modifier.fillMaxWidth()) {
-    SetupLink(R.string.setup_local_icons_title, R.string.setup_local_icons_summary) {
+    SetupLink(R.string.setup_local_icons_title, R.string.setup_local_icons_summary, holdDownState = showing) {
       if (!mounted) {
         mounted = true
         showing = true

@@ -3,6 +3,12 @@ package os.kei.hyper.home.ui.perfect
 import android.os.SystemClock
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +42,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import os.kei.hyper.home.R
 import os.kei.hyper.home.iconpack.perfect.PerfectIconProgress
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.os4ContentSize
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
@@ -76,9 +84,12 @@ internal fun PerfectDownloadStatusCard(state: PerfectPackState) {
   val progressSemantics = if (fraction == null) Modifier.progressSemantics()
     else Modifier.progressSemantics(fraction)
   val color = MiuixTheme.colorScheme.onSurfaceSecondary
+  val animatedFraction by animateFloatAsState(fraction ?: 0f, Os4Motion.stateSpring(),
+    label = "perfect-transfer-progress")
 
   Card(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+      .os4ContentSize()
       .testTag("perfect.transfer")
       .onVisibilityChanged(minFractionVisible = 0.01f) { visible = it },
     insideMargin = PaddingValues(16.dp),
@@ -100,13 +111,19 @@ internal fun PerfectDownloadStatusCard(state: PerfectPackState) {
           }
         }
       }
-      Text(stringResource(stage), modifier = Modifier.testTag("perfect.transfer.stage")
-        .semantics { liveRegion = LiveRegionMode.Polite },
-        style = MiuixTheme.textStyles.body2)
+      AnimatedContent(
+        targetState = stage,
+        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+        label = "perfect-transfer-stage",
+      ) { currentStage ->
+        Text(stringResource(currentStage), modifier = Modifier.testTag("perfect.transfer.stage")
+          .semantics { liveRegion = LiveRegionMode.Polite },
+          style = MiuixTheme.textStyles.body2)
+      }
       LinearProgressIndicator(
         modifier = Modifier.fillMaxWidth().testTag("perfect.transfer.progress")
           .then(progressSemantics).semantics { contentDescription = taskProgress },
-        progress = fraction,
+        progress = if (fraction != null) animatedFraction else null,
       )
       if (count != null) {
         Text(stringResource(R.string.perfect_transfer_count, count.done, count.total),

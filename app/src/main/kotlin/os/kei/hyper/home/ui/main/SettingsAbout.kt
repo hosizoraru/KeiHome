@@ -72,19 +72,22 @@ import os.kei.hyper.home.ui.components.about.AboutBackground
 import os.kei.hyper.home.ui.components.BlurredBar
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
+import os.kei.hyper.home.ui.components.Os4CopyIconButton
+import os.kei.hyper.home.ui.components.os4ContentSize
 import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
+import os.kei.hyper.home.ui.components.rememberOs4PressSource
 import os.kei.hyper.home.ui.theme.LocalKeiHomeDarkTheme
 import os.kei.hyper.home.ui.theme.LocalKeiHomeScrollEndHaptic
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.glass.GlassCard
+import top.yukonga.miuix.kmp.glass.glassPress
 import top.yukonga.miuix.kmp.basic.Icon
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.ChevronBackward
-import top.yukonga.miuix.kmp.icon.glass.Copy
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -146,10 +149,12 @@ internal fun AboutScreen(model: HomeViewModel, onBack: () -> Unit, onOpenNotices
           Icon(MiuixIcons.Glass.ChevronBackward, stringResource(R.string.pack_back))
         } },
         actions = {
-          IconButton(onClick = copyVersion, minHeight = 48.dp, minWidth = 48.dp,
-            modifier = Modifier.testTag("aboutCopy")) {
-            Icon(MiuixIcons.Glass.Copy, stringResource(R.string.polish_copy_version))
-          }
+          Os4CopyIconButton(
+            onClick = copyVersion,
+            contentDescription = stringResource(R.string.polish_copy_version),
+            minHeight = 48.dp, minWidth = 48.dp,
+            modifier = Modifier.testTag("aboutCopy"),
+          )
         },
       )
     }
@@ -238,27 +243,46 @@ internal fun AboutLinks(showSource: Boolean, showNotices: Boolean, onOpenNotices
   val context = LocalContext.current
   val uriHandler = LocalUriHandler.current
   val links: @Composable ColumnScope.() -> Unit = {
-    if (showSource) BasicComponent(title = stringResource(R.string.settings_source),
-      onClick = { uriHandler.openUri(ProjectLinks.SOURCE_URL) },
-      onClickLabel = stringResource(R.string.settings_source_open),
-      endActions = {
-        Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL),
-          stringResource(R.string.settings_source_open),
-          tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-      })
-    if (showChannel) BasicComponent(title = stringResource(R.string.update_channel),
-      summary = stringResource(R.string.update_channel_summary), onClick = {
-        if (!UpdateChannel.open(context))
-          android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
-      }, endActions = {
-        Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
-      })
-    if (showNotices) BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
-      modifier = Modifier.testTag("about.notices"),
-      endActions = { Os4TrailingChevron() })
-    if (onOpenContributors != null) BasicComponent(title = stringResource(R.string.about_contributors_title),
-      onClick = onOpenContributors, modifier = Modifier.testTag("about.contributors"),
-      endActions = { Os4TrailingChevron() })
+    if (showSource) {
+      val sourcePress = rememberOs4PressSource()
+      BasicComponent(title = stringResource(R.string.settings_source),
+        onClick = { uriHandler.openUri(ProjectLinks.SOURCE_URL) },
+        onClickLabel = stringResource(R.string.settings_source_open),
+        interactionSource = sourcePress,
+        modifier = Modifier.glassPress(sourcePress),
+        endActions = {
+          Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL),
+            stringResource(R.string.settings_source_open),
+            tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+        })
+    }
+    if (showChannel) {
+      val channelPress = rememberOs4PressSource()
+      BasicComponent(title = stringResource(R.string.update_channel),
+        summary = stringResource(R.string.update_channel_summary),
+        interactionSource = channelPress,
+        modifier = Modifier.glassPress(channelPress),
+        onClick = {
+          if (!UpdateChannel.open(context))
+            android.widget.Toast.makeText(context, R.string.update_channel_failed, android.widget.Toast.LENGTH_LONG).show()
+        }, endActions = {
+          Icon(actionIcon(PageActionIcon.OPEN_EXTERNAL), null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+        })
+    }
+    if (showNotices) {
+      val noticesPress = rememberOs4PressSource()
+      BasicComponent(title = stringResource(R.string.settings_notices), onClick = onOpenNotices,
+        interactionSource = noticesPress,
+        modifier = Modifier.glassPress(noticesPress).testTag("about.notices"),
+        endActions = { Os4TrailingChevron() })
+    }
+    if (onOpenContributors != null) {
+      val contribPress = rememberOs4PressSource()
+      BasicComponent(title = stringResource(R.string.about_contributors_title),
+        onClick = onOpenContributors, interactionSource = contribPress,
+        modifier = Modifier.glassPress(contribPress).testTag("about.contributors"),
+        endActions = { Os4TrailingChevron() })
+    }
   }
   if (onBackground) GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
   else Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp), content = links)
@@ -270,7 +294,7 @@ private fun AboutDetails() {
   val details by produceState(AboutDeviceDetails(Build.MODEL, null, null, null), context) {
     value = withContext(Dispatchers.IO) { loadAboutDeviceDetails(context) }
   }
-  GlassCard(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+  GlassCard(Modifier.fillMaxWidth().os4ContentSize(), insideMargin = PaddingValues(0.dp)) {
     BasicComponent(title = stringResource(R.string.polish_about_device), endActions = {
       Column(horizontalAlignment = Alignment.End) {
         AboutDetailValue(details.marketName)

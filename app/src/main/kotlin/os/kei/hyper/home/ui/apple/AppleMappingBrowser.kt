@@ -16,8 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
@@ -47,7 +52,7 @@ import os.kei.hyper.home.iconpack.apple.AppleAutoMatchPolicy
 import os.kei.hyper.home.iconpack.apple.AppleDynamicArtwork
 import os.kei.hyper.home.iconpack.NativeAppleDynamicIcon
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -60,6 +65,9 @@ import top.yukonga.miuix.kmp.icon.glass.Sort
 import os.kei.hyper.home.ui.components.OverlayIconCascadingDropdownMenu
 import os.kei.hyper.home.ui.components.IconPreviewComparison
 import os.kei.hyper.home.ui.components.IconPreviewMode
+import os.kei.hyper.home.ui.components.Os4AnimatedVisibility
+import os.kei.hyper.home.ui.components.Os4Motion
+import os.kei.hyper.home.ui.components.Os4ShimmerPlaceholder
 import os.kei.hyper.home.ui.components.os4Clickable
 import os.kei.hyper.home.ui.components.os4Toggleable
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -236,7 +244,7 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
       value = row.target.packageName in selectedPackages,
       enabled = enabled && row.target.packageName in selectablePackages, role = Role.Checkbox,
       onValueChange = { onToggleSelection(row.target.packageName) })
-    else Modifier.os4Clickable(enabled = enabled, role = Role.Button,
+    else Modifier.os4Clickable(enabled = enabled, role = Role.Button, cornerRadius = CardDefaults.CornerRadius,
       onClickLabel = stringResource(if (row.app == null) R.string.apple_choose_icon else R.string.apple_glass_inspect),
       onClick = { onSelect(row) })
     Card(Modifier.fillMaxWidth().testTag("apple.mapping.${row.target.packageName}")
@@ -251,7 +259,12 @@ internal fun LazyListScope.appleMappingCards(rows: List<AppleMappingRow>, state:
         }
         Row(Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          if (selectionMode) {
+          Os4AnimatedVisibility(
+            visible = selectionMode,
+            enter = expandHorizontally(Os4Motion.revealSpring(), expandFrom = Alignment.Start) + fadeIn(tween(160)),
+            exit = shrinkHorizontally(Os4Motion.revealSpring(), shrinkTowards = Alignment.Start) + fadeOut(tween(120)),
+            label = "apple-mapping-checkbox",
+          ) {
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
               Checkbox(state = if (row.target.packageName in selectedPackages) ToggleableState.On else ToggleableState.Off,
                 onClick = null, modifier = Modifier.clearAndSetSemantics {},
@@ -383,19 +396,22 @@ private fun AppleCurrentThemeArtwork(label: String, packageName: String, provide
       value = true to loadPreviewOrEmptyCurrent { provider.load(packageName) }
     }
     Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
-      val preview = loaded.second
-      if (!loaded.first) {
-        CircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
-      } else if (preview == null) {
-        Text(stringResource(R.string.apple_preview_current_unavailable), textAlign = TextAlign.Center,
-          style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
-      } else {
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
-          horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-          CurrentThemeThumb(preview.light, label, stringResource(if (preview.dark == null)
-            R.string.apple_preview_current_shared else R.string.apple_preview_light), Modifier.weight(1f))
-          preview.dark?.let {
-            CurrentThemeThumb(it, label, stringResource(R.string.apple_preview_dark), Modifier.weight(1f), dark = true)
+      Crossfade(targetState = loaded, animationSpec = tween(180), label = "apple-current-theme") { (done, preview) ->
+        Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
+          if (!done) {
+            Os4ShimmerPlaceholder(Modifier.size(44.dp), cornerRadius = 11.dp)
+          } else if (preview == null) {
+            Text(stringResource(R.string.apple_preview_current_unavailable), textAlign = TextAlign.Center,
+              style = MiuixTheme.textStyles.footnote2, color = MiuixTheme.colorScheme.onSurfaceSecondary)
+          } else {
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+              horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+              CurrentThemeThumb(preview.light, label, stringResource(if (preview.dark == null)
+                R.string.apple_preview_current_shared else R.string.apple_preview_light), Modifier.weight(1f))
+              preview.dark?.let {
+                CurrentThemeThumb(it, label, stringResource(R.string.apple_preview_dark), Modifier.weight(1f), dark = true)
+              }
+            }
           }
         }
       }

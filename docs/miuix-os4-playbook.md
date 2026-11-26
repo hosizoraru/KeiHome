@@ -47,9 +47,9 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 ## 2. 版本、模块与源码核对
 
-2026-11-26 的迁移使用 `0.9.5-588d029f-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
+2026-11-26 的迁移使用 `0.9.5-bc1024d7-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
 以[当前版本目录](../gradle/libs.versions.toml)为准。
-构件、调用链和验证范围见 [588d029f 迁移记录](miuix/snapshots/miuix-snapshot-588d029f.md)。
+构件、调用链和验证范围见 [bc1024d7 迁移记录](miuix/snapshots/miuix-snapshot-bc1024d7.md) 与 [588d029f 迁移记录](miuix/snapshots/miuix-snapshot-588d029f.md)。
 
 Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
@@ -648,6 +648,8 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
+- [bc1024d7 迁移](miuix/snapshots/miuix-snapshot-bc1024d7.md)记录渐进模糊线性斜率与 `bottomContent` 锚定、
+  `BandOverhang` 调整、顶栏内嵌标签静置/滚动切换以及底部面板 `GlassIconButton`/`GlassCard` 统一。
 - [588d029f 迁移](miuix/snapshots/miuix-snapshot-588d029f.md)记录底部面板默认值、顶栏绘制修复、
   可滚动 Glass 标签和下拉指示器的接入判断。
 - [a09d4f32 迁移](miuix/snapshots/miuix-snapshot-a09d4f32.md)记录渐进模糊底部面板、动效交接、

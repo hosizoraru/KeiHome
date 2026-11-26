@@ -155,7 +155,10 @@ internal fun StatusBody(
   onOpenApps: () -> Unit = {},
   runtime: RuntimeStatusUiState = RuntimeStatusUiState(),
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport? = null,
-  coveredApps: Int? = null, onOpenPacks: () -> Unit = {}, onOpenEnvironment: (() -> Unit)? = null,
+  coveredApps: Int? = null,
+  activePack: ActiveIconPackSummary = ActiveIconPackSummary(),
+  onOpenPacks: () -> Unit = {},
+  onOpenEnvironment: (() -> Unit)? = null,
   scopeContent: @Composable () -> Unit = {},
   activation: InitialActivationStatus = InitialActivationStatus.COMPLETE,
   onOpenGuide: () -> Unit = {},
@@ -170,7 +173,7 @@ internal fun StatusBody(
       readFailed = monetReadFailed,
       onOpenMonet = onOpenMonet,
     )
-    DashboardActivePackCard(iconSource, coveredApps, onOpenPacks)
+    DashboardActivePackCard(iconSource, coveredApps, activePack, onOpenPacks)
     AppCapabilitiesCard(installedApps, nightApps, monetApps, onOpenApps)
   }
 }
@@ -719,9 +722,23 @@ private fun MonetSwatchDots(swatches: List<Int>) {
 private fun DashboardActivePackCard(
   iconSource: os.kei.hyper.home.status.SystemIconThemeReport?,
   coveredApps: Int?,
+  activePack: ActiveIconPackSummary,
   onOpenPacks: () -> Unit,
 ) {
   val pressSource = rememberOs4PressSource()
+  val sourceLabel = activePackSourceLabel(activePack.sourceSection, iconSource?.source)
+  val sourceTint = activePackSourceTint(activePack.sourceSection, iconSource?.source)
+  val sourceIcon = activePackSourceIcon(activePack.sourceSection, iconSource?.source)
+  val resolvedVersion = activePack.version
+    ?: iconSource?.version?.trim()?.takeUnless(os.kei.hyper.home.iconpack.KeiHomePackVersion::isPlaceholder)
+  val appliedAtMillis = activePack.appliedAtMillis ?: iconSource?.appliedAtMillis
+  val warningAccent = colorResource(if (LocalKeiHomeDarkTheme.current)
+    R.color.status_hero_warning_accent_dark else R.color.status_hero_warning_accent)
+  val packTitle = iconSource?.title ?: stringResource(when (iconSource?.source) {
+    os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT -> R.string.icon_pack_system_default
+    os.kei.hyper.home.status.SystemIconThemeReport.Source.THEME -> R.string.icon_pack_system_theme
+    else -> R.string.status_unknown
+  })
   Card(
     Modifier.fillMaxWidth()
       .testTag("status.icon-pack.card")
@@ -730,49 +747,78 @@ private fun DashboardActivePackCard(
       .os4Clickable(role = Role.Button, cornerRadius = CardDefaults.CornerRadius, onClick = onOpenPacks),
     insideMargin = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
   ) {
-    Row(
-      Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-      Os4IconBadge(MiuixIcons.Glass.Theme, Os4BadgePalette.Pink, size = 30.dp, cornerRadius = 9.dp, iconSize = 16.dp)
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text(
-            stringResource(R.string.icon_pack_active),
-            style = MiuixTheme.textStyles.footnote2,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary,
-          )
-          iconSource?.version?.let {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+      ) {
+        Os4IconBadge(sourceIcon, sourceTint, size = 30.dp, cornerRadius = 9.dp, iconSize = 16.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
             Text(
-              stringResource(R.string.icon_pack_version_label, it),
+              stringResource(R.string.icon_pack_active),
               style = MiuixTheme.textStyles.footnote2,
               color = MiuixTheme.colorScheme.onSurfaceSecondary,
               maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
             )
+            if (sourceLabel != null) {
+              Text(
+                "·",
+                style = MiuixTheme.textStyles.footnote2,
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              )
+              Text(
+                sourceLabel,
+                style = MiuixTheme.textStyles.footnote2,
+                fontWeight = FontWeight.Medium,
+                color = sourceTint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
           }
+          Text(
+            packTitle,
+            style = MiuixTheme.textStyles.body2,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+          )
         }
-        Text(
-          iconSource?.title ?: stringResource(R.string.status_unknown),
-          style = MiuixTheme.textStyles.body2,
-          fontWeight = FontWeight.SemiBold,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        DashboardArrow()
       }
-      MetadataPill(
-        if (iconSource?.previewKey != null && coveredApps != null)
-          stringResource(R.string.browser_dashboard_coverage, coveredApps)
-        else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready
-          else R.string.status_needs_verification),
-        color = if (iconSource?.previewKey != null) MiuixTheme.colorScheme.primary
-          else MiuixTheme.colorScheme.onSurfaceSecondary,
-      )
-      DashboardArrow()
+      DashboardPillRow {
+        MetadataPill(
+          if (iconSource?.previewKey != null && coveredApps != null)
+            stringResource(R.string.browser_dashboard_coverage, coveredApps)
+          else stringResource(if (iconSource?.previewKey != null) R.string.browser_resources_ready
+            else R.string.status_needs_verification),
+          color = if (iconSource?.previewKey != null) MiuixTheme.colorScheme.primary
+            else MiuixTheme.colorScheme.onSurfaceSecondary,
+        )
+        if (activePack.pendingApply) {
+          MetadataPill(stringResource(R.string.pack_pending_apply), warningAccent)
+        } else if (activePack.updateNeeded) {
+          MetadataPill(stringResource(R.string.pack_update_available_short), warningAccent)
+        }
+        if (resolvedVersion != null) {
+          MetadataPill(
+            stringResource(R.string.icon_pack_version_label, resolvedVersion),
+            MiuixTheme.colorScheme.onSurfaceSecondary,
+          )
+        }
+        if (appliedAtMillis != null) {
+          val relative = dashboardRelativeTime(dashboardAgeMinutes(appliedAtMillis))
+          MetadataPill(
+            stringResource(R.string.pack_applied_ago, relative),
+            MiuixTheme.colorScheme.onSurfaceSecondary,
+          )
+        }
+      }
     }
   }
 }
@@ -795,7 +841,7 @@ internal fun dashboardPaletteAgeMinutes(timestamp: Long, now: Long): Long? =
   if (timestamp <= 0 || timestamp > now) null else (now - timestamp) / 60_000
 
 @Composable
-private fun dashboardAgeMinutes(timestamp: Long?): Long? {
+internal fun dashboardAgeMinutes(timestamp: Long?): Long? {
   val lifecycle = LocalLifecycleOwner.current.lifecycle
   var minutes by remember(timestamp) {
     mutableStateOf(timestamp?.let { dashboardPaletteAgeMinutes(it, System.currentTimeMillis()) })
@@ -817,7 +863,7 @@ private fun dashboardAgeMinutes(timestamp: Long?): Long? {
 }
 
 @Composable
-private fun dashboardRelativeTime(age: Long?): String = when {
+internal fun dashboardRelativeTime(age: Long?): String = when {
   age == null -> stringResource(R.string.status_unknown)
   age == 0L -> stringResource(R.string.polish_time_now)
   age < 60 -> pluralStringResource(R.plurals.polish_time_minutes, age.toInt(), age.toInt())

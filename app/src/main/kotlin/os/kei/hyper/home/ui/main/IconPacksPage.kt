@@ -139,7 +139,13 @@ internal fun IconPacksPage(model: HomeViewModel, listState: LazyListState, paddi
             else stringResource(R.string.pack_completion_selected,
               systemFallbackName(preferences.systemIconFallback)))
           }
-          SystemIconThemeCard(runtime, badges) { model.refresh(3) }
+          val activePack = rememberActiveIconPackSummary(
+            theme = activeTheme,
+            packs = state,
+            fallback = preferences.systemIconFallback,
+            updateNeeded = needsUpdate,
+          )
+          SystemIconThemeCard(runtime, badges, activePack) { model.refresh(3) }
         }
         if (activeTheme?.source == os.kei.hyper.home.status.SystemIconThemeReport.Source.DEFAULT) {
           item("system-appearance") {
@@ -501,10 +507,26 @@ internal fun IconPackCard(card: IconPackCardData, previews: IconPackPreviewRepos
       }
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val installed = pack.source as? IconPackSource.Installed
-        val source = stringResource(if (installed != null) R.string.icon_pack_installed else R.string.icon_pack_imported)
-        val version = (installed?.versionName ?: pack.description.version)?.trim()?.takeIf { it.isNotEmpty() }?.take(40)
+        val imported = pack.source as? IconPackSource.Imported
+        val generatedSource = pack.source as? IconPackSource.Generated
+        val isGenerated = generatedSource != null || imported?.record?.generatedBy != null
+        val source = stringResource(when {
+          installed != null -> R.string.icon_pack_installed
+          isGenerated -> R.string.icon_pack_generated
+          pack.source is IconPackSource.Builtin -> R.string.pack_source_kind_builtin
+          else -> R.string.icon_pack_imported
+        })
+        val version = (installed?.versionName ?: pack.description.version)?.trim()
+          ?.takeUnless(os.kei.hyper.home.iconpack.KeiHomePackVersion::isPlaceholder)?.take(40)
         MetadataPill(if (version == null) source else "$source · $version", MiuixTheme.colorScheme.onSurfaceSecondary)
-        if (version == null && pack.source is IconPackSource.Imported && pack.format != IconPackFormat.APK) {
+        val packTimestamp = (generatedSource?.createdAt ?: imported?.record?.importedAt ?: 0L).takeIf { it > 0L }
+        if (packTimestamp != null) {
+          val relative = dashboardRelativeTime(dashboardAgeMinutes(packTimestamp))
+          MetadataPill(
+            stringResource(if (isGenerated) R.string.pack_built_ago else R.string.pack_added_ago, relative),
+            MiuixTheme.colorScheme.onSurfaceSecondary,
+          )
+        } else if (version == null && imported != null && pack.format != IconPackFormat.APK) {
           MetadataPill(stringResource(R.string.icon_pack_version_unspecified), MiuixTheme.colorScheme.onSurfaceSecondary)
         }
         (pack.source as? IconPackSource.Imported)?.record?.takeIf { pack.format != IconPackFormat.APK }?.let {

@@ -627,7 +627,8 @@ internal fun ApplePackScreen(model: HomeViewModel, section: String, onBack: () -
                 !runtime.readFailed && !runtime.timedOut
               IconPackCard(card, model.packPreviews, prefs.iconPackAppearance,
                 packs.nativeAssociations[prefs.systemIconFallback.sourceId(card.pack.id)],
-                false, packs.nativeImporting == prefs.systemIconFallback.sourceId(card.pack.id),
+                card.pack.id == os.kei.hyper.home.ui.main.activeCatalogPackId(runtime.report?.iconTheme?.localId, packs),
+                packs.nativeImporting == prefs.systemIconFallback.sourceId(card.pack.id),
                 ready && enabled, packs.nativeResult?.takeIf {
                   it.sourceId == prefs.systemIconFallback.sourceId(card.pack.id)
                 }, onImport = { model.importNativeIconPack(card.pack) }, onRecheck = model::recheckNativeIconImport,

@@ -4,12 +4,16 @@ import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import os.kei.hyper.home.R
+import os.kei.hyper.home.iconpack.KeiHomePackVersion
 import os.kei.hyper.home.status.RuntimeStatusUiState
 import os.kei.hyper.home.status.SystemIconThemeReport
 
 @Composable
 internal fun SystemIconThemeCard(
-  runtime: RuntimeStatusUiState, badges: List<String> = emptyList(), onRefresh: () -> Unit,
+  runtime: RuntimeStatusUiState,
+  badges: List<String> = emptyList(),
+  activePack: ActiveIconPackSummary = ActiveIconPackSummary(),
+  onRefresh: () -> Unit,
 ) {
   val theme = runtime.report?.takeIf { it.isFresh(SystemClock.elapsedRealtime()) &&
     !runtime.readFailed && !runtime.timedOut }?.iconTheme
@@ -22,8 +26,22 @@ internal fun SystemIconThemeCard(
   val footer = if (theme?.complete == true) {
     stringResource(R.string.icon_pack_inventory, theme.resourceCount, theme.nightResourceCount)
   } else stringResource(if (available) R.string.icon_pack_inventory_incomplete else R.string.icon_pack_waiting_system)
-  StatusOverviewCard(title = stringResource(R.string.icon_pack_active), summary = name,
-    footer = footer, tone = if (theme?.complete == true && available) StatusTone.READY else StatusTone.WARNING,
-    details = emptyList(), onRefresh = onRefresh,
-    badges = listOfNotNull(theme?.version?.let { stringResource(R.string.icon_pack_version_label, it) }) + badges)
+  val sourceLabel = activePackSourceLabel(activePack.sourceSection, theme?.source)
+  val resolvedVersion = activePack.version
+    ?: theme?.version?.trim()?.takeUnless(KeiHomePackVersion::isPlaceholder)
+  val appliedAt = activePack.appliedAtMillis ?: theme?.appliedAtMillis
+  val appliedBadge = appliedAt?.let {
+    stringResource(R.string.pack_applied_ago, dashboardRelativeTime(dashboardAgeMinutes(it)))
+  }
+  StatusOverviewCard(
+    title = stringResource(R.string.icon_pack_active),
+    summary = name,
+    footer = footer,
+    tone = if (theme?.complete == true && available) StatusTone.READY else StatusTone.WARNING,
+    details = emptyList(),
+    onRefresh = onRefresh,
+    titleBadge = sourceLabel,
+    summaryBadge = resolvedVersion?.let { stringResource(R.string.icon_pack_version_label, it) },
+    badges = badges + listOfNotNull(appliedBadge),
+  )
 }

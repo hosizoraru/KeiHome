@@ -223,6 +223,15 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
   val monet by model.monet.collectAsStateWithLifecycle()
   val apps by model.apps.collectAsStateWithLifecycle()
   val source by model.browserSource.collectAsStateWithLifecycle()
+  val packs by model.iconPacks.collectAsStateWithLifecycle()
+  val preferences by model.preferences.state.collectAsStateWithLifecycle()
+  val packUpdateNeeded by model.iconPackUpdateNeeded.collectAsStateWithLifecycle()
+  val activePack = rememberActiveIconPackSummary(
+    theme = runtime.report?.iconTheme,
+    packs = packs,
+    fallback = preferences.systemIconFallback,
+    updateNeeded = packUpdateNeeded,
+  )
   val effective = remember(apps.capabilities, source) { apps.capabilities?.let { browserRows(it, source, IconBrowserOptions(), "") } }
   val counts = remember(effective) { effective?.map { it.app }?.let { list ->
     Triple(list.size, list.count { it.nightMode == IconCapabilityStatus.DETECTED },
@@ -236,6 +245,7 @@ private fun StatusPage(model: HomeViewModel, onOpenApps: () -> Unit, onOpenMonet
     installedApps = counts?.first, nightApps = counts?.second, monetApps = counts?.third,
     runtime = runtime,
     iconSource = runtime.report?.iconTheme, coveredApps = covered,
+    activePack = activePack,
     onOpenPacks = onOpenPacks, onOpenEnvironment = onOpenEnvironment,
     scopeContent = { StaticScopeCard(model, attentionOnly = true) },
     activation = activation ?: os.kei.hyper.home.data.InitialActivationStatus.COMPLETE,

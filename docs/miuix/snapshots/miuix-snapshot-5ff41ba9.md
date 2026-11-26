@@ -29,9 +29,9 @@ search field while preserving its query, clearing, focus and localization behavi
 
 | App site | Migration | Check |
 | --- | --- | --- |
-| [`Os4NavigationBar`](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4NavigationBar.kt) | Remove the app's horizontal `safeDrawing` wrapper from the native bar. Keep the centered 560dp cap and 16dp side margins, and keep the custom Liquid bar's separate inset handling. | Exercise both saved bar styles, including a drag with a badge, and verify the selected page and semantics after release. A physical landscape cutout remains open. |
-| [`Os4LazyColumn`](../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4LazyColumn.kt) | Remove manual RTL switching. Wire the same `ScrollBehavior` to the bar and active list scrollbar, passing the list's top and bottom padding to the track. | Reveal the fading thumb with a scroll first. Check that dragging it updates the list and app-bar offset and that trailing row actions still respond. Verify touch scroll and refresh separately. |
-| [`IconPackProgressHost`](../app/src/main/kotlin/os/kei/hyper/home/ui/main/IconPackProgressHost.kt) | Remove the duplicate semantics and use the upstream `LinearProgressIndicator` progress lambda. Keep measured progress as the range value, with the stage, displayed percentage and count in the app UI. | Assert the native range and the visible count for measured work. Check the waiting state and its background action separately. |
+| [`Os4NavigationBar`](../../../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4NavigationBar.kt) | Remove the app's horizontal `safeDrawing` wrapper from the native bar. Keep the centered 560dp cap and 16dp side margins, and keep the custom Liquid bar's separate inset handling. | Exercise both saved bar styles, including a drag with a badge, and verify the selected page and semantics after release. A physical landscape cutout remains open. |
+| [`Os4LazyColumn`](../../../app/src/main/kotlin/os/kei/hyper/home/ui/components/Os4LazyColumn.kt) | Remove manual RTL switching. Wire the same `ScrollBehavior` to the bar and active list scrollbar, passing the list's top and bottom padding to the track. | Reveal the fading thumb with a scroll first. Check that dragging it updates the list and app-bar offset and that trailing row actions still respond. Verify touch scroll and refresh separately. |
+| [`IconPackProgressHost`](../../../app/src/main/kotlin/os/kei/hyper/home/ui/main/IconPackProgressHost.kt) | Remove the duplicate semantics and use the upstream `LinearProgressIndicator` progress lambda. Keep measured progress as the range value, with the stage, displayed percentage and count in the app UI. | Assert the native range and the visible count for measured work. Check the waiting state and its background action separately. |
 | `GlassTopAppBar` and shared title layout | Allow the title group to align to the start when side controls or a rail obstruct centering. Keep both strings together, the app's actions, and blur-mode selection. | Check title/subtitle bounds, controls and grouping with long text and RTL. Preserve the distinction between a desired behavior change and a weakened test. |
 
 The upstream icon example shows how to let Glass tabs pick up material as
@@ -40,7 +40,7 @@ Use the examples to check overlap and motion. Retain the app's inline search
 while its query and focus lifecycle differ from the overlay.
 [Icon example](https://github.com/compose-miuix-ui/miuix/blob/5ff41ba90d963e48c3db1f3b28eb8dbebc9391f9/example/shared/src/commonMain/kotlin/IconPage.kt)
 and [search demo](https://github.com/compose-miuix-ui/miuix/blob/5ff41ba90d963e48c3db1f3b28eb8dbebc9391f9/docs/demo/src/commonMain/kotlin/GlassSearchOverlayDemo.kt).
-For the general migration procedure, see the [OS4 playbook](miuix-os4-playbook.md).
+For the general migration procedure, see the [OS4 playbook](../../miuix-os4-playbook.md).
 
 ## Verification
 
@@ -59,7 +59,7 @@ For the general migration procedure, see the [OS4 playbook](miuix-os4-playbook.m
   scrollbar and title synchronization, and the modal's accessible progress
   range. There was no separate live Pad or landscape cutout run.
 - Initial `lintDebug` failed on the existing API 37 `getOverlayView` probe.
-  A separate [SystemUI material fix](gesture-navigation-backdrop.md#soft-glass-gesture-handle-november-19)
+  A separate [SystemUI material fix](../../gesture-navigation-backdrop.md#soft-glass-gesture-handle-november-19)
   scoped the probe to the OEM host and preserved the blur fallback.
   Debug and Release Lint then passed. Signed Release b0636 was installed on
   the Xiaomi 17 Pro, with nine observed successful reloads and unchanged

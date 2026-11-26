@@ -5,8 +5,8 @@
 For cross-project implementation, start with the
 [OS4 / Glass migration playbook](miuix-os4-playbook.md).
 The current reviewed dependency is recorded in
-[the d8efe187 migration](miuix-d8efe187-migration.md); the
-[2026-11-14 migration](miuix-19b5b831-migration.md) records the earlier
+[the d8efe187 migration](miuix/snapshots/miuix-d8efe187-migration.md); the
+[2026-11-14 migration](miuix/snapshots/miuix-19b5b831-migration.md) records the earlier
 scroll, search and overlay follow-up.
 The historical 2026-11-12 migration below pinned every module to `0.9.4-9d4b9c85-SNAPSHOT`, published
 from upstream revision `9d4b9c85c18707c7da12cf8c497ea57955fcf81e`.
@@ -93,7 +93,7 @@ into the source.
 
 Pass `GlassDefaults.style(LocalKeiHomeDarkTheme.current)` explicitly for
 shaded controls. The library's plain `GlassDefaults.Style` is not an automatic
-app-theme choice. Since [670cf597](miuix-snapshot-670cf597.md), shared dialogs
+app-theme choice. Since [670cf597](miuix/snapshots/miuix-snapshot-670cf597.md), shared dialogs
 and sheets use the native theme-aware material and edge stroke defaults.
 Use the existing `MiuixTheme` controller and color roles for Monet, fixed
 appearance, and system appearance; avoid separate hardcoded light/dark

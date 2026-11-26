@@ -5,7 +5,7 @@ KeiHome source. This is an adoption assessment; it does not implement the
 proposals below or claim new device/performance measurements.
 
 Implementation follow-up:
-[adaptive Pad navigation and shared chrome](pad-adaptive-ui.md).
+[adaptive Pad navigation and shared chrome](../../pad-adaptive-ui.md).
 
 ## Scope and sources
 

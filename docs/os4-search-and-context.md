@@ -3,7 +3,7 @@
 For current cross-project guidance and the shared source map, see the
 [OS4 / Glass migration playbook](miuix-os4-playbook.md). The work recorded
 below began at `19b5b831`; the reviewed dependency is now
-[`d8efe187`](miuix-d8efe187-migration.md).
+[`d8efe187`](miuix/snapshots/miuix-d8efe187-migration.md).
 
 This work builds on MIUIX `0.9.4-19b5b831-SNAPSHOT`. It keeps the existing OS4
 theme, typography and navigation preferences. It does not change Hook code,

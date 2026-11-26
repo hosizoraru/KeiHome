@@ -15,6 +15,10 @@
 
 ## Project conventions
 
+- Use the [project structure guide](docs/project-structure.md) to locate feature
+  ownership. Keep Android build conventions and typed build tasks in
+  `build-logic/`, dependency versions in `gradle/libs.versions.toml`, and
+  app-specific dependency declarations in `app/build.gradle.kts`.
 - Follow the normal entry point to the code that owns the behavior and check
   its callers before editing. Reuse existing resolvers, renderers, and UI
   components where their contracts fit. Preserve behavior existing callers

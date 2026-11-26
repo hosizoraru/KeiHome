@@ -2,7 +2,7 @@
 
 The application uses the pinned `0.9.4-76504ab0-SNAPSHOT` MIUIX components.
 This implements the adoption options in
-[the source review](miuix-d8efe187-to-76504ab0-review.md).
+[the source review](miuix/snapshots/miuix-d8efe187-to-76504ab0-review.md).
 
 ## Navigation and width
 

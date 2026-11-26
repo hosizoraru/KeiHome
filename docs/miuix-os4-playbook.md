@@ -5,7 +5,7 @@
 
 浮动操作和工具栏优先使用原生容器，导航角标使用原生插槽。当前版本与
 增量迁移见[版本核对](#2-版本模块与源码核对)，较早的浮层迁移见
-[76504ab0 记录](miuix-snapshot-76504ab0.md)。
+[76504ab0 记录](miuix/snapshots/miuix-snapshot-76504ab0.md)。
 
 这份文档总结 KeiHome 的实际迁移、源码核对和设备验收经验，供其他
 Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样、交互和状态
@@ -49,7 +49,7 @@ Compose Android 项目规划和实施 OS4 UI 使用。重点是材质、采样�
 
 2026-11-26 的迁移使用 `0.9.5-588d029f-SNAPSHOT` 和 AndroidX Compose `1.13.0-rc01`。
 以[当前版本目录](../gradle/libs.versions.toml)为准。
-构件、调用链和验证范围见 [588d029f 迁移记录](miuix-snapshot-588d029f.md)。
+构件、调用链和验证范围见 [588d029f 迁移记录](miuix/snapshots/miuix-snapshot-588d029f.md)。
 
 Glass 输入通过 `TextFieldState`
 编辑 Monet 色值、缓存预算、连接设置和日志自定义时长。共用搜索控件继续管理查询、
@@ -107,7 +107,7 @@ Android 变体及传递 Compose 版本。上游仓库的 AGP、格式化插件�
 | 手势设置页滚动 | 顶栏渐变、模糊带尺寸与标签淡出期间的绘制 | 录制层放在回弹变换外侧，保持视口坐标稳定 |
 
 把结果记为已移除补丁、沿用业务封装或暂缓采用，并注明上游提交、应用调用点和
-复测范围。例子见 [5ff41ba9 Snapshot 审查](miuix-snapshot-5ff41ba9.md)。
+复测范围。例子见 [5ff41ba9 Snapshot 审查](miuix/snapshots/miuix-snapshot-5ff41ba9.md)。
 
 ### 核对默认值、内容插槽和替换条件
 
@@ -121,7 +121,7 @@ Android 变体及传递 Compose 版本。上游仓库的 AGP、格式化插件�
 替换前要核对窄屏下的选中项自动滚入、选中前后的宽度、端部阴影和无障碍节点数量。
 这一版原生实现用额外文本节点预留粗体宽度，与现有每个标签只朗读一次的契约需单独核对。
 下拉菜单的溢出滚动指示器由原生菜单接入，应用封装无需重复绘制。溢出菜单的实机验证状态
-见 [588d029f 迁移记录](miuix-snapshot-588d029f.md)。
+见 [588d029f 迁移记录](miuix/snapshots/miuix-snapshot-588d029f.md)。
 
 此前 `RuntimeShader`、`asBrush`、材质和边缘描边相关能力已经迁入
 `top.yukonga.miuix.kmp.material`。迁移时按目标版本的真实包名修改，
@@ -648,22 +648,22 @@ nested scroll 不足以禁用下拉。后台加载时还需关闭内层 spring �
 
 ## 14. 版本记录与依据
 
-- [588d029f 迁移](miuix-snapshot-588d029f.md)记录底部面板默认值、顶栏绘制修复、
+- [588d029f 迁移](miuix/snapshots/miuix-snapshot-588d029f.md)记录底部面板默认值、顶栏绘制修复、
   可滚动 Glass 标签和下拉指示器的接入判断。
-- [a09d4f32 迁移](miuix-snapshot-a09d4f32.md)记录渐进模糊底部面板、动效交接、
+- [a09d4f32 迁移](miuix/snapshots/miuix-snapshot-a09d4f32.md)记录渐进模糊底部面板、动效交接、
   动态配色对比度和详情面板内容内边距。
-- [07d48590 迁移](miuix-snapshot-07d48590.md)记录搜索清除按钮、底部面板动效和滑块点按。
-- [84ce2a0a 迁移](miuix-snapshot-84ce2a0a.md)记录主题设置、App 配色与 About 页的 Glass 更新。
-- [44f1d315 迁移](miuix-snapshot-44f1d315.md)记录对话框动效、退出期间的触摸释放和面板内 GlassCard。
-- [2b226150 迁移](miuix-snapshot-2b226150.md)记录面板标题区、Glass 底边描线和窗口浮层边界。
-- [c83aacd8 迁移](miuix-snapshot-c83aacd8.md)记录顶栏折叠、标签淡出和模糊渲染。
-- [f3829d3d 迁移](miuix-snapshot-f3829d3d.md)记录侧栏、标签栏和应用显示设置。
-- [66248bac 迁移](miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。
-- [5ff41ba9 迁移](miuix-snapshot-5ff41ba9.md)汇总底栏、滚动条、顶部栏和进度条交接，以及验收记录。
-- [670cf597 迁移](miuix-snapshot-670cf597.md)记录 Glass 输入、对话框与底部面板。
+- [07d48590 迁移](miuix/snapshots/miuix-snapshot-07d48590.md)记录搜索清除按钮、底部面板动效和滑块点按。
+- [84ce2a0a 迁移](miuix/snapshots/miuix-snapshot-84ce2a0a.md)记录主题设置、App 配色与 About 页的 Glass 更新。
+- [44f1d315 迁移](miuix/snapshots/miuix-snapshot-44f1d315.md)记录对话框动效、退出期间的触摸释放和面板内 GlassCard。
+- [2b226150 迁移](miuix/snapshots/miuix-snapshot-2b226150.md)记录面板标题区、Glass 底边描线和窗口浮层边界。
+- [c83aacd8 迁移](miuix/snapshots/miuix-snapshot-c83aacd8.md)记录顶栏折叠、标签淡出和模糊渲染。
+- [f3829d3d 迁移](miuix/snapshots/miuix-snapshot-f3829d3d.md)记录侧栏、标签栏和应用显示设置。
+- [66248bac 迁移](miuix/snapshots/miuix-snapshot-66248bac.md)记录 Compose RC、状态式输入、渐进模糊和滚动条触控区。
+- [5ff41ba9 迁移](miuix/snapshots/miuix-snapshot-5ff41ba9.md)汇总底栏、滚动条、顶部栏和进度条交接，以及验收记录。
+- [670cf597 迁移](miuix/snapshots/miuix-snapshot-670cf597.md)记录 Glass 输入、对话框与底部面板。
 - [早期 OS4 架构迁移](miuix-os4-migration.md)：材质、导航与统一封装。
-- [19b5b831 迁移](miuix-19b5b831-migration.md)：搜索、短说明、分段控制和 Pipeline。
-- [d8efe187 迁移](miuix-d8efe187-migration.md)：新图标、折叠标题、渐隐和已知上游问题。
+- [19b5b831 迁移](miuix/snapshots/miuix-19b5b831-migration.md)：搜索、短说明、分段控制和 Pipeline。
+- [d8efe187 迁移](miuix/snapshots/miuix-d8efe187-migration.md)：新图标、折叠标题、渐隐和已知上游问题。
 - [向导布局](onboarding.md)：独立全屏布局与 Scaffold 浮层宿主的组合。
 - [动作与语义](ui-actions-os4.md)、[确认弹窗](os4-action-dialogs.md)、
   [搜索与上下文帮助](os4-search-and-context.md)。

@@ -4,6 +4,9 @@ Focused pull requests for translations, corrections, and app improvements are
 welcome. Explain the affected behavior, keep unrelated changes separate, and
 include the checks relevant to the change.
 
+Start with the [project structure guide](docs/project-structure.md) to find the
+code or build convention that owns the behavior.
+
 For language contributions, start with the [localization guide](docs/localization.md).
 It covers the English fallback, feature resource files, partial new languages,
 App language registration, fixed source identities, and a Python-only audit:

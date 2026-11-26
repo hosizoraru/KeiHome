@@ -20,12 +20,12 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -377,23 +377,43 @@ class PerfectGitUiTest {
     var options by mutableStateOf(PerfectIconOptions())
     compose.setContent {
       KeiHomeTheme {
-        PerfectPackOptions(options, listOf("default"), listOf("default"), true) { options = it }
+        KeiHomeScaffold { padding ->
+          Box(Modifier.padding(padding)) {
+            PerfectPackOptions(options, listOf("default"), listOf("default"), true) { options = it }
+          }
+        }
       }
     }
     val initial = options
     compose.onNodeWithTag("perfect.options.dynamic").performClick()
     compose.runOnIdle { assertEquals(!initial.dynamic, options.dynamic) }
     val fixed = compose.onNodeWithTag("perfect.options.fixed-dark")
-    fixed.assertDoesNotExist()
-    compose.onNodeWithTag("perfect.options.night").performSemanticsAction(SemanticsActions.OnClick)
-    compose.runOnIdle { assertEquals(!initial.staticNight, options.staticNight) }
+    val night = compose.onNodeWithTag("perfect.options.night")
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    fixed.assertIsDisplayed().assertIsNotEnabled()
+    compose.onNodeWithText(context.getString(R.string.perfect_icons_fixed_dark_requires_adaptation))
+      .assertIsDisplayed()
+    compose.onNodeWithTag("perfect.options.fixed-dark.help.open", useUnmergedTree = true)
+      .performTouchInput { click() }
+    val helpTag = "perfect.options.fixed-dark.help"
+    waitForDisplayed(hasTestTag(helpTag), "fixed-dark-disabled-help")
+    compose.onNodeWithText(context.getString(R.string.perfect_icons_fixed_dark_help)).assertIsDisplayed()
+    compose.onNodeWithTag(helpTag).performSemanticsAction(SemanticsActions.Dismiss)
+    waitForDismissed(helpTag)
+    compose.runOnIdle { assertEquals(initial.fixedDark, options.fixedDark) }
+    night.performSemanticsAction(SemanticsActions.OnClick)
+    fixed.assertIsEnabled()
     fixed.performSemanticsAction(SemanticsActions.OnClick)
-    compose.runOnIdle { assertTrue(options.fixedDark) }
-    compose.onNodeWithTag("perfect.options.night").performSemanticsAction(SemanticsActions.OnClick)
-    fixed.assertDoesNotExist()
-    compose.onNodeWithTag("perfect.options.night").performSemanticsAction(SemanticsActions.OnClick)
-    fixed.assertIsDisplayed()
-    compose.runOnIdle { assertTrue(options.fixedDark) }
+    compose.runOnIdle { assertTrue(options.useFixedDark) }
+    night.performSemanticsAction(SemanticsActions.OnClick)
+    fixed.assertIsDisplayed().assertIsNotEnabled()
+    compose.runOnIdle {
+      assertTrue(options.fixedDark)
+      assertEquals(false, options.useFixedDark)
+    }
+    night.performSemanticsAction(SemanticsActions.OnClick)
+    fixed.assertIsEnabled()
+    compose.runOnIdle { assertTrue(options.useFixedDark) }
   }
 
   private fun setResourceContent(state: PerfectPackState, onDownload: (Set<String>) -> Unit = {},

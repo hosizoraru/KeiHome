@@ -7,6 +7,7 @@
     <string name="perfect_icons_night_mode_derived">额外深色适配</string>
     <string name="perfect_icons_fixed_dark">普通图标固定深色</string>
     <string name="perfect_icons_fixed_dark_summary">支持的普通图标在浅色模式下也保持深色。</string>
+    <string name="perfect_icons_fixed_dark_requires_adaptation">请先开启图标深浅色适配。</string>
     <string name="perfect_icons_fixed_dark_help">为可适配的普通图标生成一张深色图片，减轻桌面启动动画的负担。切到浅色模式后这些图标仍为深色，日历和时钟保留各自的外观切换与动画。更改后需重新生成并应用。</string>
     <string name="perfect_icons_night_disabled">保留原版图标和动画。</string>
     <string name="perfect_icons_night_disabled_help">关闭时保留原始分层、原版动画及已有深色行为，不额外生成派生深色外观。</string>

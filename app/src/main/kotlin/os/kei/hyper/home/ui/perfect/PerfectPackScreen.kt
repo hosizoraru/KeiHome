@@ -331,14 +331,13 @@ internal fun PerfectPackOptions(options: PerfectIconOptions, catalogStyles: List
       checked = options.staticNight, enabled = enabled,
       tag = "perfect.options.night",
       onCheckedChange = { onOptionsChange(options.copy(staticNight = it)) })
-    if (options.staticNight) {
-      Os4ExplainedSwitchPreference(title = stringResource(R.string.perfect_icons_fixed_dark),
-        summary = stringResource(R.string.perfect_icons_fixed_dark_summary),
-        explanation = stringResource(R.string.perfect_icons_fixed_dark_help),
-        checked = options.fixedDark, enabled = enabled,
-        tag = "perfect.options.fixed-dark",
-        onCheckedChange = { onOptionsChange(options.copy(fixedDark = it)) })
-    }
+    Os4ExplainedSwitchPreference(title = stringResource(R.string.perfect_icons_fixed_dark),
+      summary = stringResource(if (options.staticNight) R.string.perfect_icons_fixed_dark_summary
+        else R.string.perfect_icons_fixed_dark_requires_adaptation),
+      explanation = stringResource(R.string.perfect_icons_fixed_dark_help),
+      checked = options.useFixedDark, enabled = enabled && options.staticNight,
+      tag = "perfect.options.fixed-dark",
+      onCheckedChange = { onOptionsChange(options.copy(fixedDark = it)) })
     SwitchPreference(title = stringResource(R.string.perfect_icons_installed),
       summary = stringResource(R.string.perfect_icons_installed_summary),
       checked = options.installedOnly, enabled = enabled,

@@ -7,6 +7,7 @@
     <string name="perfect_icons_night_mode_derived">Additional dark adaptation</string>
     <string name="perfect_icons_fixed_dark">Fixed dark for ordinary icons</string>
     <string name="perfect_icons_fixed_dark_summary">Supported ordinary icons stay dark in light mode.</string>
+    <string name="perfect_icons_fixed_dark_requires_adaptation">Turn on icon light/dark adaptation first.</string>
     <string name="perfect_icons_fixed_dark_help">Generate one dark image per supported ordinary icon for smoother launcher transitions. These icons stay dark in light mode. Calendars and clocks keep their own appearance and animation. Generate and apply again after changes.</string>
     <string name="perfect_icons_night_disabled">Keep original icons and animations.</string>
     <string name="perfect_icons_night_disabled_help">Keep original layers, native animation and existing dark behavior. No additional derived dark artwork is generated.</string>

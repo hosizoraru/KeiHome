@@ -36,8 +36,8 @@ class ReleaseNotesReadDeviceTest {
       KeiHomeTheme {
         var open by remember { mutableStateOf(true) }
         val state by update.state.collectAsStateWithLifecycle()
-        if (open) ReleaseNotesScreen(onBack = { open = false }, unreadVersions = state.unreadVersions.toSet(),
-          onReadVersions = update::markRead)
+        if (open) ReleaseNotesScreen(onBack = { open = false }, currentVersion = state.observedVersion,
+          unreadVersions = state.unreadVersions.toSet(), onReadVersions = update::markRead)
         else Text("Done")
       }
     }

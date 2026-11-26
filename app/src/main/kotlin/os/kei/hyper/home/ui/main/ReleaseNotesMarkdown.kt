@@ -7,15 +7,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
@@ -53,18 +57,30 @@ private fun MarkdownBlocks(
   modifier: Modifier = Modifier,
   quoted: Boolean = false,
   tight: Boolean = false,
+  listItem: Boolean = false,
 ) {
   val colors = MiuixTheme.colorScheme
   val styles = MiuixTheme.textStyles
   val textColor = if (quoted) colors.onSurfaceSecondary else colors.onSurface
-  Column(modifier, verticalArrangement = Arrangement.spacedBy(if (tight) 4.dp else 8.dp)) {
-    blocks.forEach { block ->
+  val spacing = when {
+    tight || listItem -> 2.dp
+    else -> 10.dp
+  }
+  val hasLeadHeading = listItem && !quoted && blocks.size > 1 &&
+    (blocks.firstOrNull() as? ReleaseNotesBlock.Paragraph)?.isStrongLead() == true
+  Column(modifier, verticalArrangement = Arrangement.spacedBy(spacing)) {
+    blocks.forEachIndexed { index, block ->
       when (block) {
-        is ReleaseNotesBlock.Paragraph -> Text(
-          text = markdownText(block.content),
-          style = styles.body2,
-          color = textColor,
-        )
+        is ReleaseNotesBlock.Paragraph -> {
+          val isLead = hasLeadHeading && index == 0
+          val isLeadBody = hasLeadHeading && index > 0
+          Text(
+            text = markdownText(block.content),
+            style = styles.body2,
+            fontWeight = if (isLead) FontWeight.SemiBold else null,
+            color = if (isLeadBody) colors.onSurfaceSecondary else textColor,
+          )
+        }
         is ReleaseNotesBlock.Heading -> Text(
           text = markdownText(block.content),
           modifier = Modifier.semantics { heading() },
@@ -79,40 +95,81 @@ private fun MarkdownBlocks(
         is ReleaseNotesBlock.CodeBlock -> Text(
           text = AnnotatedString(block.text),
           modifier = Modifier.fillMaxWidth()
-            .background(colors.surfaceContainer, RoundedCornerShape(6.dp)).padding(8.dp),
+            .background(colors.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
           style = styles.body2,
           fontFamily = FontFamily.Monospace,
           color = textColor,
         )
         is ReleaseNotesBlock.Quote -> Row(
-          Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+          Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceVariant.copy(alpha = 0.55f))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .height(IntrinsicSize.Min),
           horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-          Box(Modifier.width(2.dp).fillMaxHeight().background(colors.outline))
-          MarkdownBlocks(block.blocks, Modifier.weight(1f), quoted = true, tight = tight)
+          Box(
+            Modifier.width(3.dp).fillMaxHeight()
+              .clip(CircleShape)
+              .background(colors.primary.copy(alpha = 0.65f)),
+          )
+          MarkdownBlocks(block.blocks, Modifier.weight(1f), quoted = true, tight = true)
         }
         is ReleaseNotesBlock.ListBlock -> {
+          val ordered = block.start != null
+          val structuredItems = block.items.any { item ->
+            item.size > 1 && (item.firstOrNull() as? ReleaseNotesBlock.Paragraph)?.isStrongLead() == true
+          }
           val measurer = rememberTextMeasurer()
           val density = LocalDensity.current
-          val markerWidth = remember(block.start, block.items.size, styles.body2, density, measurer) {
+          val bulletWidth = if (ordered) 0.dp else remember(block.items.size, styles.body2, density, measurer) {
             with(density) {
-              measurer.measure(block.marker((block.items.size - 1).coerceAtLeast(0)),
-                style = styles.body2).size.width.toDp()
-            }.coerceAtLeast(20.dp)
+              measurer.measure("\u2022", style = styles.body2).size.width.toDp()
+            }.coerceAtLeast(14.dp)
           }
           Column(
-            verticalArrangement = Arrangement.spacedBy(if (block.tight) 4.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(when {
+              block.tight -> 4.dp
+              structuredItems -> 12.dp
+              else -> 8.dp
+            }),
           ) {
-            block.items.forEachIndexed { index, item ->
-              Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                  text = block.marker(index),
-                  modifier = Modifier.width(markerWidth),
-                  style = styles.body2,
-                  color = textColor,
-                  textAlign = TextAlign.End,
-                )
-                MarkdownBlocks(item, Modifier.weight(1f), quoted = quoted, tight = block.tight)
+            block.items.forEachIndexed { itemIndex, item ->
+              Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+              ) {
+                if (ordered) {
+                  val numberLabel = "${block.start.toLong() + itemIndex}"
+                  Box(
+                    modifier = Modifier
+                      .padding(top = 1.dp)
+                      .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                      .clip(CircleShape)
+                      .background(colors.primary.copy(alpha = 0.12f))
+                      .padding(horizontal = 5.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center,
+                  ) {
+                    Text(
+                      text = numberLabel,
+                      style = styles.footnote2,
+                      fontWeight = FontWeight.SemiBold,
+                      color = colors.primary,
+                      textAlign = TextAlign.Center,
+                    )
+                  }
+                } else {
+                  Text(
+                    text = block.marker(itemIndex),
+                    modifier = Modifier.width(bulletWidth),
+                    style = styles.body2,
+                    color = colors.onSurfaceSecondary,
+                    textAlign = TextAlign.Center,
+                  )
+                }
+                MarkdownBlocks(item, Modifier.weight(1f), quoted = quoted, tight = block.tight, listItem = true)
               }
             }
           }
@@ -125,9 +182,13 @@ private fun MarkdownBlocks(
   }
 }
 
+private fun ReleaseNotesBlock.Paragraph.isStrongLead(): Boolean =
+  content.isNotEmpty() && content.any { it.text.isNotBlank() } &&
+    content.all { it.strong || it.text.isBlank() }
+
 @Composable
 private fun markdownText(content: List<ReleaseNotesInline>): AnnotatedString {
-  val codeBackground = MiuixTheme.colorScheme.surfaceContainer
+  val codeBackground = MiuixTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
   val linkColor = MiuixTheme.colorScheme.primary
   return remember(content, codeBackground, linkColor) {
     buildAnnotatedString {

@@ -2,21 +2,27 @@ package os.kei.hyper.home.ui.main
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,6 +33,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -39,6 +46,8 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -55,20 +64,27 @@ import os.kei.hyper.home.ui.components.rememberKeiHomeBlurBackdrop
 import os.kei.hyper.home.ui.components.KeiHomeIconButton as IconButton
 import os.kei.hyper.home.ui.components.KeiHomeScaffold as Scaffold
 import os.kei.hyper.home.ui.components.KeiHomeTopAppBar as TopAppBar
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.VerticalScrollBar
+import top.yukonga.miuix.kmp.basic.rememberScrollBarAdapter
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Back
 import top.yukonga.miuix.kmp.icon.glass.ChevronForward
+import top.yukonga.miuix.kmp.icon.glass.Info
+import top.yukonga.miuix.kmp.icon.glass.Ok
 import top.yukonga.miuix.kmp.icon.glass.SelectAll
 import top.yukonga.miuix.kmp.icon.glass.UsageHelp
+import top.yukonga.miuix.kmp.interfaces.ExperimentalScrollBarApi
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
+@OptIn(ExperimentalScrollBarApi::class)
 @Composable
 internal fun ReleaseNotesScreen(
   onBack: () -> Unit,
@@ -101,8 +117,17 @@ internal fun ReleaseNotesScreen(
   val actionClearance = if (onContinue != null) {
     maxOf(100.dp, with(LocalDensity.current) { actionHeight.toDp() } + 24.dp)
   } else 24.dp
-  val scroll = rememberScrollState()
+  val allScroll = rememberScrollState()
+  val unreadScroll = rememberScrollState()
   val behavior = MiuixScrollBehavior()
+  LaunchedEffect(unreadOnly) {
+    val active = if (unreadOnly) unreadScroll else allScroll
+    if (active.value == 0) {
+      behavior.state.heightOffset = 0f
+      behavior.state.contentOffset = 0f
+      behavior.state.overscrollOffset = 0f
+    }
+  }
   val backdrop = rememberKeiHomeBlurBackdrop()
   val surface = MiuixTheme.colorScheme.surface
   Scaffold(
@@ -152,6 +177,8 @@ internal fun ReleaseNotesScreen(
       }
     },
   ) { insets ->
+    val topPadding = insets.calculateTopPadding() + 12.dp
+    val bottomPadding = insets.calculateBottomPadding() + actionClearance + 12.dp
     Box(
       Modifier.fillMaxSize()
         .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
@@ -159,65 +186,109 @@ internal fun ReleaseNotesScreen(
     ) {
       Crossfade(targetState = unreadOnly to if (unreadOnly) unreadVersions else emptySet(),
         animationSpec = tween(180), label = "release-notes.views") { (onlyUnread, viewUnread) ->
-      val visible = releases.filter { !onlyUnread || it.version in viewUnread }
-      val viewScroll = if (onlyUnread) rememberScrollState() else scroll
-      Column(
-        Modifier.widthIn(max = 840.dp).fillMaxSize()
-          .testTag("release-notes.content")
-          .drawWithCache {
-            val fadeHeight = if (onContinue == null) 0f else (actionClearance + 24.dp).toPx().coerceAtMost(size.height)
-            val start = size.height - fadeHeight
-            val fade = Brush.verticalGradient(listOf(surface.copy(alpha = 0f), surface.copy(alpha = .6f), surface),
-              startY = start, endY = size.height)
-            onDrawWithContent {
-              drawContent()
-              if (fadeHeight > 0f) drawRect(fade, topLeft = Offset(0f, start), size = Size(size.width, fadeHeight))
-            }
-          }
-          .keiHomeTopBarScroll(behavior)
-          .verticalScroll(viewScroll, overscrollEffect = null)
-          .padding(
-            start = 16.dp, end = 16.dp,
-            top = insets.calculateTopPadding() + 12.dp,
-            bottom = insets.calculateBottomPadding() + actionClearance + 12.dp,
-          ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-      ) {
-        if (onOpenGuide != null) {
-          Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
-            BasicComponent(title = stringResource(R.string.setup_title),
-              summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
-              startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
-              endActions = { Icon(MiuixIcons.Glass.ChevronForward, null) },
-              modifier = Modifier.testTag("release-notes.guide"))
-          }
+        val visible = releases.filter { !onlyUnread || it.version in viewUnread }
+        val viewScroll = if (onlyUnread) unreadScroll else allScroll
+        val scrollable by remember(viewScroll) {
+          derivedStateOf { viewScroll.canScrollForward || viewScroll.canScrollBackward }
         }
-        visible.forEach { release ->
-          key(release.version) {
-            ReleaseNotesCard(
-              release = release,
-              expanded = release.version in openedVersions,
-              highlighted = release.version in unreadVersions,
-              onRead = { onReadVersions(setOf(release.version)) },
-              onToggle = {
-                openedVersions = if (release.version in openedVersions) {
-                  openedVersions - release.version
-                } else {
-                  viewedVersions = (viewedVersions + release.version).distinct()
-                  openedVersions + release.version
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+          Column(
+            Modifier.widthIn(max = 840.dp).fillMaxSize()
+              .testTag("release-notes.content")
+              .drawWithCache {
+                val fadeHeight = if (onContinue == null) 0f else (actionClearance + 24.dp).toPx().coerceAtMost(size.height)
+                val start = size.height - fadeHeight
+                val fade = Brush.verticalGradient(listOf(surface.copy(alpha = 0f), surface.copy(alpha = .6f), surface),
+                  startY = start, endY = size.height)
+                onDrawWithContent {
+                  drawContent()
+                  if (fadeHeight > 0f) drawRect(fade, topLeft = Offset(0f, start), size = Size(size.width, fadeHeight))
                 }
-              },
+              }
+              .keiHomeTopBarScroll(behavior)
+              .verticalScroll(viewScroll, overscrollEffect = null)
+              .padding(
+                start = 16.dp, end = 16.dp,
+                top = topPadding,
+                bottom = bottomPadding,
+              ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            if (onOpenGuide != null) {
+              Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(0.dp)) {
+                BasicComponent(title = stringResource(R.string.setup_title),
+                  summary = stringResource(R.string.setup_replay_summary), onClick = onOpenGuide,
+                  startAction = { Icon(MiuixIcons.Glass.UsageHelp, null, tint = MiuixTheme.colorScheme.primary) },
+                  endActions = {
+                    Icon(MiuixIcons.Glass.ChevronForward, null, tint = MiuixTheme.colorScheme.onSurfaceSecondary)
+                  },
+                  modifier = Modifier.testTag("release-notes.guide"))
+              }
+            }
+            visible.forEach { release ->
+              key(release.version) {
+                ReleaseNotesCard(
+                  release = release,
+                  current = parsedCurrent != null && ReleaseVersion.parse(release.version) == parsedCurrent,
+                  expanded = release.version in openedVersions,
+                  highlighted = release.version in unreadVersions,
+                  onRead = { onReadVersions(setOf(release.version)) },
+                  onToggle = {
+                    openedVersions = if (release.version in openedVersions) {
+                      openedVersions - release.version
+                    } else {
+                      viewedVersions = (viewedVersions + release.version).distinct()
+                      openedVersions + release.version
+                    }
+                  },
+                )
+              }
+            }
+            if (visible.isEmpty()) {
+              ReleaseNotesEmptyCard(onlyUnread = onlyUnread)
+            }
+            Spacer(Modifier.fillMaxWidth().height(1.dp).testTag("release-notes.end"))
+          }
+          if (scrollable) {
+            VerticalScrollBar(
+              adapter = rememberScrollBarAdapter(viewScroll),
+              modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().testTag("release-notes.scrollbar"),
+              trackPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
+              topAppBarScrollBehavior = behavior,
             )
           }
         }
-        if (visible.isEmpty()) {
-          Text(stringResource(if (onlyUnread) R.string.release_notes_ui_no_unread else R.string.release_notes_ui_empty),
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceSecondary)
-        }
-        Spacer(Modifier.fillMaxWidth().height(1.dp).testTag("release-notes.end"))
       }
+    }
+  }
+}
+
+@Composable
+private fun ReleaseNotesEmptyCard(onlyUnread: Boolean) {
+  val accent = if (onlyUnread) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceSecondary
+  Card(Modifier.fillMaxWidth().testTag("release-notes.empty"), insideMargin = PaddingValues(0.dp)) {
+    Column(
+      Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 28.dp),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      Box(
+        Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          if (onlyUnread) MiuixIcons.Glass.Ok else MiuixIcons.Glass.Info,
+          contentDescription = null,
+          tint = accent,
+          modifier = Modifier.size(22.dp),
+        )
       }
+      Text(
+        stringResource(if (onlyUnread) R.string.release_notes_ui_no_unread else R.string.release_notes_ui_empty),
+        style = MiuixTheme.textStyles.body2,
+        color = MiuixTheme.colorScheme.onSurfaceSecondary,
+        textAlign = TextAlign.Center,
+      )
     }
   }
 }
@@ -225,6 +296,7 @@ internal fun ReleaseNotesScreen(
 @Composable
 private fun ReleaseNotesCard(
   release: ReleaseNote,
+  current: Boolean,
   expanded: Boolean,
   highlighted: Boolean,
   onToggle: () -> Unit,
@@ -238,6 +310,7 @@ private fun ReleaseNotesCard(
       }.getOrNull()
     }
   }
+  val intro = if (release.introduction == 0) "" else stringResource(release.introduction)
   Card(Modifier.fillMaxWidth().testTag("release-notes.release.${release.version}"),
     insideMargin = PaddingValues(0.dp)) {
     Os4DisclosureHeader(
@@ -254,32 +327,60 @@ private fun ReleaseNotesCard(
       onToggle = onToggle,
       modifier = Modifier.testTag("release-notes.toggle.${release.version}").semantics { heading() },
       titleContent = {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-          Text(release.version, style = MiuixTheme.textStyles.headline1,
-            modifier = Modifier.testTag("release-notes.version.${release.version}"))
-          if (release.committedAt != null) {
-            MetadataPill(date ?: stringResource(R.string.release_notes_ui_date_unavailable),
-              MiuixTheme.colorScheme.onSurfaceSecondary,
-              Modifier.testTag("release-notes.date.${release.version}"))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text(release.version, style = MiuixTheme.textStyles.headline1,
+              modifier = Modifier.testTag("release-notes.version.${release.version}"))
+            if (release.committedAt != null) {
+              MetadataPill(date ?: stringResource(R.string.release_notes_ui_date_unavailable),
+                MiuixTheme.colorScheme.onSurfaceSecondary,
+                Modifier.testTag("release-notes.date.${release.version}"))
+            }
+            if (current) {
+              MetadataPill(stringResource(R.string.release_notes_ui_current),
+                if (highlighted) MiuixTheme.colorScheme.onSurfaceSecondary else MiuixTheme.colorScheme.primary,
+                Modifier.testTag("release-notes.current.${release.version}"))
+            }
+            if (highlighted) {
+              MetadataPill(stringResource(R.string.release_notes_ui_unread),
+                MiuixTheme.colorScheme.primary)
+            }
           }
-          if (highlighted) {
-            MetadataPill(stringResource(R.string.release_notes_ui_unread),
-              MiuixTheme.colorScheme.primary)
+          if (!expanded && intro.isNotBlank()) {
+            Text(
+              text = intro,
+              style = MiuixTheme.textStyles.body2,
+              color = MiuixTheme.colorScheme.onSurfaceSecondary,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.testTag("release-notes.summary.${release.version}"),
+            )
           }
         }
       },
     )
     Os4DisclosureContent(expanded) {
-      ReleaseNotesBody(release)
-      if (highlighted) TextButton(text = stringResource(R.string.release_notes_ui_mark_read), onClick = onRead,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag("release-notes.read.${release.version}"))
+      HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+      ReleaseNotesBody(release, hasFooterAction = highlighted)
+      if (highlighted) {
+        Row(
+          Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+          horizontalArrangement = Arrangement.End,
+        ) {
+          TextButton(
+            text = stringResource(R.string.release_notes_ui_mark_read),
+            onClick = onRead,
+            modifier = Modifier.testTag("release-notes.read.${release.version}"),
+          )
+        }
+      }
     }
   }
 }
 
 @Composable
-private fun ReleaseNotesBody(release: ReleaseNote) {
+private fun ReleaseNotesBody(release: ReleaseNote, hasFooterAction: Boolean) {
   val intro = if (release.introduction == 0) "" else stringResource(release.introduction)
   val changes = if (release.changes == 0) emptyList() else stringArrayResource(release.changes).toList()
   val footnote = if (release.footnote == 0) "" else stringResource(release.footnote)
@@ -295,8 +396,11 @@ private fun ReleaseNotesBody(release: ReleaseNote) {
       if (footnote.isNotBlank()) append("> ").append(footnote.replace("\n", "\n> "))
     }.trim()
   }
-  Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 18.dp)
-    .testTag("release-notes.body.${release.version}")) {
+  Box(
+    Modifier.fillMaxWidth()
+      .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = if (hasFooterAction) 10.dp else 14.dp)
+      .testTag("release-notes.body.${release.version}"),
+  ) {
     ReleaseNotesMarkdown(markdown)
   }
 }
